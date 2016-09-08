@@ -16,26 +16,40 @@
 # Controller for syncing kubernetes network policy with ACI using the
 # ACI integration module.
 #
-# This is based on the Calico k8-spolicy controller which can be found at:
+# This is based on the Calico k8s-policy controller which can be found at:
 # https://github.com/projectcalico/k8s-policy
+
+import six
 
 import logging
 import os
-import queue
 import requests
 import sys
-import json
+import simplejson as json
 import time
 import aim
+
+if six.PY2:
+    import Queue as queue
+else:
+    import queue
 
 from threading import Thread
 from constants.logging import *
 from constants.k8s import *
+from constants.aim import *
+
+import sqlalchemy
+from aim import aim_manager
+from aim.api import resource as aim_resource
+from aim import context as aim_context
+from aim import utils as aim_utils
 
 from . network_policy import (add_update_network_policy,
                             delete_network_policy)
 from . namespace import add_update_namespace, delete_namespace
-from . pod import add_pod, update_pod, delete_pod
+from . pod import add_update_pod, delete_pod
+import aci_setup
 
 _log = logging.getLogger("__main__")
 
@@ -67,6 +81,16 @@ class Controller(object):
         True if a CA cert has been mounted by Kubernetes.
         """
 
+        self.client_key = os.environ.get("K8S_CLIENT_KEY", None)
+        """
+        Initialize to the client key to use to connect to API
+        """
+
+        self.client_cert = os.environ.get("K8S_CLIENT_CERT", None)
+        """
+        Initialize to the client certificate to use to connect to API
+        """
+
         self._leader_election_url = os.environ.get("ELECTION_URL",
                                                    "http://127.0.0.1:4040/")
         """
@@ -80,6 +104,21 @@ class Controller(object):
         policy controller will assume it is the only instance.
         """
 
+        self._aim = aim_manager.AimManager()
+        """
+        AIM manager for configuring ACI policy
+        """
+
+        connection_str = os.environ.get("AIM_DB_CONNECTION", AIM_DB_CONNECTION)
+        engine = sqlalchemy.create_engine(connection_str)
+        session_maker = sqlalchemy.orm.sessionmaker(bind=engine, autocommit=True)
+        self._aim_context = aim_context.AimContext(db_session=session_maker())
+        """
+        AIM context for making changes to AIM database
+        """
+
+        self._aci_tenant = os.environ.get("ACI_TENANT", ACI_TENANT)
+        
         self._handlers = {}
         """
         Keeps track of which handlers to execute for various events.
@@ -103,9 +142,9 @@ class Controller(object):
 
         # Handlers for Pod events.
         self.add_handler(RESOURCE_TYPE_POD, TYPE_ADDED,
-                         add_pod)
+                         add_update_pod)
         self.add_handler(RESOURCE_TYPE_POD, TYPE_MODIFIED,
-                         update_pod)
+                         add_update_pod)
         self.add_handler(RESOURCE_TYPE_POD, TYPE_DELETED,
                          delete_pod)
 
@@ -136,6 +175,12 @@ class Controller(object):
         _log.debug("Looking up handler for event: %s", key)
         return self._handlers[key]
 
+    def initialize(self):
+        """
+        Initialize the environment to prepare for kubernetes policy
+        """
+        aci_setup.aci_setup(self)
+    
     def run(self):
         """
         Controller.run() is called at program init to spawn watch threads,
@@ -163,6 +208,8 @@ class Controller(object):
         #                           order=NET_POL_BACKSTOP_ORDER,
         #                           rules=rules)
 
+        self.initialize()
+        
         # Read initial state from Kubernetes API.
         self.start_workers()
 
@@ -253,10 +300,10 @@ class Controller(object):
                 event_type, resource_type, resource = update
 
                 # We've recieved an update - process it.
-                _log.debug("Read event: %s, %s, %s",
-                           event_type,
-                           resource_type,
-                           json.dumps(resource, indent=2))
+                #_log.debug("Read event: %s, %s, %s",
+                #           event_type,
+                #           resource_type,
+                #           json.dumps(resource, indent=2))
                 self._process_update(event_type,
                                      resource_type,
                                      resource)
@@ -290,7 +337,7 @@ class Controller(object):
                          event_type, resource_type)
         else:
             try:
-                handler(resource)
+                handler(self, resource)
                 _log.info("Handled %s for %s: %s",
                            event_type, resource_type, key)
             except KeyError:
@@ -319,8 +366,9 @@ class Controller(object):
                 _log.debug("Kubernetes API error managing %s", resource_type)
             except queue.Full:
                 _log.exception("Event queue full")
-            except Exception:
-                _log.exception("Unahandled exception killed %s manager", resource_type)
+            except Exception as e:
+                _log.exception("Unhandled exception %s killed %s manager",
+                               repr(e), resource_type)
             finally:
                 # Sleep for a second so that we don't tight-loop.
                 _log.warning("Re-starting watch on resource: %s",
@@ -420,6 +468,9 @@ class Controller(object):
                                   block=True,
                                   timeout=QUEUE_PUT_TIMEOUT)
 
+        # XXX TODO Need to delete any stale objects that might be
+        # present in AIM but not in kubernetes API
+
         _log.info("Done getting %s(s) - new resourceVersion: %s",
                   resource_type, resource_version)
         return resource_version
@@ -442,6 +493,9 @@ class Controller(object):
             path += "?resourceVersion=%s" % resource_version
 
         session = requests.Session()
+        if self.client_key is not None and self.client_cert is not None:
+            _log.info("%s %s" % (self.client_cert, self.client_key))
+            session.cert = (self.client_cert, self.client_key)
         if self.auth_token:
             session.headers.update({'Authorization': 'Bearer ' + self.auth_token})
         verify = CA_CERT_PATH if self.ca_crt_exists else False

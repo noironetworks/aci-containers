@@ -18,7 +18,7 @@ setup(
     url='https://github.com/noironetworks/opflex-cont',
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
-    install_requires = ['requests'],
+    install_requires = ['requests', 'aci-integration-module'],
     entry_points = {
         'console_scripts': [
             'opflex-agent-cni=cni.opflex_agent_cni:cni_main',

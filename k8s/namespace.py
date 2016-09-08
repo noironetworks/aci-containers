@@ -13,53 +13,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Controller for syncing kubernetes network policy with ACI using the
-# ACI integration module.
-#
-# This is based on the Calico k8-spolicy controller which can be found at:
-# https://github.com/projectcalico/k8s-policy
-
 import logging
-import json
+import simplejson as json
+
+from aim.api import resource as aim_resource
+from aim import context as aim_context
+
+from constants.k8s import *
 
 _log = logging.getLogger("__main__")
-#client = DatastoreClient()
 
-
-def add_update_namespace(namespace):
+def add_update_namespace(controller, namespace):
     """
     Configures the necessary policy in Calico for this
     namespace.  Uses the `net.alpha.kubernetes.io/network-isolation`
     annotation.
     """
-    #namespace_name = namespace["metadata"]["name"]
-    #_log.debug("Adding/updating namespace: %s", namespace_name)
-    #
-    ## Determine the type of network-isolation specified by this namespace.
-    ## This defaults to no isolation.
-    #annotations = namespace["metadata"].get("annotations", {})
-    #_log.debug("Namespace %s has annotations: %s", namespace_name, annotations)
-    #policy_annotation = annotations.get(NS_POLICY_ANNOTATION, "{}")
-    #try:
-    #    policy_annotation = json.loads(policy_annotation)
-    #except ValueError, TypeError:
-    #    _log.exception("Failed to parse namespace annotations: %s", annotations)
-    #    return
-    #
-    ## Parsed the annotation - get data.  Might not be a dict, so be careful
-    ## to catch an AttributeError if it has no get() method.
-    #try:
-    #    ingress_isolation = policy_annotation.get("ingress", {}).get("isolation", "")
-    #except AttributeError:
-    #    _log.exception("Invalid namespace annotation: %s", policy_annotation)
-    #    return
-    #
-    #isolate_ns = ingress_isolation == "DefaultDeny"
-    #_log.debug("Namespace %s has %s.  Isolate=%s",
-    #        namespace_name, ingress_isolation, isolate_ns)
-    #
-    ## Determine the profile name to create.
-    #profile_name = NS_PROFILE_FMT % namespace_name
+    namespace_name = namespace["metadata"]["name"]
+    _log.debug("Adding/updating namespace: %s", namespace_name)
+    
+    # Determine the type of network-isolation specified by this namespace.
+    # This defaults to no isolation.
+    annotations = namespace["metadata"].get("annotations", {})
+    _log.debug("Namespace %s has annotations: %s", namespace_name, annotations)
+    policy_annotation = annotations.get(NS_POLICY_ANNOTATION, "{}")
+    try:
+        policy_annotation = json.loads(policy_annotation)
+    except ValueError, TypeError:
+        _log.exception("Failed to parse namespace annotations: %s", annotations)
+        return
+    
+    # Parsed the annotation - get data.  Might not be a dict, so be careful
+    # to catch an AttributeError if it has no get() method.
+    try:
+        ingress_isolation = policy_annotation.get("ingress",
+                                                  {}).get("isolation", "")
+    except AttributeError:
+        _log.exception("Invalid namespace annotation: %s", policy_annotation)
+        return
+    
+    isolate_ns = ingress_isolation == "DefaultDeny"
+    _log.debug("Namespace %s has %s.  Isolate=%s",
+            namespace_name, ingress_isolation, isolate_ns)
+    
+    # Determine the profile name to create.
+    bd = aim_resource.BridgeDomain(tenant_name = controller._aci_tenant,
+                                   name = ACI_BD_FMT % namespace_name,
+                                   vrf_name = ACI_VRF_FMT % controller._aci_tenant)
+    bd = controller._aim.create(controller._aim_context, bd, overwrite=True)
+    _log.info("Created BD for namespace %s: %s" % (namespace_name, bd.dn))
+    
+    #aim.get(aim_context, namespace_name
     #
     ## Determine the rules to use.
     #outbound_rules = [Rule(action="allow")]
@@ -91,20 +95,15 @@ def add_update_namespace(namespace):
     #    pass
     #
     #_log.debug("Created/updated profile for namespace %s", namespace_name)
-    pass
 
 
-def delete_namespace(namespace):
+def delete_namespace(controller, namespace):
     """
     Takes a deleted namespace and removes the corresponding
     configuration from the Calico datastore.
     """
-    ## Delete the Calico policy which represnets this namespace.
-    #namespace_name = namespace["metadata"]["name"]
-    #profile_name = NS_PROFILE_FMT % namespace_name
-    #_log.debug("Deleting namespace profile: %s", profile_name)
-    #try:
-    #    client.remove_profile(profile_name)
-    #except KeyError:
-    #    _log.info("Unable to find profile for namespace '%s'", namespace_name)
-    pass
+    namespace_name = namespace["metadata"]["name"]
+    bd = aim_resource.BridgeDomain(tenant_name = controller._aci_tenant,
+                                   name = ACI_BD_FMT % namespace_name)
+    controller._aim.delete(controller._aim_context, bd)
+    _log.info("Delete BD for namespace %s: %s" % (namespace_name, bd.dn))

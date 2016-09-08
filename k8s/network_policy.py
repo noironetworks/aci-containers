@@ -13,24 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Controller for syncing kubernetes network policy with ACI using the
-# ACI integration module.
-#
-# This is based on the Calico k8-spolicy controller which can be found at:
-# https://github.com/projectcalico/k8s-policy
-
+import simplejson as json
 import logging
-import json
 import os
 
 from constants.logging import *
-# from policy_parser import PolicyParser
 
 _log = logging.getLogger("__main__")
-#client = DatastoreClient()
 
+from aim.api import resource as aim_resource
+from aim import context as aim_context
 
-def add_update_network_policy(policy):
+def add_update_network_policy(controller, policy):
     """
     Takes a new network policy from the Kubernetes API and
     creates the corresponding Calico policy configuration.
@@ -64,7 +58,7 @@ def add_update_network_policy(policy):
     pass
 
 
-def delete_network_policy(policy):
+def delete_network_policy(controller, policy):
     """
     Takes a deleted network policy and removes the corresponding
     configuration from the Calico datastore.

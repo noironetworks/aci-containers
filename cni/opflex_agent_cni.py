@@ -14,15 +14,23 @@
 
 # CNI plugin executable for OpFlex Agent container integration
 
-import json
 import sys
 import os
 import logging
 import shutil
 import subprocess
+import simplejson as json
 
 from constants.logging import *
 from constants.cni import *
+
+import six
+import __future__
+
+if six.PY2:
+    from compat import shutilwhich
+else:
+    from shutil import which as shutilwhich
 
 errors = {
     'PARAM': 100,
@@ -42,48 +50,53 @@ def handleError(message, code, details=None):
                "code": code,
                "msg": message,
                "details": details}, sys.stdout, indent=2, sort_keys=True)
-    print()
+    print('')
     sys.exit(code)
 
 # Execute the IPAM plugin to get IP address information
 def executeIPAM(netconfig):
     path=os.environ.get('CNI_PATH', os.environ.get('PATH', os.defpath))
     cniexe = netconfig['ipam']['type']
-    exe = shutil.which(cniexe, path=path)
+    exe = shutilwhich(cniexe, path=path)
     if exe is None:
         handleError("Could not find CNI plugin executable", errors['PATH'],
                     "%s not found in %s" % (cniexe, path))
     try:
         _log.debug("Running IPAM module \"%s\"" % exe)
-        with subprocess.Popen([exe],
-                              stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE,
-                              universal_newlines=True) as proc:
-            try:
-                (ipamres, ipamerr) = proc.communicate(input=json.dumps(netconfig),
-                                                      timeout=30)
-                result = json.loads(ipamres)
+        proc = subprocess.Popen([exe],
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE,
+                                universal_newlines=True)
 
-                if proc.returncode != 0:
-                    handleError("Error executing IPAM module", errors['IPAM'],
-                                "(%d) %s: %s" %
-                                (result.get("code", -1),
-                                 result.get("msg", "[No Message]"),
-                                 result.get("details", "[No Details]")))
-                return result
-            except subprocess.TimeoutExpired:
+        try:
+            (ipamres, ipamerr) = proc.communicate(input=json.dumps(netconfig))
+
+            result = json.loads(ipamres)
+            
+            if proc.returncode != 0:
+                details = (result.get("details", "[No Details]") +
+                           "\nStandard Error:" + ipamerr)
+                handleError("Error executing IPAM module", errors['IPAM'],
+                            "(%d) %s: %s" %
+                            (result.get("code", -1),
+                             result.get("msg", "[No Message]"),
+                             details))
+        finally:
+            if proc.returncode is None:
                 proc.kill()
-                handleError("Timed out executing IPAM module", errors['IPAM'])
+                proc.wait()
+
+        return result
 
     except OSError as e:
         handleError("Could not execute IPAM module %s" % exe, errors['OS'],
-                    str(e))
+                    repr(e))
     except json.JSONDecodeError as e:
         handleError("Could not decode IPAM module output: %s" % exe, errors['INPUT'],
                     str(e))
     except Exception as e:
         handleError("Error executing IPAM module: %s" % exe, errors['IPAM'],
-                    str(e))
+                    repr(e))
     
 def cni_main():
     log_level = os.environ.get("LOG_LEVEL", "info").upper()
@@ -123,7 +136,7 @@ def cni_main():
 
     ipamresult = executeIPAM(netconfig)
     json.dump(ipamresult, sys.stdout, indent=2, sort_keys=True)
-    print()
+    print('')
 
 if __name__ == "__main__":
     cni_main()
