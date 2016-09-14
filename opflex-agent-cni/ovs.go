@@ -316,8 +316,3 @@ func execTransaction(ovs *libovsdb.OvsdbClient, ops []libovsdb.Operation) error 
 	}
 	return nil
 }
-
-func cleanupPort(socket string, intBrName string,
-	accessBrName string, hostVethName string) {
-
-}

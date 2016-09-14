@@ -1,5 +1,5 @@
 
-SRCFILES=opflex-agent-cni.go ovs.go
+SRCFILES=opflex-agent-cni.go ovs.go metadata.go
 
 all: vendor dist/opflex-agent-cni
 

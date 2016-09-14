@@ -26,7 +26,6 @@ import (
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
-	//	"github.com/containernetworking/cni/pkg/utils"
 	"github.com/vishvananda/netlink"
 )
 
@@ -34,6 +33,7 @@ const defaultIntBrName = "br-int"
 const defaultAccessBrName = "br-access"
 const defaultMTU = 1500
 const defaultOvsDbSock = "/var/run/openvswitch/db.sock"
+const defaultMetadataDir = "/var/lib/cni/opflex-networks"
 
 type NetConf struct {
 	types.NetConf
@@ -41,6 +41,7 @@ type NetConf struct {
 	IntBrName    string `json:"int-bridge"`
 	AccessBrName string `json:"access-bridge"`
 	MTU          int    `json:"mtu"`
+	MetadataDir  string `json:"metadata-dir"`
 }
 
 func init() {
@@ -56,6 +57,7 @@ func loadNetConf(bytes []byte) (*NetConf, error) {
 		IntBrName:    defaultIntBrName,
 		AccessBrName: defaultAccessBrName,
 		MTU:          defaultMTU,
+		MetadataDir:  defaultMetadataDir,
 	}
 	if err := json.Unmarshal(bytes, n); err != nil {
 		return nil, fmt.Errorf("failed to load netconf: %v", err)
@@ -63,8 +65,9 @@ func loadNetConf(bytes []byte) (*NetConf, error) {
 	return n, nil
 }
 
-func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, error) {
+func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, mac, error) {
 	var hostVethName string
+	var mac string
 
 	err := netns.Do(func(hostNS ns.NetNS) error {
 		// create the veth pair in the container and move host end into host netns
@@ -74,6 +77,7 @@ func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, error) {
 		}
 
 		hostVethName = hostVeth.Attrs().Name
+		mac = string(hostVeth.Attrs().HardwareAddr)
 		return nil
 	})
 
@@ -92,7 +96,18 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer netns.Close()
 
-	hostVethName, err := setupVeth(netns, args.IfName, n.MTU)
+	hostVethName, ifaceMac, err := setupVeth(netns, args.IfName, n.MTU)
+	if err != nil {
+		return err
+	}
+
+	metadata := ContainerMetadata{
+		Id:           args.ContainerID,
+		HostVethName: hostVethName,
+		NetNS:        args.Netns,
+		MAC:          ifaceMac,
+	}
+	err = recordMetadata(n.MetadataDir, n.Name, metadata)
 	if err != nil {
 		return err
 	}
@@ -108,9 +123,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	// TODO: make this optional when IPv6 is supported
-	if result.IP4 == nil {
-		return errors.New("IPAM plugin returned missing IPv4 config")
+	if result.IP4 == nil && result.IP6 == nil {
+		return errors.New("IPAM plugin returned missing IP config")
 	}
 
 	if err := netns.Do(func(_ ns.NetNS) error {
@@ -141,14 +155,10 @@ func cmdDel(args *skel.CmdArgs) error {
 		return nil
 	}
 
-	var hostVethName string
 	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
 		iface, err := netlink.LinkByName(args.IfName)
 		if err != nil {
 			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
-		}
-		if veth, ok := iface.(*netlink.Veth); ok {
-			hostVethName = veth.PeerName
 		}
 
 		err = netlink.LinkDel(iface)
@@ -162,11 +172,26 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if hostVethName != "" {
-		err = delPorts(n.OvsDbSock, n.IntBrName, n.AccessBrName, hostVethName)
+	metadata, err := getMetadata(n.MetadataDir, n.Name, args.ContainerID)
+	if err != nil {
+		return err
+	}
+
+	err = clearMetadata(n.MetadataDir, n.Name, args.ContainerID)
+	if err != nil {
+		return err
+	}
+
+	if metadata.HostVethName != "" {
+		err = delPorts(n.OvsDbSock, n.IntBrName,
+			n.AccessBrName, metadata.HostVethName)
 		if err != nil {
 			return err
 		}
+	}
+
+	if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
+		return err
 	}
 
 	return nil
