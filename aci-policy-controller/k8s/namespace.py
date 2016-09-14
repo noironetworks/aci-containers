@@ -54,7 +54,7 @@ def add_update_namespace(controller, namespace):
     
     isolate_ns = ingress_isolation == "DefaultDeny"
     _log.debug("Namespace %s has %s.  Isolate=%s",
-            namespace_name, ingress_isolation, isolate_ns)
+               namespace_name, ingress_isolation, isolate_ns)
     
     # Determine the profile name to create.
     bd = aim_resource.BridgeDomain(tenant_name = controller._aci_tenant,

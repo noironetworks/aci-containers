@@ -1,0 +1,37 @@
+hash: 335c37c9869cc63ffe22dbb7e442e620de20ba1d3012e63ea57fb021b72df58e
+updated: 2016-09-13T15:02:44.730826449-07:00
+imports:
+- name: github.com/cenk/hub
+  version: 11382a9960d39b0ecda16fd01c424c11ff765a34
+- name: github.com/cenk/rpc2
+  version: 7ab76d2e88c77ca1a715756036d8264b2886acd2
+  subpackages:
+  - jsonrpc
+- name: github.com/containernetworking/cni
+  version: 5c3c17164270150467498a32c71436c7cd5501be
+  subpackages:
+  - pkg/invoke
+  - pkg/ip
+  - pkg/ipam
+  - pkg/ns
+  - pkg/skel
+  - pkg/types
+- name: github.com/coreos/go-iptables
+  version: 5463fbac3bcc6b990663941c2e12660d19f6b36d
+  subpackages:
+  - iptables
+- name: github.com/satori/go.uuid
+  version: 879c5887cd475cd7864858769793b2ceb0d44feb
+- name: github.com/socketplane/libovsdb
+  version: 5113f8fb4d9d374417ab4ce35424fbea1aad7272
+- name: github.com/vishvananda/netlink
+  version: 63381f39fceb1c5c13503a90e1c2603caeafe3c5
+  subpackages:
+  - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
+- name: golang.org/x/sys
+  version: 30de6d19a3bd89a5f38ae4028e23aaa5582648af
+  subpackages:
+  - unix
+testImports: []
