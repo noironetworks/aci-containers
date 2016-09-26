@@ -12,40 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cnimetadata
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
 type ContainerMetadata struct {
+	Namespace    string `json:"namespace"`
+	Pod          string `json:"pod"`
 	Id           string `json:"id"`
 	HostVethName string `json:"host-veth-name"`
 	NetNS        string `json:"net-ns"`
 	MAC          string `json:"mac"`
 }
 
-func recordMetadata(datadir string, network string, data ContainerMetadata) error {
+func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
 	dir := filepath.Join(datadir, network)
 	if err := os.MkdirAll(dir, 0644); err != nil {
 		return err
 	}
 	datafile := filepath.Join(dir, data.Id)
-	datacont, err := json.Marshal(data)
+	datacont, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(datafile, datacont, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(datafile, datacont, 0644)
 }
 
-func getMetadata(datadir string, network string, id string) (*ContainerMetadata, error) {
+func GetMetadata(datadir string, network string, id string) (*ContainerMetadata, error) {
 	data := &ContainerMetadata{}
 
 	datafile := filepath.Join(datadir, network, id)
@@ -58,7 +57,12 @@ func getMetadata(datadir string, network string, id string) (*ContainerMetadata,
 	return data, err
 }
 
-func clearMetadata(datadir string, network string, id string) error {
+func ClearMetadata(datadir string, network string, id string) error {
 	datafile := filepath.Join(datadir, network, id)
 	return os.Remove(datafile)
+}
+
+func GetIfaceNames(hostVethName string) (string, string) {
+	return fmt.Sprintf("pi-%s", hostVethName),
+		fmt.Sprintf("pa-%s", hostVethName)
 }

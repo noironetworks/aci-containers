@@ -17,3 +17,10 @@ AIM_DB_CONNECTION = "mysql://root:@127.0.0.1:3306/aim"
 
 # Default tenant name
 ACI_TENANT = "kubernetes"
+
+# Formats for object in ACI model
+ACI_VRF_FMT = "vrf-%s"
+ACI_BD_FMT = "bd-%s"
+ACI_AP_FMT = "ns-%s"
+ACI_EG_FMT = "%s"
+

@@ -49,6 +49,7 @@ from . network_policy import (add_update_network_policy,
                             delete_network_policy)
 from . namespace import add_update_namespace, delete_namespace
 from . pod import add_update_pod, delete_pod
+import policy_cache
 import aci_setup
 
 _log = logging.getLogger("__main__")
@@ -56,7 +57,6 @@ _log = logging.getLogger("__main__")
 # Raised upon receiving an error from the Kubernetes API.
 class KubernetesApiError(Exception):
     pass
-
 
 class Controller(object):
     def __init__(self):
@@ -122,6 +122,11 @@ class Controller(object):
         self._handlers = {}
         """
         Keeps track of which handlers to execute for various events.
+        """
+
+        self._policy_cache = policy_cache.PolicyCache()
+        """
+        Cache kubernetes policies needed to compute ACI policy
         """
 
         # Handlers for NetworkPolicy events.
@@ -191,22 +196,6 @@ class Controller(object):
             # Wait until we've been elected leader to start.
             self._wait_for_leadership()
             self._start_leader_thread()
-
-        # Ensure the tier exists.
-        #metadata = {"order": NET_POL_TIER_ORDER}
-        #self._client.set_policy_tier_metadata(NET_POL_TIER_NAME, metadata)
-
-        # Ensure the backstop policy exists.  This policy fowards
-        # any traffic to Kubernetes pods which doesn't match another policy
-        # to the next-tier (i.e the per-namespace Profiles).
-        #selector = "has(%s)" % K8S_NAMESPACE_LABEL
-        #rules = Rules(inbound_rules=[Rule(action="next-tier")],
-        #              outbound_rules=[Rule(action="next-tier")])
-        #self._client.create_policy(NET_POL_TIER_NAME,
-        #                           "k8s-policy-no-match",
-        #                           selector,
-        #                           order=NET_POL_BACKSTOP_ORDER,
-        #                           rules=rules)
 
         self.initialize()
         
@@ -468,9 +457,6 @@ class Controller(object):
                                   block=True,
                                   timeout=QUEUE_PUT_TIMEOUT)
 
-        # XXX TODO Need to delete any stale objects that might be
-        # present in AIM but not in kubernetes API
-
         _log.info("Done getting %s(s) - new resourceVersion: %s",
                   resource_type, resource_version)
         return resource_version
@@ -494,7 +480,6 @@ class Controller(object):
 
         session = requests.Session()
         if self.client_key is not None and self.client_cert is not None:
-            _log.info("%s %s" % (self.client_cert, self.client_key))
             session.cert = (self.client_cert, self.client_key)
         if self.auth_token:
             session.headers.update({'Authorization': 'Bearer ' + self.auth_token})

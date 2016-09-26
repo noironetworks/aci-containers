@@ -26,7 +26,10 @@ import (
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/version"
 	"github.com/vishvananda/netlink"
+
+	"github.com/noironetworks/aci-containers/cnimetadata"
 )
 
 const defaultIntBrName = "br-int"
@@ -44,6 +47,13 @@ type NetConf struct {
 	MetadataDir  string `json:"metadata-dir"`
 }
 
+type K8SArgs struct {
+	types.CommonArgs
+	K8S_POD_NAME               types.UnmarshallableString
+	K8S_POD_NAMESPACE          types.UnmarshallableString
+	K8S_POD_INFRA_CONTAINER_ID types.UnmarshallableString
+}
+
 func init() {
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -51,7 +61,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
-func loadNetConf(bytes []byte) (*NetConf, error) {
+func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	n := &NetConf{
 		OvsDbSock:    defaultOvsDbSock,
 		IntBrName:    defaultIntBrName,
@@ -59,13 +69,25 @@ func loadNetConf(bytes []byte) (*NetConf, error) {
 		MTU:          defaultMTU,
 		MetadataDir:  defaultMetadataDir,
 	}
-	if err := json.Unmarshal(bytes, n); err != nil {
-		return nil, fmt.Errorf("failed to load netconf: %v", err)
+	if err := json.Unmarshal(args.StdinData, n); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to load netconf: %v", err)
 	}
-	return n, nil
+
+	k8sArgs := &K8SArgs{}
+	err := types.LoadArgs(args.Args, k8sArgs)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	id := args.ContainerID
+	if k8sArgs.K8S_POD_NAMESPACE != "" && k8sArgs.K8S_POD_NAME != "" {
+		id = fmt.Sprintf("%s_%s", k8sArgs.K8S_POD_NAMESPACE, k8sArgs.K8S_POD_NAME)
+	}
+
+	return n, k8sArgs, id, nil
 }
 
-func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, mac, error) {
+func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, string, error) {
 	var hostVethName string
 	var mac string
 
@@ -77,15 +99,21 @@ func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, mac, error) {
 		}
 
 		hostVethName = hostVeth.Attrs().Name
-		mac = string(hostVeth.Attrs().HardwareAddr)
+
+		contVeth, err := netlink.LinkByName(ifName)
+		if err != nil {
+			return err
+		}
+
+		mac = contVeth.Attrs().HardwareAddr.String()
 		return nil
 	})
 
-	return hostVethName, err
+	return hostVethName, mac, err
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	n, err := loadNetConf(args.StdinData)
+	n, k8sArgs, id, err := loadConf(args)
 	if err != nil {
 		return err
 	}
@@ -101,13 +129,15 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	metadata := ContainerMetadata{
-		Id:           args.ContainerID,
+	metadata := cnimetadata.ContainerMetadata{
+		Id:           id,
 		HostVethName: hostVethName,
 		NetNS:        args.Netns,
 		MAC:          ifaceMac,
+		Namespace:    string(k8sArgs.K8S_POD_NAMESPACE),
+		Pod:          string(k8sArgs.K8S_POD_NAME),
 	}
-	err = recordMetadata(n.MetadataDir, n.Name, metadata)
+	err = cnimetadata.RecordMetadata(n.MetadataDir, n.Name, metadata)
 	if err != nil {
 		return err
 	}
@@ -142,7 +172,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 }
 
 func cmdDel(args *skel.CmdArgs) error {
-	n, err := loadNetConf(args.StdinData)
+	n, _, id, err := loadConf(args)
 	if err != nil {
 		return err
 	}
@@ -172,12 +202,12 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	metadata, err := getMetadata(n.MetadataDir, n.Name, args.ContainerID)
+	metadata, err := cnimetadata.GetMetadata(n.MetadataDir, n.Name, id)
 	if err != nil {
 		return err
 	}
 
-	err = clearMetadata(n.MetadataDir, n.Name, args.ContainerID)
+	err = cnimetadata.ClearMetadata(n.MetadataDir, n.Name, id)
 	if err != nil {
 		return err
 	}
@@ -198,5 +228,5 @@ func cmdDel(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel)
+	skel.PluginMain(cmdAdd, cmdDel, version.PluginSupports("0.2.0"))
 }

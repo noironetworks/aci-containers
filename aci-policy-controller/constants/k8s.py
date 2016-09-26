@@ -45,10 +45,6 @@ NS_POLICY_ANNOTATION = "net.beta.kubernetes.io/network-policy"
 K8S_SERVICE_PORT = "KUBERNETES_SERVICE_PORT"
 K8S_SERVICE_HOST = "KUBERNETES_SERVICE_HOST"
 
-# Formats for object in ACI model
-ACI_VRF_FMT = "vrf-%s"
-ACI_BD_FMT = "ns-%s"
-
 # Max number of updates to queue.
 # Assuming 100 pods per host, 1000 hosts, we may queue
 # about 100,000 updates at start of day.

@@ -1,0 +1,7 @@
+package: github.com/noironetworks/aci-containers/epmapperdaemon
+import:
+- package: k8s.io/kubernetes
+  subpackages:
+  - pkg/client/unversioned/clientcmd
+  - pkg/client/restclient
+  - pkg/api/rest
