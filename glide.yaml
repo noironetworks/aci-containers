@@ -1,0 +1,25 @@
+package: github.com/noironetworks/aci-containers
+import:
+- package: github.com/Sirupsen/logrus
+  version: ^0.10.0
+- package: github.com/containernetworking/cni
+  version: master
+  subpackages:
+  - pkg/ip
+  - pkg/ipam
+  - pkg/ns
+  - pkg/skel
+  - pkg/types
+  - pkg/version
+- package: github.com/socketplane/libovsdb
+- package: github.com/vishvananda/netlink
+- package: k8s.io/kubernetes
+  subpackages:
+  - pkg/api
+  - pkg/client/cache
+  - pkg/client/clientset_generated/internalclientset
+  - pkg/client/restclient
+  - pkg/client/unversioned/clientcmd
+  - pkg/controller
+  - pkg/controller/informers
+  - pkg/util/wait

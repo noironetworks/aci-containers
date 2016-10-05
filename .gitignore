@@ -1,6 +1,7 @@
 /venv
 /build
 /dist
+/vendor
 *.egg-info
 __pycache__
 *~

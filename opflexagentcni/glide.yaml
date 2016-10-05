@@ -1,7 +1,0 @@
-package: github.com/noironetworks/aci-containers/opflexagentcni
-import:
-- package: github.com/vishvananda/netlink
-- package: github.com/containernetworking/cni
-  version: master
-- package: github.com/socketplane/libovsdb
-  version: 5113f8fb4d9d374417ab4ce35424fbea1aad7272
