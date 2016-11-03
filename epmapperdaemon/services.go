@@ -33,7 +33,7 @@ type opflexServiceMapping struct {
 	ServiceProto string `json:"service-proto,omitempty"`
 	ServicePort  uint16 `json:"service-port,omitempty"`
 
-	NextHopIps  []string `json:"next-hop-ips,omitempty"`
+	NextHopIps  []string `json:"next-hop-ips"`
 	NextHopPort uint16   `json:"next-hop-port,omitempty"`
 }
 
@@ -43,7 +43,7 @@ type opflexService struct {
 	DomainPolicySpace string `json:"domain-policy-space,omitempty"`
 	DomainName        string `json:"domain-name,omitempty"`
 
-	ServiceMappings []opflexServiceMapping `json:"service-mapping,omitempty"`
+	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 }
 
 func getAs(asfile string) (*opflexService, error) {
