@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,6 +36,8 @@ type opflexServiceMapping struct {
 
 	NextHopIps  []string `json:"next-hop-ips"`
 	NextHopPort uint16   `json:"next-hop-port,omitempty"`
+
+	Conntrack bool `json:"conntrack-enabled"`
 }
 
 type opflexService struct {
@@ -44,6 +47,8 @@ type opflexService struct {
 	DomainName        string `json:"domain-name,omitempty"`
 
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
+
+	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
 func getAs(asfile string) (*opflexService, error) {
@@ -146,7 +151,7 @@ func endpointsUpdated(_ interface{}, obj interface{}) {
 func doUpdateService(key string) {
 	endpointsobj, exists, err := endpointsInformer.GetStore().GetByKey(key)
 	if err != nil {
-		log.Error("Could not retrieve endpoints for " +
+		log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())
 		return
 	}
@@ -155,7 +160,7 @@ func doUpdateService(key string) {
 	}
 	asobj, exists, err := serviceInformer.GetStore().GetByKey(key)
 	if err != nil {
-		log.Error("Could not retrieve service for " +
+		log.Error("Could not lookup service for " +
 			key + ": " + err.Error())
 		return
 	}
@@ -186,6 +191,7 @@ func doUpdateService(key string) {
 					ServiceProto: strings.ToLower(string(sp.Protocol)),
 					NextHopIps:   make([]string, 0),
 					NextHopPort:  uint16(p.Port),
+					Conntrack:    true,
 				}
 				for _, a := range e.Addresses {
 					sm.NextHopIps = append(sm.NextHopIps, a.IP)
@@ -194,6 +200,10 @@ func doUpdateService(key string) {
 			}
 		}
 	}
+
+	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
+	ofas.Attributes = as.ObjectMeta.Labels
+	ofas.Attributes["service-name"] = id
 
 	existing, ok := opflexServices[ofas.Uuid]
 	if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {

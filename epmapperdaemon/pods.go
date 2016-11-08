@@ -28,6 +28,8 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
+	"k8s.io/kubernetes/pkg/client/cache"
 
 	"github.com/noironetworks/aci-containers/cnimetadata"
 )
@@ -161,9 +163,16 @@ func podUpdated(_ interface{}, obj interface{}) {
 }
 
 func podAdded(obj interface{}) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	podChangedLocked(obj)
+}
+
+func podChangedLocked(obj interface{}) {
 	pod := obj.(*api.Pod)
 	if !podFilter(pod) {
-		podDeleted(obj)
+		podDeletedLocked(obj)
 		return
 	}
 	logger := podLogger(pod)
@@ -176,15 +185,30 @@ func podAdded(obj interface{}) {
 		}
 	}
 	if !hasCont {
-		podDeleted(obj)
+		podDeletedLocked(obj)
 		return
+	}
+
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		logger.Error("Could not create pod key:" + err.Error())
+		return
+	}
+
+	podobj, exists, err := podInformer.GetStore().GetByKey(podkey)
+	if err != nil {
+		log.Error("Could not lookup pod:" + err.Error())
+		return
+	}
+	if !exists || podobj == nil {
+		podDeletedLocked(pod)
 	}
 
 	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	metadata, err := cnimetadata.GetMetadata(*metadataDir, *network, id)
 	if err != nil {
 		logger.Error("Could not retrieve metadata: " + err.Error())
-		podDeleted(obj)
+		podDeletedLocked(obj)
 		return
 	}
 
@@ -206,24 +230,88 @@ func podAdded(obj interface{}) {
 	const EgAnnotation = "opflex.cisco.com/endpoint-group"
 	const SgAnnotation = "opflex.cisco.com/security-group"
 
+	// top-level default annotation
+	egval := defaultEg
+	sgval := defaultSg
+
+	// namespace annotation has next-highest priority
+	namespaceobj, exists, err :=
+		namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
+	if err != nil {
+		log.Error("Could not lookup namespace " +
+			pod.ObjectMeta.Namespace + ": " + err.Error())
+		return
+	}
+	if exists && namespaceobj != nil {
+		namespace := namespaceobj.(*api.Namespace)
+
+		if og, ok := namespace.ObjectMeta.Annotations[EgAnnotation]; ok {
+			egval = &og
+		}
+		if og, ok := namespace.ObjectMeta.Annotations[SgAnnotation]; ok {
+			sgval = &og
+		}
+	}
+
+	// annotation on associated deployment is next-highest priority
+	if _, ok := depPods[podkey]; !ok {
+		if _, ok := pod.ObjectMeta.Annotations["kubernetes.io/created-by"]; ok {
+			// we have no deployment for this pod but it was created
+			// by something.  Update the index
+
+			updateDeploymentsForPod(pod)
+		}
+	}
+	if depkey, ok := depPods[podkey]; ok {
+		deploymentobj, exists, err :=
+			deploymentInformer.GetStore().GetByKey(depkey)
+		if err != nil {
+			log.Error("Could not lookup deployment " + depkey + ": " + err.Error())
+			return
+		}
+		if exists && deploymentobj != nil {
+			deployment := deploymentobj.(*extensions.Deployment)
+
+			if og, ok := deployment.ObjectMeta.Annotations[EgAnnotation]; ok {
+				egval = &og
+			}
+			if og, ok := deployment.ObjectMeta.Annotations[SgAnnotation]; ok {
+				sgval = &og
+			}
+		}
+	}
+
+	// direct pod annotation is highest priority
 	if og, ok := pod.ObjectMeta.Annotations[EgAnnotation]; ok {
+		egval = &og
+	}
+	if og, ok := pod.ObjectMeta.Annotations[SgAnnotation]; ok {
+		sgval = &og
+	}
+
+	logger.WithFields(logrus.Fields{
+		"EgAnnotation": *egval,
+		"SgAnnotation": *sgval,
+	}).Debug("Computed pod annotations")
+
+	if egval != nil && *egval != "" {
 		g := &opflexGroup{}
-		err := json.Unmarshal([]byte(og), g)
+		err := json.Unmarshal([]byte(*egval), g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
-				"EgAnnotation": og,
+				"EgAnnotation": *egval,
 			}).Error("Could not decode annotation: " + err.Error())
 		} else {
 			ep.EgPolicySpace = g.PolicySpace
 			ep.EndpointGroup = g.Name
 		}
 	}
-	if og, ok := pod.ObjectMeta.Annotations[SgAnnotation]; ok {
+	if sgval != nil && *sgval != "" {
 		g := make([]opflexGroup, 0)
-		err := json.Unmarshal([]byte(og), &g)
+		err := json.Unmarshal([]byte(*sgval), &g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
-				"SgAnnotation": og,
+				"SgAnnotation": *sgval,
 			}).Error("Could not decode annotation: " + err.Error())
 		} else {
 			ep.SecurityGroup = g
@@ -238,6 +326,13 @@ func podAdded(obj interface{}) {
 }
 
 func podDeleted(obj interface{}) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	podDeletedLocked(obj)
+}
+
+func podDeletedLocked(obj interface{}) {
 	pod := obj.(*api.Pod)
 	if !podFilter(pod) {
 		return
