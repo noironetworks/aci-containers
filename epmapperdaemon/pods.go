@@ -149,7 +149,7 @@ func syncEps() {
 }
 
 func podFilter(pod *api.Pod) bool {
-	if pod.Status.HostIP != *nodeip {
+	if pod.Status.HostIP != *nodename {
 		return false
 	} else if pod.Spec.SecurityContext != nil &&
 		pod.Spec.SecurityContext.HostNetwork == true {

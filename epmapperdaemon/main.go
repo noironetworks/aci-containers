@@ -36,17 +36,24 @@ import (
 )
 
 var (
-	log         = logrus.New()
-	kubeconfig  = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	nodeip      = flag.String("node", "", "IP of current node")
+	log        = logrus.New()
+	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	nodename   = flag.String("node", "", "IP of current node")
+	network    = flag.String("cninetwork", "opflex-k8s-network", "Name of CNI network")
+
 	metadataDir = flag.String("cnimetadatadir", "/var/lib/cni/opflex-networks", "Directory containing OpFlex CNI metadata")
-	network     = flag.String("cninetwork", "opflex-k8s-network", "Name of CNI network")
 	endpointDir = flag.String("endpointdir", "/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	serviceDir  = flag.String("servicedir", "/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
-	vrfTenant   = flag.String("vrftenant", "common", "ACI tenant containing the VRF for kubernetes")
-	vrf         = flag.String("vrf", "kubernetes-vrf", "ACI VRF name for for kubernetes")
-	defaultEg   = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
-	defaultSg   = flag.String("default-security-group", "", "Default security group annotation value")
+
+	vrfTenant = flag.String("vrftenant", "common", "ACI tenant containing the VRF for kubernetes")
+	vrf       = flag.String("vrf", "kubernetes-vrf", "ACI VRF name for for kubernetes")
+	defaultEg = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
+	defaultSg = flag.String("default-security-group", "", "Default security group annotation value")
+
+	serviceIface     = flag.String("serviceIface", "eth2", "Interface for external service traffic")
+	serviceIfaceVlan = flag.Uint("serviceIfaceVlan", 4003, "VLAN for service interface traffic")
+	serviceIfaceMac  = flag.String("serviceIfaceMac", "", "MAC address to advertise in response to service interface IP address discovery requests")
+	serviceIfaceIp   = flag.String("serviceIfaceIp", "", "IP address to advertise on the service interface")
 
 	indexMutex     = &sync.Mutex{}
 	depPods        = make(map[string]string)
@@ -174,15 +181,15 @@ func initDeploymentInformer(kubeClient *clientset.Clientset) {
 func main() {
 	flag.Parse()
 
-	if nodeip == nil || *nodeip == "" {
-		err := errors.New("Node IP not specified")
+	if nodename == nil || *nodename == "" {
+		err := errors.New("Node Name not specified")
 		log.Error(err.Error())
 		panic(err.Error())
 	}
 
 	log.WithFields(logrus.Fields{
 		"kubeconfig": *kubeconfig,
-		"nodeip":     *nodeip,
+		"nodename":   *nodename,
 	}).Info("Starting")
 
 	var config *restclient.Config

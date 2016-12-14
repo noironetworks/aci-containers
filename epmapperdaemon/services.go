@@ -30,7 +30,7 @@ import (
 )
 
 type opflexServiceMapping struct {
-	ServiceIp    string `json:"service-ip"`
+	ServiceIp    string `json:"service-ip,omitempty"`
 	ServiceProto string `json:"service-proto,omitempty"`
 	ServicePort  uint16 `json:"service-port,omitempty"`
 
@@ -45,6 +45,12 @@ type opflexService struct {
 
 	DomainPolicySpace string `json:"domain-policy-space,omitempty"`
 	DomainName        string `json:"domain-name,omitempty"`
+
+	ServiceMode   string `json:"service-mode,omitempty"`
+	ServiceMac    string `json:"service-mac,omitempty"`
+	InterfaceName string `json:"interface-name,omitempty"`
+	InterfaceIp   string `json:"interface-ip,omitempty"`
+	InterfaceVlan uint16 `json:"interface-vlan,omitempty"`
 
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 
@@ -107,7 +113,8 @@ func syncServices() {
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".as") {
+		if !strings.HasSuffix(f.Name(), ".as") &&
+			!strings.HasSuffix(f.Name(), ".service") {
 			continue
 		}
 
@@ -140,12 +147,91 @@ func syncServices() {
 		}
 
 		opflexServiceLogger(as).Info("Adding service")
-		writeAs(filepath.Join(*serviceDir, as.Uuid+".as"), as)
+		writeAs(filepath.Join(*serviceDir, as.Uuid+".service"), as)
 	}
 }
 
 func endpointsUpdated(_ interface{}, obj interface{}) {
 	endpointsChanged(obj)
+}
+
+func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints) bool {
+	ofas := &opflexService{
+		Uuid:              string(as.ObjectMeta.UID),
+		DomainPolicySpace: *vrfTenant,
+		DomainName:        *vrf,
+		ServiceMode:       "loadbalancer",
+		ServiceMappings:   make([]opflexServiceMapping, 0),
+	}
+
+	if external {
+		if *serviceIface == "" ||
+			*serviceIfaceIp == "" ||
+			*serviceIfaceMac == "" {
+			return false
+		}
+
+		ofas.InterfaceName = *serviceIface
+		ofas.InterfaceVlan = uint16(*serviceIfaceVlan)
+		ofas.ServiceMac = *serviceIfaceMac
+		ofas.InterfaceIp = *serviceIfaceIp
+		ofas.Uuid = ofas.Uuid + "-external"
+	}
+
+	hasValidMapping := false
+	for _, sp := range as.Spec.Ports {
+		for _, e := range endpoints.Subsets {
+			for _, p := range e.Ports {
+				if p.Protocol != sp.Protocol {
+					continue
+				}
+
+				sm := &opflexServiceMapping{
+					ServicePort:  uint16(sp.Port),
+					ServiceProto: strings.ToLower(string(sp.Protocol)),
+					NextHopIps:   make([]string, 0),
+					NextHopPort:  uint16(p.Port),
+					Conntrack:    true,
+				}
+
+				if external {
+					sm.ServiceIp = as.Spec.LoadBalancerIP
+				} else {
+					sm.ServiceIp = as.Spec.ClusterIP
+				}
+
+				for _, a := range e.Addresses {
+					if !external ||
+						(a.NodeName != nil && *a.NodeName == *nodename) {
+						sm.NextHopIps = append(sm.NextHopIps, a.IP)
+					}
+				}
+				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
+					hasValidMapping = true
+				}
+				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
+			}
+		}
+	}
+
+	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
+	ofas.Attributes = as.ObjectMeta.Labels
+	ofas.Attributes["service-name"] = id
+
+	existing, ok := opflexServices[ofas.Uuid]
+	if hasValidMapping {
+		if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {
+			opflexServices[ofas.Uuid] = ofas
+			return true
+		}
+	} else {
+		if ok {
+			delete(opflexServices, ofas.Uuid)
+			return true
+		}
+	}
+
+	return false
 }
 
 func doUpdateService(key string) {
@@ -171,43 +257,10 @@ func doUpdateService(key string) {
 	endpoints := endpointsobj.(*api.Endpoints)
 	as := asobj.(*api.Service)
 
-	ofas := &opflexService{
-		Uuid:              string(as.ObjectMeta.UID),
-		DomainPolicySpace: *vrfTenant,
-		DomainName:        *vrf,
-		ServiceMappings:   make([]opflexServiceMapping, 0),
-	}
-
-	for _, sp := range as.Spec.Ports {
-		for _, e := range endpoints.Subsets {
-			for _, p := range e.Ports {
-				if p.Protocol != sp.Protocol {
-					continue
-				}
-
-				sm := &opflexServiceMapping{
-					ServiceIp:    as.Spec.ClusterIP,
-					ServicePort:  uint16(sp.Port),
-					ServiceProto: strings.ToLower(string(sp.Protocol)),
-					NextHopIps:   make([]string, 0),
-					NextHopPort:  uint16(p.Port),
-					Conntrack:    true,
-				}
-				for _, a := range e.Addresses {
-					sm.NextHopIps = append(sm.NextHopIps, a.IP)
-				}
-				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
-			}
-		}
-	}
-
-	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
-	ofas.Attributes = as.ObjectMeta.Labels
-	ofas.Attributes["service-name"] = id
-
-	existing, ok := opflexServices[ofas.Uuid]
-	if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {
-		opflexServices[ofas.Uuid] = ofas
+	doSync := false
+	doSync = updateServiceDesc(false, as, endpoints) || doSync
+	doSync = updateServiceDesc(true, as, endpoints) || doSync
+	if doSync {
 		syncServices()
 	}
 }
