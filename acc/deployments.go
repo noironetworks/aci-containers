@@ -87,9 +87,6 @@ func deploymentAdded(obj interface{}) {
 
 	for _, podobj := range pods {
 		pod := podobj.(*api.Pod)
-		if !podFilter(pod) {
-			continue
-		}
 
 		checkDeploymentForPod(dep, pod)
 	}

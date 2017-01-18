@@ -12,34 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Handlers for namespace updates.  Keeps an index of namespace
-// annotations
-
 package main
 
 import (
+	"github.com/Sirupsen/logrus"
+
 	"k8s.io/kubernetes/pkg/api"
 )
 
-func namespaceUpdated(_ interface{}, obj interface{}) {
-	namespaceChanged(obj)
+func serviceLogger(as *api.Service) *logrus.Entry {
+	return log.WithFields(logrus.Fields{
+		"namespace": as.ObjectMeta.Namespace,
+		"name":      as.ObjectMeta.Name,
+		"type":      as.Spec.Type,
+	})
 }
 
-func namespaceChanged(obj interface{}) {
+func endpointsUpdated(_ interface{}, obj interface{}) {
+	endpointsChanged(obj)
+}
+
+func endpointsChanged(obj interface{}) {
 	indexMutex.Lock()
 	defer indexMutex.Unlock()
 
-	ns := obj.(*api.Namespace)
+	//	endpoints := obj.(*api.Endpoints)
+}
 
-	pods := podInformer.GetStore().List()
-	for _, podobj := range pods {
-		pod := podobj.(*api.Pod)
-		if !podFilter(pod) {
-			continue
-		}
+func serviceUpdated(_ interface{}, obj interface{}) {
+	serviceAdded(obj)
+}
 
-		if ns.Name == pod.ObjectMeta.Namespace {
-			podChangedLocked(pod)
-		}
-	}
+func serviceAdded(obj interface{}) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	//as := obj.(*api.Service)
+}
+
+func serviceDeleted(obj interface{}) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	//as := obj.(*api.Service)
 }

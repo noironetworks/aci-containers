@@ -28,8 +28,6 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
 
 	"github.com/noironetworks/aci-containers/cnimetadata"
 )
@@ -149,7 +147,7 @@ func syncEps() {
 }
 
 func podFilter(pod *api.Pod) bool {
-	if pod.Status.HostIP != *nodename {
+	if pod.Spec.NodeName != *nodename {
 		return false
 	} else if pod.Spec.SecurityContext != nil &&
 		pod.Spec.SecurityContext.HostNetwork == true {
@@ -165,60 +163,58 @@ func podUpdated(_ interface{}, obj interface{}) {
 func podAdded(obj interface{}) {
 	indexMutex.Lock()
 	defer indexMutex.Unlock()
-
 	podChangedLocked(obj)
 }
 
-func podChangedLocked(obj interface{}) {
-	pod := obj.(*api.Pod)
-	if !podFilter(pod) {
-		podDeletedLocked(obj)
-		return
-	}
-	logger := podLogger(pod)
-
-	hasCont := false
-	for _, s := range pod.Status.ContainerStatuses {
-		if s.State.Running != nil {
-			hasCont = true
-			break
-		}
-	}
-	if !hasCont {
-		podDeletedLocked(obj)
-		return
-	}
-
-	podkey, err := cache.MetaNamespaceKeyFunc(pod)
-	if err != nil {
-		logger.Error("Could not create pod key:" + err.Error())
-		return
-	}
-
-	podobj, exists, err := podInformer.GetStore().GetByKey(podkey)
+func podChanged(podkey *string) {
+	log.Info("Notify podkey ", *podkey)
+	podobj, exists, err := podInformer.GetStore().GetByKey(*podkey)
 	if err != nil {
 		log.Error("Could not lookup pod:" + err.Error())
-		return
 	}
 	if !exists || podobj == nil {
-		podDeletedLocked(pod)
+		log.Info("Object doesn't exist yet ", *podkey)
+		return
+	}
+
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+	podChangedLocked(podobj)
+}
+
+func podChangedLocked(podobj interface{}) {
+	pod := podobj.(*api.Pod)
+	logger := podLogger(pod)
+
+	if !podFilter(pod) {
+		delete(opflexEps, string(pod.ObjectMeta.UID))
+		syncEps()
+		return
 	}
 
 	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	metadata, err := cnimetadata.GetMetadata(*metadataDir, *network, id)
 	if err != nil {
 		logger.Error("Could not retrieve metadata: " + err.Error())
-		podDeletedLocked(obj)
+		delete(opflexEps, string(pod.ObjectMeta.UID))
+		syncEps()
 		return
 	}
 
 	patchIntName, patchAccessName :=
 		cnimetadata.GetIfaceNames(metadata.HostVethName)
+	ips := make([]string, 0)
+	if metadata.NetConf.IP4 != nil {
+		ips = append(ips, metadata.NetConf.IP4.IP.IP.String())
+	}
+	if metadata.NetConf.IP6 != nil {
+		ips = append(ips, metadata.NetConf.IP6.IP.IP.String())
+	}
 
 	ep := &opflexEndpoint{
 		Uuid:              string(pod.ObjectMeta.UID),
 		MacAddress:        metadata.MAC,
-		IpAddress:         []string{pod.Status.PodIP},
+		IpAddress:         ips,
 		AccessIface:       metadata.HostVethName,
 		AccessUplinkIface: patchAccessName,
 		IfaceName:         patchIntName,
@@ -227,91 +223,27 @@ func podChangedLocked(obj interface{}) {
 	ep.Attributes = pod.ObjectMeta.Labels
 	ep.Attributes["vm-name"] = id
 
-	const EgAnnotation = "opflex.cisco.com/endpoint-group"
-	const SgAnnotation = "opflex.cisco.com/security-group"
+	const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
+	const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
 
-	// top-level default annotation
-	egval := defaultEg
-	sgval := defaultSg
-
-	// namespace annotation has next-highest priority
-	namespaceobj, exists, err :=
-		namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
-	if err != nil {
-		log.Error("Could not lookup namespace " +
-			pod.ObjectMeta.Namespace + ": " + err.Error())
-		return
-	}
-	if exists && namespaceobj != nil {
-		namespace := namespaceobj.(*api.Namespace)
-
-		if og, ok := namespace.ObjectMeta.Annotations[EgAnnotation]; ok {
-			egval = &og
-		}
-		if og, ok := namespace.ObjectMeta.Annotations[SgAnnotation]; ok {
-			sgval = &og
-		}
-	}
-
-	// annotation on associated deployment is next-highest priority
-	if _, ok := depPods[podkey]; !ok {
-		if _, ok := pod.ObjectMeta.Annotations["kubernetes.io/created-by"]; ok {
-			// we have no deployment for this pod but it was created
-			// by something.  Update the index
-
-			updateDeploymentsForPod(pod)
-		}
-	}
-	if depkey, ok := depPods[podkey]; ok {
-		deploymentobj, exists, err :=
-			deploymentInformer.GetStore().GetByKey(depkey)
-		if err != nil {
-			log.Error("Could not lookup deployment " + depkey + ": " + err.Error())
-			return
-		}
-		if exists && deploymentobj != nil {
-			deployment := deploymentobj.(*extensions.Deployment)
-
-			if og, ok := deployment.ObjectMeta.Annotations[EgAnnotation]; ok {
-				egval = &og
-			}
-			if og, ok := deployment.ObjectMeta.Annotations[SgAnnotation]; ok {
-				sgval = &og
-			}
-		}
-	}
-
-	// direct pod annotation is highest priority
-	if og, ok := pod.ObjectMeta.Annotations[EgAnnotation]; ok {
-		egval = &og
-	}
-	if og, ok := pod.ObjectMeta.Annotations[SgAnnotation]; ok {
-		sgval = &og
-	}
-
-	logger.WithFields(logrus.Fields{
-		"EgAnnotation": *egval,
-		"SgAnnotation": *sgval,
-	}).Debug("Computed pod annotations")
-
-	if egval != nil && *egval != "" {
+	if egval, ok := pod.ObjectMeta.Annotations[CompEgAnnotation]; ok {
 		g := &opflexGroup{}
-		err := json.Unmarshal([]byte(*egval), g)
+		err := json.Unmarshal([]byte(egval), g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
-				"EgAnnotation": *egval,
+				"EgAnnotation": egval,
 			}).Error("Could not decode annotation: " + err.Error())
 		} else {
 			ep.EgPolicySpace = g.PolicySpace
 			ep.EndpointGroup = g.Name
 		}
 	}
-	if sgval != nil && *sgval != "" {
+	if sgval, ok := pod.ObjectMeta.Annotations[CompSgAnnotation]; ok {
 		g := make([]opflexGroup, 0)
-		err := json.Unmarshal([]byte(*sgval), &g)
+		err := json.Unmarshal([]byte(sgval), &g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
-				"SgAnnotation": *sgval,
+				"SgAnnotation": sgval,
 			}).Error("Could not decode annotation: " + err.Error())
 		} else {
 			ep.SecurityGroup = g
@@ -320,7 +252,12 @@ func podChangedLocked(obj interface{}) {
 
 	existing, ok := opflexEps[ep.Uuid]
 	if (ok && !reflect.DeepEqual(existing, ep)) || !ok {
+		logger.WithFields(logrus.Fields{
+			"ep": ep,
+		}).Info("Updated endpoint")
+
 		opflexEps[ep.Uuid] = ep
+
 		syncEps()
 	}
 }
@@ -334,9 +271,6 @@ func podDeleted(obj interface{}) {
 
 func podDeletedLocked(obj interface{}) {
 	pod := obj.(*api.Pod)
-	if !podFilter(pod) {
-		return
-	}
 	u := string(pod.ObjectMeta.UID)
 	if _, ok := opflexEps[u]; ok {
 		delete(opflexEps, u)

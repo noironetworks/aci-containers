@@ -15,17 +15,13 @@
 package main
 
 import (
-	"errors"
 	"flag"
-	"net"
-	"net/rpc"
-	goruntime "runtime"
 	"sync"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/restclient"
@@ -40,47 +36,45 @@ import (
 var (
 	log        = logrus.New()
 	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	nodename   = flag.String("node", "", "Name of current node")
-	network    = flag.String("cninetwork", "opflex-k8s-network", "Name of CNI network")
+	defaultEg  = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
+	defaultSg  = flag.String("default-security-group", "", "Default security group annotation value")
 
-	metadataDir = flag.String("cnimetadatadir", "/var/lib/aci-containers/", "Directory containing OpFlex CNI metadata")
-	endpointDir = flag.String("endpointdir", "/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
-	serviceDir  = flag.String("servicedir", "/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
+	indexMutex = &sync.Mutex{}
+	depPods    = make(map[string]string)
 
-	vrfTenant = flag.String("vrftenant", "common", "ACI tenant containing the VRF for kubernetes")
-	vrf       = flag.String("vrf", "kubernetes-vrf", "ACI VRF name for for kubernetes")
-	defaultEg = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
-	defaultSg = flag.String("default-security-group", "", "Default security group annotation value")
-
-	serviceIface     = flag.String("serviceIface", "eth2", "Interface for external service traffic")
-	serviceIfaceVlan = flag.Uint("serviceIfaceVlan", 4003, "VLAN for service interface traffic")
-	serviceIfaceMac  = flag.String("serviceIfaceMac", "", "MAC address to advertise in response to service interface IP address discovery requests")
-	serviceIfaceIp   = flag.String("serviceIfaceIp", "", "IP address to advertise on the service interface")
-
-	ovsDbSock    = flag.String("ovsDbSock", "/var/run/openvswitch/db.sock", "OVS DB socket to connect to")
-	intBrName    = flag.String("intBridge", "br-int", "Integration bridge")
-	accessBrName = flag.String("accessBridge", "br-access", "Access bridge")
-	mtu          = flag.Int("mtu", 1500, "Interface MTU for interface configuration")
-
-	indexMutex     = &sync.Mutex{}
-	opflexEps      = make(map[string]*opflexEndpoint)
-	opflexServices = make(map[string]*opflexService)
-
-	podInformer       cache.SharedIndexInformer
-	endpointsInformer cache.SharedIndexInformer
-	serviceInformer   cache.SharedIndexInformer
-
-	syncEnabled = false
+	kubeClient         *clientset.Clientset
+	namespaceInformer  cache.SharedIndexInformer
+	podInformer        cache.SharedIndexInformer
+	endpointsInformer  cache.SharedIndexInformer
+	serviceInformer    cache.SharedIndexInformer
+	deploymentInformer cache.SharedIndexInformer
 )
 
-func init() {
-	// this ensures that main runs only on main thread (thread group leader).
-	// since namespace ops (unshare, setns) are done for a single thread, we
-	// must ensure that the goroutine does not jump from OS thread to thread
-	goruntime.LockOSThread()
+func initNamespaceInformer() {
+	namespaceInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				return kubeClient.Core().Namespaces().List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				return kubeClient.Core().Namespaces().Watch(options)
+			},
+		},
+		&api.Namespace{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    namespaceChanged,
+		UpdateFunc: namespaceUpdated,
+		DeleteFunc: namespaceChanged,
+	})
+
+	go namespaceInformer.GetController().Run(wait.NeverStop)
+	go namespaceInformer.Run(wait.NeverStop)
 }
 
-func initPodInformer(kubeClient *clientset.Clientset) {
+func initPodInformer() {
 	podInformer = informers.NewPodInformer(kubeClient,
 		controller.NoResyncPeriodFunc())
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -93,7 +87,7 @@ func initPodInformer(kubeClient *clientset.Clientset) {
 	go podInformer.Run(wait.NeverStop)
 }
 
-func initEndpointsInformer(kubeClient *clientset.Clientset) {
+func initEndpointsInformer() {
 	endpointsInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
@@ -117,7 +111,7 @@ func initEndpointsInformer(kubeClient *clientset.Clientset) {
 	go endpointsInformer.Run(wait.NeverStop)
 }
 
-func initServiceInformer(kubeClient *clientset.Clientset) {
+func initServiceInformer() {
 	serviceInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
@@ -141,31 +135,35 @@ func initServiceInformer(kubeClient *clientset.Clientset) {
 	go serviceInformer.Run(wait.NeverStop)
 }
 
-func initEpRPC() error {
-	rpc.Register(NewEpRPC())
+func initDeploymentInformer() {
+	deploymentInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				return kubeClient.Extensions().Deployments(api.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				return kubeClient.Extensions().Deployments(api.NamespaceAll).Watch(options)
+			},
+		},
+		&extensions.Deployment{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    deploymentAdded,
+		UpdateFunc: deploymentUpdated,
+		DeleteFunc: deploymentDeleted,
+	})
 
-	l, err := net.Listen("tcp", "127.0.0.1:4242")
-	if err != nil {
-		log.Error("Could not listen to rpc port: ", err)
-		return err
-	}
-
-	go rpc.Accept(l)
-	return nil
+	go deploymentInformer.GetController().Run(wait.NeverStop)
+	go deploymentInformer.Run(wait.NeverStop)
 }
 
 func main() {
 	flag.Parse()
 
-	if nodename == nil || *nodename == "" {
-		err := errors.New("Node Name not specified")
-		log.Error(err.Error())
-		panic(err.Error())
-	}
-
 	log.WithFields(logrus.Fields{
 		"kubeconfig": *kubeconfig,
-		"nodename":   *nodename,
 	}).Info("Starting")
 
 	var config *restclient.Config
@@ -185,7 +183,7 @@ func main() {
 	}
 
 	// creates the client
-	kubeClient, err := clientset.NewForConfig(config)
+	kubeClient, err = clientset.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -193,24 +191,21 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	initPodInformer(kubeClient)
+	initNamespaceInformer()
+	initDeploymentInformer()
+	initPodInformer()
 
-	initEndpointsInformer(kubeClient)
-	initServiceInformer(kubeClient)
+	initEndpointsInformer()
+	initServiceInformer()
 
-	err = initEpRPC()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	go func() {
-		time.Sleep(time.Second * 5)
-		syncEnabled = true
-		indexMutex.Lock()
-		defer indexMutex.Unlock()
-		syncServices()
-		syncEps()
-	}()
+	//	go func() {
+	//		time.Sleep(time.Second * 5)
+	//		syncEnabled = true
+	//		indexMutex.Lock()
+	//		defer indexMutex.Unlock()
+	//		syncServices()
+	//		syncEps()
+	//	}()
 
 	wg.Wait()
 }

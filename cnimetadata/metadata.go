@@ -20,15 +20,19 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 )
 
 type ContainerMetadata struct {
-	Namespace    string `json:"namespace"`
-	Pod          string `json:"pod"`
-	Id           string `json:"id"`
-	HostVethName string `json:"host-veth-name"`
-	NetNS        string `json:"net-ns"`
-	MAC          string `json:"mac"`
+	Namespace     string          `json:"namespace,omitempty"`
+	Pod           string          `json:"pod,omitempty"`
+	Id            string          `json:"id,omitempty"`
+	HostVethName  string          `json:"host-veth-name,omitempty"`
+	ContIfaceName string          `json:"cont-iface-name,omitempty"`
+	NetNS         string          `json:"net-ns,omitempty"`
+	MAC           string          `json:"mac,omitempty"`
+	NetConf       cnitypes.Result `json:"ips,omitempty"`
 }
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {

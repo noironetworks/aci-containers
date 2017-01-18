@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ipam"
@@ -27,6 +29,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/version"
+	"github.com/tatsushid/go-fastping"
 	"github.com/vishvananda/netlink"
 
 	"github.com/noironetworks/aci-containers/cnimetadata"
@@ -112,37 +115,32 @@ func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, string, error) {
 	return hostVethName, mac, err
 }
 
+func waitForNetwork(ipconfs []types.IPConfig) error {
+	for i := 1; i <= 3; i++ {
+		pinger := fastping.NewPinger()
+		for _, ipconf := range ipconfs {
+			pinger.AddIPAddr(&net.IPAddr{IP: ipconf.IP.IP})
+		}
+
+		count := 0
+		pinger.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
+			count += 1
+		}
+
+		err := pinger.Run()
+		if err != nil {
+			return err
+		}
+		if count >= len(ipconfs) {
+			return nil
+		}
+	}
+
+	return errors.New("Gave up waiting for network")
+}
+
 func cmdAdd(args *skel.CmdArgs) error {
 	n, k8sArgs, id, err := loadConf(args)
-	if err != nil {
-		return err
-	}
-
-	netns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer netns.Close()
-
-	hostVethName, ifaceMac, err := setupVeth(netns, args.IfName, n.MTU)
-	if err != nil {
-		return err
-	}
-
-	metadata := cnimetadata.ContainerMetadata{
-		Id:           id,
-		HostVethName: hostVethName,
-		NetNS:        args.Netns,
-		MAC:          ifaceMac,
-		Namespace:    string(k8sArgs.K8S_POD_NAMESPACE),
-		Pod:          string(k8sArgs.K8S_POD_NAME),
-	}
-	err = cnimetadata.RecordMetadata(n.MetadataDir, n.Name, metadata)
-	if err != nil {
-		return err
-	}
-
-	err = createPorts(n.OvsDbSock, n.IntBrName, n.AccessBrName, hostVethName)
 	if err != nil {
 		return err
 	}
@@ -152,22 +150,35 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	result.DNS = n.DNS
 
 	if result.IP4 == nil && result.IP6 == nil {
 		return errors.New("IPAM plugin returned missing IP config")
 	}
 
-	if err := netns.Do(func(_ ns.NetNS) error {
-		if err := ipam.ConfigureIface(args.IfName, result); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
+	metadata := cnimetadata.ContainerMetadata{
+		Id:            id,
+		ContIfaceName: args.IfName,
+		NetNS:         args.Netns,
+		NetConf:       *result,
+		Namespace:     string(k8sArgs.K8S_POD_NAMESPACE),
+		Pod:           string(k8sArgs.K8S_POD_NAME),
+	}
+	err = cnimetadata.RecordMetadata(n.MetadataDir, n.Name, metadata)
+	if err != nil {
 		return err
 	}
 
-	result.DNS = n.DNS
+	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)
+	if err != nil {
+		return err
+	}
+
+	result, err = eprpc.Register(&metadata)
+	if err != nil {
+		return err
+	}
+
 	return result.Print()
 }
 
@@ -181,46 +192,12 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if args.Netns == "" {
-		return nil
-	}
-
-	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
-		iface, err := netlink.LinkByName(args.IfName)
-		if err != nil {
-			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
-		}
-
-		err = netlink.LinkDel(iface)
-		if err != nil {
-			return fmt.Errorf("failed to delete %q: %v", args.IfName, err)
-		}
-
-		return nil
-	})
+	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)
 	if err != nil {
 		return err
 	}
-
-	metadata, err := cnimetadata.GetMetadata(n.MetadataDir, n.Name, id)
+	_, err = eprpc.Unregister(id)
 	if err != nil {
-		return err
-	}
-
-	err = cnimetadata.ClearMetadata(n.MetadataDir, n.Name, id)
-	if err != nil {
-		return err
-	}
-
-	if metadata.HostVethName != "" {
-		err = delPorts(n.OvsDbSock, n.IntBrName,
-			n.AccessBrName, metadata.HostVethName)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
 		return err
 	}
 

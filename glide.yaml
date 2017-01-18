@@ -14,6 +14,7 @@ import:
 - package: github.com/socketplane/libovsdb
 - package: github.com/vishvananda/netlink
 - package: k8s.io/kubernetes
+  version: ~1.6.0-alpha.0
   subpackages:
   - pkg/api
   - pkg/client/cache
@@ -23,3 +24,5 @@ import:
   - pkg/controller
   - pkg/controller/informers
   - pkg/util/wait
+- package: github.com/tatsushid/go-fastping
+  version: d7bb493dee3e090e2ffb6914adddf17c1e7c026c
