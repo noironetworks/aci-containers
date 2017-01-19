@@ -37,20 +37,14 @@ func NewClient(dsn string, timeout time.Duration) (*Client, error) {
 	return &Client{connection: rpc.NewClient(connection)}, nil
 }
 
-func (c *Client) Notify(podkey string) (bool, error) {
-	var result bool
-	err := c.connection.Call("EpRPC.Notify", podkey, &result)
-	return result, err
-}
-
 func (c *Client) Register(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
 	var result *cnitypes.Result
 	err := c.connection.Call("EpRPC.Register", metadata, &result)
 	return result, err
 }
 
-func (c *Client) Unregister(podkey string) (bool, error) {
+func (c *Client) Unregister(id string) (bool, error) {
 	var result bool
-	err := c.connection.Call("EpRPC.Unregister", podkey, &result)
+	err := c.connection.Call("EpRPC.Unregister", id, &result)
 	return result, err
 }

@@ -27,6 +27,11 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/watch"
 )
 
 type opflexServiceMapping struct {
@@ -55,6 +60,54 @@ type opflexService struct {
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+func initEndpointsInformer(kubeClient *clientset.Clientset) {
+	endpointsInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				return kubeClient.Core().Endpoints(api.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				return kubeClient.Core().Endpoints(api.NamespaceAll).Watch(options)
+			},
+		},
+		&api.Endpoints{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    endpointsChanged,
+		UpdateFunc: endpointsUpdated,
+		DeleteFunc: endpointsChanged,
+	})
+
+	go endpointsInformer.GetController().Run(wait.NeverStop)
+	go endpointsInformer.Run(wait.NeverStop)
+}
+
+func initServiceInformer(kubeClient *clientset.Clientset) {
+	serviceInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				return kubeClient.Core().Services(api.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				return kubeClient.Core().Services(api.NamespaceAll).Watch(options)
+			},
+		},
+		&api.Service{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    serviceAdded,
+		UpdateFunc: serviceUpdated,
+		DeleteFunc: serviceDeleted,
+	})
+
+	go serviceInformer.GetController().Run(wait.NeverStop)
+	go serviceInformer.Run(wait.NeverStop)
 }
 
 func getAs(asfile string) (*opflexService, error) {

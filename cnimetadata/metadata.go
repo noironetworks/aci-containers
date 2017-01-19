@@ -32,7 +32,7 @@ type ContainerMetadata struct {
 	ContIfaceName string          `json:"cont-iface-name,omitempty"`
 	NetNS         string          `json:"net-ns,omitempty"`
 	MAC           string          `json:"mac,omitempty"`
-	NetConf       cnitypes.Result `json:"ips,omitempty"`
+	NetConf       cnitypes.Result `json:"netconf,omitempty"`
 }
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
@@ -46,6 +46,25 @@ func RecordMetadata(datadir string, network string, data ContainerMetadata) erro
 		return err
 	}
 	return ioutil.WriteFile(datafile, datacont, 0644)
+}
+
+func LoadMetadata(datadir string, network string,
+	mdMap *map[string]*ContainerMetadata) error {
+
+	dir := filepath.Join(datadir, network)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		metadata, err := GetMetadata(datadir, network, file.Name())
+		if err == nil {
+			(*mdMap)[file.Name()] = metadata
+		}
+	}
+
+	return nil
 }
 
 func GetMetadata(datadir string, network string, id string) (*ContainerMetadata, error) {

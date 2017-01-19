@@ -28,6 +28,13 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/cache"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/noironetworks/aci-containers/cnimetadata"
 )
@@ -52,6 +59,34 @@ type opflexEndpoint struct {
 	IfaceName         string `json:"interface-name,omitempty"`
 
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+func initPodInformer(kubeClient *clientset.Clientset) {
+	podInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				options.FieldSelector =
+					fields.Set{"spec.nodeName": *nodename}.AsSelector()
+				return kubeClient.Core().Pods(api.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				options.FieldSelector =
+					fields.Set{"spec.nodeName": *nodename}.AsSelector()
+				return kubeClient.Core().Pods(api.NamespaceAll).Watch(options)
+			},
+		},
+		&api.Pod{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    podAdded,
+		UpdateFunc: podUpdated,
+		DeleteFunc: podDeleted,
+	})
+
+	go podInformer.GetController().Run(wait.NeverStop)
+	go podInformer.Run(wait.NeverStop)
 }
 
 func getEp(epfile string) (*opflexEndpoint, error) {
@@ -167,10 +202,9 @@ func podAdded(obj interface{}) {
 }
 
 func podChanged(podkey *string) {
-	log.Info("Notify podkey ", *podkey)
 	podobj, exists, err := podInformer.GetStore().GetByKey(*podkey)
 	if err != nil {
-		log.Error("Could not lookup pod:" + err.Error())
+		log.Error("Could not lookup pod: ", err)
 	}
 	if !exists || podobj == nil {
 		log.Info("Object doesn't exist yet ", *podkey)
@@ -193,9 +227,9 @@ func podChangedLocked(podobj interface{}) {
 	}
 
 	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-	metadata, err := cnimetadata.GetMetadata(*metadataDir, *network, id)
-	if err != nil {
-		logger.Error("Could not retrieve metadata: " + err.Error())
+	metadata, ok := epMetadata[id]
+	if !ok {
+		logger.Debug("No metadata")
 		delete(opflexEps, string(pod.ObjectMeta.UID))
 		syncEps()
 		return
@@ -254,7 +288,7 @@ func podChangedLocked(podobj interface{}) {
 	if (ok && !reflect.DeepEqual(existing, ep)) || !ok {
 		logger.WithFields(logrus.Fields{
 			"ep": ep,
-		}).Info("Updated endpoint")
+		}).Debug("Updated endpoint")
 
 		opflexEps[ep.Uuid] = ep
 

@@ -24,5 +24,5 @@ dist/opflex-agent-cni: $(METADATA_SRC) $(AGENTCNI_SRC)
 dist/aci-containers-host-agent: $(METADATA_SRC) $(HOSTAGENT_SRC)
 	go build -v -o dist/aci-containers-host-agent $(BASE)/hostagent 
 
-dist/aci-containers-controller: $(METADATA_SRC) $(ACC_SRC)
+dist/aci-containers-controller: $(ACC_SRC)
 	go build -v -o dist/aci-containers-controller $(BASE)/acc

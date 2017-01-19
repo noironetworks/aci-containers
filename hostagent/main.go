@@ -17,24 +17,18 @@ package main
 import (
 	"errors"
 	"flag"
-	"net"
-	"net/rpc"
 	goruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/informers"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
+
+	md "github.com/noironetworks/aci-containers/cnimetadata"
 )
 
 var (
@@ -65,6 +59,7 @@ var (
 	indexMutex     = &sync.Mutex{}
 	opflexEps      = make(map[string]*opflexEndpoint)
 	opflexServices = make(map[string]*opflexService)
+	epMetadata     = make(map[string]*md.ContainerMetadata)
 
 	podInformer       cache.SharedIndexInformer
 	endpointsInformer cache.SharedIndexInformer
@@ -78,80 +73,6 @@ func init() {
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	// must ensure that the goroutine does not jump from OS thread to thread
 	goruntime.LockOSThread()
-}
-
-func initPodInformer(kubeClient *clientset.Clientset) {
-	podInformer = informers.NewPodInformer(kubeClient,
-		controller.NoResyncPeriodFunc())
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    podAdded,
-		UpdateFunc: podUpdated,
-		DeleteFunc: podDeleted,
-	})
-
-	go podInformer.GetController().Run(wait.NeverStop)
-	go podInformer.Run(wait.NeverStop)
-}
-
-func initEndpointsInformer(kubeClient *clientset.Clientset) {
-	endpointsInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).Watch(options)
-			},
-		},
-		&api.Endpoints{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    endpointsChanged,
-		UpdateFunc: endpointsUpdated,
-		DeleteFunc: endpointsChanged,
-	})
-
-	go endpointsInformer.GetController().Run(wait.NeverStop)
-	go endpointsInformer.Run(wait.NeverStop)
-}
-
-func initServiceInformer(kubeClient *clientset.Clientset) {
-	serviceInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).Watch(options)
-			},
-		},
-		&api.Service{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    serviceAdded,
-		UpdateFunc: serviceUpdated,
-		DeleteFunc: serviceDeleted,
-	})
-
-	go serviceInformer.GetController().Run(wait.NeverStop)
-	go serviceInformer.Run(wait.NeverStop)
-}
-
-func initEpRPC() error {
-	rpc.Register(NewEpRPC())
-
-	l, err := net.Listen("tcp", "127.0.0.1:4242")
-	if err != nil {
-		log.Error("Could not listen to rpc port: ", err)
-		return err
-	}
-
-	go rpc.Accept(l)
-	return nil
 }
 
 func main() {
@@ -184,8 +105,21 @@ func main() {
 		}
 	}
 
-	// creates the client
+	// creates the kubernetes API client
 	kubeClient, err := clientset.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Initialize metadata cache
+	err = md.LoadMetadata(*metadataDir, *network, &epMetadata)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Info("Loaded cached metadata data: ", len(epMetadata))
+
+	// Initialize RPC service for communicating with CNI plugin
+	err = initEpRPC()
 	if err != nil {
 		panic(err.Error())
 	}
@@ -193,15 +127,10 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
+	// Initialize informers
 	initPodInformer(kubeClient)
-
 	initEndpointsInformer(kubeClient)
 	initServiceInformer(kubeClient)
-
-	err = initEpRPC()
-	if err != nil {
-		panic(err.Error())
-	}
 
 	go func() {
 		time.Sleep(time.Second * 5)
@@ -210,6 +139,11 @@ func main() {
 		defer indexMutex.Unlock()
 		syncServices()
 		syncEps()
+	}()
+
+	go func() {
+		time.Sleep(time.Minute * 5)
+		cleanupConfiguration()
 	}()
 
 	wg.Wait()

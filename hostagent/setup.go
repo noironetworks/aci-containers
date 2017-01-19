@@ -166,6 +166,11 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	if err != nil {
 		return nil, err
 	}
+	{
+		indexMutex.Lock()
+		epMetadata[metadata.Id] = metadata
+		indexMutex.Unlock()
+	}
 
 	logger.Debug("Creating OVS ports")
 
@@ -195,37 +200,77 @@ func unconfigureContainerIface(id string) error {
 	logger := log.WithFields(logrus.Fields{
 		"id": id,
 	})
-	metadata, err := md.GetMetadata(*metadataDir, *network, id)
-	if err != nil {
-		logger.Error(err)
+
+	indexMutex.Lock()
+	metadata, ok := epMetadata[id]
+	if !ok {
+		logger.Error("Unconfigure called for container with no metadata")
 		// Assume container is already unconfigured
+		indexMutex.Unlock()
 		return nil
 	}
+	delete(epMetadata, id)
+	indexMutex.Unlock()
 
-	err = md.ClearMetadata(*metadataDir, *network, id)
+	err := md.ClearMetadata(*metadataDir, *network, id)
 	if err != nil {
 		return err
 	}
 
-	netns, err := ns.GetNS(metadata.NetNS)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", metadata.NetNS, err)
-	}
-	defer netns.Close()
-
-	err = clearVeth(netns, metadata.ContIfaceName)
-	if err != nil {
-		return err
-	}
-
+	logger.Debug("Clearing OVS ports")
 	if metadata.HostVethName != "" {
 		err = delPorts(*ovsDbSock, *intBrName, *accessBrName,
 			metadata.HostVethName)
 		if err != nil {
-			return err
+			logger.Error("Could not clear OVS ports: ", err)
+		}
+	}
+
+	logger.Debug("Clearing container interface")
+	netns, err := ns.GetNS(metadata.NetNS)
+	if err != nil {
+		logger.Error("Could not unconfigure iface:",
+			fmt.Errorf("failed to open netns %q: %v", metadata.NetNS, err))
+	} else {
+		defer netns.Close()
+
+		err = clearVeth(netns, metadata.ContIfaceName)
+		if err != nil {
+			logger.Error("Could not clear Veth ports: ", err)
 		}
 	}
 
 	logger.Info("Successfully unconfigured container interface")
 	return nil
+}
+
+func cleanupConfiguration() {
+	log.Info("Checking for stale configuration")
+
+	indexMutex.Lock()
+	mdcopy := epMetadata
+	indexMutex.Unlock()
+
+	for id, metadata := range mdcopy {
+		logger := log.WithFields(logrus.Fields{
+			"id": id,
+		})
+
+		podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
+		logger.Debug("Checking")
+		_, exists, err := podInformer.GetStore().GetByKey(podkey)
+		if err != nil {
+			logger.Error("Could not lookup pod: ", err)
+			continue
+		}
+		if !exists {
+			logger.Info("Unconfiguring stale container configuration")
+
+			err := unconfigureContainerIface(id)
+			if err != nil {
+				logger.Error("Could not unconfigure container: ", err)
+			}
+		}
+	}
+	log.Debug("Done stale check")
 }

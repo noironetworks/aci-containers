@@ -16,6 +16,8 @@ package main
 
 import (
 	"errors"
+	"net"
+	"net/rpc"
 
 	"github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -25,18 +27,21 @@ import (
 type EpRPC struct {
 }
 
-func NewEpRPC() *EpRPC {
-	return &EpRPC{}
-}
+func initEpRPC() error {
+	rpc.Register(NewEpRPC())
 
-func (r *EpRPC) Notify(podkey *string, ack *bool) error {
-	if podkey == nil {
-		return errors.New("Pod key is nil")
+	l, err := net.Listen("tcp", "127.0.0.1:4242")
+	if err != nil {
+		log.Error("Could not listen to rpc port: ", err)
+		return err
 	}
 
-	podChanged(podkey)
-	*ack = true
+	go rpc.Accept(l)
 	return nil
+}
+
+func NewEpRPC() *EpRPC {
+	return &EpRPC{}
 }
 
 func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result) error {
