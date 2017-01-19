@@ -3,7 +3,7 @@ BASE=github.com/noironetworks/aci-containers
 METADATA_SRC=$(wildcard cnimetadata/*.go)
 HOSTAGENT_SRC=$(wildcard hostagent/*.go)
 AGENTCNI_SRC=$(wildcard opflexagentcni/*.go)
-ACC_SRC=$(wildcard acc/*.go)
+CONTROLLER_SRC=$(wildcard controller/*.go)
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller
@@ -24,5 +24,5 @@ dist/opflex-agent-cni: $(METADATA_SRC) $(AGENTCNI_SRC)
 dist/aci-containers-host-agent: $(METADATA_SRC) $(HOSTAGENT_SRC)
 	go build -v -o dist/aci-containers-host-agent $(BASE)/hostagent 
 
-dist/aci-containers-controller: $(ACC_SRC)
-	go build -v -o dist/aci-containers-controller $(BASE)/acc
+dist/aci-containers-controller: $(CONTROLLER_SRC)
+	go build -v -o dist/aci-containers-controller $(BASE)/controller
