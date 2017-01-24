@@ -15,29 +15,27 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/informers"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 )
 
 var (
-	log        = logrus.New()
-	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	defaultEg  = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
-	defaultSg  = flag.String("default-security-group", "", "Default security group annotation value")
+	log = logrus.New()
+
+	configPath = flag.String("config-path", "", "Absolute path to a host agent configuration file")
+	config     = &ControllerConfig{}
+
+	defaultEg = ""
+	defaultSg = ""
 
 	indexMutex = &sync.Mutex{}
 	depPods    = make(map[string]string)
@@ -48,142 +46,66 @@ var (
 	endpointsInformer  cache.SharedIndexInformer
 	serviceInformer    cache.SharedIndexInformer
 	deploymentInformer cache.SharedIndexInformer
+	nodeInformer       cache.SharedIndexInformer
 )
 
-func initNamespaceInformer() {
-	namespaceInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Namespaces().List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Namespaces().Watch(options)
-			},
-		},
-		&api.Namespace{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    namespaceChanged,
-		UpdateFunc: namespaceUpdated,
-		DeleteFunc: namespaceChanged,
-	})
-
-	go namespaceInformer.GetController().Run(wait.NeverStop)
-	go namespaceInformer.Run(wait.NeverStop)
-}
-
-func initPodInformer() {
-	podInformer = informers.NewPodInformer(kubeClient,
-		controller.NoResyncPeriodFunc())
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    podAdded,
-		UpdateFunc: podUpdated,
-		DeleteFunc: podDeleted,
-	})
-
-	go podInformer.GetController().Run(wait.NeverStop)
-	go podInformer.Run(wait.NeverStop)
-}
-
-func initEndpointsInformer() {
-	endpointsInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).Watch(options)
-			},
-		},
-		&api.Endpoints{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    endpointsChanged,
-		UpdateFunc: endpointsUpdated,
-		DeleteFunc: endpointsChanged,
-	})
-
-	go endpointsInformer.GetController().Run(wait.NeverStop)
-	go endpointsInformer.Run(wait.NeverStop)
-}
-
-func initServiceInformer() {
-	serviceInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).Watch(options)
-			},
-		},
-		&api.Service{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    serviceAdded,
-		UpdateFunc: serviceUpdated,
-		DeleteFunc: serviceDeleted,
-	})
-
-	go serviceInformer.GetController().Run(wait.NeverStop)
-	go serviceInformer.Run(wait.NeverStop)
-}
-
-func initDeploymentInformer() {
-	deploymentInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Extensions().Deployments(api.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Extensions().Deployments(api.NamespaceAll).Watch(options)
-			},
-		},
-		&extensions.Deployment{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    deploymentAdded,
-		UpdateFunc: deploymentUpdated,
-		DeleteFunc: deploymentDeleted,
-	})
-
-	go deploymentInformer.GetController().Run(wait.NeverStop)
-	go deploymentInformer.Run(wait.NeverStop)
-}
-
 func main() {
+	initFlags()
 	flag.Parse()
 
+	if configPath != nil && *configPath != "" {
+		log.Info("Loading configuration from ", *configPath)
+		raw, err := ioutil.ReadFile(*configPath)
+		if err != nil {
+			panic(err.Error())
+		}
+		err = json.Unmarshal(raw, config)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
+	logLevel, err := logrus.ParseLevel(config.LogLevel)
+	if err != nil {
+		panic(err.Error())
+	}
+	logrus.SetLevel(logLevel)
+
+	egdata, err := json.Marshal(config.DefaultEg)
+	if err != nil {
+		log.Error("Could not serialize default endpoint group")
+		panic(err.Error())
+	}
+	defaultEg = string(egdata)
+
+	sgdata, err := json.Marshal(config.DefaultSg)
+	if err != nil {
+		log.Error("Could not serialize default security groups")
+		panic(err.Error())
+	}
+	defaultSg = string(sgdata)
+
 	log.WithFields(logrus.Fields{
-		"kubeconfig": *kubeconfig,
+		"kubeconfig": config.KubeConfig,
 	}).Info("Starting")
 
-	var config *restclient.Config
-	var err error
-	if kubeconfig != nil {
+	var restconfig *restclient.Config
+	if config.KubeConfig != "" {
 		// use kubeconfig file from command line
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
 		if err != nil {
 			panic(err.Error())
 		}
 	} else {
 		// creates the in-cluster config
-		config, err = restclient.InClusterConfig()
+		restconfig, err = restclient.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
 		}
 	}
 
 	// creates the client
-	kubeClient, err = clientset.NewForConfig(config)
+	kubeClient, err = clientset.NewForConfig(restconfig)
 	if err != nil {
 		panic(err.Error())
 	}

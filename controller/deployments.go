@@ -24,8 +24,36 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/cache"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/watch"
 )
+
+func initDeploymentInformer() {
+	deploymentInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				return kubeClient.Extensions().Deployments(api.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				return kubeClient.Extensions().Deployments(api.NamespaceAll).Watch(options)
+			},
+		},
+		&extensions.Deployment{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    deploymentAdded,
+		UpdateFunc: deploymentUpdated,
+		DeleteFunc: deploymentDeleted,
+	})
+
+	go deploymentInformer.GetController().Run(wait.NeverStop)
+	go deploymentInformer.Run(wait.NeverStop)
+}
 
 func deploymentLogger(dep *extensions.Deployment) *logrus.Entry {
 	return log.WithFields(logrus.Fields{

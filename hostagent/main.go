@@ -38,8 +38,7 @@ var (
 	log = logrus.New()
 
 	configPath = flag.String("config-path", "", "Absolute path to a host agent configuration file")
-
-	config = &HostAgentConfig{}
+	config     = &HostAgentConfig{}
 
 	indexMutex     = &sync.Mutex{}
 	opflexEps      = make(map[string]*opflexEndpoint)
@@ -65,6 +64,7 @@ func main() {
 	flag.Parse()
 
 	if configPath != nil && *configPath != "" {
+		log.Info("Loading configuration from ", *configPath)
 		raw, err := ioutil.ReadFile(*configPath)
 		if err != nil {
 			panic(err.Error())
@@ -74,6 +74,12 @@ func main() {
 			panic(err.Error())
 		}
 	}
+
+	logLevel, err := logrus.ParseLevel(config.LogLevel)
+	if err != nil {
+		panic(err.Error())
+	}
+	logrus.SetLevel(logLevel)
 
 	if config.NodeName == "" {
 		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
@@ -91,7 +97,6 @@ func main() {
 	}).Info("Starting")
 
 	var restconfig *restclient.Config
-	var err error
 	if config.KubeConfig != "" {
 		// use kubeconfig file from command line
 		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)

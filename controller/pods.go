@@ -22,7 +22,23 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/cache"
+	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/controller/informers"
+	"k8s.io/kubernetes/pkg/util/wait"
 )
+
+func initPodInformer() {
+	podInformer = informers.NewPodInformer(kubeClient,
+		controller.NoResyncPeriodFunc())
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    podAdded,
+		UpdateFunc: podUpdated,
+		DeleteFunc: podDeleted,
+	})
+
+	go podInformer.GetController().Run(wait.NeverStop)
+	go podInformer.Run(wait.NeverStop)
+}
 
 func podLogger(pod *api.Pod) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
@@ -80,8 +96,8 @@ func podChangedLocked(obj interface{}) {
 	const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
 
 	// top-level default annotation
-	egval := defaultEg
-	sgval := defaultSg
+	egval := &defaultEg
+	sgval := &defaultSg
 
 	// namespace annotation has next-highest priority
 	namespaceobj, exists, err :=

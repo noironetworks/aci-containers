@@ -4,8 +4,31 @@ metadata:
   name: aci-containers-config
   namespace: kube-system
   labels:
-    app: aci-containers
+    k8s-app: aci-containers
 data:
+  controller_config: |-
+    {
+        // Default endpoint group used when no other endpoint group assignment
+        // exists
+        "default-endpoint-group": {
+            "policy-space": "demo",
+            "name": "kubernetes-default|default"
+        },
+
+        // IP addresses used for externally exposed load balanced services
+        "service-ip-pool": [
+            {"start": "10.4.0.1, "end": "10.4.255.254"}
+        ],
+
+        // IP addresses that can be requested as static service IPs
+        // in service spec
+        "static-service-ip-pool": [],
+
+        // IP addresses used for pod network
+        "pod-ip-pool": [
+            {"start": "10.1.0.1, "end": "10.1.255.254"}
+        ]
+    }
   host_agent_config: |-
     {
         "service-iface": "eth2",
@@ -20,7 +43,7 @@ metadata:
   name: aci-containers-host
   namespace: kube-system
   labels:
-    app: aci-containers
+    k8s-app: aci-containers
 spec:
   template:
     metadata:
@@ -64,3 +87,42 @@ spec:
             items:
               - key: host_agent_config
                 path: host-agent.conf
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: aci-containers-controller
+  namespace: kube-system
+  labels:
+    k8s-app: aci-containers
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ''
+    scheduler.alpha.kubernetes.io/tolerations: |
+      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
+       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: aci-containers-controller
+      namespace: kube-system
+      labels:
+        k8s-app: aci-containers
+    spec:
+      hostNetwork: true
+      containers:
+        - name: aci-containers-controller
+          image: noiro/aci-containers-controller
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: config-volume
+              mountPath: /usr/local/etc/aci-containers/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: controller_config
+                path: controller.conf

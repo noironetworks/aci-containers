@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Handlers for namespace updates.  Keeps an index of namespace
-// annotations
+// Handlers for node updates.
 
 package main
 
@@ -26,46 +25,37 @@ import (
 	"k8s.io/kubernetes/pkg/watch"
 )
 
-func initNamespaceInformer() {
-	namespaceInformer = cache.NewSharedIndexInformer(
+func initNodeInformer() {
+	nodeInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Namespaces().List(options)
+				return kubeClient.Core().Nodes().List(options)
 			},
 			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Namespaces().Watch(options)
+				return kubeClient.Core().Nodes().Watch(options)
 			},
 		},
-		&api.Namespace{},
+		&api.Node{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    namespaceChanged,
-		UpdateFunc: namespaceUpdated,
-		DeleteFunc: namespaceChanged,
+	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    nodeChanged,
+		UpdateFunc: nodeUpdated,
+		DeleteFunc: nodeChanged,
 	})
 
-	go namespaceInformer.GetController().Run(wait.NeverStop)
-	go namespaceInformer.Run(wait.NeverStop)
+	go nodeInformer.GetController().Run(wait.NeverStop)
+	go nodeInformer.Run(wait.NeverStop)
 }
 
-func namespaceUpdated(_ interface{}, obj interface{}) {
-	namespaceChanged(obj)
+func nodeUpdated(_ interface{}, obj interface{}) {
+	nodeChanged(obj)
 }
 
-func namespaceChanged(obj interface{}) {
+func nodeChanged(obj interface{}) {
 	indexMutex.Lock()
 	defer indexMutex.Unlock()
 
-	ns := obj.(*api.Namespace)
-
-	pods := podInformer.GetStore().List()
-	for _, podobj := range pods {
-		pod := podobj.(*api.Pod)
-
-		if ns.Name == pod.ObjectMeta.Namespace {
-			podChangedLocked(pod)
-		}
-	}
+	//	node := obj.(*api.Node)
 }

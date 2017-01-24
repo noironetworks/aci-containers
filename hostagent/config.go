@@ -20,6 +20,9 @@ import (
 
 // Configuration for the host agent
 type HostAgentConfig struct {
+	// Log level
+	LogLevel string `json:"log-level,omitempty"`
+
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
@@ -71,6 +74,8 @@ type HostAgentConfig struct {
 }
 
 func initFlags() {
+	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
+
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 
