@@ -1,4 +1,4 @@
-// Copyright 2016 Cisco Systems, Inc.
+// Copyright 2016,2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
+	"io/ioutil"
+	"os"
 	goruntime "runtime"
 	"sync"
 	"time"
@@ -32,29 +35,11 @@ import (
 )
 
 var (
-	log        = logrus.New()
-	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	nodename   = flag.String("node", "", "Name of current node")
-	network    = flag.String("cninetwork", "opflex-k8s-network", "Name of CNI network")
+	log = logrus.New()
 
-	metadataDir = flag.String("cnimetadatadir", "/var/lib/aci-containers/", "Directory containing OpFlex CNI metadata")
-	endpointDir = flag.String("endpointdir", "/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
-	serviceDir  = flag.String("servicedir", "/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
+	configPath = flag.String("config-path", "", "Absolute path to a host agent configuration file")
 
-	vrfTenant = flag.String("vrftenant", "common", "ACI tenant containing the VRF for kubernetes")
-	vrf       = flag.String("vrf", "kubernetes-vrf", "ACI VRF name for for kubernetes")
-	defaultEg = flag.String("default-endpoint-group", "", "Default endpoint group annotation value")
-	defaultSg = flag.String("default-security-group", "", "Default security group annotation value")
-
-	serviceIface     = flag.String("serviceIface", "eth2", "Interface for external service traffic")
-	serviceIfaceVlan = flag.Uint("serviceIfaceVlan", 4003, "VLAN for service interface traffic")
-	serviceIfaceMac  = flag.String("serviceIfaceMac", "", "MAC address to advertise in response to service interface IP address discovery requests")
-	serviceIfaceIp   = flag.String("serviceIfaceIp", "", "IP address to advertise on the service interface")
-
-	ovsDbSock    = flag.String("ovsDbSock", "/var/run/openvswitch/db.sock", "OVS DB socket to connect to")
-	intBrName    = flag.String("intBridge", "br-int", "Integration bridge")
-	accessBrName = flag.String("accessBridge", "br-access", "Access bridge")
-	mtu          = flag.Int("mtu", 1500, "Interface MTU for interface configuration")
+	config = &HostAgentConfig{}
 
 	indexMutex     = &sync.Mutex{}
 	opflexEps      = make(map[string]*opflexEndpoint)
@@ -76,43 +61,59 @@ func init() {
 }
 
 func main() {
+	initFlags()
 	flag.Parse()
 
-	if nodename == nil || *nodename == "" {
-		err := errors.New("Node Name not specified")
+	if configPath != nil && *configPath != "" {
+		raw, err := ioutil.ReadFile(*configPath)
+		if err != nil {
+			panic(err.Error())
+		}
+		err = json.Unmarshal(raw, config)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
+	if config.NodeName == "" {
+		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
+	}
+	if config.NodeName == "" {
+		err := errors.New("Node name not specified and $KUBERNETES_NODE_NAME empty")
 		log.Error(err.Error())
 		panic(err.Error())
 	}
 
 	log.WithFields(logrus.Fields{
-		"kubeconfig": *kubeconfig,
-		"nodename":   *nodename,
+		"kubeconfig":  config.KubeConfig,
+		"node-name":   config.NodeName,
+		"config-path": *configPath,
 	}).Info("Starting")
 
-	var config *restclient.Config
+	var restconfig *restclient.Config
 	var err error
-	if kubeconfig != nil {
+	if config.KubeConfig != "" {
 		// use kubeconfig file from command line
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
 		if err != nil {
 			panic(err.Error())
 		}
 	} else {
 		// creates the in-cluster config
-		config, err = restclient.InClusterConfig()
+		restconfig, err = restclient.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
 		}
 	}
 
 	// creates the kubernetes API client
-	kubeClient, err := clientset.NewForConfig(config)
+	kubeClient, err := clientset.NewForConfig(restconfig)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Initialize metadata cache
-	err = md.LoadMetadata(*metadataDir, *network, &epMetadata)
+	err = md.LoadMetadata(config.CniMetadataDir, config.CniNetwork, &epMetadata)
 	if err != nil {
 		panic(err.Error())
 	}

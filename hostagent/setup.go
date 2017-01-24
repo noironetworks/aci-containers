@@ -157,12 +157,12 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	logger.Debug("Setting up veth")
 
 	metadata.HostVethName, metadata.MAC, err =
-		setupVeth(netns, metadata.ContIfaceName, *mtu)
+		setupVeth(netns, metadata.ContIfaceName, config.InterfaceMtu)
 	if err != nil {
 		return nil, err
 	}
 
-	err = md.RecordMetadata(*metadataDir, *network, *metadata)
+	err = md.RecordMetadata(config.CniMetadataDir, config.CniNetwork, *metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +174,8 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 
 	logger.Debug("Creating OVS ports")
 
-	err = createPorts(*ovsDbSock, *intBrName, *accessBrName,
-		metadata.HostVethName)
+	err = createPorts(config.OvsDbSock, config.IntBridgeName,
+		config.AccessBridgeName, metadata.HostVethName)
 	if err != nil {
 		return nil, err
 	}
@@ -212,15 +212,15 @@ func unconfigureContainerIface(id string) error {
 	delete(epMetadata, id)
 	indexMutex.Unlock()
 
-	err := md.ClearMetadata(*metadataDir, *network, id)
+	err := md.ClearMetadata(config.CniMetadataDir, config.CniNetwork, id)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("Clearing OVS ports")
 	if metadata.HostVethName != "" {
-		err = delPorts(*ovsDbSock, *intBrName, *accessBrName,
-			metadata.HostVethName)
+		err = delPorts(config.OvsDbSock, config.IntBridgeName,
+			config.AccessBridgeName, metadata.HostVethName)
 		if err != nil {
 			logger.Error("Could not clear OVS ports: ", err)
 		}

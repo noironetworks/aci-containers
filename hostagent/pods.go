@@ -66,12 +66,12 @@ func initPodInformer(kubeClient *clientset.Clientset) {
 		&cache.ListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
-					fields.Set{"spec.nodeName": *nodename}.AsSelector()
+					fields.Set{"spec.nodeName": config.NodeName}.AsSelector()
 				return kubeClient.Core().Pods(api.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
-					fields.Set{"spec.nodeName": *nodename}.AsSelector()
+					fields.Set{"spec.nodeName": config.NodeName}.AsSelector()
 				return kubeClient.Core().Pods(api.NamespaceAll).Watch(options)
 			},
 		},
@@ -135,10 +135,10 @@ func syncEps() {
 		return
 	}
 
-	files, err := ioutil.ReadDir(*endpointDir)
+	files, err := ioutil.ReadDir(config.OpFlexEndpointDir)
 	if err != nil {
 		log.WithFields(
-			logrus.Fields{"endpointDir": endpointDir},
+			logrus.Fields{"endpointDir": config.OpFlexEndpointDir},
 		).Error("Could not read directory " + err.Error())
 		return
 	}
@@ -148,7 +148,7 @@ func syncEps() {
 			continue
 		}
 
-		epfile := filepath.Join(*endpointDir, f.Name())
+		epfile := filepath.Join(config.OpFlexEndpointDir, f.Name())
 		logger := log.WithFields(
 			logrus.Fields{"epfile": epfile},
 		)
@@ -177,12 +177,12 @@ func syncEps() {
 		}
 
 		opflexEpLogger(ep).Info("Adding endpoint")
-		writeEp(filepath.Join(*endpointDir, ep.Uuid+".ep"), ep)
+		writeEp(filepath.Join(config.OpFlexEndpointDir, ep.Uuid+".ep"), ep)
 	}
 }
 
 func podFilter(pod *api.Pod) bool {
-	if pod.Spec.NodeName != *nodename {
+	if pod.Spec.NodeName != config.NodeName {
 		return false
 	} else if pod.Spec.SecurityContext != nil &&
 		pod.Spec.SecurityContext.HostNetwork == true {

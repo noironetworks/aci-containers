@@ -41,15 +41,6 @@ const defaultMTU = 1500
 const defaultOvsDbSock = "/var/run/openvswitch/db.sock"
 const defaultMetadataDir = "/var/lib/cni/opflex-networks"
 
-type NetConf struct {
-	types.NetConf
-	OvsDbSock    string `json:"ovsdb-socket"`
-	IntBrName    string `json:"int-bridge"`
-	AccessBrName string `json:"access-bridge"`
-	MTU          int    `json:"mtu"`
-	MetadataDir  string `json:"metadata-dir"`
-}
-
 type K8SArgs struct {
 	types.CommonArgs
 	K8S_POD_NAME               types.UnmarshallableString
@@ -64,14 +55,8 @@ func init() {
 	runtime.LockOSThread()
 }
 
-func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
-	n := &NetConf{
-		OvsDbSock:    defaultOvsDbSock,
-		IntBrName:    defaultIntBrName,
-		AccessBrName: defaultAccessBrName,
-		MTU:          defaultMTU,
-		MetadataDir:  defaultMetadataDir,
-	}
+func loadConf(args *skel.CmdArgs) (*types.NetConf, *K8SArgs, string, error) {
+	n := &types.NetConf{}
 	if err := json.Unmarshal(args.StdinData, n); err != nil {
 		return nil, nil, "", fmt.Errorf("failed to load netconf: %v", err)
 	}
@@ -163,10 +148,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 		NetConf:       *result,
 		Namespace:     string(k8sArgs.K8S_POD_NAMESPACE),
 		Pod:           string(k8sArgs.K8S_POD_NAME),
-	}
-	err = cnimetadata.RecordMetadata(n.MetadataDir, n.Name, metadata)
-	if err != nil {
-		return err
 	}
 
 	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)

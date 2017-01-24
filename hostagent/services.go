@@ -157,10 +157,10 @@ func syncServices() {
 		return
 	}
 
-	files, err := ioutil.ReadDir(*serviceDir)
+	files, err := ioutil.ReadDir(config.OpFlexServiceDir)
 	if err != nil {
 		log.WithFields(
-			logrus.Fields{"serviceDir": serviceDir},
+			logrus.Fields{"serviceDir": config.OpFlexServiceDir},
 		).Error("Could not read directory " + err.Error())
 		return
 	}
@@ -171,7 +171,7 @@ func syncServices() {
 			continue
 		}
 
-		asfile := filepath.Join(*serviceDir, f.Name())
+		asfile := filepath.Join(config.OpFlexServiceDir, f.Name())
 		logger := log.WithFields(
 			logrus.Fields{"asfile": asfile},
 		)
@@ -200,7 +200,7 @@ func syncServices() {
 		}
 
 		opflexServiceLogger(as).Info("Adding service")
-		writeAs(filepath.Join(*serviceDir, as.Uuid+".service"), as)
+		writeAs(filepath.Join(config.OpFlexServiceDir, as.Uuid+".service"), as)
 	}
 }
 
@@ -211,23 +211,23 @@ func endpointsUpdated(_ interface{}, obj interface{}) {
 func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints) bool {
 	ofas := &opflexService{
 		Uuid:              string(as.ObjectMeta.UID),
-		DomainPolicySpace: *vrfTenant,
-		DomainName:        *vrf,
+		DomainPolicySpace: config.AciVrfTenant,
+		DomainName:        config.AciVrf,
 		ServiceMode:       "loadbalancer",
 		ServiceMappings:   make([]opflexServiceMapping, 0),
 	}
 
 	if external {
-		if *serviceIface == "" ||
-			*serviceIfaceIp == "" ||
-			*serviceIfaceMac == "" {
+		if config.ServiceIface == "" ||
+			config.ServiceIfaceIp == "" ||
+			config.ServiceIfaceMac == "" {
 			return false
 		}
 
-		ofas.InterfaceName = *serviceIface
-		ofas.InterfaceVlan = uint16(*serviceIfaceVlan)
-		ofas.ServiceMac = *serviceIfaceMac
-		ofas.InterfaceIp = *serviceIfaceIp
+		ofas.InterfaceName = config.ServiceIface
+		ofas.InterfaceVlan = uint16(config.ServiceIfaceVlan)
+		ofas.ServiceMac = config.ServiceIfaceMac
+		ofas.InterfaceIp = config.ServiceIfaceIp
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
 
@@ -255,7 +255,7 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 
 				for _, a := range e.Addresses {
 					if !external ||
-						(a.NodeName != nil && *a.NodeName == *nodename) {
+						(a.NodeName != nil && *a.NodeName == config.NodeName) {
 						sm.NextHopIps = append(sm.NextHopIps, a.IP)
 					}
 				}

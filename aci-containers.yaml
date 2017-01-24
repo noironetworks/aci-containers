@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aci-containers-config
+  namespace: kube-system
+  labels:
+    app: aci-containers
+data:
+  host_agent_config: |-
+    {
+        "service-iface": "eth2",
+        "service-iface-mac": "90:e2:ba:b1:36:6c",
+        "service-iface-vlan": 4003,
+        "service-iface-ip": "10.6.1.1"
+    }
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: aci-containers-host
+  namespace: kube-system
+  labels:
+    app: aci-containers
+spec:
+  template:
+    metadata:
+      labels:
+        name: aci-containers-host
+    spec:
+      hostNetwork: true
+      containers:
+        - name: aci-containers-host
+          image: noiro/aci-containers-host
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: KUBERNETES_NODE_NAME 
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt
+            - name: cni-conf
+              mountPath: /etc
+            - name: localvar
+              mountPath: /usr/local/var
+            - name: config-volume
+              mountPath: /usr/local/etc/aci-containers/
+      restartPolicy: Always
+      volumes:
+        - name: cni-bin
+          hostPath:
+            path: /opt
+        - name: cni-conf
+          hostPath:
+            path: /etc
+        - name: localvar
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: host_agent_config
+                path: host-agent.conf
