@@ -1,5 +1,5 @@
-hash: 6795241072d2ac013f60a491fa797835d4fb9b6ff947e14c74deea77f7286044
-updated: 2017-01-17T17:48:14.8590941-08:00
+hash: 7274ffa9be836179898344f09e7746b9036c95b0542226ef5817fb30b9336e2d
+updated: 2017-01-26T09:47:45.026459723-08:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -148,9 +148,11 @@ imports:
   - codec
   - codec/codecgen
 - name: github.com/vishvananda/netlink
-  version: 1e2e08e8a2dcdacaae3f14ac44c5cfa31361f270
+  version: a1f8555521646b5a9800f39c5fd477597697135c
   subpackages:
   - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
 - name: golang.org/x/crypto
   version: 1f22c0103821b9390939b6776727195525381532
   subpackages:
@@ -189,7 +191,7 @@ imports:
   - jws
   - jwt
 - name: golang.org/x/sys
-  version: d75a52659825e75fff6158388dddc6a5b04f9ba5
+  version: 076b546753157f758b316e59bcb51e6807c04057
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -358,4 +360,12 @@ imports:
   - plugin/pkg/client/auth/oidc
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
-testImports: []
+testImports:
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
