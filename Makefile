@@ -1,13 +1,13 @@
 
 BASE=github.com/noironetworks/aci-containers
-METADATA_SRC=$(wildcard cnimetadata/*.go)
+METADATA_SRC=$(wildcard metadata/*.go)
 HOSTAGENT_SRC=$(wildcard hostagent/*.go)
 AGENTCNI_SRC=$(wildcard opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard controller/*.go)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${HOSTAGENT_SRC}
 AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
-CONTROLLER_DEPS=${CONTROLLER_SRC}
+CONTROLLER_DEPS=${METADATA_SRC} ${CONTROLLER_SRC}
 
 BUILD_CMD=go build -v
 STATIC_BUILD_CMD=CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo

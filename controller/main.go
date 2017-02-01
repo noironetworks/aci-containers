@@ -26,13 +26,15 @@ import (
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+
+	"github.com/noironetworks/aci-containers/ipam"
 )
 
 var (
 	log = logrus.New()
 
 	configPath = flag.String("config-path", "", "Absolute path to a host agent configuration file")
-	config     = &ControllerConfig{}
+	config     = NewConfig()
 
 	defaultEg = ""
 	defaultSg = ""
@@ -47,6 +49,15 @@ var (
 	serviceInformer    cache.SharedIndexInformer
 	deploymentInformer cache.SharedIndexInformer
 	nodeInformer       cache.SharedIndexInformer
+
+	podNetworkIpsV4    = ipam.New()
+	podNetworkIpsV6    = ipam.New()
+	serviceIpsV4       = ipam.New()
+	serviceIpsV6       = ipam.New()
+	staticServiceIpsV4 = ipam.New()
+	staticServiceIpsV6 = ipam.New()
+	nodeServiceIpsV4   = ipam.New()
+	nodeServiceIpsV6   = ipam.New()
 )
 
 func main() {
@@ -69,7 +80,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	logrus.SetLevel(logLevel)
+	log.Level = logLevel
 
 	egdata, err := json.Marshal(config.DefaultEg)
 	if err != nil {
@@ -87,8 +98,15 @@ func main() {
 
 	log.WithFields(logrus.Fields{
 		"kubeconfig": config.KubeConfig,
+		"defaultEg":  defaultEg,
+		"defaultSg":  defaultSg,
+		"logLevel":   logLevel,
 	}).Info("Starting")
 
+	log.Debug("Initializing IPAM")
+	initIpam()
+
+	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
 	if config.KubeConfig != "" {
 		// use kubeconfig file from command line
@@ -113,21 +131,15 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
+	log.Debug("Initializing informers")
+	initNodeInformer()
+
 	initNamespaceInformer()
 	initDeploymentInformer()
 	initPodInformer()
 
 	initEndpointsInformer()
 	initServiceInformer()
-
-	//	go func() {
-	//		time.Sleep(time.Second * 5)
-	//		syncEnabled = true
-	//		indexMutex.Lock()
-	//		defer indexMutex.Unlock()
-	//		syncServices()
-	//		syncEps()
-	//	}()
 
 	wg.Wait()
 }

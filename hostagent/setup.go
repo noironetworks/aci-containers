@@ -28,7 +28,7 @@ import (
 	"github.com/tatsushid/go-fastping"
 	"github.com/vishvananda/netlink"
 
-	md "github.com/noironetworks/aci-containers/cnimetadata"
+	md "github.com/noironetworks/aci-containers/metadata"
 )
 
 func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, string, error) {
@@ -244,8 +244,8 @@ func unconfigureContainerIface(id string) error {
 	return nil
 }
 
-func cleanupConfiguration() {
-	log.Info("Checking for stale configuration")
+func cleanupSetup() {
+	log.Info("Checking for stale container setup")
 
 	indexMutex.Lock()
 	mdcopy := epMetadata

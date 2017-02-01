@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"github.com/socketplane/libovsdb"
 
-	"github.com/noironetworks/aci-containers/cnimetadata"
+	"github.com/noironetworks/aci-containers/metadata"
 )
 
 type ovsBridge struct {
@@ -119,7 +119,7 @@ func createPorts(socket string, intBrName string,
 		}
 	}
 
-	patchIntName, patchAccessName := cnimetadata.GetIfaceNames(hostVethName)
+	patchIntName, patchAccessName := metadata.GetIfaceNames(hostVethName)
 	const EXISTS = "Port %s already exists"
 	if _, ok := bridges[intBrName].ports[patchIntName]; ok {
 		return fmt.Errorf(EXISTS, patchIntName)
@@ -271,7 +271,7 @@ func delPorts(socket string, intBrName string,
 		return err
 	}
 
-	patchIntName, patchAccessName := cnimetadata.GetIfaceNames(hostVethName)
+	patchIntName, patchAccessName := metadata.GetIfaceNames(hostVethName)
 
 	ops := []libovsdb.Operation{}
 

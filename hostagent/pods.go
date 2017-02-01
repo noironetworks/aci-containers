@@ -36,7 +36,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/watch"
 
-	"github.com/noironetworks/aci-containers/cnimetadata"
+	"github.com/noironetworks/aci-containers/metadata"
 )
 
 type opflexGroup struct {
@@ -135,6 +135,7 @@ func syncEps() {
 		return
 	}
 
+	log.Debug("Syncing endpoints")
 	files, err := ioutil.ReadDir(config.OpFlexEndpointDir)
 	if err != nil {
 		log.WithFields(
@@ -179,6 +180,7 @@ func syncEps() {
 		opflexEpLogger(ep).Info("Adding endpoint")
 		writeEp(filepath.Join(config.OpFlexEndpointDir, ep.Uuid+".ep"), ep)
 	}
+	log.Debug("Finished endpoint sync")
 }
 
 func podFilter(pod *api.Pod) bool {
@@ -227,7 +229,7 @@ func podChangedLocked(podobj interface{}) {
 	}
 
 	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-	metadata, ok := epMetadata[id]
+	epmetadata, ok := epMetadata[id]
 	if !ok {
 		logger.Debug("No metadata")
 		delete(opflexEps, string(pod.ObjectMeta.UID))
@@ -236,20 +238,20 @@ func podChangedLocked(podobj interface{}) {
 	}
 
 	patchIntName, patchAccessName :=
-		cnimetadata.GetIfaceNames(metadata.HostVethName)
+		metadata.GetIfaceNames(epmetadata.HostVethName)
 	ips := make([]string, 0)
-	if metadata.NetConf.IP4 != nil {
-		ips = append(ips, metadata.NetConf.IP4.IP.IP.String())
+	if epmetadata.NetConf.IP4 != nil {
+		ips = append(ips, epmetadata.NetConf.IP4.IP.IP.String())
 	}
-	if metadata.NetConf.IP6 != nil {
-		ips = append(ips, metadata.NetConf.IP6.IP.IP.String())
+	if epmetadata.NetConf.IP6 != nil {
+		ips = append(ips, epmetadata.NetConf.IP6.IP.IP.String())
 	}
 
 	ep := &opflexEndpoint{
 		Uuid:              string(pod.ObjectMeta.UID),
-		MacAddress:        metadata.MAC,
+		MacAddress:        epmetadata.MAC,
 		IpAddress:         ips,
-		AccessIface:       metadata.HostVethName,
+		AccessIface:       epmetadata.HostVethName,
 		AccessUplinkIface: patchAccessName,
 		IfaceName:         patchIntName,
 	}
@@ -257,10 +259,7 @@ func podChangedLocked(podobj interface{}) {
 	ep.Attributes = pod.ObjectMeta.Labels
 	ep.Attributes["vm-name"] = id
 
-	const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
-	const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
-
-	if egval, ok := pod.ObjectMeta.Annotations[CompEgAnnotation]; ok {
+	if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
 		g := &opflexGroup{}
 		err := json.Unmarshal([]byte(egval), g)
 		if err != nil {
@@ -272,7 +271,7 @@ func podChangedLocked(podobj interface{}) {
 			ep.EndpointGroup = g.Name
 		}
 	}
-	if sgval, ok := pod.ObjectMeta.Annotations[CompSgAnnotation]; ok {
+	if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
 		g := make([]opflexGroup, 0)
 		err := json.Unmarshal([]byte(sgval), &g)
 		if err != nil {

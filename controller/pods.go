@@ -25,6 +25,8 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/informers"
 	"k8s.io/kubernetes/pkg/util/wait"
+
+	"github.com/noironetworks/aci-containers/metadata"
 )
 
 func initPodInformer() {
@@ -90,11 +92,6 @@ func podChangedLocked(obj interface{}) {
 		podDeletedLocked(pod)
 	}
 
-	const EgAnnotation = "opflex.cisco.com/endpoint-group"
-	const SgAnnotation = "opflex.cisco.com/security-group"
-	const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
-	const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
-
 	// top-level default annotation
 	egval := &defaultEg
 	sgval := &defaultSg
@@ -110,10 +107,10 @@ func podChangedLocked(obj interface{}) {
 	if exists && namespaceobj != nil {
 		namespace := namespaceobj.(*api.Namespace)
 
-		if og, ok := namespace.ObjectMeta.Annotations[EgAnnotation]; ok {
+		if og, ok := namespace.ObjectMeta.Annotations[metadata.EgAnnotation]; ok {
 			egval = &og
 		}
-		if og, ok := namespace.ObjectMeta.Annotations[SgAnnotation]; ok {
+		if og, ok := namespace.ObjectMeta.Annotations[metadata.SgAnnotation]; ok {
 			sgval = &og
 		}
 	}
@@ -137,45 +134,46 @@ func podChangedLocked(obj interface{}) {
 		if exists && deploymentobj != nil {
 			deployment := deploymentobj.(*extensions.Deployment)
 
-			if og, ok := deployment.ObjectMeta.Annotations[EgAnnotation]; ok {
+			if og, ok := deployment.ObjectMeta.Annotations[metadata.EgAnnotation]; ok {
 				egval = &og
 			}
-			if og, ok := deployment.ObjectMeta.Annotations[SgAnnotation]; ok {
+			if og, ok := deployment.ObjectMeta.Annotations[metadata.SgAnnotation]; ok {
 				sgval = &og
 			}
 		}
 	}
 
 	// direct pod annotation is highest priority
-	if og, ok := pod.ObjectMeta.Annotations[EgAnnotation]; ok {
+	if og, ok := pod.ObjectMeta.Annotations[metadata.EgAnnotation]; ok {
 		egval = &og
 	}
-	if og, ok := pod.ObjectMeta.Annotations[SgAnnotation]; ok {
+	if og, ok := pod.ObjectMeta.Annotations[metadata.SgAnnotation]; ok {
 		sgval = &og
 	}
 
 	podUpdated := false
-	oldegval, ok := pod.ObjectMeta.Annotations[CompEgAnnotation]
+	oldegval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]
 	if egval != nil && *egval != "" {
 		if !ok || oldegval != *egval {
-			pod.ObjectMeta.Annotations[CompEgAnnotation] = *egval
+			pod.ObjectMeta.Annotations[metadata.CompEgAnnotation] = *egval
 			podUpdated = true
 		}
 	} else {
 		if ok {
-			delete(pod.ObjectMeta.Annotations, CompEgAnnotation)
+			delete(pod.ObjectMeta.Annotations, metadata.CompEgAnnotation)
 			podUpdated = true
 		}
 	}
-	oldsgval, ok := pod.ObjectMeta.Annotations[CompSgAnnotation]
+	oldsgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]
 	if sgval != nil && *sgval != "" {
 		if !ok || oldsgval != *sgval {
-			pod.ObjectMeta.Annotations[CompSgAnnotation] = *sgval
+			pod.ObjectMeta.Annotations[metadata.CompSgAnnotation] = *sgval
 			podUpdated = true
 		}
 	} else {
 		if ok {
-			delete(pod.ObjectMeta.Annotations, CompSgAnnotation)
+			logger.Info("deleted")
+			delete(pod.ObjectMeta.Annotations, metadata.CompSgAnnotation)
 			podUpdated = true
 		}
 	}
@@ -186,8 +184,8 @@ func podChangedLocked(obj interface{}) {
 			logger.Error("Failed to update pod: " + err.Error())
 		} else {
 			logger.WithFields(logrus.Fields{
-				"EgAnnotation": *egval,
-				"SgAnnotation": *sgval,
+				"Eg": pod.ObjectMeta.Annotations[metadata.CompEgAnnotation],
+				"Sg": pod.ObjectMeta.Annotations[metadata.CompSgAnnotation],
 			}).Info("Updated pod annotations")
 		}
 	}

@@ -157,6 +157,8 @@ func syncServices() {
 		return
 	}
 
+	log.Debug("Syncing services")
+
 	files, err := ioutil.ReadDir(config.OpFlexServiceDir)
 	if err != nil {
 		log.WithFields(
@@ -202,6 +204,8 @@ func syncServices() {
 		opflexServiceLogger(as).Info("Adding service")
 		writeAs(filepath.Join(config.OpFlexServiceDir, as.Uuid+".service"), as)
 	}
+
+	log.Debug("Finished service sync")
 }
 
 func endpointsUpdated(_ interface{}, obj interface{}) {
@@ -219,15 +223,15 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 
 	if external {
 		if config.ServiceIface == "" ||
-			config.ServiceIfaceIp == "" ||
-			config.ServiceIfaceMac == "" {
+			serviceEp.Ipv4 == nil ||
+			serviceEp.Mac == "" {
 			return false
 		}
 
 		ofas.InterfaceName = config.ServiceIface
 		ofas.InterfaceVlan = uint16(config.ServiceIfaceVlan)
-		ofas.ServiceMac = config.ServiceIfaceMac
-		ofas.InterfaceIp = config.ServiceIfaceIp
+		ofas.ServiceMac = serviceEp.Mac
+		ofas.InterfaceIp = serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
 
@@ -361,5 +365,26 @@ func serviceDeleted(obj interface{}) {
 	if _, ok := opflexServices[u]; ok {
 		delete(opflexServices, u)
 		syncServices()
+	}
+}
+
+func updateAllServices() {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	if serviceInformer == nil {
+		return
+	}
+	store := serviceInformer.GetStore()
+	if store == nil {
+		return
+	}
+	keys := serviceInformer.GetStore().ListKeys()
+	if keys == nil {
+		return
+	}
+
+	for _, key := range keys {
+		doUpdateService(key)
 	}
 }

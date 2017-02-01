@@ -56,13 +56,6 @@ type HostAgentConfig struct {
 	// VLAN for service interface traffic
 	ServiceIfaceVlan uint `json:"service-iface-vlan,omitempty"`
 
-	// MAC address to advertise in response to service interface IP
-	// address discovery requests
-	ServiceIfaceMac string `json:"service-iface-mac,omitempty"`
-
-	// IP address to advertise on the service interface
-	ServiceIfaceIp string `json:"service-iface-ip,omitempty"`
-
 	// Interface MTU to use when configuring container interfaces
 	InterfaceMtu int `json:"interface-mtu,omitempty"`
 
@@ -92,9 +85,7 @@ func initFlags() {
 
 	flag.StringVar(&config.ServiceIface, "service-iface", "eth2", "Interface for external service traffic")
 	flag.UintVar(&config.ServiceIfaceVlan, "service-iface-vlan", 4003, "VLAN for service interface traffic")
-	flag.StringVar(&config.ServiceIfaceMac, "service-iface-mac", "", "MAC address to advertise in response to service interface IP address discovery requests")
-	flag.StringVar(&config.ServiceIfaceIp, "service-iface-ip", "", "IP address to advertise on the service interface")
 
-	flag.StringVar(&config.AciVrf, "vrf", "aci-vrf", "ACI VRF for this kubernetes instance")
+	flag.StringVar(&config.AciVrf, "aci-vrf", "kubernetes-vrf", "ACI VRF for this kubernetes instance")
 	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
 }

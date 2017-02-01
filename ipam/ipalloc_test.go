@@ -221,7 +221,7 @@ func TestAddRange(t *testing.T) {
 	for i, rt := range addRangeTests {
 		ipa := New()
 		for _, r := range rt.input {
-			ipa.AddRange(r.start, r.end)
+			ipa.AddRange(r.Start, r.End)
 		}
 		assert.Equal(t, rt.freeList, ipa.freeList,
 			fmt.Sprintf("AddRange %d: %s", i, rt.desc))
@@ -232,6 +232,7 @@ type removeRangeTest struct {
 	add      []IpRange
 	remove   []IpRange
 	freeList []IpRange
+	changed  bool
 	desc     string
 }
 
@@ -242,6 +243,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{},
+		false,
 		"empty",
 	},
 	{
@@ -252,6 +254,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{},
+		true,
 		"whole",
 	},
 	{
@@ -264,6 +267,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
+		false,
 		"miss left",
 	},
 	{
@@ -276,6 +280,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
+		false,
 		"miss right",
 	},
 	{
@@ -288,6 +293,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
+		true,
 		"left overlap",
 	},
 	{
@@ -300,6 +306,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.254")},
 		},
+		true,
 		"left touch",
 	},
 	{
@@ -312,6 +319,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
+		true,
 		"left touch 2",
 	},
 	{
@@ -328,6 +336,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.213"), net.ParseIP("10.0.1.254")},
 			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
+		true,
 		"left overlap search",
 	},
 	{
@@ -340,6 +349,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 		},
+		true,
 		"right overlap",
 	},
 	{
@@ -352,6 +362,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.253")},
 		},
+		true,
 		"right touch",
 	},
 	{
@@ -364,6 +375,7 @@ var removeRangeTests = []removeRangeTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 		},
+		true,
 		"right touch 2",
 	},
 	{
@@ -378,6 +390,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
+		true,
 		"right overlap search",
 	},
 	{
@@ -394,6 +407,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
+		true,
 		"right overlap search 2",
 	},
 	{
@@ -407,6 +421,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.99")},
 			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
+		true,
 		"center overlap",
 	},
 	{
@@ -417,6 +432,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.1")},
 		},
 		[]IpRange{},
+		true,
 		"one",
 	},
 	{
@@ -430,6 +446,7 @@ var removeRangeTests = []removeRangeTest{
 			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.126")},
 			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
 		},
+		true,
 		"one from middle",
 	},
 }
@@ -438,10 +455,10 @@ func TestRemoveRange(t *testing.T) {
 	for i, rt := range removeRangeTests {
 		ipa := New()
 		for _, r := range rt.add {
-			ipa.AddRange(r.start, r.end)
+			ipa.AddRange(r.Start, r.End)
 		}
 		for _, r := range rt.remove {
-			ipa.RemoveRange(r.start, r.end)
+			ipa.RemoveRange(r.Start, r.End)
 		}
 		assert.Equal(t, rt.freeList, ipa.freeList,
 			fmt.Sprintf("RemoveRange %d: %s", i, rt.desc))
@@ -504,7 +521,7 @@ func TestGetIp(t *testing.T) {
 	for i, rt := range getIpTests {
 		ipa := New()
 		for _, r := range rt.add {
-			ipa.AddRange(r.start, r.end)
+			ipa.AddRange(r.Start, r.End)
 		}
 		ip, err := ipa.GetIp()
 		if rt.err {
@@ -603,7 +620,7 @@ func TestGetIpChunk(t *testing.T) {
 	for i, rt := range getIpChunkTests {
 		ipa := New()
 		for _, r := range rt.add {
-			ipa.AddRange(r.start, r.end)
+			ipa.AddRange(r.Start, r.End)
 		}
 		ipchunk, err := ipa.GetIpChunk()
 		if rt.err {

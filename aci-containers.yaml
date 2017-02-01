@@ -8,33 +8,31 @@ metadata:
 data:
   controller_config: |-
     {
-        // Default endpoint group used when no other endpoint group assignment
-        // exists
+        "log-level": "debug",
         "default-endpoint-group": {
             "policy-space": "demo",
             "name": "kubernetes-default|default"
         },
-
-        // IP addresses used for externally exposed load balanced services
         "service-ip-pool": [
-            {"start": "10.4.0.1, "end": "10.4.255.254"}
+            {"start": "10.4.1.1", "end": "10.4.255.254"}
         ],
-
-        // IP addresses that can be requested as static service IPs
-        // in service spec
-        "static-service-ip-pool": [],
-
-        // IP addresses used for pod network
+        "static-service-ip-pool": [
+            {"start": "10.4.0.1", "end": "10.4.0.255"}
+        ],
         "pod-ip-pool": [
-            {"start": "10.1.0.1, "end": "10.1.255.254"}
+            {"start": "10.1.0.1", "end": "10.1.255.254"}
+        ],
+        "node-service-ip-pool": [
+            {"start": "10.6.1.1", "end": "10.6.1.254"}
         ]
     }
   host_agent_config: |-
     {
+        "log-level": "debug",
+        "aci-vrf": "kubernetes-vrf",
+        "aci-vrf-tenant": "common",
         "service-iface": "eth2",
-        "service-iface-mac": "90:e2:ba:b1:36:6c",
-        "service-iface-vlan": 4003,
-        "service-iface-ip": "10.6.1.1"
+        "service-iface-vlan": 4003
     }
 ---
 apiVersion: extensions/v1beta1

@@ -20,7 +20,8 @@ import (
 	"time"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	md "github.com/noironetworks/aci-containers/cnimetadata"
+
+	md "github.com/noironetworks/aci-containers/metadata"
 )
 
 type (
