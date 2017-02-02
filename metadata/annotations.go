@@ -14,18 +14,30 @@
 
 package metadata
 
-import "net"
+import (
+	"net"
+
+	"github.com/noironetworks/aci-containers/ipam"
+)
 
 // annotation type for service endpoint information
-//
 type ServiceEndpoint struct {
 	Mac  string `json:"mac,omitempty"`
 	Ipv4 net.IP `json:"ipv4,omitempty"`
 	Ipv6 net.IP `json:"ipv6,omitempty"`
 }
 
+// annotation type for IPs allocation chunks
+type NetIps struct {
+	V4 []ipam.IpRange
+	V6 []ipam.IpRange
+}
+
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
+
+// List of IP address ranges for use by the pod network
+const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 
 // Annotation for endpoint group designation for pod, deployment, etc.
 const EgAnnotation = "opflex.cisco.com/endpoint-group"

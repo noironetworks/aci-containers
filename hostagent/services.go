@@ -146,9 +146,11 @@ func serviceLogger(as *api.Service) *logrus.Entry {
 
 func opflexServiceLogger(as *opflexService) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
-		"Uuid":   as.Uuid,
-		"tenant": as.DomainPolicySpace,
-		"vrf":    as.DomainName,
+		"namespace": as.Attributes["namespace"],
+		"name":      as.Attributes["name"],
+		"uuid":      as.Uuid,
+		"tenant":    as.DomainPolicySpace,
+		"vrf":       as.DomainName,
 	})
 }
 
@@ -273,6 +275,8 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 
 	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
 	ofas.Attributes = as.ObjectMeta.Labels
+	ofas.Attributes["namespace"] = as.ObjectMeta.Namespace
+	ofas.Attributes["name"] = as.ObjectMeta.Name
 	ofas.Attributes["service-name"] = id
 
 	existing, ok := opflexServices[ofas.Uuid]

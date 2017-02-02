@@ -16,6 +16,7 @@ package ipam
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"testing"
 
@@ -223,7 +224,7 @@ func TestAddRange(t *testing.T) {
 		for _, r := range rt.input {
 			ipa.AddRange(r.Start, r.End)
 		}
-		assert.Equal(t, rt.freeList, ipa.freeList,
+		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("AddRange %d: %s", i, rt.desc))
 	}
 }
@@ -460,7 +461,7 @@ func TestRemoveRange(t *testing.T) {
 		for _, r := range rt.remove {
 			ipa.RemoveRange(r.Start, r.End)
 		}
-		assert.Equal(t, rt.freeList, ipa.freeList,
+		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("RemoveRange %d: %s", i, rt.desc))
 	}
 }
@@ -527,7 +528,7 @@ func TestGetIp(t *testing.T) {
 		if rt.err {
 			assert.NotNil(t, err, fmt.Sprintf("err %d: %s", i, rt.desc))
 		}
-		assert.Equal(t, rt.freeList, ipa.freeList,
+		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("freeList %d: %s", i, rt.desc))
 		assert.Equal(t, rt.ip, ip,
 			fmt.Sprintf("ip %d: %s", i, rt.desc))
@@ -535,16 +536,18 @@ func TestGetIp(t *testing.T) {
 }
 
 type getIpChunkTest struct {
-	add      []IpRange
-	result   []IpRange
-	freeList []IpRange
-	err      bool
-	desc     string
+	add       []IpRange
+	chunkSize int64
+	result    []IpRange
+	freeList  []IpRange
+	err       bool
+	desc      string
 }
 
 var getIpChunkTests = []getIpChunkTest{
 	{
 		[]IpRange{},
+		256,
 		nil,
 		[]IpRange{},
 		true,
@@ -554,6 +557,7 @@ var getIpChunkTests = []getIpChunkTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
 		},
+		256,
 		nil,
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
@@ -565,6 +569,7 @@ var getIpChunkTests = []getIpChunkTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
 		},
+		256,
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
 		},
@@ -576,6 +581,7 @@ var getIpChunkTests = []getIpChunkTest{
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
 		},
+		258,
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
 		},
@@ -588,6 +594,7 @@ var getIpChunkTests = []getIpChunkTest{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
 			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
 		},
+		129 + 11 + 247,
 		[]IpRange{
 			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
 			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.3.255")},
@@ -603,6 +610,7 @@ var getIpChunkTests = []getIpChunkTest{
 			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2:ffff:ffff:ffff:ffff")},
 		},
+		256,
 		[]IpRange{
 			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2::ff")},
@@ -622,13 +630,70 @@ func TestGetIpChunk(t *testing.T) {
 		for _, r := range rt.add {
 			ipa.AddRange(r.Start, r.End)
 		}
-		ipchunk, err := ipa.GetIpChunk()
+		ipchunk, err := ipa.GetIpChunk(rt.chunkSize)
 		if rt.err {
 			assert.NotNil(t, err, fmt.Sprintf("err %d: %s", i, rt.desc))
 		}
 		assert.Equal(t, rt.result, ipchunk,
 			fmt.Sprintf("ipChunk %d: %s", i, rt.desc))
-		assert.Equal(t, rt.freeList, ipa.freeList,
+		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("freeList %d: %s", i, rt.desc))
+	}
+}
+
+type getSizeTest struct {
+	add  []IpRange
+	size int64
+	desc string
+}
+
+var getSizeTests = []getSizeTest{
+	{
+		[]IpRange{},
+		0,
+		"empty",
+	},
+	{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
+		},
+		255 + 376,
+		"simple",
+	},
+	{
+		[]IpRange{
+			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+				net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
+		},
+		4294967296,
+		"v6",
+	},
+	{
+		[]IpRange{
+			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+				net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff:ffff")},
+		},
+		0x1000000000000,
+		"v6 48 bits",
+	},
+	{
+		[]IpRange{
+			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+				net.ParseIP("fd43:85d7:bcf2:9ad2:ffff:ffff:ffff:ffff")},
+		},
+		math.MaxInt64,
+		"too big",
+	},
+}
+
+func TestGetSize(t *testing.T) {
+	for i, rt := range getSizeTests {
+		ipa := New()
+		for _, r := range rt.add {
+			ipa.AddRange(r.Start, r.End)
+		}
+		size := ipa.GetSize()
+		assert.Equal(t, rt.size, size, fmt.Sprintf("size %d: %s", i, rt.desc))
 	}
 }

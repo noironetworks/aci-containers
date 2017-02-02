@@ -35,14 +35,27 @@ import (
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
-type nodeMetadata struct {
+type nodeServiceMeta struct {
 	serviceEp           metadata.ServiceEndpoint
 	serviceEpAnnotation string
-	podIps              []ipam.IpRange
+}
+
+type nodePodNetMeta struct {
+	nodePods            map[string]bool
+	podNetIps           metadata.NetIps
+	podNetIpsAnnotation string
+}
+
+func newNodePodNetMeta() *nodePodNetMeta {
+	return &nodePodNetMeta{
+		nodePods: make(map[string]bool),
+	}
 }
 
 var (
-	nodeMetaCache = make(map[string]*nodeMetadata)
+	nodeServiceMetaCache = make(map[string]*nodeServiceMeta)
+	nodePodNetCache      = make(map[string]*nodePodNetMeta)
+	nodequeue            = make(chan string)
 )
 
 func initNodeInformer() {
@@ -67,6 +80,24 @@ func initNodeInformer() {
 
 	go nodeInformer.GetController().Run(wait.NeverStop)
 	go nodeInformer.Run(wait.NeverStop)
+	go func() {
+		for nodename := range nodequeue {
+			indexMutex.Lock()
+			changed := checkNodePodNet(nodename)
+			indexMutex.Unlock()
+
+			if changed {
+				node, exists, err := nodeInformer.GetStore().GetByKey(nodename)
+				if err != nil {
+					log.Error("Could not lookup node: ", err)
+					continue
+				}
+				if exists && node != nil {
+					nodeChanged(node)
+				}
+			}
+		}
+	}()
 }
 
 func nodeUpdated(_ interface{}, obj interface{}) {
@@ -87,16 +118,16 @@ func createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
 		ep.Mac = mac.String()
 	}
 
-	if ep.Ipv4 == nil || !nodeServiceIpsV4.RemoveIp(ep.Ipv4) {
-		ipv4, err := nodeServiceIpsV4.GetIp()
+	if ep.Ipv4 == nil || !nodeServiceIps.V4.RemoveIp(ep.Ipv4) {
+		ipv4, err := nodeServiceIps.V4.GetIp()
 		if err == nil {
 			ep.Ipv4 = ipv4
 		} else {
 			ep.Ipv4 = nil
 		}
 	}
-	if ep.Ipv6 == nil || !nodeServiceIpsV6.RemoveIp(ep.Ipv6) {
-		ipv6, err := nodeServiceIpsV6.GetIp()
+	if ep.Ipv6 == nil || !nodeServiceIps.V6.RemoveIp(ep.Ipv6) {
+		ipv6, err := nodeServiceIps.V6.GetIp()
 		if err == nil {
 			ep.Ipv6 = ipv6
 		} else {
@@ -123,14 +154,14 @@ func nodeChanged(obj interface{}) {
 	nodeUpdated := false
 	epval, epok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
 
-	if existing, ok := nodeMetaCache[node.ObjectMeta.Name]; ok {
+	if existing, ok := nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
 		if !epok || existing.serviceEpAnnotation != epval {
 			node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 				existing.serviceEpAnnotation
 			nodeUpdated = true
 		}
 	} else {
-		nodeMeta := &nodeMetadata{}
+		nodeMeta := &nodeServiceMeta{}
 
 		if epok {
 			err := json.Unmarshal([]byte(epval), &nodeMeta.serviceEp)
@@ -146,15 +177,33 @@ func nodeChanged(obj interface{}) {
 		raw, err := json.Marshal(&nodeMeta.serviceEp)
 		if err != nil {
 			logger.Error("Could not create node service endpoint annotation", err)
-			return
+		} else {
+			nodeMeta.serviceEpAnnotation = string(raw)
+			if !epok || nodeMeta.serviceEpAnnotation != epval {
+				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+					nodeMeta.serviceEpAnnotation
+				nodeUpdated = true
+			}
+			nodeServiceMetaCache[node.ObjectMeta.Name] = nodeMeta
 		}
-		nodeMeta.serviceEpAnnotation = string(raw)
-		if !epok || nodeMeta.serviceEpAnnotation != epval {
-			node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-				nodeMeta.serviceEpAnnotation
-			nodeUpdated = true
-		}
-		nodeMetaCache[node.ObjectMeta.Name] = nodeMeta
+	}
+
+	nodePodNet, ok := nodePodNetCache[node.ObjectMeta.Name]
+	if !ok {
+		nodePodNet = newNodePodNetMeta()
+		nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
+	}
+
+	netval, netok :=
+		node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
+	if netok {
+		mergePodNet(nodePodNet, netval)
+	}
+	checkNodePodNet(node.ObjectMeta.Name)
+	if netval != nodePodNet.podNetIpsAnnotation {
+		node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] =
+			nodePodNet.podNetIpsAnnotation
+		nodeUpdated = true
 	}
 
 	if nodeUpdated {
@@ -165,7 +214,9 @@ func nodeChanged(obj interface{}) {
 			logger.WithFields(logrus.Fields{
 				"ServiceEpAnnotation": node.
 					ObjectMeta.Annotations[metadata.ServiceEpAnnotation],
-			}).Info("Updated node service annotations")
+				"PodNetworkRangeAnnotation": node.
+					ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation],
+			}).Info("Updated node annotations")
 		}
 	}
 }
@@ -176,13 +227,83 @@ func nodeDeleted(obj interface{}) {
 
 	node := obj.(*api.Node)
 
-	if existing, ok := nodeMetaCache[node.ObjectMeta.Name]; ok {
+	if existing, ok := nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
 		if existing.serviceEp.Ipv4 != nil {
-			nodeServiceIpsV4.AddIp(existing.serviceEp.Ipv4)
+			nodeServiceIps.V4.AddIp(existing.serviceEp.Ipv4)
 		}
 		if existing.serviceEp.Ipv6 != nil {
-			nodeServiceIpsV6.AddIp(existing.serviceEp.Ipv6)
+			nodeServiceIps.V6.AddIp(existing.serviceEp.Ipv6)
 		}
 	}
-	delete(nodeMetaCache, node.ObjectMeta.Name)
+	delete(nodeServiceMetaCache, node.ObjectMeta.Name)
+}
+
+func addPodToNode(nodename string, key string) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	existing, ok := nodePodNetCache[nodename]
+	if !ok {
+		existing = newNodePodNetMeta()
+		nodePodNetCache[nodename] = existing
+	}
+	existing.nodePods[key] = true
+}
+
+func removePodFromNode(nodename string, key string) {
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+
+	if existing, ok := nodePodNetCache[nodename]; ok {
+		delete(existing.nodePods, key)
+	}
+}
+
+// must have index lock
+func recomputePodNetAnnotation(podnet *nodePodNetMeta) {
+	raw, err := json.Marshal(&podnet.podNetIps)
+	if err != nil {
+		log.Error("Could not create node pod network ",
+			"annotation", err)
+	}
+	podnet.podNetIpsAnnotation = string(raw)
+}
+
+// must have index lock
+func mergePodNet(podnet *nodePodNetMeta, existingAnnotation string) {
+	existing := &metadata.NetIps{}
+	err := json.Unmarshal([]byte(existingAnnotation), existing)
+	if err != nil {
+		log.Error("Could not parse existing pod network ",
+			"annotation", err)
+		return
+	}
+
+	v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
+	// TODO: intersect with configured IP ranges so ranges can be removed
+	v4.AddRanges(existing.V4)
+	podNetworkIps.V4.RemoveRanges(existing.V4)
+	podnet.podNetIps.V4 = v4.FreeList
+	recomputePodNetAnnotation(podnet)
+}
+
+// must have index lock
+func checkNodePodNet(nodename string) bool {
+	if podnet, ok := nodePodNetCache[nodename]; ok {
+		podnetipam := ipam.NewFromRanges(podnet.podNetIps.V4)
+		size := podnetipam.GetSize()
+		if int64(len(podnet.nodePods)) > size-128 {
+			// we have half a chunk left or less; allocate a new chunk
+			r, err := podNetworkIps.V4.GetIpChunk(256)
+			if err != nil {
+				log.Error("Could not allocate IPv4 address chunk: ", err)
+			} else {
+				podnetipam.AddRanges(r)
+				podnet.podNetIps.V4 = podnetipam.FreeList
+				recomputePodNetAnnotation(podnet)
+				return true
+			}
+		}
+	}
+	return false
 }

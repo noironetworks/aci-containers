@@ -17,7 +17,8 @@ package ipam
 import (
 	"bytes"
 	"errors"
-	"fmt"
+	"math"
+	"math/big"
 	"net"
 	"sort"
 )
@@ -28,14 +29,23 @@ type IpRange struct {
 }
 
 type IpAlloc struct {
-	freeList []IpRange
+	FreeList []IpRange
 }
 
 // Create a new IpAlloc
 func New() *IpAlloc {
 	return &IpAlloc{
-		freeList: make([]IpRange, 0),
+		FreeList: make([]IpRange, 0),
 	}
+}
+
+// Create a new IpAlloc from an existing freelist
+func NewFromRanges(ranges []IpRange) *IpAlloc {
+	ipa := &IpAlloc{
+		FreeList: make([]IpRange, len(ranges)),
+	}
+	copy(ipa.FreeList, ranges)
+	return ipa
 }
 
 func carryIncrement(input []byte) ([]byte, bool) {
@@ -89,13 +99,13 @@ func (ipa *IpAlloc) fixRange(index int) {
 	if i < 0 {
 		i = 0
 	}
-	for i+1 < len(ipa.freeList) &&
-		isAdjOrGreater(ipa.freeList[i].End, ipa.freeList[i+1].Start) {
+	for i+1 < len(ipa.FreeList) &&
+		isAdjOrGreater(ipa.FreeList[i].End, ipa.FreeList[i+1].Start) {
 
-		if bytes.Compare(ipa.freeList[i].End, ipa.freeList[i+1].End) < 0 {
-			ipa.freeList[i].End = ipa.freeList[i+1].End
+		if bytes.Compare(ipa.FreeList[i].End, ipa.FreeList[i+1].End) < 0 {
+			ipa.FreeList[i].End = ipa.FreeList[i+1].End
 		}
-		ipa.freeList = append(ipa.freeList[:i+1], ipa.freeList[i+2:]...)
+		ipa.FreeList = append(ipa.FreeList[:i+1], ipa.FreeList[i+2:]...)
 	}
 }
 
@@ -104,13 +114,13 @@ func (ipa *IpAlloc) AddRange(start net.IP, end net.IP) {
 	if bytes.Compare(start, end) > 0 {
 		return
 	}
-	i := sort.Search(len(ipa.freeList), func(i int) bool {
-		return bytes.Compare(ipa.freeList[i].Start, start) >= 0
+	i := sort.Search(len(ipa.FreeList), func(i int) bool {
+		return bytes.Compare(ipa.FreeList[i].Start, start) >= 0
 	})
-	ipa.freeList = append(ipa.freeList, IpRange{})
-	copy(ipa.freeList[i+1:], ipa.freeList[i:])
-	ipa.freeList[i].Start = start
-	ipa.freeList[i].End = end
+	ipa.FreeList = append(ipa.FreeList, IpRange{})
+	copy(ipa.FreeList[i+1:], ipa.FreeList[i:])
+	ipa.FreeList[i].Start = start
+	ipa.FreeList[i].End = end
 
 	ipa.fixRange(i)
 }
@@ -152,25 +162,25 @@ func (ipa *IpAlloc) RemoveRange(start net.IP, end net.IP) bool {
 		return changed
 	}
 
-	startind := sort.Search(len(ipa.freeList), func(i int) bool {
-		return bytes.Compare(ipa.freeList[i].Start, start) >= 0
+	startind := sort.Search(len(ipa.FreeList), func(i int) bool {
+		return bytes.Compare(ipa.FreeList[i].Start, start) >= 0
 	})
-	endind := sort.Search(len(ipa.freeList), func(i int) bool {
-		return bytes.Compare(ipa.freeList[i].End, end) >= 0
+	endind := sort.Search(len(ipa.FreeList), func(i int) bool {
+		return bytes.Compare(ipa.FreeList[i].End, end) >= 0
 	})
 
 	i := startind
 
 	for i > 0 &&
-		(i >= len(ipa.freeList) ||
-			bytes.Compare(ipa.freeList[i].End, start) >= 0) {
+		(i >= len(ipa.FreeList) ||
+			bytes.Compare(ipa.FreeList[i].End, start) >= 0) {
 		i--
 	}
 
-	for i < len(ipa.freeList) && i <= endind {
-		r, rchanged := cutRange(ipa.freeList[i], start, end)
+	for i < len(ipa.FreeList) && i <= endind {
+		r, rchanged := cutRange(ipa.FreeList[i], start, end)
 		changed = changed || rchanged
-		ipa.freeList = append(ipa.freeList[:i], append(r, ipa.freeList[i+1:]...)...)
+		ipa.FreeList = append(ipa.FreeList[:i], append(r, ipa.FreeList[i+1:]...)...)
 		i += len(r)
 	}
 	return changed
@@ -183,69 +193,107 @@ func (ipa *IpAlloc) RemoveIp(ip net.IP) bool {
 
 // Return a free IP address and remove it from the free list
 func (ipa *IpAlloc) GetIp() (net.IP, error) {
-	if len(ipa.freeList) == 0 {
+	if len(ipa.FreeList) == 0 {
 		return nil, errors.New("No IP addresses are available")
 	}
 
-	result := ipa.freeList[0].Start
-	if bytes.Compare(ipa.freeList[0].Start, ipa.freeList[0].End) == 0 {
-		ipa.freeList = ipa.freeList[1:]
+	result := ipa.FreeList[0].Start
+	if bytes.Compare(ipa.FreeList[0].Start, ipa.FreeList[0].End) == 0 {
+		ipa.FreeList = ipa.FreeList[1:]
 	} else {
-		news, _ := carryIncrement(ipa.freeList[0].Start)
-		ipa.freeList[0].Start = news
+		news, _ := carryIncrement(ipa.FreeList[0].Start)
+		ipa.FreeList[0].Start = news
 	}
 	return result, nil
 }
 
+var ONE = big.NewInt(1)
+
 // Return a set of ranges containing at least 256 IP addresses and
 // remove them from the free list.
-func (ipa *IpAlloc) GetIpChunk() ([]IpRange, error) {
-	size := 0
+func (ipa *IpAlloc) GetIpChunk(chunkSize int64) ([]IpRange, error) {
+	currentSize := int64(0)
 	result := New()
 
-	for size < 256 {
-		if len(ipa.freeList) == 0 {
+	for currentSize < chunkSize {
+		if len(ipa.FreeList) == 0 {
 			// can't get enough IP addresses; return anything we
 			// already allocated and return an error
-			for _, r := range result.freeList {
+			for _, r := range result.FreeList {
 				ipa.AddRange(r.Start, r.End)
 			}
 			return nil, errors.New("Insufficient IP addresses are available")
 		}
 
-		first := ipa.freeList[0]
-		slast := first.Start[len(first.Start)-1]
-		elast := first.End[len(first.End)-1]
-		srest := first.Start[:len(first.Start)-1]
-		erest := first.End[:len(first.End)-1]
+		r := ipa.FreeList[0]
+		start := new(big.Int).SetBytes(r.Start)
+		end := new(big.Int).SetBytes(r.End)
+		rangeSize := new(big.Int).Add(ONE, new(big.Int).Sub(end, start))
+		needed := big.NewInt(chunkSize - currentSize)
 
-		if bytes.Compare(srest, erest) != 0 {
-			// first and last differ in last byte; take the rest of
-			// the byte
-			end := make([]byte, len(first.Start))
-			copy(end, first.Start)
-			end[len(end)-1] = 255
-			r := IpRange{first.Start, end}
-			ipa.RemoveRange(r.Start, r.End)
+		if needed.Cmp(rangeSize) >= 0 {
+			// take whole range
 			result.AddRange(r.Start, r.End)
-			size += 255 - int(slast) + 1
-			fmt.Println("1", 255-int(slast)+1, size, r.Start, r.End)
+			ipa.RemoveRange(r.Start, r.End)
+
+			currentSize += rangeSize.Int64()
 		} else {
-			// chunk starts and ends in the same byte; take the whole
-			// chunk
-			result.AddRange(first.Start, first.End)
-			ipa.RemoveRange(first.Start, first.End)
-			size += int(elast) - int(slast) + 1
-			fmt.Println("2", int(elast)-int(slast)+1, size, first.Start, first.End)
+			// take as much as we need
+			newend :=
+				new(big.Int).Sub(new(big.Int).Add(start, needed), ONE).Bytes()
+			if len(newend) < len(r.End) {
+				newend = append(make([]byte, len(r.End)-len(newend)), newend...)
+			}
+
+			result.AddRange(r.Start, newend)
+			ipa.RemoveRange(r.Start, newend)
+
+			currentSize += needed.Int64()
 		}
 	}
-	return result.freeList, nil
+	return result.FreeList, nil
 }
 
 // Add all IP ranges from another IpAlloc object
 func (ipa *IpAlloc) AddAll(other *IpAlloc) error {
-	for _, r := range other.freeList {
+	return ipa.AddRanges(other.FreeList)
+}
+
+// Add all IP ranges from a slice of ranges
+func (ipa *IpAlloc) AddRanges(ranges []IpRange) error {
+	for _, r := range ranges {
 		ipa.AddRange(r.Start, r.End)
 	}
 	return nil
+}
+
+// Remove all IP ranges from another IpAlloc object
+func (ipa *IpAlloc) RemoveAll(other *IpAlloc) error {
+	return ipa.RemoveRanges(other.FreeList)
+}
+
+// Remove all IP ranges from a slice of ranges
+func (ipa *IpAlloc) RemoveRanges(ranges []IpRange) error {
+	for _, r := range ranges {
+		ipa.RemoveRange(r.Start, r.End)
+	}
+	return nil
+}
+
+// Get the number of IPs available in the free list
+func (ipa *IpAlloc) GetSize() int64 {
+	size := big.NewInt(0)
+	for _, r := range ipa.FreeList {
+		start := new(big.Int).SetBytes(r.Start)
+		end := new(big.Int).SetBytes(r.End)
+
+		size.Add(size, new(big.Int).Sub(end, start))
+		size.Add(size, ONE)
+	}
+
+	if big.NewInt(math.MaxInt64).Cmp(size) <= 0 {
+		return math.MaxInt64
+	} else {
+		return size.Int64()
+	}
 }

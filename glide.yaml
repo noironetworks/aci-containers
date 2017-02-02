@@ -3,7 +3,7 @@ import:
 - package: github.com/Sirupsen/logrus
   version: ^0.11.0
 - package: github.com/containernetworking/cni
-  version: master
+  version: ~0.4.0
   subpackages:
   - pkg/ip
   - pkg/ipam
@@ -14,7 +14,7 @@ import:
 - package: github.com/socketplane/libovsdb
 - package: github.com/vishvananda/netlink
 - package: k8s.io/kubernetes
-  version: ~1.6.0-alpha.0
+  version: 1.6.0-alpha.0
   subpackages:
   - pkg/api
   - pkg/client/cache

@@ -26,8 +26,6 @@ import (
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-
-	"github.com/noironetworks/aci-containers/ipam"
 )
 
 var (
@@ -50,14 +48,11 @@ var (
 	deploymentInformer cache.SharedIndexInformer
 	nodeInformer       cache.SharedIndexInformer
 
-	podNetworkIpsV4    = ipam.New()
-	podNetworkIpsV6    = ipam.New()
-	serviceIpsV4       = ipam.New()
-	serviceIpsV6       = ipam.New()
-	staticServiceIpsV4 = ipam.New()
-	staticServiceIpsV6 = ipam.New()
-	nodeServiceIpsV4   = ipam.New()
-	nodeServiceIpsV6   = ipam.New()
+	configuredPodNetworkIps = NewNetIps()
+	podNetworkIps           = NewNetIps()
+	serviceIps              = NewNetIps()
+	staticServiceIps        = NewNetIps()
+	nodeServiceIps          = NewNetIps()
 )
 
 func main() {

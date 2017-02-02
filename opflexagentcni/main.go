@@ -63,14 +63,19 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// run the IPAM plugin and get back the config to apply
-	result, err := ipam.ExecAdd(n.IPAM.Type, args.StdinData)
-	if err != nil {
-		return err
-	}
-	result.DNS = n.DNS
+	var result *types.Result
+	if n.IPAM.Type != "opflex-agent-cni-ipam" {
+		result, err = ipam.ExecAdd(n.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
 
-	if result.IP4 == nil && result.IP6 == nil {
-		return errors.New("IPAM plugin returned missing IP config")
+		if result.IP4 == nil && result.IP6 == nil {
+			return errors.New("IPAM plugin returned missing IP config")
+		}
+	} else {
+		result = &types.Result{}
+		result.DNS = n.DNS
 	}
 
 	metadata := cnimd.ContainerMetadata{
@@ -101,8 +106,10 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
-		return err
+	if n.IPAM.Type != "opflex-agent-cni-ipam" {
+		if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
+			return err
+		}
 	}
 
 	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)

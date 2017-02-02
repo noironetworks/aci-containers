@@ -162,6 +162,15 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 		return nil, err
 	}
 
+	logger.Debug("Allocating IP address(es)")
+	if metadata.NetConf.IP4 == nil && metadata.NetConf.IP6 == nil {
+		// We're doing ip address management
+		err = allocateIps(&metadata.NetConf)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	err = md.RecordMetadata(config.CniMetadataDir, config.CniNetwork, *metadata)
 	if err != nil {
 		return nil, err

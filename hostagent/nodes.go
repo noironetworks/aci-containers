@@ -74,6 +74,11 @@ func nodeChanged(obj interface{}) {
 		return
 	}
 
+	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
+	if ok {
+		rebuildIpam(pnet)
+	}
+
 	var newServiceEp metadata.ServiceEndpoint
 	epval, ok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
 	if ok {

@@ -16,7 +16,21 @@ package main
 
 import (
 	"flag"
+	"net"
+
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 )
+
+type Route struct {
+	Dst cnitypes.IPNet `json:"dst"`
+	GW  net.IP         `json:"gw,omitempty"`
+}
+
+type CNINetConfig struct {
+	Subnet  cnitypes.IPNet `json:"subnet,omitempty"`
+	Gateway net.IP         `json:"gateway,omitempty"`
+	Routes  []Route        `json:"routes,omitempty"`
+}
 
 // Configuration for the host agent
 type HostAgentConfig struct {
@@ -59,6 +73,9 @@ type HostAgentConfig struct {
 	// Interface MTU to use when configuring container interfaces
 	InterfaceMtu int `json:"interface-mtu,omitempty"`
 
+	// Configuration for CNI networks
+	NetConfig []CNINetConfig `json:"cni-netconfig,omitempty"`
+
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
 
@@ -78,9 +95,10 @@ func initFlags() {
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 
-	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/var/run/openvswitch/db.sock", " Location of the OVS DB socket")
+	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", " Location of the OVS DB socket")
 	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
+
 	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
 
 	flag.StringVar(&config.ServiceIface, "service-iface", "eth2", "Interface for external service traffic")

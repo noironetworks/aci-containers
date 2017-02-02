@@ -3,26 +3,27 @@
 set -e
 set -x
 
-CNIBIN=/opt/cni/bin
+CNIBIN=/mnt/cni-bin/cni/bin
 PREFIX=/usr/local
 VARDIR=${PREFIX}/var
 ACIBIN=${PREFIX}/bin
 HOSTAGENT=${ACIBIN}/aci-containers-host-agent
 HOSTAGENT_CONF=/usr/local/etc/aci-containers/host-agent.conf
 
-if [ -w /opt ]; then
+if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
     mkdir -p ${CNIBIN}
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
-if [ -w /etc ]; then
+if [ -w /mnt/cni-conf ]; then
     # Install CNI configuration
-    mkdir -p /etc/cni/net.d
-    cat <<EOF > /etc/cni/net.d/10-opflex-cni.conf
+    mkdir -p /mnt/cni-conf/cni/net.d
+    cat <<EOF > /mnt/cni-conf/cni/net.d/10-opflex-cni.conf
 {
    "cniVersion": "0.2.0",
    "name": "k8s-pod-network",
    "type": "opflex-agent-cni",
+   "ipam": {"type": "opflex-agent-cni-ipam"}
 }
 EOF
 fi

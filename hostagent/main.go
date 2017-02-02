@@ -30,6 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	"k8s.io/kubernetes/pkg/util/wait"
 
+	"github.com/noironetworks/aci-containers/ipam"
 	md "github.com/noironetworks/aci-containers/metadata"
 )
 
@@ -50,6 +51,10 @@ var (
 	endpointsInformer cache.SharedIndexInformer
 	serviceInformer   cache.SharedIndexInformer
 	nodeInformer      cache.SharedIndexInformer
+
+	podNetAnnotation string
+	podIpsV4         = ipam.New()
+	podIpsV6         = ipam.New()
 
 	syncEnabled = false
 )
@@ -114,7 +119,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	log.Debug("Initializing endpoint CNI Metadata")
+	log.Debug("Initializing endpoint CNI metadata")
 	// Initialize metadata cache
 	err = md.LoadMetadata(config.CniMetadataDir, config.CniNetwork, &epMetadata)
 	if err != nil {

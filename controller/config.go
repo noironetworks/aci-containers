@@ -53,6 +53,18 @@ type ControllerConfig struct {
 	NodeServiceIpPool []ipam.IpRange `json:"node-service-ip-pool,omitempty"`
 }
 
+type NetIps struct {
+	V4 *ipam.IpAlloc
+	V6 *ipam.IpAlloc
+}
+
+func NewNetIps() *NetIps {
+	return &NetIps{
+		V4: ipam.New(),
+		V6: ipam.New(),
+	}
+}
+
 func NewConfig() *ControllerConfig {
 	return &ControllerConfig{
 		DefaultSg: make([]OpflexGroup, 0),
@@ -79,10 +91,13 @@ func loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {
 }
 
 func initIpam() {
-	loadIpRanges(podNetworkIpsV4, podNetworkIpsV6, config.PodIpPool)
-	loadIpRanges(serviceIpsV4, serviceIpsV6, config.ServiceIpPool)
-	loadIpRanges(staticServiceIpsV4, staticServiceIpsV6,
+	loadIpRanges(configuredPodNetworkIps.V4, configuredPodNetworkIps.V6,
+		config.PodIpPool)
+	podNetworkIps.V4.AddAll(configuredPodNetworkIps.V4)
+	podNetworkIps.V6.AddAll(configuredPodNetworkIps.V6)
+	loadIpRanges(serviceIps.V4, serviceIps.V6, config.ServiceIpPool)
+	loadIpRanges(staticServiceIps.V4, staticServiceIps.V6,
 		config.StaticServiceIpPool)
-	loadIpRanges(nodeServiceIpsV4, nodeServiceIpsV6,
+	loadIpRanges(nodeServiceIps.V4, nodeServiceIps.V6,
 		config.NodeServiceIpPool)
 }

@@ -1,5 +1,5 @@
-hash: 7274ffa9be836179898344f09e7746b9036c95b0542226ef5817fb30b9336e2d
-updated: 2017-01-26T09:47:45.026459723-08:00
+hash: 639529cd4423638436471bfb97842e0f70fef31615f1df00482991d828d63961
+updated: 2017-02-01T15:57:41.536676307-08:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -148,11 +148,9 @@ imports:
   - codec
   - codec/codecgen
 - name: github.com/vishvananda/netlink
-  version: a1f8555521646b5a9800f39c5fd477597697135c
+  version: 1e2e08e8a2dcdacaae3f14ac44c5cfa31361f270
   subpackages:
   - nl
-- name: github.com/vishvananda/netns
-  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
 - name: golang.org/x/crypto
   version: 1f22c0103821b9390939b6776727195525381532
   subpackages:
