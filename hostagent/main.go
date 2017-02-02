@@ -24,43 +24,23 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/client/cache"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/noironetworks/aci-containers/ipam"
 	md "github.com/noironetworks/aci-containers/metadata"
 )
 
-var (
-	log = logrus.New()
-
-	configPath = flag.String("config-path", "",
-		"Absolute path to a host agent configuration file")
-	config = &HostAgentConfig{}
-
-	indexMutex     sync.Mutex
-	opflexEps      = make(map[string]*opflexEndpoint)
-	opflexServices = make(map[string]*opflexService)
-	epMetadata     = make(map[string]*md.ContainerMetadata)
-	serviceEp      md.ServiceEndpoint
-
-	podInformer       cache.SharedIndexInformer
-	endpointsInformer cache.SharedIndexInformer
-	serviceInformer   cache.SharedIndexInformer
-	nodeInformer      cache.SharedIndexInformer
-
-	podNetAnnotation string
-	podIpsV4         = ipam.New()
-	podIpsV6         = ipam.New()
-
-	syncEnabled = false
-)
+var log = logrus.New()
 
 func main() {
-	initFlags()
+	agent := newHostAgent()
+
+	agent.initFlags()
+	configPath := flag.String("config-path", "",
+		"Absolute path to a host agent configuration file")
 	flag.Parse()
 
 	if configPath != nil && *configPath != "" {
@@ -69,39 +49,40 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
-		err = json.Unmarshal(raw, config)
+		err = json.Unmarshal(raw, agent.config)
 		if err != nil {
 			panic(err.Error())
 		}
 	}
 
-	logLevel, err := logrus.ParseLevel(config.LogLevel)
+	logLevel, err := logrus.ParseLevel(agent.config.LogLevel)
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Level = logLevel
 
-	if config.NodeName == "" {
-		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
+	if agent.config.NodeName == "" {
+		agent.config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
 	}
-	if config.NodeName == "" {
+	if agent.config.NodeName == "" {
 		err := errors.New("Node name not specified and $KUBERNETES_NODE_NAME empty")
 		log.Error(err.Error())
 		panic(err.Error())
 	}
 
 	log.WithFields(logrus.Fields{
-		"kubeconfig":  config.KubeConfig,
-		"node-name":   config.NodeName,
+		"kubeconfig":  agent.config.KubeConfig,
+		"node-name":   agent.config.NodeName,
 		"config-path": *configPath,
 		"logLevel":    logLevel,
 	}).Info("Starting")
 
 	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
-	if config.KubeConfig != "" {
+	if agent.config.KubeConfig != "" {
 		// use kubeconfig file from command line
-		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
+		restconfig, err =
+			clientcmd.BuildConfigFromFlags("", agent.config.KubeConfig)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -114,22 +95,23 @@ func main() {
 	}
 
 	// creates the kubernetes API client
-	kubeClient, err := clientset.NewForConfig(restconfig)
+	agent.kubeClient, err = kubernetes.NewForConfig(restconfig)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	log.Debug("Initializing endpoint CNI metadata")
 	// Initialize metadata cache
-	err = md.LoadMetadata(config.CniMetadataDir, config.CniNetwork, &epMetadata)
+	err = md.LoadMetadata(agent.config.CniMetadataDir,
+		agent.config.CniNetwork, &agent.epMetadata)
 	if err != nil {
 		panic(err.Error())
 	}
-	log.Info("Loaded cached endpoint CNI metadata: ", len(epMetadata))
+	log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 
 	// Initialize RPC service for communicating with CNI plugin
 	log.Debug("Initializing endpoint RPC")
-	err = initEpRPC()
+	err = agent.initEpRPC()
 	if err != nil {
 		panic(err.Error())
 	}
@@ -139,31 +121,31 @@ func main() {
 
 	log.Debug("Initializing node informer")
 	// Initialize informers
-	initNodeInformer(kubeClient)
+	agent.initNodeInformer()
 	log.Debug("Waiting for node cache sync")
-	cache.WaitForCacheSync(wait.NeverStop, nodeInformer.HasSynced)
+	cache.WaitForCacheSync(wait.NeverStop, agent.nodeInformer.HasSynced)
 	log.Debug("Node cache sync successful")
 
 	log.Debug("Initializing remaining informers")
-	initPodInformer(kubeClient)
-	initEndpointsInformer(kubeClient)
-	initServiceInformer(kubeClient)
+	agent.initPodInformer()
+	agent.initEndpointsInformer()
+	agent.initServiceInformer()
 
 	go func() {
 		log.Debug("Waiting for cache sync for remaining objects")
 		cache.WaitForCacheSync(wait.NeverStop,
-			podInformer.HasSynced, endpointsInformer.HasSynced,
-			serviceInformer.HasSynced)
+			agent.podInformer.HasSynced, agent.endpointsInformer.HasSynced,
+			agent.serviceInformer.HasSynced)
 
 		log.Info("Enabling OpFlex endpoint and service sync")
-		indexMutex.Lock()
-		syncEnabled = true
-		syncServices()
-		syncEps()
-		indexMutex.Unlock()
+		agent.indexMutex.Lock()
+		agent.syncEnabled = true
+		agent.syncServices()
+		agent.syncEps()
+		agent.indexMutex.Unlock()
 		log.Debug("Initial OpFlex sync complete")
 
-		cleanupSetup()
+		agent.cleanupSetup()
 	}()
 
 	wg.Wait()

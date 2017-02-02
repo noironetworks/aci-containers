@@ -20,42 +20,48 @@ package main
 import (
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 )
 
-func initDeploymentInformer() {
-	deploymentInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initDeploymentInformer() {
+	cont.deploymentInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Extensions().Deployments(api.NamespaceAll).List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return cont.kubeClient.Extensions().Deployments(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Extensions().Deployments(api.NamespaceAll).Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return cont.kubeClient.Extensions().Deployments(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&extensions.Deployment{},
+		&v1beta1.Deployment{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    deploymentAdded,
-		UpdateFunc: deploymentUpdated,
-		DeleteFunc: deploymentDeleted,
+	cont.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.deploymentChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.deploymentChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			cont.deploymentDeleted(obj)
+		},
 	})
 
-	go deploymentInformer.GetController().Run(wait.NeverStop)
-	go deploymentInformer.Run(wait.NeverStop)
+	go cont.deploymentInformer.GetController().Run(wait.NeverStop)
+	go cont.deploymentInformer.Run(wait.NeverStop)
 }
 
-func deploymentLogger(dep *extensions.Deployment) *logrus.Entry {
+func deploymentLogger(dep *v1beta1.Deployment) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": dep.ObjectMeta.Namespace,
 		"name":      dep.ObjectMeta.Name,
@@ -63,7 +69,7 @@ func deploymentLogger(dep *extensions.Deployment) *logrus.Entry {
 }
 
 // must hold index lock
-func checkDeploymentForPod(dep *extensions.Deployment, pod *api.Pod) {
+func (cont *aciController) checkDeploymentForPod(dep *v1beta1.Deployment, pod *v1.Pod) {
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		deploymentLogger(dep).
@@ -76,7 +82,7 @@ func checkDeploymentForPod(dep *extensions.Deployment, pod *api.Pod) {
 		return
 	}
 	selector, err :=
-		unversioned.LabelSelectorAsSelector(dep.Spec.Selector)
+		metav1.LabelSelectorAsSelector(dep.Spec.Selector)
 	if err != nil {
 		deploymentLogger(dep).Error("Could not create selector:" + err.Error())
 		return
@@ -84,58 +90,54 @@ func checkDeploymentForPod(dep *extensions.Deployment, pod *api.Pod) {
 
 	if dep.ObjectMeta.Namespace == pod.ObjectMeta.Namespace &&
 		selector.Matches(labels.Set(pod.ObjectMeta.Labels)) {
-		depPods[podkey] = depkey
-		podChangedLocked(pod)
-	} else if val, ok := depPods[podkey]; ok && val == depkey {
-		delete(depPods, podkey)
-		podChangedLocked(pod)
+		cont.depPods[podkey] = depkey
+		cont.podChangedLocked(pod)
+	} else if val, ok := cont.depPods[podkey]; ok && val == depkey {
+		delete(cont.depPods, podkey)
+		cont.podChangedLocked(pod)
 	}
 }
 
 // must hold index lock
-func updateDeploymentsForPod(pod *api.Pod) {
-	deployments := deploymentInformer.GetStore().List()
+func (cont *aciController) updateDeploymentsForPod(pod *v1.Pod) {
+	deployments := cont.deploymentInformer.GetStore().List()
 
 	for _, depobj := range deployments {
-		dep := depobj.(*extensions.Deployment)
-		checkDeploymentForPod(dep, pod)
+		dep := depobj.(*v1beta1.Deployment)
+		cont.checkDeploymentForPod(dep, pod)
 	}
 }
 
-func deploymentUpdated(_ interface{}, obj interface{}) {
-	deploymentAdded(obj)
-}
+func (cont *aciController) deploymentChanged(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
-func deploymentAdded(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	dep := obj.(*extensions.Deployment)
-	pods := podInformer.GetStore().List()
+	dep := obj.(*v1beta1.Deployment)
+	pods := cont.podInformer.GetStore().List()
 
 	for _, podobj := range pods {
-		pod := podobj.(*api.Pod)
+		pod := podobj.(*v1.Pod)
 
-		checkDeploymentForPod(dep, pod)
+		cont.checkDeploymentForPod(dep, pod)
 	}
 }
 
-func deploymentDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (cont *aciController) deploymentDeleted(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
-	dep := obj.(*extensions.Deployment)
+	dep := obj.(*v1beta1.Deployment)
 	key, err := cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
 		deploymentLogger(dep).Error("Could not create key:" + err.Error())
 		return
 	}
 
-	for podkey, val := range depPods {
+	for podkey, val := range cont.depPods {
 		if val == key {
-			delete(depPods, podkey)
+			delete(cont.depPods, podkey)
 
-			podobj, exists, err := podInformer.GetStore().GetByKey(podkey)
+			podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
 			if err != nil {
 				deploymentLogger(dep).Error("Could not lookup pod:" + err.Error())
 				continue
@@ -143,8 +145,8 @@ func deploymentDeleted(obj interface{}) {
 			if !exists || podobj == nil {
 				continue
 			}
-			pod := podobj.(*api.Pod)
-			podChangedLocked(pod)
+			pod := podobj.(*v1.Pod)
+			cont.podChangedLocked(pod)
 		}
 	}
 }

@@ -29,49 +29,49 @@ import (
 )
 
 // must have index lock
-func rebuildIpam(newPodNetAnnotation string) {
-	if podNetAnnotation == newPodNetAnnotation {
+func (agent *hostAgent) rebuildIpam(newPodNetAnnotation string) {
+	if agent.podNetAnnotation == newPodNetAnnotation {
 		return
 	}
-	podNetAnnotation = newPodNetAnnotation
+	agent.podNetAnnotation = newPodNetAnnotation
 
 	ips := &metadata.NetIps{}
-	err := json.Unmarshal([]byte(podNetAnnotation), ips)
+	err := json.Unmarshal([]byte(agent.podNetAnnotation), ips)
 	if err != nil {
 		log.Error("Could not parse pod network annotation", err)
 		return
 	}
 
-	podIpsV4 = ipam.New()
+	agent.podIpsV4 = ipam.New()
 	if ips.V4 != nil {
-		podIpsV4.AddRanges(ips.V4)
+		agent.podIpsV4.AddRanges(ips.V4)
 	}
-	podIpsV6 = ipam.New()
+	agent.podIpsV6 = ipam.New()
 	if ips.V6 != nil {
-		podIpsV6.AddRanges(ips.V6)
+		agent.podIpsV6.AddRanges(ips.V6)
 	}
 
-	for _, ofep := range opflexEps {
+	for _, ofep := range agent.opflexEps {
 		for _, ipStr := range ofep.IpAddress {
 			ip := net.ParseIP(ipStr)
 			if ip == nil {
 				continue
 			}
 			if ip.To4() != nil {
-				podIpsV4.RemoveIp(ip)
+				agent.podIpsV4.RemoveIp(ip)
 			} else if ip.To16() != nil {
-				podIpsV6.RemoveIp(ip)
+				agent.podIpsV6.RemoveIp(ip)
 			}
 		}
 	}
 
 	log.WithFields(logrus.Fields{
-		"V4": podIpsV4.FreeList,
-		"V6": podIpsV6.FreeList,
+		"V4": agent.podIpsV4.FreeList,
+		"V6": agent.podIpsV6.FreeList,
 	}).Info("Updated pod network ranges")
 }
 
-func convertRoutes(routes []Route) []cnitypes.Route {
+func convertRoutes(routes []route) []cnitypes.Route {
 	cniroutes := make([]cnitypes.Route, 0, len(routes))
 	for _, r := range routes {
 		cniroutes = append(cniroutes, cnitypes.Route{
@@ -85,7 +85,7 @@ func convertRoutes(routes []Route) []cnitypes.Route {
 	return cniroutes
 }
 
-func makeNetconf(nc *CNINetConfig, ip net.IP) *cnitypes.IPConfig {
+func makeNetconf(nc *cniNetConfig, ip net.IP) *cnitypes.IPConfig {
 	return &cnitypes.IPConfig{
 		IP: net.IPNet{
 			IP:   ip,
@@ -96,22 +96,22 @@ func makeNetconf(nc *CNINetConfig, ip net.IP) *cnitypes.IPConfig {
 	}
 }
 
-func allocateIps(netConf *cnitypes.Result) error {
+func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 	var v4 net.IP
 	var v6 net.IP
 	var result error
 
-	for _, nc := range config.NetConfig {
+	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
 			if v4 == nil && nc.Subnet.IP.To4() != nil {
-				v4, err := podIpsV4.GetIp()
+				v4, err := agent.podIpsV4.GetIp()
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv4 address:", err)
 				} else {
 					netConf.IP4 = makeNetconf(&nc, v4)
 				}
 			} else if v6 == nil && nc.Subnet.IP.To16() != nil {
-				v6, err := podIpsV6.GetIp()
+				v6, err := agent.podIpsV6.GetIp()
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv6 address:", err)
 				} else {
@@ -123,10 +123,10 @@ func allocateIps(netConf *cnitypes.Result) error {
 
 	if result != nil {
 		if v4 != nil {
-			podIpsV4.AddIp(v4)
+			agent.podIpsV4.AddIp(v4)
 		}
 		if v6 != nil {
-			podIpsV6.AddIp(v6)
+			agent.podIpsV6.AddIp(v6)
 		}
 	}
 

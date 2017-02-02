@@ -25,10 +25,11 @@ import (
 )
 
 type EpRPC struct {
+	agent *hostAgent
 }
 
-func initEpRPC() error {
-	rpc.Register(NewEpRPC())
+func (agent *hostAgent) initEpRPC() error {
+	rpc.Register(NewEpRPC(agent))
 
 	l, err := net.Listen("tcp", "127.0.0.1:4242")
 	if err != nil {
@@ -40,8 +41,8 @@ func initEpRPC() error {
 	return nil
 }
 
-func NewEpRPC() *EpRPC {
-	return &EpRPC{}
+func NewEpRPC(agent *hostAgent) *EpRPC {
+	return &EpRPC{agent: agent}
 }
 
 func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result) error {
@@ -49,7 +50,7 @@ func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result
 		return errors.New("Metadata has empty pod key fields")
 	}
 
-	regresult, err := configureContainerIface(metadata)
+	regresult, err := r.agent.configureContainerIface(metadata)
 	if err != nil {
 		log.Error("Failed to configure container interface: ", err)
 		return err
@@ -64,7 +65,7 @@ func (r *EpRPC) Unregister(id string, ack *bool) error {
 		return errors.New("ID is empty")
 	}
 
-	err := unconfigureContainerIface(id)
+	err := r.agent.unconfigureContainerIface(id)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"id": id,

@@ -25,13 +25,14 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 )
 
 type opflexServiceMapping struct {
@@ -62,52 +63,64 @@ type opflexService struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-func initEndpointsInformer(kubeClient *clientset.Clientset) {
-	endpointsInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initEndpointsInformer() {
+	agent.endpointsInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return agent.kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return agent.kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&api.Endpoints{},
+		&v1.Endpoints{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    endpointsChanged,
-		UpdateFunc: endpointsUpdated,
-		DeleteFunc: endpointsChanged,
+	agent.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.endpointsChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.endpointsChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.endpointsChanged(obj)
+		},
 	})
 
-	go endpointsInformer.GetController().Run(wait.NeverStop)
-	go endpointsInformer.Run(wait.NeverStop)
+	go agent.endpointsInformer.GetController().Run(wait.NeverStop)
+	go agent.endpointsInformer.Run(wait.NeverStop)
 }
 
-func initServiceInformer(kubeClient *clientset.Clientset) {
-	serviceInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initServiceInformer() {
+	agent.serviceInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return agent.kubeClient.Core().Services(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return agent.kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&api.Service{},
+		&v1.Service{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    serviceAdded,
-		UpdateFunc: serviceUpdated,
-		DeleteFunc: serviceDeleted,
+	agent.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.serviceChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.serviceChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.serviceDeleted(obj)
+		},
 	})
 
-	go serviceInformer.GetController().Run(wait.NeverStop)
-	go serviceInformer.Run(wait.NeverStop)
+	go agent.serviceInformer.GetController().Run(wait.NeverStop)
+	go agent.serviceInformer.Run(wait.NeverStop)
 }
 
 func getAs(asfile string) (*opflexService, error) {
@@ -136,7 +149,7 @@ func writeAs(asfile string, as *opflexService) error {
 	return err
 }
 
-func serviceLogger(as *api.Service) *logrus.Entry {
+func serviceLogger(as *v1.Service) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": as.ObjectMeta.Namespace,
 		"name":      as.ObjectMeta.Name,
@@ -154,17 +167,17 @@ func opflexServiceLogger(as *opflexService) *logrus.Entry {
 	})
 }
 
-func syncServices() {
-	if !syncEnabled {
+func (agent *hostAgent) syncServices() {
+	if !agent.syncEnabled {
 		return
 	}
 
 	log.Debug("Syncing services")
 
-	files, err := ioutil.ReadDir(config.OpFlexServiceDir)
+	files, err := ioutil.ReadDir(agent.config.OpFlexServiceDir)
 	if err != nil {
 		log.WithFields(
-			logrus.Fields{"serviceDir": config.OpFlexServiceDir},
+			logrus.Fields{"serviceDir": agent.config.OpFlexServiceDir},
 		).Error("Could not read directory " + err.Error())
 		return
 	}
@@ -175,7 +188,7 @@ func syncServices() {
 			continue
 		}
 
-		asfile := filepath.Join(config.OpFlexServiceDir, f.Name())
+		asfile := filepath.Join(agent.config.OpFlexServiceDir, f.Name())
 		logger := log.WithFields(
 			logrus.Fields{"asfile": asfile},
 		)
@@ -184,7 +197,7 @@ func syncServices() {
 			logger.Error("Error reading AS file: " + err.Error())
 			os.Remove(asfile)
 		} else {
-			existing, ok := opflexServices[as.Uuid]
+			existing, ok := agent.opflexServices[as.Uuid]
 			if ok {
 				if !reflect.DeepEqual(existing, as) {
 					opflexServiceLogger(as).Info("Updating service")
@@ -198,42 +211,39 @@ func syncServices() {
 		}
 	}
 
-	for _, as := range opflexServices {
+	for _, as := range agent.opflexServices {
 		if seen[as.Uuid] {
 			continue
 		}
 
 		opflexServiceLogger(as).Info("Adding service")
-		writeAs(filepath.Join(config.OpFlexServiceDir, as.Uuid+".service"), as)
+		writeAs(filepath.Join(agent.config.OpFlexServiceDir, as.Uuid+".service"), as)
 	}
 
 	log.Debug("Finished service sync")
 }
 
-func endpointsUpdated(_ interface{}, obj interface{}) {
-	endpointsChanged(obj)
-}
-
-func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints) bool {
+func (agent *hostAgent) updateServiceDesc(external bool, as *v1.Service,
+	endpoints *v1.Endpoints) bool {
 	ofas := &opflexService{
 		Uuid:              string(as.ObjectMeta.UID),
-		DomainPolicySpace: config.AciVrfTenant,
-		DomainName:        config.AciVrf,
+		DomainPolicySpace: agent.config.AciVrfTenant,
+		DomainName:        agent.config.AciVrf,
 		ServiceMode:       "loadbalancer",
 		ServiceMappings:   make([]opflexServiceMapping, 0),
 	}
 
 	if external {
-		if config.ServiceIface == "" ||
-			serviceEp.Ipv4 == nil ||
-			serviceEp.Mac == "" {
+		if agent.config.ServiceIface == "" ||
+			agent.serviceEp.Ipv4 == nil ||
+			agent.serviceEp.Mac == "" {
 			return false
 		}
 
-		ofas.InterfaceName = config.ServiceIface
-		ofas.InterfaceVlan = uint16(config.ServiceIfaceVlan)
-		ofas.ServiceMac = serviceEp.Mac
-		ofas.InterfaceIp = serviceEp.Ipv4.String()
+		ofas.InterfaceName = agent.config.ServiceIface
+		ofas.InterfaceVlan = uint16(agent.config.ServiceIfaceVlan)
+		ofas.ServiceMac = agent.serviceEp.Mac
+		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
 
@@ -261,7 +271,7 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 
 				for _, a := range e.Addresses {
 					if !external ||
-						(a.NodeName != nil && *a.NodeName == config.NodeName) {
+						(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
 						sm.NextHopIps = append(sm.NextHopIps, a.IP)
 					}
 				}
@@ -279,15 +289,15 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 	ofas.Attributes["name"] = as.ObjectMeta.Name
 	ofas.Attributes["service-name"] = id
 
-	existing, ok := opflexServices[ofas.Uuid]
+	existing, ok := agent.opflexServices[ofas.Uuid]
 	if hasValidMapping {
 		if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {
-			opflexServices[ofas.Uuid] = ofas
+			agent.opflexServices[ofas.Uuid] = ofas
 			return true
 		}
 	} else {
 		if ok {
-			delete(opflexServices, ofas.Uuid)
+			delete(agent.opflexServices, ofas.Uuid)
 			return true
 		}
 	}
@@ -295,8 +305,9 @@ func updateServiceDesc(external bool, as *api.Service, endpoints *api.Endpoints)
 	return false
 }
 
-func doUpdateService(key string) {
-	endpointsobj, exists, err := endpointsInformer.GetStore().GetByKey(key)
+func (agent *hostAgent) doUpdateService(key string) {
+	endpointsobj, exists, err :=
+		agent.endpointsInformer.GetStore().GetByKey(key)
 	if err != nil {
 		log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())
@@ -305,7 +316,7 @@ func doUpdateService(key string) {
 	if !exists || endpointsobj == nil {
 		return
 	}
-	asobj, exists, err := serviceInformer.GetStore().GetByKey(key)
+	asobj, exists, err := agent.serviceInformer.GetStore().GetByKey(key)
 	if err != nil {
 		log.Error("Could not lookup service for " +
 			key + ": " + err.Error())
@@ -315,40 +326,36 @@ func doUpdateService(key string) {
 		return
 	}
 
-	endpoints := endpointsobj.(*api.Endpoints)
-	as := asobj.(*api.Service)
+	endpoints := endpointsobj.(*v1.Endpoints)
+	as := asobj.(*v1.Service)
 
 	doSync := false
-	doSync = updateServiceDesc(false, as, endpoints) || doSync
-	doSync = updateServiceDesc(true, as, endpoints) || doSync
+	doSync = agent.updateServiceDesc(false, as, endpoints) || doSync
+	doSync = agent.updateServiceDesc(true, as, endpoints) || doSync
 	if doSync {
-		syncServices()
+		agent.syncServices()
 	}
 }
 
-func endpointsChanged(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (agent *hostAgent) endpointsChanged(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
-	endpoints := obj.(*api.Endpoints)
+	endpoints := obj.(*v1.Endpoints)
 
 	key, err := cache.MetaNamespaceKeyFunc(endpoints)
 	if err != nil {
 		log.Error("Could not create key:" + err.Error())
 		return
 	}
-	doUpdateService(key)
+	agent.doUpdateService(key)
 }
 
-func serviceUpdated(_ interface{}, obj interface{}) {
-	serviceAdded(obj)
-}
+func (agent *hostAgent) serviceChanged(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
-func serviceAdded(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	as := obj.(*api.Service)
+	as := obj.(*v1.Service)
 
 	key, err := cache.MetaNamespaceKeyFunc(as)
 	if err != nil {
@@ -356,39 +363,39 @@ func serviceAdded(obj interface{}) {
 		return
 	}
 
-	doUpdateService(key)
+	agent.doUpdateService(key)
 }
 
-func serviceDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (agent *hostAgent) serviceDeleted(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
-	as := obj.(*api.Service)
+	as := obj.(*v1.Service)
 
 	u := string(as.ObjectMeta.UID)
-	if _, ok := opflexServices[u]; ok {
-		delete(opflexServices, u)
-		syncServices()
+	if _, ok := agent.opflexServices[u]; ok {
+		delete(agent.opflexServices, u)
+		agent.syncServices()
 	}
 }
 
-func updateAllServices() {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (agent *hostAgent) updateAllServices() {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
-	if serviceInformer == nil {
+	if agent.serviceInformer == nil {
 		return
 	}
-	store := serviceInformer.GetStore()
+	store := agent.serviceInformer.GetStore()
 	if store == nil {
 		return
 	}
-	keys := serviceInformer.GetStore().ListKeys()
+	keys := agent.serviceInformer.GetStore().ListKeys()
 	if keys == nil {
 		return
 	}
 
 	for _, key := range keys {
-		doUpdateService(key)
+		agent.doUpdateService(key)
 	}
 }

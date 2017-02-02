@@ -141,7 +141,7 @@ func waitForNetwork(netns ns.NetNS, result *cnitypes.Result, id string) error {
 	return nil
 }
 
-func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
+func (agent *hostAgent) configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
 	logger := log.WithFields(logrus.Fields{
 		"id": metadata.Id,
 	})
@@ -157,7 +157,7 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	logger.Debug("Setting up veth")
 
 	metadata.HostVethName, metadata.MAC, err =
-		setupVeth(netns, metadata.ContIfaceName, config.InterfaceMtu)
+		setupVeth(netns, metadata.ContIfaceName, agent.config.InterfaceMtu)
 	if err != nil {
 		return nil, err
 	}
@@ -165,26 +165,27 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	logger.Debug("Allocating IP address(es)")
 	if metadata.NetConf.IP4 == nil && metadata.NetConf.IP6 == nil {
 		// We're doing ip address management
-		err = allocateIps(&metadata.NetConf)
+		err = agent.allocateIps(&metadata.NetConf)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	err = md.RecordMetadata(config.CniMetadataDir, config.CniNetwork, *metadata)
+	err = md.RecordMetadata(agent.config.CniMetadataDir,
+		agent.config.CniNetwork, *metadata)
 	if err != nil {
 		return nil, err
 	}
 	{
-		indexMutex.Lock()
-		epMetadata[metadata.Id] = metadata
-		indexMutex.Unlock()
+		agent.indexMutex.Lock()
+		agent.epMetadata[metadata.Id] = metadata
+		agent.indexMutex.Unlock()
 	}
 
 	logger.Debug("Creating OVS ports")
 
-	err = createPorts(config.OvsDbSock, config.IntBridgeName,
-		config.AccessBridgeName, metadata.HostVethName)
+	err = createPorts(agent.config.OvsDbSock, agent.config.IntBridgeName,
+		agent.config.AccessBridgeName, metadata.HostVethName)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +197,7 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	}
 
 	podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
-	podChanged(&podkey)
+	agent.podChanged(&podkey)
 
 	logger.Debug("Waiting for network connectivity")
 	err = waitForNetwork(netns, &metadata.NetConf, metadata.Id)
@@ -205,31 +206,32 @@ func configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, 
 	return result, nil
 }
 
-func unconfigureContainerIface(id string) error {
+func (agent *hostAgent) unconfigureContainerIface(id string) error {
 	logger := log.WithFields(logrus.Fields{
 		"id": id,
 	})
 
-	indexMutex.Lock()
-	metadata, ok := epMetadata[id]
+	agent.indexMutex.Lock()
+	metadata, ok := agent.epMetadata[id]
 	if !ok {
 		logger.Error("Unconfigure called for container with no metadata")
 		// Assume container is already unconfigured
-		indexMutex.Unlock()
+		agent.indexMutex.Unlock()
 		return nil
 	}
-	delete(epMetadata, id)
-	indexMutex.Unlock()
+	delete(agent.epMetadata, id)
+	agent.indexMutex.Unlock()
 
-	err := md.ClearMetadata(config.CniMetadataDir, config.CniNetwork, id)
+	err := md.ClearMetadata(agent.config.CniMetadataDir,
+		agent.config.CniNetwork, id)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("Clearing OVS ports")
 	if metadata.HostVethName != "" {
-		err = delPorts(config.OvsDbSock, config.IntBridgeName,
-			config.AccessBridgeName, metadata.HostVethName)
+		err = delPorts(agent.config.OvsDbSock, agent.config.IntBridgeName,
+			agent.config.AccessBridgeName, metadata.HostVethName)
 		if err != nil {
 			logger.Error("Could not clear OVS ports: ", err)
 		}
@@ -253,12 +255,12 @@ func unconfigureContainerIface(id string) error {
 	return nil
 }
 
-func cleanupSetup() {
+func (agent *hostAgent) cleanupSetup() {
 	log.Info("Checking for stale container setup")
 
-	indexMutex.Lock()
-	mdcopy := epMetadata
-	indexMutex.Unlock()
+	agent.indexMutex.Lock()
+	mdcopy := agent.epMetadata
+	agent.indexMutex.Unlock()
 
 	for id, metadata := range mdcopy {
 		logger := log.WithFields(logrus.Fields{
@@ -267,7 +269,7 @@ func cleanupSetup() {
 
 		podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
 		logger.Debug("Checking")
-		_, exists, err := podInformer.GetStore().GetByKey(podkey)
+		_, exists, err := agent.podInformer.GetStore().GetByKey(podkey)
 		if err != nil {
 			logger.Error("Could not lookup pod: ", err)
 			continue
@@ -275,7 +277,7 @@ func cleanupSetup() {
 		if !exists {
 			logger.Info("Unconfiguring stale container configuration")
 
-			err := unconfigureContainerIface(id)
+			err := agent.unconfigureContainerIface(id)
 			if err != nil {
 				logger.Error("Could not unconfigure container: ", err)
 			}

@@ -22,41 +22,19 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/client/cache"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
-var (
-	log = logrus.New()
-
-	configPath = flag.String("config-path", "", "Absolute path to a host agent configuration file")
-	config     = NewConfig()
-
-	defaultEg = ""
-	defaultSg = ""
-
-	indexMutex = &sync.Mutex{}
-	depPods    = make(map[string]string)
-
-	kubeClient         *clientset.Clientset
-	namespaceInformer  cache.SharedIndexInformer
-	podInformer        cache.SharedIndexInformer
-	endpointsInformer  cache.SharedIndexInformer
-	serviceInformer    cache.SharedIndexInformer
-	deploymentInformer cache.SharedIndexInformer
-	nodeInformer       cache.SharedIndexInformer
-
-	configuredPodNetworkIps = NewNetIps()
-	podNetworkIps           = NewNetIps()
-	serviceIps              = NewNetIps()
-	staticServiceIps        = NewNetIps()
-	nodeServiceIps          = NewNetIps()
-)
+var log = logrus.New()
 
 func main() {
-	initFlags()
+	cont := newController()
+
+	initFlags(cont)
+	configPath := flag.String("config-path", "",
+		"Absolute path to a host agent configuration file")
 	flag.Parse()
 
 	if configPath != nil && *configPath != "" {
@@ -65,47 +43,47 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
-		err = json.Unmarshal(raw, config)
+		err = json.Unmarshal(raw, cont.config)
 		if err != nil {
 			panic(err.Error())
 		}
 	}
 
-	logLevel, err := logrus.ParseLevel(config.LogLevel)
+	logLevel, err := logrus.ParseLevel(cont.config.LogLevel)
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Level = logLevel
 
-	egdata, err := json.Marshal(config.DefaultEg)
+	egdata, err := json.Marshal(cont.config.DefaultEg)
 	if err != nil {
 		log.Error("Could not serialize default endpoint group")
 		panic(err.Error())
 	}
-	defaultEg = string(egdata)
+	cont.defaultEg = string(egdata)
 
-	sgdata, err := json.Marshal(config.DefaultSg)
+	sgdata, err := json.Marshal(cont.config.DefaultSg)
 	if err != nil {
 		log.Error("Could not serialize default security groups")
 		panic(err.Error())
 	}
-	defaultSg = string(sgdata)
+	cont.defaultSg = string(sgdata)
 
 	log.WithFields(logrus.Fields{
-		"kubeconfig": config.KubeConfig,
-		"defaultEg":  defaultEg,
-		"defaultSg":  defaultSg,
+		"kubeconfig": cont.config.KubeConfig,
+		"defaultEg":  cont.defaultEg,
+		"defaultSg":  cont.defaultSg,
 		"logLevel":   logLevel,
 	}).Info("Starting")
 
 	log.Debug("Initializing IPAM")
-	initIpam()
+	cont.initIpam()
 
 	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
-	if config.KubeConfig != "" {
+	if cont.config.KubeConfig != "" {
 		// use kubeconfig file from command line
-		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
+		restconfig, err = clientcmd.BuildConfigFromFlags("", cont.config.KubeConfig)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -118,7 +96,7 @@ func main() {
 	}
 
 	// creates the client
-	kubeClient, err = clientset.NewForConfig(restconfig)
+	cont.kubeClient, err = kubernetes.NewForConfig(restconfig)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -127,14 +105,14 @@ func main() {
 	wg.Add(1)
 
 	log.Debug("Initializing informers")
-	initNodeInformer()
+	cont.initNodeInformer()
 
-	initNamespaceInformer()
-	initDeploymentInformer()
-	initPodInformer()
+	cont.initNamespaceInformer()
+	cont.initDeploymentInformer()
+	cont.initPodInformer()
 
-	initEndpointsInformer()
-	initServiceInformer()
+	cont.initEndpointsInformer()
+	cont.initServiceInformer()
 
 	wg.Wait()
 }

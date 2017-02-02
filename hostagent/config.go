@@ -21,19 +21,19 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 )
 
-type Route struct {
+type route struct {
 	Dst cnitypes.IPNet `json:"dst"`
 	GW  net.IP         `json:"gw,omitempty"`
 }
 
-type CNINetConfig struct {
+type cniNetConfig struct {
 	Subnet  cnitypes.IPNet `json:"subnet,omitempty"`
 	Gateway net.IP         `json:"gateway,omitempty"`
-	Routes  []Route        `json:"routes,omitempty"`
+	Routes  []route        `json:"routes,omitempty"`
 }
 
 // Configuration for the host agent
-type HostAgentConfig struct {
+type hostAgentConfig struct {
 	// Log level
 	LogLevel string `json:"log-level,omitempty"`
 
@@ -74,7 +74,7 @@ type HostAgentConfig struct {
 	InterfaceMtu int `json:"interface-mtu,omitempty"`
 
 	// Configuration for CNI networks
-	NetConfig []CNINetConfig `json:"cni-netconfig,omitempty"`
+	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
 
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
@@ -83,27 +83,27 @@ type HostAgentConfig struct {
 	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
 }
 
-func initFlags() {
-	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
+func (agent *hostAgent) initFlags() {
+	flag.StringVar(&agent.config.LogLevel, "log-level", "info", "Log level")
 
-	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
-	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
+	flag.StringVar(&agent.config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+	flag.StringVar(&agent.config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 
-	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
-	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
+	flag.StringVar(&agent.config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
+	flag.StringVar(&agent.config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
 
-	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
-	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
+	flag.StringVar(&agent.config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
+	flag.StringVar(&agent.config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 
-	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", " Location of the OVS DB socket")
-	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
-	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
+	flag.StringVar(&agent.config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", " Location of the OVS DB socket")
+	flag.StringVar(&agent.config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
+	flag.StringVar(&agent.config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
 
-	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
+	flag.IntVar(&agent.config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
 
-	flag.StringVar(&config.ServiceIface, "service-iface", "eth2", "Interface for external service traffic")
-	flag.UintVar(&config.ServiceIfaceVlan, "service-iface-vlan", 4003, "VLAN for service interface traffic")
+	flag.StringVar(&agent.config.ServiceIface, "service-iface", "eth2", "Interface for external service traffic")
+	flag.UintVar(&agent.config.ServiceIfaceVlan, "service-iface-vlan", 4003, "VLAN for service interface traffic")
 
-	flag.StringVar(&config.AciVrf, "aci-vrf", "kubernetes-vrf", "ACI VRF for this kubernetes instance")
-	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
+	flag.StringVar(&agent.config.AciVrf, "aci-vrf", "kubernetes-vrf", "ACI VRF for this kubernetes instance")
+	flag.StringVar(&agent.config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
 }

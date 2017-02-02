@@ -21,62 +21,64 @@ import (
 	"reflect"
 
 	"github.com/Sirupsen/logrus"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
-func initNodeInformer(kubeClient *clientset.Clientset) {
-	nodeInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initNodeInformer() {
+	agent.nodeInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
-					fields.Set{"metadata.name": config.NodeName}.AsSelector()
-				return kubeClient.Core().Nodes().List(options)
+					fields.Set{"metadata.name": agent.config.NodeName}.String()
+				return agent.kubeClient.Core().Nodes().List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
-					fields.Set{"metadata.name": config.NodeName}.AsSelector()
-				return kubeClient.Core().Nodes().Watch(options)
+					fields.Set{"metadata.name": agent.config.NodeName}.String()
+				return agent.kubeClient.Core().Nodes().Watch(options)
 			},
 		},
-		&api.Node{},
+		&v1.Node{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    nodeChanged,
-		UpdateFunc: nodeUpdated,
-		DeleteFunc: nodeDeleted,
+	agent.nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.nodeChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.nodeChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.nodeDeleted(obj)
+		},
 	})
 
-	go nodeInformer.GetController().Run(wait.NeverStop)
-	go nodeInformer.Run(wait.NeverStop)
+	go agent.nodeInformer.GetController().Run(wait.NeverStop)
+	go agent.nodeInformer.Run(wait.NeverStop)
 }
 
-func nodeUpdated(_ interface{}, obj interface{}) {
-	nodeChanged(obj)
-}
+func (agent *hostAgent) nodeChanged(obj interface{}) {
+	agent.indexMutex.Lock()
 
-func nodeChanged(obj interface{}) {
-	indexMutex.Lock()
-
-	node := obj.(*api.Node)
-	if node.ObjectMeta.Name != config.NodeName {
+	node := obj.(*v1.Node)
+	if node.ObjectMeta.Name != agent.config.NodeName {
 		log.Error("Got incorrect node update for ", node.ObjectMeta.Name)
 		return
 	}
 
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if ok {
-		rebuildIpam(pnet)
+		agent.rebuildIpam(pnet)
 	}
 
 	var newServiceEp metadata.ServiceEndpoint
@@ -90,17 +92,17 @@ func nodeChanged(obj interface{}) {
 				"service endpoint annotation: ", err)
 		}
 	}
-	if !reflect.DeepEqual(newServiceEp, serviceEp) {
-		serviceEp = newServiceEp
-		indexMutex.Unlock()
-		updateAllServices()
+	if !reflect.DeepEqual(newServiceEp, agent.serviceEp) {
+		agent.serviceEp = newServiceEp
+		agent.indexMutex.Unlock()
+		agent.updateAllServices()
 	} else {
-		indexMutex.Unlock()
+		agent.indexMutex.Unlock()
 	}
 }
 
-func nodeDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (agent *hostAgent) nodeDeleted(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
 }

@@ -27,14 +27,15 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/noironetworks/aci-containers/metadata"
 )
@@ -61,32 +62,38 @@ type opflexEndpoint struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-func initPodInformer(kubeClient *clientset.Clientset) {
-	podInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initPodInformer() {
+	agent.podInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
-					fields.Set{"spec.nodeName": config.NodeName}.AsSelector()
-				return kubeClient.Core().Pods(api.NamespaceAll).List(options)
+					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
+				return agent.kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
-					fields.Set{"spec.nodeName": config.NodeName}.AsSelector()
-				return kubeClient.Core().Pods(api.NamespaceAll).Watch(options)
+					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
+				return agent.kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&api.Pod{},
+		&v1.Pod{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    podAdded,
-		UpdateFunc: podUpdated,
-		DeleteFunc: podDeleted,
+	agent.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.podUpdated(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.podUpdated(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.podDeleted(obj)
+		},
 	})
 
-	go podInformer.GetController().Run(wait.NeverStop)
-	go podInformer.Run(wait.NeverStop)
+	go agent.podInformer.GetController().Run(wait.NeverStop)
+	go agent.podInformer.Run(wait.NeverStop)
 }
 
 func getEp(epfile string) (*opflexEndpoint, error) {
@@ -115,7 +122,7 @@ func writeEp(epfile string, ep *opflexEndpoint) error {
 	return err
 }
 
-func podLogger(pod *api.Pod) *logrus.Entry {
+func podLogger(pod *v1.Pod) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": pod.ObjectMeta.Namespace,
 		"name":      pod.ObjectMeta.Name,
@@ -130,16 +137,16 @@ func opflexEpLogger(ep *opflexEndpoint) *logrus.Entry {
 	})
 }
 
-func syncEps() {
-	if !syncEnabled {
+func (agent *hostAgent) syncEps() {
+	if !agent.syncEnabled {
 		return
 	}
 
 	log.Debug("Syncing endpoints")
-	files, err := ioutil.ReadDir(config.OpFlexEndpointDir)
+	files, err := ioutil.ReadDir(agent.config.OpFlexEndpointDir)
 	if err != nil {
 		log.WithFields(
-			logrus.Fields{"endpointDir": config.OpFlexEndpointDir},
+			logrus.Fields{"endpointDir": agent.config.OpFlexEndpointDir},
 		).Error("Could not read directory " + err.Error())
 		return
 	}
@@ -149,7 +156,7 @@ func syncEps() {
 			continue
 		}
 
-		epfile := filepath.Join(config.OpFlexEndpointDir, f.Name())
+		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
 		logger := log.WithFields(
 			logrus.Fields{"epfile": epfile},
 		)
@@ -158,7 +165,7 @@ func syncEps() {
 			logger.Error("Error reading EP file: " + err.Error())
 			os.Remove(epfile)
 		} else {
-			existing, ok := opflexEps[ep.Uuid]
+			existing, ok := agent.opflexEps[ep.Uuid]
 			if ok {
 				if !reflect.DeepEqual(existing, ep) {
 					opflexEpLogger(ep).Info("Updating endpoint")
@@ -172,39 +179,35 @@ func syncEps() {
 		}
 	}
 
-	for _, ep := range opflexEps {
+	for _, ep := range agent.opflexEps {
 		if seen[ep.Uuid] {
 			continue
 		}
 
 		opflexEpLogger(ep).Info("Adding endpoint")
-		writeEp(filepath.Join(config.OpFlexEndpointDir, ep.Uuid+".ep"), ep)
+		writeEp(filepath.Join(agent.config.OpFlexEndpointDir, ep.Uuid+".ep"), ep)
 	}
 	log.Debug("Finished endpoint sync")
 }
 
-func podFilter(pod *api.Pod) bool {
-	if pod.Spec.NodeName != config.NodeName {
-		return false
-	} else if pod.Spec.SecurityContext != nil &&
-		pod.Spec.SecurityContext.HostNetwork == true {
-		return false
-	}
+func podFilter(pod *v1.Pod) bool {
+	// XXX TODO there seems to be no way to get the value of the
+	// HostNetwork field using the versioned API?
+	//else if pod.Spec.SecurityContext != nil &&
+	//	pod.Spec.SecurityContext.HostNetwork == true {
+	//	return false
+	//}
 	return true
 }
 
-func podUpdated(_ interface{}, obj interface{}) {
-	podAdded(obj)
+func (agent *hostAgent) podUpdated(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	agent.podChangedLocked(obj)
 }
 
-func podAdded(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-	podChangedLocked(obj)
-}
-
-func podChanged(podkey *string) {
-	podobj, exists, err := podInformer.GetStore().GetByKey(*podkey)
+func (agent *hostAgent) podChanged(podkey *string) {
+	podobj, exists, err := agent.podInformer.GetStore().GetByKey(*podkey)
 	if err != nil {
 		log.Error("Could not lookup pod: ", err)
 	}
@@ -213,27 +216,27 @@ func podChanged(podkey *string) {
 		return
 	}
 
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-	podChangedLocked(podobj)
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	agent.podChangedLocked(podobj)
 }
 
-func podChangedLocked(podobj interface{}) {
-	pod := podobj.(*api.Pod)
+func (agent *hostAgent) podChangedLocked(podobj interface{}) {
+	pod := podobj.(*v1.Pod)
 	logger := podLogger(pod)
 
 	if !podFilter(pod) {
-		delete(opflexEps, string(pod.ObjectMeta.UID))
-		syncEps()
+		delete(agent.opflexEps, string(pod.ObjectMeta.UID))
+		agent.syncEps()
 		return
 	}
 
 	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-	epmetadata, ok := epMetadata[id]
+	epmetadata, ok := agent.epMetadata[id]
 	if !ok {
 		logger.Debug("No metadata")
-		delete(opflexEps, string(pod.ObjectMeta.UID))
-		syncEps()
+		delete(agent.opflexEps, string(pod.ObjectMeta.UID))
+		agent.syncEps()
 		return
 	}
 
@@ -283,30 +286,30 @@ func podChangedLocked(podobj interface{}) {
 		}
 	}
 
-	existing, ok := opflexEps[ep.Uuid]
+	existing, ok := agent.opflexEps[ep.Uuid]
 	if (ok && !reflect.DeepEqual(existing, ep)) || !ok {
 		logger.WithFields(logrus.Fields{
 			"ep": ep,
 		}).Debug("Updated endpoint")
 
-		opflexEps[ep.Uuid] = ep
+		agent.opflexEps[ep.Uuid] = ep
 
-		syncEps()
+		agent.syncEps()
 	}
 }
 
-func podDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (agent *hostAgent) podDeleted(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 
-	podDeletedLocked(obj)
+	agent.podDeletedLocked(obj)
 }
 
-func podDeletedLocked(obj interface{}) {
-	pod := obj.(*api.Pod)
+func (agent *hostAgent) podDeletedLocked(obj interface{}) {
+	pod := obj.(*v1.Pod)
 	u := string(pod.ObjectMeta.UID)
-	if _, ok := opflexEps[u]; ok {
-		delete(opflexEps, u)
-		syncEps()
+	if _, ok := agent.opflexEps[u]; ok {
+		delete(agent.opflexEps, u)
+		agent.syncEps()
 	}
 }

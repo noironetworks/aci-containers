@@ -17,63 +17,76 @@ package main
 import (
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 )
 
-func initEndpointsInformer() {
-	endpointsInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initEndpointsInformer() {
+	cont.endpointsInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return cont.kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Endpoints(api.NamespaceAll).Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return cont.kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&api.Endpoints{},
+		&v1.Endpoints{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    endpointsChanged,
-		UpdateFunc: endpointsUpdated,
-		DeleteFunc: endpointsChanged,
+	cont.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.endpointsChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.endpointsChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			cont.endpointsChanged(obj)
+		},
 	})
 
-	go endpointsInformer.GetController().Run(wait.NeverStop)
-	go endpointsInformer.Run(wait.NeverStop)
+	go cont.endpointsInformer.GetController().Run(wait.NeverStop)
+	go cont.endpointsInformer.Run(wait.NeverStop)
 }
 
-func initServiceInformer() {
-	serviceInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initServiceInformer() {
+	cont.serviceInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return cont.kubeClient.Core().Services(metav1.NamespaceAll).List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Services(api.NamespaceAll).Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return cont.kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
 			},
 		},
-		&api.Service{},
+		&v1.Service{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    serviceAdded,
-		UpdateFunc: serviceUpdated,
-		DeleteFunc: serviceDeleted,
+	cont.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.serviceChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.serviceChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			cont.serviceDeleted(obj)
+		},
 	})
 
-	go serviceInformer.GetController().Run(wait.NeverStop)
-	go serviceInformer.Run(wait.NeverStop)
+	go cont.serviceInformer.GetController().Run(wait.NeverStop)
+	go cont.serviceInformer.Run(wait.NeverStop)
 }
 
-func serviceLogger(as *api.Service) *logrus.Entry {
+func serviceLogger(as *v1.Service) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": as.ObjectMeta.Namespace,
 		"name":      as.ObjectMeta.Name,
@@ -81,31 +94,23 @@ func serviceLogger(as *api.Service) *logrus.Entry {
 	})
 }
 
-func endpointsUpdated(_ interface{}, obj interface{}) {
-	endpointsChanged(obj)
+func (cont *aciController) endpointsChanged(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	//	endpoints := obj.(*v1.Endpoints)
 }
 
-func endpointsChanged(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+func (cont *aciController) serviceChanged(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
-	//	endpoints := obj.(*api.Endpoints)
+	//as := obj.(*v1.Service)
 }
 
-func serviceUpdated(_ interface{}, obj interface{}) {
-	serviceAdded(obj)
-}
+func (cont *aciController) serviceDeleted(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
-func serviceAdded(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	//as := obj.(*api.Service)
-}
-
-func serviceDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	//as := obj.(*api.Service)
+	//as := obj.(*v1.Service)
 }

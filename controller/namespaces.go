@@ -18,54 +18,57 @@
 package main
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 )
 
-func initNamespaceInformer() {
-	namespaceInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initNamespaceInformer() {
+	cont.namespaceInformer = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Namespaces().List(options)
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return cont.kubeClient.Core().Namespaces().List(options)
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Namespaces().Watch(options)
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return cont.kubeClient.Core().Namespaces().Watch(options)
 			},
 		},
-		&api.Namespace{},
+		&v1.Namespace{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    namespaceChanged,
-		UpdateFunc: namespaceUpdated,
-		DeleteFunc: namespaceChanged,
+	cont.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.namespaceChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.namespaceChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			cont.namespaceChanged(obj)
+		},
 	})
 
-	go namespaceInformer.GetController().Run(wait.NeverStop)
-	go namespaceInformer.Run(wait.NeverStop)
+	go cont.namespaceInformer.GetController().Run(wait.NeverStop)
+	go cont.namespaceInformer.Run(wait.NeverStop)
 }
 
-func namespaceUpdated(_ interface{}, obj interface{}) {
-	namespaceChanged(obj)
-}
+func (cont *aciController) namespaceChanged(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
-func namespaceChanged(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
+	ns := obj.(*v1.Namespace)
 
-	ns := obj.(*api.Namespace)
-
-	pods := podInformer.GetStore().List()
+	pods := cont.podInformer.GetStore().List()
 	for _, podobj := range pods {
-		pod := podobj.(*api.Pod)
+		pod := podobj.(*v1.Pod)
 
 		if ns.Name == pod.ObjectMeta.Namespace {
-			podChangedLocked(pod)
+			cont.podChangedLocked(pod)
 		}
 	}
 }

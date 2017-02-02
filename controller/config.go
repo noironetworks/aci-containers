@@ -20,13 +20,13 @@ import (
 	"github.com/noironetworks/aci-containers/ipam"
 )
 
-type OpflexGroup struct {
+type opflexGroup struct {
 	PolicySpace string `json:"policy-space,omitempty"`
 	Name        string `json:"name,omitempty"`
 }
 
 // Configuration for the controller
-type ControllerConfig struct {
+type controllerConfig struct {
 	// Log level
 	LogLevel string `json:"log-level,omitempty"`
 
@@ -34,10 +34,10 @@ type ControllerConfig struct {
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
 	// Default endpoint group annotation value
-	DefaultEg OpflexGroup `json:"default-endpoint-group,omitempty"`
+	DefaultEg opflexGroup `json:"default-endpoint-group,omitempty"`
 
 	// Default security group annotation value
-	DefaultSg []OpflexGroup `json:"default-security-group,omitempty"`
+	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
 
 	// IP addresses used for pod network
 	PodIpPool []ipam.IpRange `json:"pod-ip-pool,omitempty"`
@@ -53,28 +53,28 @@ type ControllerConfig struct {
 	NodeServiceIpPool []ipam.IpRange `json:"node-service-ip-pool,omitempty"`
 }
 
-type NetIps struct {
+type netIps struct {
 	V4 *ipam.IpAlloc
 	V6 *ipam.IpAlloc
 }
 
-func NewNetIps() *NetIps {
-	return &NetIps{
+func newNetIps() *netIps {
+	return &netIps{
 		V4: ipam.New(),
 		V6: ipam.New(),
 	}
 }
 
-func NewConfig() *ControllerConfig {
-	return &ControllerConfig{
-		DefaultSg: make([]OpflexGroup, 0),
+func newConfig() *controllerConfig {
+	return &controllerConfig{
+		DefaultSg: make([]opflexGroup, 0),
 	}
 }
 
-func initFlags() {
-	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
+func initFlags(cont *aciController) {
+	flag.StringVar(&cont.config.LogLevel, "log-level", "info", "Log level")
 
-	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+	flag.StringVar(&cont.config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 }
 
 func loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {
@@ -90,14 +90,14 @@ func loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {
 	}
 }
 
-func initIpam() {
-	loadIpRanges(configuredPodNetworkIps.V4, configuredPodNetworkIps.V6,
-		config.PodIpPool)
-	podNetworkIps.V4.AddAll(configuredPodNetworkIps.V4)
-	podNetworkIps.V6.AddAll(configuredPodNetworkIps.V6)
-	loadIpRanges(serviceIps.V4, serviceIps.V6, config.ServiceIpPool)
-	loadIpRanges(staticServiceIps.V4, staticServiceIps.V6,
-		config.StaticServiceIpPool)
-	loadIpRanges(nodeServiceIps.V4, nodeServiceIps.V6,
-		config.NodeServiceIpPool)
+func (cont *aciController) initIpam() {
+	loadIpRanges(cont.configuredPodNetworkIps.V4, cont.configuredPodNetworkIps.V6,
+		cont.config.PodIpPool)
+	cont.podNetworkIps.V4.AddAll(cont.configuredPodNetworkIps.V4)
+	cont.podNetworkIps.V6.AddAll(cont.configuredPodNetworkIps.V6)
+	loadIpRanges(cont.serviceIps.V4, cont.serviceIps.V6, cont.config.ServiceIpPool)
+	loadIpRanges(cont.staticServiceIps.V4, cont.staticServiceIps.V6,
+		cont.config.StaticServiceIpPool)
+	loadIpRanges(cont.nodeServiceIps.V4, cont.nodeServiceIps.V6,
+		cont.config.NodeServiceIpPool)
 }

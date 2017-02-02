@@ -19,30 +19,50 @@ package main
 import (
 	"github.com/Sirupsen/logrus"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	v1 "k8s.io/client-go/pkg/api/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/tools/cache"
+
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/informers"
-	"k8s.io/kubernetes/pkg/util/wait"
 
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
-func initPodInformer() {
-	podInformer = informers.NewPodInformer(kubeClient,
-		controller.NoResyncPeriodFunc())
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    podAdded,
-		UpdateFunc: podUpdated,
-		DeleteFunc: podDeleted,
+func (cont *aciController) initPodInformer() {
+	cont.podInformer = cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return cont.kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return cont.kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
+			},
+		},
+		&v1.Pod{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	cont.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.podChanged(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.podChanged(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			cont.podDeleted(obj)
+		},
 	})
 
-	go podInformer.GetController().Run(wait.NeverStop)
-	go podInformer.Run(wait.NeverStop)
+	go cont.podInformer.GetController().Run(wait.NeverStop)
+	go cont.podInformer.Run(wait.NeverStop)
 }
 
-func podLogger(pod *api.Pod) *logrus.Entry {
+func podLogger(pod *v1.Pod) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": pod.ObjectMeta.Namespace,
 		"name":      pod.ObjectMeta.Name,
@@ -50,29 +70,28 @@ func podLogger(pod *api.Pod) *logrus.Entry {
 	})
 }
 
-func podFilter(pod *api.Pod) bool {
-	if pod.Spec.SecurityContext != nil &&
-		pod.Spec.SecurityContext.HostNetwork == true {
-		return false
-	}
+func podFilter(pod *v1.Pod) bool {
+	// XXX TODO there seems to be no way to get the value of the
+	// HostNetwork field using the versioned API?
+
+	//if pod.Spec.SecurityContext != nil &&
+	//	pod.Spec.SecurityContext.HostNetwork == true {
+	//	return false
+	//}
 	return true
 }
 
-func podUpdated(_ interface{}, obj interface{}) {
-	podAdded(obj)
+func (cont *aciController) podChanged(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	cont.podChangedLocked(obj)
 }
 
-func podAdded(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	podChangedLocked(obj)
-}
-
-func podChangedLocked(obj interface{}) {
-	pod := obj.(*api.Pod)
+func (cont *aciController) podChangedLocked(obj interface{}) {
+	pod := obj.(*v1.Pod)
 	if !podFilter(pod) {
-		podDeletedLocked(obj)
+		cont.podDeletedLocked(obj)
 		return
 	}
 	logger := podLogger(pod)
@@ -82,30 +101,33 @@ func podChangedLocked(obj interface{}) {
 		logger.Error("Could not create pod key:" + err.Error())
 		return
 	}
+	if pod.Spec.NodeName != "" {
+		cont.addPodToNode(pod.Spec.NodeName, podkey)
+	}
 
-	podobj, exists, err := podInformer.GetStore().GetByKey(podkey)
+	podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
 	if err != nil {
 		log.Error("Could not lookup pod:" + err.Error())
 		return
 	}
 	if !exists || podobj == nil {
-		podDeletedLocked(pod)
+		cont.podDeletedLocked(pod)
 	}
 
 	// top-level default annotation
-	egval := &defaultEg
-	sgval := &defaultSg
+	egval := &cont.defaultEg
+	sgval := &cont.defaultSg
 
 	// namespace annotation has next-highest priority
 	namespaceobj, exists, err :=
-		namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
+		cont.namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
 	if err != nil {
 		log.Error("Could not lookup namespace " +
 			pod.ObjectMeta.Namespace + ": " + err.Error())
 		return
 	}
 	if exists && namespaceobj != nil {
-		namespace := namespaceobj.(*api.Namespace)
+		namespace := namespaceobj.(*v1.Namespace)
 
 		if og, ok := namespace.ObjectMeta.Annotations[metadata.EgAnnotation]; ok {
 			egval = &og
@@ -116,23 +138,23 @@ func podChangedLocked(obj interface{}) {
 	}
 
 	// annotation on associated deployment is next-highest priority
-	if _, ok := depPods[podkey]; !ok {
+	if _, ok := cont.depPods[podkey]; !ok {
 		if _, ok := pod.ObjectMeta.Annotations["kubernetes.io/created-by"]; ok {
 			// we have no deployment for this pod but it was created
 			// by something.  Update the index
 
-			updateDeploymentsForPod(pod)
+			cont.updateDeploymentsForPod(pod)
 		}
 	}
-	if depkey, ok := depPods[podkey]; ok {
+	if depkey, ok := cont.depPods[podkey]; ok {
 		deploymentobj, exists, err :=
-			deploymentInformer.GetStore().GetByKey(depkey)
+			cont.deploymentInformer.GetStore().GetByKey(depkey)
 		if err != nil {
 			log.Error("Could not lookup deployment " + depkey + ": " + err.Error())
 			return
 		}
 		if exists && deploymentobj != nil {
-			deployment := deploymentobj.(*extensions.Deployment)
+			deployment := deploymentobj.(*v1beta1.Deployment)
 
 			if og, ok := deployment.ObjectMeta.Annotations[metadata.EgAnnotation]; ok {
 				egval = &og
@@ -179,7 +201,7 @@ func podChangedLocked(obj interface{}) {
 	}
 
 	if podUpdated {
-		_, err := kubeClient.Core().Pods(pod.ObjectMeta.Namespace).Update(pod)
+		_, err := cont.kubeClient.Core().Pods(pod.ObjectMeta.Namespace).Update(pod)
 		if err != nil {
 			logger.Error("Failed to update pod: " + err.Error())
 		} else {
@@ -191,14 +213,18 @@ func podChangedLocked(obj interface{}) {
 	}
 }
 
-func podDeleted(obj interface{}) {
-	indexMutex.Lock()
-	defer indexMutex.Unlock()
-
-	podDeletedLocked(obj)
+func (cont *aciController) podDeleted(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	cont.podDeletedLocked(obj)
 }
 
-func podDeletedLocked(obj interface{}) {
-	//	pod := obj.(*api.Pod)
-
+func (cont *aciController) podDeletedLocked(obj interface{}) {
+	pod := obj.(*v1.Pod)
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		podLogger(pod).Error("Could not create pod key:" + err.Error())
+		return
+	}
+	cont.removePodFromNode(pod.Spec.NodeName, podkey)
 }
