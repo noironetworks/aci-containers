@@ -30,9 +30,9 @@ import (
 var log = logrus.New()
 
 func main() {
-	cont := newController()
+	config := newConfig()
 
-	initFlags(cont)
+	initFlags(config)
 	configPath := flag.String("config-path", "",
 		"Absolute path to a host agent configuration file")
 	flag.Parse()
@@ -43,47 +43,28 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
-		err = json.Unmarshal(raw, cont.config)
+		err = json.Unmarshal(raw, config)
 		if err != nil {
 			panic(err.Error())
 		}
 	}
 
-	logLevel, err := logrus.ParseLevel(cont.config.LogLevel)
+	logLevel, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
 		panic(err.Error())
 	}
 	log.Level = logLevel
 
-	egdata, err := json.Marshal(cont.config.DefaultEg)
-	if err != nil {
-		log.Error("Could not serialize default endpoint group")
-		panic(err.Error())
-	}
-	cont.defaultEg = string(egdata)
-
-	sgdata, err := json.Marshal(cont.config.DefaultSg)
-	if err != nil {
-		log.Error("Could not serialize default security groups")
-		panic(err.Error())
-	}
-	cont.defaultSg = string(sgdata)
-
 	log.WithFields(logrus.Fields{
-		"kubeconfig": cont.config.KubeConfig,
-		"defaultEg":  cont.defaultEg,
-		"defaultSg":  cont.defaultSg,
+		"kubeconfig": config.KubeConfig,
 		"logLevel":   logLevel,
 	}).Info("Starting")
 
-	log.Debug("Initializing IPAM")
-	cont.initIpam()
-
 	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
-	if cont.config.KubeConfig != "" {
+	if config.KubeConfig != "" {
 		// use kubeconfig file from command line
-		restconfig, err = clientcmd.BuildConfigFromFlags("", cont.config.KubeConfig)
+		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -96,7 +77,7 @@ func main() {
 	}
 
 	// creates the client
-	cont.kubeClient, err = kubernetes.NewForConfig(restconfig)
+	kubeClient, err := kubernetes.NewForConfig(restconfig)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -104,15 +85,9 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	log.Debug("Initializing informers")
-	cont.initNodeInformer()
-
-	cont.initNamespaceInformer()
-	cont.initDeploymentInformer()
-	cont.initPodInformer()
-
-	cont.initEndpointsInformer()
-	cont.initServiceInformer()
+	cont := newController(config)
+	cont.init(kubeClient)
+	cont.run()
 
 	wg.Wait()
 }

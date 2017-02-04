@@ -71,10 +71,10 @@ func newConfig() *controllerConfig {
 	}
 }
 
-func initFlags(cont *aciController) {
-	flag.StringVar(&cont.config.LogLevel, "log-level", "info", "Log level")
+func initFlags(config *controllerConfig) {
+	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
-	flag.StringVar(&cont.config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 }
 
 func loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {

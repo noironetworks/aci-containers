@@ -15,8 +15,10 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
@@ -67,9 +69,9 @@ func newNodePodNetMeta() *nodePodNetMeta {
 	}
 }
 
-func newController() *aciController {
+func newController(config *controllerConfig) *aciController {
 	return &aciController{
-		config:    newConfig(),
+		config:    config,
 		defaultEg: "",
 		defaultSg: "",
 		depPods:   make(map[string]string),
@@ -84,4 +86,44 @@ func newController() *aciController {
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
 		nodequeue:            make(chan string),
 	}
+}
+
+func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
+	egdata, err := json.Marshal(cont.config.DefaultEg)
+	if err != nil {
+		log.Error("Could not serialize default endpoint group")
+		panic(err.Error())
+	}
+	cont.defaultEg = string(egdata)
+
+	sgdata, err := json.Marshal(cont.config.DefaultSg)
+	if err != nil {
+		log.Error("Could not serialize default security groups")
+		panic(err.Error())
+	}
+	cont.defaultSg = string(sgdata)
+
+	log.Debug("Initializing IPAM")
+	cont.initIpam()
+
+	log.Debug("Initializing informers")
+	cont.kubeClient = kubeClient
+	cont.initNodeInformerFromClient(kubeClient)
+	cont.initNamespaceInformerFromClient(kubeClient)
+	cont.initDeploymentInformerFromClient(kubeClient)
+	cont.initPodInformerFromClient(kubeClient)
+	cont.initEndpointsInformerFromClient(kubeClient)
+	cont.initServiceInformerFromClient(kubeClient)
+}
+
+func (cont *aciController) run() {
+	log.Debug("Starting informers")
+	go cont.namespaceInformer.Run(wait.NeverStop)
+	go cont.nodeInformer.Run(wait.NeverStop)
+	go cont.deploymentInformer.Run(wait.NeverStop)
+	go cont.podInformer.Run(wait.NeverStop)
+	go cont.endpointsInformer.Run(wait.NeverStop)
+	go cont.serviceInformer.Run(wait.NeverStop)
+
+	go cont.processNodeQueue()
 }

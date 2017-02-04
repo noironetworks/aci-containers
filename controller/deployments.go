@@ -23,24 +23,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 )
 
-func (cont *aciController) initDeploymentInformer() {
-	cont.deploymentInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return cont.kubeClient.Extensions().Deployments(metav1.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return cont.kubeClient.Extensions().Deployments(metav1.NamespaceAll).Watch(options)
-			},
+func (cont *aciController) initDeploymentInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	cont.initDeploymentInformerBase(&cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return kubeClient.Extensions().Deployments(metav1.NamespaceAll).List(options)
 		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			return kubeClient.Extensions().Deployments(metav1.NamespaceAll).Watch(options)
+		},
+	})
+}
+
+func (cont *aciController) initDeploymentInformerBase(listWatch *cache.ListWatch) {
+	cont.deploymentInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1beta1.Deployment{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -57,8 +63,6 @@ func (cont *aciController) initDeploymentInformer() {
 		},
 	})
 
-	go cont.deploymentInformer.GetController().Run(wait.NeverStop)
-	go cont.deploymentInformer.Run(wait.NeverStop)
 }
 
 func deploymentLogger(dep *v1beta1.Deployment) *logrus.Entry {

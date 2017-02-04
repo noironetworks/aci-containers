@@ -96,11 +96,12 @@ func main() {
 		panic(err.Error())
 	}
 
-	agent := newHostAgent(config)
-	agent.init(kubeClient)
-
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	agent := newHostAgent(config)
+	agent.init(kubeClient)
 	agent.run()
+
 	wg.Wait()
 }

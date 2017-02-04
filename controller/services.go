@@ -19,23 +19,29 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 )
 
-func (cont *aciController) initEndpointsInformer() {
-	cont.endpointsInformer = cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return cont.kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return cont.kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
-			},
+func (cont *aciController) initEndpointsInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	cont.initEndpointsInformerBase(&cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
 		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			return kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
+		},
+	})
+}
+
+func (cont *aciController) initEndpointsInformerBase(listWatch *cache.ListWatch) {
+	cont.endpointsInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Endpoints{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -52,12 +58,12 @@ func (cont *aciController) initEndpointsInformer() {
 		},
 	})
 
-	go cont.endpointsInformer.GetController().Run(wait.NeverStop)
-	go cont.endpointsInformer.Run(wait.NeverStop)
 }
 
-func (cont *aciController) initServiceInformer() {
-	cont.serviceInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initServiceInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	cont.initServiceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				return cont.kubeClient.Core().Services(metav1.NamespaceAll).List(options)
@@ -65,7 +71,12 @@ func (cont *aciController) initServiceInformer() {
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				return cont.kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
 			},
-		},
+		})
+}
+
+func (cont *aciController) initServiceInformerBase(listWatch *cache.ListWatch) {
+	cont.serviceInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Service{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -81,9 +92,6 @@ func (cont *aciController) initServiceInformer() {
 			cont.serviceDeleted(obj)
 		},
 	})
-
-	go cont.serviceInformer.GetController().Run(wait.NeverStop)
-	go cont.serviceInformer.Run(wait.NeverStop)
 }
 
 func serviceLogger(as *v1.Service) *logrus.Entry {

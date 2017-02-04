@@ -20,23 +20,30 @@ package main
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 )
 
-func (cont *aciController) initNamespaceInformer() {
-	cont.namespaceInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initNamespaceInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	cont.initNamespaceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return cont.kubeClient.Core().Namespaces().List(options)
+				return kubeClient.Core().Namespaces().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return cont.kubeClient.Core().Namespaces().Watch(options)
+				return kubeClient.Core().Namespaces().Watch(options)
 			},
-		},
+		})
+}
+
+func (cont *aciController) initNamespaceInformerBase(listWatch *cache.ListWatch) {
+	cont.namespaceInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Namespace{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -53,8 +60,6 @@ func (cont *aciController) initNamespaceInformer() {
 		},
 	})
 
-	go cont.namespaceInformer.GetController().Run(wait.NeverStop)
-	go cont.namespaceInformer.Run(wait.NeverStop)
 }
 
 func (cont *aciController) namespaceChanged(obj interface{}) {

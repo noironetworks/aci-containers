@@ -22,8 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/Sirupsen/logrus"
-
 	"github.com/noironetworks/aci-containers/ipam"
 	"github.com/noironetworks/aci-containers/metadata"
 	tu "github.com/noironetworks/aci-containers/testutil"
@@ -96,7 +94,6 @@ var buildIpamTests = []buildIpamTest{
 }
 
 func TestBuildIpam(t *testing.T) {
-	log.Level = logrus.DebugLevel
 	node := func(podNetAnnotation string) *v1.Node {
 		return &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{

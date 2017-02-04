@@ -58,8 +58,10 @@ host-container: dist-static/aci-containers-host-agent dist-static/opflex-agent-c
 cont-container: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
 
-check: check-ipam check-hostagent
+check: check-ipam check-hostagent check-controller
 check-ipam:
 	${TEST_CMD} ${BASE}/ipam
 check-hostagent:
 	${TEST_CMD} ${BASE}/hostagent
+check-controller:
+	${TEST_CMD} ${BASE}/controller

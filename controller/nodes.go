@@ -24,8 +24,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
@@ -36,16 +36,23 @@ import (
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
-func (cont *aciController) initNodeInformer() {
-	cont.nodeInformer = cache.NewSharedIndexInformer(
+func (cont *aciController) initNodeInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	cont.initNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return cont.kubeClient.Core().Nodes().List(options)
+				return kubeClient.Core().Nodes().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return cont.kubeClient.Core().Nodes().Watch(options)
+				return kubeClient.Core().Nodes().Watch(options)
 			},
-		},
+		})
+}
+
+func (cont *aciController) initNodeInformerBase(listWatch *cache.ListWatch) {
+	cont.nodeInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Node{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -62,27 +69,26 @@ func (cont *aciController) initNodeInformer() {
 		},
 	})
 
-	go cont.nodeInformer.GetController().Run(wait.NeverStop)
-	go cont.nodeInformer.Run(wait.NeverStop)
-	go func() {
-		for nodename := range cont.nodequeue {
-			cont.indexMutex.Lock()
-			changed := cont.checkNodePodNet(nodename)
-			cont.indexMutex.Unlock()
+}
 
-			if changed {
-				node, exists, err :=
-					cont.nodeInformer.GetStore().GetByKey(nodename)
-				if err != nil {
-					log.Error("Could not lookup node: ", err)
-					continue
-				}
-				if exists && node != nil {
-					cont.nodeChanged(node)
-				}
+func (cont *aciController) processNodeQueue() {
+	for nodename := range cont.nodequeue {
+		cont.indexMutex.Lock()
+		changed := cont.checkNodePodNet(nodename)
+		cont.indexMutex.Unlock()
+
+		if changed {
+			node, exists, err :=
+				cont.nodeInformer.GetStore().GetByKey(nodename)
+			if err != nil {
+				log.Error("Could not lookup node: ", err)
+				continue
+			}
+			if exists && node != nil {
+				cont.nodeChanged(node)
 			}
 		}
-	}()
+	}
 }
 
 func (cont *aciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
