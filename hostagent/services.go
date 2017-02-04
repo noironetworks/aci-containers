@@ -27,8 +27,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -63,16 +63,22 @@ type opflexService struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-func (agent *hostAgent) initEndpointsInformer() {
-	agent.endpointsInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initEndpointsInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+	agent.initEndpointsInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return agent.kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
+				return kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return agent.kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
+				return kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
 			},
-		},
+		})
+}
+
+func (agent *hostAgent) initEndpointsInformerBase(listWatch *cache.ListWatch) {
+	agent.endpointsInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Endpoints{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -88,21 +94,24 @@ func (agent *hostAgent) initEndpointsInformer() {
 			agent.endpointsChanged(obj)
 		},
 	})
-
-	go agent.endpointsInformer.GetController().Run(wait.NeverStop)
-	go agent.endpointsInformer.Run(wait.NeverStop)
 }
 
-func (agent *hostAgent) initServiceInformer() {
-	agent.serviceInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initServiceInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+	agent.initServiceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return agent.kubeClient.Core().Services(metav1.NamespaceAll).List(options)
+				return kubeClient.Core().Services(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return agent.kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
+				return kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
 			},
-		},
+		})
+}
+
+func (agent *hostAgent) initServiceInformerBase(listWatch *cache.ListWatch) {
+	agent.serviceInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Service{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -118,9 +127,6 @@ func (agent *hostAgent) initServiceInformer() {
 			agent.serviceDeleted(obj)
 		},
 	})
-
-	go agent.serviceInformer.GetController().Run(wait.NeverStop)
-	go agent.serviceInformer.Run(wait.NeverStop)
 }
 
 func getAs(asfile string) (*opflexService, error) {

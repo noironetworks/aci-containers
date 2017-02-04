@@ -10,6 +10,7 @@ AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS=${METADATA_SRC} ${CONTROLLER_SRC}
 
 BUILD_CMD=go build -v
+TEST_CMD=go test -v
 INSTALL_CMD=go install -v
 STATIC_BUILD_CMD=CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
 DOCKER_BUILD_CMD=docker build
@@ -57,6 +58,8 @@ host-container: dist-static/aci-containers-host-agent dist-static/opflex-agent-c
 cont-container: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
 
-check: check-ipam
+check: check-ipam check-hostagent
 check-ipam:
-	go test ${BASE}/ipam
+	${TEST_CMD} ${BASE}/ipam
+check-hostagent:
+	${TEST_CMD} ${BASE}/hostagent

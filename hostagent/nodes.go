@@ -24,8 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
@@ -33,20 +33,27 @@ import (
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
-func (agent *hostAgent) initNodeInformer() {
-	agent.nodeInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initNodeInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	agent.initNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return agent.kubeClient.Core().Nodes().List(options)
+				return kubeClient.Core().Nodes().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return agent.kubeClient.Core().Nodes().Watch(options)
+				return kubeClient.Core().Nodes().Watch(options)
 			},
-		},
+		})
+}
+
+func (agent *hostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
+	agent.nodeInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Node{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -62,9 +69,6 @@ func (agent *hostAgent) initNodeInformer() {
 			agent.nodeDeleted(obj)
 		},
 	})
-
-	go agent.nodeInformer.GetController().Run(wait.NeverStop)
-	go agent.nodeInformer.Run(wait.NeverStop)
 }
 
 func (agent *hostAgent) nodeChanged(obj interface{}) {

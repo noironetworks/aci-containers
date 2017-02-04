@@ -54,6 +54,7 @@ func (agent *hostAgent) rebuildIpam(newPodNetAnnotation string) {
 	for _, ofep := range agent.opflexEps {
 		for _, ipStr := range ofep.IpAddress {
 			ip := net.ParseIP(ipStr)
+
 			if ip == nil {
 				continue
 			}

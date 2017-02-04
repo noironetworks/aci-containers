@@ -30,8 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -62,20 +62,27 @@ type opflexEndpoint struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-func (agent *hostAgent) initPodInformer() {
-	agent.podInformer = cache.NewSharedIndexInformer(
+func (agent *hostAgent) initPodInformerFromClient(
+	kubeClient *kubernetes.Clientset) {
+
+	agent.initPodInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return agent.kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
+				return kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return agent.kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
+				return kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
 			},
-		},
+		})
+}
+
+func (agent *hostAgent) initPodInformerBase(listWatch *cache.ListWatch) {
+	agent.podInformer = cache.NewSharedIndexInformer(
+		listWatch,
 		&v1.Pod{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -91,9 +98,6 @@ func (agent *hostAgent) initPodInformer() {
 			agent.podDeleted(obj)
 		},
 	})
-
-	go agent.podInformer.GetController().Run(wait.NeverStop)
-	go agent.podInformer.Run(wait.NeverStop)
 }
 
 func getEp(epfile string) (*opflexEndpoint, error) {
