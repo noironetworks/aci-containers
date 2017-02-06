@@ -18,12 +18,15 @@ import (
 	"encoding/json"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/metadata"
 )
+
+type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
+type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 
 type aciController struct {
 	config *controllerConfig
@@ -33,13 +36,15 @@ type aciController struct {
 	indexMutex sync.Mutex
 	depPods    map[string]string
 
-	kubeClient         *kubernetes.Clientset
 	namespaceInformer  cache.SharedIndexInformer
 	podInformer        cache.SharedIndexInformer
 	endpointsInformer  cache.SharedIndexInformer
 	serviceInformer    cache.SharedIndexInformer
 	deploymentInformer cache.SharedIndexInformer
 	nodeInformer       cache.SharedIndexInformer
+
+	updatePod  podUpdateFunc
+	updateNode nodeUpdateFunc
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
@@ -89,6 +94,13 @@ func newController(config *controllerConfig) *aciController {
 }
 
 func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
+	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
+		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
+	}
+	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
+		return kubeClient.CoreV1().Nodes().Update(node)
+	}
+
 	egdata, err := json.Marshal(cont.config.DefaultEg)
 	if err != nil {
 		log.Error("Could not serialize default endpoint group")
@@ -107,7 +119,6 @@ func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
 	cont.initIpam()
 
 	log.Debug("Initializing informers")
-	cont.kubeClient = kubeClient
 	cont.initNodeInformerFromClient(kubeClient)
 	cont.initNamespaceInformerFromClient(kubeClient)
 	cont.initDeploymentInformerFromClient(kubeClient)
@@ -116,14 +127,15 @@ func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
 	cont.initServiceInformerFromClient(kubeClient)
 }
 
-func (cont *aciController) run() {
+func (cont *aciController) run(stopCh <-chan struct{}) {
 	log.Debug("Starting informers")
-	go cont.namespaceInformer.Run(wait.NeverStop)
-	go cont.nodeInformer.Run(wait.NeverStop)
-	go cont.deploymentInformer.Run(wait.NeverStop)
-	go cont.podInformer.Run(wait.NeverStop)
-	go cont.endpointsInformer.Run(wait.NeverStop)
-	go cont.serviceInformer.Run(wait.NeverStop)
+	go cont.namespaceInformer.Run(stopCh)
+	go cont.nodeInformer.Run(stopCh)
+	go cont.deploymentInformer.Run(stopCh)
+	go cont.podInformer.Run(stopCh)
+	go cont.endpointsInformer.Run(stopCh)
+	go cont.serviceInformer.Run(stopCh)
 
-	go cont.processNodeQueue()
+	log.Debug("Starting node queue processor")
+	go cont.processNodeQueue(stopCh)
 }

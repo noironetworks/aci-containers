@@ -20,6 +20,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	"github.com/noironetworks/aci-containers/metadata"
 	tu "github.com/noironetworks/aci-containers/testutil"
@@ -39,6 +40,35 @@ func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
 
 func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
 	return &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "test-node",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			Labels: map[string]string{
+				"app":  "sample-app",
+				"tier": "sample-tier",
+			},
+			Annotations: map[string]string{
+				"kubernetes.io/created-by": "something",
+				metadata.EgAnnotation:      egAnnot,
+				metadata.SgAnnotation:      sgAnnot,
+			},
+		},
+	}
+}
+
+func deployment(namespace string, name string, egAnnot string, sgAnnot string) *v1beta1.Deployment {
+	return &v1beta1.Deployment{
+		Spec: v1beta1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":  "sample-app",
+					"tier": "sample-tier",
+				},
+			},
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
@@ -50,18 +80,100 @@ func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod 
 	}
 }
 
-func TestNSAnnotation(t *testing.T) {
+type annotTest struct {
+	ns      string
+	egannot string
+	sgannot string
+	desc    string
+}
+
+const egAnnot = "{\"policy-space\": \"testps\", \"name\": \"test|test-eg\"}"
+const sgAnnot = "[{\"policy-space\": \"testps\", \"name\": \"test-sg\"}]"
+
+var annotTests = []annotTest{
+	{"testns", egAnnot, "", "egonly"},
+	{"testns", egAnnot, sgAnnot, "both"},
+	{"testns", "", sgAnnot, "sgonly"},
+	{"testns", "", "", "neither"},
+}
+
+func waitForAnnot(t *testing.T, cont *testAciController,
+	egAnnot string, sgAnnot string, desc string) {
+	tu.WaitFor(t, desc, 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			if !tu.WaitCondition(t, last, func() bool {
+				return len(cont.podUpdates) >= 1
+			}, desc) {
+				return false, nil
+			}
+			annot :=
+				cont.podUpdates[len(cont.podUpdates)-1].ObjectMeta.Annotations
+			return tu.WaitEqual(t, last, egAnnot,
+				annot[metadata.CompEgAnnotation], desc) &&
+				tu.WaitEqual(t, last, sgAnnot,
+					annot[metadata.CompSgAnnotation], desc), nil
+		})
+}
+
+func TestPodAnnotation(t *testing.T) {
 	cont := testController()
 	cont.run()
 
-	//cont.fakeNamespaceSource.Add(namespace("testns", "{\"policy-space\": \"demo\", \"name\": \"demo|redis\"}", ""))
-	//cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	for _, test := range annotTests {
+		cont.podUpdates = nil
+		cont.fakePodSource.Add(pod("testpod", test.ns, test.egannot, test.sgannot))
+		waitForAnnot(t, cont, test.egannot, test.sgannot, test.desc)
+	}
 
-	// TODO add framework for intercepting object writes
-	tu.WaitFor(t, "test", 100*time.Millisecond,
-		func(last bool) (bool, error) {
-			return true, nil
-		})
+	cont.stop()
+}
+
+func TestNamespaceAnnotation(t *testing.T) {
+	cont := testController()
+	cont.run()
+
+	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	waitForAnnot(t, cont, "", "", "none")
+
+	for _, test := range annotTests {
+		cont.podUpdates = nil
+		cont.fakeNamespaceSource.Add(namespace(test.ns, test.egannot, test.sgannot))
+		waitForAnnot(t, cont, test.egannot, test.sgannot, test.desc)
+	}
+
+	cont.stop()
+}
+
+func TestDeploymentAnnotation(t *testing.T) {
+	cont := testController()
+	cont.run()
+
+	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	waitForAnnot(t, cont, "", "", "none")
+
+	for _, test := range annotTests {
+		cont.podUpdates = nil
+		cont.fakeDeploymentSource.Add(deployment(test.ns, "testdep", test.egannot, test.sgannot))
+		waitForAnnot(t, cont, test.egannot, test.sgannot, test.desc)
+	}
+
+	cont.stop()
+}
+
+func TestDeploymentAnnotationPre(t *testing.T) {
+	cont := testController()
+	cont.run()
+
+	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	waitForAnnot(t, cont, "", "", "pod1")
+
+	cont.podUpdates = nil
+	cont.fakeDeploymentSource.Add(deployment("testns", "testdep", egAnnot, sgAnnot))
+	waitForAnnot(t, cont, egAnnot, sgAnnot, "pod1update")
+
+	cont.podUpdates = nil
+	cont.fakePodSource.Add(pod("testns", "testpod2", "", ""))
+	waitForAnnot(t, cont, egAnnot, sgAnnot, "pod2")
 
 	cont.stop()
 }

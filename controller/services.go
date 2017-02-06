@@ -27,14 +27,14 @@ import (
 )
 
 func (cont *aciController) initEndpointsInformerFromClient(
-	kubeClient *kubernetes.Clientset) {
+	kubeClient kubernetes.Interface) {
 
 	cont.initEndpointsInformerBase(&cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return kubeClient.Core().Endpoints(metav1.NamespaceAll).List(options)
+			return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return kubeClient.Core().Endpoints(metav1.NamespaceAll).Watch(options)
+			return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
 		},
 	})
 }
@@ -66,10 +66,10 @@ func (cont *aciController) initServiceInformerFromClient(
 	cont.initServiceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return cont.kubeClient.Core().Services(metav1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Services(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return cont.kubeClient.Core().Services(metav1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(options)
 			},
 		})
 }

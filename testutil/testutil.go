@@ -30,7 +30,7 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 		now = time.Now()
 		r, err := testFunc(false)
 		if err != nil {
-			assert.Fail(t, desc, err)
+			assert.Fail(t, desc, "Test failure", err)
 			return err
 		}
 		if r {
@@ -38,9 +38,19 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 		}
 	}
 	if r, _ := testFunc(true); !r {
-		assert.Fail(t, desc)
+		assert.Fail(t, desc, "Test timeout")
 	}
 	return nil
+}
+
+// returns true if the comparison is true.  If final is true, also
+// asserts that that the comparison is true
+func WaitCondition(t *testing.T, final bool, comp assert.Comparison,
+	msgAndArgs ...interface{}) bool {
+	if final {
+		assert.Condition(t, comp, msgAndArgs...)
+	}
+	return comp()
 }
 
 // returns true if the objects are equal.  If final is true, also

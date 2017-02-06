@@ -15,8 +15,6 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/Sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
@@ -27,7 +25,6 @@ const nodename = "test-node"
 type testHostAgent struct {
 	hostAgent
 	stopCh chan struct{}
-	wg     sync.WaitGroup
 
 	fakeNodeSource      *framework.FakeControllerSource
 	fakePodSource       *framework.FakeControllerSource
@@ -77,34 +74,9 @@ func testAgent() *testHostAgent {
 
 func (agent *testHostAgent) run() {
 	agent.stopCh = make(chan struct{})
-
-	nodeStop := make(chan struct{})
-	podStop := make(chan struct{})
-	endpointsStop := make(chan struct{})
-	serviceStop := make(chan struct{})
-
-	go agent.nodeInformer.Run(nodeStop)
-	go agent.podInformer.Run(podStop)
-	go agent.endpointsInformer.Run(endpointsStop)
-	go agent.serviceInformer.Run(serviceStop)
-
-	agent.wg.Add(1)
-
-	go func() {
-		<-agent.stopCh
-		var s struct{}
-		nodeStop <- s
-		podStop <- s
-		endpointsStop <- s
-		serviceStop <- s
-
-		agent.wg.Done()
-	}()
+	agent.hostAgent.run(agent.stopCh)
 }
 
 func (agent *testHostAgent) stop() {
-	var s struct{}
-	agent.stopCh <- s
-
-	agent.wg.Wait()
+	close(agent.stopCh)
 }

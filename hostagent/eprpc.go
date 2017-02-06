@@ -28,9 +28,10 @@ type EpRPC struct {
 	agent *hostAgent
 }
 
-func (agent *hostAgent) initEpRPC() error {
+func (agent *hostAgent) runEpRPC(stopCh <-chan struct{}) error {
 	rpc.Register(NewEpRPC(agent))
 
+	// XXX TODO move this to a UNIX socket
 	l, err := net.Listen("tcp", "127.0.0.1:4242")
 	if err != nil {
 		log.Error("Could not listen to rpc port: ", err)
@@ -38,6 +39,10 @@ func (agent *hostAgent) initEpRPC() error {
 	}
 
 	go rpc.Accept(l)
+	go func() {
+		<-stopCh
+		l.Close()
+	}()
 	return nil
 }
 

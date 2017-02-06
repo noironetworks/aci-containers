@@ -71,22 +71,29 @@ func (cont *aciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 
 }
 
-func (cont *aciController) processNodeQueue() {
-	for nodename := range cont.nodequeue {
-		cont.indexMutex.Lock()
-		changed := cont.checkNodePodNet(nodename)
-		cont.indexMutex.Unlock()
+func (cont *aciController) processNodeQueue(stopCh <-chan struct{}) {
+	for {
+		select {
+		case nodename := <-cont.nodequeue:
+			cont.indexMutex.Lock()
+			changed := cont.checkNodePodNet(nodename)
+			cont.indexMutex.Unlock()
 
-		if changed {
-			node, exists, err :=
-				cont.nodeInformer.GetStore().GetByKey(nodename)
-			if err != nil {
-				log.Error("Could not lookup node: ", err)
-				continue
+			if changed {
+				node, exists, err :=
+					cont.nodeInformer.GetStore().GetByKey(nodename)
+				if err != nil {
+					log.Error("Could not lookup node: ", err)
+					continue
+				}
+				if exists && node != nil {
+					cont.nodeChanged(node)
+				}
 			}
-			if exists && node != nil {
-				cont.nodeChanged(node)
-			}
+
+		case <-stopCh:
+			return
+
 		}
 	}
 }
@@ -194,7 +201,7 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 	}
 
 	if nodeUpdated {
-		_, err := cont.kubeClient.Core().Nodes().Update(node)
+		_, err := cont.updateNode(node)
 		if err != nil {
 			logger.Error("Failed to update node: " + err.Error())
 		} else {

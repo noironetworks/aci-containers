@@ -22,6 +22,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -87,7 +88,7 @@ func main() {
 
 	cont := newController(config)
 	cont.init(kubeClient)
-	cont.run()
+	cont.run(wait.NeverStop)
 
 	wg.Wait()
 }

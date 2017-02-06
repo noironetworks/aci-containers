@@ -32,14 +32,14 @@ import (
 )
 
 func (cont *aciController) initDeploymentInformerFromClient(
-	kubeClient *kubernetes.Clientset) {
+	kubeClient kubernetes.Interface) {
 
 	cont.initDeploymentInformerBase(&cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return kubeClient.Extensions().Deployments(metav1.NamespaceAll).List(options)
+			return kubeClient.ExtensionsV1beta1().Deployments(metav1.NamespaceAll).List(options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return kubeClient.Extensions().Deployments(metav1.NamespaceAll).Watch(options)
+			return kubeClient.ExtensionsV1beta1().Deployments(metav1.NamespaceAll).Watch(options)
 		},
 	})
 }

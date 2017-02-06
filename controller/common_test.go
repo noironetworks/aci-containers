@@ -15,9 +15,8 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/Sirupsen/logrus"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 )
@@ -25,7 +24,6 @@ import (
 type testAciController struct {
 	aciController
 	stopCh chan struct{}
-	wg     sync.WaitGroup
 
 	fakeNamespaceSource  *framework.FakeControllerSource
 	fakePodSource        *framework.FakeControllerSource
@@ -33,10 +31,15 @@ type testAciController struct {
 	fakeServiceSource    *framework.FakeControllerSource
 	fakeNodeSource       *framework.FakeControllerSource
 	fakeDeploymentSource *framework.FakeControllerSource
+
+	podUpdates []*v1.Pod
 }
 
 func testController() *testAciController {
 	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{
+		DisableColors: true,
+	}
 
 	cont := &testAciController{
 		aciController: *newController(newConfig()),
@@ -84,45 +87,19 @@ func testController() *testAciController {
 			WatchFunc: cont.fakeDeploymentSource.Watch,
 		})
 
+	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
+		cont.podUpdates = append(cont.podUpdates, pod)
+		return pod, nil
+	}
+
 	return cont
 }
 
 func (cont *testAciController) run() {
 	cont.stopCh = make(chan struct{})
-
-	nodeStop := make(chan struct{})
-	podStop := make(chan struct{})
-	endpointsStop := make(chan struct{})
-	serviceStop := make(chan struct{})
-	deploymentStop := make(chan struct{})
-	namespaceStop := make(chan struct{})
-
-	go cont.nodeInformer.Run(nodeStop)
-	go cont.podInformer.Run(podStop)
-	go cont.endpointsInformer.Run(endpointsStop)
-	go cont.serviceInformer.Run(serviceStop)
-	go cont.deploymentInformer.Run(deploymentStop)
-	go cont.namespaceInformer.Run(namespaceStop)
-
-	cont.wg.Add(1)
-
-	go func() {
-		<-cont.stopCh
-		var s struct{}
-		nodeStop <- s
-		podStop <- s
-		endpointsStop <- s
-		serviceStop <- s
-		deploymentStop <- s
-		namespaceStop <- s
-
-		cont.wg.Done()
-	}()
+	cont.aciController.run(cont.stopCh)
 }
 
 func (cont *testAciController) stop() {
-	var s struct{}
-	cont.stopCh <- s
-
-	cont.wg.Wait()
+	close(cont.stopCh)
 }

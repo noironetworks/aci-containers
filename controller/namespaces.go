@@ -28,15 +28,15 @@ import (
 )
 
 func (cont *aciController) initNamespaceInformerFromClient(
-	kubeClient *kubernetes.Clientset) {
+	kubeClient kubernetes.Interface) {
 
 	cont.initNamespaceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Namespaces().List(options)
+				return kubeClient.CoreV1().Namespaces().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Namespaces().Watch(options)
+				return kubeClient.CoreV1().Namespaces().Watch(options)
 			},
 		})
 }

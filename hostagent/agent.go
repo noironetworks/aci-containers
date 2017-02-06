@@ -17,7 +17,6 @@ package main
 import (
 	"sync"
 
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
@@ -68,12 +67,6 @@ func (agent *hostAgent) init(kubeClient *kubernetes.Clientset) {
 	}
 	log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 
-	log.Debug("Initializing endpoint RPC")
-	err = agent.initEpRPC()
-	if err != nil {
-		panic(err.Error())
-	}
-
 	log.Debug("Initializing informers")
 	agent.initNodeInformerFromClient(kubeClient)
 	agent.initPodInformerFromClient(kubeClient)
@@ -81,31 +74,42 @@ func (agent *hostAgent) init(kubeClient *kubernetes.Clientset) {
 	agent.initServiceInformerFromClient(kubeClient)
 }
 
-func (agent *hostAgent) run() {
+func (agent *hostAgent) run(stopCh <-chan struct{}) {
 	log.Debug("Starting node informer")
-	go agent.nodeInformer.Run(wait.NeverStop)
+	go agent.nodeInformer.Run(stopCh)
 
 	log.Debug("Waiting for node cache sync")
-	cache.WaitForCacheSync(wait.NeverStop, agent.nodeInformer.HasSynced)
+	cache.WaitForCacheSync(stopCh, agent.nodeInformer.HasSynced)
 	log.Debug("Node cache sync successful")
 
 	log.Debug("Starting remaining informers")
-	go agent.podInformer.Run(wait.NeverStop)
-	go agent.endpointsInformer.Run(wait.NeverStop)
-	go agent.serviceInformer.Run(wait.NeverStop)
+	go agent.podInformer.Run(stopCh)
+	go agent.endpointsInformer.Run(stopCh)
+	go agent.serviceInformer.Run(stopCh)
 
 	log.Debug("Waiting for cache sync for remaining objects")
-	cache.WaitForCacheSync(wait.NeverStop,
+	cache.WaitForCacheSync(stopCh,
 		agent.podInformer.HasSynced, agent.endpointsInformer.HasSynced,
 		agent.serviceInformer.HasSynced)
 
-	log.Info("Enabling OpFlex endpoint and service sync")
-	agent.indexMutex.Lock()
-	agent.syncEnabled = true
-	agent.syncServices()
-	agent.syncEps()
-	agent.indexMutex.Unlock()
-	log.Debug("Initial OpFlex sync complete")
+	if agent.config.OpFlexEndpointDir == "" ||
+		agent.config.OpFlexServiceDir == "" {
+		log.Warn("OpFlex endpoint and service directories not set")
+	} else {
+		log.Info("Enabling OpFlex endpoint and service sync")
+		agent.indexMutex.Lock()
+		agent.syncEnabled = true
+		agent.syncServices()
+		agent.syncEps()
+		agent.indexMutex.Unlock()
+		log.Debug("Initial OpFlex sync complete")
+	}
+
+	log.Debug("Starting endpoint RPC")
+	err := agent.runEpRPC(stopCh)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	agent.cleanupSetup()
 }

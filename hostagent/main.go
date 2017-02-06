@@ -24,6 +24,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -101,7 +102,7 @@ func main() {
 
 	agent := newHostAgent(config)
 	agent.init(kubeClient)
-	agent.run()
+	agent.run(wait.NeverStop)
 
 	wg.Wait()
 }

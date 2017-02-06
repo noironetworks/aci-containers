@@ -32,15 +32,15 @@ import (
 )
 
 func (cont *aciController) initPodInformerFromClient(
-	kubeClient *kubernetes.Clientset) {
+	kubeClient kubernetes.Interface) {
 
 	cont.initPodInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
 			},
 		})
 }
@@ -178,8 +178,6 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 		sgval = &og
 	}
 
-	log.Info("egval ", *egval)
-
 	podUpdated := false
 	oldegval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]
 	if egval != nil && *egval != "" {
@@ -188,7 +186,7 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 			podUpdated = true
 		}
 	} else {
-		if ok {
+		if ok || oldegval == "" {
 			delete(pod.ObjectMeta.Annotations, metadata.CompEgAnnotation)
 			podUpdated = true
 		}
@@ -200,15 +198,14 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 			podUpdated = true
 		}
 	} else {
-		if ok {
-			logger.Info("deleted")
+		if ok || oldsgval == "" {
 			delete(pod.ObjectMeta.Annotations, metadata.CompSgAnnotation)
 			podUpdated = true
 		}
 	}
 
 	if podUpdated {
-		_, err := cont.kubeClient.Core().Pods(pod.ObjectMeta.Namespace).Update(pod)
+		_, err := cont.updatePod(pod)
 		if err != nil {
 			logger.Error("Failed to update pod: " + err.Error())
 		} else {
