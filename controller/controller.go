@@ -89,7 +89,7 @@ func newController(config *controllerConfig) *aciController {
 
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-		nodequeue:            make(chan string),
+		nodequeue:            make(chan string, 5),
 	}
 }
 

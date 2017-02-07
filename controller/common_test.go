@@ -135,6 +135,19 @@ func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
 	}
 }
 
+func podOnNode(namespace string, name string, nodeName string) *v1.Pod {
+	return &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+		},
+	}
+}
+
 func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{

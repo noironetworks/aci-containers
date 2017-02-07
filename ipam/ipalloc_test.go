@@ -221,9 +221,7 @@ var addRangeTests = []addRangeTest{
 func TestAddRange(t *testing.T) {
 	for i, rt := range addRangeTests {
 		ipa := New()
-		for _, r := range rt.input {
-			ipa.AddRange(r.Start, r.End)
-		}
+		ipa.AddRanges(rt.input)
 		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("AddRange %d: %s", i, rt.desc))
 	}
@@ -454,10 +452,7 @@ var removeRangeTests = []removeRangeTest{
 
 func TestRemoveRange(t *testing.T) {
 	for i, rt := range removeRangeTests {
-		ipa := New()
-		for _, r := range rt.add {
-			ipa.AddRange(r.Start, r.End)
-		}
+		ipa := NewFromRanges(rt.add)
 		for _, r := range rt.remove {
 			ipa.RemoveRange(r.Start, r.End)
 		}
@@ -520,10 +515,7 @@ var getIpTests = []getIpTest{
 
 func TestGetIp(t *testing.T) {
 	for i, rt := range getIpTests {
-		ipa := New()
-		for _, r := range rt.add {
-			ipa.AddRange(r.Start, r.End)
-		}
+		ipa := NewFromRanges(rt.add)
 		ip, err := ipa.GetIp()
 		if rt.err {
 			assert.NotNil(t, err, fmt.Sprintf("err %d: %s", i, rt.desc))
@@ -626,10 +618,7 @@ var getIpChunkTests = []getIpChunkTest{
 
 func TestGetIpChunk(t *testing.T) {
 	for i, rt := range getIpChunkTests {
-		ipa := New()
-		for _, r := range rt.add {
-			ipa.AddRange(r.Start, r.End)
-		}
+		ipa := NewFromRanges(rt.add)
 		ipchunk, err := ipa.GetIpChunk(rt.chunkSize)
 		if rt.err {
 			assert.NotNil(t, err, fmt.Sprintf("err %d: %s", i, rt.desc))
@@ -689,11 +678,150 @@ var getSizeTests = []getSizeTest{
 
 func TestGetSize(t *testing.T) {
 	for i, rt := range getSizeTests {
-		ipa := New()
-		for _, r := range rt.add {
-			ipa.AddRange(r.Start, r.End)
-		}
+		ipa := NewFromRanges(rt.add)
 		size := ipa.GetSize()
 		assert.Equal(t, rt.size, size, fmt.Sprintf("size %d: %s", i, rt.desc))
+	}
+}
+
+type intersectTest struct {
+	a      []IpRange
+	b      []IpRange
+	result []IpRange
+	desc   string
+}
+
+var intersectTests = []intersectTest{
+	intersectTest{
+		[]IpRange{},
+		[]IpRange{},
+		[]IpRange{},
+		"empty",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+		},
+		"middle 1",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+		},
+		"middle 2",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.250")},
+		},
+		"left",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		"left touch",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
+		},
+		"right touch",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.251"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{},
+		"left empty",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
+		},
+		"multiple",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
+		},
+		"multiple",
+	},
+	intersectTest{
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.3.250")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
+			IpRange{net.ParseIP("10.0.1.254"), net.ParseIP("10.0.2.255")},
+			IpRange{net.ParseIP("10.0.4.1"), net.ParseIP("10.0.4.4")},
+		},
+		[]IpRange{
+			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
+			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.255")},
+		},
+		"multiple 2",
+	},
+}
+
+func TestIntersect(t *testing.T) {
+	for i, rt := range intersectTests {
+		a := NewFromRanges(rt.a)
+		b := NewFromRanges(rt.b)
+		result := NewFromRanges(rt.result)
+		assert.Equal(t, result, a.Intersect(b),
+			fmt.Sprintf("intersect %d: %s", i, rt.desc))
 	}
 }

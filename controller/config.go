@@ -42,6 +42,9 @@ type controllerConfig struct {
 	// IP addresses used for pod network
 	PodIpPool []ipam.IpRange `json:"pod-ip-pool,omitempty"`
 
+	// The number of IP addresses to allocate when a pod starts to run low
+	PodIpPoolChunkSize int `json:"pod-ip-pool-chunk-size,omitempty"`
+
 	// IP addresses used for externally exposed load balanced services
 	ServiceIpPool []ipam.IpRange `json:"service-ip-pool,omitempty"`
 
@@ -67,7 +70,8 @@ func newNetIps() *netIps {
 
 func newConfig() *controllerConfig {
 	return &controllerConfig{
-		DefaultSg: make([]opflexGroup, 0),
+		DefaultSg:          make([]opflexGroup, 0),
+		PodIpPoolChunkSize: 256,
 	}
 }
 

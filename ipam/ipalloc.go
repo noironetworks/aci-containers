@@ -209,7 +209,7 @@ func (ipa *IpAlloc) GetIp() (net.IP, error) {
 
 var ONE = big.NewInt(1)
 
-// Return a set of ranges containing at least 256 IP addresses and
+// Return a set of ranges containing at chunkSize IP addresses and
 // remove them from the free list.
 func (ipa *IpAlloc) GetIpChunk(chunkSize int64) ([]IpRange, error) {
 	currentSize := int64(0)
@@ -296,4 +296,43 @@ func (ipa *IpAlloc) GetSize() int64 {
 	} else {
 		return size.Int64()
 	}
+}
+
+func intersectLeft(result *IpAlloc, a *IpRange, b *IpRange, i *int, j *int) {
+	if bytes.Compare(a.End, b.Start) < 0 {
+		*i += 1
+	} else {
+		cmp := bytes.Compare(a.End, b.End)
+		if cmp < 0 {
+			*i += 1
+			result.AddRange(b.Start, a.End)
+		} else if cmp == 0 {
+			*i += 1
+			*j += 1
+			result.AddRange(b.Start, a.End)
+		} else {
+			*j += 1
+			result.AddRange(b.Start, b.End)
+		}
+	}
+}
+
+// Create a new IpAlloc that is the intersection of the ranges in the
+// ipa and other
+func (ipa *IpAlloc) Intersect(other *IpAlloc) *IpAlloc {
+	result := New()
+	i, j := 0, 0
+
+	for i < len(ipa.FreeList) && j < len(other.FreeList) {
+		a := &ipa.FreeList[i]
+		b := &other.FreeList[j]
+
+		if bytes.Compare(a.Start, b.Start) < 0 {
+			intersectLeft(result, a, b, &i, &j)
+		} else {
+			intersectLeft(result, b, a, &j, &i)
+		}
+	}
+
+	return result
 }

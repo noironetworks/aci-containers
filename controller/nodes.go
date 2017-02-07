@@ -240,13 +240,17 @@ func (cont *aciController) addPodToNode(nodename string, key string) {
 		existing = newNodePodNetMeta()
 		cont.nodePodNetCache[nodename] = existing
 	}
-	existing.nodePods[key] = true
+	if _, ok = existing.nodePods[key]; !ok {
+		existing.nodePods[key] = true
+		cont.nodequeue <- nodename
+	}
 }
 
 // must have index lock
 func (cont *aciController) removePodFromNode(nodename string, key string) {
 	if existing, ok := cont.nodePodNetCache[nodename]; ok {
 		delete(existing.nodePods, key)
+		cont.nodequeue <- nodename
 	}
 }
 
@@ -269,11 +273,32 @@ func (cont *aciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 		return
 	}
 
-	v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
-	// TODO: intersect with configured IP ranges so ranges can be removed
-	v4.AddRanges(existing.V4)
-	cont.podNetworkIps.V4.RemoveRanges(existing.V4)
-	podnet.podNetIps.V4 = v4.FreeList
+	log.Debug("Merging existing pod network: ", existingAnnotation)
+
+	{
+		v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
+		v4.AddRanges(existing.V4)
+		v4 = v4.Intersect(cont.configuredPodNetworkIps.V4)
+		cont.podNetworkIps.V4.RemoveRanges(existing.V4)
+		if len(v4.FreeList) > 0 {
+			podnet.podNetIps.V4 = v4.FreeList
+		} else {
+			podnet.podNetIps.V4 = nil
+		}
+	}
+
+	{
+		v6 := ipam.NewFromRanges(podnet.podNetIps.V6)
+		v6.AddRanges(existing.V6)
+		v6 = v6.Intersect(cont.configuredPodNetworkIps.V6)
+		cont.podNetworkIps.V6.RemoveRanges(existing.V6)
+		if len(v6.FreeList) > 0 {
+			podnet.podNetIps.V6 = v6.FreeList
+		} else {
+			podnet.podNetIps.V6 = nil
+		}
+	}
+
 	recomputePodNetAnnotation(podnet)
 }
 
@@ -282,9 +307,11 @@ func (cont *aciController) checkNodePodNet(nodename string) bool {
 	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
 		podnetipam := ipam.NewFromRanges(podnet.podNetIps.V4)
 		size := podnetipam.GetSize()
-		if int64(len(podnet.nodePods)) > size-128 {
+		if int64(len(podnet.nodePods)) >
+			size-int64(cont.config.PodIpPoolChunkSize)/2 {
 			// we have half a chunk left or less; allocate a new chunk
-			r, err := cont.podNetworkIps.V4.GetIpChunk(256)
+			r, err := cont.podNetworkIps.V4.
+				GetIpChunk(int64(cont.config.PodIpPoolChunkSize))
 			if err != nil {
 				log.Error("Could not allocate IPv4 address chunk: ", err)
 			} else {

@@ -125,3 +125,90 @@ func TestServiceEpAnnotationExisting(t *testing.T) {
 
 	cont.stop()
 }
+
+func waitForPodNetAnnot(t *testing.T, cont *testAciController,
+	expIps *metadata.NetIps, desc string) {
+	tu.WaitFor(t, desc, 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			if !tu.WaitCondition(t, last, func() bool {
+				return len(cont.nodeUpdates) >= 1
+			}, desc, "update") {
+				return false, nil
+			}
+
+			annot := cont.nodeUpdates[len(cont.nodeUpdates)-1].
+				ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
+			ips := &metadata.NetIps{}
+			err := json.Unmarshal([]byte(annot), ips)
+			if !tu.WaitNil(t, last, err, desc, "unmarshal", err) {
+				return false, nil
+			}
+			return tu.WaitEqual(t, last, expIps, ips, desc), nil
+		})
+}
+
+func TestPodNetAnnotation(t *testing.T) {
+	cont := testController()
+	cont.config.PodIpPoolChunkSize = 2
+	cont.config.PodIpPool = []ipam.IpRange{
+		ipam.IpRange{net.ParseIP("10.1.1.2"), net.ParseIP("10.1.1.13")},
+	}
+	cont.aciController.initIpam()
+	cont.run()
+
+	{
+		cont.nodeUpdates = nil
+		cont.fakeNodeSource.Add(node("node1"))
+		waitForPodNetAnnot(t, cont, &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{net.ParseIP("10.1.1.2"), net.ParseIP("10.1.1.3")},
+			},
+		}, "simple")
+	}
+
+	{
+		cont.nodeUpdates = nil
+		cont.fakePodSource.Add(podOnNode("testns", "testpod", "node1"))
+		cont.fakePodSource.Add(podOnNode("testns", "testpod2", "node1"))
+
+		waitForPodNetAnnot(t, cont, &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{net.ParseIP("10.1.1.2"), net.ParseIP("10.1.1.5")},
+			},
+		}, "newchunk")
+	}
+
+	{
+		cont.nodeUpdates = nil
+		node2 := node("node2")
+		ips := &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{net.ParseIP("10.1.1.7"), net.ParseIP("10.1.1.9")},
+			},
+		}
+		raw, _ := json.Marshal(ips)
+		node2.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] = string(raw)
+		cont.fakeNodeSource.Add(node2)
+		waitForPodNetAnnot(t, cont, ips, "existing")
+	}
+
+	{
+		cont.nodeUpdates = nil
+		node3 := node("node3")
+		ips := &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{net.ParseIP("10.1.1.10"), net.ParseIP("10.1.1.15")},
+			},
+		}
+		raw, _ := json.Marshal(ips)
+		node3.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] = string(raw)
+		cont.fakeNodeSource.Add(node3)
+		waitForPodNetAnnot(t, cont, &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{net.ParseIP("10.1.1.10"), net.ParseIP("10.1.1.13")},
+			},
+		}, "out of range intersection")
+	}
+
+	cont.stop()
+}
