@@ -106,6 +106,7 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 		return
 	}
 	if pod.Spec.NodeName != "" {
+		// note here we're assuming pods do not change nodes
 		cont.addPodToNode(pod.Spec.NodeName, podkey)
 	}
 

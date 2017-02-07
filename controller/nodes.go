@@ -173,6 +173,7 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 			logger.Error("Could not create node service endpoint annotation", err)
 		} else {
 			nodeMeta.serviceEpAnnotation = string(raw)
+			log.Info(epok, nodeMeta.serviceEpAnnotation, epval)
 			if !epok || nodeMeta.serviceEpAnnotation != epval {
 				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 					nodeMeta.serviceEpAnnotation

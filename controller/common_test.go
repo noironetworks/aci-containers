@@ -15,10 +15,15 @@
 package main
 
 import (
-	"github.com/Sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
+
+	"github.com/Sirupsen/logrus"
+
+	"github.com/noironetworks/aci-containers/metadata"
 )
 
 type testAciController struct {
@@ -32,7 +37,8 @@ type testAciController struct {
 	fakeNodeSource       *framework.FakeControllerSource
 	fakeDeploymentSource *framework.FakeControllerSource
 
-	podUpdates []*v1.Pod
+	podUpdates  []*v1.Pod
+	nodeUpdates []*v1.Node
 }
 
 func testController() *testAciController {
@@ -91,6 +97,10 @@ func testController() *testAciController {
 		cont.podUpdates = append(cont.podUpdates, pod)
 		return pod, nil
 	}
+	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
+		cont.nodeUpdates = append(cont.nodeUpdates, node)
+		return node, nil
+	}
 
 	return cont
 }
@@ -102,4 +112,67 @@ func (cont *testAciController) run() {
 
 func (cont *testAciController) stop() {
 	close(cont.stopCh)
+}
+
+func node(name string) *v1.Node {
+	return &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: map[string]string{},
+		},
+	}
+}
+
+func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
+	return &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				metadata.EgAnnotation: egAnnot,
+				metadata.SgAnnotation: sgAnnot,
+			},
+		},
+	}
+}
+
+func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
+	return &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "test-node",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			Labels: map[string]string{
+				"app":  "sample-app",
+				"tier": "sample-tier",
+			},
+			Annotations: map[string]string{
+				"kubernetes.io/created-by": "something",
+				metadata.EgAnnotation:      egAnnot,
+				metadata.SgAnnotation:      sgAnnot,
+			},
+		},
+	}
+}
+
+func deployment(namespace string, name string, egAnnot string, sgAnnot string) *v1beta1.Deployment {
+	return &v1beta1.Deployment{
+		Spec: v1beta1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":  "sample-app",
+					"tier": "sample-tier",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			Annotations: map[string]string{
+				metadata.EgAnnotation: egAnnot,
+				metadata.SgAnnotation: sgAnnot,
+			},
+		},
+	}
 }

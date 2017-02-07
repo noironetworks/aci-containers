@@ -43,6 +43,24 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 	return nil
 }
 
+// returns true if the object is nil.  If final is true, also
+// asserts that that the object is nil.
+func WaitNil(t *testing.T, final bool, object interface{}, msgAndArgs ...interface{}) bool {
+	if final {
+		assert.Nil(t, object, msgAndArgs...)
+	}
+	return object == nil
+}
+
+// returns true if the object is not nil.  If final is true, also
+// asserts that that the object is not nil.
+func WaitNotNil(t *testing.T, final bool, object interface{}, msgAndArgs ...interface{}) bool {
+	if final {
+		assert.NotNil(t, object, msgAndArgs...)
+	}
+	return object != nil
+}
+
 // returns true if the comparison is true.  If final is true, also
 // asserts that that the comparison is true
 func WaitCondition(t *testing.T, final bool, comp assert.Comparison,
@@ -61,4 +79,14 @@ func WaitEqual(t *testing.T, final bool, expected,
 		assert.Equal(t, expected, actual, msgAndArgs...)
 	}
 	return assert.ObjectsAreEqual(expected, actual)
+}
+
+// returns true if the objects are not equal.  If final is true, also
+// asserts that they are not equal to the test interface
+func WaitNotEqual(t *testing.T, final bool, expected,
+	actual interface{}, msgAndArgs ...interface{}) bool {
+	if final {
+		assert.NotEqual(t, expected, actual, msgAndArgs...)
+	}
+	return !assert.ObjectsAreEqual(expected, actual)
 }
