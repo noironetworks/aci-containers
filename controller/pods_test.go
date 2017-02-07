@@ -34,9 +34,9 @@ const sgAnnot = "[{\"policy-space\": \"testps\", \"name\": \"test-sg\"}]"
 
 var annotTests = []annotTest{
 	{"testns", egAnnot, "", "egonly"},
-	{"testns", egAnnot, sgAnnot, "both"},
 	{"testns", "", sgAnnot, "sgonly"},
 	{"testns", "", "", "neither"},
+	{"testns", egAnnot, sgAnnot, "both"},
 }
 
 func waitForGroupAnnot(t *testing.T, cont *testAciController,
@@ -102,6 +102,7 @@ func TestDeploymentAnnotation(t *testing.T) {
 		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
 	}
 
+	log.Info("deleting")
 	cont.fakeDeploymentSource.Delete(deployment("testns", "testdep", "", ""))
 	waitForGroupAnnot(t, cont, "", "", "none")
 
