@@ -270,7 +270,10 @@ func (agent *hostAgent) updateServiceDesc(external bool, as *v1.Service,
 				}
 
 				if external {
-					sm.ServiceIp = as.Spec.LoadBalancerIP
+					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
+						len(as.Status.LoadBalancer.Ingress) > 0 {
+						sm.ServiceIp = as.Status.LoadBalancer.Ingress[0].IP
+					}
 				} else {
 					sm.ServiceIp = as.Spec.ClusterIP
 				}
@@ -381,6 +384,7 @@ func (agent *hostAgent) serviceDeleted(obj interface{}) {
 	u := string(as.ObjectMeta.UID)
 	if _, ok := agent.opflexServices[u]; ok {
 		delete(agent.opflexServices, u)
+		delete(agent.opflexServices, u+"-external")
 		agent.syncServices()
 	}
 }

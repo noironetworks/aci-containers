@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"sync"
 
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +28,7 @@ import (
 
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
+type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
 
 type aciController struct {
 	config *controllerConfig
@@ -43,8 +45,9 @@ type aciController struct {
 	deploymentInformer cache.SharedIndexInformer
 	nodeInformer       cache.SharedIndexInformer
 
-	updatePod  podUpdateFunc
-	updateNode nodeUpdateFunc
+	updatePod           podUpdateFunc
+	updateNode          nodeUpdateFunc
+	updateServiceStatus serviceUpdateFunc
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
@@ -54,7 +57,8 @@ type aciController struct {
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodePodNetCache      map[string]*nodePodNetMeta
-	nodequeue            chan string
+
+	serviceMetaCache map[string]*serviceMeta
 }
 
 type nodeServiceMeta struct {
@@ -66,6 +70,12 @@ type nodePodNetMeta struct {
 	nodePods            map[string]bool
 	podNetIps           metadata.NetIps
 	podNetIpsAnnotation string
+}
+
+type serviceMeta struct {
+	requestedIp      net.IP
+	ingressIps       []net.IP
+	staticIngressIps []net.IP
 }
 
 func newNodePodNetMeta() *nodePodNetMeta {
@@ -89,7 +99,8 @@ func newController(config *controllerConfig) *aciController {
 
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-		nodequeue:            make(chan string, 5),
+
+		serviceMetaCache: make(map[string]*serviceMeta),
 	}
 }
 
@@ -99,6 +110,10 @@ func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
 	}
 	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
 		return kubeClient.CoreV1().Nodes().Update(node)
+	}
+	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
+		return kubeClient.CoreV1().
+			Services(service.ObjectMeta.Namespace).UpdateStatus(service)
 	}
 
 	egdata, err := json.Marshal(cont.config.DefaultEg)
@@ -135,7 +150,4 @@ func (cont *aciController) run(stopCh <-chan struct{}) {
 	go cont.podInformer.Run(stopCh)
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
-
-	log.Debug("Starting node queue processor")
-	go cont.processNodeQueue(stopCh)
 }

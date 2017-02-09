@@ -44,6 +44,8 @@ type hostAgent struct {
 	podIpsV6         *ipam.IpAlloc
 
 	syncEnabled bool
+
+	netNsFuncChan chan func()
 }
 
 func newHostAgent(config *hostAgentConfig) *hostAgent {
@@ -55,6 +57,8 @@ func newHostAgent(config *hostAgentConfig) *hostAgent {
 
 		podIpsV4: ipam.New(),
 		podIpsV6: ipam.New(),
+
+		netNsFuncChan: make(chan func()),
 	}
 }
 

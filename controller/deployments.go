@@ -73,63 +73,68 @@ func deploymentLogger(dep *v1beta1.Deployment) *logrus.Entry {
 }
 
 // must hold index lock
-func (cont *aciController) checkDeploymentForPod(dep *v1beta1.Deployment, pod *v1.Pod) {
+func (cont *aciController) checkDeploymentForPod(dep *v1beta1.Deployment, pod *v1.Pod) bool {
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		deploymentLogger(dep).
 			Error("Could not create pod key:" + err.Error())
-		return
+		return false
 	}
 	depkey, err := cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
 		deploymentLogger(dep).Error("Could not create key:" + err.Error())
-		return
+		return false
 	}
 	selector, err :=
 		metav1.LabelSelectorAsSelector(dep.Spec.Selector)
 	if err != nil {
 		deploymentLogger(dep).Error("Could not create selector:" + err.Error())
-		return
+		return false
 	}
 
 	if dep.ObjectMeta.Namespace == pod.ObjectMeta.Namespace &&
 		selector.Matches(labels.Set(pod.ObjectMeta.Labels)) {
 		cont.depPods[podkey] = depkey
-		cont.podChangedLocked(pod)
+		return true
 	} else if val, ok := cont.depPods[podkey]; ok && val == depkey {
 		delete(cont.depPods, podkey)
-		cont.podChangedLocked(pod)
+		return true
 	}
+
+	return false
 }
 
 // must hold index lock
-func (cont *aciController) updateDeploymentsForPod(pod *v1.Pod) {
+func (cont *aciController) updateDeploymentsForPod(pod *v1.Pod) bool {
 	deployments := cont.deploymentInformer.GetStore().List()
 
+	result := false
 	for _, depobj := range deployments {
 		dep := depobj.(*v1beta1.Deployment)
-		cont.checkDeploymentForPod(dep, pod)
+		if cont.checkDeploymentForPod(dep, pod) {
+			result = true
+		}
 	}
+	return result
 }
 
 func (cont *aciController) deploymentChanged(obj interface{}) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
 	dep := obj.(*v1beta1.Deployment)
 	pods := cont.podInformer.GetStore().List()
+
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
 	for _, podobj := range pods {
 		pod := podobj.(*v1.Pod)
 
-		cont.checkDeploymentForPod(dep, pod)
+		if cont.checkDeploymentForPod(dep, pod) {
+			cont.podChangedLocked(pod)
+		}
 	}
 }
 
 func (cont *aciController) deploymentDeleted(obj interface{}) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
 	dep := obj.(*v1beta1.Deployment)
 	key, err := cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
@@ -137,20 +142,25 @@ func (cont *aciController) deploymentDeleted(obj interface{}) {
 		return
 	}
 
+	var toupdate []string
+	cont.indexMutex.Lock()
 	for podkey, val := range cont.depPods {
 		if val == key {
+			toupdate = append(toupdate, podkey)
 			delete(cont.depPods, podkey)
-
-			podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
-			if err != nil {
-				deploymentLogger(dep).Error("Could not lookup pod:" + err.Error())
-				continue
-			}
-			if !exists || podobj == nil {
-				continue
-			}
-			pod := podobj.(*v1.Pod)
-			cont.podChangedLocked(pod)
 		}
+	}
+	cont.indexMutex.Unlock()
+
+	for _, podkey := range toupdate {
+		podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
+		if err != nil {
+			log.Error("Could not lookup pod:" + err.Error())
+			continue
+		}
+		if !exists || podobj == nil {
+			continue
+		}
+		cont.podChanged(podobj)
 	}
 }

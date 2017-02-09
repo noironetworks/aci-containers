@@ -17,8 +17,11 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/Sirupsen/logrus"
 
+	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -102,22 +105,12 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
-		logger.Error("Could not create pod key:" + err.Error())
+		logger.Error("Could not create pod key: ", err)
 		return
 	}
 	if pod.Spec.NodeName != "" {
 		// note here we're assuming pods do not change nodes
 		cont.addPodToNode(pod.Spec.NodeName, podkey)
-	}
-
-	podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
-	if err != nil {
-		log.Error("Could not lookup pod:" + err.Error())
-		return
-	}
-	if !exists || podobj == nil {
-		cont.podDeletedLocked(pod)
-		return
 	}
 
 	// top-level default annotation
@@ -208,7 +201,14 @@ func (cont *aciController) podChangedLocked(obj interface{}) {
 	if podUpdated {
 		_, err := cont.updatePod(pod)
 		if err != nil {
-			logger.Error("Failed to update pod: " + err.Error())
+			if serr, ok := err.(*kubeerr.StatusError); ok {
+				if serr.ErrStatus.Code == http.StatusConflict {
+					logger.Debug("Conflict updating pod; ",
+						"will retry on next update")
+					return
+				}
+			}
+			logger.Error("Failed to update pod: ", err)
 		} else {
 			logger.WithFields(logrus.Fields{
 				"Eg": pod.ObjectMeta.Annotations[metadata.CompEgAnnotation],
@@ -227,8 +227,10 @@ func (cont *aciController) podDeleted(obj interface{}) {
 func (cont *aciController) podDeletedLocked(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	logger := podLogger(pod)
+	logger.Debug("Pod deleted")
 	if err != nil {
-		podLogger(pod).Error("Could not create pod key:" + err.Error())
+		logger.Error("Could not create pod key:" + err.Error())
 		return
 	}
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)

@@ -21,7 +21,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
 
+	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -69,33 +71,6 @@ func (cont *aciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 		},
 	})
 
-}
-
-func (cont *aciController) processNodeQueue(stopCh <-chan struct{}) {
-	for {
-		select {
-		case nodename := <-cont.nodequeue:
-			cont.indexMutex.Lock()
-			changed := cont.checkNodePodNet(nodename)
-			cont.indexMutex.Unlock()
-
-			if changed {
-				node, exists, err :=
-					cont.nodeInformer.GetStore().GetByKey(nodename)
-				if err != nil {
-					log.Error("Could not lookup node: ", err)
-					continue
-				}
-				if exists && node != nil {
-					cont.nodeChanged(node)
-				}
-			}
-
-		case <-stopCh:
-			return
-
-		}
-	}
 }
 
 func (cont *aciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
@@ -173,7 +148,6 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 			logger.Error("Could not create node service endpoint annotation", err)
 		} else {
 			nodeMeta.serviceEpAnnotation = string(raw)
-			log.Info(epok, nodeMeta.serviceEpAnnotation, epval)
 			if !epok || nodeMeta.serviceEpAnnotation != epval {
 				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 					nodeMeta.serviceEpAnnotation
@@ -192,7 +166,9 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 	netval, netok :=
 		node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if netok {
-		cont.mergePodNet(nodePodNet, netval)
+		if netval != nodePodNet.podNetIpsAnnotation {
+			cont.mergePodNet(nodePodNet, netval, logger)
+		}
 	}
 	cont.checkNodePodNet(node.ObjectMeta.Name)
 	if netval != nodePodNet.podNetIpsAnnotation {
@@ -204,7 +180,14 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 	if nodeUpdated {
 		_, err := cont.updateNode(node)
 		if err != nil {
-			logger.Error("Failed to update node: " + err.Error())
+			if serr, ok := err.(*kubeerr.StatusError); ok {
+				if serr.ErrStatus.Code == http.StatusConflict {
+					logger.Debug("Conflict updating node; ",
+						"will retry on next update")
+					return
+				}
+			}
+			logger.Error("Failed to update node: ", err)
 		} else {
 			logger.WithFields(logrus.Fields{
 				"ServiceEpAnnotation": node.
@@ -242,7 +225,7 @@ func (cont *aciController) addPodToNode(nodename string, key string) {
 	}
 	if _, ok = existing.nodePods[key]; !ok {
 		existing.nodePods[key] = true
-		cont.nodequeue <- nodename
+		cont.checkNodePodNet(nodename)
 	}
 }
 
@@ -250,7 +233,7 @@ func (cont *aciController) addPodToNode(nodename string, key string) {
 func (cont *aciController) removePodFromNode(nodename string, key string) {
 	if existing, ok := cont.nodePodNetCache[nodename]; ok {
 		delete(existing.nodePods, key)
-		cont.nodequeue <- nodename
+		cont.checkNodePodNet(nodename)
 	}
 }
 
@@ -264,7 +247,7 @@ func recomputePodNetAnnotation(podnet *nodePodNetMeta) {
 }
 
 // must have index lock
-func (cont *aciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotation string) {
+func (cont *aciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotation string, logger *logrus.Entry) {
 	existing := &metadata.NetIps{}
 	err := json.Unmarshal([]byte(existingAnnotation), existing)
 	if err != nil {
@@ -273,7 +256,7 @@ func (cont *aciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 		return
 	}
 
-	log.Debug("Merging existing pod network: ", existingAnnotation)
+	logger.Debug("Merging existing pod network: ", existingAnnotation)
 
 	{
 		v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
@@ -303,7 +286,8 @@ func (cont *aciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 }
 
 // must have index lock
-func (cont *aciController) checkNodePodNet(nodename string) bool {
+func (cont *aciController) checkNodePodNet(nodename string) {
+	changed := false
 	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
 		podnetipam := ipam.NewFromRanges(podnet.podNetIps.V4)
 		size := podnetipam.GetSize()
@@ -318,9 +302,23 @@ func (cont *aciController) checkNodePodNet(nodename string) bool {
 				podnetipam.AddRanges(r)
 				podnet.podNetIps.V4 = podnetipam.FreeList
 				recomputePodNetAnnotation(podnet)
-				return true
+				changed = true
 			}
 		}
 	}
-	return false
+
+	if changed {
+		go func() {
+			node, exists, err :=
+				cont.nodeInformer.GetStore().GetByKey(nodename)
+			if err != nil {
+				log.Error("Could not lookup node: ", err)
+				return
+			}
+			if exists && node != nil {
+				cont.nodeChanged(node)
+			}
+		}()
+	}
+
 }

@@ -101,18 +101,19 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 	var v4 net.IP
 	var v6 net.IP
 	var result error
+	var err error
 
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
 			if v4 == nil && nc.Subnet.IP.To4() != nil {
-				v4, err := agent.podIpsV4.GetIp()
+				v4, err = agent.podIpsV4.GetIp()
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv4 address:", err)
 				} else {
 					netConf.IP4 = makeNetconf(&nc, v4)
 				}
 			} else if v6 == nil && nc.Subnet.IP.To16() != nil {
-				v6, err := agent.podIpsV6.GetIp()
+				v6, err = agent.podIpsV6.GetIp()
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv6 address:", err)
 				} else {
@@ -129,7 +130,33 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 		if v6 != nil {
 			agent.podIpsV6.AddIp(v6)
 		}
+	} else {
+		log.WithFields(logrus.Fields{
+			"v4": v4,
+			"v6": v6,
+		}).Debug("Allocated IP addresses")
 	}
 
 	return result
+}
+
+func (agent *hostAgent) deallocateIps(netConf *cnitypes.Result) {
+	if agent.config.NetConfig == nil {
+		// using external ipam
+		return
+	}
+	if netConf.IP4 != nil && netConf.IP4.IP.IP != nil {
+		agent.podIpsV4.AddIp(netConf.IP4.IP.IP)
+		log.WithFields(logrus.Fields{
+			"ip": netConf.IP4.IP.IP,
+		}).Debug("Returned IP to pool")
+	}
+	if netConf.IP6 != nil && netConf.IP6.IP.IP != nil {
+		agent.podIpsV6.AddIp(netConf.IP6.IP.IP)
+		log.WithFields(logrus.Fields{
+			"ip": netConf.IP6.IP.IP,
+		}).Debug("Returned IP to pool")
+	}
+
+	return
 }

@@ -63,12 +63,14 @@ func (cont *aciController) initNamespaceInformerBase(listWatch *cache.ListWatch)
 }
 
 func (cont *aciController) namespaceChanged(obj interface{}) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
 
 	ns := obj.(*v1.Namespace)
 
 	pods := cont.podInformer.GetStore().List()
+
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
 	for _, podobj := range pods {
 		pod := podobj.(*v1.Pod)
 

@@ -15,17 +15,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"net"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ipam"
 	"github.com/containernetworking/cni/pkg/ns"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	"github.com/tatsushid/go-fastping"
 	"github.com/vishvananda/netlink"
 
 	md "github.com/noironetworks/aci-containers/metadata"
@@ -91,62 +87,10 @@ func setupNetwork(netns ns.NetNS, ifName string, result *cnitypes.Result) error 
 	return nil
 }
 
-func waitForNetwork(netns ns.NetNS, result *cnitypes.Result, id string) error {
-	logger := log.WithFields(logrus.Fields{
-		"id": id,
-	})
-	if err := netns.Do(func(hostNS ns.NetNS) error {
-		for i := 1; i <= 100; i++ {
-			pinger := fastping.NewPinger()
-			pinger.MaxRTT = time.Millisecond * 100
-			expected := 0
-			if result.IP4 != nil && result.IP4.Gateway != nil {
-				logger.Debug("Pinging gateway ", result.IP4.Gateway)
-				pinger.AddIPAddr(&net.IPAddr{IP: result.IP4.Gateway})
-				expected += 1
-			}
-			if result.IP6 != nil && result.IP6.Gateway != nil {
-				logger.Debug("Pinging gateway ", result.IP6.Gateway)
-				pinger.AddIPAddr(&net.IPAddr{IP: result.IP6.Gateway})
-				expected += 1
-			}
-			if expected == 0 {
-				logger.Debug("Network configuration has no gateway")
-				return nil
-			}
-
-			count := 0
-			pinger.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
-				logger.WithFields(logrus.Fields{
-					"IP":  addr,
-					"rtt": rtt,
-				}).Debug("Received")
-				count += 1
-			}
-
-			err := pinger.Run()
-			if err != nil {
-				return err
-			}
-			if count >= expected {
-				return nil
-			}
-		}
-
-		return errors.New("Gave up waiting for network")
-	}); err != nil {
-		log.Error(err)
-	}
-
-	return nil
-}
-
 func (agent *hostAgent) configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
 	logger := log.WithFields(logrus.Fields{
 		"id": metadata.Id,
 	})
-
-	result := &cnitypes.Result{}
 
 	netns, err := ns.GetNS(metadata.NetNS)
 	if err != nil {
@@ -162,9 +106,10 @@ func (agent *hostAgent) configureContainerIface(metadata *md.ContainerMetadata) 
 		return nil, err
 	}
 
-	logger.Debug("Allocating IP address(es)")
 	if metadata.NetConf.IP4 == nil && metadata.NetConf.IP6 == nil {
 		// We're doing ip address management
+
+		logger.Debug("Allocating IP address(es)")
 		err = agent.allocateIps(&metadata.NetConf)
 		if err != nil {
 			return nil, err
@@ -199,11 +144,8 @@ func (agent *hostAgent) configureContainerIface(metadata *md.ContainerMetadata) 
 	podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
 	agent.podChanged(&podkey)
 
-	logger.Debug("Waiting for network connectivity")
-	err = waitForNetwork(netns, &metadata.NetConf, metadata.Id)
-
 	logger.Info("Successfully configured container interface")
-	return result, nil
+	return &metadata.NetConf, nil
 }
 
 func (agent *hostAgent) unconfigureContainerIface(id string) error {
@@ -227,6 +169,9 @@ func (agent *hostAgent) unconfigureContainerIface(id string) error {
 	if err != nil {
 		return err
 	}
+
+	logger.Debug("Deallocating IP address(es)")
+	agent.deallocateIps(&metadata.NetConf)
 
 	logger.Debug("Clearing OVS ports")
 	if metadata.HostVethName != "" {

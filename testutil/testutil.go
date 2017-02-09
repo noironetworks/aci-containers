@@ -15,9 +15,10 @@
 package testutil
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // Wait for the predicate to become true by testing it repeatedly on a

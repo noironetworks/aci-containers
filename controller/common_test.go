@@ -37,8 +37,9 @@ type testAciController struct {
 	fakeNodeSource       *framework.FakeControllerSource
 	fakeDeploymentSource *framework.FakeControllerSource
 
-	podUpdates  []*v1.Pod
-	nodeUpdates []*v1.Node
+	podUpdates     []*v1.Pod
+	nodeUpdates    []*v1.Node
+	serviceUpdates []*v1.Service
 }
 
 func testController() *testAciController {
@@ -100,6 +101,10 @@ func testController() *testAciController {
 	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
 		cont.nodeUpdates = append(cont.nodeUpdates, node)
 		return node, nil
+	}
+	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
+		cont.serviceUpdates = append(cont.serviceUpdates, service)
+		return service, nil
 	}
 
 	return cont
@@ -186,6 +191,20 @@ func deployment(namespace string, name string, egAnnot string, sgAnnot string) *
 				metadata.EgAnnotation: egAnnot,
 				metadata.SgAnnotation: sgAnnot,
 			},
+		},
+	}
+}
+
+func service(namespace string, name string, lbIP string) *v1.Service {
+	return &v1.Service{
+		Spec: v1.ServiceSpec{
+			Type:           v1.ServiceTypeLoadBalancer,
+			LoadBalancerIP: lbIP,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
 		},
 	}
 }

@@ -20,7 +20,7 @@ all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist/aci-containers-controller
-all-container: host-container cont-container
+container-all: container-host container-controller
 
 vendor:
 	glide install -strip-vendor
@@ -52,11 +52,9 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/controller
 
-build-container:
-	${DOCKER_BUILD_CMD} -t aci-containers-build -f ./docker/Dockerfile-build .
-host-container: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
+container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
-cont-container: dist-static/aci-containers-controller
+container-controller: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
 
 check: check-ipam check-hostagent check-controller
