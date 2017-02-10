@@ -82,6 +82,10 @@ spec:
               mountPath: /run
             - name: config-volume
               mountPath: /usr/local/etc/aci-containers/
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8090
       restartPolicy: Always
       volumes:
         - name: cni-bin
@@ -134,6 +138,10 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /usr/local/etc/aci-containers/
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8091
       volumes:
         - name: config-volume
           configMap:

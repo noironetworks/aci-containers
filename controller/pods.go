@@ -94,7 +94,6 @@ func (cont *aciController) podChanged(obj interface{}) {
 func (cont *aciController) podChangedLocked(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	if !podFilter(pod) {
-		cont.podDeletedLocked(obj)
 		return
 	}
 	logger := podLogger(pod)

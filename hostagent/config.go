@@ -43,6 +43,9 @@ type hostAgentConfig struct {
 	// Name of Kubernetes node on which this agent is running
 	NodeName string `json:"node-name,omitempty"`
 
+	// TCP port to run status server on (or 0 to disable)
+	StatusPort int `json:"status-port,omitempty"`
+
 	// Directory containing OpFlex CNI metadata
 	CniMetadataDir string `json:"cni-metadata-dir,omitempty"`
 
@@ -88,6 +91,8 @@ func (config *hostAgentConfig) initFlags() {
 
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
+
+	flag.IntVar(&config.StatusPort, "status-port", 8090, " TCP port to run status server on (or 0 to disable)")
 
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")

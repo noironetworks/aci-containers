@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
-	"sync"
 
 	"github.com/Sirupsen/logrus"
 
@@ -83,12 +82,8 @@ func main() {
 		panic(err.Error())
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
 	cont := newController(config)
 	cont.init(kubeClient)
 	cont.run(wait.NeverStop)
-
-	wg.Wait()
+	cont.runStatus()
 }

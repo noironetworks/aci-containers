@@ -20,7 +20,6 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
-	"sync"
 
 	"github.com/Sirupsen/logrus"
 
@@ -97,12 +96,8 @@ func main() {
 		panic(err.Error())
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
 	agent := newHostAgent(config)
 	agent.init(kubeClient)
 	agent.run(wait.NeverStop)
-
-	wg.Wait()
+	agent.runStatus()
 }

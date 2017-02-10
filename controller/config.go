@@ -33,6 +33,9 @@ type controllerConfig struct {
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
+	// TCP port to run status server on (or 0 to disable)
+	StatusPort int `json:"status-port,omitempty"`
+
 	// Default endpoint group annotation value
 	DefaultEg opflexGroup `json:"default-endpoint-group,omitempty"`
 
@@ -79,6 +82,8 @@ func initFlags(config *controllerConfig) {
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+
+	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
 }
 
 func loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {

@@ -29,8 +29,8 @@ type ServiceEndpoint struct {
 
 // annotation type for IPs allocation chunks
 type NetIps struct {
-	V4 []ipam.IpRange
-	V6 []ipam.IpRange
+	V4 []ipam.IpRange `json:"V4,omitempty"`
+	V6 []ipam.IpRange `json:"V6,omitempty"`
 }
 
 // Service endpoint annotation

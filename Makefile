@@ -11,21 +11,21 @@ AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${CONTROLLER_SRC}
 
 BUILD_CMD ?= go build -v
-TEST_CMD ?= go test -v
+TEST_CMD ?= go test -cover
 INSTALL_CMD ?= go install -v
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
+
+.PHONY: clean goinstall check all
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist/aci-containers-controller
-container-all: container-host container-controller
 
 vendor:
 	glide install -strip-vendor
 
-.PHONY: clean
 clean-dist:
 	rm -rf dist
 clean-vendor:
@@ -52,6 +52,7 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/controller
 
+container-all: container-host container-controller
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
