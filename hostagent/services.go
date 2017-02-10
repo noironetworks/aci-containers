@@ -129,30 +129,26 @@ func (agent *hostAgent) initServiceInformerBase(listWatch *cache.ListWatch) {
 	})
 }
 
-func getAs(asfile string) (*opflexService, error) {
-	data := &opflexService{}
-
+func getAs(asfile string) (string, error) {
 	raw, err := ioutil.ReadFile(asfile)
 	if err != nil {
-		return data, err
+		return "", err
 	}
-	err = json.Unmarshal(raw, data)
-	return data, err
+	return string(raw), err
 }
 
-func writeAs(asfile string, as *opflexService) error {
-	datacont, err := json.MarshalIndent(as, "", "  ")
+func writeAs(asfile string, as *opflexService) (bool, error) {
+	newdata, err := json.MarshalIndent(as, "", "  ")
 	if err != nil {
-		return err
+		return true, err
+	}
+	existingdata, err := ioutil.ReadFile(asfile)
+	if err == nil && reflect.DeepEqual(existingdata, newdata) {
+		return false, nil
 	}
 
-	err = ioutil.WriteFile(asfile, datacont, 0644)
-	if err != nil {
-		log.WithFields(
-			logrus.Fields{"asfile": asfile, "uuid": as.Uuid},
-		).Error("Error writing service file: " + err.Error())
-	}
-	return err
+	err = ioutil.WriteFile(asfile, newdata, 0644)
+	return true, err
 }
 
 func serviceLogger(as *v1.Service) *logrus.Entry {
@@ -194,26 +190,27 @@ func (agent *hostAgent) syncServices() {
 			continue
 		}
 
+		uuid := f.Name()
+		uuid = uuid[:len(uuid)-3]
+
 		asfile := filepath.Join(agent.config.OpFlexServiceDir, f.Name())
 		logger := log.WithFields(
-			logrus.Fields{"asfile": asfile},
+			logrus.Fields{"Uuid": uuid},
 		)
-		as, err := getAs(asfile)
-		if err != nil {
-			logger.Error("Error reading AS file: " + err.Error())
-			os.Remove(asfile)
-		} else {
-			existing, ok := agent.opflexServices[as.Uuid]
-			if ok {
-				if !reflect.DeepEqual(existing, as) {
-					opflexServiceLogger(as).Info("Updating service")
-					writeAs(asfile, existing)
-				}
-				seen[as.Uuid] = true
-			} else {
-				opflexServiceLogger(as).Info("Removing service")
-				os.Remove(asfile)
+
+		existing, ok := agent.opflexServices[uuid]
+		if ok {
+			wrote, err := writeAs(asfile, existing)
+			if err != nil {
+				opflexServiceLogger(existing).
+					Error("Error writing service file: ", err)
+			} else if wrote {
+				opflexServiceLogger(existing).Info("Updated service")
 			}
+			seen[uuid] = true
+		} else {
+			logger.Info("Removing service")
+			os.Remove(asfile)
 		}
 	}
 
@@ -223,7 +220,12 @@ func (agent *hostAgent) syncServices() {
 		}
 
 		opflexServiceLogger(as).Info("Adding service")
-		writeAs(filepath.Join(agent.config.OpFlexServiceDir, as.Uuid+".service"), as)
+		asfile :=
+			filepath.Join(agent.config.OpFlexServiceDir, as.Uuid+".service")
+		_, err = writeAs(asfile, as)
+		if err != nil {
+			opflexServiceLogger(as).Error("Error writing service file: ", err)
+		}
 	}
 
 	log.Debug("Finished service sync")
@@ -390,9 +392,6 @@ func (agent *hostAgent) serviceDeleted(obj interface{}) {
 }
 
 func (agent *hostAgent) updateAllServices() {
-	agent.indexMutex.Lock()
-	defer agent.indexMutex.Unlock()
-
 	if agent.serviceInformer == nil {
 		return
 	}
@@ -405,6 +404,8 @@ func (agent *hostAgent) updateAllServices() {
 		return
 	}
 
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	for _, key := range keys {
 		agent.doUpdateService(key)
 	}

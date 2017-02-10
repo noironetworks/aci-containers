@@ -108,14 +108,14 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 			if v4 == nil && nc.Subnet.IP.To4() != nil {
 				v4, err = agent.podIpsV4.GetIp()
 				if err != nil {
-					result = fmt.Errorf("Could not allocate IPv4 address:", err)
+					result = fmt.Errorf("Could not allocate IPv4 address: %v", err)
 				} else {
 					netConf.IP4 = makeNetconf(&nc, v4)
 				}
 			} else if v6 == nil && nc.Subnet.IP.To16() != nil {
 				v6, err = agent.podIpsV6.GetIp()
 				if err != nil {
-					result = fmt.Errorf("Could not allocate IPv6 address:", err)
+					result = fmt.Errorf("Could not allocate IPv6 address: %v", err)
 				} else {
 					netConf.IP6 = makeNetconf(&nc, v6)
 				}

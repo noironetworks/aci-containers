@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/socketplane/libovsdb"
 
@@ -152,25 +153,25 @@ func createPorts(socket string, intBrName string,
 	}
 
 	aports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
-		{uuidHostP},
-		{uuidPatchAccP},
+		{GoUUID: uuidHostP},
+		{GoUUID: uuidPatchAccP},
 	})
 	if err != nil {
 		return err
 	}
 	mabridge := []interface{}{libovsdb.NewMutation("ports", "insert", aports)}
 	cabridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{bridges[accessBrName].uuid})}
+		libovsdb.UUID{GoUUID: bridges[accessBrName].uuid})}
 
 	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
-		{uuidPatchIntP},
+		{GoUUID: uuidPatchIntP},
 	})
 	if err != nil {
 		return err
 	}
 	mibridge := []interface{}{libovsdb.NewMutation("ports", "insert", iports)}
 	cibridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{bridges[intBrName].uuid})}
+		libovsdb.UUID{GoUUID: bridges[intBrName].uuid})}
 
 	ops := []libovsdb.Operation{
 		libovsdb.Operation{
@@ -206,7 +207,7 @@ func createPorts(socket string, intBrName string,
 			Table: "Port",
 			Row: map[string]interface{}{
 				"name":       hostVethName,
-				"interfaces": libovsdb.UUID{uuidHostI},
+				"interfaces": libovsdb.UUID{GoUUID: uuidHostI},
 			},
 			UUIDName: uuidHostP,
 		},
@@ -215,7 +216,7 @@ func createPorts(socket string, intBrName string,
 			Table: "Port",
 			Row: map[string]interface{}{
 				"name":       patchIntName,
-				"interfaces": libovsdb.UUID{uuidPatchIntI},
+				"interfaces": libovsdb.UUID{GoUUID: uuidPatchIntI},
 			},
 			UUIDName: uuidPatchIntP,
 		},
@@ -224,7 +225,7 @@ func createPorts(socket string, intBrName string,
 			Table: "Port",
 			Row: map[string]interface{}{
 				"name":       patchAccessName,
-				"interfaces": libovsdb.UUID{uuidPatchAccI},
+				"interfaces": libovsdb.UUID{GoUUID: uuidPatchAccI},
 			},
 			UUIDName: uuidPatchAccP,
 		},
@@ -249,7 +250,7 @@ func delBrPortOp(brUuid string, pUuid []libovsdb.UUID) libovsdb.Operation {
 	p, _ := libovsdb.NewOvsSet(pUuid)
 	m := []interface{}{libovsdb.NewMutation("ports", "delete", p)}
 	c := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{brUuid})}
+		libovsdb.UUID{GoUUID: brUuid})}
 	return libovsdb.Operation{
 		Op:        "mutate",
 		Table:     "Bridge",
@@ -283,7 +284,7 @@ func delPorts(socket string, intBrName string,
 			var delports []libovsdb.UUID
 			for _, n := range portNames {
 				if uuid, ok := br.ports[n]; ok {
-					delports = append(delports, libovsdb.UUID{uuid})
+					delports = append(delports, libovsdb.UUID{GoUUID: uuid})
 				}
 			}
 			if len(delports) > 0 {
@@ -301,13 +302,13 @@ func delPorts(socket string, intBrName string,
 func execTransaction(ovs *libovsdb.OvsdbClient, ops []libovsdb.Operation) error {
 	reply, _ := ovs.Transact("Open_vSwitch", ops...)
 	if len(reply) < len(ops) {
-		return fmt.Errorf("Number of replies less than number of operations")
+		return errors.New("Number of replies less than number of operations")
 	}
 
 	for i, o := range reply {
 		if o.Error != "" {
 			r, _ := json.Marshal(o)
-			return fmt.Errorf("Transaction %d failed due to an error:", i,
+			return fmt.Errorf("Transaction %d failed due to an error: %s", i,
 				string(r))
 		}
 	}

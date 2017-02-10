@@ -10,11 +10,11 @@ HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
 AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${CONTROLLER_SRC}
 
-BUILD_CMD=go build -v
-TEST_CMD=go test -v
-INSTALL_CMD=go install -v
-STATIC_BUILD_CMD=CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
-DOCKER_BUILD_CMD=docker build
+BUILD_CMD ?= go build -v
+TEST_CMD ?= go test -v
+INSTALL_CMD ?= go install -v
+STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
+DOCKER_BUILD_CMD ?= docker build
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller

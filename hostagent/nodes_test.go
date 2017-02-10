@@ -40,7 +40,7 @@ var buildIpamTests = []buildIpamTest{
 		"{\"V4\":[{\"start\":\"10.1.0.2\",\"end\":\"10.1.1.1\"}],\"V6\":null}",
 		[]opflexEndpoint{},
 		[]ipam.IpRange{
-			ipam.IpRange{net.ParseIP("10.1.0.2"), net.ParseIP("10.1.1.1")},
+			{Start: net.ParseIP("10.1.0.2"), End: net.ParseIP("10.1.1.1")},
 		},
 		[]ipam.IpRange{},
 		"simple v4",
@@ -54,8 +54,8 @@ var buildIpamTests = []buildIpamTest{
 			},
 		},
 		[]ipam.IpRange{
-			ipam.IpRange{net.ParseIP("10.1.0.2"), net.ParseIP("10.1.0.125")},
-			ipam.IpRange{net.ParseIP("10.1.0.127"), net.ParseIP("10.1.1.1")},
+			{Start: net.ParseIP("10.1.0.2"), End: net.ParseIP("10.1.0.125")},
+			{Start: net.ParseIP("10.1.0.127"), End: net.ParseIP("10.1.1.1")},
 		},
 		[]ipam.IpRange{},
 		"v4 with existing",
@@ -65,7 +65,7 @@ var buildIpamTests = []buildIpamTest{
 		[]opflexEndpoint{},
 		[]ipam.IpRange{},
 		[]ipam.IpRange{
-			ipam.IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"), net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
+			{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
 		},
 		"simple v6",
 	},
@@ -79,8 +79,8 @@ var buildIpamTests = []buildIpamTest{
 		},
 		[]ipam.IpRange{},
 		[]ipam.IpRange{
-			ipam.IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"), net.ParseIP("fd43:85d7:bcf2:9ad2::125")},
-			ipam.IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::127"), net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
+			{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::125")},
+			{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::127"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
 		},
 		"v6 with existing",
 	},

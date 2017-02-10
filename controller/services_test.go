@@ -70,10 +70,10 @@ func notHasIpCond(pool *ipam.IpAlloc, ipStr string) func() bool {
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{net.ParseIP("10.4.1.1"), net.ParseIP("10.4.1.255")},
+		ipam.IpRange{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
 	}
 	cont.config.StaticServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{net.ParseIP("10.4.2.1"), net.ParseIP("10.4.2.255")},
+		ipam.IpRange{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
 	}
 	cont.aciController.initIpam()
 	cont.run()

@@ -97,6 +97,9 @@ func (agent *hostAgent) nodeChanged(obj interface{}) {
 		}
 	}
 	if !reflect.DeepEqual(newServiceEp, agent.serviceEp) {
+		log.WithFields(logrus.Fields{
+			"epval": epval,
+		}).Info("Updated service endpoint")
 		agent.serviceEp = newServiceEp
 		agent.indexMutex.Unlock()
 		agent.updateAllServices()

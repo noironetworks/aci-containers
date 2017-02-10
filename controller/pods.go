@@ -78,13 +78,9 @@ func podLogger(pod *v1.Pod) *logrus.Entry {
 }
 
 func podFilter(pod *v1.Pod) bool {
-	// XXX TODO there seems to be no way to get the value of the
-	// HostNetwork field using the versioned API?
-
-	//if pod.Spec.SecurityContext != nil &&
-	//	pod.Spec.SecurityContext.HostNetwork == true {
-	//	return false
-	//}
+	if pod.Spec.HostNetwork {
+		return false
+	}
 	return true
 }
 

@@ -100,30 +100,26 @@ func (agent *hostAgent) initPodInformerBase(listWatch *cache.ListWatch) {
 	})
 }
 
-func getEp(epfile string) (*opflexEndpoint, error) {
-	data := &opflexEndpoint{}
-
+func getEp(epfile string) (string, error) {
 	raw, err := ioutil.ReadFile(epfile)
 	if err != nil {
-		return data, err
+		return "", err
 	}
-	err = json.Unmarshal(raw, data)
-	return data, err
+	return string(raw), err
 }
 
-func writeEp(epfile string, ep *opflexEndpoint) error {
-	datacont, err := json.MarshalIndent(ep, "", "  ")
+func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
+	newdata, err := json.MarshalIndent(ep, "", "  ")
 	if err != nil {
-		return err
+		return true, err
+	}
+	existingdata, err := ioutil.ReadFile(epfile)
+	if err == nil && reflect.DeepEqual(existingdata, newdata) {
+		return false, nil
 	}
 
-	err = ioutil.WriteFile(epfile, datacont, 0644)
-	if err != nil {
-		log.WithFields(
-			logrus.Fields{"epfile": epfile, "uuid": ep.Uuid},
-		).Error("Error writing EP file: " + err.Error())
-	}
-	return err
+	err = ioutil.WriteFile(epfile, newdata, 0644)
+	return true, err
 }
 
 func podLogger(pod *v1.Pod) *logrus.Entry {
@@ -160,26 +156,26 @@ func (agent *hostAgent) syncEps() {
 			continue
 		}
 
+		uuid := f.Name()
+		uuid = uuid[:len(uuid)-3]
+
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
 		logger := log.WithFields(
-			logrus.Fields{"epfile": epfile},
+			logrus.Fields{"Uuid": uuid},
 		)
-		ep, err := getEp(epfile)
-		if err != nil {
-			logger.Error("Error reading EP file: " + err.Error())
-			os.Remove(epfile)
-		} else {
-			existing, ok := agent.opflexEps[ep.Uuid]
-			if ok {
-				if !reflect.DeepEqual(existing, ep) {
-					opflexEpLogger(ep).Info("Updating endpoint")
-					writeEp(epfile, existing)
-				}
-				seen[ep.Uuid] = true
-			} else {
-				opflexEpLogger(ep).Info("Removing endpoint")
-				os.Remove(epfile)
+
+		existing, ok := agent.opflexEps[uuid]
+		if ok {
+			wrote, err := writeEp(epfile, existing)
+			if err != nil {
+				opflexEpLogger(existing).Error("Error writing EP file: ", err)
+			} else if wrote {
+				opflexEpLogger(existing).Info("Updated endpoint")
 			}
+			seen[uuid] = true
+		} else {
+			logger.Info("Removing endpoint")
+			os.Remove(epfile)
 		}
 	}
 
@@ -189,18 +185,19 @@ func (agent *hostAgent) syncEps() {
 		}
 
 		opflexEpLogger(ep).Info("Adding endpoint")
-		writeEp(filepath.Join(agent.config.OpFlexEndpointDir, ep.Uuid+".ep"), ep)
+		epfile := filepath.Join(agent.config.OpFlexEndpointDir, ep.Uuid+".ep")
+		_, err = writeEp(epfile, ep)
+		if err != nil {
+			opflexEpLogger(ep).Error("Error writing EP file: ", err)
+		}
 	}
 	log.Debug("Finished endpoint sync")
 }
 
 func podFilter(pod *v1.Pod) bool {
-	// XXX TODO there seems to be no way to get the value of the
-	// HostNetwork field using the versioned API?
-	//else if pod.Spec.SecurityContext != nil &&
-	//	pod.Spec.SecurityContext.HostNetwork == true {
-	//	return false
-	//}
+	if pod.Spec.HostNetwork {
+		return false
+	}
 	return true
 }
 
