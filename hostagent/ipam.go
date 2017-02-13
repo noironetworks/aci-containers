@@ -29,28 +29,7 @@ import (
 )
 
 // must have index lock
-func (agent *hostAgent) rebuildIpam(newPodNetAnnotation string) {
-	if agent.podNetAnnotation == newPodNetAnnotation {
-		return
-	}
-	agent.podNetAnnotation = newPodNetAnnotation
-
-	ips := &metadata.NetIps{}
-	err := json.Unmarshal([]byte(agent.podNetAnnotation), ips)
-	if err != nil {
-		log.Error("Could not parse pod network annotation", err)
-		return
-	}
-
-	agent.podIpsV4 = ipam.New()
-	if ips.V4 != nil {
-		agent.podIpsV4.AddRanges(ips.V4)
-	}
-	agent.podIpsV6 = ipam.New()
-	if ips.V6 != nil {
-		agent.podIpsV6.AddRanges(ips.V6)
-	}
-
+func (agent *hostAgent) rebuildIpam() {
 	for _, ofep := range agent.opflexEps {
 		for _, ipStr := range ofep.IpAddress {
 			ip := net.ParseIP(ipStr)
@@ -69,7 +48,32 @@ func (agent *hostAgent) rebuildIpam(newPodNetAnnotation string) {
 	log.WithFields(logrus.Fields{
 		"V4": agent.podIpsV4.FreeList,
 		"V6": agent.podIpsV6.FreeList,
-	}).Info("Updated pod network ranges")
+	}).Debug("Updated pod network ranges")
+}
+
+func (agent *hostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
+	if agent.podNetAnnotation == newPodNetAnnotation {
+		return
+	}
+	agent.podNetAnnotation = newPodNetAnnotation
+
+	newRanges := &metadata.NetIps{}
+	err := json.Unmarshal([]byte(agent.podNetAnnotation), newRanges)
+	if err != nil {
+		log.Error("Could not parse pod network annotation", err)
+		return
+	}
+
+	agent.podIpsV4 = ipam.New()
+	if newRanges.V4 != nil {
+		agent.podIpsV4.AddRanges(newRanges.V4)
+	}
+	agent.podIpsV6 = ipam.New()
+	if newRanges.V6 != nil {
+		agent.podIpsV6.AddRanges(newRanges.V6)
+	}
+
+	agent.rebuildIpam()
 }
 
 func convertRoutes(routes []route) []cnitypes.Route {
@@ -124,6 +128,8 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 	}
 
 	if result != nil {
+		netConf.IP4 = nil
+		netConf.IP6 = nil
 		if v4 != nil {
 			agent.podIpsV4.AddIp(v4)
 		}

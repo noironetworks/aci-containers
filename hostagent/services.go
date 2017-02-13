@@ -185,13 +185,14 @@ func (agent *hostAgent) syncServices() {
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".as") &&
-			!strings.HasSuffix(f.Name(), ".service") {
+		uuid := f.Name()
+		if strings.HasSuffix(uuid, ".as") {
+			uuid = uuid[:len(uuid)-3]
+		} else if strings.HasSuffix(f.Name(), ".service") {
+			uuid = uuid[:len(uuid)-8]
+		} else {
 			continue
 		}
-
-		uuid := f.Name()
-		uuid = uuid[:len(uuid)-3]
 
 		asfile := filepath.Join(agent.config.OpFlexServiceDir, f.Name())
 		logger := log.WithFields(

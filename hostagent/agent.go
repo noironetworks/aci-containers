@@ -96,6 +96,9 @@ func (agent *hostAgent) run(stopCh <-chan struct{}) {
 		agent.podInformer.HasSynced, agent.endpointsInformer.HasSynced,
 		agent.serviceInformer.HasSynced)
 
+	log.Debug("Building IP address management database")
+	agent.rebuildIpam()
+
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" {
 		log.Warn("OpFlex endpoint and service directories not set")

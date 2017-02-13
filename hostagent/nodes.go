@@ -82,7 +82,7 @@ func (agent *hostAgent) nodeChanged(obj interface{}) {
 
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if ok {
-		agent.rebuildIpam(pnet)
+		agent.updateIpamAnnotation(pnet)
 	}
 
 	var newServiceEp metadata.ServiceEndpoint

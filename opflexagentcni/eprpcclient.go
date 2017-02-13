@@ -31,7 +31,7 @@ type (
 )
 
 func NewClient(dsn string, timeout time.Duration) (*Client, error) {
-	connection, err := net.DialTimeout("tcp", dsn, timeout)
+	connection, err := net.DialTimeout("unix", dsn, timeout)
 	if err != nil {
 		return nil, err
 	}

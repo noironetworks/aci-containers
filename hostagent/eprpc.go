@@ -18,6 +18,7 @@ import (
 	"errors"
 	"net"
 	"net/rpc"
+	"os"
 
 	"github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -29,12 +30,16 @@ type EpRPC struct {
 }
 
 func (agent *hostAgent) runEpRPC(stopCh <-chan struct{}) error {
+	if agent.config.EpRpcSock == "" {
+		return nil
+	}
+
 	rpc.Register(NewEpRPC(agent))
 
-	// XXX TODO move this to a UNIX socket
-	l, err := net.Listen("tcp", "127.0.0.1:4242")
+	os.Remove(agent.config.EpRpcSock)
+	l, err := net.Listen("unix", agent.config.EpRpcSock)
 	if err != nil {
-		log.Error("Could not listen to rpc port: ", err)
+		log.Error("Could not listen to rpc socket: ", err)
 		return err
 	}
 

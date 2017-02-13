@@ -61,6 +61,10 @@ type hostAgentConfig struct {
 	// Location of the OVS DB socket
 	OvsDbSock string `json:"ovs-db-sock,omitempty"`
 
+	// Location of the endpoint RPC socket used for communicating with
+	// the CNI plugin
+	EpRpcSock string `json:"ep-rpc-sock,omitempty"`
+
 	// Name of the OVS integration bridge
 	IntBridgeName string `json:"int-bridge-name,omitempty"`
 
@@ -92,7 +96,7 @@ func (config *hostAgentConfig) initFlags() {
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 
-	flag.IntVar(&config.StatusPort, "status-port", 8090, " TCP port to run status server on (or 0 to disable)")
+	flag.IntVar(&config.StatusPort, "status-port", 8090, "TCP port to run status server on (or 0 to disable)")
 
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
@@ -100,7 +104,9 @@ func (config *hostAgentConfig) initFlags() {
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 
-	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", " Location of the OVS DB socket")
+	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
+	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")
+
 	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
 

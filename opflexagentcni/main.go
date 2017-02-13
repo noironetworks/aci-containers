@@ -53,12 +53,15 @@ type K8SArgs struct {
 
 type NetConf struct {
 	types.NetConf
-	LogLevel         string `json:"log-level,omitempty"`
-	NoWaitForNetwork bool   `json:"no-wait-for-network"`
+	LogLevel       string `json:"log-level,omitempty"`
+	WaitForNetwork bool   `json:"wait-for-network"`
+	EpRpcSock      string `json:"ep-rpc-sock,omitempty"`
 }
 
 func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
-	n := &NetConf{}
+	n := &NetConf{
+		EpRpcSock: "/var/run/aci-containers-ep-rpc.sock",
+	}
 	if err := json.Unmarshal(args.StdinData, n); err != nil {
 		return nil, nil, "", fmt.Errorf("failed to load netconf: %v", err)
 	}
@@ -177,7 +180,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	logger.Debug("Registering with host agent")
 
-	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)
+	eprpc, err := NewClient(n.EpRpcSock, time.Millisecond*500)
 	if err != nil {
 		return err
 	}
@@ -187,7 +190,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if !n.NoWaitForNetwork {
+	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
 		netns, err := ns.GetNS(metadata.NetNS)
 		if err != nil {
@@ -220,7 +223,7 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	logger.Debug("Unregistering with host agent")
 
-	eprpc, err := NewClient("127.0.0.1:4242", time.Millisecond*500)
+	eprpc, err := NewClient(n.EpRpcSock, time.Millisecond*500)
 	if err != nil {
 		return err
 	}
