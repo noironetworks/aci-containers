@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
 
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/ipam"
 	"github.com/noironetworks/aci-containers/metadata"
 	tu "github.com/noironetworks/aci-containers/testutil"
@@ -29,16 +30,44 @@ import (
 
 type buildIpamTest struct {
 	annotation  string
-	existingEps []opflexEndpoint
+	existingEps []metadata.ContainerMetadata
 	freeListV4  []ipam.IpRange
 	freeListV6  []ipam.IpRange
 	desc        string
 }
 
+func mditem(ip string) metadata.ContainerMetadata {
+	i := net.ParseIP(ip)
+
+	if i.To4() != nil {
+		return metadata.ContainerMetadata{
+			Id: ip,
+			NetConf: cnitypes.Result{
+				IP4: &cnitypes.IPConfig{
+					IP: net.IPNet{
+						IP: i,
+					},
+				},
+			},
+		}
+	} else {
+		return metadata.ContainerMetadata{
+			Id: ip,
+			NetConf: cnitypes.Result{
+				IP6: &cnitypes.IPConfig{
+					IP: net.IPNet{
+						IP: i,
+					},
+				},
+			},
+		}
+	}
+}
+
 var buildIpamTests = []buildIpamTest{
 	{
 		"{\"V4\":[{\"start\":\"10.1.0.2\",\"end\":\"10.1.1.1\"}],\"V6\":null}",
-		[]opflexEndpoint{},
+		[]metadata.ContainerMetadata{},
 		[]ipam.IpRange{
 			{Start: net.ParseIP("10.1.0.2"), End: net.ParseIP("10.1.1.1")},
 		},
@@ -47,12 +76,7 @@ var buildIpamTests = []buildIpamTest{
 	},
 	{
 		"{\"V4\":[{\"start\":\"10.1.0.2\",\"end\":\"10.1.1.1\"}],\"V6\":null}",
-		[]opflexEndpoint{
-			opflexEndpoint{
-				Uuid:      "1",
-				IpAddress: []string{"10.1.0.126"},
-			},
-		},
+		[]metadata.ContainerMetadata{mditem("10.1.0.126")},
 		[]ipam.IpRange{
 			{Start: net.ParseIP("10.1.0.2"), End: net.ParseIP("10.1.0.125")},
 			{Start: net.ParseIP("10.1.0.127"), End: net.ParseIP("10.1.1.1")},
@@ -62,7 +86,7 @@ var buildIpamTests = []buildIpamTest{
 	},
 	{
 		"{\"V6\":[{\"start\":\"fd43:85d7:bcf2:9ad2::\",\"end\":\"fd43:85d7:bcf2:9ad2::ffff:ffff\"}]}",
-		[]opflexEndpoint{},
+		[]metadata.ContainerMetadata{},
 		[]ipam.IpRange{},
 		[]ipam.IpRange{
 			{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
@@ -71,12 +95,7 @@ var buildIpamTests = []buildIpamTest{
 	},
 	{
 		"{\"V6\":[{\"start\":\"fd43:85d7:bcf2:9ad2::\",\"end\":\"fd43:85d7:bcf2:9ad2::ffff:ffff\"}]}",
-		[]opflexEndpoint{
-			opflexEndpoint{
-				Uuid:      "1",
-				IpAddress: []string{"fd43:85d7:bcf2:9ad2::126"},
-			},
-		},
+		[]metadata.ContainerMetadata{mditem("fd43:85d7:bcf2:9ad2::126")},
 		[]ipam.IpRange{},
 		[]ipam.IpRange{
 			{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::125")},
@@ -86,7 +105,7 @@ var buildIpamTests = []buildIpamTest{
 	},
 	{
 		"{}",
-		[]opflexEndpoint{},
+		[]metadata.ContainerMetadata{},
 		[]ipam.IpRange{},
 		[]ipam.IpRange{},
 		"empty",
@@ -110,10 +129,10 @@ func TestBuildIpam(t *testing.T) {
 
 	for _, test := range buildIpamTests {
 		agent.indexMutex.Lock()
-		agent.opflexEps = make(map[string]*opflexEndpoint)
+		agent.epMetadata = make(map[string]*metadata.ContainerMetadata)
 		agent.podNetAnnotation = ""
 		for _, ep := range test.existingEps {
-			agent.opflexEps[ep.Uuid] = &ep
+			agent.epMetadata[ep.Id] = &ep
 		}
 		agent.indexMutex.Unlock()
 		agent.fakeNodeSource.Add(node(test.annotation))

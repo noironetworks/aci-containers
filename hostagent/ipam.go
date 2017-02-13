@@ -30,18 +30,12 @@ import (
 
 // must have index lock
 func (agent *hostAgent) rebuildIpam() {
-	for _, ofep := range agent.opflexEps {
-		for _, ipStr := range ofep.IpAddress {
-			ip := net.ParseIP(ipStr)
-
-			if ip == nil {
-				continue
-			}
-			if ip.To4() != nil {
-				agent.podIpsV4.RemoveIp(ip)
-			} else if ip.To16() != nil {
-				agent.podIpsV6.RemoveIp(ip)
-			}
+	for _, md := range agent.epMetadata {
+		if md.NetConf.IP4 != nil {
+			agent.podIpsV4.RemoveIp(md.NetConf.IP4.IP.IP)
+		}
+		if md.NetConf.IP6 != nil {
+			agent.podIpsV6.RemoveIp(md.NetConf.IP6.IP.IP)
 		}
 	}
 
