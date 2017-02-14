@@ -1,0 +1,19 @@
+FROM alpine:3.5
+COPY docker/ovs-musl.patch /
+RUN apk add --no-cache build-base \
+    libtool pkgconfig autoconf automake cmake doxygen file py-six linux-headers \
+    libuv-dev boost-dev openssl-dev git libnl3-dev
+RUN git clone https://github.com/miloyip/rapidjson.git --branch v1.0.2 --depth 1 \
+  && cd rapidjson \
+  && cmake . && make install
+RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
+  && cd ovs \
+  && patch -p1 < /ovs-musl.patch \
+  && ./boot.sh && ./configure --disable-ssl --disable-libcapng \
+  && make -j4 && make install \
+  && ROOT=/usr/local \
+  && mkdir -p $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openvswitch/*.h $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openflow $ROOT/include/openvswitch \
+  && cp include/*.h "$ROOT/include/openvswitch/" \
+  && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \;

@@ -1,0 +1,12 @@
+FROM noiro/opflex-build-base
+WORKDIR /opflex
+COPY . /opflex
+RUN cd /opflex/libopflex \
+  && ./autogen.sh && ./configure --disable-assert --disable-shared \
+  && make -j4 && make install
+RUN cd /opflex/genie/target/libmodelgbp \
+  && sh autogen.sh && ./configure --disable-shared \
+  && make -j4 && make install
+RUN cd /opflex/agent-ovs \
+  && ./autogen.sh && ./configure --disable-shared \
+  && make -j4 && make install
