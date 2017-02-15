@@ -34,10 +34,9 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/services
     mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
 fi
-  
+
 if [ -f ${HOSTAGENT_CONF} ]; then
     exec ${HOSTAGENT} -config-path ${HOSTAGENT_CONF}
 else
     exec ${HOSTAGENT}
 fi
-

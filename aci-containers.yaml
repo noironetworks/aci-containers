@@ -43,6 +43,27 @@ data:
             }
         ]
     }
+  opflex_agent_config: |-
+    {
+        "opflex": {
+            "domain": "comp/prov-OpenStack/ctrlr-[ostack]-ostack/sw-InsiemeLSOid"
+        },
+        "renderers": {
+            "stitched-mode": {
+                "int-bridge-name": "br-int",
+                "access-bridge-name": "br-access",
+                "encap": {
+                    "vxlan" : {
+                        "encap-iface": "br-int_vxlan0",
+                        "uplink-iface": "eth2.4093",
+                        "uplink-vlan": 4093,
+                        "remote-ip": "10.0.0.32",
+                        "remote-port": 8472
+                    }
+                }
+            }
+        }
+    }
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -67,7 +88,7 @@ spec:
           securityContext:
             privileged: true
           env:
-            - name: KUBERNETES_NODE_NAME 
+            - name: KUBERNETES_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
@@ -80,12 +101,41 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
-            - name: config-volume
+            - name: host-config-volume
               mountPath: /usr/local/etc/aci-containers/
           livenessProbe:
             httpGet:
               path: /status
               port: 8090
+        - name: opflex-agent
+          image: noiro/opflex
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: opflex-config-volume
+              mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
+        - name: mcast-daemon
+          image: noiro/opflex
+          command: ["/bin/sh"]
+          args: ["/usr/local/bin/launch-mcastdaemon.sh"]
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
       restartPolicy: Always
       volumes:
         - name: cni-bin
@@ -100,12 +150,18 @@ spec:
         - name: hostrun
           hostPath:
             path: /run
-        - name: config-volume
+        - name: host-config-volume
           configMap:
             name: aci-containers-config
             items:
               - key: host_agent_config
                 path: host-agent.conf
+        - name: opflex-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: opflex_agent_config
+                path: local.conf
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment

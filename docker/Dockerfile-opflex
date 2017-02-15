@@ -1,5 +1,7 @@
 FROM alpine:3.5
 RUN apk add --no-cache libstdc++ libuv \
   boost-program_options boost-system boost-date_time boost-filesystem \
-  boost-iostreams libnl3 libssl1.0 libcrypto1.0 ca-certificates 
-COPY bin/agent_ovs bin/gbp_inspect bin/mcast_daemon /usr/local/bin/
+  boost-iostreams libnl3 libssl1.0 libcrypto1.0 ca-certificates \
+  && update-ca-certificates
+COPY bin/agent_ovs bin/gbp_inspect bin/mcast_daemon bin/launch-opflexagent.sh bin/launch-mcastdaemon.sh /usr/local/bin/
+CMD ["/usr/local/bin/launch-opflexagent.sh"]

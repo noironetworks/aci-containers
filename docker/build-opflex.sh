@@ -15,8 +15,10 @@ popd
 cp ../../docker/Dockerfile-opflex-build opflex
 docker build -t noiro/opflex-build -f opflex/Dockerfile-opflex-build opflex
 docker run noiro/opflex-build tar -c -C /usr/local \
-       bin sbin share/openvswitch/scripts share/openvswitch/vswitch.ovsschema \
+       bin/agent_ovs bin/gbp_inspect bin/mcast_daemon \
     | tar -x -C dist
+cp ../../docker/launch-opflexagent.sh dist/bin/
+cp ../../docker/launch-mcastdaemon.sh dist/bin/
 
 # Build the minimal OpFlex container
 cp ../../docker/Dockerfile-opflex dist
