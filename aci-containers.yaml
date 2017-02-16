@@ -6,7 +6,10 @@ metadata:
   labels:
     k8s-app: aci-containers
 data:
-  controller_config: |-
+  encap-type: "vxlan"
+  uplink-iface: "eth2"
+  infra-vlan: "4093"
+  controller-config: |-
     {
         "log-level": "debug",
         "default-endpoint-group": {
@@ -26,7 +29,7 @@ data:
             {"start": "10.6.1.1", "end": "10.6.1.254"}
         ]
     }
-  host_agent_config: |-
+  host-agent-config: |-
     {
         "log-level": "debug",
         "aci-vrf": "kubernetes-vrf",
@@ -43,25 +46,10 @@ data:
             }
         ]
     }
-  opflex_agent_config: |-
+  opflex-agent-config: |-
     {
         "opflex": {
             "domain": "comp/prov-OpenStack/ctrlr-[ostack]-ostack/sw-InsiemeLSOid"
-        },
-        "renderers": {
-            "stitched-mode": {
-                "int-bridge-name": "br-int",
-                "access-bridge-name": "br-access",
-                "encap": {
-                    "vxlan" : {
-                        "encap-iface": "br-int_vxlan0",
-                        "uplink-iface": "eth2.4093",
-                        "uplink-vlan": 4093,
-                        "remote-ip": "10.0.0.32",
-                        "remote-port": 8472
-                    }
-                }
-            }
         }
     }
 ---
@@ -117,6 +105,21 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: ACI_ENCAP_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: encap-type
+            - name: ACI_UPLINK_IFACE
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: uplink-iface
+            - name: ACI_INFRA_VLAN
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: infra-vlan
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -154,14 +157,80 @@ spec:
           configMap:
             name: aci-containers-config
             items:
-              - key: host_agent_config
+              - key: host-agent-config
                 path: host-agent.conf
         - name: opflex-config-volume
           configMap:
             name: aci-containers-config
             items:
-              - key: opflex_agent_config
+              - key: opflex-agent-config
                 path: local.conf
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: aci-containers-openvswitch
+  namespace: kube-system
+  labels:
+    k8s-app: aci-containers
+spec:
+  template:
+    metadata:
+      labels:
+        name: aci-containers-openvswitch
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      containers:
+        - name: aci-containers-openvswitch
+          image: noiro/openvswitch
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: ACI_ENCAP_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: encap-type
+            - name: ACI_UPLINK_IFACE
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: uplink-iface
+            - name: ACI_INFRA_VLAN
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: infra-vlan
+            - name: OVS_RUNDIR
+              value: /usr/local/var/run/openvswitch
+            - name: OVS_DBDIR
+              value: /usr/local/var/lib/aci-containers/ovsdb
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: hostetc
+              mountPath: /usr/local/etc
+          livenessProbe:
+            exec:
+              command:
+                - /usr/share/openvswitch/scripts/ovs-ctl
+                - status
+      restartPolicy: Always
+      volumes:
+        - name: hostetc
+          hostPath:
+            path: /etc
+        - name: hostvar
+          hostPath:
+            path: /var
+        - name: hostrun
+          hostPath:
+            path: /run
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -203,5 +272,5 @@ spec:
           configMap:
             name: aci-containers-config
             items:
-              - key: controller_config
+              - key: controller-config
                 path: controller.conf

@@ -19,6 +19,7 @@ docker run noiro/opflex-build tar -c -C /usr/local \
     | tar -x -C dist
 cp ../../docker/launch-opflexagent.sh dist/bin/
 cp ../../docker/launch-mcastdaemon.sh dist/bin/
+cp ../../docker/launch-ovs.sh dist/bin/
 
 # Build the minimal OpFlex container
 cp ../../docker/Dockerfile-opflex dist
