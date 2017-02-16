@@ -298,6 +298,11 @@ func (ipa *IpAlloc) GetSize() int64 {
 	}
 }
 
+// Check whether there are no IPs available
+func (ipa *IpAlloc) Empty() bool {
+	return len(ipa.FreeList) == 0
+}
+
 func intersectLeft(result *IpAlloc, a *IpRange, b *IpRange, i *int, j *int) {
 	if bytes.Compare(a.End, b.Start) < 0 {
 		*i += 1

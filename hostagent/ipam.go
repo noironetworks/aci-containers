@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
@@ -28,20 +29,32 @@ import (
 	"github.com/noironetworks/aci-containers/metadata"
 )
 
+func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
+	result := ipam.New()
+	for _, r := range ranges {
+		result.AddAll(r)
+	}
+	return result
+}
+
 // must have index lock
 func (agent *hostAgent) rebuildIpam() {
 	for _, md := range agent.epMetadata {
 		if md.NetConf.IP4 != nil {
-			agent.podIpsV4.RemoveIp(md.NetConf.IP4.IP.IP)
+			for _, ipa := range agent.podIpsV4 {
+				ipa.RemoveIp(md.NetConf.IP4.IP.IP)
+			}
 		}
 		if md.NetConf.IP6 != nil {
-			agent.podIpsV6.RemoveIp(md.NetConf.IP6.IP.IP)
+			for _, ipa := range agent.podIpsV6 {
+				ipa.RemoveIp(md.NetConf.IP6.IP.IP)
+			}
 		}
 	}
 
 	log.WithFields(logrus.Fields{
-		"V4": agent.podIpsV4.FreeList,
-		"V6": agent.podIpsV6.FreeList,
+		"V4": combine(agent.podIpsV4).FreeList,
+		"V6": combine(agent.podIpsV6).FreeList,
 	}).Debug("Updated pod network ranges")
 }
 
@@ -58,13 +71,13 @@ func (agent *hostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 		return
 	}
 
-	agent.podIpsV4 = ipam.New()
+	agent.podIpsV4 = []*ipam.IpAlloc{ipam.New(), ipam.New()}
 	if newRanges.V4 != nil {
-		agent.podIpsV4.AddRanges(newRanges.V4)
+		agent.podIpsV4[0].AddRanges(newRanges.V4)
 	}
-	agent.podIpsV6 = ipam.New()
+	agent.podIpsV6 = []*ipam.IpAlloc{ipam.New(), ipam.New()}
 	if newRanges.V6 != nil {
-		agent.podIpsV6.AddRanges(newRanges.V6)
+		agent.podIpsV6[0].AddRanges(newRanges.V6)
 	}
 
 	agent.rebuildIpam()
@@ -95,6 +108,24 @@ func makeNetconf(nc *cniNetConfig, ip net.IP) *cnitypes.IPConfig {
 	}
 }
 
+func allocateIp(free []*ipam.IpAlloc) (net.IP, []*ipam.IpAlloc, error) {
+	if len(free) == 0 {
+		return nil, free, errors.New("No IP addresses are available")
+	}
+	ip, err := free[0].GetIp()
+	if err != nil {
+		return nil, free, err
+	}
+	if free[0].Empty() {
+		return ip, append(free[1:], ipam.New()), nil
+	}
+	return ip, free, nil
+}
+
+func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
+	free[len(free)-1].AddIp(ip)
+}
+
 func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 	var v4 net.IP
 	var v6 net.IP
@@ -104,14 +135,15 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
 			if v4 == nil && nc.Subnet.IP.To4() != nil {
-				v4, err = agent.podIpsV4.GetIp()
+				v4, agent.podIpsV4, err = allocateIp(agent.podIpsV4)
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv4 address: %v", err)
 				} else {
 					netConf.IP4 = makeNetconf(&nc, v4)
 				}
 			} else if v6 == nil && nc.Subnet.IP.To16() != nil {
-				v6, err = agent.podIpsV6.GetIp()
+				v6, agent.podIpsV6, err = allocateIp(agent.podIpsV6)
+				v6, err = agent.podIpsV6[0].GetIp()
 				if err != nil {
 					result = fmt.Errorf("Could not allocate IPv6 address: %v", err)
 				} else {
@@ -125,10 +157,10 @@ func (agent *hostAgent) allocateIps(netConf *cnitypes.Result) error {
 		netConf.IP4 = nil
 		netConf.IP6 = nil
 		if v4 != nil {
-			agent.podIpsV4.AddIp(v4)
+			deallocateIp(v4, agent.podIpsV4)
 		}
 		if v6 != nil {
-			agent.podIpsV6.AddIp(v6)
+			deallocateIp(v6, agent.podIpsV6)
 		}
 	} else {
 		log.WithFields(logrus.Fields{
@@ -146,13 +178,13 @@ func (agent *hostAgent) deallocateIps(netConf *cnitypes.Result) {
 		return
 	}
 	if netConf.IP4 != nil && netConf.IP4.IP.IP != nil {
-		agent.podIpsV4.AddIp(netConf.IP4.IP.IP)
+		deallocateIp(netConf.IP4.IP.IP, agent.podIpsV4)
 		log.WithFields(logrus.Fields{
 			"ip": netConf.IP4.IP.IP,
 		}).Debug("Returned IP to pool")
 	}
 	if netConf.IP6 != nil && netConf.IP6.IP.IP != nil {
-		agent.podIpsV6.AddIp(netConf.IP6.IP.IP)
+		deallocateIp(netConf.IP6.IP.IP, agent.podIpsV6)
 		log.WithFields(logrus.Fields{
 			"ip": netConf.IP6.IP.IP,
 		}).Debug("Returned IP to pool")

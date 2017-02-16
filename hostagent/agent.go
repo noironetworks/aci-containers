@@ -40,8 +40,8 @@ type hostAgent struct {
 	nodeInformer      cache.SharedIndexInformer
 
 	podNetAnnotation string
-	podIpsV4         *ipam.IpAlloc
-	podIpsV6         *ipam.IpAlloc
+	podIpsV4         []*ipam.IpAlloc
+	podIpsV6         []*ipam.IpAlloc
 
 	syncEnabled bool
 
@@ -55,8 +55,8 @@ func newHostAgent(config *hostAgentConfig) *hostAgent {
 		opflexServices: make(map[string]*opflexService),
 		epMetadata:     make(map[string]*md.ContainerMetadata),
 
-		podIpsV4: ipam.New(),
-		podIpsV6: ipam.New(),
+		podIpsV4: []*ipam.IpAlloc{ipam.New(), ipam.New()},
+		podIpsV6: []*ipam.IpAlloc{ipam.New(), ipam.New()},
 
 		netNsFuncChan: make(chan func()),
 	}

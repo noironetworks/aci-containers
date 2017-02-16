@@ -74,7 +74,7 @@ func newNetIps() *netIps {
 func newConfig() *controllerConfig {
 	return &controllerConfig{
 		DefaultSg:          make([]opflexGroup, 0),
-		PodIpPoolChunkSize: 256,
+		PodIpPoolChunkSize: 128,
 	}
 }
 

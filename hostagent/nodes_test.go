@@ -142,9 +142,9 @@ func TestBuildIpam(t *testing.T) {
 				agent.indexMutex.Lock()
 				defer agent.indexMutex.Unlock()
 				return tu.WaitEqual(t, last, test.freeListV4,
-					agent.podIpsV4.FreeList, test.desc) &&
+					combine(agent.podIpsV4).FreeList, test.desc) &&
 					tu.WaitEqual(t, last, test.freeListV4,
-						agent.podIpsV4.FreeList, test.desc), nil
+						combine(agent.podIpsV4).FreeList, test.desc), nil
 			})
 
 	}

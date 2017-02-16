@@ -684,6 +684,14 @@ func TestGetSize(t *testing.T) {
 	}
 }
 
+func TestEmpty(t *testing.T) {
+	for i, rt := range getSizeTests {
+		ipa := NewFromRanges(rt.add)
+		empty := ipa.Empty()
+		assert.Equal(t, rt.size == 0, empty, fmt.Sprintf("empty %d: %s", i, rt.desc))
+	}
+}
+
 type intersectTest struct {
 	a      []IpRange
 	b      []IpRange
