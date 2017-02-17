@@ -25,8 +25,4 @@ cp ../../docker/launch-ovs.sh dist/bin/
 cp ../../docker/Dockerfile-opflex dist
 docker build -t noiro/opflex -f dist/Dockerfile-opflex dist
 
-# Build the minimal OVS container
-cp ../../docker/Dockerfile-openvswitch dist
-docker build -t noiro/openvswitch -f dist/Dockerfile-openvswitch dist
-
 popd
