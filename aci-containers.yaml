@@ -215,6 +215,8 @@ spec:
               mountPath: /run
             - name: hostetc
               mountPath: /usr/local/etc
+            - name: hostmodules
+              mountPath: /lib/modules
           livenessProbe:
             exec:
               command:
@@ -231,6 +233,9 @@ spec:
         - name: hostrun
           hostPath:
             path: /run
+        - name: hostmodules
+          hostPath:
+            path: /lib/modules
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
