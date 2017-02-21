@@ -113,7 +113,6 @@ func (cont *aciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) e
 
 func (cont *aciController) nodeChanged(obj interface{}) {
 	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
 
 	node := obj.(*v1.Node)
 	logger := log.WithFields(logrus.Fields{
@@ -176,6 +175,7 @@ func (cont *aciController) nodeChanged(obj interface{}) {
 			nodePodNet.podNetIpsAnnotation
 		nodeUpdated = true
 	}
+	cont.indexMutex.Unlock()
 
 	if nodeUpdated {
 		_, err := cont.updateNode(node)

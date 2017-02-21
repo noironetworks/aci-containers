@@ -1,0 +1,1140 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "title": "AciObjectSpec",
+    "properties": {
+        "agent": {
+            "$ref": "#/definitions/agent"
+        },
+        "host_link": {
+            "$ref": "#/definitions/host_link"
+        },
+        "external_network": {
+            "$ref": "#/definitions/external_network"
+        },
+        "security_group_subject": {
+            "$ref": "#/definitions/security_group_subject"
+        },
+        "aci_status": {
+            "$ref": "#/definitions/aci_status"
+        },
+        "security_group_rule": {
+            "$ref": "#/definitions/security_group_rule"
+        },
+        "contract_subject": {
+            "$ref": "#/definitions/contract_subject"
+        },
+        "type": {
+            "enum": [
+                "PhysicalDomain",
+                "ApplicationProfile",
+                "ContractSubject",
+                "EndpointGroup",
+                "SecurityGroupRule",
+                "AciFault",
+                "VMMDomain",
+                "Filter",
+                "Endpoint",
+                "VRF",
+                "Contract",
+                "SecurityGroupSubject",
+                "Subnet",
+                "SecurityGroup",
+                "L3Outside",
+                "Tenant",
+                "Agent",
+                "FilterEntry",
+                "ExternalNetwork",
+                "AciStatus",
+                "BridgeDomain",
+                "HostLink",
+                "ExternalSubnet"
+            ],
+            "type": "string"
+        },
+        "endpoint_group": {
+            "$ref": "#/definitions/endpoint_group"
+        },
+        "subnet": {
+            "$ref": "#/definitions/subnet"
+        },
+        "vrf": {
+            "$ref": "#/definitions/vrf"
+        },
+        "bridge_domain": {
+            "$ref": "#/definitions/bridge_domain"
+        },
+        "tenant": {
+            "$ref": "#/definitions/tenant"
+        },
+        "aci_fault": {
+            "$ref": "#/definitions/aci_fault"
+        },
+        "endpoint": {
+            "$ref": "#/definitions/endpoint"
+        },
+        "application_profile": {
+            "$ref": "#/definitions/application_profile"
+        },
+        "physical_domain": {
+            "$ref": "#/definitions/physical_domain"
+        },
+        "filter_entry": {
+            "$ref": "#/definitions/filter_entry"
+        },
+        "external_subnet": {
+            "$ref": "#/definitions/external_subnet"
+        },
+        "contract": {
+            "$ref": "#/definitions/contract"
+        },
+        "filter": {
+            "$ref": "#/definitions/filter"
+        },
+        "l3_outside": {
+            "$ref": "#/definitions/l3_outside"
+        },
+        "vmm_domain": {
+            "$ref": "#/definitions/vmm_domain"
+        },
+        "security_group": {
+            "$ref": "#/definitions/security_group"
+        }
+    },
+    "definitions": {
+        "physical_domain": {
+            "type": "object",
+            "title": "PhysicalDomain",
+            "properties": {
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ]
+        },
+        "application_profile": {
+            "type": "object",
+            "title": "ApplicationProfile",
+            "properties": {
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "contract_subject": {
+            "type": "object",
+            "title": "ContractSubject",
+            "properties": {
+                "contract_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "out_filters": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "bi_filters": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "in_filters": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "contract_name",
+                "name"
+            ]
+        },
+        "endpoint_group": {
+            "type": "object",
+            "title": "EndpointGroup",
+            "properties": {
+                "physical_domain_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "static_paths": {
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "encap": {
+                                "path": {
+                                    "type": "string"
+                                },
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "type": "array"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "provided_contract_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "openstack_vmm_domain_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "policy_enforcement_pref": {
+                    "enum": [
+                        "",
+                        "enforced",
+                        "unenforced"
+                    ],
+                    "type": "string"
+                },
+                "app_profile_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "bd_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "consumed_contract_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "app_profile_name",
+                "name"
+            ]
+        },
+        "security_group_rule": {
+            "type": "object",
+            "title": "SecurityGroupRule",
+            "properties": {
+                "direction": {
+                    "enum": [
+                        "",
+                        "ingress",
+                        "egress"
+                    ],
+                    "type": "string"
+                },
+                "from_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "to_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "security_group_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "security_group_subject_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "ethertype": {
+                    "enum": [
+                        "",
+                        "undefined",
+                        "ipv4",
+                        "ipv6"
+                    ],
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "remote_ips": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "ip_protocol": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "security_group_name",
+                "security_group_subject_name",
+                "name"
+            ]
+        },
+        "aci_fault": {
+            "type": "object",
+            "title": "AciFault",
+            "properties": {
+                "fault_code": {
+                    "type": "string"
+                },
+                "severity": {
+                    "enum": [
+                        "cleared",
+                        "critical",
+                        "info",
+                        "warning",
+                        "major",
+                        "minor"
+                    ],
+                    "type": "string"
+                },
+                "status_id": {
+                    "type": "string",
+                    "maxLength": 36
+                },
+                "last_update_timestamp": {
+                    "type": "string"
+                },
+                "external_identifier": {
+                    "type": "string"
+                },
+                "cause": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            },
+            "required": [
+                "fault_code",
+                "external_identifier"
+            ]
+        },
+        "vmm_domain": {
+            "type": "object",
+            "title": "VMMDomain",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "VMWare",
+                        "OpenStack"
+                    ],
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "type",
+                "name"
+            ]
+        },
+        "filter": {
+            "type": "object",
+            "title": "Filter",
+            "properties": {
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "endpoint": {
+            "type": "object",
+            "title": "Endpoint",
+            "properties": {
+                "epg_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "epg_app_profile_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "epg_tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string",
+                    "maxLength": 36
+                }
+            },
+            "required": [
+                "uuid"
+            ]
+        },
+        "vrf": {
+            "type": "object",
+            "title": "VRF",
+            "properties": {
+                "policy_enforcement_pref": {
+                    "enum": [
+                        "",
+                        "enforced",
+                        "unenforced"
+                    ],
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "contract": {
+            "type": "object",
+            "title": "Contract",
+            "properties": {
+                "monitored": {
+                    "type": "boolean"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "scope": {
+                    "enum": [
+                        "",
+                        "tenant",
+                        "context",
+                        "global",
+                        "application-profile"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "security_group_subject": {
+            "type": "object",
+            "title": "SecurityGroupSubject",
+            "properties": {
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "security_group_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "security_group_name",
+                "name"
+            ]
+        },
+        "subnet": {
+            "type": "object",
+            "title": "Subnet",
+            "properties": {
+                "monitored": {
+                    "type": "boolean"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "bd_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "scope": {
+                    "enum": [
+                        "",
+                        "public",
+                        "private",
+                        "shared"
+                    ],
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "gw_ip_mask": {
+                    "oneOf": [
+                        {
+                            "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(\\/([0-9]|[1-2][0-9]|3[0-2]))?$",
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:)))(%.+)?s*(\\/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "bd_name",
+                "gw_ip_mask"
+            ]
+        },
+        "security_group": {
+            "type": "object",
+            "title": "SecurityGroup",
+            "properties": {
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "l3_outside": {
+            "type": "object",
+            "title": "L3Outside",
+            "properties": {
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "l3_domain_dn": {
+                    "type": "string"
+                },
+                "vrf_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "tenant": {
+            "type": "object",
+            "title": "Tenant",
+            "properties": {
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ]
+        },
+        "agent": {
+            "type": "object",
+            "title": "Agent",
+            "properties": {
+                "beat_count": {
+                    "type": "number"
+                },
+                "binary_file": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "hash_trees": {
+                    "items": {
+                        "type": "string",
+                        "maxLength": 36
+                    },
+                    "type": "array"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "admin_state_up": {
+                    "type": "boolean"
+                },
+                "heartbeat_timestamp": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "version": {
+                    "type": "string"
+                },
+                "agent_type": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "id": {
+                    "type": "string",
+                    "maxLength": 36
+                }
+            },
+            "required": [
+                "id"
+            ]
+        },
+        "filter_entry": {
+            "type": "object",
+            "title": "FilterEntry",
+            "properties": {
+                "tcp_flags": {
+                    "type": "string"
+                },
+                "dest_from_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "dest_to_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "source_from_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "source_to_port": {
+                    "oneOf": [
+                        {
+                            "enum": [
+                                "unspecified",
+                                "ftpData",
+                                "pop3",
+                                "smtp",
+                                "https",
+                                "rstp",
+                                "http",
+                                "dns"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                },
+                "ip_protocol": {
+                    "type": "string"
+                },
+                "stateful": {
+                    "type": "boolean"
+                },
+                "icmpv6_type": {
+                    "type": "string"
+                },
+                "icmpv4_type": {
+                    "type": "string"
+                },
+                "arp_opcode": {
+                    "type": "string"
+                },
+                "filter_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "fragment_only": {
+                    "type": "boolean"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "ether_type": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "filter_name",
+                "name"
+            ]
+        },
+        "external_network": {
+            "type": "object",
+            "title": "ExternalNetwork",
+            "properties": {
+                "nat_epg_dn": {
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "l3out_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "provided_contract_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "consumed_contract_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "l3out_name",
+                "name"
+            ]
+        },
+        "aci_status": {
+            "type": "object",
+            "title": "AciStatus",
+            "properties": {
+                "health_score": {
+                    "type": "number"
+                },
+                "sync_status": {
+                    "enum": [
+                        "synced",
+                        "sync_pending",
+                        "sync_failed",
+                        null
+                    ],
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string",
+                    "maxLength": 36
+                },
+                "faults": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "sync_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "maxLength": 36
+                },
+                "resource_type": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "resource_type",
+                "resource_id"
+            ]
+        },
+        "bridge_domain": {
+            "type": "object",
+            "title": "BridgeDomain",
+            "properties": {
+                "enable_arp_flood": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "limit_ip_learn_to_subnets": {
+                    "type": "boolean"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "enable_routing": {
+                    "type": "boolean"
+                },
+                "l2_unknown_unicast_mode": {
+                    "enum": [
+                        "",
+                        "flood",
+                        "proxy"
+                    ],
+                    "type": "string"
+                },
+                "vrf_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "ep_move_detect_mode": {
+                    "enum": [
+                        "",
+                        "garp"
+                    ],
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "l3out_names": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "name"
+            ]
+        },
+        "host_link": {
+            "type": "object",
+            "title": "HostLink",
+            "properties": {
+                "interface_mac": {
+                    "pattern": "^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$",
+                    "type": "string"
+                },
+                "switch_id": {
+                    "type": "string"
+                },
+                "module": {
+                    "type": "string"
+                },
+                "host_name": {
+                    "type": "string",
+                    "maxLength": 36
+                },
+                "path": {
+                    "type": "string"
+                },
+                "interface_name": {
+                    "type": "string",
+                    "maxLength": 36
+                },
+                "port": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "host_name",
+                "interface_name"
+            ]
+        },
+        "external_subnet": {
+            "type": "object",
+            "title": "ExternalSubnet",
+            "properties": {
+                "monitored": {
+                    "type": "boolean"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "l3out_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "external_network_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "cidr": {
+                    "oneOf": [
+                        {
+                            "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(\\/([0-9]|[1-2][0-9]|3[0-2]))?$",
+                            "type": "string"
+                        },
+                        {
+                            "pattern": "^s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:)))(%.+)?s*(\\/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))?$",
+                            "type": "string"
+                        }
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "l3out_name",
+                "external_network_name",
+                "cidr"
+            ]
+        }
+    }
+}

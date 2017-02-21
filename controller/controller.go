@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/metadata"
@@ -44,6 +45,7 @@ type aciController struct {
 	serviceInformer    cache.SharedIndexInformer
 	deploymentInformer cache.SharedIndexInformer
 	nodeInformer       cache.SharedIndexInformer
+	aimInformer        cache.SharedIndexInformer
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
@@ -104,7 +106,8 @@ func newController(config *controllerConfig) *aciController {
 	}
 }
 
-func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
+func (cont *aciController) init(kubeClient *kubernetes.Clientset,
+	tprClient rest.Interface) {
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
 	}
@@ -140,6 +143,7 @@ func (cont *aciController) init(kubeClient *kubernetes.Clientset) {
 	cont.initPodInformerFromClient(kubeClient)
 	cont.initEndpointsInformerFromClient(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
+	cont.initAimInformerFromRest(tprClient)
 }
 
 func (cont *aciController) run(stopCh <-chan struct{}) {
@@ -150,4 +154,5 @@ func (cont *aciController) run(stopCh <-chan struct{}) {
 	go cont.podInformer.Run(stopCh)
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
+	go cont.aimInformer.Run(stopCh)
 }

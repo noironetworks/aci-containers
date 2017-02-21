@@ -23,11 +23,16 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 var log = logrus.New()
+
+// go get github.com/a-h/generate
+// go install github.com/a-h/generate/cmd/schema-generate
+//go:generate schema-generate -i schema/aim_schema.json  -o aim_schema.go
 
 func main() {
 	config := newConfig()
@@ -81,9 +86,19 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+	err = initAimThirdPartyResource(kubeClient)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	configureAimClient(restconfig)
+	tprClient, err := rest.RESTClientFor(restconfig)
+	if err != nil {
+		panic(err)
+	}
 
 	cont := newController(config)
-	cont.init(kubeClient)
+	cont.init(kubeClient, tprClient)
 	cont.run(wait.NeverStop)
 	cont.runStatus()
 }

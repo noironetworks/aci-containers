@@ -60,6 +60,8 @@ container-controller: dist-static/aci-containers-controller
 
 container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
+container-openvswitch:
+	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch docker
 
 check: check-ipam check-hostagent check-controller
 check-ipam:
