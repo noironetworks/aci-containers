@@ -18,13 +18,16 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -41,6 +44,8 @@ type AciController struct {
 	defaultSg  string
 	indexMutex sync.Mutex
 	depPods    map[string]string
+
+	podQueue workqueue.RateLimitingInterface
 
 	namespaceInformer  cache.SharedIndexInformer
 	podInformer        cache.SharedIndexInformer
@@ -96,6 +101,8 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		defaultEg: "",
 		defaultSg: "",
 		depPods:   make(map[string]string),
+
+		podQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -159,4 +166,14 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
 	go cont.aimInformer.Run(stopCh)
+	go func() {
+		for i := 0; i < 4; i++ {
+			go wait.Until(func() {
+				for cont.processNextPodItem() {
+				}
+			}, time.Second, stopCh)
+		}
+		<-stopCh
+		cont.podQueue.ShutDown()
+	}()
 }

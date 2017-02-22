@@ -75,7 +75,7 @@ func (cont *AciController) namespaceChanged(obj interface{}) {
 		pod := podobj.(*v1.Pod)
 
 		if ns.Name == pod.ObjectMeta.Namespace {
-			cont.podChangedLocked(pod)
+			cont.queuePodUpdate(pod)
 		}
 	}
 }

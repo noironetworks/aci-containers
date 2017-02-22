@@ -57,10 +57,12 @@ func (cont *AciController) initPodInformerBase(listWatch *cache.ListWatch) {
 	)
 	cont.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			cont.podChanged(obj)
+			pod := obj.(*v1.Pod)
+			cont.queuePodUpdate(pod)
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.podChanged(obj)
+			pod := obj.(*v1.Pod)
+			cont.queuePodUpdate(pod)
 		},
 		DeleteFunc: func(obj interface{}) {
 			cont.podDeleted(obj)
@@ -84,6 +86,33 @@ func podFilter(pod *v1.Pod) bool {
 	return true
 }
 
+func (cont *AciController) processNextPodItem() bool {
+	key, quit := cont.podQueue.Get()
+	if quit {
+		return false
+	}
+
+	podkey := key.(string)
+	podobj, exists, err :=
+		cont.podInformer.GetStore().GetByKey(podkey)
+	if err == nil && exists {
+		cont.podChanged(podobj)
+	}
+	cont.podQueue.Forget(key)
+	cont.podQueue.Done(key)
+
+	return true
+}
+
+func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
+		return
+	}
+	cont.podQueue.Add(podkey)
+}
+
 func (cont *AciController) podChanged(obj interface{}) {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
@@ -103,6 +132,7 @@ func (cont *AciController) podChangedLocked(obj interface{}) {
 		logger.Error("Could not create pod key: ", err)
 		return
 	}
+
 	if pod.Spec.NodeName != "" {
 		// note here we're assuming pods do not change nodes
 		cont.addPodToNode(pod.Spec.NodeName, podkey)

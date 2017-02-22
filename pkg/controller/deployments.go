@@ -129,7 +129,7 @@ func (cont *AciController) deploymentChanged(obj interface{}) {
 		pod := podobj.(*v1.Pod)
 
 		if cont.checkDeploymentForPod(dep, pod) {
-			cont.podChangedLocked(pod)
+			cont.queuePodUpdate(pod)
 		}
 	}
 }
@@ -162,6 +162,6 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 		if !exists || podobj == nil {
 			continue
 		}
-		cont.podChanged(podobj)
+		cont.queuePodUpdate(podobj.(*v1.Pod))
 	}
 }
