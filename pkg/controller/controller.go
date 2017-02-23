@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -43,7 +44,8 @@ type AciController struct {
 	defaultEg  string
 	defaultSg  string
 	indexMutex sync.Mutex
-	depPods    map[string]string
+
+	depPods *index.PodSelectorIndex
 
 	podQueue workqueue.RateLimitingInterface
 
@@ -100,7 +102,6 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		config:    config,
 		defaultEg: "",
 		defaultSg: "",
-		depPods:   make(map[string]string),
 
 		podQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
 
@@ -155,6 +156,9 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.initEndpointsInformerFromClient(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
 	cont.initAimInformerFromRest(tprClient)
+
+	cont.log.Debug("Initializing indexes")
+	cont.initDepPodIndex()
 }
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {

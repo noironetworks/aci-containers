@@ -25,6 +25,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// Most AIM scheme types are generated into aim_schema. go.  To
+// install the code generator:
+//   go get github.com/a-h/generate
+//   go install github.com/a-h/generate/cmd/schema-generate
+//go:generate schema-generate -i schema/aim_schema.json  -o aim_schema.go
+
 type Aci struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`

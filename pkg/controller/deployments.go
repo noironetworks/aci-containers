@@ -18,6 +18,8 @@
 package controller
 
 import (
+	"reflect"
+
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +31,8 @@ import (
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
+
+	"github.com/noironetworks/aci-containers/pkg/index"
 )
 
 func (cont *AciController) initDeploymentInformerFromClient(
@@ -53,16 +57,52 @@ func (cont *AciController) initDeploymentInformerBase(listWatch *cache.ListWatch
 	)
 	cont.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			cont.deploymentChanged(obj)
+			cont.deploymentAdded(obj)
 		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.deploymentChanged(obj)
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			cont.deploymentChanged(oldobj, newobj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			cont.deploymentDeleted(obj)
 		},
 	})
 
+}
+
+func (cont *AciController) initDepPodIndex() {
+	cont.depPods = index.NewPodSelectorIndex(
+		cont.log,
+		cont.podInformer,
+		cont.namespaceInformer,
+		cont.deploymentInformer,
+		func(obj interface{}) string {
+			depkey, _ :=
+				cache.MetaNamespaceKeyFunc(obj.(*v1beta1.Deployment))
+			return depkey
+		},
+		func(obj interface{}) *string {
+			return &obj.(*v1beta1.Deployment).ObjectMeta.Namespace
+		},
+		index.NilSelectorFunc,
+		func(obj interface{}) labels.Selector {
+			dep := obj.(*v1beta1.Deployment)
+			selector, err :=
+				metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+			if err != nil {
+				deploymentLogger(cont.log, dep).
+					Error("Could not create selector: ", err)
+				return nil
+			}
+			return selector
+		},
+		func(podkey string) {
+			podobj, exists, err :=
+				cont.podInformer.GetStore().GetByKey(podkey)
+			if exists && err == nil {
+				cont.queuePodUpdate(podobj.(*v1.Pod))
+			}
+		},
+	)
 }
 
 func deploymentLogger(log *logrus.Logger, dep *v1beta1.Deployment) *logrus.Entry {
@@ -72,96 +112,40 @@ func deploymentLogger(log *logrus.Logger, dep *v1beta1.Deployment) *logrus.Entry
 	})
 }
 
-// must hold index lock
-func (cont *AciController) checkDeploymentForPod(dep *v1beta1.Deployment, pod *v1.Pod) bool {
-	podkey, err := cache.MetaNamespaceKeyFunc(pod)
-	if err != nil {
-		deploymentLogger(cont.log, dep).
-			Error("Could not create pod key:" + err.Error())
-		return false
-	}
-	depkey, err := cache.MetaNamespaceKeyFunc(dep)
-	if err != nil {
-		deploymentLogger(cont.log, dep).Error("Could not create key:" + err.Error())
-		return false
-	}
-	selector, err :=
-		metav1.LabelSelectorAsSelector(dep.Spec.Selector)
-	if err != nil {
-		deploymentLogger(cont.log, dep).Error("Could not create selector:" + err.Error())
-		return false
-	}
-
-	if dep.ObjectMeta.Namespace == pod.ObjectMeta.Namespace &&
-		selector.Matches(labels.Set(pod.ObjectMeta.Labels)) {
-		cont.depPods[podkey] = depkey
-		return true
-	} else if val, ok := cont.depPods[podkey]; ok && val == depkey {
-		delete(cont.depPods, podkey)
-		return true
-	}
-
-	return false
+func (cont *AciController) deploymentAdded(obj interface{}) {
+	cont.depPods.UpdateSelectorObj(obj)
 }
 
-// must hold index lock
-func (cont *AciController) updateDeploymentsForPod(pod *v1.Pod) bool {
-	deployments := cont.deploymentInformer.GetStore().List()
+func (cont *AciController) deploymentChanged(oldobj interface{},
+	newobj interface{}) {
 
-	result := false
-	for _, depobj := range deployments {
-		dep := depobj.(*v1beta1.Deployment)
-		if cont.checkDeploymentForPod(dep, pod) {
-			result = true
+	olddep := oldobj.(*v1beta1.Deployment)
+	newdep := newobj.(*v1beta1.Deployment)
+
+	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
+		newdep.ObjectMeta.Labels) {
+		cont.depPods.UpdateSelectorObj(newobj)
+	}
+	if !reflect.DeepEqual(olddep.ObjectMeta.Annotations,
+		newdep.ObjectMeta.Annotations) {
+		depkey, err :=
+			cache.MetaNamespaceKeyFunc(newdep)
+		if err != nil {
+			deploymentLogger(cont.log, newdep).
+				Error("Could not create key: ", err)
+			return
+		}
+		for _, podkey := range cont.depPods.GetPodForObj(depkey) {
+			podobj, exists, err :=
+				cont.podInformer.GetStore().GetByKey(podkey)
+			if exists && err == nil {
+				cont.queuePodUpdate(podobj.(*v1.Pod))
+			}
 		}
 	}
-	return result
-}
 
-func (cont *AciController) deploymentChanged(obj interface{}) {
-	dep := obj.(*v1beta1.Deployment)
-	pods := cont.podInformer.GetStore().List()
-
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
-	for _, podobj := range pods {
-		pod := podobj.(*v1.Pod)
-
-		if cont.checkDeploymentForPod(dep, pod) {
-			cont.queuePodUpdate(pod)
-		}
-	}
 }
 
 func (cont *AciController) deploymentDeleted(obj interface{}) {
-	dep := obj.(*v1beta1.Deployment)
-	key, err := cache.MetaNamespaceKeyFunc(dep)
-	if err != nil {
-		deploymentLogger(cont.log,
-			dep).Error("Could not create key:" + err.Error())
-		return
-	}
-
-	var toupdate []string
-	cont.indexMutex.Lock()
-	for podkey, val := range cont.depPods {
-		if val == key {
-			toupdate = append(toupdate, podkey)
-			delete(cont.depPods, podkey)
-		}
-	}
-	cont.indexMutex.Unlock()
-
-	for _, podkey := range toupdate {
-		podobj, exists, err := cont.podInformer.GetStore().GetByKey(podkey)
-		if err != nil {
-			cont.log.Error("Could not lookup pod:" + err.Error())
-			continue
-		}
-		if !exists || podobj == nil {
-			continue
-		}
-		cont.queuePodUpdate(podobj.(*v1.Pod))
-	}
+	cont.depPods.DeleteSelectorObj(obj)
 }

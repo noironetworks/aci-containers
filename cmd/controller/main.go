@@ -30,10 +30,6 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/controller"
 )
 
-// go get github.com/a-h/generate
-// go install github.com/a-h/generate/cmd/schema-generate
-//go:generate schema-generate -i schema/aim_schema.json  -o aim_schema.go
-
 func main() {
 	log := logrus.New()
 	config := controller.NewConfig()

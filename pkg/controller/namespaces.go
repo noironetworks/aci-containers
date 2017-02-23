@@ -18,7 +18,10 @@
 package controller
 
 import (
+	"reflect"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -50,32 +53,47 @@ func (cont *AciController) initNamespaceInformerBase(listWatch *cache.ListWatch)
 	)
 	cont.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			cont.namespaceChanged(obj)
+			cont.namespaceAdded(obj)
 		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.namespaceChanged(obj)
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			cont.namespaceChanged(oldobj, newobj)
 		},
 		DeleteFunc: func(obj interface{}) {
-			cont.namespaceChanged(obj)
+			cont.namespaceDeleted(obj)
 		},
 	})
 
 }
 
-func (cont *AciController) namespaceChanged(obj interface{}) {
+func (cont *AciController) updatePodsForNamespace(ns string) {
+	cache.ListAllByNamespace(cont.podInformer.GetIndexer(), ns, labels.Everything(),
+		func(podobj interface{}) {
+			cont.queuePodUpdate(podobj.(*v1.Pod))
+		})
+}
 
+func (cont *AciController) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
+	cont.depPods.UpdateNamespace(ns)
+	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+}
 
-	pods := cont.podInformer.GetStore().List()
+func (cont *AciController) namespaceChanged(oldobj interface{},
+	newobj interface{}) {
 
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
-	for _, podobj := range pods {
-		pod := podobj.(*v1.Pod)
-
-		if ns.Name == pod.ObjectMeta.Namespace {
-			cont.queuePodUpdate(pod)
-		}
+	oldns := oldobj.(*v1.Namespace)
+	newns := newobj.(*v1.Namespace)
+	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
+		cont.depPods.UpdateNamespace(newns)
 	}
+	if !reflect.DeepEqual(oldns.ObjectMeta.Annotations,
+		newns.ObjectMeta.Annotations) {
+		cont.updatePodsForNamespace(newns.ObjectMeta.Name)
+	}
+}
+
+func (cont *AciController) namespaceDeleted(obj interface{}) {
+	ns := obj.(*v1.Namespace)
+	cont.depPods.DeleteNamespace(ns)
+	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }

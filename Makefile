@@ -2,13 +2,14 @@
 BASE=github.com/noironetworks/aci-containers
 METADATA_SRC=$(wildcard pkg/metadata/*.go)
 IPAM_SRC=$(wildcard pkg/ipam/*.go)
+INDEX_SRC=$(wildcard pkg/index/*.go)
 HOSTAGENT_SRC=$(wildcard cmd/hostagent/*.go pkg/hostagent/*.go)
 AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard cmd/controller/*.go pkg/controller/*.go)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
 AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
-CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${CONTROLLER_SRC}
+CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} ${CONTROLLER_SRC}
 
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
@@ -63,9 +64,11 @@ container-opflex-build-base:
 container-openvswitch:
 	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch docker
 
-check: check-ipam check-hostagent check-controller
+check: check-ipam check-index check-controller check-hostagent
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam
+check-index:
+	${TEST_CMD} ${BASE}/pkg/index
 check-hostagent:
 	${TEST_CMD} ${BASE}/pkg/hostagent
 check-controller:

@@ -116,6 +116,8 @@ func testController() *testAciController {
 		return service, nil
 	}
 
+	cont.initDepPodIndex()
+
 	return cont
 }
 

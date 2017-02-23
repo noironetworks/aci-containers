@@ -18,6 +18,7 @@ package controller
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/Sirupsen/logrus"
 
@@ -57,12 +58,10 @@ func (cont *AciController) initPodInformerBase(listWatch *cache.ListWatch) {
 	)
 	cont.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			pod := obj.(*v1.Pod)
-			cont.queuePodUpdate(pod)
+			cont.podAdded(obj)
 		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			pod := obj.(*v1.Pod)
-			cont.queuePodUpdate(pod)
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			cont.podUpdated(oldobj, newobj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			cont.podDeleted(obj)
@@ -96,7 +95,7 @@ func (cont *AciController) processNextPodItem() bool {
 	podobj, exists, err :=
 		cont.podInformer.GetStore().GetByKey(podkey)
 	if err == nil && exists {
-		cont.podChanged(podobj)
+		cont.handlePodUpdate(podobj.(*v1.Pod))
 	}
 	cont.podQueue.Forget(key)
 	cont.podQueue.Done(key)
@@ -113,15 +112,7 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 	cont.podQueue.Add(podkey)
 }
 
-func (cont *AciController) podChanged(obj interface{}) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
-	cont.podChangedLocked(obj)
-}
-
-func (cont *AciController) podChangedLocked(obj interface{}) {
-	pod := obj.(*v1.Pod)
+func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 	if !podFilter(pod) {
 		return
 	}
@@ -132,6 +123,9 @@ func (cont *AciController) podChangedLocked(obj interface{}) {
 		logger.Error("Could not create pod key: ", err)
 		return
 	}
+
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 
 	if pod.Spec.NodeName != "" {
 		// note here we're assuming pods do not change nodes
@@ -162,21 +156,13 @@ func (cont *AciController) podChangedLocked(obj interface{}) {
 	}
 
 	// annotation on associated deployment is next-highest priority
-	if _, ok := cont.depPods[podkey]; !ok {
-		if _, ok := pod.ObjectMeta.Annotations["kubernetes.io/created-by"]; ok {
-			// we have no deployment for this pod but it was created
-			// by something.  Update the index
-
-			cont.updateDeploymentsForPod(pod)
-		}
-	}
-	if depkey, ok := cont.depPods[podkey]; ok {
+	for _, depkey := range cont.depPods.GetObjForPod(podkey) {
 		deploymentobj, exists, err :=
 			cont.deploymentInformer.GetStore().GetByKey(depkey)
 		if err != nil {
 			cont.log.Error("Could not lookup deployment " +
 				depkey + ": " + err.Error())
-			return
+			continue
 		}
 		if exists && deploymentobj != nil {
 			deployment := deploymentobj.(*v1beta1.Deployment)
@@ -187,6 +173,10 @@ func (cont *AciController) podChangedLocked(obj interface{}) {
 			if og, ok := deployment.ObjectMeta.Annotations[metadata.SgAnnotation]; ok && og != "" {
 				sgval = &og
 			}
+
+			// multiple deployments matching the same pod is a broken
+			// configuration.  We'll just use the first one.
+			break
 		}
 	}
 
@@ -244,20 +234,40 @@ func (cont *AciController) podChangedLocked(obj interface{}) {
 	}
 }
 
-func (cont *AciController) podDeleted(obj interface{}) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-	cont.podDeletedLocked(obj)
+func (cont *AciController) podAdded(obj interface{}) {
+	pod := obj.(*v1.Pod)
+	if !cont.depPods.UpdatePod(pod) {
+		cont.queuePodUpdate(pod)
+	}
 }
 
-func (cont *AciController) podDeletedLocked(obj interface{}) {
+func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
+	oldpod := oldobj.(*v1.Pod)
+	newpod := newobj.(*v1.Pod)
+
+	if !reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
+		cont.depPods.UpdatePod(newpod)
+	}
+	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
+		newpod.ObjectMeta.Annotations) {
+		cont.queuePodUpdate(newpod)
+	}
+}
+
+func (cont *AciController) podDeleted(obj interface{}) {
 	pod := obj.(*v1.Pod)
-	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	logger := podLogger(cont.log, pod)
-	logger.Debug("Pod deleted")
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		logger.Error("Could not create pod key:" + err.Error())
 		return
 	}
+
+	cont.depPods.DeletePod(pod)
+
+	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)
+	cont.indexMutex.Unlock()
+
+	logger.Debug("Pod deleted")
 }
