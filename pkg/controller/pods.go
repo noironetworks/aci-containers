@@ -236,20 +236,31 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 
 func (cont *AciController) podAdded(obj interface{}) {
 	pod := obj.(*v1.Pod)
-	if !cont.depPods.UpdatePod(pod) {
-		cont.queuePodUpdate(pod)
-	}
+	cont.depPods.UpdatePodNoCallback(pod)
+	cont.netPolPods.UpdatePodNoCallback(pod)
+	cont.netPolIngressPods.UpdatePodNoCallback(pod)
+	cont.queuePodUpdate(pod)
 }
 
 func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	oldpod := oldobj.(*v1.Pod)
 	newpod := newobj.(*v1.Pod)
 
+	shouldqueue := false
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
-		cont.depPods.UpdatePod(newpod)
+		shouldqueue =
+			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
+		shouldqueue =
+			cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
+		shouldqueue =
+			cont.netPolIngressPods.UpdatePodNoCallback(newpod) || shouldqueue
 	}
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
 		newpod.ObjectMeta.Annotations) {
+		shouldqueue = true
+	}
+
+	if shouldqueue {
 		cont.queuePodUpdate(newpod)
 	}
 }
@@ -264,6 +275,8 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	}
 
 	cont.depPods.DeletePod(pod)
+	cont.netPolPods.DeletePod(pod)
+	cont.netPolIngressPods.DeletePod(pod)
 
 	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)

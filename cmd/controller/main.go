@@ -88,14 +88,21 @@ func main() {
 		panic(err.Error())
 	}
 
-	controller.ConfigureAimClient(restconfig, log)
-	tprClient, err := rest.RESTClientFor(restconfig)
+	aimconfig := *restconfig
+	controller.ConfigureAimClient(&aimconfig)
+	tprClient, err := rest.RESTClientFor(&aimconfig)
+	if err != nil {
+		panic(err)
+	}
+	npconfig := *restconfig
+	controller.ConfigureNetPolClient(&npconfig)
+	netPolClient, err := rest.RESTClientFor(&npconfig)
 	if err != nil {
 		panic(err)
 	}
 
 	cont := controller.NewController(config, log)
-	cont.Init(kubeClient, tprClient)
+	cont.Init(kubeClient, tprClient, netPolClient)
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
 }

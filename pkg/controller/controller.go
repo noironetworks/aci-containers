@@ -45,17 +45,20 @@ type AciController struct {
 	defaultSg  string
 	indexMutex sync.Mutex
 
-	depPods *index.PodSelectorIndex
+	depPods           *index.PodSelectorIndex
+	netPolPods        *index.PodSelectorIndex
+	netPolIngressPods *index.PodSelectorIndex
 
 	podQueue workqueue.RateLimitingInterface
 
-	namespaceInformer  cache.SharedIndexInformer
-	podInformer        cache.SharedIndexInformer
-	endpointsInformer  cache.SharedIndexInformer
-	serviceInformer    cache.SharedIndexInformer
-	deploymentInformer cache.SharedIndexInformer
-	nodeInformer       cache.SharedIndexInformer
-	aimInformer        cache.SharedIndexInformer
+	namespaceInformer     cache.SharedIndexInformer
+	podInformer           cache.SharedIndexInformer
+	endpointsInformer     cache.SharedIndexInformer
+	serviceInformer       cache.SharedIndexInformer
+	deploymentInformer    cache.SharedIndexInformer
+	nodeInformer          cache.SharedIndexInformer
+	networkPolicyInformer cache.SharedIndexInformer
+	aimInformer           cache.SharedIndexInformer
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
@@ -119,7 +122,7 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 }
 
 func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
-	tprClient rest.Interface) {
+	tprClient rest.Interface, netPolClient rest.Interface) {
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
 	}
@@ -155,10 +158,12 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.initPodInformerFromClient(kubeClient)
 	cont.initEndpointsInformerFromClient(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
+	cont.initNetworkPolicyInformerFromRest(netPolClient)
 	cont.initAimInformerFromRest(tprClient)
 
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
+	cont.initNetPolPodIndex()
 }
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {
@@ -169,6 +174,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.podInformer.Run(stopCh)
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
+	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.aimInformer.Run(stopCh)
 	go func() {
 		for i := 0; i < 4; i++ {

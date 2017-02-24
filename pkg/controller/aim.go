@@ -69,8 +69,7 @@ func InitAimThirdPartyResource(kubeClient kubernetes.Interface,
 	return nil
 }
 
-func ConfigureAimClient(config *rest.Config,
-	log *logrus.Logger) {
+func ConfigureAimClient(config *rest.Config) {
 	groupversion := schema.GroupVersion{
 		Group:   "acicontainers.cisco.com",
 		Version: "v1",

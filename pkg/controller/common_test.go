@@ -30,13 +30,14 @@ type testAciController struct {
 	AciController
 	stopCh chan struct{}
 
-	fakeNamespaceSource  *framework.FakeControllerSource
-	fakePodSource        *framework.FakeControllerSource
-	fakeEndpointsSource  *framework.FakeControllerSource
-	fakeServiceSource    *framework.FakeControllerSource
-	fakeNodeSource       *framework.FakeControllerSource
-	fakeDeploymentSource *framework.FakeControllerSource
-	fakeAimSource        *framework.FakeControllerSource
+	fakeNamespaceSource     *framework.FakeControllerSource
+	fakePodSource           *framework.FakeControllerSource
+	fakeEndpointsSource     *framework.FakeControllerSource
+	fakeServiceSource       *framework.FakeControllerSource
+	fakeNodeSource          *framework.FakeControllerSource
+	fakeDeploymentSource    *framework.FakeControllerSource
+	fakeNetworkPolicySource *framework.FakeControllerSource
+	fakeAimSource           *framework.FakeControllerSource
 
 	podUpdates     []*v1.Pod
 	nodeUpdates    []*v1.Node
@@ -96,6 +97,13 @@ func testController() *testAciController {
 			WatchFunc: cont.fakeDeploymentSource.Watch,
 		})
 
+	cont.fakeNetworkPolicySource = framework.NewFakeControllerSource()
+	cont.initNetworkPolicyInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeNetworkPolicySource.List,
+			WatchFunc: cont.fakeNetworkPolicySource.Watch,
+		})
+
 	cont.fakeAimSource = framework.NewFakeControllerSource()
 	cont.initAimInformerBase(
 		&cache.ListWatch{
@@ -117,6 +125,7 @@ func testController() *testAciController {
 	}
 
 	cont.initDepPodIndex()
+	cont.initNetPolPodIndex()
 
 	return cont
 }

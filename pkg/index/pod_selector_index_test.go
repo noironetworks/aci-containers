@@ -23,6 +23,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
@@ -32,27 +33,34 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
-type testDepIndex struct {
+type testIndex struct {
 	stopCh chan struct{}
 
-	fakeNamespaceSource  *framework.FakeControllerSource
-	fakePodSource        *framework.FakeControllerSource
-	fakeDeploymentSource *framework.FakeControllerSource
+	fakeNamespaceSource *framework.FakeControllerSource
+	fakePodSource       *framework.FakeControllerSource
+	fakeObjSource       *framework.FakeControllerSource
 
 	si *PodSelectorIndex
 
-	mutex      sync.Mutex
-	podUpdates map[string]bool
+	mutex   sync.Mutex
+	updates map[string]bool
 }
 
-func newTestIndex(log *logrus.Logger) *testDepIndex {
+type TestKubeObj struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	selector []PodSelector
+}
+
+func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
 	log.Level = logrus.DebugLevel
 
-	testIndex := &testDepIndex{
-		stopCh:               make(chan struct{}),
-		fakeNamespaceSource:  framework.NewFakeControllerSource(),
-		fakePodSource:        framework.NewFakeControllerSource(),
-		fakeDeploymentSource: framework.NewFakeControllerSource(),
+	testIndex := &testIndex{
+		stopCh:              make(chan struct{}),
+		fakeNamespaceSource: framework.NewFakeControllerSource(),
+		fakePodSource:       framework.NewFakeControllerSource(),
+		fakeObjSource:       framework.NewFakeControllerSource(),
 	}
 	namespaceInformer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
@@ -94,16 +102,22 @@ func newTestIndex(log *logrus.Logger) *testDepIndex {
 			testIndex.si.DeletePod(obj.(*v1.Pod))
 		},
 	})
-	deploymentInformer := cache.NewSharedIndexInformer(
+	var objtype runtime.Object
+	if dep {
+		objtype = &v1beta1.Deployment{}
+	} else {
+		objtype = &TestKubeObj{}
+	}
+	objInformer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc:  testIndex.fakeDeploymentSource.List,
-			WatchFunc: testIndex.fakeDeploymentSource.Watch,
+			ListFunc:  testIndex.fakeObjSource.List,
+			WatchFunc: testIndex.fakeObjSource.Watch,
 		},
-		&v1beta1.Deployment{},
+		objtype,
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	objInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			testIndex.si.UpdateSelectorObj(obj)
 		},
@@ -115,35 +129,41 @@ func newTestIndex(log *logrus.Logger) *testDepIndex {
 		},
 	})
 
-	testIndex.si = NewPodSelectorIndex(log, podInformer,
-		namespaceInformer, deploymentInformer,
-		func(obj interface{}) string {
-			return obj.(*v1beta1.Deployment).ObjectMeta.Namespace + "/" +
-				obj.(*v1beta1.Deployment).ObjectMeta.Name
-		},
-		func(obj interface{}) *string {
-			return &obj.(*v1beta1.Deployment).ObjectMeta.Namespace
-		},
-		NilSelectorFunc,
-		func(obj interface{}) labels.Selector {
-			selector, _ := metav1.
-				LabelSelectorAsSelector(obj.(*v1beta1.Deployment).Spec.Selector)
-			return selector
-		},
-		func(podkey string) {
-			testIndex.mutex.Lock()
-			testIndex.podUpdates[podkey] = true
-			testIndex.mutex.Unlock()
-		})
+	updateCb := func(key string) {
+		testIndex.mutex.Lock()
+		testIndex.updates[key] = true
+		testIndex.mutex.Unlock()
+	}
+
+	if dep {
+		testIndex.si = NewPodSelectorIndex(
+			log, podInformer, namespaceInformer, objInformer,
+			cache.MetaNamespaceKeyFunc,
+			func(obj interface{}) []PodSelector {
+				dep := obj.(*v1beta1.Deployment)
+				return PodSelectorFromNsAndSelector(dep.ObjectMeta.Namespace,
+					dep.Spec.Selector)
+			})
+		testIndex.si.SetPodUpdateCallback(updateCb)
+	} else {
+		testIndex.si = NewPodSelectorIndex(
+			log, podInformer, namespaceInformer, objInformer,
+			cache.MetaNamespaceKeyFunc,
+			func(obj interface{}) []PodSelector {
+				to := obj.(*TestKubeObj)
+				return to.selector
+			})
+		testIndex.si.SetObjUpdateCallback(updateCb)
+	}
 
 	go podInformer.Run(testIndex.stopCh)
 	go namespaceInformer.Run(testIndex.stopCh)
-	go deploymentInformer.Run(testIndex.stopCh)
+	go objInformer.Run(testIndex.stopCh)
 
 	return testIndex
 }
 
-func (i *testDepIndex) stop() {
+func (i *testIndex) stop() {
 	close(i.stopCh)
 }
 
@@ -182,7 +202,7 @@ func deployment(namespace string, name string,
 	}
 }
 
-type depUpdateTest struct {
+type updateTest struct {
 	op      string
 	thing   interface{}
 	updates []string
@@ -190,7 +210,7 @@ type depUpdateTest struct {
 	desc    string
 }
 
-var depUpdateTests = []depUpdateTest{
+var depUpdateTests = []updateTest{
 	{
 		"add",
 		deployment("testns1", "testdep1", map[string]string{
@@ -272,9 +292,9 @@ var depUpdateTests = []depUpdateTest{
 	},
 }
 
-func TestPodIndex(t *testing.T) {
+func TestPodIndexDeployment(t *testing.T) {
 	log := logrus.New()
-	testIndex := newTestIndex(log)
+	testIndex := newTestIndex(log, true)
 
 	ns1 := namespace("testns1", nil)
 	ns2 := namespace("testns2", nil)
@@ -295,7 +315,7 @@ func TestPodIndex(t *testing.T) {
 	testIndex.fakePodSource.Add(pod2)
 	testIndex.fakePodSource.Add(pod3)
 
-	testIndex.podUpdates = make(map[string]bool)
+	testIndex.updates = make(map[string]bool)
 	for _, dt := range depUpdateTests {
 		log.Info("Starting ", dt.desc)
 
@@ -303,7 +323,7 @@ func TestPodIndex(t *testing.T) {
 		case "add":
 			switch o := dt.thing.(type) {
 			case *v1beta1.Deployment:
-				testIndex.fakeDeploymentSource.Add(o)
+				testIndex.fakeObjSource.Add(o)
 			case *v1.Namespace:
 				testIndex.fakeNamespaceSource.Add(o)
 			case *v1.Pod:
@@ -312,13 +332,12 @@ func TestPodIndex(t *testing.T) {
 		case "remove":
 			switch o := dt.thing.(type) {
 			case *v1beta1.Deployment:
-				testIndex.fakeDeploymentSource.Delete(o)
+				testIndex.fakeObjSource.Delete(o)
 			case *v1.Namespace:
 				testIndex.fakeNamespaceSource.Delete(o)
 			case *v1.Pod:
 				testIndex.fakePodSource.Delete(o)
 			}
-
 		}
 
 		tu.WaitFor(t, dt.desc, 500*time.Millisecond,
@@ -329,7 +348,7 @@ func TestPodIndex(t *testing.T) {
 				}
 				testIndex.mutex.Lock()
 				if !tu.WaitEqual(t, last, tupd,
-					testIndex.podUpdates, dt.desc, "updates") {
+					testIndex.updates, dt.desc, "updates") {
 					testIndex.mutex.Unlock()
 					return false, nil
 				}
@@ -343,7 +362,168 @@ func TestPodIndex(t *testing.T) {
 				return true, nil
 			})
 
-		testIndex.podUpdates = make(map[string]bool)
+		testIndex.updates = make(map[string]bool)
+	}
+
+	testIndex.stop()
+}
+
+func testObj(namespace string, name string, s []PodSelector) *TestKubeObj {
+	return &TestKubeObj{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		selector: s,
+	}
+}
+
+var ns1 = "testns1"
+
+var nsMatchTests = []updateTest{
+	{
+		"add",
+		testObj("testns1", "testobj1", []PodSelector{
+			PodSelector{
+				NsSelector: labels.SelectorFromSet(labels.Set{
+					"nslabel1": "value1",
+					"nslabel2": "value2"}),
+				PodSelector: labels.Everything(),
+			},
+		}),
+		[]string{"testns1/testobj1"},
+		map[string][]string{
+			"testns1/testobj1": []string{
+				"testns1/testpod1",
+				"testns1/testpod2"},
+		},
+		"nsselector",
+	},
+	{
+		"remove",
+		namespace("testns1", map[string]string{}),
+		[]string{"testns1/testobj1"},
+		map[string][]string{
+			"testns1/testobj1": nil,
+		},
+		"removens",
+	},
+	{
+		"add",
+		namespace("testns1", map[string]string{
+			"nslabel1": "value1",
+			"nslabel2": "value2"}),
+		[]string{"testns1/testobj1"},
+		map[string][]string{
+			"testns1/testobj1": []string{
+				"testns1/testpod1",
+				"testns1/testpod2"},
+		},
+		"addns",
+	},
+	{
+		"add",
+		testObj("testns1", "testobj1", []PodSelector{
+			PodSelector{
+				Namespace: &ns1,
+				PodSelector: labels.SelectorFromSet(labels.Set{
+					"label1": "value1",
+					"label2": "value2"}),
+			},
+		}),
+		[]string{"testns1/testobj1"},
+		map[string][]string{
+			"testns1/testobj1": []string{
+				"testns1/testpod1"},
+		},
+		"podselector",
+	},
+	{
+		"remove",
+		pod("testns1", "testpod1", map[string]string{}),
+		[]string{"testns1/testobj1"},
+		map[string][]string{
+			"testns1/testobj1": nil,
+		},
+		"removepod",
+	},
+}
+
+func TestPodIndexNSMatch(t *testing.T) {
+	log := logrus.New()
+	testIndex := newTestIndex(log, false)
+
+	ns1 := namespace("testns1", map[string]string{
+		"nslabel1": "value1",
+		"nslabel2": "value2"})
+	ns2 := namespace("testns2", map[string]string{
+		"nslabel1": "value3",
+		"nslabel2": "value4"})
+	pod1 := pod("testns1", "testpod1", map[string]string{
+		"label1": "value1",
+		"label2": "value2"})
+	pod2 := pod("testns1", "testpod2", map[string]string{
+		"label1": "value3",
+		"label2": "value4"})
+	pod3 := pod("testns2", "testpod3", map[string]string{
+		"label1": "value1",
+		"label2": "value2"})
+
+	testIndex.fakeNamespaceSource.Add(ns1)
+	testIndex.fakeNamespaceSource.Add(ns2)
+
+	testIndex.fakePodSource.Add(pod1)
+	testIndex.fakePodSource.Add(pod2)
+	testIndex.fakePodSource.Add(pod3)
+
+	testIndex.updates = make(map[string]bool)
+	for _, dt := range nsMatchTests {
+		log.Info("Starting ", dt.desc)
+
+		switch dt.op {
+		case "add":
+			switch o := dt.thing.(type) {
+			case *TestKubeObj:
+				testIndex.fakeObjSource.Add(o)
+			case *v1.Namespace:
+				testIndex.fakeNamespaceSource.Add(o)
+			case *v1.Pod:
+				testIndex.fakePodSource.Add(o)
+			}
+		case "remove":
+			switch o := dt.thing.(type) {
+			case *TestKubeObj:
+				testIndex.fakeObjSource.Delete(o)
+			case *v1.Namespace:
+				testIndex.fakeNamespaceSource.Delete(o)
+			case *v1.Pod:
+				testIndex.fakePodSource.Delete(o)
+			}
+		}
+
+		tu.WaitFor(t, dt.desc, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				tupd := make(map[string]bool)
+				for _, k := range dt.updates {
+					tupd[k] = true
+				}
+				testIndex.mutex.Lock()
+				if !tu.WaitEqual(t, last, tupd,
+					testIndex.updates, dt.desc, "updates") {
+					testIndex.mutex.Unlock()
+					return false, nil
+				}
+				testIndex.mutex.Unlock()
+				for k, v := range dt.keys {
+					if !tu.WaitEqual(t, last, v, testIndex.si.GetPodForObj(k),
+						dt.desc, "podForObj", k) {
+						return false, nil
+					}
+				}
+				return true, nil
+			})
+
+		testIndex.updates = make(map[string]bool)
 	}
 
 	testIndex.stop()

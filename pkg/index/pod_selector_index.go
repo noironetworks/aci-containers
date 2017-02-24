@@ -20,42 +20,60 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
-// If an object selector applies to a particular namespace, then
-// return a non-nil string from GetNsFunc
-type GetNsFunc func(interface{}) *string
+type set map[string]bool
 
-// Return a nil namespace
-func NilNamespaceFunc(interface{}) *string {
-	return nil
+// Represent a selector over a set of pods
+type PodSelector struct {
+	// If specified, a specific namespace to select
+	Namespace *string
+
+	// If specified, a selector over namespace labels for namespaces
+	// to include
+	NsSelector labels.Selector
+
+	// A selector over pods in the selected namespaces
+	PodSelector labels.Selector
 }
 
-// If an object applies to a set of namespaces, return a non-nil
-// selector.  If nil, selects no namespaces, if present but empty
-// selects all namespaces
-type GetNsSelectorFunc func(interface{}) labels.Selector
+// Select the pods for the given selector object using a set of pod
+// selectors
+type GetPodSelectorFunc func(interface{}) []PodSelector
+
+// Create a pod selector slice of length one for the given namespace
+// and label selector
+func PodSelectorFromNsAndSelector(ns string,
+	selector *metav1.LabelSelector) []PodSelector {
+
+	s, err := metav1.LabelSelectorAsSelector(selector)
+
+	if err != nil {
+		return nil
+	}
+
+	return []PodSelector{
+		PodSelector{
+			Namespace:   &ns,
+			PodSelector: s,
+		},
+	}
+}
 
 // Return a nil selector
-func NilSelectorFunc(interface{}) labels.Selector {
+func NilSelectorFunc(interface{}) []PodSelector {
 	return nil
 }
 
-// Select the pods within the selected namespaces. If nil, selects no
-// pods, if present but empty selects all pods in the namespaces
-type GetPodSelectorFunc func(interface{}) labels.Selector
-
 // Return a unique key for the indexed selector object
-type GetKeyFunc func(interface{}) string
+type GetKeyFunc func(interface{}) (string, error)
 
-// Get the current object from its key
-type GetObjFunc func(string) interface{}
-
-// Callback when the set of objects that select a pod changes
-type UpdatePodFunc func(podkey string)
+// Callback function for SetPodUpdateCallback or SetObjUpdateCallback
+type UpdateFunc func(podkey string)
 
 // Pod selector index type
 type PodSelectorIndex struct {
@@ -66,22 +84,22 @@ type PodSelectorIndex struct {
 	objInformer       cache.SharedIndexInformer
 
 	getKey         GetKeyFunc
-	getObj         GetObjFunc
-	getNs          GetNsFunc
-	getNsSelector  GetNsSelectorFunc
 	getPodSelector GetPodSelectorFunc
-	updatePod      UpdatePodFunc
+
+	updatePod UpdateFunc
+	updateObj UpdateFunc
 
 	indexMutex sync.Mutex
 
 	// maps pod keys to a set of selector object keys
-	podIndex map[string]map[string]bool
+	podIndex map[string]set
 
 	// maps selector object keys to a set of pod keys
-	objPodIndex map[string]map[string]bool
+	objPodIndex map[string]set
 
-	// maps selector object keys to a set of namespace keys
-	objNsIndex map[string]map[string]bool
+	// maps selector object keys to a set of namespace keys and their
+	// associated pod selectors
+	objNsIndex map[string]map[string][]labels.Selector
 }
 
 // Create a new pod selector index object
@@ -90,10 +108,7 @@ func NewPodSelectorIndex(log *logrus.Logger,
 	namespaceInformer cache.SharedIndexInformer,
 	objInformer cache.SharedIndexInformer,
 	getKey GetKeyFunc,
-	getNs GetNsFunc,
-	getNsSelector GetNsSelectorFunc,
-	getPodSelector GetPodSelectorFunc,
-	updatePod UpdatePodFunc) *PodSelectorIndex {
+	getPodSelector GetPodSelectorFunc) *PodSelectorIndex {
 
 	return &PodSelectorIndex{
 		log:               log,
@@ -101,15 +116,24 @@ func NewPodSelectorIndex(log *logrus.Logger,
 		namespaceInformer: namespaceInformer,
 		objInformer:       objInformer,
 		getKey:            getKey,
-		getNs:             getNs,
-		getNsSelector:     getNsSelector,
 		getPodSelector:    getPodSelector,
-		updatePod:         updatePod,
 
-		podIndex:    make(map[string]map[string]bool),
-		objPodIndex: make(map[string]map[string]bool),
-		objNsIndex:  make(map[string]map[string]bool),
+		podIndex:    make(map[string]set),
+		objPodIndex: make(map[string]set),
+		objNsIndex:  make(map[string]map[string][]labels.Selector),
 	}
+}
+
+// Set a callback that will be called whenever the objects that
+// select a pod change
+func (i *PodSelectorIndex) SetPodUpdateCallback(updatePod UpdateFunc) {
+	i.updatePod = updatePod
+}
+
+// Set a callback that will be called whenever the pods selected by an
+// object change
+func (i *PodSelectorIndex) SetObjUpdateCallback(updateObj UpdateFunc) {
+	i.updateObj = updateObj
 }
 
 // Get the selector objects that match a given pod
@@ -134,52 +158,49 @@ func (i *PodSelectorIndex) GetPodForObj(objkey string) (ret []string) {
 	return ret
 }
 
-func (i *PodSelectorIndex) removePodObj(podkey string, objkey string) bool {
-	updated := false
-	if podm, ok := i.podIndex[podkey]; ok {
-		if _, pok := podm[objkey]; pok {
-			updated = true
-			delete(podm, objkey)
+func (i *PodSelectorIndex) UpdatePod(pod *v1.Pod) {
+	if i.UpdatePodNoCallback(pod) && i.updatePod != nil {
+		podkey, err := cache.MetaNamespaceKeyFunc(pod)
+		if err != nil {
+			i.log.Error("Could not create pod key: ", err)
+			return
 		}
+		i.updatePod(podkey)
 	}
-	if objm, ok := i.objPodIndex[objkey]; ok {
-		delete(objm, podkey)
-	}
-	return updated
 }
 
-// Call to update the index when a pod's labels change
-func (i *PodSelectorIndex) UpdatePod(pod *v1.Pod) bool {
+// Call to update the index when a pod's labels change.  Returns true
+// if a pod update should be queued
+func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		i.log.Error("Could not create pod key: ", err)
 		return false
 	}
 
-	updated := false
-	matched := make(map[string]bool)
+	podUpdated := false
+	matched := make(set)
+	updatedObjs := make(set)
 
 	i.indexMutex.Lock()
 	// check each selector object that could apply to this pod's
 	// namespace for new matches
 	for objkey, v := range i.objNsIndex {
-		if _, ok := v[pod.ObjectMeta.Namespace]; ok {
-			obj, exists, err := i.objInformer.GetStore().GetByKey(objkey)
-			if exists && err == nil {
-				if podSelector := i.getPodSelector(obj); podSelector != nil {
-					if podSelector.Matches(labels.Set(pod.ObjectMeta.Labels)) {
-						objm, ok := i.objPodIndex[objkey]
-						if !ok {
-							objm = make(map[string]bool)
-							i.objPodIndex[objkey] = objm
-						}
-						if _, ok = objm[podkey]; !ok {
-							objm[podkey] = true
-							updated = true
-						}
-
-						matched[objkey] = true
+		if selectors, ok := v[pod.ObjectMeta.Namespace]; ok {
+			for _, podSelector := range selectors {
+				if podSelector.Matches(labels.Set(pod.ObjectMeta.Labels)) {
+					objm, ok := i.objPodIndex[objkey]
+					if !ok {
+						objm = make(set)
+						i.objPodIndex[objkey] = objm
 					}
+					if _, ok = objm[podkey]; !ok {
+						objm[podkey] = true
+						podUpdated = true
+						updatedObjs[objkey] = true
+					}
+
+					matched[objkey] = true
 				}
 			}
 		}
@@ -195,26 +216,28 @@ func (i *PodSelectorIndex) UpdatePod(pod *v1.Pod) bool {
 				}
 			}
 
-			updated = true
+			podUpdated = true
+			updatedObjs[objkey] = true
 		}
 	}
 	i.podIndex[podkey] = matched
 	i.indexMutex.Unlock()
 
-	if updated {
-		i.updatePod(podkey)
-	}
-	return updated
+	i.updateObjs(updatedObjs)
+
+	return podUpdated
 }
 
 // Call to update the index when a pod is deleted
 func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
-	i.indexMutex.Lock()
+	updatedObjs := make(set)
+
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		i.log.Error("Could not create pod key: ", err)
 		return
 	}
+	i.indexMutex.Lock()
 	if podm, ok := i.podIndex[podkey]; ok {
 		for objkey, _ := range podm {
 			if objm, ok := i.objPodIndex[objkey]; ok {
@@ -222,38 +245,46 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 				if len(objm) == 0 {
 					delete(i.objPodIndex, objkey)
 				}
+				updatedObjs[objkey] = true
 			}
 		}
 		delete(i.podIndex, podkey)
 	}
 	i.indexMutex.Unlock()
+
+	i.updateObjs(updatedObjs)
 }
 
 // Call to update the index when a namespace's labels change
 func (i *PodSelectorIndex) UpdateNamespace(ns *v1.Namespace) {
-	updated := make(map[string]bool)
+	updatedPods := make(set)
+	updatedObjs := make(set)
 
 	i.indexMutex.Lock()
 
-	for k, v := range i.objNsIndex {
-		obj, exists, err := i.objInformer.GetStore().GetByKey(k)
-		if !exists || err != nil {
+	for _, obj := range i.objInformer.GetStore().List() {
+		objkey, err := i.getKey(obj)
+		if err != nil {
+			i.log.Error("Could not create object key: ", err)
 			continue
 		}
+
 		namespaces := i.getObjNamespaces(obj)
-		if !reflect.DeepEqual(namespaces, v) {
-			newupdated := i.updateSelectorObjForNs(obj, namespaces)
+		if !reflect.DeepEqual(namespaces, i.objNsIndex[objkey]) {
+			newupdated, objupdated := i.updateSelectorObjForNs(obj, namespaces)
 			for u, _ := range newupdated {
-				updated[u] = true
+				updatedPods[u] = true
+			}
+			if objupdated {
+				updatedObjs[objkey] = true
 			}
 		}
 	}
 
 	i.indexMutex.Unlock()
 
-	for key, _ := range updated {
-		i.updatePod(key)
-	}
+	i.updatePods(updatedPods)
+	i.updateObjs(updatedObjs)
 }
 
 // Call to update the index when a namespace is deleted
@@ -261,35 +292,44 @@ func (i *PodSelectorIndex) DeleteNamespace(ns *v1.Namespace) {
 	i.UpdateNamespace(ns)
 }
 
-func (i *PodSelectorIndex) getObjNamespaces(obj interface{}) map[string]bool {
-	ret := make(map[string]bool)
-	if ns := i.getNs(obj); ns != nil {
-		ret[*ns] = true
-	} else if nsSelector := i.getNsSelector(obj); nsSelector != nil {
-		cache.ListAll(i.namespaceInformer.GetStore(), nsSelector,
-			func(nsobj interface{}) {
-				ret[nsobj.(*v1.Namespace).ObjectMeta.Name] = true
-			})
+func (i *PodSelectorIndex) getObjNamespaces(obj interface{}) map[string][]labels.Selector {
+	ret := make(map[string][]labels.Selector)
+	for _, selector := range i.getPodSelector(obj) {
+		if selector.Namespace != nil {
+			ret[*selector.Namespace] =
+				append(ret[*selector.Namespace], selector.PodSelector)
+		}
+
+		if selector.NsSelector != nil {
+			cache.ListAll(i.namespaceInformer.GetStore(), selector.NsSelector,
+				func(nsobj interface{}) {
+					name := nsobj.(*v1.Namespace).ObjectMeta.Name
+					ret[name] = append(ret[name], selector.PodSelector)
+				})
+		}
 	}
 	return ret
 }
 
+// Must have index lock
 func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
-	namespaces map[string]bool) map[string]bool {
+	namespaces map[string][]labels.Selector) (set, bool) {
 
-	objkey := i.getKey(obj)
-	if objkey == "" {
-		i.log.Error("Could not create object key")
-		return nil
+	objkey, err := i.getKey(obj)
+	if err != nil {
+		i.log.Error("Could not create object key: ", err)
+		return nil, false
 	}
 
-	matched := make(map[string]bool)
-	updated := make(map[string]bool)
+	matched := make(set)
+	updatedPods := make(set)
+	objUpdated := false
 
 	i.objNsIndex[objkey] = namespaces
-	if podSelector := i.getPodSelector(obj); podSelector != nil {
-		for ns, _ := range namespaces {
-			cache.ListAllByNamespace(i.podInformer.GetIndexer(), ns, podSelector,
+	for ns, selectors := range namespaces {
+		for _, selector := range selectors {
+			cache.ListAllByNamespace(i.podInformer.GetIndexer(),
+				ns, selector,
 				func(podobj interface{}) {
 					pod := podobj.(*v1.Pod)
 					podkey, err := cache.MetaNamespaceKeyFunc(pod)
@@ -300,14 +340,14 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 
 					podm, ok := i.podIndex[podkey]
 					if !ok {
-						podm = make(map[string]bool)
+						podm = make(set)
 						i.podIndex[podkey] = podm
 					}
 
 					matched[podkey] = true
 					if _, ok = podm[objkey]; !ok {
 						podm[objkey] = true
-						updated[podkey] = true
+						updatedPods[podkey] = true
 					}
 				})
 		}
@@ -322,31 +362,40 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 					delete(i.podIndex, oldkey)
 				}
 			}
-			updated[oldkey] = true
+			updatedPods[oldkey] = true
 		}
 	}
-	i.objPodIndex[objkey] = matched
-	return updated
+	if !reflect.DeepEqual(i.objPodIndex[objkey], matched) {
+		i.objPodIndex[objkey] = matched
+		objUpdated = true
+	}
+	return updatedPods, objUpdated
 }
 
 // Call to update the index when the selector object's selector(s)
 // change
 func (i *PodSelectorIndex) UpdateSelectorObj(obj interface{}) {
 	namespaces := i.getObjNamespaces(obj)
-	updated := i.updateSelectorObjForNs(obj, namespaces)
+	updatedPods, objUpdated := i.updateSelectorObjForNs(obj, namespaces)
 
-	for key, _ := range updated {
-		i.updatePod(key)
+	i.updatePods(updatedPods)
+	if objUpdated && i.updateObj != nil {
+		objkey, err := i.getKey(obj)
+		if err != nil {
+			i.log.Error("Could not create object key: ", err)
+			return
+		}
+		i.updateObj(objkey)
 	}
 }
 
 // Call to update the index when the selector object is deleted
 func (i *PodSelectorIndex) DeleteSelectorObj(obj interface{}) {
-	var updated []string
+	updated := make(set)
 
-	objkey := i.getKey(obj)
-	if objkey == "" {
-		i.log.Error("Could not create object key")
+	objkey, err := i.getKey(obj)
+	if err != nil {
+		i.log.Error("Could not create object key: ", err)
 		return
 	}
 
@@ -357,14 +406,32 @@ func (i *PodSelectorIndex) DeleteSelectorObj(obj interface{}) {
 			if len(podm) == 0 {
 				delete(i.podIndex, oldkey)
 			}
-			updated = append(updated, oldkey)
+			updated[oldkey] = true
 		}
 	}
 	delete(i.objPodIndex, objkey)
 	delete(i.objNsIndex, objkey)
 	i.indexMutex.Unlock()
 
-	for _, key := range updated {
+	i.updatePods(updated)
+}
+
+func (i *PodSelectorIndex) updatePods(updated set) {
+	if i.updatePod == nil {
+		return
+	}
+	for key, _ := range updated {
 		i.updatePod(key)
 	}
+
+}
+
+func (i *PodSelectorIndex) updateObjs(updated set) {
+	if i.updateObj == nil {
+		return
+	}
+	for key, _ := range updated {
+		i.updateObj(key)
+	}
+
 }

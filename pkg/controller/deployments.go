@@ -1,4 +1,4 @@
-// Copyright 2016 Cisco Systems, Inc.
+// Copyright 2016,2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -71,38 +70,22 @@ func (cont *AciController) initDeploymentInformerBase(listWatch *cache.ListWatch
 
 func (cont *AciController) initDepPodIndex() {
 	cont.depPods = index.NewPodSelectorIndex(
-		cont.log,
-		cont.podInformer,
-		cont.namespaceInformer,
-		cont.deploymentInformer,
-		func(obj interface{}) string {
-			depkey, _ :=
-				cache.MetaNamespaceKeyFunc(obj.(*v1beta1.Deployment))
-			return depkey
-		},
-		func(obj interface{}) *string {
-			return &obj.(*v1beta1.Deployment).ObjectMeta.Namespace
-		},
-		index.NilSelectorFunc,
-		func(obj interface{}) labels.Selector {
+		cont.log, cont.podInformer,
+		cont.namespaceInformer, cont.deploymentInformer,
+		cache.MetaNamespaceKeyFunc,
+		func(obj interface{}) []index.PodSelector {
 			dep := obj.(*v1beta1.Deployment)
-			selector, err :=
-				metav1.LabelSelectorAsSelector(dep.Spec.Selector)
-			if err != nil {
-				deploymentLogger(cont.log, dep).
-					Error("Could not create selector: ", err)
-				return nil
-			}
-			return selector
-		},
-		func(podkey string) {
-			podobj, exists, err :=
-				cont.podInformer.GetStore().GetByKey(podkey)
-			if exists && err == nil {
-				cont.queuePodUpdate(podobj.(*v1.Pod))
-			}
+			return index.PodSelectorFromNsAndSelector(dep.ObjectMeta.Namespace,
+				dep.Spec.Selector)
 		},
 	)
+	cont.depPods.SetPodUpdateCallback(func(podkey string) {
+		podobj, exists, err :=
+			cont.podInformer.GetStore().GetByKey(podkey)
+		if exists && err == nil {
+			cont.queuePodUpdate(podobj.(*v1.Pod))
+		}
+	})
 }
 
 func deploymentLogger(log *logrus.Logger, dep *v1beta1.Deployment) *logrus.Entry {
@@ -122,8 +105,7 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 	olddep := oldobj.(*v1beta1.Deployment)
 	newdep := newobj.(*v1beta1.Deployment)
 
-	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
-		newdep.ObjectMeta.Labels) {
+	if !reflect.DeepEqual(olddep.Spec.Selector, newdep.Spec.Selector) {
 		cont.depPods.UpdateSelectorObj(newobj)
 	}
 	if !reflect.DeepEqual(olddep.ObjectMeta.Annotations,
