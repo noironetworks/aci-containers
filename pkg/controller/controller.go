@@ -36,18 +36,16 @@ import (
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
+type aimUpdateFunc func(*Aci) (*Aci, error)
+type aimAddFunc func(*Aci) (*Aci, error)
+type aimDeleteFunc func(name string, options *v1.DeleteOptions) error
 
 type AciController struct {
 	log    *logrus.Logger
 	config *ControllerConfig
 
-	defaultEg  string
-	defaultSg  string
-	indexMutex sync.Mutex
-
-	depPods           *index.PodSelectorIndex
-	netPolPods        *index.PodSelectorIndex
-	netPolIngressPods *index.PodSelectorIndex
+	defaultEg string
+	defaultSg string
 
 	podQueue workqueue.RateLimitingInterface
 
@@ -63,6 +61,11 @@ type AciController struct {
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
 	updateServiceStatus serviceUpdateFunc
+	addAim              aimAddFunc
+	updateAim           aimUpdateFunc
+	deleteAim           aimDeleteFunc
+
+	indexMutex sync.Mutex
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
@@ -70,10 +73,15 @@ type AciController struct {
 	staticServiceIps        *netIps
 	nodeServiceIps          *netIps
 
+	depPods           *index.PodSelectorIndex
+	netPolPods        *index.PodSelectorIndex
+	netPolIngressPods *index.PodSelectorIndex
+
+	aimDesiredState map[aimKey]aciSlice
+
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodePodNetCache      map[string]*nodePodNetMeta
-
-	serviceMetaCache map[string]*serviceMeta
+	serviceMetaCache     map[string]*serviceMeta
 }
 
 type nodeServiceMeta struct {
@@ -114,10 +122,11 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 
+		aimDesiredState: make(map[aimKey]aciSlice),
+
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-
-		serviceMetaCache: make(map[string]*serviceMeta),
+		serviceMetaCache:     make(map[string]*serviceMeta),
 	}
 }
 
@@ -132,6 +141,36 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().
 			Services(service.ObjectMeta.Namespace).UpdateStatus(service)
+	}
+	cont.addAim = func(a *Aci) (result *Aci, err error) {
+		result = &Aci{}
+		err = tprClient.Post().
+			Namespace(aimNamespace).
+			Resource("acis").
+			Body(a).
+			Do().
+			Into(result)
+		return
+	}
+	cont.updateAim = func(a *Aci) (result *Aci, err error) {
+		result = &Aci{}
+		err = tprClient.Put().
+			Namespace(aimNamespace).
+			Resource("acis").
+			Name(a.Name).
+			Body(a).
+			Do().
+			Into(result)
+		return
+	}
+	cont.deleteAim = func(name string, options *v1.DeleteOptions) error {
+		return tprClient.Delete().
+			Namespace(aimNamespace).
+			Resource("acis").
+			Name(name).
+			Body(options).
+			Do().
+			Error()
 	}
 
 	egdata, err := json.Marshal(cont.config.DefaultEg)

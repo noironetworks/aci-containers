@@ -16,8 +16,11 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
 type uniqueNameTest struct {
@@ -29,6 +32,7 @@ type uniqueNameTest struct {
 var uniqueNameTests = []uniqueNameTest{
 	{[]string{}, "", "empty"},
 	{[]string{"a", "b", "c"}, "a-b-c", "simple"},
+	{[]string{"0", "1", "9"}, "0-1-9", "numbers"},
 	{[]string{"a -", "-", "_"}, "a--20---2d----2d----5f-", "encode"},
 }
 
@@ -39,9 +43,149 @@ func TestUniqueName(t *testing.T) {
 	}
 }
 
-func TestNetworkPolicy(t *testing.T) {
+type indexDiffTest struct {
+	ktype      string
+	key        string
+	objects    aciSlice
+	expAdds    aciSlice
+	expUpdates aciSlice
+	expDeletes []string
+	desc       string
+}
+
+func setDispName(displayName string, aci *Aci) *Aci {
+	aci.Spec.SecurityGroup.DisplayName = displayName
+	return aci
+}
+
+var indexDiffTests = []indexDiffTest{
+	{"sec-group", "a", nil, nil, nil, nil, "empty"},
+	{"sec-group", "a",
+		aciSlice{NewSecurityGroup("common", "test")},
+		aciSlice{NewSecurityGroup("common", "test")},
+		nil, nil, "add"},
+	{"sec-group", "a",
+		aciSlice{setDispName("test", NewSecurityGroup("common", "test"))},
+		nil,
+		aciSlice{setDispName("test", NewSecurityGroup("common", "test"))},
+		nil, "update"},
+	{"sec-group", "a", nil, nil, nil, []string{"common-test"}, "delete"},
+	{"sec-group", "a",
+		aciSlice{
+			NewSecurityGroup("common", "test1"),
+			NewSecurityGroup("common", "test2"),
+			NewSecurityGroup("common", "test3"),
+			NewSecurityGroup("common", "test4"),
+		},
+		aciSlice{
+			NewSecurityGroup("common", "test1"),
+			NewSecurityGroup("common", "test2"),
+			NewSecurityGroup("common", "test3"),
+			NewSecurityGroup("common", "test4"),
+		},
+		nil, nil, "addmultiple"},
+	{"sec-group", "a",
+		aciSlice{
+			NewSecurityGroup("common", "test1"),
+			NewSecurityGroup("common", "test4"),
+			NewSecurityGroup("common", "test3"),
+			NewSecurityGroup("common", "test2"),
+		},
+		nil, nil, nil, "nochange"},
+	{"sec-group", "a",
+		aciSlice{
+			NewSecurityGroup("common", "test1"),
+			NewSecurityGroup("common", "test0"),
+			setDispName("test2", NewSecurityGroup("common", "test2")),
+			NewSecurityGroup("common", "test3"),
+			NewSecurityGroup("common", "test5"),
+		},
+		aciSlice{
+			NewSecurityGroup("common", "test0"),
+			NewSecurityGroup("common", "test5"),
+		},
+		aciSlice{
+			setDispName("test2", NewSecurityGroup("common", "test2")),
+		},
+		[]string{"common-test4"},
+		"mixed"},
+	{"sec-group", "b",
+		aciSlice{
+			NewSecurityGroup("common", "septest"),
+		},
+		aciSlice{
+			NewSecurityGroup("common", "septest"),
+		},
+		nil, nil, "diffkey"},
+}
+
+func TestAimIndexDiff(t *testing.T) {
 	cont := testController()
 	cont.run()
 
+	for _, it := range indexDiffTests {
+		cont.aimAdds = nil
+		cont.aimUpdates = nil
+		cont.aimDeletes = nil
+		for _, o := range it.expAdds {
+			addAimLabels(it.ktype, it.key, o)
+		}
+		for _, o := range it.expUpdates {
+			addAimLabels(it.ktype, it.key, o)
+		}
+
+		cont.writeAimObjects(it.ktype, it.key, it.objects)
+		assert.Equal(t, it.expAdds, cont.aimAdds, "adds", it.desc)
+		assert.Equal(t, it.expUpdates, cont.aimUpdates, "updates", it.desc)
+		assert.Equal(t, it.expDeletes, cont.aimDeletes, "deletes", it.desc)
+	}
+
 	cont.stop()
+}
+
+func TestAimFullSync(t *testing.T) {
+
+	i := 0
+	j := 1
+	for j < len(indexDiffTests)-1 {
+		cont := testController()
+		cont.run()
+
+		it := &indexDiffTests[i]
+
+		for _, o := range it.objects {
+			addAimLabels(it.ktype, it.key, o)
+			cont.fakeAimSource.Add(o)
+		}
+		tu.WaitFor(t, it.desc, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				return tu.WaitEqual(t, last, len(it.objects),
+					len(cont.aimInformer.GetStore().List()),
+					it.desc, "length"), nil
+			})
+
+		it = &indexDiffTests[j]
+		cont.writeAimObjects(it.ktype, it.key, it.objects)
+		cont.aimAdds = nil
+		cont.aimUpdates = nil
+		cont.aimDeletes = nil
+
+		cont.aimFullSync()
+
+		for _, o := range it.expAdds {
+			addAimLabels(it.ktype, it.key, o)
+		}
+		for _, o := range it.expUpdates {
+			addAimLabels(it.ktype, it.key, o)
+		}
+		assert.Equal(t, it.expAdds, cont.aimAdds, "adds", it.desc)
+		assert.Equal(t, it.expUpdates, cont.aimUpdates, "updates", it.desc)
+		assert.Equal(t, it.expDeletes, cont.aimDeletes, "deletes", it.desc)
+
+		i++
+		j++
+
+		cont.stop()
+	}
+
 }

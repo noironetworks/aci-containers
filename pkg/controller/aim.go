@@ -38,6 +38,10 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 )
 
+var aimNamespace = "kube-system"
+var aimKeyTypeLabel = "acc-aim-key-type"
+var aimKeyLabel = "acc-aim-key"
+
 func InitAimThirdPartyResource(kubeClient kubernetes.Interface,
 	log *logrus.Logger) error {
 	_, err := kubeClient.ExtensionsV1beta1().
@@ -101,7 +105,7 @@ func (cont *AciController) initAimInformerFromRest(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				result := &AciList{}
 				err := tprClient.Get().
-					Namespace("kube-system").
+					Namespace(aimNamespace).
 					Resource("acis").
 					VersionedParams(&options, api.ParameterCodec).
 					Do().
@@ -111,7 +115,7 @@ func (cont *AciController) initAimInformerFromRest(
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				return tprClient.Get().
 					Prefix("watch").
-					Namespace("kube-system").
+					Namespace(aimNamespace).
 					Resource("acis").
 					VersionedParams(&options, api.ParameterCodec).
 					Watch()
@@ -147,7 +151,7 @@ func generateUniqueName(components ...string) string {
 			buffer.WriteString("-")
 		}
 		for _, rune := range component {
-			if rune >= '0' && rune <= '0' ||
+			if rune >= '0' && rune <= '9' ||
 				rune >= 'a' && rune <= 'z' ||
 				rune >= 'Z' && rune <= 'Z' {
 				buffer.WriteRune(rune)

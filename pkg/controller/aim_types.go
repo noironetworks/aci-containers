@@ -20,6 +20,7 @@ package controller
 
 import (
 	"encoding/json"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,6 +37,18 @@ type Aci struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec AciObjectSpec `json:"spec"`
+}
+
+type aciSlice []*Aci
+
+func (s aciSlice) Len() int {
+	return len(s)
+}
+func (s aciSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s aciSlice) Less(i, j int) bool {
+	return strings.Compare(s[i].ObjectMeta.Name, s[j].ObjectMeta.Name) < 0
 }
 
 type AciList struct {
@@ -92,4 +105,33 @@ func (ao *AciList) UnmarshalJSON(data []byte) error {
 	tmp2 := AciList(tmp)
 	*ao = tmp2
 	return nil
+}
+
+func NewTenantObj(aimType string, tenantName string, name string) *Aci {
+	return &Aci{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: aimNamespace,
+			Name:      generateUniqueName(tenantName, name),
+			Labels: map[string]string{
+				"aim-type":    aimType,
+				"tenant-name": tenantName,
+				"name":        name,
+			},
+		},
+		Spec: AciObjectSpec{
+			SecurityGroup: &SecurityGroup{
+				Name:       name,
+				TenantName: tenantName,
+			},
+		},
+	}
+}
+
+func NewSecurityGroup(tenantName string, name string) *Aci {
+	ret := NewTenantObj("SecurityGroup", tenantName, name)
+	ret.Spec.SecurityGroup = &SecurityGroup{
+		Name:       name,
+		TenantName: tenantName,
+	}
+	return ret
 }

@@ -13,6 +13,7 @@ CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} ${CONTROLLER_SRC}
 
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
+TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
@@ -66,10 +67,10 @@ container-openvswitch:
 
 check: check-ipam check-index check-controller check-hostagent
 check-ipam:
-	${TEST_CMD} ${BASE}/pkg/ipam
+	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
-	${TEST_CMD} ${BASE}/pkg/index
+	${TEST_CMD} ${BASE}/pkg/index ${TEST_ARGS}
 check-hostagent:
-	${TEST_CMD} ${BASE}/pkg/hostagent
+	${TEST_CMD} ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
-	${TEST_CMD} ${BASE}/pkg/controller
+	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
