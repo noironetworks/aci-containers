@@ -261,13 +261,14 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
 	}
 
 	var netPolObjs aciSlice
+	labelKey := strings.Replace(key, "/", "_", -1)
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciTenant, key))
+		NewSecurityGroup(cont.config.AciTenant, labelKey))
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, key, "NetworkPolicy"))
+		NewSecurityGroupSubject(cont.config.AciTenant, labelKey, "NetworkPolicy"))
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, key, "Egress"))
-	outbound := NewSecurityGroupRule(cont.config.AciTenant, key,
+		NewSecurityGroupSubject(cont.config.AciTenant, labelKey, "Egress"))
+	outbound := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
 		"Egress", "allow-all-reflexive")
 	outbound.Spec.SecurityGroupRule.Direction = "egress"
 	netPolObjs = append(netPolObjs, outbound)
@@ -289,7 +290,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
 		}
 
 		if ingress.Ports == nil {
-			rule := NewSecurityGroupRule(cont.config.AciTenant, key,
+			rule := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
 				"NetworkPolicy", strconv.Itoa(i))
 			rule.Spec.SecurityGroupRule.Direction = "ingress"
 			rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
@@ -300,7 +301,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
 				if p.Protocol != nil && *p.Protocol == v1.ProtocolUDP {
 					proto = "udp"
 				}
-				rule := NewSecurityGroupRule(cont.config.AciTenant, key,
+				rule := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
 					"NetworkPolicy", strconv.Itoa(i)+"_"+strconv.Itoa(j))
 				rule.Spec.SecurityGroupRule.Direction = "ingress"
 				rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
@@ -327,7 +328,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
 
 	}
 
-	cont.writeAimObjects("netpol", key, netPolObjs)
+	cont.writeAimObjects("netpol", labelKey, netPolObjs)
 }
 
 func (cont *AciController) networkPolicyAdded(obj interface{}) {
@@ -388,5 +389,5 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.clearAimObjects("netpol", key)
+	cont.clearAimObjects("netpol", strings.Replace(key, "/", "_", -1))
 }

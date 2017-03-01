@@ -19,8 +19,9 @@
 package controller
 
 import (
-	"bytes"
-	"fmt"
+	"crypto/sha256"
+	"encoding/base32"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 
@@ -144,23 +145,21 @@ func (cont *AciController) initAimInformerBase(listWatch *cache.ListWatch) {
 
 }
 
-func generateUniqueName(components ...string) string {
-	var buffer bytes.Buffer
+var lcaseBase32 = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567")
+
+func aimGenerateUniqueName(aimType string, components ...string) string {
+	h := sha256.New()
+	h.Write([]byte(aimType))
+	h.Write([]byte{0})
 	for _, component := range components {
-		if buffer.Len() > 0 {
-			buffer.WriteString("-")
-		}
-		for _, rune := range component {
-			if rune >= '0' && rune <= '9' ||
-				rune >= 'a' && rune <= 'z' ||
-				rune >= 'A' && rune <= 'Z' {
-				buffer.WriteRune(rune)
-			} else {
-				buffer.WriteString(fmt.Sprintf("--%x-", rune))
-			}
-		}
+		h.Write([]byte(component))
+		h.Write([]byte{0})
 	}
-	return buffer.String()
+	return strings.TrimRight(lcaseBase32.EncodeToString(h.Sum(nil)), "=")
+}
+
+func aimGenerateLabel(label string) string {
+	return aimGenerateUniqueName(label)
 }
 
 func (cont *AciController) aimChanged(obj interface{}) {

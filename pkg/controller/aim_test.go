@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,17 +28,17 @@ type uniqueNameTest struct {
 }
 
 var uniqueNameTests = []uniqueNameTest{
-	{[]string{}, "", "empty"},
-	{[]string{"a", "b", "c"}, "a-b-c", "simple"},
-	{[]string{"0", "1", "9"}, "0-1-9", "numbers"},
-	{[]string{"AA", "BB", "ZZ"}, "AA-BB-ZZ", "caps"},
-	{[]string{"a -", "-", "_"}, "a--20---2d----2d----5f-", "encode"},
+	{[]string{}, "z23tosoitfutobxn4hrqzgjjwp6v3wjgcy4ddqx3rpkb43x3ceta", "empty"},
+	{[]string{"a", "b", "c"}, "xz4j2rrayb4ebrjdzc4rmrudirw6sp7bggcpjrihdav4zrw3mtnq", "simple"},
+	{[]string{"0", "1", "9"}, "esy7rw6xsfko2pbtocshyccpkcni7rrsngh7wehjskc66pgh2gha", "numbers"},
+	{[]string{"AA", "BB", "ZZ"}, "ksult6xm2m6vu47vcmwfvsly27x7ai4whduys5mruzcn5qogs6pq", "caps"},
+	{[]string{"a -", "-", "_"}, "vvxojw5rwlmq6abg3trx6nchbffez4lxfhalgidxlyhtlh3r4jwq", "sym"},
 }
 
 func TestUniqueName(t *testing.T) {
 	for _, at := range uniqueNameTests {
 		assert.Equal(t, at.result,
-			generateUniqueName(at.components...), at.desc)
+			aimGenerateUniqueName("test", at.components...), at.desc)
 	}
 }
 
@@ -68,7 +69,8 @@ var indexDiffTests = []indexDiffTest{
 		aciSlice{setDispName("test", NewSecurityGroup("common", "test"))},
 		nil, "update"},
 	{"sec-group", "a", nil, nil, nil,
-		[]string{"test-common-SecurityGroup"}, "delete"},
+		[]string{aimGenerateUniqueName("SecurityGroup", "test", "common")},
+		"delete"},
 	{"sec-group", "a",
 		aciSlice{
 			NewSecurityGroup("common", "test1"),
@@ -106,7 +108,7 @@ var indexDiffTests = []indexDiffTest{
 		aciSlice{
 			setDispName("test2", NewSecurityGroup("common", "test2")),
 		},
-		[]string{"test4-common-SecurityGroup"},
+		[]string{aimGenerateUniqueName("SecurityGroup", "test4", "common")},
 		"mixed"},
 	{"sec-group", "b",
 		aciSlice{
@@ -129,9 +131,11 @@ func TestAimIndexDiff(t *testing.T) {
 		for _, o := range it.expAdds {
 			addAimLabels(it.ktype, it.key, o)
 		}
+		sort.Sort(it.expAdds)
 		for _, o := range it.expUpdates {
 			addAimLabels(it.ktype, it.key, o)
 		}
+		sort.Sort(it.expUpdates)
 
 		cont.writeAimObjects(it.ktype, it.key, it.objects)
 		assert.Equal(t, it.expAdds, cont.aimAdds, "adds", it.desc)

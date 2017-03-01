@@ -109,11 +109,13 @@ func (ao *AciList) UnmarshalJSON(data []byte) error {
 }
 
 func NewAciObj(aimType string, namingProps map[string]string) *Aci {
-	props := make([]string, len(namingProps)+1)
-	propValues := make([]string, len(namingProps)+1)
+	props := make([]string, 0, len(namingProps)+1)
+	propValues := make([]string, 0, len(namingProps)+1)
+	labels := make(map[string]string)
 
-	for k, _ := range namingProps {
+	for k, v := range namingProps {
 		props = append(props, k)
+		labels[k] = aimGenerateLabel(v)
 	}
 	sort.Strings(props)
 	for _, k := range props {
@@ -123,8 +125,11 @@ func NewAciObj(aimType string, namingProps map[string]string) *Aci {
 	ret := &Aci{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: aimNamespace,
-			Name:      generateUniqueName(append(propValues, aimType)...),
-			Labels:    namingProps,
+			Name:      aimGenerateUniqueName(aimType, propValues...),
+			Labels:    labels,
+		},
+		Spec: AciObjectSpec{
+			Type: aimType,
 		},
 	}
 	ret.ObjectMeta.Labels["aim-type"] = aimType
@@ -144,7 +149,7 @@ func NewSecurityGroup(tenantName string, name string) *Aci {
 
 func NewSecurityGroupSubject(tenantName string, secGroup string,
 	name string) *Aci {
-	ret := NewAciObj("SecurityGroup", map[string]string{
+	ret := NewAciObj("SecurityGroupSubject", map[string]string{
 		"tenant-name":         tenantName,
 		"security-group-name": secGroup,
 		"name":                name})
@@ -160,7 +165,7 @@ func NewSecurityGroupSubject(tenantName string, secGroup string,
 func NewSecurityGroupRule(tenantName string, secGroup string,
 	secGroupSubj string, name string) *Aci {
 
-	ret := NewAciObj("SecurityGroup", map[string]string{
+	ret := NewAciObj("SecurityGroupRule", map[string]string{
 		"tenant-name":                 tenantName,
 		"security-group-name":         secGroup,
 		"security-group-subject-name": secGroupSubj,
