@@ -44,6 +44,23 @@ func addAimLabels(ktype string, key string, aci *Aci) {
 	aci.ObjectMeta.Labels[aimKeyLabel] = key
 }
 
+//func (cont *AciController) reconcileAimObject(aci *Aci) {
+//	ktype, ktok := aim.ObjectMeta.Labels[aimKeyTypeLabel]
+//	key, kok := aim.ObjectMeta.Labels[aimKeyLabel]
+//	if ktok && kok {
+//		akey := newAimKey(ktype, key)
+//		if expected, ok := cont.aimDesiredState[akey]; ok {
+//
+//		} else {
+//			cont.log.Warn("Unexpected AIM object: ",
+//				aim.ObjectMeta.Name)
+//			if cont.syncEnabled {
+//				cont.executeAimDiff(nil, nil, []string{aim.ObjectMeta.Name})
+//			}
+//		}
+//	}
+//}
+
 // note that writing the same object with multiple keys will result in
 // undefined behavior.
 func (cont *AciController) writeAimObjects(ktype string,
@@ -65,7 +82,9 @@ func (cont *AciController) writeAimObjects(ktype string,
 	}
 	cont.indexMutex.Unlock()
 
-	cont.executeAimDiff(adds, updates, deletes)
+	if cont.syncEnabled {
+		cont.executeAimDiff(adds, updates, deletes)
+	}
 }
 
 func (cont *AciController) aimFullSync() {
@@ -105,7 +124,9 @@ func (cont *AciController) aimFullSync() {
 	}
 	cont.indexMutex.Unlock()
 
-	cont.executeAimDiff(adds, updates, deletes)
+	if cont.syncEnabled {
+		cont.executeAimDiff(adds, updates, deletes)
+	}
 }
 
 func (cont *AciController) diffAimState(currentState aciSlice,

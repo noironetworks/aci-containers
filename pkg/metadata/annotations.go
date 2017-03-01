@@ -20,6 +20,12 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
+// An opflex security or endpoint group
+type OpflexGroup struct {
+	PolicySpace string `json:"policy-space"`
+	Name        string `json:"name"`
+}
+
 // annotation type for service endpoint information
 type ServiceEndpoint struct {
 	Mac  string `json:"mac,omitempty"`

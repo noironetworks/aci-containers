@@ -20,6 +20,7 @@ package controller
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -107,31 +108,69 @@ func (ao *AciList) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func NewTenantObj(aimType string, tenantName string, name string) *Aci {
-	return &Aci{
+func NewAciObj(aimType string, namingProps map[string]string) *Aci {
+	props := make([]string, len(namingProps)+1)
+	propValues := make([]string, len(namingProps)+1)
+
+	for k, _ := range namingProps {
+		props = append(props, k)
+	}
+	sort.Strings(props)
+	for _, k := range props {
+		propValues = append(propValues, namingProps[k])
+	}
+
+	ret := &Aci{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: aimNamespace,
-			Name:      generateUniqueName(tenantName, name),
-			Labels: map[string]string{
-				"aim-type":    aimType,
-				"tenant-name": tenantName,
-				"name":        name,
-			},
-		},
-		Spec: AciObjectSpec{
-			SecurityGroup: &SecurityGroup{
-				Name:       name,
-				TenantName: tenantName,
-			},
+			Name:      generateUniqueName(append(propValues, aimType)...),
+			Labels:    namingProps,
 		},
 	}
+	ret.ObjectMeta.Labels["aim-type"] = aimType
+	return ret
 }
 
 func NewSecurityGroup(tenantName string, name string) *Aci {
-	ret := NewTenantObj("SecurityGroup", tenantName, name)
+	ret := NewAciObj("SecurityGroup", map[string]string{
+		"tenant-name": tenantName,
+		"name":        name})
 	ret.Spec.SecurityGroup = &SecurityGroup{
 		Name:       name,
 		TenantName: tenantName,
+	}
+	return ret
+}
+
+func NewSecurityGroupSubject(tenantName string, secGroup string,
+	name string) *Aci {
+	ret := NewAciObj("SecurityGroup", map[string]string{
+		"tenant-name":         tenantName,
+		"security-group-name": secGroup,
+		"name":                name})
+
+	ret.Spec.SecurityGroupSubject = &SecurityGroupSubject{
+		TenantName:        tenantName,
+		SecurityGroupName: secGroup,
+		Name:              name,
+	}
+	return ret
+}
+
+func NewSecurityGroupRule(tenantName string, secGroup string,
+	secGroupSubj string, name string) *Aci {
+
+	ret := NewAciObj("SecurityGroup", map[string]string{
+		"tenant-name":                 tenantName,
+		"security-group-name":         secGroup,
+		"security-group-subject-name": secGroupSubj,
+		"name": name})
+
+	ret.Spec.SecurityGroupRule = &SecurityGroupRule{
+		TenantName:               tenantName,
+		SecurityGroupName:        secGroup,
+		SecurityGroupSubjectName: secGroupSubj,
+		Name: name,
 	}
 	return ret
 }

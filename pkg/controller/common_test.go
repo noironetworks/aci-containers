@@ -163,6 +163,15 @@ func node(name string) *v1.Node {
 	}
 }
 
+func namespaceLabel(name string, labels map[string]string) *v1.Namespace {
+	return &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+	}
+}
+
 func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -188,7 +197,7 @@ func podOnNode(namespace string, name string, nodeName string) *v1.Pod {
 	}
 }
 
-func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
+func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "test-node",
@@ -196,17 +205,22 @@ func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod 
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
-			Labels: map[string]string{
-				"app":  "sample-app",
-				"tier": "sample-tier",
-			},
-			Annotations: map[string]string{
-				"kubernetes.io/created-by": "something",
-				metadata.EgAnnotation:      egAnnot,
-				metadata.SgAnnotation:      sgAnnot,
-			},
+			Labels:    labels,
 		},
 	}
+}
+
+func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
+	pod := podLabel(namespace, name, map[string]string{
+		"app":  "sample-app",
+		"tier": "sample-tier",
+	})
+	pod.ObjectMeta.Annotations = map[string]string{
+		"kubernetes.io/created-by": "something",
+		metadata.EgAnnotation:      egAnnot,
+		metadata.SgAnnotation:      sgAnnot,
+	}
+	return pod
 }
 
 func deployment(namespace string, name string, egAnnot string, sgAnnot string) *v1beta1.Deployment {

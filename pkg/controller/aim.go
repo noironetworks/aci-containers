@@ -153,7 +153,7 @@ func generateUniqueName(components ...string) string {
 		for _, rune := range component {
 			if rune >= '0' && rune <= '9' ||
 				rune >= 'a' && rune <= 'z' ||
-				rune >= 'Z' && rune <= 'Z' {
+				rune >= 'A' && rune <= 'Z' {
 				buffer.WriteRune(rune)
 			} else {
 				buffer.WriteString(fmt.Sprintf("--%x-", rune))
@@ -164,10 +164,6 @@ func generateUniqueName(components ...string) string {
 }
 
 func (cont *AciController) aimChanged(obj interface{}) {
-	aci := obj.(*Aci)
-	if aci.Spec.Type == "SecurityGroup" {
-
-	}
 }
 
 func (cont *AciController) aimDeleted(obj interface{}) {

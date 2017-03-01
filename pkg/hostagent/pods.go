@@ -40,17 +40,12 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
-type opflexGroup struct {
-	PolicySpace string `json:"policy-space"`
-	Name        string `json:"name"`
-}
-
 type opflexEndpoint struct {
 	Uuid string `json:"uuid"`
 
-	EgPolicySpace string        `json:"eg-policy-space,omitempty"`
-	EndpointGroup string        `json:"endpoint-group-name,omitempty"`
-	SecurityGroup []opflexGroup `json:"security-group,omitempty"`
+	EgPolicySpace string                 `json:"eg-policy-space,omitempty"`
+	EndpointGroup string                 `json:"endpoint-group-name,omitempty"`
+	SecurityGroup []metadata.OpflexGroup `json:"security-group,omitempty"`
 
 	IpAddress  []string `json:"ip,omitempty"`
 	MacAddress string   `json:"mac,omitempty"`
@@ -147,7 +142,7 @@ func (agent *HostAgent) syncEps() {
 	if err != nil {
 		agent.log.WithFields(
 			logrus.Fields{"endpointDir": agent.config.OpFlexEndpointDir},
-		).Error("Could not read directory " + err.Error())
+		).Error("Could not read directory ", err)
 		return
 	}
 	seen := make(map[string]bool)
@@ -266,24 +261,24 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	ep.Attributes["vm-name"] = id
 
 	if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
-		g := &opflexGroup{}
+		g := &metadata.OpflexGroup{}
 		err := json.Unmarshal([]byte(egval), g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"EgAnnotation": egval,
-			}).Error("Could not decode annotation: " + err.Error())
+			}).Error("Could not decode annotation: ", err)
 		} else {
 			ep.EgPolicySpace = g.PolicySpace
 			ep.EndpointGroup = g.Name
 		}
 	}
 	if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
-		g := make([]opflexGroup, 0)
+		g := make([]metadata.OpflexGroup, 0)
 		err := json.Unmarshal([]byte(sgval), &g)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"SgAnnotation": sgval,
-			}).Error("Could not decode annotation: " + err.Error())
+			}).Error("Could not decode annotation: ", err)
 		} else {
 			ep.SecurityGroup = g
 		}

@@ -16,11 +16,8 @@ package controller
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
 type uniqueNameTest struct {
@@ -33,6 +30,7 @@ var uniqueNameTests = []uniqueNameTest{
 	{[]string{}, "", "empty"},
 	{[]string{"a", "b", "c"}, "a-b-c", "simple"},
 	{[]string{"0", "1", "9"}, "0-1-9", "numbers"},
+	{[]string{"AA", "BB", "ZZ"}, "AA-BB-ZZ", "caps"},
 	{[]string{"a -", "-", "_"}, "a--20---2d----2d----5f-", "encode"},
 }
 
@@ -69,7 +67,8 @@ var indexDiffTests = []indexDiffTest{
 		nil,
 		aciSlice{setDispName("test", NewSecurityGroup("common", "test"))},
 		nil, "update"},
-	{"sec-group", "a", nil, nil, nil, []string{"common-test"}, "delete"},
+	{"sec-group", "a", nil, nil, nil,
+		[]string{"test-common-SecurityGroup"}, "delete"},
 	{"sec-group", "a",
 		aciSlice{
 			NewSecurityGroup("common", "test1"),
@@ -107,7 +106,7 @@ var indexDiffTests = []indexDiffTest{
 		aciSlice{
 			setDispName("test2", NewSecurityGroup("common", "test2")),
 		},
-		[]string{"common-test4"},
+		[]string{"test4-common-SecurityGroup"},
 		"mixed"},
 	{"sec-group", "b",
 		aciSlice{
@@ -147,9 +146,8 @@ func TestAimFullSync(t *testing.T) {
 
 	i := 0
 	j := 1
-	for j < len(indexDiffTests)-1 {
+	for j < len(indexDiffTests)-1 { // last test case doesn't apply to this
 		cont := testController()
-		cont.run()
 
 		it := &indexDiffTests[i]
 
@@ -157,12 +155,7 @@ func TestAimFullSync(t *testing.T) {
 			addAimLabels(it.ktype, it.key, o)
 			cont.fakeAimSource.Add(o)
 		}
-		tu.WaitFor(t, it.desc, 500*time.Millisecond,
-			func(last bool) (bool, error) {
-				return tu.WaitEqual(t, last, len(it.objects),
-					len(cont.aimInformer.GetStore().List()),
-					it.desc, "length"), nil
-			})
+		cont.run()
 
 		it = &indexDiffTests[j]
 		cont.writeAimObjects(it.ktype, it.key, it.objects)

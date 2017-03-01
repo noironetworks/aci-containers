@@ -20,6 +20,9 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 
@@ -28,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/pkg/api"
 	v1 "k8s.io/client-go/pkg/api/v1"
@@ -183,10 +187,153 @@ func networkPolicyLogger(log *logrus.Logger, np *v1beta1.NetworkPolicy) *logrus.
 	})
 }
 
+func (cont *AciController) queueNetPolUpdate(netpol *v1beta1.NetworkPolicy) {
+	key, err := cache.MetaNamespaceKeyFunc(netpol)
+	if err != nil {
+		networkPolicyLogger(cont.log, netpol).
+			Error("Could not create network policy key: ", err)
+		return
+	}
+	cont.netPolQueue.Add(key)
+}
+
+func getOpflexGroupNameForNetPol(npkey string) string {
+	return strings.Replace(npkey, "/", "_", -1)
+}
+
+func (cont *AciController) peerMatchesPod(npNs string,
+	peer *v1beta1.NetworkPolicyPeer, pod *v1.Pod, podNs *v1.Namespace) bool {
+	if peer.PodSelector != nil && npNs == pod.ObjectMeta.Namespace {
+		selector, err :=
+			metav1.LabelSelectorAsSelector(peer.PodSelector)
+		if err != nil {
+			cont.log.Error("Could not parse pod selector: ", err)
+		} else {
+			return selector.Matches(labels.Set(pod.ObjectMeta.Labels))
+		}
+	} else if peer.NamespaceSelector != nil {
+		selector, err :=
+			metav1.LabelSelectorAsSelector(peer.NamespaceSelector)
+		if err != nil {
+			cont.log.Error("Could not parse namespace selector: ", err)
+		} else {
+			return selector.Matches(labels.Set(podNs.ObjectMeta.Labels))
+		}
+	}
+	return false
+}
+
+func ipsForPod(pod *v1.Pod) []string {
+	if pod.Status.PodIP != "" {
+		return []string{pod.Status.PodIP}
+	}
+	return nil
+}
+
+func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
+	key, err := cache.MetaNamespaceKeyFunc(np)
+	logger := networkPolicyLogger(cont.log, np)
+	if err != nil {
+		logger.Error("Could not create network policy key: ", err)
+		return
+	}
+
+	peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
+	var peerPods []*v1.Pod
+	peerNs := make(map[string]*v1.Namespace)
+	for _, podkey := range peerPodKeys {
+		podobj, exists, err :=
+			cont.podInformer.GetStore().GetByKey(podkey)
+		if exists && err == nil {
+			pod := podobj.(*v1.Pod)
+			if _, nsok := peerNs[pod.ObjectMeta.Namespace]; !nsok {
+				nsobj, exists, err :=
+					cont.namespaceInformer.GetStore().
+						GetByKey(pod.ObjectMeta.Namespace)
+
+				if !exists || err != nil {
+					continue
+				}
+				peerNs[pod.ObjectMeta.Namespace] = nsobj.(*v1.Namespace)
+			}
+			peerPods = append(peerPods, pod)
+		}
+	}
+
+	var netPolObjs aciSlice
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroup(cont.config.AciTenant, key))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciTenant, key, "NetworkPolicy"))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciTenant, key, "Egress"))
+	outbound := NewSecurityGroupRule(cont.config.AciTenant, key,
+		"Egress", "allow-all-reflexive")
+	outbound.Spec.SecurityGroupRule.Direction = "egress"
+	netPolObjs = append(netPolObjs, outbound)
+
+	for i, ingress := range np.Spec.Ingress {
+		var remoteIps []string
+		if ingress.From != nil {
+			// only applies to matching pods
+			for _, pod := range peerPods {
+				for _, from := range ingress.From {
+					if ns, ok := peerNs[pod.ObjectMeta.Namespace]; ok &&
+						cont.peerMatchesPod(np.ObjectMeta.Namespace,
+							&from, pod, ns) {
+						remoteIps = append(remoteIps, ipsForPod(pod)...)
+					}
+				}
+			}
+			sort.Strings(remoteIps)
+		}
+
+		if ingress.Ports == nil {
+			rule := NewSecurityGroupRule(cont.config.AciTenant, key,
+				"NetworkPolicy", strconv.Itoa(i))
+			rule.Spec.SecurityGroupRule.Direction = "ingress"
+			rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
+			netPolObjs = append(netPolObjs, rule)
+		} else {
+			for j, p := range ingress.Ports {
+				proto := "tcp"
+				if p.Protocol != nil && *p.Protocol == v1.ProtocolUDP {
+					proto = "udp"
+				}
+				rule := NewSecurityGroupRule(cont.config.AciTenant, key,
+					"NetworkPolicy", strconv.Itoa(i)+"_"+strconv.Itoa(j))
+				rule.Spec.SecurityGroupRule.Direction = "ingress"
+				rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
+				rule.Spec.SecurityGroupRule.Ethertype = "ip"
+				rule.Spec.SecurityGroupRule.IpProtocol = proto
+
+				if p.Port != nil {
+					if p.Port.Type == intstr.Int {
+						rule.Spec.SecurityGroupRule.ToPort =
+							p.Port.String()
+					} else {
+						// the spec says that this field can be either
+						// an integer or a "named port on a pod".
+						// What does it mean for it to be a named
+						// port?  On what pod?
+						cont.log.Warning("Unsupported use of named "+
+							"port in network policy ", key)
+						continue
+					}
+				}
+				netPolObjs = append(netPolObjs, rule)
+			}
+		}
+
+	}
+
+	cont.writeAimObjects("netpol", key, netPolObjs)
+}
+
 func (cont *AciController) networkPolicyAdded(obj interface{}) {
-	cont.log.Info("added")
 	cont.netPolPods.UpdateSelectorObj(obj)
 	cont.netPolIngressPods.UpdateSelectorObj(obj)
+	cont.queueNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
 }
 
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
@@ -195,14 +342,19 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	oldnp := oldobj.(*v1beta1.NetworkPolicy)
 	newnp := newobj.(*v1beta1.NetworkPolicy)
 
+	shouldqueue := false
 	if !reflect.DeepEqual(&oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
-		cont.netPolPods.UpdateSelectorObj(newobj)
+		shouldqueue =
+			cont.netPolPods.UpdateSelectorObjNoCallback(newobj) || shouldqueue
 	}
 	if !reflect.DeepEqual(oldnp.Spec.Ingress, newnp.Spec.Ingress) {
-		cont.netPolIngressPods.UpdateSelectorObj(newobj)
+		shouldqueue =
+			cont.netPolIngressPods.UpdateSelectorObjNoCallback(newobj) ||
+				shouldqueue
 	}
 	if !reflect.DeepEqual(oldnp.ObjectMeta.Annotations,
 		newnp.ObjectMeta.Annotations) {
+		shouldqueue = true
 		npkey, err :=
 			cache.MetaNamespaceKeyFunc(newnp)
 		if err != nil {
@@ -217,11 +369,24 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 				cont.queuePodUpdate(podobj.(*v1.Pod))
 			}
 		}
+	} else if !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
+		shouldqueue = true
 	}
 
+	if shouldqueue {
+		cont.queueNetPolUpdate(newnp)
+	}
 }
 
 func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 	cont.netPolPods.DeleteSelectorObj(obj)
 	cont.netPolIngressPods.DeleteSelectorObj(obj)
+
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
+		networkPolicyLogger(cont.log, obj.(*v1beta1.NetworkPolicy)).
+			Error("Could not create network policy key: ", err)
+		return
+	}
+	cont.clearAimObjects("netpol", key)
 }

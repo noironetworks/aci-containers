@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"net/http"
 	"reflect"
 
@@ -85,24 +86,6 @@ func podFilter(pod *v1.Pod) bool {
 	return true
 }
 
-func (cont *AciController) processNextPodItem() bool {
-	key, quit := cont.podQueue.Get()
-	if quit {
-		return false
-	}
-
-	podkey := key.(string)
-	podobj, exists, err :=
-		cont.podInformer.GetStore().GetByKey(podkey)
-	if err == nil && exists {
-		cont.handlePodUpdate(podobj.(*v1.Pod))
-	}
-	cont.podQueue.Forget(key)
-	cont.podQueue.Done(key)
-
-	return true
-}
-
 func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
@@ -110,6 +93,49 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 		return
 	}
 	cont.podQueue.Add(podkey)
+}
+
+func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
+	sgval *string) (*string, error) {
+
+	// XXX TODO need to look at namespace annotation set no sec-group
+	// if not set
+	// XXX TODO need to add sec group to allow node traffic
+
+	g := make([]metadata.OpflexGroup, 0)
+	if sgval != nil && *sgval != "" {
+		err := json.Unmarshal([]byte(*sgval), &g)
+		if err != nil {
+			cont.log.WithFields(logrus.Fields{
+				"SgAnnotation": sgval,
+			}).Error("Could not decode annotation: ", err)
+		}
+	}
+	gset := make(map[metadata.OpflexGroup]bool)
+	for _, og := range g {
+		gset[og] = true
+	}
+
+	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
+		newg := metadata.OpflexGroup{
+			PolicySpace: cont.config.AciTenant,
+			Name:        getOpflexGroupNameForNetPol(npkey),
+		}
+		if _, ok := gset[newg]; !ok {
+			gset[newg] = true
+			g = append(g, newg)
+		}
+	}
+
+	if len(g) == 0 {
+		return sgval, nil
+	}
+	raw, err := json.Marshal(g)
+	if err != nil {
+		return sgval, err
+	}
+	result := string(raw)
+	return &result, nil
 }
 
 func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
@@ -188,7 +214,16 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 		sgval = &og
 	}
 
+	sgval, err = cont.mergeNetPolSg(podkey, pod, sgval)
+	if err != nil {
+		logger.Error("Could not generate network policy ",
+			"security groups:", err)
+	}
+
 	podUpdated := false
+	if pod.ObjectMeta.Annotations == nil {
+		pod.ObjectMeta.Annotations = make(map[string]string)
+	}
 	oldegval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]
 	if egval != nil && *egval != "" {
 		if !ok || oldegval != *egval {

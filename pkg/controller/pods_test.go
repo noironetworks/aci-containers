@@ -29,8 +29,8 @@ type annotTest struct {
 	desc    string
 }
 
-const egAnnot = "{\"policy-space\": \"testps\", \"name\": \"test|test-eg\"}"
-const sgAnnot = "[{\"policy-space\": \"testps\", \"name\": \"test-sg\"}]"
+const egAnnot = "{\"policy-space\":\"testps\",\"name\":\"test|test-eg\"}"
+const sgAnnot = "[{\"policy-space\":\"testps\",\"name\":\"test-sg\"}]"
 
 var annotTests = []annotTest{
 	{"testns", egAnnot, "", "egonly"},

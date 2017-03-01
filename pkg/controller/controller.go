@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -47,7 +48,8 @@ type AciController struct {
 	defaultEg string
 	defaultSg string
 
-	podQueue workqueue.RateLimitingInterface
+	podQueue    workqueue.RateLimitingInterface
+	netPolQueue workqueue.RateLimitingInterface
 
 	namespaceInformer     cache.SharedIndexInformer
 	podInformer           cache.SharedIndexInformer
@@ -82,6 +84,8 @@ type AciController struct {
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
+
+	syncEnabled bool
 }
 
 type nodeServiceMeta struct {
@@ -114,7 +118,8 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		defaultEg: "",
 		defaultSg: "",
 
-		podQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		podQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		netPolQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkPolicy"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -205,6 +210,32 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.initNetPolPodIndex()
 }
 
+func processQueue(queue workqueue.RateLimitingInterface,
+	informer cache.SharedIndexInformer,
+	handler func(interface{}),
+	stopCh <-chan struct{}) {
+	for i := 0; i < 2; i++ {
+		go wait.Until(func() {
+			for {
+				key, quit := queue.Get()
+				if quit {
+					break
+				}
+
+				obj, exists, err :=
+					informer.GetStore().GetByKey(key.(string))
+				if err == nil && exists {
+					handler(obj)
+				}
+				queue.Forget(key)
+				queue.Done(key)
+			}
+		}, time.Second, stopCh)
+	}
+	<-stopCh
+	queue.ShutDown()
+}
+
 func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Starting informers")
 	go cont.namespaceInformer.Run(stopCh)
@@ -215,14 +246,30 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.serviceInformer.Run(stopCh)
 	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.aimInformer.Run(stopCh)
-	go func() {
-		for i := 0; i < 4; i++ {
-			go wait.Until(func() {
-				for cont.processNextPodItem() {
-				}
-			}, time.Second, stopCh)
-		}
-		<-stopCh
-		cont.podQueue.ShutDown()
-	}()
+	go processQueue(cont.podQueue, cont.podInformer,
+		func(obj interface{}) {
+			cont.handlePodUpdate(obj.(*v1.Pod))
+		}, stopCh)
+	go processQueue(cont.netPolQueue, cont.networkPolicyInformer,
+		func(obj interface{}) {
+			cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
+		}, stopCh)
+
+	cont.log.Debug("Waiting for cache sync")
+	cache.WaitForCacheSync(stopCh,
+		cont.namespaceInformer.HasSynced,
+		cont.nodeInformer.HasSynced,
+		cont.deploymentInformer.HasSynced,
+		cont.podInformer.HasSynced,
+		cont.endpointsInformer.HasSynced,
+		cont.serviceInformer.HasSynced,
+		cont.networkPolicyInformer.HasSynced,
+		cont.aimInformer.HasSynced)
+
+	cont.log.Info("Enabling object sync")
+	cont.indexMutex.Lock()
+	cont.syncEnabled = true
+	cont.indexMutex.Unlock()
+	cont.aimFullSync()
+	cont.log.Debug("Initial object sync complete")
 }
