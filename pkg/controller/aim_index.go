@@ -144,7 +144,11 @@ func (cont *AciController) diffAimState(currentState aciSlice,
 			adds = append(adds, desiredState[j])
 			j++
 		} else {
-			if !reflect.DeepEqual(currentState[i].Spec, desiredState[j].Spec) {
+			if !reflect.DeepEqual(currentState[i].Spec, desiredState[j].Spec) ||
+				!reflect.DeepEqual(currentState[i].Labels,
+					desiredState[j].Labels) ||
+				!reflect.DeepEqual(currentState[i].Annotations,
+					desiredState[j].Annotations) {
 				updates = append(updates, desiredState[j])
 			}
 

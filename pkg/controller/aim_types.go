@@ -132,13 +132,13 @@ func NewAciObj(aimType string, namingProps map[string]string) *Aci {
 			Type: aimType,
 		},
 	}
-	ret.ObjectMeta.Labels["aim-type"] = aimType
+	ret.ObjectMeta.Labels["aim_type"] = aimType
 	return ret
 }
 
 func NewSecurityGroup(tenantName string, name string) *Aci {
 	ret := NewAciObj("security_group", map[string]string{
-		"tenant-name": tenantName,
+		"tenant_name": tenantName,
 		"name":        name})
 	ret.Spec.SecurityGroup = &SecurityGroup{
 		Name:       name,
@@ -150,8 +150,8 @@ func NewSecurityGroup(tenantName string, name string) *Aci {
 func NewSecurityGroupSubject(tenantName string, secGroup string,
 	name string) *Aci {
 	ret := NewAciObj("security_group_subject", map[string]string{
-		"tenant-name":         tenantName,
-		"security-group-name": secGroup,
+		"tenant_name":         tenantName,
+		"security_group_name": secGroup,
 		"name":                name})
 
 	ret.Spec.SecurityGroupSubject = &SecurityGroupSubject{
@@ -166,9 +166,9 @@ func NewSecurityGroupRule(tenantName string, secGroup string,
 	secGroupSubj string, name string) *Aci {
 
 	ret := NewAciObj("security_group_rule", map[string]string{
-		"tenant-name":                 tenantName,
-		"security-group-name":         secGroup,
-		"security-group-subject-name": secGroupSubj,
+		"tenant_name":                 tenantName,
+		"security_group_name":         secGroup,
+		"security_group_subject_name": secGroupSubj,
 		"name": name})
 
 	ret.Spec.SecurityGroupRule = &SecurityGroupRule{
