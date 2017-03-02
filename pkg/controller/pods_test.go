@@ -18,6 +18,9 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
@@ -122,6 +125,47 @@ func TestDeploymentAnnotationPre(t *testing.T) {
 	cont.podUpdates = nil
 	cont.fakePodSource.Add(pod("testns", "testpod2", "", ""))
 	waitForGroupAnnot(t, cont, egAnnot, sgAnnot, "pod2")
+
+	cont.stop()
+}
+
+func TestNamespaceIsolation(t *testing.T) {
+	cont := testController()
+	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
+		&metav1.LabelSelector{},
+		[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}))
+	cont.run()
+
+	ns := namespace("testns", "", "")
+	ns.ObjectMeta.Annotations[metadata.NetworkPolicyAnnotation] =
+		"{\"ingress\":{\"isolation\":\"DefaultDeny\"}}"
+	cont.fakeNamespaceSource.Add(ns)
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"}]",
+		"added")
+
+	ns2 := namespace("testns", "", "")
+	ns2.ObjectMeta.Annotations[metadata.NetworkPolicyAnnotation] = "invalid"
+	cont.fakeNamespaceSource.Add(ns2)
+	waitForGroupAnnot(t, cont, "", "", "invalid")
+
+	cont.fakePodSource.Add(pod("testns", "testpod", "",
+		"[{\"policy-space\":\"test\",\"name\":\"mysg\"}]"))
+	cont.fakeNamespaceSource.Add(ns)
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"}]",
+		"combine")
+
+	pod := pod("testns", "testpod", "", "")
+	pod.Spec.NodeName = ""
+	cont.fakePodSource.Add(pod)
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"}]",
+		"no-node")
 
 	cont.stop()
 }

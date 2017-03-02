@@ -22,6 +22,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sort"
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,6 +72,41 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 		},
 	})
 
+}
+
+func (cont *AciController) createNetPolForNode(node *v1.Node) {
+	var netPolObjs aciSlice
+
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroup(cont.config.AciTenant, node.Name))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciTenant, node.Name, "LocalNode"))
+
+	var nodeIps []string
+	for _, a := range node.Status.Addresses {
+		if a.Address != "" &&
+			(a.Type == "InternalIP" || a.Type == "ExternalIP") {
+			nodeIps = append(nodeIps, a.Address)
+		}
+	}
+	if len(nodeIps) == 0 {
+		return
+	}
+	sort.Strings(nodeIps)
+
+	outbound := NewSecurityGroupRule(cont.config.AciTenant, node.Name,
+		"LocalNode", "allow-all-egress")
+	outbound.Spec.SecurityGroupRule.Direction = "egress"
+	outbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
+	netPolObjs = append(netPolObjs, outbound)
+
+	inbound := NewSecurityGroupRule(cont.config.AciTenant, node.Name,
+		"LocalNode", "allow-all-ingress")
+	inbound.Spec.SecurityGroupRule.Direction = "ingress"
+	inbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
+	netPolObjs = append(netPolObjs, inbound)
+
+	cont.writeAimObjects("Node", node.Name, netPolObjs)
 }
 
 func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
@@ -177,6 +213,8 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	}
 	cont.indexMutex.Unlock()
 
+	cont.createNetPolForNode(node)
+
 	if nodeUpdated {
 		_, err := cont.updateNode(node)
 		if err != nil {
@@ -200,10 +238,11 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 }
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
+	node := obj.(*v1.Node)
+	cont.clearAimObjects("Node", node.Name)
+
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
-
-	node := obj.(*v1.Node)
 
 	if existing, ok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
 		if existing.serviceEp.Ipv4 != nil {

@@ -170,18 +170,21 @@ func (cont *AciController) executeAimDiff(adds aciSlice,
 	updates aciSlice, deletes []string) {
 
 	for _, delete := range deletes {
+		cont.log.Debug("Deleting ", delete)
 		err := cont.deleteAim(delete, nil)
 		if err != nil {
 			cont.log.Error("Could not delete AIM object: ", err)
 		}
 	}
 	for _, update := range updates {
+		cont.log.Debug("Updating ", update.Spec.Type, " ", update.Name)
 		_, err := cont.updateAim(update)
 		if err != nil {
 			cont.log.Error("Could not update AIM object: ", err)
 		}
 	}
 	for _, add := range adds {
+		cont.log.Debug("Adding ", add.Spec.Type, " ", add.Name)
 		_, err := cont.addAim(add)
 		if err != nil {
 			cont.log.Error("Could not add AIM object: ", err)

@@ -95,12 +95,35 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 	cont.podQueue.Add(podkey)
 }
 
-func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
-	sgval *string) (*string, error) {
+func (cont *AciController) getNetPolIsolation(namespace *v1.Namespace) string {
+	if p, ok := namespace.Annotations[metadata.NetworkPolicyAnnotation]; ok {
+		np := &metadata.NetworkPolicy{}
+		err := json.Unmarshal([]byte(p), &np)
+		if err != nil {
+			cont.log.WithFields(logrus.Fields{
+				"Namespace":        namespace.Name,
+				"NetPolAnnotation": p,
+			}).Error("Could not decode annotation: ", err)
+			return ""
+		}
 
-	// XXX TODO need to look at namespace annotation set no sec-group
-	// if not set
-	// XXX TODO need to add sec group to allow node traffic
+		if np.Ingress != nil {
+			return np.Ingress.Isolation
+		}
+	}
+	return ""
+}
+
+func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
+	namespace *v1.Namespace, sgval *string) (*string, error) {
+
+	// If the namespace is not isolated, network policy has no effect
+	// so we set the pods in no security group to allow all traffic.
+	// This can still be set by the user with specific security group
+	// annotations however
+	if namespace == nil || cont.getNetPolIsolation(namespace) != "DefaultDeny" {
+		return sgval, nil
+	}
 
 	g := make([]metadata.OpflexGroup, 0)
 	if sgval != nil && *sgval != "" {
@@ -116,10 +139,23 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 		gset[og] = true
 	}
 
+	// Add network policies that directly select this pod
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
 		newg := metadata.OpflexGroup{
 			PolicySpace: cont.config.AciTenant,
 			Name:        getOpflexGroupNameForNetPol(npkey),
+		}
+		if _, ok := gset[newg]; !ok {
+			gset[newg] = true
+			g = append(g, newg)
+		}
+	}
+
+	// Add network policy for accessing the pod's local node
+	if pod.Spec.NodeName != "" {
+		newg := metadata.OpflexGroup{
+			PolicySpace: cont.config.AciTenant,
+			Name:        pod.Spec.NodeName,
 		}
 		if _, ok := gset[newg]; !ok {
 			gset[newg] = true
@@ -165,13 +201,15 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	// namespace annotation has next-highest priority
 	namespaceobj, exists, err :=
 		cont.namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
+	var namespace *v1.Namespace
 	if err != nil {
 		cont.log.Error("Could not lookup namespace " +
 			pod.ObjectMeta.Namespace + ": " + err.Error())
 		return false
 	}
+
 	if exists && namespaceobj != nil {
-		namespace := namespaceobj.(*v1.Namespace)
+		namespace = namespaceobj.(*v1.Namespace)
 
 		if og, ok := namespace.ObjectMeta.Annotations[metadata.EgAnnotation]; ok && og != "" {
 			egval = &og
@@ -214,7 +252,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 		sgval = &og
 	}
 
-	sgval, err = cont.mergeNetPolSg(podkey, pod, sgval)
+	sgval, err = cont.mergeNetPolSg(podkey, pod, namespace, sgval)
 	if err != nil {
 		logger.Error("Could not generate network policy ",
 			"security groups:", err)

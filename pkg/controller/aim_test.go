@@ -69,7 +69,7 @@ var indexDiffTests = []indexDiffTest{
 		aciSlice{setDispName("test", NewSecurityGroup("common", "test"))},
 		nil, "update"},
 	{"sec-group", "a", nil, nil, nil,
-		[]string{aimGenerateUniqueName("SecurityGroup", "test", "common")},
+		[]string{aimGenerateUniqueName("security_group", "test", "common")},
 		"delete"},
 	{"sec-group", "a",
 		aciSlice{
@@ -108,7 +108,7 @@ var indexDiffTests = []indexDiffTest{
 		aciSlice{
 			setDispName("test2", NewSecurityGroup("common", "test2")),
 		},
-		[]string{aimGenerateUniqueName("SecurityGroup", "test4", "common")},
+		[]string{aimGenerateUniqueName("security_group", "test4", "common")},
 		"mixed"},
 	{"sec-group", "b",
 		aciSlice{

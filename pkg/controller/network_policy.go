@@ -328,7 +328,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 
 	}
 
-	cont.writeAimObjects("netpol", labelKey, netPolObjs)
+	cont.writeAimObjects("NetworkPolicy", labelKey, netPolObjs)
 	return false
 }
 
@@ -390,5 +390,5 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.clearAimObjects("netpol", strings.Replace(key, "/", "_", -1))
+	cont.clearAimObjects("NetworkPolicy", strings.Replace(key, "/", "_", -1))
 }

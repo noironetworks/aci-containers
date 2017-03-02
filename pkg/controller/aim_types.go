@@ -137,7 +137,7 @@ func NewAciObj(aimType string, namingProps map[string]string) *Aci {
 }
 
 func NewSecurityGroup(tenantName string, name string) *Aci {
-	ret := NewAciObj("SecurityGroup", map[string]string{
+	ret := NewAciObj("security_group", map[string]string{
 		"tenant-name": tenantName,
 		"name":        name})
 	ret.Spec.SecurityGroup = &SecurityGroup{
@@ -149,7 +149,7 @@ func NewSecurityGroup(tenantName string, name string) *Aci {
 
 func NewSecurityGroupSubject(tenantName string, secGroup string,
 	name string) *Aci {
-	ret := NewAciObj("SecurityGroupSubject", map[string]string{
+	ret := NewAciObj("security_group_subject", map[string]string{
 		"tenant-name":         tenantName,
 		"security-group-name": secGroup,
 		"name":                name})
@@ -165,7 +165,7 @@ func NewSecurityGroupSubject(tenantName string, secGroup string,
 func NewSecurityGroupRule(tenantName string, secGroup string,
 	secGroupSubj string, name string) *Aci {
 
-	ret := NewAciObj("SecurityGroupRule", map[string]string{
+	ret := NewAciObj("security_group_rule", map[string]string{
 		"tenant-name":                 tenantName,
 		"security-group-name":         secGroup,
 		"security-group-subject-name": secGroupSubj,

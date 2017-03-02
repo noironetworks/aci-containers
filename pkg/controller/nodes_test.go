@@ -17,12 +17,17 @@ package controller
 import (
 	"encoding/json"
 	"net"
+	"sort"
 	"testing"
 	"time"
 
+	v1 "k8s.io/client-go/pkg/api/v1"
+
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func waitForSEpAnnot(t *testing.T, cont *testAciController, ipv4 net.IP, ipv6 net.IP, desc string) {
@@ -209,6 +214,43 @@ func TestPodNetAnnotation(t *testing.T) {
 			},
 		}, "out of range intersection")
 	}
+
+	cont.stop()
+}
+
+func TestNodeNetPol(t *testing.T) {
+	cont := testController()
+	cont.config.AciTenant = "test-tenant"
+	node := node("node1")
+	node.Status.Addresses = []v1.NodeAddress{
+		v1.NodeAddress{Type: "Hostname", Address: "test-node"},
+		v1.NodeAddress{Type: "InternalIP", Address: "1.1.1.1"},
+	}
+	cont.fakeNodeSource.Add(node)
+	cont.run()
+
+	rule_0_0 := NewSecurityGroupRule("test-tenant", "node1",
+		"LocalNode", "allow-all-egress")
+	rule_0_0.Spec.SecurityGroupRule.Direction = "egress"
+	rule_0_0.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
+	rule_0_1 := NewSecurityGroupRule("test-tenant", "node1",
+		"LocalNode", "allow-all-ingress")
+	rule_0_1.Spec.SecurityGroupRule.Direction = "ingress"
+	rule_0_1.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
+	expected := aciSlice{
+		NewSecurityGroup("test-tenant", "node1"),
+		NewSecurityGroupSubject("test-tenant", "node1", "LocalNode"),
+		rule_0_0, rule_0_1,
+	}
+	sort.Sort(expected)
+	for _, o := range expected {
+		addAimLabels("Node", "node1", o)
+	}
+
+	cont.indexMutex.Lock()
+	assert.Equal(t, expected,
+		cont.aimDesiredState[aimKey{"Node", "node1"}], "node-rule")
+	cont.indexMutex.Unlock()
 
 	cont.stop()
 }
