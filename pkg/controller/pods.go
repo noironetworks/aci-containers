@@ -138,16 +138,16 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	return &result, nil
 }
 
-func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
+func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	if !podFilter(pod) {
-		return
+		return false
 	}
 	logger := podLogger(cont.log, pod)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		logger.Error("Could not create pod key: ", err)
-		return
+		return false
 	}
 
 	cont.indexMutex.Lock()
@@ -168,7 +168,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 	if err != nil {
 		cont.log.Error("Could not lookup namespace " +
 			pod.ObjectMeta.Namespace + ": " + err.Error())
-		return
+		return false
 	}
 	if exists && namespaceobj != nil {
 		namespace := namespaceobj.(*v1.Namespace)
@@ -254,9 +254,8 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 		if err != nil {
 			if serr, ok := err.(*kubeerr.StatusError); ok {
 				if serr.ErrStatus.Code == http.StatusConflict {
-					logger.Debug("Conflict updating pod; ",
-						"will retry on next update")
-					return
+					logger.Debug("Conflict updating pod; will retry")
+					return true
 				}
 			}
 			logger.Error("Failed to update pod: ", err)
@@ -267,6 +266,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) {
 			}).Info("Updated pod annotations")
 		}
 	}
+	return false
 }
 
 func (cont *AciController) podAdded(obj interface{}) {
@@ -292,6 +292,8 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	}
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
 		newpod.ObjectMeta.Annotations) {
+		shouldqueue = true
+	} else if oldpod.Spec.NodeName != newpod.Spec.NodeName {
 		shouldqueue = true
 	}
 

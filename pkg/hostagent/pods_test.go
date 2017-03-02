@@ -120,8 +120,8 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 			return tu.WaitNil(t, last, err, desc, pt.name, "unmarshal pod"), nil
 		})
 
-	eg := &opflexGroup{}
-	sg := make([]opflexGroup, 0)
+	eg := &metadata.OpflexGroup{}
+	sg := make([]metadata.OpflexGroup, 0)
 	json.Unmarshal([]byte(pt.eg), eg)
 	json.Unmarshal([]byte(pt.sg), &sg)
 

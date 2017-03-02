@@ -212,7 +212,7 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 
 func processQueue(queue workqueue.RateLimitingInterface,
 	informer cache.SharedIndexInformer,
-	handler func(interface{}),
+	handler func(interface{}) bool,
 	stopCh <-chan struct{}) {
 	for i := 0; i < 2; i++ {
 		go wait.Until(func() {
@@ -225,10 +225,13 @@ func processQueue(queue workqueue.RateLimitingInterface,
 				obj, exists, err :=
 					informer.GetStore().GetByKey(key.(string))
 				if err == nil && exists {
-					handler(obj)
+					if handler(obj) {
+						queue.Add(key)
+					}
 				}
 				queue.Forget(key)
 				queue.Done(key)
+
 			}
 		}, time.Second, stopCh)
 	}
@@ -247,12 +250,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.aimInformer.Run(stopCh)
 	go processQueue(cont.podQueue, cont.podInformer,
-		func(obj interface{}) {
-			cont.handlePodUpdate(obj.(*v1.Pod))
+		func(obj interface{}) bool {
+			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, stopCh)
 	go processQueue(cont.netPolQueue, cont.networkPolicyInformer,
-		func(obj interface{}) {
-			cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
+		func(obj interface{}) bool {
+			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
 		}, stopCh)
 
 	cont.log.Debug("Waiting for cache sync")

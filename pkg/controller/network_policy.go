@@ -230,12 +230,12 @@ func ipsForPod(pod *v1.Pod) []string {
 	return nil
 }
 
-func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
+func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
 		logger.Error("Could not create network policy key: ", err)
-		return
+		return false
 	}
 
 	peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
@@ -329,6 +329,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) {
 	}
 
 	cont.writeAimObjects("netpol", labelKey, netPolObjs)
+	return false
 }
 
 func (cont *AciController) networkPolicyAdded(obj interface{}) {

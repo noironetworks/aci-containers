@@ -272,6 +272,7 @@ func (i *PodSelectorIndex) UpdateNamespace(ns *v1.Namespace) {
 		}
 
 		namespaces := i.getObjNamespaces(obj)
+		i.log.Info(namespaces)
 		if !reflect.DeepEqual(namespaces, i.objNsIndex[objkey]) {
 			newupdated, objupdated := i.updateSelectorObjForNs(obj, namespaces)
 			for u, _ := range newupdated {
@@ -327,7 +328,6 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 	updatedPods := make(set)
 	objUpdated := false
 
-	i.indexMutex.Lock()
 	i.objNsIndex[objkey] = namespaces
 	for ns, selectors := range namespaces {
 		for _, selector := range selectors {
@@ -372,7 +372,7 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 		i.objPodIndex[objkey] = matched
 		objUpdated = true
 	}
-	i.indexMutex.Unlock()
+
 	return updatedPods, objUpdated
 }
 
@@ -395,7 +395,9 @@ func (i *PodSelectorIndex) UpdateSelectorObj(obj interface{}) {
 // changed
 func (i *PodSelectorIndex) UpdateSelectorObjNoCallback(obj interface{}) bool {
 	namespaces := i.getObjNamespaces(obj)
+	i.indexMutex.Lock()
 	updatedPods, objUpdated := i.updateSelectorObjForNs(obj, namespaces)
+	i.indexMutex.Unlock()
 
 	i.updatePods(updatedPods)
 
