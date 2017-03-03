@@ -15,7 +15,8 @@ BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
-STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -a -installsuffix cgo
+STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
+	-ldflags="-s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
 
 .PHONY: clean goinstall check all

@@ -9,6 +9,7 @@ VARDIR=${PREFIX}/var
 ACIBIN=${PREFIX}/bin
 HOSTAGENT=${ACIBIN}/aci-containers-host-agent
 HOSTAGENT_CONF=/usr/local/etc/aci-containers/host-agent.conf
+KUBECONFIG=/usr/local/etc/kubeconfig
 
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
@@ -35,8 +36,13 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
 fi
 
+CMD=${HOSTAGENT}
 if [ -f ${HOSTAGENT_CONF} ]; then
-    exec ${HOSTAGENT} -config-path ${HOSTAGENT_CONF}
-else
-    exec ${HOSTAGENT}
+    CMD="${CMD} -config-path ${HOSTAGENT_CONF}"
 fi
+if [ -f ${KUBECONFIG} ]; then
+    CMD="${CMD} -kubeconfig ${KUBECONFIG}"
+fi
+    
+exec ${CMD}
+

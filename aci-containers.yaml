@@ -89,6 +89,8 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
+            - name: kubeconfig
+              mountPath: /usr/local/etc/kubeconfig
             - name: host-config-volume
               mountPath: /usr/local/etc/aci-containers/
           livenessProbe:
@@ -153,6 +155,9 @@ spec:
         - name: hostrun
           hostPath:
             path: /run
+        - name: kubeconfig
+          hostPath:
+            path: /etc/kubernetes/kubelet.conf
         - name: host-config-volume
           configMap:
             name: aci-containers-config
