@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"sort"
 	"testing"
 	"time"
 
@@ -25,6 +24,7 @@ import (
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func port(proto *string, port *int) v1beta1.NetworkPolicyPort {
@@ -78,6 +78,10 @@ type npTest struct {
 	desc    string
 }
 
+func staticNetPolKey() aimKey {
+	return aimKey{"StaticNetworkPolicy", "static"}
+}
+
 func TestNetworkPolicy(t *testing.T) {
 	tcp := "TCP"
 	udp := "UDP"
@@ -91,21 +95,21 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_1_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0_0")
 	rule_1_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_1_0.Spec.SecurityGroupRule.Ethertype = "ip"
+	rule_1_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_1_0.Spec.SecurityGroupRule.IpProtocol = "tcp"
 	rule_1_0.Spec.SecurityGroupRule.ToPort = "80"
 
 	rule_3_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0_0")
 	rule_3_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_3_0.Spec.SecurityGroupRule.Ethertype = "ip"
+	rule_3_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_3_0.Spec.SecurityGroupRule.IpProtocol = "udp"
 	rule_3_0.Spec.SecurityGroupRule.ToPort = "80"
 
 	rule_4_1 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0_1")
 	rule_4_1.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_4_1.Spec.SecurityGroupRule.Ethertype = "ip"
+	rule_4_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_4_1.Spec.SecurityGroupRule.IpProtocol = "tcp"
 	rule_4_1.Spec.SecurityGroupRule.ToPort = "443"
 
@@ -129,7 +133,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0_0")
 	rule_8_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_8_0.Spec.SecurityGroupRule.Ethertype = "ip"
+	rule_8_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_8_0.Spec.SecurityGroupRule.IpProtocol = "tcp"
 	rule_8_0.Spec.SecurityGroupRule.ToPort = "80"
 	rule_8_0.Spec.SecurityGroupRule.RemoteIps =
@@ -137,23 +141,17 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_1 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "1_0")
 	rule_8_1.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_8_1.Spec.SecurityGroupRule.Ethertype = "ip"
+	rule_8_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_8_1.Spec.SecurityGroupRule.IpProtocol = "tcp"
 	rule_8_1.Spec.SecurityGroupRule.ToPort = "443"
 	rule_8_1.Spec.SecurityGroupRule.RemoteIps =
 		[]string{"1.1.1.2"}
 
-	outbound := NewSecurityGroupRule("test-tenant", "testns_np1",
-		"Egress", "allow-all-reflexive")
-	outbound.Spec.SecurityGroupRule.Direction = "egress"
 	baseSlice := func() aciSlice {
 		return aciSlice{
 			NewSecurityGroup("test-tenant", "testns_np1"),
 			NewSecurityGroupSubject("test-tenant", "testns_np1",
 				"NetworkPolicy"),
-			NewSecurityGroupSubject("test-tenant", "testns_np1",
-				"Egress"),
-			outbound,
 		}
 	}
 
@@ -275,13 +273,16 @@ func TestNetworkPolicy(t *testing.T) {
 	p = podLabel("ns1", "pod4", map[string]string{"l1": "v2"})
 	p.Status.PodIP = "1.1.1.4"
 	cont.fakePodSource.Add(p)
-	cont.run()
 	p = podLabel("ns2", "pod5", map[string]string{"l1": "v1"})
 	p.Status.PodIP = "1.1.1.5"
 	cont.fakePodSource.Add(p)
 	p = podLabel("ns2", "pod6", map[string]string{"l1": "v2"})
 	cont.fakePodSource.Add(p)
 	cont.run()
+
+	static := cont.staticNetPolObjs()
+	fixAciSlice(static, staticNetPolKey().ktype, staticNetPolKey().key)
+	assert.Equal(t, static, cont.aimDesiredState[staticNetPolKey()], "static")
 
 	for _, nt := range npTests {
 		cont.log.Info("Starting ", nt.desc)
@@ -293,11 +294,8 @@ func TestNetworkPolicy(t *testing.T) {
 				defer cont.indexMutex.Unlock()
 
 				for key, slice := range nt.aciObjs {
-					sort.Sort(slice)
-					for _, o := range slice {
-						addAimLabels("NetworkPolicy",
-							nt.netPol.Namespace+"_"+nt.netPol.Name, o)
-					}
+					fixAciSlice(slice, "NetworkPolicy",
+						nt.netPol.Namespace+"_"+nt.netPol.Name)
 					if !tu.WaitEqual(t, last, slice,
 						cont.aimDesiredState[key], nt.desc, key) {
 						return false, nil

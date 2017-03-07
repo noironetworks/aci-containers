@@ -143,7 +143,8 @@ func TestNamespaceIsolation(t *testing.T) {
 	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"added")
 
 	ns2 := namespace("testns", "", "")
@@ -157,14 +158,16 @@ func TestNamespaceIsolation(t *testing.T) {
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"combine")
 
 	pod := pod("testns", "testpod", "", "")
 	pod.Spec.NodeName = ""
 	cont.fakePodSource.Add(pod)
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"}]",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"no-node")
 
 	cont.stop()

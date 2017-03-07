@@ -180,6 +180,26 @@ func (cont *AciController) initNetPolPodIndex() {
 	)
 }
 
+func (cont *AciController) staticNetPolObjs() aciSlice {
+	var netPolObjs aciSlice
+
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroup(cont.config.AciTenant, "egress"))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciTenant, "egress", "Egress"))
+	outbound := NewSecurityGroupRule(cont.config.AciTenant, "egress",
+		"Egress", "allow-all-reflexive")
+	outbound.Spec.SecurityGroupRule.Direction = "egress"
+	netPolObjs = append(netPolObjs, outbound)
+
+	return netPolObjs
+}
+
+func (cont *AciController) initStaticNetPolObjs() {
+	cont.writeAimObjects("StaticNetworkPolicy", "static",
+		cont.staticNetPolObjs())
+}
+
 func networkPolicyLogger(log *logrus.Logger, np *v1beta1.NetworkPolicy) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": np.ObjectMeta.Namespace,
@@ -266,12 +286,6 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 		NewSecurityGroup(cont.config.AciTenant, labelKey))
 	netPolObjs = append(netPolObjs,
 		NewSecurityGroupSubject(cont.config.AciTenant, labelKey, "NetworkPolicy"))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, labelKey, "Egress"))
-	outbound := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
-		"Egress", "allow-all-reflexive")
-	outbound.Spec.SecurityGroupRule.Direction = "egress"
-	netPolObjs = append(netPolObjs, outbound)
 
 	for i, ingress := range np.Spec.Ingress {
 		var remoteIps []string
@@ -305,7 +319,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 					"NetworkPolicy", strconv.Itoa(i)+"_"+strconv.Itoa(j))
 				rule.Spec.SecurityGroupRule.Direction = "ingress"
 				rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
-				rule.Spec.SecurityGroupRule.Ethertype = "ip"
+				rule.Spec.SecurityGroupRule.Ethertype = "ipv4"
 				rule.Spec.SecurityGroupRule.IpProtocol = proto
 
 				if p.Port != nil {

@@ -239,6 +239,10 @@ func processQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
+func (cont *AciController) initStaticObjs() {
+	cont.initStaticNetPolObjs()
+}
+
 func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Starting informers")
 	go cont.namespaceInformer.Run(stopCh)
@@ -268,6 +272,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.serviceInformer.HasSynced,
 		cont.networkPolicyInformer.HasSynced,
 		cont.aimInformer.HasSynced)
+
+	cont.initStaticObjs()
 
 	cont.log.Info("Enabling object sync")
 	cont.indexMutex.Lock()

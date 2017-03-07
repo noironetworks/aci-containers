@@ -163,6 +163,18 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 		}
 	}
 
+	// Add static network policy to allow egress traffic
+	{
+		newg := metadata.OpflexGroup{
+			PolicySpace: cont.config.AciTenant,
+			Name:        "static",
+		}
+		if _, ok := gset[newg]; !ok {
+			gset[newg] = true
+			g = append(g, newg)
+		}
+	}
+
 	if len(g) == 0 {
 		return sgval, nil
 	}

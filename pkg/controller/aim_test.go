@@ -128,14 +128,8 @@ func TestAimIndexDiff(t *testing.T) {
 		cont.aimAdds = nil
 		cont.aimUpdates = nil
 		cont.aimDeletes = nil
-		for _, o := range it.expAdds {
-			addAimLabels(it.ktype, it.key, o)
-		}
-		sort.Sort(it.expAdds)
-		for _, o := range it.expUpdates {
-			addAimLabels(it.ktype, it.key, o)
-		}
-		sort.Sort(it.expUpdates)
+		fixAciSlice(it.expAdds, it.ktype, it.key)
+		fixAciSlice(it.expUpdates, it.ktype, it.key)
 
 		cont.writeAimObjects(it.ktype, it.key, it.objects)
 		assert.Equal(t, it.expAdds, cont.aimAdds, "adds", it.desc)
@@ -144,6 +138,13 @@ func TestAimIndexDiff(t *testing.T) {
 	}
 
 	cont.stop()
+}
+
+func fixAciSlice(slice aciSlice, ktype string, key string) {
+	sort.Sort(slice)
+	for _, o := range slice {
+		addAimLabels(ktype, key, o)
+	}
 }
 
 func TestAimFullSync(t *testing.T) {
@@ -175,6 +176,13 @@ func TestAimFullSync(t *testing.T) {
 		for _, o := range it.expUpdates {
 			addAimLabels(it.ktype, it.key, o)
 		}
+
+		static := cont.staticNetPolObjs()
+		fixAciSlice(static, staticNetPolKey().ktype, staticNetPolKey().key)
+		it.expAdds = append(it.expAdds, static...)
+		sort.Sort(it.expAdds)
+		sort.Sort(cont.aimAdds)
+
 		assert.Equal(t, it.expAdds, cont.aimAdds, "adds", it.desc)
 		assert.Equal(t, it.expUpdates, cont.aimUpdates, "updates", it.desc)
 		assert.Equal(t, it.expDeletes, cont.aimDeletes, "deletes", it.desc)
