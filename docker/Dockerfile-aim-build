@@ -1,0 +1,11 @@
+FROM alpine:3.5
+RUN apk add --no-cache python py-pip build-base git python-dev linux-headers \
+    ca-certificates py2-openssl py2-gevent py2-jsonschema py2-sqlalchemy \
+    py-mako py2-requests py2-websocket-client \
+  && update-ca-certificates
+COPY requirements.txt /opt/aim/requirements.txt
+RUN pip install --compile -r /opt/aim/requirements.txt
+RUN pip install --no-deps -I git+https://github.com/datacenter/acitoolkit.git@v0.3.2#egg=acitoolkit
+RUN pip install --no-deps -I git+https://github.com/noironetworks/apicapi.git#egg=apicapi
+COPY . /opt/aim/
+RUN cd /opt/aim && python setup.py install
