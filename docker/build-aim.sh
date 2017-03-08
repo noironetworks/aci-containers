@@ -24,7 +24,10 @@ lib/python2.7/site-packages/pip*
 lib/python2.7/site-packages/setuptools*
 lib/python2.7/site-packages/git*
 lib/python2.7/site-packages/pymysql*
+*.pyc
 EOF
+mkdir -p dist/bin
+cp ../../docker/launch-aid.sh dist/bin/
 
 # Build the minimal AIM container
 cp ../../docker/Dockerfile-aim dist

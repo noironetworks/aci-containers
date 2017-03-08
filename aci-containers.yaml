@@ -1,4 +1,13 @@
 apiVersion: v1
+kind: Secret
+metadata:
+  name: apic-user-pass
+  namespace: kube-system
+data:
+  password: bm9pcjAxMjM=
+  username: YWRtaW4=
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: aci-containers-config
@@ -9,6 +18,7 @@ data:
   encap-type: "vxlan"
   uplink-iface: "eth2"
   infra-vlan: "4093"
+  apic-hosts: "10.30.120.100"
   controller-config: |-
     {
         "log-level": "debug",
@@ -274,10 +284,34 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /usr/local/etc/aci-containers/
+            - name: kubeconfig
+              mountPath: /usr/local/etc/kubeconfig
           livenessProbe:
             httpGet:
               path: /status
               port: 8091
+        - name: aci-integration-module
+          image: noiro/aci-integration-module
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: APIC_HOSTS
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: apic-hosts
+            - name: APIC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: apic-user-pass
+                  key: username
+            - name: APIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: apic-user-pass
+                  key: password
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /usr/local/etc/kubeconfig
       volumes:
         - name: config-volume
           configMap:
@@ -285,3 +319,6 @@ spec:
             items:
               - key: controller-config
                 path: controller.conf
+        - name: kubeconfig
+          hostPath:
+            path: /etc/kubernetes/kubelet.conf
