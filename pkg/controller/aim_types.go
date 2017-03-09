@@ -136,6 +136,14 @@ func NewAciObj(aimType string, namingProps map[string]string) *Aci {
 	return ret
 }
 
+func NewTenant(name string) *Aci {
+	ret := NewAciObj("tenant", map[string]string{"name": name})
+	ret.Spec.Tenant = &Tenant{
+		Name: name,
+	}
+	return ret
+}
+
 func NewSecurityGroup(tenantName string, name string) *Aci {
 	ret := NewAciObj("security_group", map[string]string{
 		"tenant_name": tenantName,

@@ -4,8 +4,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  password: bm9pcjAxMjM=
   username: YWRtaW4=
+  password: bm9pcjAxMjM=
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -63,6 +63,9 @@ data:
             "domain": "comp/prov-OpenStack/ctrlr-[ostack]-ostack/sw-InsiemeLSOid"
         }
     }
+  aim-config: |-
+    [DEFAULT]
+    debug = True
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -282,7 +285,7 @@ spec:
           image: noiro/aci-containers-controller
           imagePullPolicy: IfNotPresent
           volumeMounts:
-            - name: config-volume
+            - name: controller-config-volume
               mountPath: /usr/local/etc/aci-containers/
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
@@ -310,15 +313,23 @@ spec:
                   name: apic-user-pass
                   key: password
           volumeMounts:
+            - name: aim-config-volume
+              mountPath: /usr/local/etc/aim-local
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
       volumes:
-        - name: config-volume
+        - name: controller-config-volume
           configMap:
             name: aci-containers-config
             items:
               - key: controller-config
                 path: controller.conf
+        - name: aim-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: aim-config
+                path: aim-local.conf
         - name: kubeconfig
           hostPath:
             path: /etc/kubernetes/kubelet.conf

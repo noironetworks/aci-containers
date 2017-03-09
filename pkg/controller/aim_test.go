@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"sort"
 	"testing"
 
@@ -147,6 +148,10 @@ func fixAciSlice(slice aciSlice, ktype string, key string) {
 	}
 }
 
+func staticGlobalKey() aimKey {
+	return aimKey{"Controller", "static"}
+}
+
 func TestAimFullSync(t *testing.T) {
 
 	i := 0
@@ -180,6 +185,10 @@ func TestAimFullSync(t *testing.T) {
 		static := cont.staticNetPolObjs()
 		fixAciSlice(static, staticNetPolKey().ktype, staticNetPolKey().key)
 		it.expAdds = append(it.expAdds, static...)
+		static = cont.globalStaticObjs()
+		fixAciSlice(static, staticGlobalKey().ktype, staticGlobalKey().key)
+		it.expAdds = append(it.expAdds, static...)
+
 		sort.Sort(it.expAdds)
 		sort.Sort(cont.aimAdds)
 

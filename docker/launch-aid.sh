@@ -5,7 +5,9 @@ set -x
 
 PREFIX=/usr/local
 AIMDIR=/usr/local/etc/aim
+AIMLOCALDIR=/usr/local/etc/aim-local
 AIMCONF=${AIMDIR}/aim.conf
+AIMLOCALCONF=${AIMLOCALDIR}/aim-local.conf
 AIMCTL=/usr/bin/aimctl
 AIMAID=/usr/bin/aim-aid
 
@@ -35,6 +37,7 @@ verify_ssl_certificate = False
 apic_model = apicapi.db.noop_manager
 EOF
 
-${AIMCTL} -c "${AIMCONF}" config replace
+${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" config replace
 
-exec ${AIMAID} --config-dir "${AIMDIR}"
+echo Starting Aid
+exec ${AIMAID} --config-dir "${AIMDIR}" --config-dir "${AIMLOCALDIR}"

@@ -239,8 +239,17 @@ func processQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
+func (cont *AciController) globalStaticObjs() aciSlice {
+	t := NewTenant(cont.config.AciTenant)
+	t.Spec.Tenant.Monitored = true
+
+	return aciSlice{t}
+}
+
 func (cont *AciController) initStaticObjs() {
 	cont.initStaticNetPolObjs()
+	cont.writeAimObjects("Controller", "static",
+		cont.globalStaticObjs())
 }
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {
