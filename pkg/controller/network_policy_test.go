@@ -252,7 +252,7 @@ func TestNetworkPolicy(t *testing.T) {
 	}
 
 	cont := testController()
-	cont.config.AciTenant = "test-tenant"
+	cont.config.AciPolicyTenant = "test-tenant"
 
 	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 		map[string]string{"test": "testv"}))

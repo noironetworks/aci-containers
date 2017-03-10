@@ -22,7 +22,7 @@ data:
   controller-config: |-
     {
         "log-level": "debug",
-        "aci-tenant": "common",
+        "aci-policy-tenant": "common",
         "default-endpoint-group": {
             "policy-space": "demo",
             "name": "kubernetes-default|default"

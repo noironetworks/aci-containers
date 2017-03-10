@@ -78,9 +78,10 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	var netPolObjs aciSlice
 
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciTenant, node.Name))
+		NewSecurityGroup(cont.config.AciPolicyTenant, node.Name))
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, node.Name, "LocalNode"))
+		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
+			node.Name, "LocalNode"))
 
 	var nodeIps []string
 	for _, a := range node.Status.Addresses {
@@ -94,13 +95,13 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	}
 	sort.Strings(nodeIps)
 
-	outbound := NewSecurityGroupRule(cont.config.AciTenant, node.Name,
-		"LocalNode", "allow-all-egress")
+	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
+		node.Name, "LocalNode", "allow-all-egress")
 	outbound.Spec.SecurityGroupRule.Direction = "egress"
 	outbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
 	netPolObjs = append(netPolObjs, outbound)
 
-	inbound := NewSecurityGroupRule(cont.config.AciTenant, node.Name,
+	inbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, node.Name,
 		"LocalNode", "allow-all-ingress")
 	inbound.Spec.SecurityGroupRule.Direction = "ingress"
 	inbound.Spec.SecurityGroupRule.RemoteIps = nodeIps

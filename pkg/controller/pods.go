@@ -142,7 +142,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	// Add network policies that directly select this pod
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
 		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciTenant,
+			PolicySpace: cont.config.AciPolicyTenant,
 			Name:        getOpflexGroupNameForNetPol(npkey),
 		}
 		if _, ok := gset[newg]; !ok {
@@ -154,7 +154,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	// Add network policy for accessing the pod's local node
 	if pod.Spec.NodeName != "" {
 		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciTenant,
+			PolicySpace: cont.config.AciPolicyTenant,
 			Name:        pod.Spec.NodeName,
 		}
 		if _, ok := gset[newg]; !ok {
@@ -166,7 +166,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	// Add static network policy to allow egress traffic
 	{
 		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciTenant,
+			PolicySpace: cont.config.AciPolicyTenant,
 			Name:        "static",
 		}
 		if _, ok := gset[newg]; !ok {

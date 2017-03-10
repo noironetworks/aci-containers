@@ -43,7 +43,7 @@ type ControllerConfig struct {
 	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
 
 	// Tenant to use when creating policy objects in APIC
-	AciTenant string `json:"aci-tenant,omitempty"`
+	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
 
 	// IP addresses used for pod network
 	PodIpPool []ipam.IpRange `json:"pod-ip-pool,omitempty"`
@@ -77,7 +77,7 @@ func newNetIps() *netIps {
 func NewConfig() *ControllerConfig {
 	return &ControllerConfig{
 		DefaultSg:          make([]opflexGroup, 0),
-		AciTenant:          "kubernetes",
+		AciPolicyTenant:    "kubernetes",
 		PodIpPoolChunkSize: 128,
 	}
 }

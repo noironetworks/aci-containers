@@ -184,10 +184,11 @@ func (cont *AciController) staticNetPolObjs() aciSlice {
 	var netPolObjs aciSlice
 
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciTenant, "egress"))
+		NewSecurityGroup(cont.config.AciPolicyTenant, "egress"))
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, "egress", "Egress"))
-	outbound := NewSecurityGroupRule(cont.config.AciTenant, "egress",
+		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
+			"egress", "Egress"))
+	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, "egress",
 		"Egress", "allow-all-reflexive")
 	outbound.Spec.SecurityGroupRule.Direction = "egress"
 	netPolObjs = append(netPolObjs, outbound)
@@ -283,9 +284,10 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 	var netPolObjs aciSlice
 	labelKey := strings.Replace(key, "/", "_", -1)
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciTenant, labelKey))
+		NewSecurityGroup(cont.config.AciPolicyTenant, labelKey))
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciTenant, labelKey, "NetworkPolicy"))
+		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
+			labelKey, "NetworkPolicy"))
 
 	for i, ingress := range np.Spec.Ingress {
 		var remoteIps []string
@@ -304,7 +306,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 		}
 
 		if ingress.Ports == nil {
-			rule := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
+			rule := NewSecurityGroupRule(cont.config.AciPolicyTenant, labelKey,
 				"NetworkPolicy", strconv.Itoa(i))
 			rule.Spec.SecurityGroupRule.Direction = "ingress"
 			rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
@@ -315,8 +317,9 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 				if p.Protocol != nil && *p.Protocol == v1.ProtocolUDP {
 					proto = "udp"
 				}
-				rule := NewSecurityGroupRule(cont.config.AciTenant, labelKey,
-					"NetworkPolicy", strconv.Itoa(i)+"_"+strconv.Itoa(j))
+				rule := NewSecurityGroupRule(cont.config.AciPolicyTenant,
+					labelKey, "NetworkPolicy",
+					strconv.Itoa(i)+"_"+strconv.Itoa(j))
 				rule.Spec.SecurityGroupRule.Direction = "ingress"
 				rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
 				rule.Spec.SecurityGroupRule.Ethertype = "ipv4"

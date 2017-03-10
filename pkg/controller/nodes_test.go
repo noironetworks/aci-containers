@@ -220,7 +220,7 @@ func TestPodNetAnnotation(t *testing.T) {
 
 func TestNodeNetPol(t *testing.T) {
 	cont := testController()
-	cont.config.AciTenant = "test-tenant"
+	cont.config.AciPolicyTenant = "test-tenant"
 	node := node("node1")
 	node.Status.Addresses = []v1.NodeAddress{
 		v1.NodeAddress{Type: "Hostname", Address: "test-node"},

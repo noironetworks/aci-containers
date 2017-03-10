@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"sort"
 	"testing"
 
