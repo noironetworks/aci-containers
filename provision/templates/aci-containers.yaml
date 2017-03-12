@@ -307,6 +307,8 @@ spec:
               mountPath: /usr/local/etc/aim-local
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
+            - name: kubessl
+              mountPath: /etc/kubernetes/ssl
       volumes:
         - name: controller-config-volume
           configMap:
@@ -322,5 +324,7 @@ spec:
                 path: aim-local.conf
         - name: kubeconfig
           hostPath:
-            path: /etc/kubernetes/kubelet.conf
-
+            path: {{config.node_config.kubeconfig}}
+        - name: kubessl
+          hostPath:
+            path: /etc/kubernetes/ssl

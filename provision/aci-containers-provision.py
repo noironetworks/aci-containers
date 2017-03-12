@@ -44,6 +44,11 @@ if __name__ == "__main__":
     # Default values for configuration
     config = {
         "aci_config": {
+            "apic_hosts": ['1.1.1.1'],
+            "apic_login": {
+                "username": "admin",
+                "password": "password",
+            },
             "vmm_domain": {
                 "domain": "kubernetes",
                 "controller": "kubernetes",
@@ -97,6 +102,6 @@ if __name__ == "__main__":
     if args.config:
         print "Loading configuration from \"%s\"" % args.config
         with open(args.config, 'r') as file:
-            deep_merge(config, yaml.load(file))
+            deep_merge(yaml.load(file), config)
 
     generate_infra_yaml(config, args.output)
