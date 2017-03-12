@@ -5,6 +5,7 @@ import base64
 import json
 from jinja2 import Environment, PackageLoader
 import argparse
+import pdb
 
 def json_indent(s):
     return json.dumps(s, indent=4)
@@ -25,6 +26,8 @@ def generate_infra_yaml(config, output):
 def deep_merge(user, default):
     if isinstance(user,dict) and isinstance(default,dict):
         for k,v in default.iteritems():
+            if k == 'node_config':
+                pdb.set_trace()
             if k not in user:
                 user[k] = v
             else:
@@ -44,6 +47,11 @@ if __name__ == "__main__":
     # Default values for configuration
     config = {
         "aci_config": {
+            "apic_hosts": ['1.1.1.1'],
+            "apic_login": {
+                "username": "admin",
+                "password": "password",
+            },
             "vmm_domain": {
                 "domain": "kubernetes",
                 "controller": "kubernetes",
@@ -97,6 +105,6 @@ if __name__ == "__main__":
     if args.config:
         print "Loading configuration from \"%s\"" % args.config
         with open(args.config, 'r') as file:
-            deep_merge(config, yaml.load(file))
+            deep_merge(yaml.load(file), config)
 
     generate_infra_yaml(config, args.output)
