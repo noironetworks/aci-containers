@@ -9,6 +9,9 @@ import argparse
 def json_indent(s):
     return json.dumps(s, indent=4)
 
+def yaml_quote(s):
+    return "'%s'" % str(s).replace("'", "''")
+
 def generate_infra_yaml(config, output):
     env = Environment(
         loader=PackageLoader('aci-containers-provision', 'templates'),
@@ -17,11 +20,12 @@ def generate_infra_yaml(config, output):
     )
     env.filters['base64enc'] = base64.b64encode
     env.filters['json'] = json_indent
+    env.filters['yaml_quote'] = yaml_quote
     template = env.get_template('aci-containers.yaml')
     
     print "Writing kubernetes infrastructure YAML to \"%s\"" % output
     template.stream(config=config).dump(output)
-    
+
 def deep_merge(user, default):
     if isinstance(user,dict) and isinstance(default,dict):
         for k,v in default.iteritems():
@@ -42,7 +46,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     # Default values for configuration
-    config = {
+    default_config = {
         "aci_config": {
             "vmm_domain": {
                 "domain": "kubernetes",
@@ -93,10 +97,12 @@ if __name__ == "__main__":
             "aim_debug": "False",
         },
     }
+    config = default_config
 
     if args.config:
         print "Loading configuration from \"%s\"" % args.config
         with open(args.config, 'r') as file:
-            deep_merge(config, yaml.load(file))
+            config = yaml.load(file)
+            deep_merge(config, default_config)
 
     generate_infra_yaml(config, args.output)

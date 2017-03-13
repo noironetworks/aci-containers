@@ -26,6 +26,9 @@ node_config:
   service_vlan: 4003
   # Location of kubeconfig file for system components
   kubeconfig: /etc/kubernetes/kubelet.conf
+  # If your system kubeconfig references an additional location,
+  # mount, set the value below, or leave blank
+  # kubepkipath: /etc/kubernetes/ssl/
 
 # Configuration related to kubernetes pods and policy
 kubernetes_config:

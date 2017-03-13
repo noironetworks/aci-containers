@@ -18,10 +18,10 @@ metadata:
   labels:
     k8s-app: aci-containers
 data:
-  encap-type: {{ config.node_config.encap_type }}
-  uplink-iface: {{ config.node_config.uplink_iface }}
-  infra-vlan: {{ config.node_config.infra_vlan }}
-  apic-hosts: {{ config.aci_config.apic_hosts|join(',') }}
+  encap-type: {{ config.node_config.encap_type|yaml_quote }}
+  uplink-iface: {{ config.node_config.uplink_iface|yaml_quote }}
+  infra-vlan: {{ config.node_config.infra_vlan|yaml_quote }}
+  apic-hosts: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
   controller-config: |-
     {
         "log-level": "{{config.logging.controller_log_level}}",
@@ -95,6 +95,10 @@ spec:
               mountPath: /run
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
+            {% if config.node_config.kubepkipath %}
+            - name: kubepki
+              mountPath: {{ config.node_config.kubepkipath }}
+            {% endif %}
             - name: host-config-volume
               mountPath: /usr/local/etc/aci-containers/
           livenessProbe:
@@ -162,6 +166,11 @@ spec:
         - name: kubeconfig
           hostPath:
             path: /etc/kubernetes/kubelet.conf
+        {% if config.node_config.kubepkipath %}
+        - name: kubepki
+          hostPath:
+            path: {{ config.node_config.kubepkipath }}
+        {% endif %}
         - name: host-config-volume
           configMap:
             name: aci-containers-config
@@ -279,6 +288,10 @@ spec:
               mountPath: /usr/local/etc/aci-containers/
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
+            {% if config.node_config.kubepkipath %}
+            - name: kubepki
+              mountPath: {{ config.node_config.kubepkipath }}
+            {% endif %}
           livenessProbe:
             httpGet:
               path: /status
@@ -307,6 +320,10 @@ spec:
               mountPath: /usr/local/etc/aim-local
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
+            {% if config.node_config.kubepkipath %}
+            - name: kubepki
+              mountPath: {{ config.node_config.kubepkipath }}
+            {% endif %}
       volumes:
         - name: controller-config-volume
           configMap:
@@ -323,4 +340,9 @@ spec:
         - name: kubeconfig
           hostPath:
             path: /etc/kubernetes/kubelet.conf
+        {% if config.node_config.kubepkipath %}
+        - name: kubepki
+          hostPath:
+            path: {{ config.node_config.kubepkipath }}
+        {% endif %}
 
