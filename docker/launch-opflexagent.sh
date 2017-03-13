@@ -57,7 +57,7 @@ if [[ ${ACI_ENCAP_TYPE} = "vxlan" ]]; then
             "encap": {
                 "vxlan" : {
                     "encap-iface": "br-int_vxlan0",
-                    "uplink-iface": "${ACI_UPLINK_IFACE}.${ACI_INFRA_VLAN}",
+                    "uplink-iface": "${ACI_VXLAN_IFACE}",
                     "uplink-vlan": ${ACI_INFRA_VLAN},
                     "remote-ip": "10.0.0.32",
                     "remote-port": 8472

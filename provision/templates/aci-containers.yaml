@@ -21,6 +21,7 @@ data:
   encap-type: {{ config.node_config.encap_type|yaml_quote }}
   uplink-iface: {{ config.node_config.uplink_iface|yaml_quote }}
   infra-vlan: {{ config.node_config.infra_vlan|yaml_quote }}
+  vxlan-uplink-iface: {{ config.node_config.vxlan_uplink_iface|yaml_quote }}
   apic-hosts: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
   controller-config: |-
     {
@@ -127,6 +128,11 @@ spec:
                 configMapKeyRef:
                   name: aci-containers-config
                   key: uplink-iface
+            - name: ACI_VXLAN_IFACE
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: vxlan-uplink-iface
             - name: ACI_INFRA_VLAN
               valueFrom:
                 configMapKeyRef:
@@ -223,11 +229,6 @@ spec:
                 configMapKeyRef:
                   name: aci-containers-config
                   key: uplink-iface
-            - name: ACI_INFRA_VLAN
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: infra-vlan
             - name: OVS_RUNDIR
               value: /usr/local/var/run/openvswitch
             - name: OVS_DBDIR

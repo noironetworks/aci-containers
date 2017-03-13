@@ -18,10 +18,14 @@ aci_config:
 node_config:
   # The name of the interface that uplinks to the ACI fabric
   uplink_iface: eth2
-  # The type of encapsulation to use; either vxlan or vlan
-  encap_type: vxlan
   # the ACI infrastructure VLAN
   infra_vlan: 4093
+  # The type of encapsulation to use; either vxlan or vlan
+  encap_type: vxlan
+  # If encap type is vxlan, this is the name of the uplink used for
+  # the vxlan connection.  This is typically a subinterface on the
+  # uplink interface on the infra vlan. 
+  vxlan_uplink_iface: eth2.4093
   # The service VLAN used for external LoadBalancer services
   service_vlan: 4003
   # Location of kubeconfig file for system components
