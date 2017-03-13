@@ -93,6 +93,8 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
             - name: kubeconfig
               mountPath: /usr/local/etc/kubeconfig
             {% if config.node_config.kubepkipath %}
@@ -135,6 +137,8 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
@@ -149,6 +153,8 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
       restartPolicy: Always
       volumes:
         - name: cni-bin
@@ -231,6 +237,8 @@ spec:
               mountPath: /usr/local/var
             - name: hostrun
               mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
             - name: hostetc
               mountPath: /usr/local/etc
             - name: hostmodules
