@@ -91,6 +91,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_0_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0")
 	rule_0_0.Spec.SecurityGroupRule.Direction = "ingress"
+	rule_0_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 
 	rule_1_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0_0")
@@ -116,17 +117,20 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_5_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0")
 	rule_5_0.Spec.SecurityGroupRule.Direction = "ingress"
+	rule_5_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_5_0.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1", "1.1.1.2"}
 
 	rule_6_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0")
 	rule_6_0.Spec.SecurityGroupRule.Direction = "ingress"
+	rule_6_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_6_0.Spec.SecurityGroupRule.RemoteIps =
 		[]string{"1.1.1.3", "1.1.1.4", "1.1.1.5"}
 
 	rule_7_0 := NewSecurityGroupRule("test-tenant", "testns_np1",
 		"NetworkPolicy", "0")
 	rule_7_0.Spec.SecurityGroupRule.Direction = "ingress"
+	rule_7_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_7_0.Spec.SecurityGroupRule.RemoteIps =
 		[]string{"1.1.1.1"}
 

@@ -184,14 +184,44 @@ func (cont *AciController) staticNetPolObjs() aciSlice {
 	var netPolObjs aciSlice
 
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, "egress"))
+		NewSecurityGroup(cont.config.AciPolicyTenant, "static"))
 	netPolObjs = append(netPolObjs,
 		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			"egress", "Egress"))
-	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, "egress",
-		"Egress", "allow-all-reflexive")
-	outbound.Spec.SecurityGroupRule.Direction = "egress"
-	netPolObjs = append(netPolObjs, outbound)
+			"static", "Egress"))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
+			"static", "Discovery"))
+
+	{
+		outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+			"Egress", "allow-all-reflexive")
+		outbound.Spec.SecurityGroupRule.Direction = "egress"
+		netPolObjs = append(netPolObjs, outbound)
+	}
+	{
+		arpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+			"Discovery", "arp-ingress")
+		arpin.Spec.SecurityGroupRule.Direction = "ingress"
+		arpin.Spec.SecurityGroupRule.Ethertype = "arp"
+		arpin.Spec.SecurityGroupRule.ConnTrack = "normal"
+		netPolObjs = append(netPolObjs, arpin)
+	}
+	{
+		arpout := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+			"Discovery", "arp-egress")
+		arpout.Spec.SecurityGroupRule.Direction = "egress"
+		arpout.Spec.SecurityGroupRule.Ethertype = "arp"
+		arpout.Spec.SecurityGroupRule.ConnTrack = "normal"
+		netPolObjs = append(netPolObjs, arpout)
+	}
+	{
+		icmpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+			"Discovery", "icmp-ingress")
+		icmpin.Spec.SecurityGroupRule.Direction = "ingress"
+		icmpin.Spec.SecurityGroupRule.Ethertype = "ipv4"
+		icmpin.Spec.SecurityGroupRule.IpProtocol = "icmp"
+		netPolObjs = append(netPolObjs, icmpin)
+	}
 
 	return netPolObjs
 }
@@ -310,6 +340,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 				"NetworkPolicy", strconv.Itoa(i))
 			rule.Spec.SecurityGroupRule.Direction = "ingress"
 			rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
+			rule.Spec.SecurityGroupRule.Ethertype = "ipv4"
 			netPolObjs = append(netPolObjs, rule)
 		} else {
 			for j, p := range ingress.Ports {
@@ -361,38 +392,11 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	oldnp := oldobj.(*v1beta1.NetworkPolicy)
 	newnp := newobj.(*v1beta1.NetworkPolicy)
 
-	shouldqueue := false
 	if !reflect.DeepEqual(&oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
-		shouldqueue =
-			cont.netPolPods.UpdateSelectorObjNoCallback(newobj) || shouldqueue
+		cont.netPolPods.UpdateSelectorObjNoCallback(newobj)
 	}
 	if !reflect.DeepEqual(oldnp.Spec.Ingress, newnp.Spec.Ingress) {
-		shouldqueue =
-			cont.netPolIngressPods.UpdateSelectorObjNoCallback(newobj) ||
-				shouldqueue
-	}
-	if !reflect.DeepEqual(oldnp.ObjectMeta.Annotations,
-		newnp.ObjectMeta.Annotations) {
-		shouldqueue = true
-		npkey, err :=
-			cache.MetaNamespaceKeyFunc(newnp)
-		if err != nil {
-			networkPolicyLogger(cont.log, newnp).
-				Error("Could not create key: ", err)
-			return
-		}
-		for _, podkey := range cont.netPolPods.GetPodForObj(npkey) {
-			podobj, exists, err :=
-				cont.podInformer.GetStore().GetByKey(podkey)
-			if exists && err == nil {
-				cont.queuePodUpdate(podobj.(*v1.Pod))
-			}
-		}
-	} else if !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
-		shouldqueue = true
-	}
-
-	if shouldqueue {
+		cont.netPolIngressPods.UpdateSelectorObjNoCallback(newobj)
 		cont.queueNetPolUpdate(newnp)
 	}
 }

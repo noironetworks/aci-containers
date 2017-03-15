@@ -8,7 +8,7 @@ mkdir -p build/aim/dist
 pushd build/aim
 
 # Build base image and dependencies
-git clone -b k8s_universe https://github.com/noironetworks/aci-integration-module \
+git clone https://github.com/noironetworks/aci-integration-module \
     --depth 1
 
 cp ../../docker/Dockerfile-aim-build aci-integration-module

@@ -98,13 +98,17 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
 		node.Name, "LocalNode", "allow-all-egress")
 	outbound.Spec.SecurityGroupRule.Direction = "egress"
+	outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	outbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
+	outbound.Spec.SecurityGroupRule.ConnTrack = "normal"
 	netPolObjs = append(netPolObjs, outbound)
 
 	inbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, node.Name,
 		"LocalNode", "allow-all-ingress")
 	inbound.Spec.SecurityGroupRule.Direction = "ingress"
+	inbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	inbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
+	inbound.Spec.SecurityGroupRule.ConnTrack = "normal"
 	netPolObjs = append(netPolObjs, inbound)
 
 	cont.writeAimObjects("Node", node.Name, netPolObjs)

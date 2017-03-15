@@ -16,6 +16,7 @@ type AciObjectSpec struct {
   Agent *Agent `json:"agent,omitempty"`
   ApplicationProfile *ApplicationProfile `json:"application_profile,omitempty"`
   BridgeDomain *BridgeDomain `json:"bridge_domain,omitempty"`
+  Configuration *Configuration `json:"configuration,omitempty"`
   Contract *Contract `json:"contract,omitempty"`
   ContractSubject *ContractSubject `json:"contract_subject,omitempty"`
   Endpoint *Endpoint `json:"endpoint,omitempty"`
@@ -79,6 +80,14 @@ type BridgeDomain struct {
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
   VrfName string `json:"vrf_name,omitempty"`
+}
+
+type Configuration struct {
+  Group string `json:"group"`
+  Host string `json:"host"`
+  Key string `json:"key"`
+  Value string `json:"value,omitempty"`
+  Version string `json:"version,omitempty"`
 }
 
 type Contract struct {
@@ -201,6 +210,7 @@ type SecurityGroup struct {
 }
 
 type SecurityGroupRule struct {
+  ConnTrack string `json:"conn_track,omitempty"`
   Direction string `json:"direction,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
   Ethertype string `json:"ethertype,omitempty"`

@@ -163,7 +163,11 @@ func aimGenerateLabel(label string) string {
 }
 
 func (cont *AciController) aimChanged(obj interface{}) {
+	cont.log.Info("changed ", obj.(*Aci).Spec.Type, " ", obj.(*Aci).Name)
+	cont.reconcileAimObject(obj.(*Aci))
 }
 
 func (cont *AciController) aimDeleted(obj interface{}) {
+	cont.log.Info("deleted ", obj.(*Aci).Spec.Type, " ", obj.(*Aci).Name)
+	cont.reconcileAimDelete(obj.(*Aci))
 }

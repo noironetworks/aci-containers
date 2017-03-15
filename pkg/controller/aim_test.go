@@ -17,7 +17,9 @@ package controller
 import (
 	"sort"
 	"testing"
+	"time"
 
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -164,6 +166,7 @@ func TestAimFullSync(t *testing.T) {
 			addAimLabels(it.ktype, it.key, o)
 			cont.fakeAimSource.Add(o)
 		}
+
 		cont.run()
 
 		it = &indexDiffTests[j]
@@ -201,4 +204,75 @@ func TestAimFullSync(t *testing.T) {
 		cont.stop()
 	}
 
+}
+
+func TestAimReconcile(t *testing.T) {
+	test := aciSlice{
+		NewSecurityGroupRule("common", "test1", "np", "a"),
+		NewSecurityGroupRule("common", "test2", "np", "a"),
+		NewSecurityGroupRule("common", "test3", "np", "a"),
+		NewSecurityGroupRule("common", "test4", "np", "a"),
+	}
+	fixAciSlice(test, "Reconcile", "a")
+
+	cont := testController()
+	cont.run()
+
+	cont.writeAimObjects("Reconcile", "a", test)
+
+	{
+		cont.aimAdds = nil
+		cont.aimUpdates = nil
+		cont.aimDeletes = nil
+
+		update := NewSecurityGroupRule("common",
+			test[1].Spec.SecurityGroupRule.SecurityGroupName, "np", "a")
+		update.Spec.SecurityGroupRule.Ethertype = "ipv4"
+		addAimLabels("Reconcile", "a", update)
+		cont.fakeAimSource.Add(update)
+
+		tu.WaitFor(t, "unexpectedmod", 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				return tu.WaitEqual(t, last, aciSlice{test[1]},
+					cont.aimUpdates, "unexpectedmod", "updates"), nil
+			})
+		assert.Nil(t, cont.aimDeletes, "unexpectedmod", "deletes")
+		assert.Nil(t, cont.aimAdds, "unexpectedmod", "adds")
+	}
+
+	{
+		cont.aimAdds = nil
+		cont.aimUpdates = nil
+		cont.aimDeletes = nil
+
+		update := NewSecurityGroupRule("common", "wtf", "np", "a")
+		addAimLabels("Reconcile", "a", update)
+		cont.fakeAimSource.Add(update)
+
+		tu.WaitFor(t, "unexpectedadd", 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				return tu.WaitEqual(t, last, []string{update.ObjectMeta.Name},
+					cont.aimDeletes, "unexpectedadd", "deleted"), nil
+			})
+		assert.Nil(t, cont.aimUpdates, "unexpectedadd", "updates")
+		assert.Nil(t, cont.aimAdds, "unexpectedadd", "adds")
+	}
+
+	{
+		cont.aimAdds = nil
+		cont.aimUpdates = nil
+		cont.aimDeletes = nil
+
+		cont.fakeAimSource.Delete(test[1])
+
+		tu.WaitFor(t, "unexpecteddelete", 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				return tu.WaitEqual(t, last, aciSlice{test[1]},
+					cont.aimAdds, "unexpecteddelete", "adds"), nil
+			})
+		assert.Nil(t, cont.aimDeletes, "unexpecteddelete", "deletes")
+		assert.Nil(t, cont.aimUpdates, "unexpecteddelete", "updates")
+	}
+
+	cont.stop()
 }

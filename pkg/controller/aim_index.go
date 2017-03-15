@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
@@ -44,22 +46,93 @@ func addAimLabels(ktype string, key string, aci *Aci) {
 	aci.ObjectMeta.Labels[aimKeyLabel] = key
 }
 
-//func (cont *AciController) reconcileAimObject(aci *Aci) {
-//	ktype, ktok := aim.ObjectMeta.Labels[aimKeyTypeLabel]
-//	key, kok := aim.ObjectMeta.Labels[aimKeyLabel]
-//	if ktok && kok {
-//		akey := newAimKey(ktype, key)
-//		if expected, ok := cont.aimDesiredState[akey]; ok {
-//
-//		} else {
-//			cont.log.Warn("Unexpected AIM object: ",
-//				aim.ObjectMeta.Name)
-//			if cont.syncEnabled {
-//				cont.executeAimDiff(nil, nil, []string{aim.ObjectMeta.Name})
-//			}
-//		}
-//	}
-//}
+func (cont *AciController) aciObjLogger(aci *Aci) *logrus.Entry {
+	return cont.log.WithFields(logrus.Fields{
+		"KeyType": aci.ObjectMeta.Labels[aimKeyTypeLabel],
+		"Key":     aci.ObjectMeta.Labels[aimKeyLabel],
+		"Type":    aci.Spec.Type,
+		"Name":    aci.ObjectMeta.Name,
+	})
+}
+
+func (cont *AciController) reconcileAimObject(aci *Aci) {
+	cont.indexMutex.Lock()
+	if !cont.syncEnabled {
+		cont.indexMutex.Unlock()
+		return
+	}
+	ktype, ktok := aci.ObjectMeta.Labels[aimKeyTypeLabel]
+	key, kok := aci.ObjectMeta.Labels[aimKeyLabel]
+
+	var updates aciSlice
+	var deletes []string
+
+	if ktok && kok {
+		akey := newAimKey(ktype, key)
+
+		delete := false
+		if expected, ok := cont.aimDesiredState[akey]; ok {
+			found := false
+			for _, eobj := range expected {
+				if eobj.ObjectMeta.Name == aci.ObjectMeta.Name {
+					found = true
+
+					if !aciObjEq(eobj, aci) {
+						cont.aciObjLogger(aci).
+							Warning("Unexpected ACI object alteration")
+						updates = aciSlice{eobj}
+						break
+					}
+				}
+			}
+			if !found {
+				delete = true
+			}
+		} else {
+			delete = true
+		}
+		if delete {
+			cont.aciObjLogger(aci).Warning("Deleting unexpected ACI object")
+			deletes = []string{aci.ObjectMeta.Name}
+		}
+	}
+
+	cont.indexMutex.Unlock()
+
+	cont.executeAimDiff(nil, updates, deletes)
+}
+
+func (cont *AciController) reconcileAimDelete(aci *Aci) {
+	cont.indexMutex.Lock()
+	if !cont.syncEnabled {
+		cont.indexMutex.Unlock()
+		return
+	}
+
+	ktype, ktok := aci.ObjectMeta.Labels[aimKeyTypeLabel]
+	key, kok := aci.ObjectMeta.Labels[aimKeyLabel]
+
+	var adds aciSlice
+
+	if ktok && kok {
+		akey := newAimKey(ktype, key)
+
+		if expected, ok := cont.aimDesiredState[akey]; ok {
+			for _, eobj := range expected {
+				if eobj.ObjectMeta.Name == aci.ObjectMeta.Name {
+					cont.aciObjLogger(aci).
+						Warning("Restoring unexpectedly deleted ACI object")
+					adds = aciSlice{eobj}
+					break
+				}
+			}
+		}
+	}
+
+	cont.indexMutex.Unlock()
+
+	cont.executeAimDiff(adds, nil, nil)
+}
 
 // note that writing the same object with multiple keys will result in
 // undefined behavior.
@@ -70,9 +143,9 @@ func (cont *AciController) writeAimObjects(ktype string,
 	for _, o := range objects {
 		addAimLabels(ktype, key, o)
 	}
+	k := newAimKey(ktype, key)
 
 	cont.indexMutex.Lock()
-	k := newAimKey(ktype, key)
 	adds, updates, deletes :=
 		cont.diffAimState(cont.aimDesiredState[k], objects)
 	if objects == nil {
@@ -129,6 +202,12 @@ func (cont *AciController) aimFullSync() {
 	}
 }
 
+func aciObjEq(a *Aci, b *Aci) bool {
+	return reflect.DeepEqual(a.Spec, b.Spec) &&
+		reflect.DeepEqual(a.Labels, b.Labels) &&
+		reflect.DeepEqual(a.Annotations, b.Annotations)
+}
+
 func (cont *AciController) diffAimState(currentState aciSlice,
 	desiredState aciSlice) (adds aciSlice, updates aciSlice, deletes []string) {
 
@@ -144,11 +223,7 @@ func (cont *AciController) diffAimState(currentState aciSlice,
 			adds = append(adds, desiredState[j])
 			j++
 		} else {
-			if !reflect.DeepEqual(currentState[i].Spec, desiredState[j].Spec) ||
-				!reflect.DeepEqual(currentState[i].Labels,
-					desiredState[j].Labels) ||
-				!reflect.DeepEqual(currentState[i].Annotations,
-					desiredState[j].Annotations) {
+			if !aciObjEq(currentState[i], desiredState[j]) {
 				updates = append(updates, desiredState[j])
 			}
 
@@ -174,21 +249,22 @@ func (cont *AciController) executeAimDiff(adds aciSlice,
 	updates aciSlice, deletes []string) {
 
 	for _, delete := range deletes {
-		cont.log.Debug("Deleting ", delete)
+		cont.log.WithFields(logrus.Fields{"Name": delete}).
+			Debug("Applying ACI object  delete")
 		err := cont.deleteAim(delete, nil)
 		if err != nil {
 			cont.log.Error("Could not delete AIM object: ", err)
 		}
 	}
 	for _, update := range updates {
-		cont.log.Debug("Updating ", update.Spec.Type, " ", update.Name)
+		cont.aciObjLogger(update).Debug("Applying ACI object update")
 		_, err := cont.updateAim(update)
 		if err != nil {
 			cont.log.Error("Could not update AIM object: ", err)
 		}
 	}
 	for _, add := range adds {
-		cont.log.Debug("Adding ", add.Spec.Type, " ", add.Name)
+		cont.aciObjLogger(add).Debug("Applying ACI object  add")
 		_, err := cont.addAim(add)
 		if err != nil {
 			cont.log.Error("Could not add AIM object: ", err)
