@@ -37,7 +37,7 @@ verify_ssl_certificate = False
 apic_model = apicapi.db.noop_manager
 EOF
 
-${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" config replace
+${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" config update
 
 echo Starting Aid
 exec ${AIMAID} --config-dir "${AIMDIR}" --config-dir "${AIMLOCALDIR}"
