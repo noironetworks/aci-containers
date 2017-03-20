@@ -196,6 +196,7 @@ func (cont *AciController) staticNetPolObjs() aciSlice {
 		outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
 			"Egress", "allow-all-reflexive")
 		outbound.Spec.SecurityGroupRule.Direction = "egress"
+		outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
 		netPolObjs = append(netPolObjs, outbound)
 	}
 	{
