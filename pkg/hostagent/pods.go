@@ -127,8 +127,9 @@ func podLogger(log *logrus.Logger, pod *v1.Pod) *logrus.Entry {
 
 func opflexEpLogger(log *logrus.Logger, ep *opflexEndpoint) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
-		"Uuid": ep.Uuid,
-		"name": ep.Attributes["vm-name"],
+		"Uuid":      ep.Uuid,
+		"name":      ep.Attributes["vm-name"],
+		"namespace": ep.Attributes["namespace"],
 	})
 }
 
@@ -258,7 +259,8 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	}
 
 	ep.Attributes = pod.ObjectMeta.Labels
-	ep.Attributes["vm-name"] = id
+	ep.Attributes["vm-name"] = pod.ObjectMeta.Name
+	ep.Attributes["namespace"] = pod.ObjectMeta.Namespace
 
 	if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
 		g := &metadata.OpflexGroup{}
