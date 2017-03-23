@@ -27,6 +27,11 @@ data:
     {
         "log-level": "{{config.logging.controller_log_level}}",
         "aci-policy-tenant": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
+        "aci-service-phys-dom": "uni/phys-{{config.aci_config.physical_domain.aci_service_phys_dom}}",
+        "aci-service-encap": "vlan-{{config.node_config.service_vlan}}",
+        "aci-l3out-tenant": "{{config.kubernetes_config.aci_l3out.tenant}}",
+        "aci-l3out": "{{config.kubernetes_config.aci_l3out.name}}",
+        "aci-vrf": "{{config.kubernetes_config.aci_vrf.name}}",
         "default-endpoint-group": {
             "policy-space": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
             "name": "{{config.kubernetes_config.default_endpoint_group.app_profile}}|{{config.kubernetes_config.default_endpoint_group.group}}"
@@ -34,7 +39,8 @@ data:
         "service-ip-pool": {{ config.kubernetes_config.service_ip_pool|json|indent(width=8) }},
         "static-service-ip-pool": {{ config.kubernetes_config.static_service_ip_pool|json|indent(width=8) }},
         "pod-ip-pool": {{ config.kubernetes_config.pod_ip_pool|json|indent(width=8) }},
-        "node-service-ip-pool": {{ config.kubernetes_config.node_service_ip_pool|json|indent(width=8) }}
+        "node-service-ip-pool": {{ config.kubernetes_config.node_service_ip_pool|json|indent(width=8) }},
+        "node-service-subnets": {{ config.kubernetes_config.node_service_gw_subnets|json|indent(width=8) }}
     }
   host-agent-config: |-
     {

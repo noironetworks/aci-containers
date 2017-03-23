@@ -48,8 +48,9 @@ type AciController struct {
 	defaultEg string
 	defaultSg string
 
-	podQueue    workqueue.RateLimitingInterface
-	netPolQueue workqueue.RateLimitingInterface
+	podQueue     workqueue.RateLimitingInterface
+	netPolQueue  workqueue.RateLimitingInterface
+	serviceQueue workqueue.RateLimitingInterface
 
 	namespaceInformer     cache.SharedIndexInformer
 	podInformer           cache.SharedIndexInformer
@@ -118,8 +119,9 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		defaultEg: "",
 		defaultSg: "",
 
-		podQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
-		netPolQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkPolicy"),
+		podQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		netPolQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkPolicy"),
+		serviceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -248,6 +250,7 @@ func (cont *AciController) globalStaticObjs() aciSlice {
 
 func (cont *AciController) initStaticObjs() {
 	cont.initStaticNetPolObjs()
+	cont.initStaticServiceObjs()
 	cont.writeAimObjects("Controller", "static",
 		cont.globalStaticObjs())
 }
@@ -269,6 +272,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go processQueue(cont.netPolQueue, cont.networkPolicyInformer,
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
+		}, stopCh)
+	go processQueue(cont.serviceQueue, cont.serviceInformer,
+		func(obj interface{}) bool {
+			return cont.handleServiceUpdate(obj.(*v1.Service))
 		}, stopCh)
 
 	cont.log.Debug("Waiting for cache sync")

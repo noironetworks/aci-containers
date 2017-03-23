@@ -13,7 +13,10 @@
 // limitations under the License.
 
 // Index to aid in synchronizing AIM resources with the underlying
-// objects that generate them
+// objects that generate them.  We keep an index of the expected state
+// of the AIM resources that are associated with a given key, then
+// ensure that the corresponding ThirdPartyResource objects in the
+// kubernetes API are kept in sync
 
 package controller
 

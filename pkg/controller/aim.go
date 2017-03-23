@@ -163,7 +163,14 @@ func aimGenerateLabel(label string) string {
 }
 
 func (cont *AciController) aimChanged(obj interface{}) {
-	cont.reconcileAimObject(obj.(*Aci))
+	aci := obj.(*Aci)
+	if aci.Spec.Type == "external_network" &&
+		aci.Spec.ExternalNetwork != nil &&
+		aci.Spec.ExternalNetwork.Monitored == true {
+		cont.reconcileMonitoredExternalNetworks(aciSlice{aci})
+	} else {
+		cont.reconcileAimObject(aci)
+	}
 }
 
 func (cont *AciController) aimDeleted(obj interface{}) {

@@ -49,6 +49,10 @@ func (s aciSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 func (s aciSlice) Less(i, j int) bool {
+	r := strings.Compare(s[i].Spec.Type, s[j].Spec.Type)
+	if r != 0 {
+		return r < 0
+	}
 	return strings.Compare(s[i].ObjectMeta.Name, s[j].ObjectMeta.Name) < 0
 }
 
@@ -149,8 +153,8 @@ func NewSecurityGroup(tenantName string, name string) *Aci {
 		"tenant_name": tenantName,
 		"name":        name})
 	ret.Spec.SecurityGroup = &SecurityGroup{
-		Name:       name,
 		TenantName: tenantName,
+		Name:       name,
 	}
 	return ret
 }
@@ -184,6 +188,161 @@ func NewSecurityGroupRule(tenantName string, secGroup string,
 		SecurityGroupName:        secGroup,
 		SecurityGroupSubjectName: secGroupSubj,
 		Name: name,
+	}
+	return ret
+}
+
+func NewDeviceCluster(tenantName string, name string) *Aci {
+	ret := NewAciObj("device_cluster", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.DeviceCluster = &DeviceCluster{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewDeviceClusterContext(tenantName string, contractName string,
+	serviceGraphName string, nodeName string) *Aci {
+
+	ret := NewAciObj("device_cluster_context", map[string]string{
+		"tenant_name":        tenantName,
+		"contract_name":      contractName,
+		"service_graph_name": serviceGraphName,
+		"node_name":          nodeName})
+	ret.Spec.DeviceClusterContext = &DeviceClusterContext{
+		TenantName:       tenantName,
+		ContractName:     contractName,
+		ServiceGraphName: serviceGraphName,
+		NodeName:         nodeName,
+	}
+	return ret
+}
+
+func NewServiceGraph(tenantName string, name string) *Aci {
+	ret := NewAciObj("service_graph", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.ServiceGraph = &ServiceGraph{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewServiceRedirectPolicy(tenantName string, name string) *Aci {
+	ret := NewAciObj("service_redirect_policy", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.ServiceRedirectPolicy = &ServiceRedirectPolicy{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewContract(tenantName string, name string) *Aci {
+	ret := NewAciObj("contract", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.Contract = &Contract{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewContractSubject(tenantName string, contractName string,
+	name string) *Aci {
+
+	ret := NewAciObj("contract_subject", map[string]string{
+		"tenant_name":   tenantName,
+		"contract_name": contractName,
+		"name":          name})
+	ret.Spec.ContractSubject = &ContractSubject{
+		TenantName:   tenantName,
+		ContractName: contractName,
+		Name:         name,
+	}
+	return ret
+}
+
+func NewFilter(tenantName string, name string) *Aci {
+	ret := NewAciObj("filter", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.Filter = &Filter{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewFilterEntry(tenantName string, filterName string, name string) *Aci {
+	ret := NewAciObj("filter_entry", map[string]string{
+		"tenant_name": tenantName,
+		"filter_name": filterName,
+		"name":        name})
+	ret.Spec.FilterEntry = &FilterEntry{
+		TenantName: tenantName,
+		FilterName: filterName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewExternalNetwork(tenantName string, l3outName string, name string) *Aci {
+	ret := NewAciObj("external_network", map[string]string{
+		"tenant_name": tenantName,
+		"l3out_name":  l3outName,
+		"name":        name})
+	ret.Spec.ExternalNetwork = &ExternalNetwork{
+		TenantName: tenantName,
+		L3outName:  l3outName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewExternalSubnet(tenantName string, l3outName string,
+	externalNetworkName string, cidr string) *Aci {
+
+	ret := NewAciObj("external_subnet", map[string]string{
+		"tenant_name":           tenantName,
+		"l3out_name":            l3outName,
+		"external_network_name": externalNetworkName,
+		"cidr":                  cidr})
+	ret.Spec.ExternalSubnet = &ExternalSubnet{
+		TenantName:          tenantName,
+		L3outName:           l3outName,
+		ExternalNetworkName: externalNetworkName,
+		Cidr:                cidr,
+	}
+	return ret
+}
+
+func NewBridgeDomain(tenantName string, name string) *Aci {
+	ret := NewAciObj("bridge_domain", map[string]string{
+		"tenant_name": tenantName,
+		"name":        name})
+	ret.Spec.BridgeDomain = &BridgeDomain{
+		TenantName: tenantName,
+		Name:       name,
+	}
+	return ret
+}
+
+func NewSubnet(tenantName string, bdName string, gwIpMask string) *Aci {
+	ret := NewAciObj("subnet", map[string]string{
+		"tenant_name": tenantName,
+		"bd_name":     bdName,
+		"gw_ip_mask":  gwIpMask,
+	})
+	ret.Spec.Subnet = &Subnet{
+		TenantName: tenantName,
+		BdName:     bdName,
+		GwIpMask:   gwIpMask,
 	}
 	return ret
 }

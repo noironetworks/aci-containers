@@ -19,6 +19,8 @@ type AciObjectSpec struct {
   Configuration *Configuration `json:"configuration,omitempty"`
   Contract *Contract `json:"contract,omitempty"`
   ContractSubject *ContractSubject `json:"contract_subject,omitempty"`
+  DeviceCluster *DeviceCluster `json:"device_cluster,omitempty"`
+  DeviceClusterContext *DeviceClusterContext `json:"device_cluster_context,omitempty"`
   Endpoint *Endpoint `json:"endpoint,omitempty"`
   EndpointGroup *EndpointGroup `json:"endpoint_group,omitempty"`
   ExternalNetwork *ExternalNetwork `json:"external_network,omitempty"`
@@ -31,6 +33,8 @@ type AciObjectSpec struct {
   SecurityGroup *SecurityGroup `json:"security_group,omitempty"`
   SecurityGroupRule *SecurityGroupRule `json:"security_group_rule,omitempty"`
   SecurityGroupSubject *SecurityGroupSubject `json:"security_group_subject,omitempty"`
+  ServiceGraph *ServiceGraph `json:"service_graph,omitempty"`
+  ServiceRedirectPolicy *ServiceRedirectPolicy `json:"service_redirect_policy,omitempty"`
   Subnet *Subnet `json:"subnet,omitempty"`
   Tenant *Tenant `json:"tenant,omitempty"`
   Type string `json:"type,omitempty"`
@@ -106,7 +110,47 @@ type ContractSubject struct {
   Monitored bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   OutFilters []string `json:"out_filters,omitempty"`
+  ServiceGraphName string `json:"service_graph_name,omitempty"`
   TenantName string `json:"tenant_name"`
+}
+
+type Destinations struct {
+  Ip string `json:"ip,omitempty"`
+  Mac string `json:"mac,omitempty"`
+}
+
+type DeviceCluster struct {
+  ContextAware string `json:"context_aware,omitempty"`
+  DeviceType string `json:"device_type,omitempty"`
+  Devices []Devices `json:"devices,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  Encap string `json:"encap,omitempty"`
+  Managed bool `json:"managed,omitempty"`
+  Monitored bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  PhysicalDomainName string `json:"physical_domain_name,omitempty"`
+  ServiceType string `json:"service_type,omitempty"`
+  TenantName string `json:"tenant_name"`
+}
+
+type DeviceClusterContext struct {
+  BridgeDomainName string `json:"bridge_domain_name,omitempty"`
+  BridgeDomainTenantName string `json:"bridge_domain_tenant_name,omitempty"`
+  ContractName string `json:"contract_name"`
+  DeviceClusterName string `json:"device_cluster_name,omitempty"`
+  DeviceClusterTenantName string `json:"device_cluster_tenant_name,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored bool `json:"monitored,omitempty"`
+  NodeName string `json:"node_name"`
+  ServiceGraphName string `json:"service_graph_name"`
+  ServiceRedirectPolicyName string `json:"service_redirect_policy_name,omitempty"`
+  ServiceRedirectPolicyTenantName string `json:"service_redirect_policy_tenant_name,omitempty"`
+  TenantName string `json:"tenant_name"`
+}
+
+type Devices struct {
+  Name string `json:"name,omitempty"`
+  Path string `json:"path,omitempty"`
 }
 
 type Endpoint struct {
@@ -198,6 +242,12 @@ type L3Outside struct {
   VrfName string `json:"vrf_name,omitempty"`
 }
 
+type LinearChainNodes struct {
+  DeviceClusterName string `json:"device_cluster_name,omitempty"`
+  DeviceClusterTenantName string `json:"device_cluster_tenant_name,omitempty"`
+  Name string `json:"name,omitempty"`
+}
+
 type PhysicalDomain struct {
   Name string `json:"name"`
 }
@@ -230,6 +280,22 @@ type SecurityGroupSubject struct {
   Monitored bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   SecurityGroupName string `json:"security_group_name"`
+  TenantName string `json:"tenant_name"`
+}
+
+type ServiceGraph struct {
+  DisplayName string `json:"display_name,omitempty"`
+  LinearChainNodes []LinearChainNodes `json:"linear_chain_nodes,omitempty"`
+  Monitored bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  TenantName string `json:"tenant_name"`
+}
+
+type ServiceRedirectPolicy struct {
+  Destinations []Destinations `json:"destinations,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
 

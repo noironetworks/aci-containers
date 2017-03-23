@@ -167,6 +167,7 @@ func TestAimFullSync(t *testing.T) {
 			cont.fakeAimSource.Add(o)
 		}
 
+		cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
 		cont.run()
 
 		it = &indexDiffTests[j]
@@ -186,6 +187,9 @@ func TestAimFullSync(t *testing.T) {
 
 		static := cont.staticNetPolObjs()
 		fixAciSlice(static, staticNetPolKey().ktype, staticNetPolKey().key)
+		it.expAdds = append(it.expAdds, static...)
+		static = cont.staticServiceObjs()
+		fixAciSlice(static, staticServiceKey().ktype, staticServiceKey().key)
 		it.expAdds = append(it.expAdds, static...)
 		static = cont.globalStaticObjs()
 		fixAciSlice(static, staticGlobalKey().ktype, staticGlobalKey().key)

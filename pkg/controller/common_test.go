@@ -257,3 +257,26 @@ func service(namespace string, name string, lbIP string) *v1.Service {
 		},
 	}
 }
+
+func endpoints(namespace string, name string, nodes []string) *v1.Endpoints {
+	var addrs []v1.EndpointAddress
+	for _, n := range nodes {
+		ncopy := string(n)
+		addrs = append(addrs, v1.EndpointAddress{
+			IP:       "addr",
+			NodeName: &ncopy,
+		})
+	}
+	return &v1.Endpoints{
+		Subsets: []v1.EndpointSubset{
+			v1.EndpointSubset{
+				Addresses: addrs,
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+		},
+	}
+}

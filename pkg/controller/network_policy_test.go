@@ -307,7 +307,6 @@ func TestNetworkPolicy(t *testing.T) {
 				}
 				return true, nil
 			})
-
 	}
 
 	cont.log.Info("Starting delete")

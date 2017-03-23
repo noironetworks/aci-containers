@@ -42,8 +42,32 @@ type ControllerConfig struct {
 	// Default security group annotation value
 	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
 
+	// Name prefix to use when creating policy to avoid namespace
+	// collisions
+	AciPrefix string `json:"aci-prefix,omitempty"`
+
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
+
+	// Physical domain used for service device clusters
+	AciServicePhysDom string `json:"aci-service-phys-dom,omitempty"`
+
+	// Encap used for service device clusters
+	AciServiceEncap string `json:"aci-service-encap,omitempty"`
+
+	// Tenant containing L3 out to use for services, service device
+	// clusters need to be created in this tenant
+	AciL3OutTenant string `json:"aci-l3out-tenant,omitempty"`
+
+	// L3 out to use for services
+	AciL3Out string `json:"aci-l3out,omitempty"`
+
+	// ACI VRF for this kubernetes instance
+	AciVrf string `json:"aci-vrf,omitempty"`
+
+	// L3 external networks (within the l3out) that will be able to
+	// access the service IPs
+	AciExtNetworks []string `json:"aci-ext-networks,omitempty"`
 
 	// IP addresses used for pod network
 	PodIpPool []ipam.IpRange `json:"pod-ip-pool,omitempty"`
@@ -60,6 +84,10 @@ type ControllerConfig struct {
 
 	// IP addresses to use for node service endpoints
 	NodeServiceIpPool []ipam.IpRange `json:"node-service-ip-pool,omitempty"`
+
+	// a list of subnet/gateway CIDR addresses that cover the
+	// addresses in the node service IP pool
+	NodeServiceSubnets []string `json:"node-service-subnets,omitempty"`
 }
 
 type netIps struct {

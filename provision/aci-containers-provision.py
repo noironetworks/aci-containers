@@ -52,6 +52,9 @@ if __name__ == "__main__":
                 "domain": "kubernetes",
                 "controller": "kubernetes",
             },
+            "physical_domain": {
+                "domain": "physdom",
+            }
         },
         "node_config": {
             "encap_type": "vxlan",
@@ -64,6 +67,11 @@ if __name__ == "__main__":
             "aci_vrf": {
                 "tenant": "kubernetes",
                 "name": "kubernetes_vrf",
+            },
+            "aci_l3out": {
+                "tenant": "kubernetes",
+                "name": "kubernetes_l3out",
+                "ext_networks" : ["default"],
             },
             "default_endpoint_group": {
                 "tenant": "kubernetes",
