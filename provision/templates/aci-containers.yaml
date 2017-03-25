@@ -27,7 +27,7 @@ data:
     {
         "log-level": "{{config.logging.controller_log_level}}",
         "aci-policy-tenant": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
-        "aci-service-phys-dom": "uni/phys-{{config.aci_config.physical_domain.aci_service_phys_dom}}",
+        "aci-service-phys-dom": "uni/phys-{{config.aci_config.physical_domain.domain}}",
         "aci-service-encap": "vlan-{{config.node_config.service_vlan}}",
         "aci-l3out-tenant": "{{config.kubernetes_config.aci_l3out.tenant}}",
         "aci-l3out": "{{config.kubernetes_config.aci_l3out.name}}",
@@ -354,7 +354,7 @@ spec:
                 path: aim-local.conf
         - name: kubeconfig
           hostPath:
-            path: /etc/kubernetes/kubelet.conf
+            path: {{ config.node_config.kubeconfig }}
         {% if config.node_config.kubepkipath %}
         - name: kubepki
           hostPath:
