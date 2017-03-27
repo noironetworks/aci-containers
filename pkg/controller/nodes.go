@@ -26,6 +26,7 @@ import (
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -152,6 +153,13 @@ func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) e
 	return nil
 }
 
+func (cont *AciController) nodeFullSync() {
+	cache.ListAll(cont.nodeInformer.GetIndexer(), labels.Everything(),
+		func(nodeobj interface{}) {
+			cont.nodeChanged(nodeobj)
+		})
+}
+
 func (cont *AciController) nodeChanged(obj interface{}) {
 	cont.indexMutex.Lock()
 
@@ -169,7 +177,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 				existing.serviceEpAnnotation
 			nodeUpdated = true
 		}
-	} else {
+	} else if cont.nodeSyncEnabled {
 		nodeMeta := &nodeServiceMeta{}
 
 		if epok {
@@ -211,11 +219,13 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			cont.mergePodNet(nodePodNet, netval, logger)
 		}
 	}
-	cont.checkNodePodNet(node.ObjectMeta.Name)
-	if netval != nodePodNet.podNetIpsAnnotation {
-		node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] =
-			nodePodNet.podNetIpsAnnotation
-		nodeUpdated = true
+	if cont.nodeSyncEnabled {
+		cont.checkNodePodNet(node.ObjectMeta.Name)
+		if netval != nodePodNet.podNetIpsAnnotation {
+			node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] =
+				nodePodNet.podNetIpsAnnotation
+			nodeUpdated = true
+		}
 	}
 	cont.indexMutex.Unlock()
 

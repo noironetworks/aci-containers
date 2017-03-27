@@ -86,7 +86,8 @@ type AciController struct {
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 
-	syncEnabled bool
+	nodeSyncEnabled bool
+	syncEnabled     bool
 }
 
 type nodeServiceMeta struct {
@@ -257,8 +258,15 @@ func (cont *AciController) initStaticObjs() {
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Starting informers")
-	go cont.namespaceInformer.Run(stopCh)
 	go cont.nodeInformer.Run(stopCh)
+	cont.log.Debug("Waiting for node cache sync")
+	cache.WaitForCacheSync(stopCh, cont.nodeInformer.HasSynced)
+	cont.indexMutex.Lock()
+	cont.nodeSyncEnabled = true
+	cont.indexMutex.Unlock()
+	cont.nodeFullSync()
+
+	go cont.namespaceInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
 	go cont.endpointsInformer.Run(stopCh)
@@ -281,7 +289,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Waiting for cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
-		cont.nodeInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
 		cont.endpointsInformer.HasSynced,
