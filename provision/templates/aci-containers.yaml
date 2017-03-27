@@ -183,7 +183,7 @@ spec:
             path: /run
         - name: kubeconfig
           hostPath:
-            path: /etc/kubernetes/kubelet.conf
+            path: {{ config.node_config.kubeconfig }}
         {% if config.node_config.kubepkipath %}
         - name: kubepki
           hostPath:
