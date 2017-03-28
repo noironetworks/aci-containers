@@ -1,7 +1,7 @@
 package: github.com/noironetworks/aci-containers
 import:
 - package: github.com/Sirupsen/logrus
-  version: ^0.11.0
+  version: ^0.11.5
 - package: github.com/containernetworking/cni
   version: ~0.4.0
   subpackages:
@@ -16,7 +16,7 @@ import:
 - package: github.com/tatsushid/go-fastping
   version: d7bb493dee3e090e2ffb6914adddf17c1e7c026c
 - package: k8s.io/kubernetes
-  version: ~1.6.0-alpha.1
+  version: 1.6.0
 - package: k8s.io/client-go
   version: master
 - package: github.com/stretchr/testify
