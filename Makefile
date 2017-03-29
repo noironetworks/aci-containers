@@ -42,6 +42,7 @@ goinstall:
 	${INSTALL_CMD} ${BASE}/cmd/opflexagentcni
 	${INSTALL_CMD} ${BASE}/cmd/controller
 	${INSTALL_CMD} ${BASE}/cmd/hostagent
+	${INSTALL_CMD} ${BASE}/cmd/acikubectl
 
 dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni

@@ -54,6 +54,10 @@ kubernetes_config:
   aci_l3out:
     tenant: common
     name: l3out
+    # The external networks on the l3out from which external services
+    # should be reachable
+    external_networks:
+      - l3out
 
   # The global ACI default endpoint group to assign to pods without
   # another overriding assignment

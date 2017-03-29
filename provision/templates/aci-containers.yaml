@@ -27,10 +27,11 @@ data:
     {
         "log-level": "{{config.logging.controller_log_level}}",
         "aci-policy-tenant": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
-        "aci-service-phys-dom": "uni/phys-{{config.aci_config.physical_domain.domain}}",
+        "aci-service-phys-dom": "{{config.aci_config.physical_domain.domain}}",
         "aci-service-encap": "vlan-{{config.node_config.service_vlan}}",
         "aci-l3out-tenant": "{{config.kubernetes_config.aci_l3out.tenant}}",
         "aci-l3out": "{{config.kubernetes_config.aci_l3out.name}}",
+        "aci-ext-networks": {{ config.kubernetes_config.aci_l3out.external_networks|json|indent(width=8) }},
         "aci-vrf": "{{config.kubernetes_config.aci_vrf.name}}",
         "default-endpoint-group": {
             "policy-space": "{{config.kubernetes_config.default_endpoint_group.tenant}}",

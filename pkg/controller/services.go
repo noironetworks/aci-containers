@@ -146,7 +146,8 @@ func (cont *AciController) updateMonitoredExternalNetworks() {
 			aci := aimobj.(*Aci)
 			if aci.Spec.Type == "external_network" &&
 				aci.Spec.ExternalNetwork != nil &&
-				aci.Spec.ExternalNetwork.Monitored == true {
+				aci.Spec.ExternalNetwork.Monitored != nil &&
+				*aci.Spec.ExternalNetwork.Monitored == true {
 				aciObjs = append(aciObjs, aci)
 			}
 		})
@@ -220,8 +221,9 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	{
 		bd := NewBridgeDomain(cont.config.AciL3OutTenant,
 			"kubernetes-service-bd")
-		bd.Spec.BridgeDomain.EnableArpFlood = true
-		bd.Spec.BridgeDomain.EnableRouting = true
+		t := true
+		bd.Spec.BridgeDomain.EnableArpFlood = &t
+		bd.Spec.BridgeDomain.EnableRouting = &t
 		bd.Spec.BridgeDomain.L2UnknownUnicastMode = "flood"
 		// XXX TODO may need to set endpoint dataplane learning to
 		// false, but no field currently
@@ -311,7 +313,8 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// limit the scope of service redirects.
 		{
 			dc := NewDeviceCluster(cont.config.AciL3OutTenant, name)
-			dc.Spec.DeviceCluster.Managed = false
+			f := false
+			dc.Spec.DeviceCluster.Managed = &f
 			dc.Spec.DeviceCluster.PhysicalDomainName =
 				cont.config.AciServicePhysDom
 			dc.Spec.DeviceCluster.Encap = cont.config.AciServiceEncap
@@ -404,6 +407,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				NewFilter(cont.config.AciL3OutTenant, fname_in))
 			serviceObjs = append(serviceObjs,
 				NewFilter(cont.config.AciL3OutTenant, fname_out))
+			cs.Spec.ContractSubject.ServiceGraphName = name
 			cs.Spec.ContractSubject.InFilters = []string{fname_in}
 			cs.Spec.ContractSubject.OutFilters = []string{fname_out}
 			serviceObjs = append(serviceObjs, cs)
@@ -414,8 +418,8 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				fe_out := NewFilterEntry(cont.config.AciL3OutTenant,
 					fname_out, strconv.Itoa(i))
 
-				fe_in.Spec.FilterEntry.EtherType = "ipv4"
-				fe_out.Spec.FilterEntry.EtherType = "ipv4"
+				fe_in.Spec.FilterEntry.EtherType = "ip"
+				fe_out.Spec.FilterEntry.EtherType = "ip"
 				if port.Protocol == v1.ProtocolUDP {
 					fe_in.Spec.FilterEntry.IpProtocol = "udp"
 					fe_out.Spec.FilterEntry.IpProtocol = "udp"

@@ -1,5 +1,5 @@
-hash: 671ba7870b11fc9aa84deaf05b98b4eab614aa0cce1f852ce58ac435f93a395b
-updated: 2017-03-28T13:31:34.555807177-07:00
+hash: 57ca49b4cd6cc593bd938be4f70a4f7cd21962e95aea0ef208a8d0c31f3fc9d8
+updated: 2017-03-28T17:59:12.671980815-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -84,6 +84,8 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/juju/ratelimit
   version: 77ed1c8a01217656d2080ad51981f6e99adaa177
+- name: github.com/kr/fs
+  version: 2788f0dbd16903de03cb8186e5c7d97b69ad387b
 - name: github.com/magiconair/properties
   version: 51463bfca2576e06c62a8504b5c0f06d61312647
 - name: github.com/mailru/easyjson
@@ -95,9 +97,13 @@ imports:
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/pelletier/go-buffruneio
-  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+  version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: f6e7596e8daafd44dc9e5c208dc73035020c8481
+  version: 13d49d4606eb801b8f01ae542b4afc4c6ee3d84a
+- name: github.com/pkg/errors
+  version: a22138067af1c4942683050411a841ade67fe1eb
+- name: github.com/pkg/sftp
+  version: 4d0e916071f68db74f8a73926335f809396d6b42
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
@@ -114,6 +120,7 @@ imports:
   version: b28a7effac979219c2a2ed6205a4d70e4b1bcd02
   subpackages:
   - mem
+  - sftp
 - name: github.com/spf13/cast
   version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
 - name: github.com/spf13/cobra
@@ -143,6 +150,10 @@ imports:
 - name: golang.org/x/crypto
   version: d172538b2cfce0c13cee31e647d0367aa8cd2486
   subpackages:
+  - curve25519
+  - ed25519
+  - ed25519/internal/edwards25519
+  - ssh
   - ssh/terminal
 - name: golang.org/x/net
   version: e90d6d0afc4c315a0d87a568ae68577cc15149a0

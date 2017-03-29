@@ -71,7 +71,7 @@ if __name__ == "__main__":
             "aci_l3out": {
                 "tenant": "kubernetes",
                 "name": "kubernetes_l3out",
-                "ext_networks" : ["default"],
+                "external_networks" : ["default"],
             },
             "default_endpoint_group": {
                 "tenant": "kubernetes",

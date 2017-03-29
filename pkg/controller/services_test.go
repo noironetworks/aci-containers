@@ -207,22 +207,23 @@ func TestServiceGraph(t *testing.T) {
 	contractSubj := NewContractSubject("common", name, "LoadBalancedService")
 	f_in := NewFilter("common", name+"_in")
 	f_out := NewFilter("common", name+"_out")
+	contractSubj.Spec.ContractSubject.ServiceGraphName = name
 	contractSubj.Spec.ContractSubject.InFilters = []string{name + "_in"}
 	contractSubj.Spec.ContractSubject.OutFilters = []string{name + "_out"}
 	fe_tcp_80_in := NewFilterEntry("common", name+"_in", "0")
-	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ipv4"
+	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ip"
 	fe_tcp_80_in.Spec.FilterEntry.IpProtocol = "tcp"
 	fe_tcp_80_in.Spec.FilterEntry.DestFromPort = "80"
 	fe_udp_53_in := NewFilterEntry("common", name+"_in", "1")
-	fe_udp_53_in.Spec.FilterEntry.EtherType = "ipv4"
+	fe_udp_53_in.Spec.FilterEntry.EtherType = "ip"
 	fe_udp_53_in.Spec.FilterEntry.IpProtocol = "udp"
 	fe_udp_53_in.Spec.FilterEntry.DestFromPort = "53"
 	fe_tcp_80_out := NewFilterEntry("common", name+"_out", "0")
-	fe_tcp_80_out.Spec.FilterEntry.EtherType = "ipv4"
+	fe_tcp_80_out.Spec.FilterEntry.EtherType = "ip"
 	fe_tcp_80_out.Spec.FilterEntry.IpProtocol = "tcp"
 	fe_tcp_80_out.Spec.FilterEntry.SourceFromPort = "80"
 	fe_udp_53_out := NewFilterEntry("common", name+"_out", "1")
-	fe_udp_53_out.Spec.FilterEntry.EtherType = "ipv4"
+	fe_udp_53_out.Spec.FilterEntry.EtherType = "ip"
 	fe_udp_53_out.Spec.FilterEntry.IpProtocol = "udp"
 	fe_udp_53_out.Spec.FilterEntry.SourceFromPort = "53"
 

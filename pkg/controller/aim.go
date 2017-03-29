@@ -166,7 +166,8 @@ func (cont *AciController) aimChanged(obj interface{}) {
 	aci := obj.(*Aci)
 	if aci.Spec.Type == "external_network" &&
 		aci.Spec.ExternalNetwork != nil &&
-		aci.Spec.ExternalNetwork.Monitored == true {
+		aci.Spec.ExternalNetwork.Monitored != nil &&
+		*aci.Spec.ExternalNetwork.Monitored == true {
 		cont.reconcileMonitoredExternalNetworks(aciSlice{aci})
 	} else {
 		cont.reconcileAimObject(aci)

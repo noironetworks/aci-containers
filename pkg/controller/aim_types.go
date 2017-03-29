@@ -32,6 +32,7 @@ import (
 //   go get github.com/a-h/generate
 //   go install github.com/a-h/generate/cmd/schema-generate
 //go:generate schema-generate -i schema/aim_schema.json  -o aim_schema.go -p controller
+//go:generate sed -i -e s/\x20bool\x20/\x20*bool\x20/ aim_schema.go
 
 type Aci struct {
 	metav1.TypeMeta   `json:",inline"`

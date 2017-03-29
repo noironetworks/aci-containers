@@ -244,7 +244,8 @@ func processQueue(queue workqueue.RateLimitingInterface,
 
 func (cont *AciController) globalStaticObjs() aciSlice {
 	t := NewTenant(cont.config.AciPolicyTenant)
-	t.Spec.Tenant.Monitored = true
+	m := true
+	t.Spec.Tenant.Monitored = &m
 
 	return aciSlice{t}
 }

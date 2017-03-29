@@ -53,7 +53,7 @@ type AciStatus struct {
 }
 
 type Agent struct {
-  AdminStateUp bool `json:"admin_state_up,omitempty"`
+  AdminStateUp *bool `json:"admin_state_up,omitempty"`
   AgentType string `json:"agent_type,omitempty"`
   BeatCount float64 `json:"beat_count,omitempty"`
   BinaryFile string `json:"binary_file,omitempty"`
@@ -67,20 +67,20 @@ type Agent struct {
 
 type ApplicationProfile struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
 
 type BridgeDomain struct {
   DisplayName string `json:"display_name,omitempty"`
-  EnableArpFlood bool `json:"enable_arp_flood,omitempty"`
-  EnableRouting bool `json:"enable_routing,omitempty"`
+  EnableArpFlood *bool `json:"enable_arp_flood,omitempty"`
+  EnableRouting *bool `json:"enable_routing,omitempty"`
   EpMoveDetectMode string `json:"ep_move_detect_mode,omitempty"`
   L2UnknownUnicastMode string `json:"l2_unknown_unicast_mode,omitempty"`
   L3outNames []string `json:"l3out_names,omitempty"`
-  LimitIpLearnToSubnets bool `json:"limit_ip_learn_to_subnets,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  LimitIpLearnToSubnets *bool `json:"limit_ip_learn_to_subnets,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
   VrfName string `json:"vrf_name,omitempty"`
@@ -96,7 +96,7 @@ type Configuration struct {
 
 type Contract struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   Scope string `json:"scope,omitempty"`
   TenantName string `json:"tenant_name"`
@@ -107,7 +107,7 @@ type ContractSubject struct {
   ContractName string `json:"contract_name"`
   DisplayName string `json:"display_name,omitempty"`
   InFilters []string `json:"in_filters,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   OutFilters []string `json:"out_filters,omitempty"`
   ServiceGraphName string `json:"service_graph_name,omitempty"`
@@ -125,8 +125,8 @@ type DeviceCluster struct {
   Devices []Devices `json:"devices,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
   Encap string `json:"encap,omitempty"`
-  Managed bool `json:"managed,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Managed *bool `json:"managed,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   PhysicalDomainName string `json:"physical_domain_name,omitempty"`
   ServiceType string `json:"service_type,omitempty"`
@@ -140,7 +140,7 @@ type DeviceClusterContext struct {
   DeviceClusterName string `json:"device_cluster_name,omitempty"`
   DeviceClusterTenantName string `json:"device_cluster_tenant_name,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   NodeName string `json:"node_name"`
   ServiceGraphName string `json:"service_graph_name"`
   ServiceRedirectPolicyName string `json:"service_redirect_policy_name,omitempty"`
@@ -166,7 +166,7 @@ type EndpointGroup struct {
   BdName string `json:"bd_name,omitempty"`
   ConsumedContractNames []string `json:"consumed_contract_names,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   OpenstackVmmDomainNames []string `json:"openstack_vmm_domain_names,omitempty"`
   PhysicalDomainNames []string `json:"physical_domain_names,omitempty"`
@@ -180,7 +180,7 @@ type ExternalNetwork struct {
   ConsumedContractNames []string `json:"consumed_contract_names,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
   L3outName string `json:"l3out_name"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   NatEpgDn string `json:"nat_epg_dn,omitempty"`
   ProvidedContractNames []string `json:"provided_contract_names,omitempty"`
@@ -192,13 +192,13 @@ type ExternalSubnet struct {
   DisplayName string `json:"display_name,omitempty"`
   ExternalNetworkName string `json:"external_network_name"`
   L3outName string `json:"l3out_name"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   TenantName string `json:"tenant_name"`
 }
 
 type Filter struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
@@ -210,15 +210,15 @@ type FilterEntry struct {
   DisplayName string `json:"display_name,omitempty"`
   EtherType string `json:"ether_type,omitempty"`
   FilterName string `json:"filter_name"`
-  FragmentOnly bool `json:"fragment_only,omitempty"`
+  FragmentOnly *bool `json:"fragment_only,omitempty"`
   Icmpv4Type string `json:"icmpv4_type,omitempty"`
   Icmpv6Type string `json:"icmpv6_type,omitempty"`
   IpProtocol string `json:"ip_protocol,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   SourceFromPort string `json:"source_from_port,omitempty"`
   SourceToPort string `json:"source_to_port,omitempty"`
-  Stateful bool `json:"stateful,omitempty"`
+  Stateful *bool `json:"stateful,omitempty"`
   TcpFlags string `json:"tcp_flags,omitempty"`
   TenantName string `json:"tenant_name"`
 }
@@ -236,7 +236,7 @@ type HostLink struct {
 type L3Outside struct {
   DisplayName string `json:"display_name,omitempty"`
   L3DomainDn string `json:"l3_domain_dn,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
   VrfName string `json:"vrf_name,omitempty"`
@@ -254,7 +254,7 @@ type PhysicalDomain struct {
 
 type SecurityGroup struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
@@ -266,7 +266,7 @@ type SecurityGroupRule struct {
   Ethertype string `json:"ethertype,omitempty"`
   FromPort string `json:"from_port,omitempty"`
   IpProtocol string `json:"ip_protocol,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   RemoteIps []string `json:"remote_ips,omitempty"`
   SecurityGroupName string `json:"security_group_name"`
@@ -277,7 +277,7 @@ type SecurityGroupRule struct {
 
 type SecurityGroupSubject struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   SecurityGroupName string `json:"security_group_name"`
   TenantName string `json:"tenant_name"`
@@ -286,7 +286,7 @@ type SecurityGroupSubject struct {
 type ServiceGraph struct {
   DisplayName string `json:"display_name,omitempty"`
   LinearChainNodes []LinearChainNodes `json:"linear_chain_nodes,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
@@ -294,7 +294,7 @@ type ServiceGraph struct {
 type ServiceRedirectPolicy struct {
   Destinations []Destinations `json:"destinations,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
 }
@@ -307,14 +307,14 @@ type Subnet struct {
   BdName string `json:"bd_name"`
   DisplayName string `json:"display_name,omitempty"`
   GwIpMask string `json:"gw_ip_mask"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Scope string `json:"scope,omitempty"`
   TenantName string `json:"tenant_name"`
 }
 
 type Tenant struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
 }
 
@@ -325,7 +325,7 @@ type VmmDomain struct {
 
 type Vrf struct {
   DisplayName string `json:"display_name,omitempty"`
-  Monitored bool `json:"monitored,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   PolicyEnforcementPref string `json:"policy_enforcement_pref,omitempty"`
   TenantName string `json:"tenant_name"`
