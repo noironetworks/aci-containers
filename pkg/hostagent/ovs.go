@@ -18,6 +18,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/socketplane/libovsdb"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -97,11 +100,17 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 		}
 	}
 
+	for _, name := range brNames {
+		if _, ok := bridges[name]; !ok {
+			return nil, fmt.Errorf("Bridge %s not found", name)
+		}
+	}
+
 	return bridges, nil
 }
 
-func createPorts(socket string, intBrName string,
-	accessBrName string, hostVethName string) error {
+func (agent *HostAgent) syncPorts(socket string) error {
+	agent.log.Debug("Syncing OVS ports")
 
 	ovs, err := libovsdb.ConnectWithUnixSocket(socket)
 	if err != nil {
@@ -109,47 +118,150 @@ func createPorts(socket string, intBrName string,
 	}
 	defer ovs.Disconnect()
 
-	bridges, err := loadBridges(ovs, []string{intBrName, accessBrName})
+	brNames :=
+		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
+
+	bridges, err := loadBridges(ovs, brNames)
 	if err != nil {
 		return err
 	}
 
-	for _, brName := range []string{intBrName, accessBrName} {
+	for _, brName := range brNames {
 		if _, ok := bridges[brName]; !ok {
 			return fmt.Errorf("Bridge %s not found", brName)
 		}
 	}
 
-	patchIntName, patchAccessName := metadata.GetIfaceNames(hostVethName)
-	const EXISTS = "Port %s already exists"
-	if _, ok := bridges[intBrName].ports[patchIntName]; ok {
-		return fmt.Errorf(EXISTS, patchIntName)
-	}
-	if _, ok := bridges[accessBrName].ports[patchAccessName]; ok {
-		return fmt.Errorf(EXISTS, patchAccessName)
-	}
-	if _, ok := bridges[accessBrName].ports[hostVethName]; ok {
-		return fmt.Errorf(EXISTS, hostVethName)
+	ops := agent.diffPorts(bridges)
+	return execTransaction(ovs, ops)
+}
+
+func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Operation {
+
+	var ops []libovsdb.Operation
+
+	found := make(map[string]map[string]bool)
+
+	brNames :=
+		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
+	for _, brName := range brNames {
+		found[brName] = make(map[string]bool)
 	}
 
-	const uuidHostP = "host_veth_uuid_port"
-	const uuidHostI = "host_veth_uuid_interface"
-	const uuidPatchIntP = "patch_int_uuid_port"
-	const uuidPatchIntI = "patch_int_uuid_interface"
-	const uuidPatchAccP = "patch_acc_uuid_port"
-	const uuidPatchAccI = "patch_acc_uuid_interface"
+	agent.indexMutex.Lock()
+	opid := 0
+	for id, meta := range agent.epMetadata {
+		if meta.HostVethName == "" {
+			continue
+		}
+
+		patchIntName, patchAccessName :=
+			metadata.GetIfaceNames(meta.HostVethName)
+
+		var delops []libovsdb.Operation
+		portmissing := false
+		portMap := map[string][]string{
+			agent.config.AccessBridgeName: []string{patchAccessName,
+				meta.HostVethName},
+			agent.config.IntBridgeName: []string{patchIntName},
+		}
+		for _, brName := range brNames {
+			portNames := portMap[brName]
+			if br, ok := bridges[brName]; ok {
+				var delports []libovsdb.UUID
+				for _, n := range portNames {
+					if uuid, ok := br.ports[n]; ok {
+						delports = append(delports, libovsdb.UUID{GoUUID: uuid})
+						found[brName][n] = true
+					} else {
+						portmissing = true
+					}
+				}
+				if len(delports) > 0 {
+					delops = append(delops, delBrPortOp(br.uuid, delports))
+				}
+			}
+		}
+
+		if portmissing {
+			// if we have only some of the ports, delete the ones that
+			// are already there
+			if len(delops) > 0 {
+				agent.log.Warning("Deleting stale partial state for ", id)
+				ops = append(ops, delops...)
+			}
+
+			agent.log.Debug("Adding ports for ", id)
+			adds, err :=
+				addIfaceOps(meta.HostVethName, patchIntName, patchAccessName,
+					bridges[agent.config.AccessBridgeName].uuid,
+					bridges[agent.config.IntBridgeName].uuid, strconv.Itoa(opid))
+			opid++
+			if err != nil {
+				agent.log.Error(err)
+			}
+			ops = append(ops, adds...)
+		}
+	}
+	agent.indexMutex.Unlock()
+
+	for _, brName := range brNames {
+		br, ok := bridges[brName]
+		if !ok {
+			agent.log.Warning("Bridge ", brName, " missing")
+			continue
+		}
+
+		var delports []libovsdb.UUID
+		for name, uuid := range br.ports {
+			if strings.Contains(name, "veth") && !found[brName][name] {
+				agent.log.Debug("Deleting stale port for ", brName, ": ", name)
+				delports = append(delports, libovsdb.UUID{GoUUID: uuid})
+			}
+		}
+		if len(delports) > 0 {
+			ops = append(ops, delBrPortOp(br.uuid, delports))
+		}
+	}
+
+	return ops
+}
+
+func delBrPortOp(brUuid string, pUuid []libovsdb.UUID) libovsdb.Operation {
+	p, _ := libovsdb.NewOvsSet(pUuid)
+	m := []interface{}{libovsdb.NewMutation("ports", "delete", p)}
+	c := []interface{}{libovsdb.NewCondition("_uuid", "==",
+		libovsdb.UUID{GoUUID: brUuid})}
+	return libovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Bridge",
+		Mutations: m,
+		Where:     c,
+	}
+}
+
+func addIfaceOps(hostVethName string, patchIntName string,
+	patchAccessName string, accessBrUuid string,
+	intBrUuid string, opid string) ([]libovsdb.Operation, error) {
+
+	uuidHostP := "host_veth_uuid_port_" + opid
+	uuidHostI := "host_veth_uuid_interface" + opid
+	uuidPatchIntP := "patch_int_uuid_port" + opid
+	uuidPatchIntI := "patch_int_uuid_interface" + opid
+	uuidPatchAccP := "patch_acc_uuid_port" + opid
+	uuidPatchAccI := "patch_acc_uuid_interface" + opid
 
 	patchopti, err := libovsdb.NewOvsMap(map[string]interface{}{
 		"peer": patchAccessName,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	patchopta, err := libovsdb.NewOvsMap(map[string]interface{}{
 		"peer": patchIntName,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	aports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
@@ -157,23 +269,23 @@ func createPorts(socket string, intBrName string,
 		{GoUUID: uuidPatchAccP},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	mabridge := []interface{}{libovsdb.NewMutation("ports", "insert", aports)}
 	cabridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{GoUUID: bridges[accessBrName].uuid})}
+		libovsdb.UUID{GoUUID: accessBrUuid})}
 
 	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
 		{GoUUID: uuidPatchIntP},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	mibridge := []interface{}{libovsdb.NewMutation("ports", "insert", iports)}
 	cibridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{GoUUID: bridges[intBrName].uuid})}
+		libovsdb.UUID{GoUUID: intBrUuid})}
 
-	ops := []libovsdb.Operation{
+	return []libovsdb.Operation{
 		libovsdb.Operation{
 			Op:    "insert",
 			Table: "Interface",
@@ -241,62 +353,7 @@ func createPorts(socket string, intBrName string,
 			Mutations: mibridge,
 			Where:     cibridge,
 		},
-	}
-
-	return execTransaction(ovs, ops)
-}
-
-func delBrPortOp(brUuid string, pUuid []libovsdb.UUID) libovsdb.Operation {
-	p, _ := libovsdb.NewOvsSet(pUuid)
-	m := []interface{}{libovsdb.NewMutation("ports", "delete", p)}
-	c := []interface{}{libovsdb.NewCondition("_uuid", "==",
-		libovsdb.UUID{GoUUID: brUuid})}
-	return libovsdb.Operation{
-		Op:        "mutate",
-		Table:     "Bridge",
-		Mutations: m,
-		Where:     c,
-	}
-}
-
-func delPorts(socket string, intBrName string,
-	accessBrName string, hostVethName string) error {
-	ovs, err := libovsdb.ConnectWithUnixSocket(socket)
-	if err != nil {
-		return err
-	}
-	defer ovs.Disconnect()
-
-	bridges, err := loadBridges(ovs, []string{intBrName, accessBrName})
-	if err != nil {
-		return err
-	}
-
-	patchIntName, patchAccessName := metadata.GetIfaceNames(hostVethName)
-
-	ops := []libovsdb.Operation{}
-
-	for brName, portNames := range map[string][]string{
-		accessBrName: []string{patchAccessName, hostVethName},
-		intBrName:    []string{patchIntName},
-	} {
-		if br, ok := bridges[brName]; ok {
-			var delports []libovsdb.UUID
-			for _, n := range portNames {
-				if uuid, ok := br.ports[n]; ok {
-					delports = append(delports, libovsdb.UUID{GoUUID: uuid})
-				}
-			}
-			if len(delports) > 0 {
-				ops = append(ops, delBrPortOp(br.uuid, delports))
-			}
-		}
-	}
-
-	if len(ops) > 0 {
-		return execTransaction(ovs, ops)
-	}
-	return nil
+	}, nil
 }
 
 func execTransaction(ovs *libovsdb.OvsdbClient, ops []libovsdb.Operation) error {

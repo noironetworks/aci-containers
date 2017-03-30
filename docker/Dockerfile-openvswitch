@@ -1,4 +1,4 @@
-FROM alpine:3.5
-RUN apk --no-cache add openvswitch
-COPY launch-ovs.sh /usr/local/bin/
+FROM alpine:edge
+RUN apk --no-cache add openvswitch logrotate
+COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
 CMD ["/usr/local/bin/launch-ovs.sh"]

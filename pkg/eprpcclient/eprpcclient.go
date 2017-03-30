@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package eprpcclient
 
 import (
 	"net"
@@ -47,5 +47,13 @@ func (c *Client) Register(metadata *md.ContainerMetadata) (*cnitypes.Result, err
 func (c *Client) Unregister(id string) (bool, error) {
 	var result bool
 	err := c.connection.Call("EpRPC.Unregister", id, &result)
+	return result, err
+}
+
+type ResyncArgs struct{}
+
+func (c *Client) Resync() (bool, error) {
+	var result bool
+	err := c.connection.Call("EpRPC.Resync", ResyncArgs{}, &result)
 	return result, err
 }

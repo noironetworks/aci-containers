@@ -60,10 +60,17 @@ func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result
 		return errors.New("Metadata has empty pod key fields")
 	}
 
+	r.agent.log.Debug("Registering ", metadata.Id)
+
 	regresult, err := r.agent.configureContainerIface(metadata)
 	if err != nil {
 		r.agent.log.Error("Failed to configure container interface: ", err)
 		return err
+	}
+
+	err = r.agent.syncPorts(r.agent.config.OvsDbSock)
+	if err != nil {
+		r.agent.log.Error("Could not sync OVS ports: ", err)
 	}
 
 	*result = *regresult
@@ -75,6 +82,8 @@ func (r *EpRPC) Unregister(id string, ack *bool) error {
 		return errors.New("ID is empty")
 	}
 
+	r.agent.log.Debug("Unregistering ", id)
+
 	err := r.agent.unconfigureContainerIface(id)
 	if err != nil {
 		r.agent.log.WithFields(logrus.Fields{
@@ -83,6 +92,20 @@ func (r *EpRPC) Unregister(id string, ack *bool) error {
 		return err
 	}
 
+	err = r.agent.syncPorts(r.agent.config.OvsDbSock)
+	if err != nil {
+		r.agent.log.Error("Could not sync OVS ports: ", err)
+	}
+
+	*ack = true
+	return nil
+}
+
+type ResyncArgs struct{}
+
+func (r *EpRPC) Resync(args ResyncArgs, ack *bool) error {
+	r.agent.log.Debug("EpRPC resync invoked")
+	r.agent.syncPorts(r.agent.config.OvsDbSock)
 	*ack = true
 	return nil
 }

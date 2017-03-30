@@ -163,7 +163,8 @@ func TestServiceGraph(t *testing.T) {
 
 	name := "service__testns_service1"
 	twoNodeCluster := NewDeviceCluster("common", name)
-	twoNodeCluster.Spec.DeviceCluster.Managed = false
+	f := false
+	twoNodeCluster.Spec.DeviceCluster.Managed = &f
 	twoNodeCluster.Spec.DeviceCluster.PhysicalDomainName = "service-physdom"
 	twoNodeCluster.Spec.DeviceCluster.Encap = "vlan-4001"
 	twoNodeCluster.Spec.DeviceCluster.Devices = []Devices{
@@ -337,7 +338,8 @@ func TestServiceGraph(t *testing.T) {
 	sgWait(t, "add eps", cont, expected)
 
 	monitored := NewExternalNetwork("common", "l3out", "ext1")
-	monitored.Spec.ExternalNetwork.Monitored = true
+	tru := true
+	monitored.Spec.ExternalNetwork.Monitored = &tru
 
 	cont.fakeAimSource.Add(monitored)
 	mWait(t, "add extnet", cont, []string{name})

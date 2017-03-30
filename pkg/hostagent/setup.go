@@ -127,14 +127,6 @@ func (agent *HostAgent) configureContainerIface(metadata *md.ContainerMetadata) 
 		agent.indexMutex.Unlock()
 	}
 
-	logger.Debug("Creating OVS ports")
-
-	err = createPorts(agent.config.OvsDbSock, agent.config.IntBridgeName,
-		agent.config.AccessBridgeName, metadata.HostVethName)
-	if err != nil {
-		return nil, err
-	}
-
 	logger.Debug("Configuring network")
 	err = setupNetwork(netns, metadata.ContIfaceName, &metadata.NetConf)
 	if err != nil {
@@ -172,15 +164,6 @@ func (agent *HostAgent) unconfigureContainerIface(id string) error {
 
 	logger.Debug("Deallocating IP address(es)")
 	agent.deallocateIps(&metadata.NetConf)
-
-	logger.Debug("Clearing OVS ports")
-	if metadata.HostVethName != "" {
-		err = delPorts(agent.config.OvsDbSock, agent.config.IntBridgeName,
-			agent.config.AccessBridgeName, metadata.HostVethName)
-		if err != nil {
-			logger.Error("Could not clear OVS ports: ", err)
-		}
-	}
 
 	logger.Debug("Clearing container interface")
 	netns, err := ns.GetNS(metadata.NetNS)
@@ -228,5 +211,11 @@ func (agent *HostAgent) cleanupSetup() {
 			}
 		}
 	}
+
+	err := agent.syncPorts(agent.config.OvsDbSock)
+	if err != nil {
+		agent.log.Error("Could not sync OVS ports: ", err)
+	}
+
 	agent.log.Debug("Done stale check")
 }

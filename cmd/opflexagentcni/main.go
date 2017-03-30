@@ -32,6 +32,7 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/tatsushid/go-fastping"
 
+	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
 	cnimd "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -180,7 +181,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	logger.Debug("Registering with host agent")
 
-	eprpc, err := NewClient(n.EpRpcSock, time.Millisecond*500)
+	eprpc, err := eprpcclient.NewClient(n.EpRpcSock, time.Millisecond*500)
 	if err != nil {
 		return err
 	}
@@ -223,7 +224,7 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	logger.Debug("Unregistering with host agent")
 
-	eprpc, err := NewClient(n.EpRpcSock, time.Millisecond*500)
+	eprpc, err := eprpcclient.NewClient(n.EpRpcSock, time.Millisecond*500)
 	if err != nil {
 		return err
 	}

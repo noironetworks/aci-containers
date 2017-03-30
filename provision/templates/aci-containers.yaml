@@ -236,10 +236,6 @@ spec:
                 configMapKeyRef:
                   name: aci-containers-config
                   key: uplink-iface
-            - name: OVS_RUNDIR
-              value: /usr/local/var/run/openvswitch
-            - name: OVS_DBDIR
-              value: /usr/local/var/lib/aci-containers/ovsdb
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -254,8 +250,7 @@ spec:
           livenessProbe:
             exec:
               command:
-                - /usr/share/openvswitch/scripts/ovs-ctl
-                - status
+                - /usr/local/bin/liveness-ovs.sh
       restartPolicy: Always
       volumes:
         - name: hostetc

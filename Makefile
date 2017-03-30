@@ -3,15 +3,18 @@ BASE=github.com/noironetworks/aci-containers
 METADATA_SRC=$(wildcard pkg/metadata/*.go)
 IPAM_SRC=$(wildcard pkg/ipam/*.go)
 INDEX_SRC=$(wildcard pkg/index/*.go)
+EPRPCCLIENT_SRC=$(wildcard pkg/eprpcclient/*.go)
 HOSTAGENT_SRC=$(wildcard cmd/hostagent/*.go pkg/hostagent/*.go)
 AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard cmd/controller/*.go pkg/controller/*.go)
 ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
+OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
-AGENTCNI_DEPS=${METADATA_SRC} ${AGENTCNI_SRC}
+AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} ${CONTROLLER_SRC}
 ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC}
+OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC}
 
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
@@ -24,10 +27,10 @@ DOCKER_BUILD_CMD ?= docker build
 .PHONY: clean goinstall check all
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
-	dist/aci-containers-controller dist/acikubectl
+	dist/aci-containers-controller dist/acikubectl dist/ovsresync
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/acikubectl
+	dist-static/acikubectl dist-static/ovsresync
 
 vendor:
 	glide install -strip-vendor
@@ -64,16 +67,19 @@ dist/acikubectl: ${ACIKUBECTL_DEPS}
 dist-static/acikubectl: ${ACIKUBECTL_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 
-container-all: container-host container-controller
+dist/ovsresync: ${OVSRESYNC_DEPS}
+	${BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
+dist-static/ovsresync: ${OVSRESYNC_DEPS}
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
+
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
-
 container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
-container-openvswitch:
-	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch docker
+container-openvswitch: dist-static/ovsresync
+	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch .
 
 check: check-ipam check-index check-controller check-hostagent
 check-ipam:
