@@ -29,8 +29,7 @@ DOCKER_BUILD_CMD ?= docker build
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync
 all-static: vendor dist-static/aci-containers-host-agent \
-	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/acikubectl dist-static/ovsresync
+	dist-static/opflex-agent-cni dist-static/aci-containers-controller
 
 vendor:
 	glide install -strip-vendor

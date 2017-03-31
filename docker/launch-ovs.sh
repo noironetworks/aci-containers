@@ -7,14 +7,15 @@ OVSCTL=/usr/share/openvswitch/scripts/ovs-ctl
 VSCTL=/usr/bin/ovs-vsctl
 OVS_DB_LOG=/var/log/openvswitch/ovsdb-server.log
 OVS_VSWITCHD_LOG=/var/log/openvswitch/ovs-vswitchd.log
+SYS_ID=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
 
-export OVS_RUNDIR=/usr/local/var/run/openvswitch
-${OVSCTL} start --system-id=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
+# Start OVS
+${OVSCTL} start --system-id=${SYS_ID}
 
 # Create OVS bridges if needed
 for i in br-int br-access; do
     if ! ${VSCTL} br-exists ${i}; then
-	${VSCTL} add-br ${i}
+	${VSCTL} add-br ${i} -- set-fail-mode ${i} secure
     fi
 done
 
@@ -32,6 +33,10 @@ fi
 
 # Signal the host agent to resync OVS port configuration
 ovsresync /usr/local/var/run/aci-containers-ep-rpc.sock
+
+cat <<EOF > /etc/logrotate.conf
+include /etc/logrotate.d
+EOF
 
 cat <<EOF > /etc/logrotate.d/openvswitch
 /var/log/openvswitch/*.log {

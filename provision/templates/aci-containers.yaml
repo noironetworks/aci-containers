@@ -236,6 +236,8 @@ spec:
                 configMapKeyRef:
                   name: aci-containers-config
                   key: uplink-iface
+            - name: OVS_RUNDIR
+              value: /usr/local/var/run/openvswitch
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
