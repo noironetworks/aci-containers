@@ -143,7 +143,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
 		newg := metadata.OpflexGroup{
 			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        getOpflexGroupNameForNetPol(npkey),
+			Name:        cont.aciNameForKey("np", npkey),
 		}
 		if _, ok := gset[newg]; !ok {
 			gset[newg] = true

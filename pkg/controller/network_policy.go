@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/Sirupsen/logrus"
 
@@ -183,24 +182,25 @@ func (cont *AciController) initNetPolPodIndex() {
 func (cont *AciController) staticNetPolObjs() aciSlice {
 	var netPolObjs aciSlice
 
+	staticName := cont.aciNameForKey("np", "static")
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, "static"))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			"static", "Egress"))
+		NewSecurityGroup(cont.config.AciPolicyTenant, staticName))
 	netPolObjs = append(netPolObjs,
 		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			"static", "Discovery"))
+			staticName, "Egress"))
+	netPolObjs = append(netPolObjs,
+		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
+			staticName, "Discovery"))
 
 	{
-		outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
-			"Egress", "allow-all-reflexive")
+		outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
+			staticName, "Egress", "allow-all-reflexive")
 		outbound.Spec.SecurityGroupRule.Direction = "egress"
 		outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
 		netPolObjs = append(netPolObjs, outbound)
 	}
 	{
-		arpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+		arpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
 			"Discovery", "arp-ingress")
 		arpin.Spec.SecurityGroupRule.Direction = "ingress"
 		arpin.Spec.SecurityGroupRule.Ethertype = "arp"
@@ -208,7 +208,7 @@ func (cont *AciController) staticNetPolObjs() aciSlice {
 		netPolObjs = append(netPolObjs, arpin)
 	}
 	{
-		arpout := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+		arpout := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
 			"Discovery", "arp-egress")
 		arpout.Spec.SecurityGroupRule.Direction = "egress"
 		arpout.Spec.SecurityGroupRule.Ethertype = "arp"
@@ -216,7 +216,7 @@ func (cont *AciController) staticNetPolObjs() aciSlice {
 		netPolObjs = append(netPolObjs, arpout)
 	}
 	{
-		icmpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, "static",
+		icmpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
 			"Discovery", "icmp-ingress")
 		icmpin.Spec.SecurityGroupRule.Direction = "ingress"
 		icmpin.Spec.SecurityGroupRule.Ethertype = "ipv4"
@@ -247,10 +247,6 @@ func (cont *AciController) queueNetPolUpdate(netpol *v1beta1.NetworkPolicy) {
 		return
 	}
 	cont.netPolQueue.Add(key)
-}
-
-func getOpflexGroupNameForNetPol(npkey string) string {
-	return strings.Replace(npkey, "/", "_", -1)
 }
 
 func (cont *AciController) peerMatchesPod(npNs string,
@@ -313,7 +309,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 	}
 
 	var netPolObjs aciSlice
-	labelKey := strings.Replace(key, "/", "_", -1)
+	labelKey := cont.aciNameForKey("np", key)
 	netPolObjs = append(netPolObjs,
 		NewSecurityGroup(cont.config.AciPolicyTenant, labelKey))
 	netPolObjs = append(netPolObjs,
@@ -412,5 +408,5 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.clearAimObjects("NetworkPolicy", strings.Replace(key, "/", "_", -1))
+	cont.clearAimObjects("NetworkPolicy", cont.aciNameForKey("np", key))
 }

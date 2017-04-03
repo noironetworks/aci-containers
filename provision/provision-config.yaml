@@ -11,8 +11,8 @@ aci_config:
 
   # The ACI VMM domain
   vmm_domain:
-    domain: ostack
-    controller: ostack
+    domain: kubernetes
+    controller: kubernetes
 
   # The ACI physical domain used for control network and external
   # services

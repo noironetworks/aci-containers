@@ -1,6 +1,3 @@
-{% macro ippool(pool) -%}
-{% for p in pool %}{"start": "{{p.start}}", "end": "{{p.end}}"}{% if not loop.last %},{% endif %}{% endfor %}
-{%- endmacro %}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -58,7 +55,7 @@ data:
             "level": "{{config.logging.opflexagent_log_level}}"
         },
         "opflex": {
-            "domain": "comp/prov-OpenStack/ctrlr-[{{config.aci_config.vmm_domain.domain}}]-{{config.aci_config.vmm_domain.controller}}/sw-InsiemeLSOid"
+            "domain": "comp/prov-Kubernetes/ctrlr-[{{config.aci_config.vmm_domain.domain}}]-{{config.aci_config.vmm_domain.controller}}/sw-InsiemeLSOid"
         }
     }
   aim-config: |-

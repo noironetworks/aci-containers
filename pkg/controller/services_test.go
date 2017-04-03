@@ -233,7 +233,7 @@ func TestServiceGraph(t *testing.T) {
 	s1Dcc.Spec.DeviceClusterContext.BridgeDomainTenantName =
 		"common"
 	s1Dcc.Spec.DeviceClusterContext.BridgeDomainName =
-		"kubernetes-service-bd"
+		"bd__kubernetes-service-bd"
 	s1Dcc.Spec.DeviceClusterContext.DeviceClusterTenantName =
 		"common"
 	s1Dcc.Spec.DeviceClusterContext.DeviceClusterName = name

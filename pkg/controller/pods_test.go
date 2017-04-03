@@ -142,7 +142,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		"{\"ingress\":{\"isolation\":\"DefaultDeny\"}}"
 	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"added")
@@ -157,7 +157,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"test-node\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"combine")
@@ -166,7 +166,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	pod.Spec.NodeName = ""
 	cont.fakePodSource.Add(pod)
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"testns_np1\"},"+
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"static\"}]",
 		"no-node")
 

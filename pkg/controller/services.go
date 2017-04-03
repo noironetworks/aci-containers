@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/Sirupsen/logrus"
 
@@ -130,11 +129,6 @@ func returnIps(pool *netIps, ips []net.IP) {
 	}
 }
 
-func (cont *AciController) aciNameFromServiceKey(key string) string {
-	return "service_" + cont.config.AciPrefix +
-		"_" + strings.Replace(key, "/", "_", -1)
-}
-
 func (cont *AciController) updateMonitoredExternalNetworks() {
 	var aciObjs aciSlice
 
@@ -190,7 +184,7 @@ func (cont *AciController) reconcileMonitoredExternalNetworks(aciObjs aciSlice) 
 				return
 			}
 
-			cnames = append(cnames, cont.aciNameFromServiceKey(servicekey))
+			cnames = append(cnames, cont.aciNameForKey("service", servicekey))
 		})
 
 	sort.Strings(cnames)
@@ -218,9 +212,9 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	var serviceObjs aciSlice
 
 	// Service bridge domain
+	bdName := cont.aciNameForKey("bd", "kubernetes-service-bd")
 	{
-		bd := NewBridgeDomain(cont.config.AciL3OutTenant,
-			"kubernetes-service-bd")
+		bd := NewBridgeDomain(cont.config.AciL3OutTenant, bdName)
 		t := true
 		bd.Spec.BridgeDomain.EnableArpFlood = &t
 		bd.Spec.BridgeDomain.EnableRouting = &t
@@ -232,8 +226,7 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	}
 	for _, cidr := range cont.config.NodeServiceSubnets {
 		serviceObjs = append(serviceObjs,
-			NewSubnet(cont.config.AciL3OutTenant,
-				"kubernetes-service-bd", cidr))
+			NewSubnet(cont.config.AciL3OutTenant, bdName, cidr))
 
 	}
 
@@ -302,7 +295,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	}
 	sort.Strings(nodes)
 
-	name := cont.aciNameFromServiceKey(key)
+	name := cont.aciNameForKey("service", key)
 	var serviceObjs aciSlice
 	if len(nodes) > 0 {
 		// 1. Device cluster:
@@ -333,7 +326,6 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// redirected.  The service graph should always be created
 		// exactly as in the example below.  A service graph must
 		// be created for each device cluster.
-		// XXX can we reuse the same graph for all services?
 		{
 			sg := NewServiceGraph(cont.config.AciL3OutTenant, name)
 			sg.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
@@ -448,7 +440,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 			cc.Spec.DeviceClusterContext.BridgeDomainTenantName =
 				cont.config.AciL3OutTenant
 			cc.Spec.DeviceClusterContext.BridgeDomainName =
-				"kubernetes-service-bd"
+				cont.aciNameForKey("bd", "kubernetes-service-bd")
 			cc.Spec.DeviceClusterContext.DeviceClusterTenantName =
 				cont.config.AciL3OutTenant
 			cc.Spec.DeviceClusterContext.DeviceClusterName = name
@@ -611,6 +603,6 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 		delete(cont.serviceMetaCache, servicekey)
 	}
 	cont.indexMutex.Unlock()
-	cont.clearAimObjects("Service", cont.aciNameFromServiceKey(servicekey))
+	cont.clearAimObjects("Service", cont.aciNameForKey("service", servicekey))
 	cont.updateMonitoredExternalNetworks()
 }

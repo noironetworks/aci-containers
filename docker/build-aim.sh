@@ -8,8 +8,14 @@ mkdir -p build/aim/dist
 pushd build/aim
 
 # Build base image and dependencies
-git clone https://github.com/noironetworks/aci-integration-module \
-    --depth 1
+if [ -d aci-integration-module ]; then
+    pushd aci-integration-module
+    git pull
+    popd
+else
+    git clone https://github.com/noironetworks/aci-integration-module \
+	--depth 1
+fi
 
 cp ../../docker/Dockerfile-aim-build aci-integration-module
 docker build -t noiro/aci-integration-module-build \

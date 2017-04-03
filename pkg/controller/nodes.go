@@ -78,11 +78,12 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	var netPolObjs aciSlice
 
+	sgName := cont.aciNameForKey("node", node.Name)
 	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, node.Name))
+		NewSecurityGroup(cont.config.AciPolicyTenant, sgName))
 	netPolObjs = append(netPolObjs,
 		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			node.Name, "LocalNode"))
+			sgName, "LocalNode"))
 
 	var nodeIps []string
 	for _, a := range node.Status.Addresses {
@@ -97,14 +98,14 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	sort.Strings(nodeIps)
 
 	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
-		node.Name, "LocalNode", "allow-all-egress")
+		sgName, "LocalNode", "allow-all-egress")
 	outbound.Spec.SecurityGroupRule.Direction = "egress"
 	outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	outbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
 	outbound.Spec.SecurityGroupRule.ConnTrack = "normal"
 	netPolObjs = append(netPolObjs, outbound)
 
-	inbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, node.Name,
+	inbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, sgName,
 		"LocalNode", "allow-all-ingress")
 	inbound.Spec.SecurityGroupRule.Direction = "ingress"
 	inbound.Spec.SecurityGroupRule.Ethertype = "ipv4"

@@ -8,7 +8,13 @@ mkdir -p build/opflex/dist
 pushd build/opflex
 
 # Build OpFlex and OVS binaries
-git clone https://git.opendaylight.org/gerrit/opflex.git --depth 1
+if [ -d opflex ]; then
+    pushd opflex
+    git pull
+    popd
+else
+    git clone https://git.opendaylight.org/gerrit/opflex.git --depth 1
+fi
 pushd opflex/genie
 mvn compile exec:java
 popd

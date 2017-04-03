@@ -229,21 +229,21 @@ func TestNodeNetPol(t *testing.T) {
 	cont.fakeNodeSource.Add(node)
 	cont.run()
 
-	rule_0_0 := NewSecurityGroupRule("test-tenant", "node1",
+	rule_0_0 := NewSecurityGroupRule("test-tenant", "node__node1",
 		"LocalNode", "allow-all-egress")
 	rule_0_0.Spec.SecurityGroupRule.Direction = "egress"
 	rule_0_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_0_0.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
 	rule_0_0.Spec.SecurityGroupRule.ConnTrack = "normal"
-	rule_0_1 := NewSecurityGroupRule("test-tenant", "node1",
+	rule_0_1 := NewSecurityGroupRule("test-tenant", "node__node1",
 		"LocalNode", "allow-all-ingress")
 	rule_0_1.Spec.SecurityGroupRule.Direction = "ingress"
 	rule_0_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
 	rule_0_1.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
 	rule_0_1.Spec.SecurityGroupRule.ConnTrack = "normal"
 	expected := aciSlice{
-		NewSecurityGroup("test-tenant", "node1"),
-		NewSecurityGroupSubject("test-tenant", "node1", "LocalNode"),
+		NewSecurityGroup("test-tenant", "node__node1"),
+		NewSecurityGroupSubject("test-tenant", "node__node1", "LocalNode"),
 		rule_0_0, rule_0_1,
 	}
 	sort.Sort(expected)

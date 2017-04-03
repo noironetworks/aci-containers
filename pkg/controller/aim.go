@@ -177,3 +177,8 @@ func (cont *AciController) aimChanged(obj interface{}) {
 func (cont *AciController) aimDeleted(obj interface{}) {
 	cont.reconcileAimDelete(obj.(*Aci))
 }
+
+func (cont *AciController) aciNameForKey(ktype string, key string) string {
+	return ktype + "_" + cont.config.AciPrefix +
+		"_" + strings.Replace(key, "/", "_", -1)
+}
