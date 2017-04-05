@@ -5,7 +5,7 @@ RUN apk add --no-cache python py-pip build-base git python-dev linux-headers \
   && update-ca-certificates
 COPY requirements.txt /opt/aim/requirements.txt
 RUN pip install --compile -r /opt/aim/requirements.txt
-RUN pip install --no-deps -I git+https://github.com/noironetworks/acitoolkit.git@noiro#egg=acitoolkit
+RUN pip install --no-deps -I git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 RUN pip install --no-deps -I git+https://github.com/noironetworks/apicapi.git#egg=apicapi
 COPY . /opt/aim/
 RUN cd /opt/aim && python setup.py install

@@ -60,7 +60,6 @@ if __name__ == "__main__":
             "encap_type": "vxlan",
             "infra_vlan": 4093,
             "service_vlan": 4003,
-            "kubeconfig": "/etc/kubernetes/kubelet.conf",
         },
         "kubernetes_config": {
             "aci_policy_tenant": "kubernetes",

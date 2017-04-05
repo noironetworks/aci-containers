@@ -17,7 +17,7 @@ cat <<EOF > "${AIMCONF}"
 aim_store = k8s
 
 [aim_k8s]
-k8s_config_path = /usr/local/etc/kubeconfig
+k8s_config_path =
 k8s_namespace = kube-system
 
 [apic]

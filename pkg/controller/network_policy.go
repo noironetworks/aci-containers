@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Handlers for namespace updates.  Keeps an index of namespace
-// annotations
+// Handlers for network policy updates.  Generate ACI security groups
+// based on Kubernetes network policies.
 
 package controller
 

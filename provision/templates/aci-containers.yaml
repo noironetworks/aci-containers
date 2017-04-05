@@ -62,6 +62,229 @@ data:
     [DEFAULT]
     debug = {{config.logging.aim_debug}}
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aci-containers-controller
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aci-containers-host-agent
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aci-containers-aci-integration-module
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-app: aci-containers
+  name: aci-containers:controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "extensions"
+  resources:
+  - deployments
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "extensions"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "extensions"
+  resources:
+  - thirdpartyresources
+  verbs:
+  - get
+- apiGroups:
+  - "acicontainers.cisco.com"
+  resources:
+  - acis
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-app: aci-containers
+  name: aci-containers:aci-integration-module
+rules:
+- apiGroups:
+  - "acicontainers.cisco.com"
+  resources:
+  - acis
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-app: aci-containers
+  name: aci-containers:host-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - list
+  - watch
+  - get
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: aci-containers:controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:controller
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-controller
+  namespace: kube-system
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: aci-containers:aci-integration-module
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:aci-integration-module
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-aci-integration-module
+  namespace: kube-system
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: aci-containers:host-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:host-agent
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-host-agent
+  namespace: kube-system
+---
+apiVersion: extensions/v1beta1
+kind: ThirdPartyResource
+description: ACI policy model objects to be synchronized with ACI
+metadata:
+  name: aci.acicontainers.cisco.com
+versions:
+- name: v1
+---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -78,6 +301,7 @@ spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
+      serviceAccountName: aci-containers-host-agent
       containers:
         - name: aci-containers-host
           image: {{ config.container_registry_prefix }}/aci-containers-host
@@ -100,12 +324,6 @@ spec:
               mountPath: /run
             - name: hostrun
               mountPath: /usr/local/run
-            - name: kubeconfig
-              mountPath: /usr/local/etc/kubeconfig
-            {% if config.node_config.kubepkipath %}
-            - name: kubepki
-              mountPath: {{ config.node_config.kubepkipath }}
-            {% endif %}
             - name: host-config-volume
               mountPath: /usr/local/etc/aci-containers/
           livenessProbe:
@@ -179,14 +397,6 @@ spec:
         - name: hostrun
           hostPath:
             path: /run
-        - name: kubeconfig
-          hostPath:
-            path: {{ config.node_config.kubeconfig }}
-        {% if config.node_config.kubepkipath %}
-        - name: kubepki
-          hostPath:
-            path: {{ config.node_config.kubepkipath }}
-        {% endif %}
         - name: host-config-volume
           configMap:
             name: aci-containers-config
@@ -289,6 +499,7 @@ spec:
         k8s-app: aci-containers
     spec:
       hostNetwork: true
+      serviceAccountName: aci-containers-controller
       containers:
         - name: aci-containers-controller
           image: {{ config.container_registry_prefix }}/aci-containers-controller
@@ -296,12 +507,6 @@ spec:
           volumeMounts:
             - name: controller-config-volume
               mountPath: /usr/local/etc/aci-containers/
-            - name: kubeconfig
-              mountPath: /usr/local/etc/kubeconfig
-            {% if config.node_config.kubepkipath %}
-            - name: kubepki
-              mountPath: {{ config.node_config.kubepkipath }}
-            {% endif %}
           livenessProbe:
             httpGet:
               path: /status
@@ -328,12 +533,6 @@ spec:
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local
-            - name: kubeconfig
-              mountPath: /usr/local/etc/kubeconfig
-            {% if config.node_config.kubepkipath %}
-            - name: kubepki
-              mountPath: {{ config.node_config.kubepkipath }}
-            {% endif %}
       volumes:
         - name: controller-config-volume
           configMap:
@@ -347,12 +546,4 @@ spec:
             items:
               - key: aim-config
                 path: aim-local.conf
-        - name: kubeconfig
-          hostPath:
-            path: {{ config.node_config.kubeconfig }}
-        {% if config.node_config.kubepkipath %}
-        - name: kubepki
-          hostPath:
-            path: {{ config.node_config.kubepkipath }}
-        {% endif %}
 
