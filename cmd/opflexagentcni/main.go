@@ -29,6 +29,7 @@ import (
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/tatsushid/go-fastping"
 
@@ -87,7 +88,7 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	return n, k8sArgs, id, nil
 }
 
-func waitForNetwork(netns ns.NetNS, result *types.Result,
+func waitForNetwork(netns ns.NetNS, result *current.Result,
 	id string, timeout time.Duration) {
 
 	logger := log.WithFields(logrus.Fields{
@@ -101,14 +102,11 @@ func waitForNetwork(netns ns.NetNS, result *types.Result,
 			pinger := fastping.NewPinger()
 			pinger.MaxRTT = time.Millisecond * 100
 			expected := 0
-			if result.IP4 != nil && result.IP4.Gateway != nil {
-				logger.Debug("Pinging gateway ", result.IP4.Gateway)
-				pinger.AddIPAddr(&net.IPAddr{IP: result.IP4.Gateway})
-				expected += 1
-			}
-			if result.IP6 != nil && result.IP6.Gateway != nil {
-				logger.Debug("Pinging gateway ", result.IP6.Gateway)
-				pinger.AddIPAddr(&net.IPAddr{IP: result.IP6.Gateway})
+			for _, ip := range result.IPs {
+				if ip.Gateway == nil {
+					continue
+				}
+				pinger.AddIPAddr(&net.IPAddr{IP: ip.Gateway})
 				expected += 1
 			}
 			if expected == 0 {
@@ -154,19 +152,22 @@ func cmdAdd(args *skel.CmdArgs) error {
 	})
 
 	// run the IPAM plugin and get back the config to apply
-	var result *types.Result
+	var result *current.Result
 	if n.IPAM.Type != "opflex-agent-cni-ipam" {
 		logger.Debug("Executing IPAM add")
-		result, err = ipam.ExecAdd(n.IPAM.Type, args.StdinData)
+		r, err := ipam.ExecAdd(n.IPAM.Type, args.StdinData)
 		if err != nil {
 			return err
 		}
-
-		if result.IP4 == nil && result.IP6 == nil {
+		result, err = current.NewResultFromResult(r)
+		if err != nil {
+			return err
+		}
+		if len(result.IPs) == 0 {
 			return errors.New("IPAM plugin returned missing IP config")
 		}
 	} else {
-		result = &types.Result{}
+		result = &current.Result{}
 		result.DNS = n.DNS
 	}
 
@@ -237,5 +238,5 @@ func cmdDel(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel, version.PluginSupports("0.2.0"))
+	skel.PluginMain(cmdAdd, cmdDel, version.PluginSupports("0.3.0"))
 }

@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 

@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 )
 
 type ContainerMetadata struct {

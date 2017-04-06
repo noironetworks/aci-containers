@@ -1,5 +1,5 @@
-hash: 57ca49b4cd6cc593bd938be4f70a4f7cd21962e95aea0ef208a8d0c31f3fc9d8
-updated: 2017-03-28T17:59:12.671980815-07:00
+hash: b179f5d54dedb2da4af3dd2c6e0b6869709ed738963daa81ad7518e128a5598f
+updated: 2017-04-05T15:38:34.247574052-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -8,7 +8,7 @@ imports:
   subpackages:
   - jsonrpc
 - name: github.com/containernetworking/cni
-  version: 530dd71e193012895ff7beee42cd64a02e1993da
+  version: 0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff
   subpackages:
   - pkg/invoke
   - pkg/ip
@@ -16,6 +16,8 @@ imports:
   - pkg/ns
   - pkg/skel
   - pkg/types
+  - pkg/types/020
+  - pkg/types/current
   - pkg/utils/hwaddr
   - pkg/version
 - name: github.com/coreos/go-iptables
@@ -142,7 +144,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/vishvananda/netlink
-  version: a1f8555521646b5a9800f39c5fd477597697135c
+  version: fe3b5664d23a11b52ba59bece4ff29c52772a56b
   subpackages:
   - nl
 - name: github.com/vishvananda/netns
@@ -189,7 +191,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/apimachinery
-  version: c1c4a7fe832857c75cc1d79c8e40d71d5da15fc6
+  version: 20e10d54608f05c3059443a6c0afb9979641e88d
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
@@ -245,7 +247,7 @@ imports:
   - pkg/features
   - pkg/util/feature
 - name: k8s.io/client-go
-  version: 76153773eaa3a268131d3d993290a194a1370585
+  version: 63e44d4493582c21461eae81027de697afd39d6a
   subpackages:
   - discovery
   - kubernetes

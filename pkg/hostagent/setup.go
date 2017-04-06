@@ -21,7 +21,7 @@ import (
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ipam"
 	"github.com/containernetworking/cni/pkg/ns"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/vishvananda/netlink"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -38,7 +38,7 @@ func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, string, error) {
 			return err
 		}
 
-		hostVethName = hostVeth.Attrs().Name
+		hostVethName = hostVeth.Name
 
 		contVeth, err := netlink.LinkByName(ifName)
 		if err != nil {
@@ -106,7 +106,7 @@ func (agent *HostAgent) configureContainerIface(metadata *md.ContainerMetadata) 
 		return nil, err
 	}
 
-	if metadata.NetConf.IP4 == nil && metadata.NetConf.IP6 == nil {
+	if len(metadata.NetConf.IPs) == 0 {
 		// We're doing ip address management
 
 		logger.Debug("Allocating IP address(es)")

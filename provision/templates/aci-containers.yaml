@@ -1,13 +1,4 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: apic-user-pass
-  namespace: kube-system
-data:
-  username: {{config.aci_config.apic_login.username|base64enc}}
-  password: {{config.aci_config.apic_login.password|base64enc}}
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: aci-containers-config
@@ -63,6 +54,23 @@ data:
     debug = {{config.logging.aim_debug}}
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: apic-user-pass
+  namespace: kube-system
+data:
+  username: {{config.aci_config.apic_login.username|base64enc}}
+  password: {{config.aci_config.apic_login.password|base64enc}}
+---
+apiVersion: extensions/v1beta1
+kind: ThirdPartyResource
+description: ACI policy model objects to be synchronized with ACI
+metadata:
+  name: aci.acicontainers.cisco.com
+versions:
+- name: v1
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-controller
@@ -72,12 +80,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
-  namespace: kube-system
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: aci-containers-aci-integration-module
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -160,6 +162,7 @@ rules:
   - create
   - update
   - delete
+  - deletecollection
 - apiGroups:
   - ""
   resources:
@@ -178,25 +181,6 @@ rules:
   - services/status
   verbs:
   - update
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  labels:
-    k8s-app: aci-containers
-  name: aci-containers:aci-integration-module
-rules:
-- apiGroups:
-  - "acicontainers.cisco.com"
-  resources:
-  - acis
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
@@ -254,19 +238,6 @@ subjects:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
-  name: aci-containers:aci-integration-module
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: aci-containers:aci-integration-module
-subjects:
-- kind: ServiceAccount
-  name: aci-containers-aci-integration-module
-  namespace: kube-system
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
   name: aci-containers:host-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -278,14 +249,6 @@ subjects:
   namespace: kube-system
 ---
 apiVersion: extensions/v1beta1
-kind: ThirdPartyResource
-description: ACI policy model objects to be synchronized with ACI
-metadata:
-  name: aci.acicontainers.cisco.com
-versions:
-- name: v1
----
-apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: aci-containers-host
@@ -293,6 +256,8 @@ metadata:
   labels:
     k8s-app: aci-containers
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -418,6 +383,8 @@ metadata:
   labels:
     k8s-app: aci-containers
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:

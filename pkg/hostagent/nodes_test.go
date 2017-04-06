@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -39,29 +39,25 @@ type buildIpamTest struct {
 func mditem(ip string) metadata.ContainerMetadata {
 	i := net.ParseIP(ip)
 
-	if i.To4() != nil {
-		return metadata.ContainerMetadata{
-			Id: ip,
-			NetConf: cnitypes.Result{
-				IP4: &cnitypes.IPConfig{
-					IP: net.IPNet{
-						IP: i,
-					},
-				},
-			},
-		}
-	} else {
-		return metadata.ContainerMetadata{
-			Id: ip,
-			NetConf: cnitypes.Result{
-				IP6: &cnitypes.IPConfig{
-					IP: net.IPNet{
-						IP: i,
-					},
-				},
-			},
-		}
+	ipconfig := &cnitypes.IPConfig{
+		Address: net.IPNet{
+			IP: i,
+		},
 	}
+
+	if i.To4() != nil {
+		ipconfig.Version = "4"
+	} else {
+		ipconfig.Version = "6"
+	}
+
+	return metadata.ContainerMetadata{
+		Id: ip,
+		NetConf: cnitypes.Result{
+			IPs: []*cnitypes.IPConfig{ipconfig},
+		},
+	}
+
 }
 
 var buildIpamTests = []buildIpamTest{

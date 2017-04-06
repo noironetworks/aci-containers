@@ -19,7 +19,7 @@ import (
 	"net/rpc"
 	"time"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )

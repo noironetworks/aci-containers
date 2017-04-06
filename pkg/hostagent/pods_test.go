@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -59,10 +59,12 @@ func cnimd(namespace string, name string, ip string) *md.ContainerMetadata {
 		Pod:       name,
 		Id:        namespace + "_" + name,
 		NetConf: cnitypes.Result{
-			IP4: &cnitypes.IPConfig{
-				IP: net.IPNet{
-					IP:   net.ParseIP(ip),
-					Mask: net.CIDRMask(24, 32),
+			IPs: []*cnitypes.IPConfig{
+				&cnitypes.IPConfig{
+					Address: net.IPNet{
+						IP:   net.ParseIP(ip),
+						Mask: net.CIDRMask(24, 32),
+					},
 				},
 			},
 		},

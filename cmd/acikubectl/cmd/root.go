@@ -17,6 +17,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/user"
+	"path"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -48,7 +50,14 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
-	RootCmd.PersistentFlags().StringVar(&kubeconfig, "kubeconfig", "",
+
+	usr, err := user.Current()
+	defaultkubeconfig := ""
+	if err == nil {
+		defaultkubeconfig = path.Join(usr.HomeDir, ".kube", "config")
+	}
+	RootCmd.PersistentFlags().StringVar(&kubeconfig,
+		"kubeconfig", defaultkubeconfig,
 		"Path to the kubeconfig file to use for CLI requests.")
 }
 

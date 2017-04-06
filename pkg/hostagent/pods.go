@@ -242,11 +242,11 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	patchIntName, patchAccessName :=
 		metadata.GetIfaceNames(epmetadata.HostVethName)
 	ips := make([]string, 0)
-	if epmetadata.NetConf.IP4 != nil {
-		ips = append(ips, epmetadata.NetConf.IP4.IP.IP.String())
-	}
-	if epmetadata.NetConf.IP6 != nil {
-		ips = append(ips, epmetadata.NetConf.IP6.IP.IP.String())
+	for _, ip := range epmetadata.NetConf.IPs {
+		if ip.Address.IP == nil {
+			continue
+		}
+		ips = append(ips, ip.Address.IP.String())
 	}
 
 	ep := &opflexEndpoint{

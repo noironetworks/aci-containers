@@ -24,6 +24,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnicurrent "github.com/containernetworking/cni/pkg/types/current"
 
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -40,14 +41,15 @@ func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 // must have index lock
 func (agent *HostAgent) rebuildIpam() {
 	for _, md := range agent.epMetadata {
-		if md.NetConf.IP4 != nil {
-			for _, ipa := range agent.podIpsV4 {
-				ipa.RemoveIp(md.NetConf.IP4.IP.IP)
-			}
-		}
-		if md.NetConf.IP6 != nil {
-			for _, ipa := range agent.podIpsV6 {
-				ipa.RemoveIp(md.NetConf.IP6.IP.IP)
+		for _, ip := range md.NetConf.IPs {
+			if ip.Version == "4" {
+				for _, ipa := range agent.podIpsV4 {
+					ipa.RemoveIp(ip.Address.IP)
+				}
+			} else if ip.Version == "6" {
+				for _, ipa := range agent.podIpsV6 {
+					ipa.RemoveIp(ip.Address.IP)
+				}
 			}
 		}
 	}
@@ -83,10 +85,9 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 	agent.rebuildIpam()
 }
 
-func convertRoutes(routes []route) []cnitypes.Route {
-	cniroutes := make([]cnitypes.Route, 0, len(routes))
+func convertRoutes(routes []route) (cniroutes []*cnitypes.Route) {
 	for _, r := range routes {
-		cniroutes = append(cniroutes, cnitypes.Route{
+		cniroutes = append(cniroutes, &cnitypes.Route{
 			Dst: net.IPNet{
 				IP:   r.Dst.IP,
 				Mask: r.Dst.Mask,
@@ -94,17 +95,18 @@ func convertRoutes(routes []route) []cnitypes.Route {
 			GW: r.GW,
 		})
 	}
-	return cniroutes
+	return
 }
 
-func makeNetconf(nc *cniNetConfig, ip net.IP) *cnitypes.IPConfig {
-	return &cnitypes.IPConfig{
-		IP: net.IPNet{
+func makeNetconf(nc *cniNetConfig, ip net.IP,
+	version string) *cnicurrent.IPConfig {
+	return &cnicurrent.IPConfig{
+		Version: version,
+		Address: net.IPNet{
 			IP:   ip,
 			Mask: nc.Subnet.Mask,
 		},
 		Gateway: nc.Gateway,
-		Routes:  convertRoutes(nc.Routes),
 	}
 }
 
@@ -126,67 +128,73 @@ func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
 	free[len(free)-1].AddIp(ip)
 }
 
-func (agent *HostAgent) allocateIps(netConf *cnitypes.Result) error {
-	var v4 net.IP
-	var v6 net.IP
+func (agent *HostAgent) allocateIps(netConf *cnicurrent.Result) error {
 	var result error
 	var err error
 
 	for _, nc := range agent.config.NetConfig {
+		netConf.Routes =
+			append(netConf.Routes, convertRoutes(nc.Routes)...)
 		if nc.Subnet.IP != nil {
-			if v4 == nil && nc.Subnet.IP.To4() != nil {
-				v4, agent.podIpsV4, err = allocateIp(agent.podIpsV4)
+			var ip net.IP
+			if nc.Subnet.IP.To4() != nil {
+				ip, agent.podIpsV4, err = allocateIp(agent.podIpsV4)
 				if err != nil {
-					result = fmt.Errorf("Could not allocate IPv4 address: %v", err)
+					result =
+						fmt.Errorf("Could not allocate IPv4 address: %v", err)
 				} else {
-					netConf.IP4 = makeNetconf(&nc, v4)
+					netConf.IPs =
+						append(netConf.IPs, makeNetconf(&nc, ip, "4"))
 				}
-			} else if v6 == nil && nc.Subnet.IP.To16() != nil {
-				v6, agent.podIpsV6, err = allocateIp(agent.podIpsV6)
-				v6, err = agent.podIpsV6[0].GetIp()
+			} else if nc.Subnet.IP.To16() != nil {
+				ip, agent.podIpsV6, err = allocateIp(agent.podIpsV6)
 				if err != nil {
-					result = fmt.Errorf("Could not allocate IPv6 address: %v", err)
+					result =
+						fmt.Errorf("Could not allocate IPv6 address: %v", err)
 				} else {
-					netConf.IP6 = makeNetconf(&nc, v6)
+					netConf.IPs =
+						append(netConf.IPs, makeNetconf(&nc, ip, "6"))
 				}
 			}
 		}
 	}
 
 	if result != nil {
-		netConf.IP4 = nil
-		netConf.IP6 = nil
-		if v4 != nil {
-			deallocateIp(v4, agent.podIpsV4)
+		for _, ip := range netConf.IPs {
+			if ip.Version == "4" {
+				deallocateIp(ip.Address.IP, agent.podIpsV4)
+			} else if ip.Version == "6" {
+				deallocateIp(ip.Address.IP, agent.podIpsV6)
+			}
 		}
-		if v6 != nil {
-			deallocateIp(v6, agent.podIpsV6)
-		}
+
+		netConf.IPs = nil
 	} else {
 		agent.log.WithFields(logrus.Fields{
-			"v4": v4,
-			"v6": v6,
+			"IPs": netConf.IPs,
 		}).Debug("Allocated IP addresses")
 	}
 
 	return result
 }
 
-func (agent *HostAgent) deallocateIps(netConf *cnitypes.Result) {
+func (agent *HostAgent) deallocateIps(netConf *cnicurrent.Result) {
 	if agent.config.NetConfig == nil {
 		// using external ipam
 		return
 	}
-	if netConf.IP4 != nil && netConf.IP4.IP.IP != nil {
-		deallocateIp(netConf.IP4.IP.IP, agent.podIpsV4)
+	for _, ip := range netConf.IPs {
+		if ip.Address.IP == nil {
+			continue
+		}
+
+		if ip.Version == "4" {
+			deallocateIp(ip.Address.IP, agent.podIpsV4)
+		} else if ip.Version == "6" {
+			deallocateIp(ip.Address.IP, agent.podIpsV6)
+		}
 		agent.log.WithFields(logrus.Fields{
-			"ip": netConf.IP4.IP.IP,
-		}).Debug("Returned IP to pool")
-	}
-	if netConf.IP6 != nil && netConf.IP6.IP.IP != nil {
-		deallocateIp(netConf.IP6.IP.IP, agent.podIpsV6)
-		agent.log.WithFields(logrus.Fields{
-			"ip": netConf.IP6.IP.IP,
+			"ip": ip.Address.IP,
 		}).Debug("Returned IP to pool")
 	}
 

@@ -79,6 +79,9 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			return
 		}
 		if newValue != "" {
+			if ns.Annotations == nil {
+				ns.Annotations = make(map[string]string)
+			}
 			ns.Annotations[annot] = newValue
 		} else {
 			delete(ns.Annotations, annot)
@@ -103,6 +106,9 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			return
 		}
 		if newValue != "" {
+			if dep.Annotations == nil {
+				dep.Annotations = make(map[string]string)
+			}
 			dep.Annotations[annot] = newValue
 		} else {
 			delete(dep.Annotations, annot)
@@ -127,6 +133,9 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			return
 		}
 		if newValue != "" {
+			if pod.Annotations == nil {
+				pod.Annotations = make(map[string]string)
+			}
 			pod.Annotations[annot] = newValue
 		} else {
 			delete(pod.Annotations, annot)

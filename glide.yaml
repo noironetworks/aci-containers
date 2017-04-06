@@ -3,7 +3,7 @@ import:
 - package: github.com/Sirupsen/logrus
   version: ^0.11.5
 - package: github.com/containernetworking/cni
-  version: ~0.4.0
+  version: ~0.5.0
   subpackages:
   - pkg/ip
   - pkg/ipam
