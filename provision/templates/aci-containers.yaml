@@ -4,7 +4,7 @@ metadata:
   name: aci-containers-config
   namespace: kube-system
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
 data:
   encap-type: {{ config.node_config.encap_type|yaml_quote }}
   uplink-iface: {{ config.node_config.uplink_iface|yaml_quote }}
@@ -86,7 +86,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
   name: aci-containers:controller
 rules:
 - apiGroups:
@@ -186,7 +186,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
   name: aci-containers:host-agent
 rules:
 - apiGroups:
@@ -254,7 +254,7 @@ metadata:
   name: aci-containers-host
   namespace: kube-system
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
 spec:
   updateStrategy:
     type: RollingUpdate
@@ -262,6 +262,7 @@ spec:
     metadata:
       labels:
         name: aci-containers-host
+        network-plugin: aci-containers
     spec:
       hostNetwork: true
       hostPID: true
@@ -381,7 +382,7 @@ metadata:
   name: aci-containers-openvswitch
   namespace: kube-system
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
 spec:
   updateStrategy:
     type: RollingUpdate
@@ -389,6 +390,7 @@ spec:
     metadata:
       labels:
         name: aci-containers-openvswitch
+        network-plugin: aci-containers
     spec:
       hostNetwork: true
       hostPID: true
@@ -448,7 +450,9 @@ metadata:
   name: aci-containers-controller
   namespace: kube-system
   labels:
-    k8s-app: aci-containers
+    network-plugin: aci-containers
+    k8s-app: aci-containers-controller
+    name: aci-containers-controller
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ''
     scheduler.alpha.kubernetes.io/tolerations: |
@@ -463,7 +467,9 @@ spec:
       name: aci-containers-controller
       namespace: kube-system
       labels:
-        k8s-app: aci-containers
+        network-plugin: aci-containers
+        k8s-app: aci-containers-controller
+        name: aci-containers-controller
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller

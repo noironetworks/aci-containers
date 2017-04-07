@@ -20,6 +20,10 @@ import (
 	"os/user"
 	"path"
 
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -64,4 +68,26 @@ func init() {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	viper.AutomaticEnv() // read in environment variables that match
+}
+
+func initClient() (kubernetes.Interface, error) {
+	var restconfig *restclient.Config
+	var err error
+
+	if kubeconfig != "" {
+		// use kubeconfig file from command line
+		restconfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// creates the in-cluster config
+		restconfig, err = restclient.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// creates the client
+	return kubernetes.NewForConfig(restconfig)
 }

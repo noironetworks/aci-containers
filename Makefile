@@ -23,16 +23,20 @@ INSTALL_CMD ?= go install -v
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
 	-ldflags="-s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
+VENDOR_BUILD_CMD ?= glide install -strip-vendor
 
 .PHONY: clean goinstall check all
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync
 all-static: vendor dist-static/aci-containers-host-agent \
-	dist-static/opflex-agent-cni dist-static/aci-containers-controller
+	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
+	dist-static/ovsresync
 
+vendor-rebuild:
+	${VENDOR_BUILD_CMD}
 vendor:
-	glide install -strip-vendor
+	${VENDOR_BUILD_CMD}
 
 clean-dist:
 	rm -rf dist
