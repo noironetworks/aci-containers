@@ -15,6 +15,7 @@
 package hostagent
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
@@ -87,95 +88,163 @@ func setupNetwork(netns ns.NetNS, ifName string, result *cnitypes.Result) error 
 	return nil
 }
 
-func (agent *HostAgent) configureContainerIface(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
+func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
+	index int, result *cnitypes.Result) {
+
+	result.Interfaces = append(result.Interfaces,
+		&cnitypes.Interface{
+			Name:    iface.Name,
+			Sandbox: iface.Sandbox,
+			Mac:     iface.Mac,
+		})
+	for _, ip := range iface.IPs {
+		var version string
+		if ip.Address.IP == nil {
+			continue
+		}
+		if ip.Address.IP.To4() != nil {
+			version = "4"
+		} else if ip.Address.IP.To16() != nil {
+			version = "6"
+		} else {
+			continue
+		}
+
+		result.IPs = append(result.IPs,
+			&cnitypes.IPConfig{
+				Interface: index,
+				Version:   version,
+				Address:   ip.Address,
+				Gateway:   ip.Gateway,
+			})
+	}
+
+}
+
+func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
 	logger := agent.log.WithFields(logrus.Fields{
-		"id": metadata.Id,
+		"pod":       metadata.Id.Pod,
+		"namespace": metadata.Id.Namespace,
+		"container": metadata.Id.ContId,
 	})
 
-	netns, err := ns.GetNS(metadata.NetNS)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open netns %q: %v", metadata.NetNS, err)
-	}
-	defer netns.Close()
-
 	logger.Debug("Setting up veth")
+	if len(metadata.Ifaces) == 0 {
+		return nil, errors.New("No interfaces specified")
+	}
+	result := &cnitypes.Result{}
 
-	metadata.HostVethName, metadata.MAC, err =
-		setupVeth(netns, metadata.ContIfaceName, agent.config.InterfaceMtu)
-	if err != nil {
-		return nil, err
+	for _, nc := range agent.config.NetConfig {
+		result.Routes =
+			append(result.Routes, convertRoutes(nc.Routes)...)
 	}
 
-	if len(metadata.NetConf.IPs) == 0 {
-		// We're doing ip address management
+	for ifaceind, iface := range metadata.Ifaces {
+		netns, err := ns.GetNS(iface.Sandbox)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open netns %q: %v", iface.Sandbox, err)
+		}
+		defer netns.Close()
 
-		logger.Debug("Allocating IP address(es)")
-		err = agent.allocateIps(&metadata.NetConf)
+		iface.HostVethName, iface.Mac, err =
+			setupVeth(netns, iface.Name, agent.config.InterfaceMtu)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(iface.IPs) == 0 {
+			// We're doing ip address management
+
+			logger.Debug("Allocating IP address(es) for ", iface.Name)
+			err = agent.allocateIps(iface)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		agent.addToResult(iface, ifaceind, result)
+
+		logger.Debug("Configuring network for ", iface.Name)
+		err = setupNetwork(netns, iface.Name, result)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	err = md.RecordMetadata(agent.config.CniMetadataDir,
+	err := md.RecordMetadata(agent.config.CniMetadataDir,
 		agent.config.CniNetwork, *metadata)
 	if err != nil {
 		return nil, err
 	}
 	{
+		podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 		agent.indexMutex.Lock()
-		agent.epMetadata[metadata.Id] = metadata
+		if _, ok := agent.epMetadata[podid]; !ok {
+			agent.epMetadata[podid] =
+				make(map[string]*md.ContainerMetadata)
+		}
+		agent.epMetadata[podid][metadata.Id.ContId] = metadata
 		agent.indexMutex.Unlock()
 	}
 
-	logger.Debug("Configuring network")
-	err = setupNetwork(netns, metadata.ContIfaceName, &metadata.NetConf)
-	if err != nil {
-		return nil, err
-	}
-
-	podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
+	podkey := fmt.Sprintf("%s/%s", metadata.Id.Namespace, metadata.Id.Pod)
 	agent.podChanged(&podkey)
 
 	logger.Info("Successfully configured container interface")
-	return &metadata.NetConf, nil
+	return result, nil
 }
 
-func (agent *HostAgent) unconfigureContainerIface(id string) error {
+func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 	logger := agent.log.WithFields(logrus.Fields{
-		"id": id,
+		"ContId":    id.ContId,
+		"Pod":       id.Pod,
+		"Namespace": id.Namespace,
 	})
 
+	podid := id.Namespace + "/" + id.Pod
 	agent.indexMutex.Lock()
-	metadata, ok := agent.epMetadata[id]
+	mdmap, ok := agent.epMetadata[podid]
+	if !ok {
+		logger.Error("Unconfigure called for pod with no metadata")
+		// Assume container is already unconfigured
+		agent.indexMutex.Unlock()
+		return nil
+	}
+	metadata, ok := mdmap[id.ContId]
 	if !ok {
 		logger.Error("Unconfigure called for container with no metadata")
 		// Assume container is already unconfigured
 		agent.indexMutex.Unlock()
 		return nil
 	}
-	delete(agent.epMetadata, id)
+	delete(mdmap, id.ContId)
+	if len(mdmap) == 0 {
+		delete(agent.epMetadata, podid)
+	}
 	agent.indexMutex.Unlock()
 
 	err := md.ClearMetadata(agent.config.CniMetadataDir,
-		agent.config.CniNetwork, id)
+		agent.config.CniNetwork, id.ContId)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("Deallocating IP address(es)")
-	agent.deallocateIps(&metadata.NetConf)
+	agent.deallocateIps(metadata)
 
 	logger.Debug("Clearing container interface")
-	netns, err := ns.GetNS(metadata.NetNS)
-	if err != nil {
-		logger.Error("Could not unconfigure iface:",
-			fmt.Errorf("failed to open netns %q: %v", metadata.NetNS, err))
-	} else {
-		defer netns.Close()
-
-		err = clearVeth(netns, metadata.ContIfaceName)
+	for _, iface := range metadata.Ifaces {
+		netns, err := ns.GetNS(iface.Sandbox)
 		if err != nil {
-			logger.Error("Could not clear Veth ports: ", err)
+			logger.Error("Could not unconfigure iface:",
+				fmt.Errorf("failed to open netns %q: %v", iface.Sandbox, err))
+		} else {
+			defer netns.Close()
+
+			err = clearVeth(netns, iface.Name)
+			if err != nil {
+				logger.Error("Could not clear Veth ports: ", err)
+			}
 		}
 	}
 
@@ -190,24 +259,31 @@ func (agent *HostAgent) cleanupSetup() {
 	mdcopy := agent.epMetadata
 	agent.indexMutex.Unlock()
 
-	for id, metadata := range mdcopy {
+	for podkey, mdmap := range mdcopy {
 		logger := agent.log.WithFields(logrus.Fields{
-			"id": id,
+			"podkey": podkey,
 		})
 
-		podkey := fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Pod)
 		logger.Debug("Checking")
 		_, exists, err := agent.podInformer.GetStore().GetByKey(podkey)
 		if err != nil {
 			logger.Error("Could not lookup pod: ", err)
 			continue
 		}
-		if !exists {
-			logger.Info("Unconfiguring stale container configuration")
 
-			err := agent.unconfigureContainerIface(id)
-			if err != nil {
-				logger.Error("Could not unconfigure container: ", err)
+		if !exists {
+			for _, metadata := range mdmap {
+				logger := agent.log.WithFields(logrus.Fields{
+					"namespace": metadata.Id.Namespace,
+					"pod":       metadata.Id.Pod,
+					"contid":    metadata.Id.ContId,
+				})
+				logger.Info("Unconfiguring stale container configuration")
+
+				err := agent.unconfigureContainerIfaces(&metadata.Id)
+				if err != nil {
+					logger.Error("Could not unconfigure container: ", err)
+				}
 			}
 		}
 	}

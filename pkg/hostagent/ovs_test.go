@@ -25,7 +25,7 @@ import (
 
 type diffPortTest struct {
 	bridges  map[string]ovsBridge
-	metadata map[string]*md.ContainerMetadata
+	metadata map[string]map[string]*md.ContainerMetadata
 	expected []libovsdb.Operation
 	desc     string
 }
@@ -75,10 +75,20 @@ func TestDiffPorts(t *testing.T) {
 		},
 	}
 
-	onepodMeta := map[string]*md.ContainerMetadata{
-		"pod1": &md.ContainerMetadata{
-			Id:           "pod1",
-			HostVethName: "vethf3323b92",
+	onepodMeta := map[string]map[string]*md.ContainerMetadata{
+		"ns/pod1": {
+			"pod1": &md.ContainerMetadata{
+				Id: md.ContainerId{
+					ContId:    "cont1",
+					Pod:       "pod1",
+					Namespace: "ns",
+				},
+				Ifaces: []*md.ContainerIfaceMd{
+					&md.ContainerIfaceMd{
+						HostVethName: "vethf3323b92",
+					},
+				},
+			},
 		},
 	}
 
@@ -121,7 +131,7 @@ func TestDiffPorts(t *testing.T) {
 		},
 		diffPortTest{
 			bridges:  partialBr,
-			metadata: map[string]*md.ContainerMetadata{},
+			metadata: map[string]map[string]*md.ContainerMetadata{},
 			expected: delPartial,
 			desc:     "stale",
 		},

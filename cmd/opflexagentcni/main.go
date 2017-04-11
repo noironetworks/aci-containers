@@ -81,15 +81,27 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	}
 
 	id := args.ContainerID
-	if k8sArgs.K8S_POD_NAMESPACE != "" && k8sArgs.K8S_POD_NAME != "" {
-		id = fmt.Sprintf("%s_%s", k8sArgs.K8S_POD_NAMESPACE, k8sArgs.K8S_POD_NAME)
-	}
 
 	return n, k8sArgs, id, nil
 }
 
+func waitForAllNetwork(result *current.Result, id string,
+	timeout time.Duration) {
+
+	for index, iface := range result.Interfaces {
+		netns, err := ns.GetNS(iface.Sandbox)
+		if err != nil {
+			log.Error("Could not open netns: ", err)
+		} else {
+			waitForNetwork(netns, result, id, index, 10*time.Second)
+			netns.Close()
+		}
+	}
+
+}
+
 func waitForNetwork(netns ns.NetNS, result *current.Result,
-	id string, timeout time.Duration) {
+	id string, index int, timeout time.Duration) {
 
 	logger := log.WithFields(logrus.Fields{
 		"id": id,
@@ -103,7 +115,7 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 			pinger.MaxRTT = time.Millisecond * 100
 			expected := 0
 			for _, ip := range result.IPs {
-				if ip.Gateway == nil {
+				if ip.Gateway == nil || ip.Interface != index {
 					continue
 				}
 				pinger.AddIPAddr(&net.IPAddr{IP: ip.Gateway})
@@ -166,18 +178,26 @@ func cmdAdd(args *skel.CmdArgs) error {
 		if len(result.IPs) == 0 {
 			return errors.New("IPAM plugin returned missing IP config")
 		}
+		for _, ip := range result.IPs {
+			ip.Interface = 0
+		}
 	} else {
 		result = &current.Result{}
 		result.DNS = n.DNS
 	}
 
 	metadata := cnimd.ContainerMetadata{
-		Id:            id,
-		ContIfaceName: args.IfName,
-		NetNS:         args.Netns,
-		NetConf:       *result,
-		Namespace:     string(k8sArgs.K8S_POD_NAMESPACE),
-		Pod:           string(k8sArgs.K8S_POD_NAME),
+		Id: cnimd.ContainerId{
+			ContId:    id,
+			Namespace: string(k8sArgs.K8S_POD_NAMESPACE),
+			Pod:       string(k8sArgs.K8S_POD_NAME),
+		},
+		Ifaces: []*cnimd.ContainerIfaceMd{
+			&cnimd.ContainerIfaceMd{
+				Name:    args.IfName,
+				Sandbox: args.Netns,
+			},
+		},
 	}
 
 	logger.Debug("Registering with host agent")
@@ -194,20 +214,14 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		netns, err := ns.GetNS(metadata.NetNS)
-		if err != nil {
-			log.Error("Could not open netns: ", err)
-		} else {
-			waitForNetwork(netns, result, id, 10*time.Second)
-			netns.Close()
-		}
+		waitForAllNetwork(result, id, 10*time.Second)
 	}
 
 	return result.Print()
 }
 
 func cmdDel(args *skel.CmdArgs) error {
-	n, _, id, err := loadConf(args)
+	n, k8sArgs, id, err := loadConf(args)
 	if err != nil {
 		return err
 	}
@@ -223,13 +237,19 @@ func cmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
+	cid := &cnimd.ContainerId{
+		ContId:    id,
+		Pod:       string(k8sArgs.K8S_POD_NAME),
+		Namespace: string(k8sArgs.K8S_POD_NAMESPACE),
+	}
+
 	logger.Debug("Unregistering with host agent")
 
 	eprpc, err := eprpcclient.NewClient(n.EpRpcSock, time.Millisecond*500)
 	if err != nil {
 		return err
 	}
-	_, err = eprpc.Unregister(id)
+	_, err = eprpc.Unregister(cid)
 	if err != nil {
 		return err
 	}
@@ -238,5 +258,6 @@ func cmdDel(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel, version.PluginSupports("0.3.0"))
+	skel.PluginMain(cmdAdd, cmdDel,
+		version.PluginSupports("0.3.0", "0.3.1"))
 }

@@ -56,13 +56,13 @@ func NewEpRPC(agent *HostAgent) *EpRPC {
 }
 
 func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result) error {
-	if metadata.Namespace == "" || metadata.Pod == "" {
+	if metadata.Id.Namespace == "" || metadata.Id.Pod == "" {
 		return errors.New("Metadata has empty pod key fields")
 	}
 
 	r.agent.log.Debug("Registering ", metadata.Id)
 
-	regresult, err := r.agent.configureContainerIface(metadata)
+	regresult, err := r.agent.configureContainerIfaces(metadata)
 	if err != nil {
 		r.agent.log.Error("Failed to configure container interface: ", err)
 		return err
@@ -77,14 +77,14 @@ func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result
 	return nil
 }
 
-func (r *EpRPC) Unregister(id string, ack *bool) error {
-	if id == "" {
-		return errors.New("ID is empty")
+func (r *EpRPC) Unregister(id *md.ContainerId, ack *bool) error {
+	if id.Namespace == "" || id.Pod == "" || id.ContId == "" {
+		return errors.New("Metadata has empty key fields")
 	}
 
 	r.agent.log.Debug("Unregistering ", id)
 
-	err := r.agent.unconfigureContainerIface(id)
+	err := r.agent.unconfigureContainerIfaces(id)
 	if err != nil {
 		r.agent.log.WithFields(logrus.Fields{
 			"id": id,

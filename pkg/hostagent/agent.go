@@ -32,9 +32,9 @@ type HostAgent struct {
 
 	indexMutex sync.Mutex
 
-	opflexEps      map[string]*opflexEndpoint
+	opflexEps      map[string][]*opflexEndpoint
 	opflexServices map[string]*opflexService
-	epMetadata     map[string]*md.ContainerMetadata
+	epMetadata     map[string]map[string]*md.ContainerMetadata
 	serviceEp      md.ServiceEndpoint
 
 	podInformer       cache.SharedIndexInformer
@@ -55,9 +55,9 @@ func NewHostAgent(config *HostAgentConfig, log *logrus.Logger) *HostAgent {
 	return &HostAgent{
 		log:            log,
 		config:         config,
-		opflexEps:      make(map[string]*opflexEndpoint),
+		opflexEps:      make(map[string][]*opflexEndpoint),
 		opflexServices: make(map[string]*opflexService),
-		epMetadata:     make(map[string]*md.ContainerMetadata),
+		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
 
 		podIpsV4: []*ipam.IpAlloc{ipam.New(), ipam.New()},
 		podIpsV6: []*ipam.IpAlloc{ipam.New(), ipam.New()},

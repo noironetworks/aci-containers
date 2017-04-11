@@ -150,57 +150,66 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 
 	agent.indexMutex.Lock()
 	opid := 0
-	for id, meta := range agent.epMetadata {
-		if meta.HostVethName == "" {
-			continue
-		}
+	for id, metas := range agent.epMetadata {
+		for _, meta := range metas {
+			for _, iface := range meta.Ifaces {
+				if iface.HostVethName == "" {
+					continue
+				}
 
-		patchIntName, patchAccessName :=
-			metadata.GetIfaceNames(meta.HostVethName)
+				patchIntName, patchAccessName :=
+					metadata.GetIfaceNames(iface.HostVethName)
 
-		var delops []libovsdb.Operation
-		portmissing := false
-		portMap := map[string][]string{
-			agent.config.AccessBridgeName: []string{patchAccessName,
-				meta.HostVethName},
-			agent.config.IntBridgeName: []string{patchIntName},
-		}
-		for _, brName := range brNames {
-			portNames := portMap[brName]
-			if br, ok := bridges[brName]; ok {
-				var delports []libovsdb.UUID
-				for _, n := range portNames {
-					if uuid, ok := br.ports[n]; ok {
-						delports = append(delports, libovsdb.UUID{GoUUID: uuid})
-						found[brName][n] = true
-					} else {
-						portmissing = true
+				var delops []libovsdb.Operation
+				portmissing := false
+				portMap := map[string][]string{
+					agent.config.AccessBridgeName: []string{patchAccessName,
+						iface.HostVethName},
+					agent.config.IntBridgeName: []string{patchIntName},
+				}
+				for _, brName := range brNames {
+					portNames := portMap[brName]
+					if br, ok := bridges[brName]; ok {
+						var delports []libovsdb.UUID
+						for _, n := range portNames {
+							if uuid, ok := br.ports[n]; ok {
+								delports = append(delports,
+									libovsdb.UUID{GoUUID: uuid})
+								found[brName][n] = true
+							} else {
+								portmissing = true
+							}
+						}
+						if len(delports) > 0 {
+							delops = append(delops,
+								delBrPortOp(br.uuid, delports))
+						}
 					}
 				}
-				if len(delports) > 0 {
-					delops = append(delops, delBrPortOp(br.uuid, delports))
+
+				if portmissing {
+					// if we have only some of the ports, delete the ones that
+					// are already there
+					if len(delops) > 0 {
+						agent.log.Warning("Deleting stale partial state for ",
+							id)
+						ops = append(ops, delops...)
+					}
+
+					agent.log.Debug("Adding ports for ", id)
+					adds, err :=
+						addIfaceOps(iface.HostVethName, patchIntName,
+							patchAccessName,
+							bridges[agent.config.AccessBridgeName].uuid,
+							bridges[agent.config.IntBridgeName].uuid,
+							strconv.Itoa(opid))
+					opid++
+					if err != nil {
+						agent.log.Error(err)
+					}
+					ops = append(ops, adds...)
 				}
 			}
-		}
-
-		if portmissing {
-			// if we have only some of the ports, delete the ones that
-			// are already there
-			if len(delops) > 0 {
-				agent.log.Warning("Deleting stale partial state for ", id)
-				ops = append(ops, delops...)
-			}
-
-			agent.log.Debug("Adding ports for ", id)
-			adds, err :=
-				addIfaceOps(meta.HostVethName, patchIntName, patchAccessName,
-					bridges[agent.config.AccessBridgeName].uuid,
-					bridges[agent.config.IntBridgeName].uuid, strconv.Itoa(opid))
-			opid++
-			if err != nil {
-				agent.log.Error(err)
-			}
-			ops = append(ops, adds...)
 		}
 	}
 	agent.indexMutex.Unlock()

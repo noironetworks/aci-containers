@@ -1,5 +1,5 @@
-hash: b179f5d54dedb2da4af3dd2c6e0b6869709ed738963daa81ad7518e128a5598f
-updated: 2017-04-05T15:38:34.247574052-07:00
+hash: 0f74cc9bee8db87df2696dab909c8d04a71074c8d239f2c57d972cb652333013
+updated: 2017-04-07T16:07:50.688514521-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -8,7 +8,7 @@ imports:
   subpackages:
   - jsonrpc
 - name: github.com/containernetworking/cni
-  version: 0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff
+  version: 137b4975ecab6e1f0c24c1e3c228a50a3cfba75e
   subpackages:
   - pkg/invoke
   - pkg/ip
@@ -191,7 +191,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/apimachinery
-  version: 20e10d54608f05c3059443a6c0afb9979641e88d
+  version: 75b8dd260ef0469d96d578705a87cffd0e09dab8
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
@@ -247,7 +247,7 @@ imports:
   - pkg/features
   - pkg/util/feature
 - name: k8s.io/client-go
-  version: 63e44d4493582c21461eae81027de697afd39d6a
+  version: 3627aeb7d4f6ade38f995d2c923e459146493c7e
   subpackages:
   - discovery
   - kubernetes
@@ -334,7 +334,7 @@ imports:
   - util/integer
   - util/workqueue
 - name: k8s.io/kubernetes
-  version: fff5156092b56e6bd60fff75aad4dc9de6b6ef37
+  version: b0b7a323cc5a4a2019b2e9520c21c7830b7f708e
   subpackages:
   - pkg/api
   - pkg/api/install

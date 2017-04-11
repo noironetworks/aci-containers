@@ -3,7 +3,7 @@ import:
 - package: github.com/Sirupsen/logrus
   version: ^0.11.5
 - package: github.com/containernetworking/cni
-  version: ~0.5.0
+  version: ~0.5.1
   subpackages:
   - pkg/ip
   - pkg/ipam
@@ -16,9 +16,9 @@ import:
 - package: github.com/tatsushid/go-fastping
   version: d7bb493dee3e090e2ffb6914adddf17c1e7c026c
 - package: k8s.io/kubernetes
-  version: 1.6.0
+  version: 1.6.1
 - package: k8s.io/client-go
-  version: master
+  version: ~3.0.0-beta.0
 - package: github.com/stretchr/testify
   version: ^1.1.4
   subpackages:

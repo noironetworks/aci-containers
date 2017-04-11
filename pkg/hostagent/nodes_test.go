@@ -22,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -39,22 +38,22 @@ type buildIpamTest struct {
 func mditem(ip string) metadata.ContainerMetadata {
 	i := net.ParseIP(ip)
 
-	ipconfig := &cnitypes.IPConfig{
-		Address: net.IPNet{
-			IP: i,
-		},
-	}
-
-	if i.To4() != nil {
-		ipconfig.Version = "4"
-	} else {
-		ipconfig.Version = "6"
-	}
-
 	return metadata.ContainerMetadata{
-		Id: ip,
-		NetConf: cnitypes.Result{
-			IPs: []*cnitypes.IPConfig{ipconfig},
+		Id: metadata.ContainerId{
+			ContId:    ip,
+			Pod:       "pod" + ip,
+			Namespace: "ns",
+		},
+		Ifaces: []*metadata.ContainerIfaceMd{
+			&metadata.ContainerIfaceMd{
+				IPs: []metadata.ContainerIfaceIP{
+					metadata.ContainerIfaceIP{
+						Address: net.IPNet{
+							IP: i,
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -125,10 +124,16 @@ func TestBuildIpam(t *testing.T) {
 
 	for _, test := range buildIpamTests {
 		agent.indexMutex.Lock()
-		agent.epMetadata = make(map[string]*metadata.ContainerMetadata)
+		agent.epMetadata =
+			make(map[string]map[string]*metadata.ContainerMetadata)
 		agent.podNetAnnotation = ""
 		for _, ep := range test.existingEps {
-			agent.epMetadata[ep.Id] = &ep
+			podid := "ns/pod" + ep.Id.ContId
+			if _, ok := agent.epMetadata[podid]; !ok {
+				agent.epMetadata[podid] =
+					make(map[string]*metadata.ContainerMetadata)
+			}
+			agent.epMetadata[podid][ep.Id.ContId] = &ep
 		}
 		agent.indexMutex.Unlock()
 		agent.fakeNodeSource.Add(node(test.annotation))

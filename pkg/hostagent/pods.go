@@ -151,42 +151,68 @@ func (agent *HostAgent) syncEps() {
 		if !strings.HasSuffix(f.Name(), ".ep") {
 			continue
 		}
-
-		uuid := f.Name()
-		uuid = uuid[:len(uuid)-3]
-
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
+		epidstr := f.Name()
+		epidstr = epidstr[:len(epidstr)-3]
+		epid := strings.Split(epidstr, "_")
+
+		if len(epid) < 3 {
+			agent.log.Warn("Removing invalid endpoint:", f.Name())
+			os.Remove(epfile)
+			continue
+		}
+		poduuid := epid[0]
+		contid := epid[1]
+		contiface := epid[2]
+
 		logger := agent.log.WithFields(
-			logrus.Fields{"Uuid": uuid},
+			logrus.Fields{
+				"PodUuid":   poduuid,
+				"ContId":    contid,
+				"ContIFace": contiface,
+			},
 		)
 
-		existing, ok := agent.opflexEps[uuid]
+		existing, ok := agent.opflexEps[poduuid]
 		if ok {
-			wrote, err := writeEp(epfile, existing)
-			if err != nil {
-				opflexEpLogger(agent.log, existing).
-					Error("Error writing EP file: ", err)
-			} else if wrote {
-				opflexEpLogger(agent.log, existing).
-					Info("Updated endpoint")
+			ok = false
+			for _, ep := range existing {
+				if ep.Uuid != epidstr {
+					continue
+				}
+
+				wrote, err := writeEp(epfile, ep)
+				if err != nil {
+					opflexEpLogger(agent.log, ep).
+						Error("Error writing EP file: ", err)
+				} else if wrote {
+					opflexEpLogger(agent.log, ep).
+						Info("Updated endpoint")
+				}
+				seen[epidstr] = true
+				ok = true
 			}
-			seen[uuid] = true
-		} else {
+		}
+		if !ok {
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
 		}
 	}
 
-	for _, ep := range agent.opflexEps {
-		if seen[ep.Uuid] {
-			continue
-		}
+	for _, eps := range agent.opflexEps {
+		for _, ep := range eps {
+			if seen[ep.Uuid] {
+				continue
+			}
 
-		opflexEpLogger(agent.log, ep).Info("Adding endpoint")
-		epfile := filepath.Join(agent.config.OpFlexEndpointDir, ep.Uuid+".ep")
-		_, err = writeEp(epfile, ep)
-		if err != nil {
-			opflexEpLogger(agent.log, ep).Error("Error writing EP file: ", err)
+			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
+			epfile := filepath.Join(agent.config.OpFlexEndpointDir,
+				ep.Uuid+".ep")
+			_, err = writeEp(epfile, ep)
+			if err != nil {
+				opflexEpLogger(agent.log, ep).
+					Error("Error writing EP file: ", err)
+			}
 		}
 	}
 	agent.log.Debug("Finished endpoint sync")
@@ -230,7 +256,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		return
 	}
 
-	id := fmt.Sprintf("%s_%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	id := fmt.Sprintf("%s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	epmetadata, ok := agent.epMetadata[id]
 	if !ok {
 		logger.Debug("No metadata")
@@ -239,60 +265,73 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		return
 	}
 
-	patchIntName, patchAccessName :=
-		metadata.GetIfaceNames(epmetadata.HostVethName)
-	ips := make([]string, 0)
-	for _, ip := range epmetadata.NetConf.IPs {
-		if ip.Address.IP == nil {
-			continue
+	var neweps []*opflexEndpoint
+
+	for _, epmeta := range epmetadata {
+		for _, iface := range epmeta.Ifaces {
+			patchIntName, patchAccessName :=
+				metadata.GetIfaceNames(iface.HostVethName)
+
+			ips := make([]string, 0)
+			for _, ip := range iface.IPs {
+				if ip.Address.IP == nil {
+					continue
+				}
+				ips = append(ips, ip.Address.IP.String())
+			}
+
+			epidstr := string(pod.ObjectMeta.UID) + "_" +
+				epmeta.Id.ContId + "_" + iface.HostVethName
+			ep := &opflexEndpoint{
+				Uuid:              epidstr,
+				MacAddress:        iface.Mac,
+				IpAddress:         ips,
+				AccessIface:       iface.HostVethName,
+				AccessUplinkIface: patchAccessName,
+				IfaceName:         patchIntName,
+			}
+
+			ep.Attributes = pod.ObjectMeta.Labels
+			ep.Attributes["vm-name"] = pod.ObjectMeta.Name
+			ep.Attributes["namespace"] = pod.ObjectMeta.Namespace
+			ep.Attributes["interface-name"] = iface.HostVethName
+
+			if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
+				g := &metadata.OpflexGroup{}
+				err := json.Unmarshal([]byte(egval), g)
+				if err != nil {
+					logger.WithFields(logrus.Fields{
+						"EgAnnotation": egval,
+					}).Error("Could not decode annotation: ", err)
+				} else {
+					ep.EgPolicySpace = g.PolicySpace
+					ep.EndpointGroup = g.Name
+				}
+			}
+			if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
+				g := make([]metadata.OpflexGroup, 0)
+				err := json.Unmarshal([]byte(sgval), &g)
+				if err != nil {
+					logger.WithFields(logrus.Fields{
+						"SgAnnotation": sgval,
+					}).Error("Could not decode annotation: ", err)
+				} else {
+					ep.SecurityGroup = g
+				}
+			}
+
+			neweps = append(neweps, ep)
 		}
-		ips = append(ips, ip.Address.IP.String())
 	}
 
-	ep := &opflexEndpoint{
-		Uuid:              string(pod.ObjectMeta.UID),
-		MacAddress:        epmetadata.MAC,
-		IpAddress:         ips,
-		AccessIface:       epmetadata.HostVethName,
-		AccessUplinkIface: patchAccessName,
-		IfaceName:         patchIntName,
-	}
-
-	ep.Attributes = pod.ObjectMeta.Labels
-	ep.Attributes["vm-name"] = pod.ObjectMeta.Name
-	ep.Attributes["namespace"] = pod.ObjectMeta.Namespace
-
-	if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
-		g := &metadata.OpflexGroup{}
-		err := json.Unmarshal([]byte(egval), g)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"EgAnnotation": egval,
-			}).Error("Could not decode annotation: ", err)
-		} else {
-			ep.EgPolicySpace = g.PolicySpace
-			ep.EndpointGroup = g.Name
-		}
-	}
-	if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
-		g := make([]metadata.OpflexGroup, 0)
-		err := json.Unmarshal([]byte(sgval), &g)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"SgAnnotation": sgval,
-			}).Error("Could not decode annotation: ", err)
-		} else {
-			ep.SecurityGroup = g
-		}
-	}
-
-	existing, ok := agent.opflexEps[ep.Uuid]
-	if (ok && !reflect.DeepEqual(existing, ep)) || !ok {
+	existing, ok := agent.opflexEps[string(pod.ObjectMeta.UID)]
+	if (ok && !reflect.DeepEqual(existing, neweps)) || !ok {
 		logger.WithFields(logrus.Fields{
-			"ep": ep,
-		}).Debug("Updated endpoint")
+			"id": id,
+			"ep": neweps,
+		}).Debug("Updated endpoints for pod")
 
-		agent.opflexEps[ep.Uuid] = ep
+		agent.opflexEps[string(pod.ObjectMeta.UID)] = neweps
 
 		agent.syncEps()
 	}

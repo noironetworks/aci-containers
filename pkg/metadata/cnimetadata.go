@@ -18,21 +18,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
-
-	cnitypes "github.com/containernetworking/cni/pkg/types/current"
 )
 
+type ContainerIfaceIP struct {
+	Address net.IPNet `json:"address"`
+	Gateway net.IP    `json:"gateway,omitempty"`
+}
+
+type ContainerIfaceMd struct {
+	HostVethName string             `json:"host-veth-name,omitempty"`
+	Name         string             `json:"name"`
+	Mac          string             `json:"mac,omitempty"`
+	Sandbox      string             `json:"sandbox,omitempty"`
+	IPs          []ContainerIfaceIP `json:"ips"`
+}
+
+type ContainerId struct {
+	Namespace string `json:"namespace,omitempty"`
+	Pod       string `json:"pod,omitempty"`
+	ContId    string `json:"cont-id,omitempty"`
+}
+
 type ContainerMetadata struct {
-	Namespace     string          `json:"namespace,omitempty"`
-	Pod           string          `json:"pod,omitempty"`
-	Id            string          `json:"id,omitempty"`
-	HostVethName  string          `json:"host-veth-name,omitempty"`
-	ContIfaceName string          `json:"cont-iface-name,omitempty"`
-	NetNS         string          `json:"net-ns,omitempty"`
-	MAC           string          `json:"mac,omitempty"`
-	NetConf       cnitypes.Result `json:"netconf,omitempty"`
+	Id     ContainerId         `json:"id,omitempty"`
+	Ifaces []*ContainerIfaceMd `json:"interfaces,omitempty"`
 }
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
@@ -40,7 +52,7 @@ func RecordMetadata(datadir string, network string, data ContainerMetadata) erro
 	if err := os.MkdirAll(dir, 0644); err != nil {
 		return err
 	}
-	datafile := filepath.Join(dir, data.Id)
+	datafile := filepath.Join(dir, data.Id.ContId)
 	datacont, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err
@@ -49,7 +61,7 @@ func RecordMetadata(datadir string, network string, data ContainerMetadata) erro
 }
 
 func LoadMetadata(datadir string, network string,
-	mdMap *map[string]*ContainerMetadata) error {
+	mdMap *map[string]map[string]*ContainerMetadata) error {
 
 	dir := filepath.Join(datadir, network)
 	files, err := ioutil.ReadDir(dir)
@@ -60,7 +72,11 @@ func LoadMetadata(datadir string, network string,
 	for _, file := range files {
 		metadata, err := GetMetadata(datadir, network, file.Name())
 		if err == nil {
-			(*mdMap)[file.Name()] = metadata
+			podId := metadata.Id.Namespace + "/" + metadata.Id.Pod
+			if _, ok := (*mdMap)[podId]; !ok {
+				(*mdMap)[podId] = make(map[string]*ContainerMetadata)
+			}
+			(*mdMap)[podId][metadata.Id.ContId] = metadata
 		}
 	}
 
