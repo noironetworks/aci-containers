@@ -16,11 +16,15 @@ type AciObjectSpec struct {
   Agent *Agent `json:"agent,omitempty"`
   ApplicationProfile *ApplicationProfile `json:"application_profile,omitempty"`
   BridgeDomain *BridgeDomain `json:"bridge_domain,omitempty"`
+  ConcreteDevice *ConcreteDevice `json:"concrete_device,omitempty"`
+  ConcreteDeviceInterface *ConcreteDeviceInterface `json:"concrete_device_interface,omitempty"`
   Configuration *Configuration `json:"configuration,omitempty"`
   Contract *Contract `json:"contract,omitempty"`
   ContractSubject *ContractSubject `json:"contract_subject,omitempty"`
   DeviceCluster *DeviceCluster `json:"device_cluster,omitempty"`
   DeviceClusterContext *DeviceClusterContext `json:"device_cluster_context,omitempty"`
+  DeviceClusterInterface *DeviceClusterInterface `json:"device_cluster_interface,omitempty"`
+  DeviceClusterInterfaceContext *DeviceClusterInterfaceContext `json:"device_cluster_interface_context,omitempty"`
   Endpoint *Endpoint `json:"endpoint,omitempty"`
   EndpointGroup *EndpointGroup `json:"endpoint_group,omitempty"`
   ExternalNetwork *ExternalNetwork `json:"external_network,omitempty"`
@@ -29,16 +33,21 @@ type AciObjectSpec struct {
   FilterEntry *FilterEntry `json:"filter_entry,omitempty"`
   HostLink *HostLink `json:"host_link,omitempty"`
   L3Outside *L3Outside `json:"l3_outside,omitempty"`
+  OpflexDevice *OpflexDevice `json:"opflex_device,omitempty"`
   PhysicalDomain *PhysicalDomain `json:"physical_domain,omitempty"`
+  Pod *Pod `json:"pod,omitempty"`
   SecurityGroup *SecurityGroup `json:"security_group,omitempty"`
   SecurityGroupRule *SecurityGroupRule `json:"security_group_rule,omitempty"`
   SecurityGroupSubject *SecurityGroupSubject `json:"security_group_subject,omitempty"`
   ServiceGraph *ServiceGraph `json:"service_graph,omitempty"`
+  ServiceGraphConnection *ServiceGraphConnection `json:"service_graph_connection,omitempty"`
+  ServiceGraphNode *ServiceGraphNode `json:"service_graph_node,omitempty"`
   ServiceRedirectPolicy *ServiceRedirectPolicy `json:"service_redirect_policy,omitempty"`
   Subnet *Subnet `json:"subnet,omitempty"`
   Tenant *Tenant `json:"tenant,omitempty"`
   Type string `json:"type,omitempty"`
   VmmDomain *VmmDomain `json:"vmm_domain,omitempty"`
+  VmmPolicy *VmmPolicy `json:"vmm_policy,omitempty"`
   Vrf *Vrf `json:"vrf,omitempty"`
 }
 
@@ -77,6 +86,7 @@ type BridgeDomain struct {
   EnableArpFlood *bool `json:"enable_arp_flood,omitempty"`
   EnableRouting *bool `json:"enable_routing,omitempty"`
   EpMoveDetectMode string `json:"ep_move_detect_mode,omitempty"`
+  IpLearning *bool `json:"ip_learning,omitempty"`
   L2UnknownUnicastMode string `json:"l2_unknown_unicast_mode,omitempty"`
   L3outNames []string `json:"l3out_names,omitempty"`
   LimitIpLearnToSubnets *bool `json:"limit_ip_learn_to_subnets,omitempty"`
@@ -84,6 +94,24 @@ type BridgeDomain struct {
   Name string `json:"name"`
   TenantName string `json:"tenant_name"`
   VrfName string `json:"vrf_name,omitempty"`
+}
+
+type ConcreteDevice struct {
+  DeviceClusterName string `json:"device_cluster_name"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  TenantName string `json:"tenant_name"`
+}
+
+type ConcreteDeviceInterface struct {
+  DeviceClusterName string `json:"device_cluster_name"`
+  DeviceName string `json:"device_name"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  Path string `json:"path,omitempty"`
+  TenantName string `json:"tenant_name"`
 }
 
 type Configuration struct {
@@ -107,9 +135,11 @@ type ContractSubject struct {
   ContractName string `json:"contract_name"`
   DisplayName string `json:"display_name,omitempty"`
   InFilters []string `json:"in_filters,omitempty"`
+  InServiceGraphName string `json:"in_service_graph_name,omitempty"`
   Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
   OutFilters []string `json:"out_filters,omitempty"`
+  OutServiceGraphName string `json:"out_service_graph_name,omitempty"`
   ServiceGraphName string `json:"service_graph_name,omitempty"`
   TenantName string `json:"tenant_name"`
 }
@@ -145,6 +175,29 @@ type DeviceClusterContext struct {
   ServiceGraphName string `json:"service_graph_name"`
   ServiceRedirectPolicyName string `json:"service_redirect_policy_name,omitempty"`
   ServiceRedirectPolicyTenantName string `json:"service_redirect_policy_tenant_name,omitempty"`
+  TenantName string `json:"tenant_name"`
+}
+
+type DeviceClusterInterface struct {
+  ConcreteInterfaces []string `json:"concrete_interfaces,omitempty"`
+  DeviceClusterName string `json:"device_cluster_name"`
+  DisplayName string `json:"display_name,omitempty"`
+  Encap string `json:"encap,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  TenantName string `json:"tenant_name"`
+}
+
+type DeviceClusterInterfaceContext struct {
+  BridgeDomainDn string `json:"bridge_domain_dn,omitempty"`
+  ConnectorName string `json:"connector_name"`
+  ContractName string `json:"contract_name"`
+  DeviceClusterInterfaceDn string `json:"device_cluster_interface_dn,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  NodeName string `json:"node_name"`
+  ServiceGraphName string `json:"service_graph_name"`
+  ServiceRedirectPolicyDn string `json:"service_redirect_policy_dn,omitempty"`
   TenantName string `json:"tenant_name"`
 }
 
@@ -248,7 +301,26 @@ type LinearChainNodes struct {
   Name string `json:"name,omitempty"`
 }
 
+type OpflexDevice struct {
+  BridgeInterface string `json:"bridge_interface"`
+  ControllerName string `json:"controller_name,omitempty"`
+  DevId string `json:"dev_id"`
+  DomainName string `json:"domain_name,omitempty"`
+  FabricPathDn string `json:"fabric_path_dn,omitempty"`
+  HostName string `json:"host_name,omitempty"`
+  Ip string `json:"ip,omitempty"`
+  NodeId string `json:"node_id"`
+  PodId string `json:"pod_id"`
+}
+
 type PhysicalDomain struct {
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+}
+
+type Pod struct {
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
 }
 
@@ -291,6 +363,34 @@ type ServiceGraph struct {
   TenantName string `json:"tenant_name"`
 }
 
+type ServiceGraphConnection struct {
+  AdjacencyType string `json:"adjacency_type,omitempty"`
+  ConnectorDirection string `json:"connector_direction,omitempty"`
+  ConnectorDns []string `json:"connector_dns,omitempty"`
+  ConnectorType string `json:"connector_type,omitempty"`
+  DirectConnect *bool `json:"direct_connect,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  ServiceGraphName string `json:"service_graph_name"`
+  TenantName string `json:"tenant_name"`
+  UnicastRoute *bool `json:"unicast_route,omitempty"`
+}
+
+type ServiceGraphNode struct {
+  Connectors []string `json:"connectors,omitempty"`
+  DeviceClusterName string `json:"device_cluster_name,omitempty"`
+  DeviceClusterTenantName string `json:"device_cluster_tenant_name,omitempty"`
+  DisplayName string `json:"display_name,omitempty"`
+  FunctionType string `json:"function_type,omitempty"`
+  Managed *bool `json:"managed,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
+  Name string `json:"name"`
+  RoutingMode string `json:"routing_mode,omitempty"`
+  ServiceGraphName string `json:"service_graph_name"`
+  TenantName string `json:"tenant_name"`
+}
+
 type ServiceRedirectPolicy struct {
   Destinations []Destinations `json:"destinations,omitempty"`
   DisplayName string `json:"display_name,omitempty"`
@@ -319,7 +419,15 @@ type Tenant struct {
 }
 
 type VmmDomain struct {
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Name string `json:"name"`
+  Type string `json:"type"`
+}
+
+type VmmPolicy struct {
+  DisplayName string `json:"display_name,omitempty"`
+  Monitored *bool `json:"monitored,omitempty"`
   Type string `json:"type"`
 }
 

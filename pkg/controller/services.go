@@ -212,15 +212,15 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	var serviceObjs aciSlice
 
 	// Service bridge domain
-	bdName := cont.aciNameForKey("bd", "kubernetes-service-bd")
+	bdName := cont.aciNameForKey("bd", "kubernetes-service")
 	{
 		bd := NewBridgeDomain(cont.config.AciL3OutTenant, bdName)
 		t := true
+		f := false
 		bd.Spec.BridgeDomain.EnableArpFlood = &t
 		bd.Spec.BridgeDomain.EnableRouting = &t
+		bd.Spec.BridgeDomain.IpLearning = &f
 		bd.Spec.BridgeDomain.L2UnknownUnicastMode = "flood"
-		// XXX TODO may need to set endpoint dataplane learning to
-		// false, but no field currently
 		bd.Spec.BridgeDomain.VrfName = cont.config.AciVrf
 		serviceObjs = append(serviceObjs, bd)
 	}
@@ -261,6 +261,22 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 		})
 }
 
+// must have index lock
+func (cont *AciController) fabricPathForNode(name string) (string, bool) {
+	for _, device := range cont.nodeOpflexDevice[name] {
+		if !cont.opflexDeviceMatchesVmm(device) {
+			continue
+		}
+		return device.Spec.OpflexDevice.FabricPathDn, true
+	}
+	return "", false
+}
+
+type deviceClusterInfo struct {
+	serviceEp  *metadata.ServiceEndpoint
+	fabricPath string
+}
+
 func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	endpointsobj, exists, err :=
 		cont.endpointsInformer.GetStore().GetByKey(key)
@@ -271,18 +287,26 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	}
 
 	cont.indexMutex.Lock()
-	nodeMap := make(map[string]metadata.ServiceEndpoint)
+	nodeMap := make(map[string]deviceClusterInfo)
 
 	if exists && endpointsobj != nil {
 		endpoints := endpointsobj.(*v1.Endpoints)
 		for _, subset := range endpoints.Subsets {
 			for _, addr := range subset.Addresses {
-				if addr.NodeName != nil {
-					if nodeMeta, ok := cont.
-						nodeServiceMetaCache[*addr.NodeName]; ok {
-
-						nodeMap[*addr.NodeName] = nodeMeta.serviceEp
-					}
+				if addr.NodeName == nil {
+					continue
+				}
+				nodeMeta, ok := cont.nodeServiceMetaCache[*addr.NodeName]
+				if !ok {
+					continue
+				}
+				fabricPath, ok := cont.fabricPathForNode(*addr.NodeName)
+				if !ok {
+					continue
+				}
+				nodeMap[*addr.NodeName] = deviceClusterInfo{
+					serviceEp:  &nodeMeta.serviceEp,
+					fabricPath: fabricPath,
 				}
 			}
 		}
@@ -312,10 +336,15 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				cont.config.AciServicePhysDom
 			dc.Spec.DeviceCluster.Encap = cont.config.AciServiceEncap
 			for _, node := range nodes {
+				dcInfo, ok := nodeMap[node]
+				if !ok {
+					continue
+				}
+
 				dc.Spec.DeviceCluster.Devices =
 					append(dc.Spec.DeviceCluster.Devices, Devices{
 						Name: node,
-						// XXX TODO: device path for node
+						Path: dcInfo.fabricPath,
 					})
 			}
 			serviceObjs = append(serviceObjs, dc)
@@ -346,23 +375,25 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		{
 			rp := NewServiceRedirectPolicy(cont.config.AciL3OutTenant, name)
 			for _, node := range nodes {
-				if serviceEp, ok := nodeMap[node]; ok {
-					if serviceEp.Ipv4 != nil {
-						rp.Spec.ServiceRedirectPolicy.Destinations =
-							append(rp.Spec.ServiceRedirectPolicy.Destinations,
-								Destinations{
-									Ip:  serviceEp.Ipv4.String(),
-									Mac: serviceEp.Mac,
-								})
-					}
-					if serviceEp.Ipv6 != nil {
-						rp.Spec.ServiceRedirectPolicy.Destinations =
-							append(rp.Spec.ServiceRedirectPolicy.Destinations,
-								Destinations{
-									Ip:  serviceEp.Ipv6.String(),
-									Mac: serviceEp.Mac,
-								})
-					}
+				dcInfo, ok := nodeMap[node]
+				if !ok {
+					continue
+				}
+				if dcInfo.serviceEp.Ipv4 != nil {
+					rp.Spec.ServiceRedirectPolicy.Destinations =
+						append(rp.Spec.ServiceRedirectPolicy.Destinations,
+							Destinations{
+								Ip:  dcInfo.serviceEp.Ipv4.String(),
+								Mac: dcInfo.serviceEp.Mac,
+							})
+				}
+				if dcInfo.serviceEp.Ipv6 != nil {
+					rp.Spec.ServiceRedirectPolicy.Destinations =
+						append(rp.Spec.ServiceRedirectPolicy.Destinations,
+							Destinations{
+								Ip:  dcInfo.serviceEp.Ipv6.String(),
+								Mac: dcInfo.serviceEp.Mac,
+							})
 				}
 			}
 			serviceObjs = append(serviceObjs, rp)
@@ -399,7 +430,8 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				NewFilter(cont.config.AciL3OutTenant, fname_in))
 			serviceObjs = append(serviceObjs,
 				NewFilter(cont.config.AciL3OutTenant, fname_out))
-			cs.Spec.ContractSubject.ServiceGraphName = name
+			cs.Spec.ContractSubject.InServiceGraphName = name
+			cs.Spec.ContractSubject.OutServiceGraphName = name
 			cs.Spec.ContractSubject.InFilters = []string{fname_in}
 			cs.Spec.ContractSubject.OutFilters = []string{fname_out}
 			serviceObjs = append(serviceObjs, cs)
@@ -440,7 +472,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 			cc.Spec.DeviceClusterContext.BridgeDomainTenantName =
 				cont.config.AciL3OutTenant
 			cc.Spec.DeviceClusterContext.BridgeDomainName =
-				cont.aciNameForKey("bd", "kubernetes-service-bd")
+				cont.aciNameForKey("bd", "kubernetes-service")
 			cc.Spec.DeviceClusterContext.DeviceClusterTenantName =
 				cont.config.AciL3OutTenant
 			cc.Spec.DeviceClusterContext.DeviceClusterName = name
@@ -468,6 +500,115 @@ func (cont *AciController) queueServiceUpdate(service *v1.Service) {
 		return
 	}
 	cont.serviceQueue.Add(key)
+}
+
+func opflexDeviceKeyEq(a *Aci, b *Aci) bool {
+	return a.Spec.OpflexDevice.BridgeInterface ==
+		b.Spec.OpflexDevice.BridgeInterface &&
+		a.Spec.OpflexDevice.DevId == b.Spec.OpflexDevice.DevId &&
+		a.Spec.OpflexDevice.NodeId == b.Spec.OpflexDevice.NodeId &&
+		a.Spec.OpflexDevice.PodId == b.Spec.OpflexDevice.PodId
+}
+
+func (cont *AciController) opflexDeviceMatchesVmm(aci *Aci) bool {
+	return aci.Spec.OpflexDevice.DomainName == cont.config.AciVmmDomain &&
+		aci.Spec.OpflexDevice.ControllerName == cont.config.AciVmmController
+}
+
+func (cont *AciController) fabricPathLogger(node string,
+	aci *Aci) *logrus.Entry {
+
+	return cont.log.WithFields(logrus.Fields{
+		"fabricPath": aci.Spec.OpflexDevice.FabricPathDn,
+		"node":       node,
+	})
+}
+
+func (cont *AciController) opflexDeviceChanged(aci *Aci) {
+	var nodeUpdates []string
+
+	cont.indexMutex.Lock()
+	nodefound := false
+	for node, devices := range cont.nodeOpflexDevice {
+		found := false
+
+		if node == aci.Spec.OpflexDevice.HostName {
+			nodefound = true
+		}
+
+		for i, device := range devices {
+			if !opflexDeviceKeyEq(device, aci) {
+				continue
+			}
+			found = true
+
+			if aci.Spec.OpflexDevice.HostName != node {
+				cont.fabricPathLogger(node, device).
+					Debug("Moving opflex device path from node")
+
+				devices = append(devices[:i], devices[i+1:]...)
+				cont.nodeOpflexDevice[node] = devices
+				nodeUpdates = append(nodeUpdates, node)
+				break
+			} else if device.Spec.OpflexDevice.FabricPathDn !=
+				aci.Spec.OpflexDevice.FabricPathDn {
+				cont.fabricPathLogger(node, aci).
+					Debug("Updating opflex device path")
+
+				devices = append(append(devices[:i], devices[i+1:]...), aci)
+				cont.nodeOpflexDevice[node] = devices
+				nodeUpdates = append(nodeUpdates, node)
+				break
+			}
+		}
+		if !found && aci.Spec.OpflexDevice.HostName == node {
+			cont.fabricPathLogger(node, aci).
+				Debug("Appending opflex device path")
+
+			devices = append(devices, aci)
+			cont.nodeOpflexDevice[node] = devices
+			nodeUpdates = append(nodeUpdates, node)
+		}
+	}
+	if !nodefound {
+		node := aci.Spec.OpflexDevice.HostName
+		cont.fabricPathLogger(node, aci).Debug("Adding opflex device path")
+		cont.nodeOpflexDevice[node] = aciSlice{aci}
+		nodeUpdates = append(nodeUpdates, node)
+	}
+	cont.indexMutex.Unlock()
+
+	for _, node := range nodeUpdates {
+		cont.updateServicesForNode(node)
+	}
+}
+
+func (cont *AciController) opflexDeviceDeleted(aci *Aci) {
+	var nodeUpdates []string
+
+	cont.indexMutex.Lock()
+	for node, devices := range cont.nodeOpflexDevice {
+		for i, device := range devices {
+			if !opflexDeviceKeyEq(device, aci) {
+				continue
+			}
+
+			cont.fabricPathLogger(node, aci).
+				Debug("Deleting opflex device path")
+			devices = append(devices[:i], devices[i+1:]...)
+			cont.nodeOpflexDevice[node] = devices
+			nodeUpdates = append(nodeUpdates, node)
+			break
+		}
+	}
+	if len(cont.nodeOpflexDevice[aci.Spec.OpflexDevice.HostName]) == 0 {
+		delete(cont.nodeOpflexDevice, aci.Spec.OpflexDevice.HostName)
+	}
+	cont.indexMutex.Unlock()
+
+	for _, node := range nodeUpdates {
+		cont.updateServicesForNode(node)
+	}
 }
 
 func (cont *AciController) serviceChanged(obj interface{}) {

@@ -18,7 +18,7 @@ else
 fi
 
 cp ../../docker/Dockerfile-aim-build aci-integration-module
-docker build -t noiro/aci-integration-module-build \
+docker build ${DOCKER_BUILD_ARGS} -t noiro/aci-integration-module-build \
        -f aci-integration-module/Dockerfile-aim-build \
        aci-integration-module
 cat <<EOF | docker run -i noiro/aci-integration-module-build tar -X - -z -c -C /usr \
@@ -37,6 +37,6 @@ cp ../../docker/launch-aid.sh dist/bin/
 
 # Build the minimal AIM container
 cp ../../docker/Dockerfile-aim dist
-docker build -t noiro/aci-integration-module -f dist/Dockerfile-aim dist
+docker build ${DOCKER_BUILD_ARGS} -t noiro/aci-integration-module -f dist/Dockerfile-aim dist
 
 popd

@@ -39,5 +39,24 @@ EOF
 
 ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" config update
 
+for pod in `${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" manager pod-find -p | tail -n+2`; do
+    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+	      manager pod-delete $pod
+done
+${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+	  manager pod-create ${APIC_VMM_POD} --monitored=true
+
+
+for tenant in `${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" manager tenant-find -p | tail -n+2`; do
+    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+	      manager tenant-delete $tenant
+done
+${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+	  manager tenant-create common --monitored=true
+if [ ${APIC_L3OUT_TENANT} -ne "common" ]; then
+    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+	      manager tenant-create ${APIC_L3OUT_TENANT} --monitored=true
+fi
+
 echo Starting Aid
 exec ${AIMAID} --config-dir "${AIMDIR}" --config-dir "${AIMLOCALDIR}"

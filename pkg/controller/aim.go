@@ -169,13 +169,22 @@ func (cont *AciController) aimChanged(obj interface{}) {
 		aci.Spec.ExternalNetwork.Monitored != nil &&
 		*aci.Spec.ExternalNetwork.Monitored == true {
 		cont.reconcileMonitoredExternalNetworks(aciSlice{aci})
+	} else if aci.Spec.Type == "opflex_device" &&
+		aci.Spec.OpflexDevice != nil {
+		cont.opflexDeviceChanged(aci)
 	} else {
 		cont.reconcileAimObject(aci)
 	}
 }
 
 func (cont *AciController) aimDeleted(obj interface{}) {
-	cont.reconcileAimDelete(obj.(*Aci))
+	aci := obj.(*Aci)
+	if aci.Spec.Type == "opflex_device" &&
+		aci.Spec.OpflexDevice != nil {
+		cont.opflexDeviceDeleted(aci)
+	} else {
+		cont.reconcileAimDelete(aci)
+	}
 }
 
 func (cont *AciController) aciNameForKey(ktype string, key string) string {

@@ -11,13 +11,14 @@ aci_config:
 
   # The ACI VMM domain
   vmm_domain:
+    pod: pod-1
     domain: kubernetes
     controller: kubernetes
 
   # The ACI physical domain used for control network and external
   # services
   physical_domain:
-    domain: f-physdom
+    domain: kubernetes-control
 
 # Configuration that applies to each kubernetes node
 node_config:

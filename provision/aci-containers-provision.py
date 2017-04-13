@@ -49,6 +49,7 @@ if __name__ == "__main__":
     default_config = {
         "aci_config": {
             "vmm_domain": {
+                "pod": "pod-1",
                 "domain": "kubernetes",
                 "controller": "kubernetes",
             },

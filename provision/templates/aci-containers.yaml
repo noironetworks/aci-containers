@@ -14,6 +14,9 @@ data:
   controller-config: |-
     {
         "log-level": "{{config.logging.controller_log_level}}",
+        "aci-vmm-pod": "{{config.aci_config.vmm_domain.pod}}",
+        "aci-vmm-domain": "{{config.aci_config.vmm_domain.domain}}",
+        "aci-vmm-controller": "{{config.aci_config.vmm_domain.controller}}",
         "aci-policy-tenant": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
         "aci-service-phys-dom": "{{config.aci_config.physical_domain.domain}}",
         "aci-service-encap": "vlan-{{config.node_config.service_vlan}}",
@@ -493,6 +496,11 @@ spec:
                 configMapKeyRef:
                   name: aci-containers-config
                   key: apic-hosts
+            - name: APIC_HOSTS
+              valueFrom:
+                configMapKeyRef:
+                  name: aci-containers-config
+                  key: apic-hosts
             - name: APIC_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -503,6 +511,10 @@ spec:
                 secretKeyRef:
                   name: apic-user-pass
                   key: password
+            - name: APIC_VMM_POD
+              value: "{{config.aci_config.vmm_domain.pod}}"
+            - name: APIC_L3OUT_TENANT
+              value: "{{config.kubernetes_config.aci_l3out.tenant}}"
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local

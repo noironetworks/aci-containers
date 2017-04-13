@@ -149,6 +149,33 @@ func NewTenant(name string) *Aci {
 	return ret
 }
 
+func NewPod(name string) *Aci {
+	ret := NewAciObj("pod", map[string]string{"name": name})
+	ret.Spec.Pod = &Pod{
+		Name: name,
+	}
+	return ret
+}
+
+func NewOpflexDevice(podId string, nodeId string,
+	bridgeInterface string, devId string) *Aci {
+
+	ret := NewAciObj("opflex_device",
+		map[string]string{
+			"pod_id":           podId,
+			"node_id":          nodeId,
+			"bridge_interface": bridgeInterface,
+			"dev_id":           devId,
+		})
+	ret.Spec.OpflexDevice = &OpflexDevice{
+		PodId:           podId,
+		NodeId:          nodeId,
+		BridgeInterface: bridgeInterface,
+		DevId:           devId,
+	}
+	return ret
+}
+
 func NewSecurityGroup(tenantName string, name string) *Aci {
 	ret := NewAciObj("security_group", map[string]string{
 		"tenant_name": tenantName,

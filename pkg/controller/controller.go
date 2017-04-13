@@ -83,6 +83,7 @@ type AciController struct {
 	aimDesiredState map[aimKey]aciSlice
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
+	nodeOpflexDevice     map[string]aciSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 
@@ -130,7 +131,8 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 
-		aimDesiredState: make(map[aimKey]aciSlice),
+		nodeOpflexDevice: make(map[string]aciSlice),
+		aimDesiredState:  make(map[aimKey]aciSlice),
 
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
@@ -243,11 +245,7 @@ func processQueue(queue workqueue.RateLimitingInterface,
 }
 
 func (cont *AciController) globalStaticObjs() aciSlice {
-	t := NewTenant(cont.config.AciPolicyTenant)
-	m := true
-	t.Spec.Tenant.Monitored = &m
-
-	return aciSlice{t}
+	return aciSlice{}
 }
 
 func (cont *AciController) initStaticObjs() {

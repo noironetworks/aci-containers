@@ -175,6 +175,9 @@
                     ],
                     "type": "string"
                 },
+                "ip_learning": {
+                    "type": "boolean"
+                },
                 "l2_unknown_unicast_mode": {
                     "enum": [
                         "",
@@ -214,6 +217,74 @@
                 "name"
             ],
             "title": "BridgeDomain",
+            "type": "object"
+        },
+        "concrete_device": {
+            "properties": {
+                "device_cluster_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "device_cluster_name",
+                "name"
+            ],
+            "title": "ConcreteDevice",
+            "type": "object"
+        },
+        "concrete_device_interface": {
+            "properties": {
+                "device_cluster_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "device_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "device_cluster_name",
+                "device_name",
+                "name"
+            ],
+            "title": "ConcreteDeviceInterface",
             "type": "object"
         },
         "configuration": {
@@ -306,6 +377,10 @@
                     },
                     "type": "array"
                 },
+                "in_service_graph_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
                 "monitored": {
                     "type": "boolean"
                 },
@@ -319,6 +394,10 @@
                         "type": "string"
                     },
                     "type": "array"
+                },
+                "out_service_graph_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
                 },
                 "service_graph_name": {
                     "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
@@ -470,6 +549,94 @@
                 "node_name"
             ],
             "title": "DeviceClusterContext",
+            "type": "object"
+        },
+        "device_cluster_interface": {
+            "properties": {
+                "concrete_interfaces": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "device_cluster_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "encap": {
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "device_cluster_name",
+                "name"
+            ],
+            "title": "DeviceClusterInterface",
+            "type": "object"
+        },
+        "device_cluster_interface_context": {
+            "properties": {
+                "bridge_domain_dn": {
+                    "type": "string"
+                },
+                "connector_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "contract_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "device_cluster_interface_dn": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "node_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "service_graph_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "service_redirect_policy_dn": {
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "contract_name",
+                "service_graph_name",
+                "node_name",
+                "connector_name"
+            ],
+            "title": "DeviceClusterInterfaceContext",
             "type": "object"
         },
         "endpoint": {
@@ -909,8 +1076,62 @@
             "title": "L3Outside",
             "type": "object"
         },
+        "opflex_device": {
+            "properties": {
+                "bridge_interface": {
+                    "maxLength": 36,
+                    "type": "string"
+                },
+                "controller_name": {
+                    "maxLength": 64,
+                    "type": "string"
+                },
+                "dev_id": {
+                    "maxLength": 36,
+                    "type": "string"
+                },
+                "domain_name": {
+                    "maxLength": 64,
+                    "type": "string"
+                },
+                "fabric_path_dn": {
+                    "type": "string"
+                },
+                "host_name": {
+                    "maxLength": 128,
+                    "type": "string"
+                },
+                "ip": {
+                    "maxLength": 64,
+                    "type": "string"
+                },
+                "node_id": {
+                    "maxLength": 36,
+                    "type": "string"
+                },
+                "pod_id": {
+                    "maxLength": 36,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "pod_id",
+                "node_id",
+                "bridge_interface",
+                "dev_id"
+            ],
+            "title": "OpflexDevice",
+            "type": "object"
+        },
         "physical_domain": {
             "properties": {
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
                 "name": {
                     "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
                     "type": "string"
@@ -920,6 +1141,22 @@
                 "name"
             ],
             "title": "PhysicalDomain",
+            "type": "object"
+        },
+        "pod": {
+            "properties": {
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "Pod",
             "type": "object"
         },
         "security_group": {
@@ -1134,6 +1371,131 @@
             "title": "ServiceGraph",
             "type": "object"
         },
+        "service_graph_connection": {
+            "properties": {
+                "adjacency_type": {
+                    "enum": [
+                        "L2",
+                        "L3"
+                    ],
+                    "type": "string"
+                },
+                "connector_direction": {
+                    "enum": [
+                        "consumer",
+                        "provider"
+                    ],
+                    "type": "string"
+                },
+                "connector_dns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "connector_type": {
+                    "enum": [
+                        "internal",
+                        "external"
+                    ],
+                    "type": "string"
+                },
+                "direct_connect": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "service_graph_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "unicast_route": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "service_graph_name",
+                "name"
+            ],
+            "title": "ServiceGraphConnection",
+            "type": "object"
+        },
+        "service_graph_node": {
+            "properties": {
+                "connectors": {
+                    "items": {
+                        "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "device_cluster_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "device_cluster_tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "function_type": {
+                    "enum": [
+                        "GoTo",
+                        "GoThrough"
+                    ],
+                    "type": "string"
+                },
+                "managed": {
+                    "type": "boolean"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "routing_mode": {
+                    "enum": [
+                        "unspecified",
+                        "Redirect"
+                    ],
+                    "type": "string"
+                },
+                "service_graph_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "tenant_name",
+                "service_graph_name",
+                "name"
+            ],
+            "title": "ServiceGraphNode",
+            "type": "object"
+        },
         "service_redirect_policy": {
             "properties": {
                 "destinations": {
@@ -1244,6 +1606,13 @@
         },
         "vmm_domain": {
             "properties": {
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
                 "name": {
                     "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
                     "type": "string"
@@ -1261,6 +1630,29 @@
                 "name"
             ],
             "title": "VMMDomain",
+            "type": "object"
+        },
+        "vmm_policy": {
+            "properties": {
+                "display_name": {
+                    "pattern": "^[a-zA-Z0-9_.:-]{0,63}$",
+                    "type": "string"
+                },
+                "monitored": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "enum": [
+                        "VMWare",
+                        "OpenStack"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "type"
+            ],
+            "title": "VMMPolicy",
             "type": "object"
         },
         "vrf": {
@@ -1313,6 +1705,12 @@
         "bridge_domain": {
             "$ref": "#/definitions/bridge_domain"
         },
+        "concrete_device": {
+            "$ref": "#/definitions/concrete_device"
+        },
+        "concrete_device_interface": {
+            "$ref": "#/definitions/concrete_device_interface"
+        },
         "configuration": {
             "$ref": "#/definitions/configuration"
         },
@@ -1327,6 +1725,12 @@
         },
         "device_cluster_context": {
             "$ref": "#/definitions/device_cluster_context"
+        },
+        "device_cluster_interface": {
+            "$ref": "#/definitions/device_cluster_interface"
+        },
+        "device_cluster_interface_context": {
+            "$ref": "#/definitions/device_cluster_interface_context"
         },
         "endpoint": {
             "$ref": "#/definitions/endpoint"
@@ -1352,8 +1756,14 @@
         "l3_outside": {
             "$ref": "#/definitions/l3_outside"
         },
+        "opflex_device": {
+            "$ref": "#/definitions/opflex_device"
+        },
         "physical_domain": {
             "$ref": "#/definitions/physical_domain"
+        },
+        "pod": {
+            "$ref": "#/definitions/pod"
         },
         "security_group": {
             "$ref": "#/definitions/security_group"
@@ -1367,6 +1777,12 @@
         "service_graph": {
             "$ref": "#/definitions/service_graph"
         },
+        "service_graph_connection": {
+            "$ref": "#/definitions/service_graph_connection"
+        },
+        "service_graph_node": {
+            "$ref": "#/definitions/service_graph_node"
+        },
         "service_redirect_policy": {
             "$ref": "#/definitions/service_redirect_policy"
         },
@@ -1378,39 +1794,51 @@
         },
         "type": {
             "enum": [
-                "security_group",
-                "device_cluster",
-                "vmm_domain",
-                "contract",
-                "contract_subject",
-                "service_graph",
-                "host_link",
-                "device_cluster_context",
-                "aci_status",
+                "security_group_subject",
+                "endpoint_group",
+                "device_cluster_interface_context",
                 "external_subnet",
-                "service_redirect_policy",
-                "external_network",
+                "service_graph_node",
                 "vrf",
+                "l3_outside",
+                "physical_domain",
                 "bridge_domain",
                 "subnet",
+                "pod",
+                "vmm_domain",
+                "service_graph_connection",
+                "concrete_device",
                 "endpoint",
                 "agent",
                 "configuration",
-                "l3_outside",
-                "tenant",
-                "security_group_subject",
-                "aci_fault",
-                "security_group_rule",
-                "application_profile",
+                "device_cluster_context",
+                "device_cluster",
+                "device_cluster_interface",
+                "service_redirect_policy",
+                "security_group",
                 "filter_entry",
-                "physical_domain",
-                "endpoint_group",
-                "filter"
+                "contract",
+                "aci_status",
+                "external_network",
+                "filter",
+                "service_graph",
+                "application_profile",
+                "vmm_policy",
+                "contract_subject",
+                "aci_fault",
+                "opflex_device",
+                "security_group_rule",
+                "tenant",
+                "host_link",
+                "concrete_device_interface"
             ],
             "type": "string"
         },
         "vmm_domain": {
             "$ref": "#/definitions/vmm_domain"
+        },
+        "vmm_policy": {
+            "$ref": "#/definitions/vmm_policy"
         },
         "vrf": {
             "$ref": "#/definitions/vrf"
