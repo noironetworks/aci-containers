@@ -222,6 +222,7 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 		bd.Spec.BridgeDomain.IpLearning = &f
 		bd.Spec.BridgeDomain.L2UnknownUnicastMode = "flood"
 		bd.Spec.BridgeDomain.VrfName = cont.config.AciVrf
+		bd.Spec.BridgeDomain.L3outNames = []string{cont.config.AciL3Out}
 		serviceObjs = append(serviceObjs, bd)
 	}
 	for _, cidr := range cont.config.NodeServiceSubnets {
@@ -431,7 +432,6 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 			serviceObjs = append(serviceObjs,
 				NewFilter(cont.config.AciL3OutTenant, fname_out))
 			cs.Spec.ContractSubject.InServiceGraphName = name
-			cs.Spec.ContractSubject.OutServiceGraphName = name
 			cs.Spec.ContractSubject.InFilters = []string{fname_in}
 			cs.Spec.ContractSubject.OutFilters = []string{fname_out}
 			serviceObjs = append(serviceObjs, cs)

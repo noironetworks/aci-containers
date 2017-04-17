@@ -49,7 +49,7 @@ if __name__ == "__main__":
     default_config = {
         "aci_config": {
             "vmm_domain": {
-                "pod": "pod-1",
+                "pods": ["1"],
                 "domain": "kubernetes",
                 "controller": "kubernetes",
             },
@@ -104,6 +104,9 @@ if __name__ == "__main__":
             "opflexagent_log_level": "info",
             "aim_debug": "False",
         },
+        "registry": {
+            "image_prefix": "noiro",
+        }
     }
     config = default_config
 

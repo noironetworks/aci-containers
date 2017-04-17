@@ -3,7 +3,6 @@ aci_config:
   # List of APIC hosts to connect to for APIC API access
   apic_hosts:
     - 10.30.120.100
-
   # login credentials for APIC
   apic_login:
     username: admin
@@ -11,7 +10,8 @@ aci_config:
 
   # The ACI VMM domain
   vmm_domain:
-    pod: pod-1
+    pods:
+      - "1"
     domain: kubernetes
     controller: kubernetes
 
@@ -93,9 +93,14 @@ kubernetes_config:
   node_service_gw_subnets:
     - "10.6.0.1/16"
 
-# If a custom container registry is desired, specify the label prefix.
-# Example: "registry.example.com/noiro"
-container_registry_prefix: noiro
+# Configuration for container registry
+registry:
+  # If a custom container registry is desired, specify the label prefix.
+  # Example: "registry.example.com/noiro"
+  image_prefix: noiro
+  # If you need to specify an image pull secret to access a customer
+  # registry, specify the name below
+  # image_pull_secret: secret_name
 
 # Enable additional logging for services
 logging:

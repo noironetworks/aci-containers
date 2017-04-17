@@ -10,6 +10,7 @@ AIMCONF=${AIMDIR}/aim.conf
 AIMLOCALCONF=${AIMLOCALDIR}/aim-local.conf
 AIMCTL=/usr/bin/aimctl
 AIMAID=/usr/bin/aim-aid
+AIMCTLRUN="${AIMCTL} -c ${AIMCONF} -c ${AIMLOCALCONF}"
 
 mkdir -p "${AIMDIR}"
 cat <<EOF > "${AIMCONF}"
@@ -37,25 +38,22 @@ verify_ssl_certificate = False
 apic_model = apicapi.db.noop_manager
 EOF
 
-${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" config update
+${AIMCTLRUN} config update
 
-for pod in `${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" manager pod-find -p | tail -n+2`; do
-    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
-	      manager pod-delete $pod
+for pod in `${AIMCTLRUN} manager pod-find -p | tail -n+2`; do
+    ${AIMCTLRUN} manager pod-delete $pod
 done
-${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
-	  manager pod-create ${APIC_VMM_POD} --monitored=true
-
-
-for tenant in `${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" manager tenant-find -p | tail -n+2`; do
-    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
-	      manager tenant-delete $tenant
+for pod in ${APIC_VMM_POD}; do
+    ${AIMCTLRUN} manager pod-create $pod --monitored=true
 done
-${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
+
+for tenant in `${AIMCTLRUN} manager tenant-find -p | tail -n+2`; do
+    ${AIMCTLRUN} manager tenant-delete $tenant
+done
+${AIMCTLRUN} \
 	  manager tenant-create common --monitored=true
 if [ ${APIC_L3OUT_TENANT} -ne "common" ]; then
-    ${AIMCTL} -c "${AIMCONF}" -c "${AIMLOCALCONF}" \
-	      manager tenant-create ${APIC_L3OUT_TENANT} --monitored=true
+    ${AIMCTLRUN} manager tenant-create ${APIC_L3OUT_TENANT} --monitored=true
 fi
 
 echo Starting Aid

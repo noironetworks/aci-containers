@@ -6,27 +6,21 @@ metadata:
   labels:
     network-plugin: aci-containers
 data:
-  encap-type: {{ config.node_config.encap_type|yaml_quote }}
-  uplink-iface: {{ config.node_config.uplink_iface|yaml_quote }}
-  infra-vlan: {{ config.node_config.infra_vlan|yaml_quote }}
-  vxlan-uplink-iface: {{ config.node_config.vxlan_uplink_iface|yaml_quote }}
-  apic-hosts: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
   controller-config: |-
     {
-        "log-level": "{{config.logging.controller_log_level}}",
-        "aci-vmm-pod": "{{config.aci_config.vmm_domain.pod}}",
-        "aci-vmm-domain": "{{config.aci_config.vmm_domain.domain}}",
-        "aci-vmm-controller": "{{config.aci_config.vmm_domain.controller}}",
-        "aci-policy-tenant": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
-        "aci-service-phys-dom": "{{config.aci_config.physical_domain.domain}}",
-        "aci-service-encap": "vlan-{{config.node_config.service_vlan}}",
-        "aci-l3out-tenant": "{{config.kubernetes_config.aci_l3out.tenant}}",
-        "aci-l3out": "{{config.kubernetes_config.aci_l3out.name}}",
+        "log-level": {{config.logging.controller_log_level|json}},
+        "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
+        "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
+        "aci-policy-tenant": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
+        "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
+        "aci-service-encap": {{ ("vlan-" ~ config.node_config.service_vlan)|json }},
+        "aci-l3out-tenant": {{config.kubernetes_config.aci_l3out.tenant|json}},
+        "aci-l3out": {{config.kubernetes_config.aci_l3out.name|json}},
         "aci-ext-networks": {{ config.kubernetes_config.aci_l3out.external_networks|json|indent(width=8) }},
-        "aci-vrf": "{{config.kubernetes_config.aci_vrf.name}}",
+        "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
         "default-endpoint-group": {
-            "policy-space": "{{config.kubernetes_config.default_endpoint_group.tenant}}",
-            "name": "{{config.kubernetes_config.default_endpoint_group.app_profile}}|{{config.kubernetes_config.default_endpoint_group.group}}"
+            "policy-space": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
+            "name": {{(config.kubernetes_config.default_endpoint_group.app_profile ~ "|" ~ config.kubernetes_config.default_endpoint_group.group)|json}}
         },
         "service-ip-pool": {{ config.kubernetes_config.service_ip_pool|json|indent(width=8) }},
         "static-service-ip-pool": {{ config.kubernetes_config.static_service_ip_pool|json|indent(width=8) }},
@@ -36,20 +30,23 @@ data:
     }
   host-agent-config: |-
     {
-        "log-level": "{{config.logging.hostagent_log_level}}",
-        "aci-vrf": "{{config.kubernetes_config.aci_vrf.name}}",
-        "aci-vrf-tenant": "{{config.kubernetes_config.aci_vrf.tenant}}",
-        "service-iface": "{{ config.node_config.uplink_iface }}",
-        "service-iface-vlan": {{ config.node_config.service_vlan }},
+        "log-level": {{config.logging.hostagent_log_level|json}},
+        "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
+        "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
+        "service-iface": {{ config.node_config.uplink_iface|json }},
+        "service-iface-vlan": {{ config.node_config.service_vlan|json }},
         "cni-netconfig": {{ config.kubernetes_config.pod_network|json|indent(width=8) }}
     }
   opflex-agent-config: |-
     {
         "log": {
-            "level": "{{config.logging.opflexagent_log_level}}"
+            "level": {{config.logging.opflexagent_log_level|json}}
         },
         "opflex": {
-            "domain": "comp/prov-Kubernetes/ctrlr-[{{config.aci_config.vmm_domain.domain}}]-{{config.aci_config.vmm_domain.controller}}/sw-InsiemeLSOid"
+          {% if config.aci_config.disable_ssl %}
+            "ssl": { "mode": "disabled" },
+          {% endif %}
+            "domain": {{("comp/prov-Kubernetes/ctrlr-[" ~ config.aci_config.vmm_domain.domain ~ "]-" ~ config.aci_config.vmm_domain.controller ~ "/sw-InsiemeLSOid")|json}}
         }
     }
   aim-config: |-
@@ -271,9 +268,13 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
+      {% if config.registry.image_pull_secret %}
+      imagePullSecrets:
+        - name: {{ config.registry.image_pull_secret|yaml_quote }}
+      {% endif %}
       containers:
         - name: aci-containers-host
-          image: {{ config.container_registry_prefix }}/aci-containers-host
+          image: {{ config.registry.image_prefix }}/aci-containers-host
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -300,7 +301,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: {{ config.container_registry_prefix }}/opflex
+          image: {{ config.registry.image_prefix }}/opflex
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -310,25 +311,13 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: ACI_ENCAP_TYPE
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: encap-type
+              value: {{ config.node_config.encap_type|yaml_quote }}
             - name: ACI_UPLINK_IFACE
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: uplink-iface
+              value: {{ config.node_config.uplink_iface|yaml_quote }}
             - name: ACI_VXLAN_IFACE
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: vxlan-uplink-iface
+              value: {{ config.node_config.vxlan_uplink_iface|yaml_quote }}
             - name: ACI_INFRA_VLAN
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: infra-vlan
+              value: {{ config.node_config.infra_vlan|yaml_quote }}
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -339,7 +328,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: {{ config.container_registry_prefix }}/opflex
+          image: {{ config.registry.image_prefix }}/opflex
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: IfNotPresent
@@ -398,23 +387,21 @@ spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
+      {% if config.registry.image_pull_secret %}
+      imagePullSecrets:
+        - name: {{ config.registry.image_pull_secret|yaml_quote }}
+      {% endif %}
       containers:
         - name: aci-containers-openvswitch
-          image: {{ config.container_registry_prefix }}/openvswitch
+          image: {{ config.registry.image_prefix }}/openvswitch
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           env:
             - name: ACI_ENCAP_TYPE
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: encap-type
+              value: {{ config.node_config.encap_type|yaml_quote }}
             - name: ACI_UPLINK_IFACE
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: uplink-iface
+              value: {{ config.node_config.uplink_iface|yaml_quote }}
             - name: OVS_RUNDIR
               value: /usr/local/var/run/openvswitch
           volumeMounts:
@@ -476,9 +463,13 @@ spec:
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
+      {% if config.registry.image_pull_secret %}
+      imagePullSecrets:
+        - name: {{ config.registry.image_pull_secret|yaml_quote }}
+      {% endif %}
       containers:
         - name: aci-containers-controller
-          image: {{ config.container_registry_prefix }}/aci-containers-controller
+          image: {{ config.registry.image_prefix }}/aci-containers-controller
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: controller-config-volume
@@ -488,19 +479,9 @@ spec:
               path: /status
               port: 8091
         - name: aci-integration-module
-          image: {{ config.container_registry_prefix }}/aci-integration-module
+          image: {{ config.registry.image_prefix }}/aci-integration-module
           imagePullPolicy: IfNotPresent
           env:
-            - name: APIC_HOSTS
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: apic-hosts
-            - name: APIC_HOSTS
-              valueFrom:
-                configMapKeyRef:
-                  name: aci-containers-config
-                  key: apic-hosts
             - name: APIC_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -511,10 +492,12 @@ spec:
                 secretKeyRef:
                   name: apic-user-pass
                   key: password
-            - name: APIC_VMM_POD
-              value: "{{config.aci_config.vmm_domain.pod}}"
+            - name: APIC_HOSTS
+              value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
+            - name: APIC_VMM_PODS
+              value: {{ config.aci_config.vmm_domain.pods|join(' ')|yaml_quote }}
             - name: APIC_L3OUT_TENANT
-              value: "{{config.kubernetes_config.aci_l3out.tenant}}"
+              value: {{ config.kubernetes_config.aci_l3out.tenant|yaml_quote }}
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local
@@ -531,4 +514,3 @@ spec:
             items:
               - key: aim-config
                 path: aim-local.conf
-

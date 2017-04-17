@@ -42,9 +42,6 @@ type ControllerConfig struct {
 	// Default security group annotation value
 	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
 
-	// The name of the ACI Pod containing the VMM domain
-	AciVmmPod string `json:"aci-vmm-pod,omitempty"`
-
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 

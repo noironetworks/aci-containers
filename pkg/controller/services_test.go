@@ -158,7 +158,6 @@ func TestServiceGraph(t *testing.T) {
 		cont.config.AciL3Out = "l3out"
 		cont.config.AciExtNetworks = []string{"ext1"}
 		cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
-		cont.config.AciVmmPod = "pod1"
 		cont.config.AciVmmDomain = "kube-domain"
 		cont.config.AciVmmController = "kube-controller"
 
@@ -233,7 +232,6 @@ func TestServiceGraph(t *testing.T) {
 	f_in := NewFilter("common", name+"_in")
 	f_out := NewFilter("common", name+"_out")
 	contractSubj.Spec.ContractSubject.InServiceGraphName = name
-	contractSubj.Spec.ContractSubject.OutServiceGraphName = name
 	contractSubj.Spec.ContractSubject.InFilters = []string{name + "_in"}
 	contractSubj.Spec.ContractSubject.OutFilters = []string{name + "_out"}
 	fe_tcp_80_in := NewFilterEntry("common", name+"_in", "0")
