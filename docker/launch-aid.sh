@@ -43,18 +43,17 @@ ${AIMCTLRUN} config update
 for pod in `${AIMCTLRUN} manager pod-find -p | tail -n+2`; do
     ${AIMCTLRUN} manager pod-delete $pod
 done
-for pod in ${APIC_VMM_POD}; do
+for pod in ${APIC_MONITOR_PODS}; do
     ${AIMCTLRUN} manager pod-create $pod --monitored=true
 done
 
 for tenant in `${AIMCTLRUN} manager tenant-find -p | tail -n+2`; do
     ${AIMCTLRUN} manager tenant-delete $tenant
 done
-${AIMCTLRUN} \
-	  manager tenant-create common --monitored=true
-if [ ${APIC_L3OUT_TENANT} -ne "common" ]; then
-    ${AIMCTLRUN} manager tenant-create ${APIC_L3OUT_TENANT} --monitored=true
-fi
+TMON=$(for i in common ${APIC_MONITOR_TENANTS}; do echo $i; done|sort|uniq)
+for tenant in ${TMON}; do
+    ${AIMCTLRUN} manager tenant-create $tenant --monitored=true
+done
 
 echo Starting Aid
 exec ${AIMAID} --config-dir "${AIMDIR}" --config-dir "${AIMLOCALDIR}"

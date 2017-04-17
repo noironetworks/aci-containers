@@ -158,7 +158,7 @@ func (cont *AciController) reconcileMonitoredExternalNetworks(aciObjs aciSlice) 
 	var extNets aciSlice
 	for _, aci := range aciObjs {
 		_, isEnet := enets[aci.Spec.ExternalNetwork.Name]
-		if aci.Spec.ExternalNetwork.TenantName == cont.config.AciL3OutTenant &&
+		if aci.Spec.ExternalNetwork.TenantName == cont.config.AciVrfTenant &&
 			isEnet {
 			extNets = append(extNets, aci)
 		}
@@ -214,7 +214,7 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	// Service bridge domain
 	bdName := cont.aciNameForKey("bd", "kubernetes-service")
 	{
-		bd := NewBridgeDomain(cont.config.AciL3OutTenant, bdName)
+		bd := NewBridgeDomain(cont.config.AciVrfTenant, bdName)
 		t := true
 		f := false
 		bd.Spec.BridgeDomain.EnableArpFlood = &t
@@ -227,7 +227,7 @@ func (cont *AciController) staticServiceObjs() aciSlice {
 	}
 	for _, cidr := range cont.config.NodeServiceSubnets {
 		serviceObjs = append(serviceObjs,
-			NewSubnet(cont.config.AciL3OutTenant, bdName, cidr))
+			NewSubnet(cont.config.AciVrfTenant, bdName, cidr))
 
 	}
 
@@ -330,7 +330,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// with every node and rely on the redirect policy later
 		// limit the scope of service redirects.
 		{
-			dc := NewDeviceCluster(cont.config.AciL3OutTenant, name)
+			dc := NewDeviceCluster(cont.config.AciVrfTenant, name)
 			f := false
 			dc.Spec.DeviceCluster.Managed = &f
 			dc.Spec.DeviceCluster.PhysicalDomainName =
@@ -357,10 +357,10 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// exactly as in the example below.  A service graph must
 		// be created for each device cluster.
 		{
-			sg := NewServiceGraph(cont.config.AciL3OutTenant, name)
+			sg := NewServiceGraph(cont.config.AciVrfTenant, name)
 			sg.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
 				LinearChainNodes{
-					DeviceClusterTenantName: cont.config.AciL3OutTenant,
+					DeviceClusterTenantName: cont.config.AciVrfTenant,
 					DeviceClusterName:       name,
 					Name:                    "LoadBalancer",
 				},
@@ -374,7 +374,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// each node that hosts a pod for this service.  The
 		// example below shows the case of two nodes.
 		{
-			rp := NewServiceRedirectPolicy(cont.config.AciL3OutTenant, name)
+			rp := NewServiceRedirectPolicy(cont.config.AciVrfTenant, name)
 			for _, node := range nodes {
 				dcInfo, ok := nodeMap[node]
 				if !ok {
@@ -406,7 +406,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// layer 3 network and provided by the service layer 3
 		// network.
 		{
-			en := NewExternalNetwork(cont.config.AciL3OutTenant,
+			en := NewExternalNetwork(cont.config.AciVrfTenant,
 				cont.config.AciL3Out, name)
 			en.Spec.ExternalNetwork.ProvidedContractNames =
 				[]string{name}
@@ -415,49 +415,36 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 
 		for _, ingress := range service.Status.LoadBalancer.Ingress {
 			serviceObjs = append(serviceObjs,
-				NewExternalSubnet(cont.config.AciL3OutTenant,
+				NewExternalSubnet(cont.config.AciVrfTenant,
 					cont.config.AciL3Out, name, ingress.IP+"/32"))
 		}
 
 		{
 			serviceObjs = append(serviceObjs,
-				NewContract(cont.config.AciL3OutTenant, name))
-			cs := NewContractSubject(cont.config.AciL3OutTenant, name,
+				NewContract(cont.config.AciVrfTenant, name))
+			cs := NewContractSubject(cont.config.AciVrfTenant, name,
 				"LoadBalancedService")
 
-			fname_in := name + "_in"
-			fname_out := name + "_out"
 			serviceObjs = append(serviceObjs,
-				NewFilter(cont.config.AciL3OutTenant, fname_in))
-			serviceObjs = append(serviceObjs,
-				NewFilter(cont.config.AciL3OutTenant, fname_out))
-			cs.Spec.ContractSubject.InServiceGraphName = name
-			cs.Spec.ContractSubject.InFilters = []string{fname_in}
-			cs.Spec.ContractSubject.OutFilters = []string{fname_out}
+				NewFilter(cont.config.AciVrfTenant, name))
+			cs.Spec.ContractSubject.ServiceGraphName = name
+			cs.Spec.ContractSubject.BiFilters = []string{name}
 			serviceObjs = append(serviceObjs, cs)
 
 			for i, port := range service.Spec.Ports {
-				fe_in := NewFilterEntry(cont.config.AciL3OutTenant,
-					fname_in, strconv.Itoa(i))
-				fe_out := NewFilterEntry(cont.config.AciL3OutTenant,
-					fname_out, strconv.Itoa(i))
+				fe_in := NewFilterEntry(cont.config.AciVrfTenant,
+					name, strconv.Itoa(i))
 
 				fe_in.Spec.FilterEntry.EtherType = "ip"
-				fe_out.Spec.FilterEntry.EtherType = "ip"
 				if port.Protocol == v1.ProtocolUDP {
 					fe_in.Spec.FilterEntry.IpProtocol = "udp"
-					fe_out.Spec.FilterEntry.IpProtocol = "udp"
 				} else {
 					fe_in.Spec.FilterEntry.IpProtocol = "tcp"
-					fe_out.Spec.FilterEntry.IpProtocol = "tcp"
 				}
 				fe_in.Spec.FilterEntry.DestFromPort =
 					strconv.Itoa(int(port.Port))
-				fe_out.Spec.FilterEntry.SourceFromPort =
-					strconv.Itoa(int(port.Port))
 
 				serviceObjs = append(serviceObjs, fe_in)
-				serviceObjs = append(serviceObjs, fe_out)
 			}
 
 		}
@@ -467,17 +454,17 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		{
-			cc := NewDeviceClusterContext(cont.config.AciL3OutTenant,
+			cc := NewDeviceClusterContext(cont.config.AciVrfTenant,
 				name, name, "LoadBalancer")
 			cc.Spec.DeviceClusterContext.BridgeDomainTenantName =
-				cont.config.AciL3OutTenant
+				cont.config.AciVrfTenant
 			cc.Spec.DeviceClusterContext.BridgeDomainName =
 				cont.aciNameForKey("bd", "kubernetes-service")
 			cc.Spec.DeviceClusterContext.DeviceClusterTenantName =
-				cont.config.AciL3OutTenant
+				cont.config.AciVrfTenant
 			cc.Spec.DeviceClusterContext.DeviceClusterName = name
 			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyTenantName =
-				cont.config.AciL3OutTenant
+				cont.config.AciVrfTenant
 			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyName = name
 
 			serviceObjs = append(serviceObjs, cc)

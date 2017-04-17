@@ -12,8 +12,8 @@ aci_config:
   vmm_domain:
     pods:
       - "1"
-    domain: kubernetes
-    controller: kubernetes
+    domain: kubernetes1
+    controller: kubernetes1
 
   # The ACI physical domain used for control network and external
   # services
@@ -47,8 +47,8 @@ kubernetes_config:
 
   # Layer 3 out used to provide external connectivity for pod network
   # This will be used to provision load balancers external service IPs
+  # This l3out must be in the VRF listed above
   aci_l3out:
-    tenant: common
     name: l3out
     # The external networks on the l3out from which external services
     # should be reachable

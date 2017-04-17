@@ -154,7 +154,7 @@ func TestServiceGraph(t *testing.T) {
 		cont.config.AciServicePhysDom = "service-physdom"
 		cont.config.AciServiceEncap = "vlan-4001"
 		cont.config.AciPolicyTenant = "test"
-		cont.config.AciL3OutTenant = "common"
+		cont.config.AciVrfTenant = "common"
 		cont.config.AciL3Out = "l3out"
 		cont.config.AciExtNetworks = []string{"ext1"}
 		cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
@@ -229,27 +229,17 @@ func TestServiceGraph(t *testing.T) {
 	extNetSub := NewExternalSubnet("common", "l3out", name, "10.4.2.2/32")
 	contract := NewContract("common", name)
 	contractSubj := NewContractSubject("common", name, "LoadBalancedService")
-	f_in := NewFilter("common", name+"_in")
-	f_out := NewFilter("common", name+"_out")
-	contractSubj.Spec.ContractSubject.InServiceGraphName = name
-	contractSubj.Spec.ContractSubject.InFilters = []string{name + "_in"}
-	contractSubj.Spec.ContractSubject.OutFilters = []string{name + "_out"}
-	fe_tcp_80_in := NewFilterEntry("common", name+"_in", "0")
+	f_in := NewFilter("common", name)
+	contractSubj.Spec.ContractSubject.ServiceGraphName = name
+	contractSubj.Spec.ContractSubject.BiFilters = []string{name}
+	fe_tcp_80_in := NewFilterEntry("common", name, "0")
 	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ip"
 	fe_tcp_80_in.Spec.FilterEntry.IpProtocol = "tcp"
 	fe_tcp_80_in.Spec.FilterEntry.DestFromPort = "80"
-	fe_udp_53_in := NewFilterEntry("common", name+"_in", "1")
+	fe_udp_53_in := NewFilterEntry("common", name, "1")
 	fe_udp_53_in.Spec.FilterEntry.EtherType = "ip"
 	fe_udp_53_in.Spec.FilterEntry.IpProtocol = "udp"
 	fe_udp_53_in.Spec.FilterEntry.DestFromPort = "53"
-	fe_tcp_80_out := NewFilterEntry("common", name+"_out", "0")
-	fe_tcp_80_out.Spec.FilterEntry.EtherType = "ip"
-	fe_tcp_80_out.Spec.FilterEntry.IpProtocol = "tcp"
-	fe_tcp_80_out.Spec.FilterEntry.SourceFromPort = "80"
-	fe_udp_53_out := NewFilterEntry("common", name+"_out", "1")
-	fe_udp_53_out.Spec.FilterEntry.EtherType = "ip"
-	fe_udp_53_out.Spec.FilterEntry.IpProtocol = "udp"
-	fe_udp_53_out.Spec.FilterEntry.SourceFromPort = "53"
 
 	s1Dcc := NewDeviceClusterContext("common",
 		name, name, "LoadBalancer")
@@ -378,15 +368,13 @@ func TestServiceGraph(t *testing.T) {
 
 	expected := map[aimKey]aciSlice{
 		s1key: aciSlice{twoNodeCluster, graph, twoNodeRedirect,
-			extNet, extNetSub, contract, contractSubj, f_in, f_out,
-			fe_tcp_80_in, fe_tcp_80_out, fe_udp_53_in, fe_udp_53_out,
-			s1Dcc},
+			extNet, extNetSub, contract, contractSubj, f_in,
+			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
 	}
 	expectedOneNode := map[aimKey]aciSlice{
 		s1key: aciSlice{oneNodeCluster, graph, oneNodeRedirect,
-			extNet, extNetSub, contract, contractSubj, f_in, f_out,
-			fe_tcp_80_in, fe_tcp_80_out, fe_udp_53_in, fe_udp_53_out,
-			s1Dcc},
+			extNet, extNetSub, contract, contractSubj, f_in,
+			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
 	}
 
 	cont := sgCont()

@@ -61,15 +61,15 @@ type ControllerConfig struct {
 	// Encap used for service device clusters
 	AciServiceEncap string `json:"aci-service-encap,omitempty"`
 
-	// Tenant containing L3 out to use for services, service device
-	// clusters need to be created in this tenant
-	AciL3OutTenant string `json:"aci-l3out-tenant,omitempty"`
-
-	// L3 out to use for services
-	AciL3Out string `json:"aci-l3out,omitempty"`
-
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
+
+	// Tenant containing the ACI VRF for this kubernetes instance
+	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
+
+	// L3 out to use for services, service device clusters need to be
+	// created in this tenant
+	AciL3Out string `json:"aci-l3out,omitempty"`
 
 	// L3 external networks (within the l3out) that will be able to
 	// access the service IPs

@@ -14,7 +14,7 @@ data:
         "aci-policy-tenant": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
         "aci-service-encap": {{ ("vlan-" ~ config.node_config.service_vlan)|json }},
-        "aci-l3out-tenant": {{config.kubernetes_config.aci_l3out.tenant|json}},
+        "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
         "aci-l3out": {{config.kubernetes_config.aci_l3out.name|json}},
         "aci-ext-networks": {{ config.kubernetes_config.aci_l3out.external_networks|json|indent(width=8) }},
         "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
@@ -494,10 +494,10 @@ spec:
                   key: password
             - name: APIC_HOSTS
               value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
-            - name: APIC_VMM_PODS
+            - name: APIC_MONITOR_PODS
               value: {{ config.aci_config.vmm_domain.pods|join(' ')|yaml_quote }}
-            - name: APIC_L3OUT_TENANT
-              value: {{ config.kubernetes_config.aci_l3out.tenant|yaml_quote }}
+            - name: APIC_MONITOR_TENANTS
+              value: {{ config.kubernetes_config.aci_vrf.tenant|yaml_quote }}
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local

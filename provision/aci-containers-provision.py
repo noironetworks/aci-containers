@@ -69,7 +69,6 @@ if __name__ == "__main__":
                 "name": "kubernetes_vrf",
             },
             "aci_l3out": {
-                "tenant": "kubernetes",
                 "name": "kubernetes_l3out",
                 "external_networks" : ["default"],
             },
