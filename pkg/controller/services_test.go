@@ -236,10 +236,12 @@ func TestServiceGraph(t *testing.T) {
 	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ip"
 	fe_tcp_80_in.Spec.FilterEntry.IpProtocol = "tcp"
 	fe_tcp_80_in.Spec.FilterEntry.DestFromPort = "80"
+	fe_tcp_80_in.Spec.FilterEntry.DestToPort = "80"
 	fe_udp_53_in := NewFilterEntry("common", name, "1")
 	fe_udp_53_in.Spec.FilterEntry.EtherType = "ip"
 	fe_udp_53_in.Spec.FilterEntry.IpProtocol = "udp"
 	fe_udp_53_in.Spec.FilterEntry.DestFromPort = "53"
+	fe_udp_53_in.Spec.FilterEntry.DestToPort = "53"
 
 	s1Dcc := NewDeviceClusterContext("common",
 		name, name, "LoadBalancer")

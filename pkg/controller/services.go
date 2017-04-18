@@ -443,6 +443,8 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				}
 				fe_in.Spec.FilterEntry.DestFromPort =
 					strconv.Itoa(int(port.Port))
+				fe_in.Spec.FilterEntry.DestToPort =
+					fe_in.Spec.FilterEntry.DestFromPort
 
 				serviceObjs = append(serviceObjs, fe_in)
 			}
