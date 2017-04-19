@@ -9,12 +9,14 @@ AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard cmd/controller/*.go pkg/controller/*.go)
 ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
 OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
+SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
 AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} ${CONTROLLER_SRC}
 ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC}
 OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC}
+SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC}
 
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
@@ -75,6 +77,11 @@ dist/ovsresync: ${OVSRESYNC_DEPS}
 dist-static/ovsresync: ${OVSRESYNC_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
 
+dist/simpleservice: ${SIMPLESERVICE_DEPS}
+	${BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
+dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
+
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
@@ -83,6 +90,8 @@ container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch .
+container-simpleservice: dist-static/simpleservice
+	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 
 check: check-ipam check-index check-controller check-hostagent
 check-ipam:
