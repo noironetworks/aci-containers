@@ -273,12 +273,9 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	return "", false
 }
 
-type deviceClusterInfo struct {
-	serviceEp  *metadata.ServiceEndpoint
-	fabricPath string
-}
+func (cont *AciController) updateServiceDeviceInstance(key string,
+	service *v1.Service) {
 
-func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	endpointsobj, exists, err :=
 		cont.endpointsInformer.GetStore().GetByKey(key)
 	if err != nil {
@@ -288,7 +285,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	}
 
 	cont.indexMutex.Lock()
-	nodeMap := make(map[string]deviceClusterInfo)
+	nodeMap := make(map[string]*metadata.ServiceEndpoint)
 
 	if exists && endpointsobj != nil {
 		endpoints := endpointsobj.(*v1.Endpoints)
@@ -301,14 +298,11 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 				if !ok {
 					continue
 				}
-				fabricPath, ok := cont.fabricPathForNode(*addr.NodeName)
+				_, ok = cont.fabricPathForNode(*addr.NodeName)
 				if !ok {
 					continue
 				}
-				nodeMap[*addr.NodeName] = deviceClusterInfo{
-					serviceEp:  &nodeMeta.serviceEp,
-					fabricPath: fabricPath,
-				}
+				nodeMap[*addr.NodeName] = &nodeMeta.serviceEp
 			}
 		}
 	}
@@ -321,54 +315,11 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 	sort.Strings(nodes)
 
 	name := cont.aciNameForKey("service", key)
+	graphName := cont.aciNameForKey("service", "kubernetes")
 	var serviceObjs aciSlice
 	if len(nodes) > 0 {
-		// 1. Device cluster:
-		// The device cluster is a set of physical paths that need
-		// to be created for each unique set of nodes that host
-		// services.  It’s also possible to simply configure this
-		// with every node and rely on the redirect policy later
-		// limit the scope of service redirects.
-		{
-			dc := NewDeviceCluster(cont.config.AciVrfTenant, name)
-			f := false
-			dc.Spec.DeviceCluster.Managed = &f
-			dc.Spec.DeviceCluster.PhysicalDomainName =
-				cont.config.AciServicePhysDom
-			dc.Spec.DeviceCluster.Encap = cont.config.AciServiceEncap
-			for _, node := range nodes {
-				dcInfo, ok := nodeMap[node]
-				if !ok {
-					continue
-				}
 
-				dc.Spec.DeviceCluster.Devices =
-					append(dc.Spec.DeviceCluster.Devices, Devices{
-						Name: node,
-						Path: dcInfo.fabricPath,
-					})
-			}
-			serviceObjs = append(serviceObjs, dc)
-		}
-
-		// 2. Service graph template
-		// The service graph controls how the traffic will be
-		// redirected.  The service graph should always be created
-		// exactly as in the example below.  A service graph must
-		// be created for each device cluster.
-		{
-			sg := NewServiceGraph(cont.config.AciVrfTenant, name)
-			sg.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
-				LinearChainNodes{
-					DeviceClusterTenantName: cont.config.AciVrfTenant,
-					DeviceClusterName:       name,
-					Name:                    "LoadBalancer",
-				},
-			}
-			serviceObjs = append(serviceObjs, sg)
-		}
-
-		// 3. Service redirect policy
+		// 1. Service redirect policy
 		// The service redirect policy contains the MAC address
 		// and IP address of each of the service endpoints for
 		// each node that hosts a pod for this service.  The
@@ -376,31 +327,31 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 		{
 			rp := NewServiceRedirectPolicy(cont.config.AciVrfTenant, name)
 			for _, node := range nodes {
-				dcInfo, ok := nodeMap[node]
+				serviceEp, ok := nodeMap[node]
 				if !ok {
 					continue
 				}
-				if dcInfo.serviceEp.Ipv4 != nil {
+				if serviceEp.Ipv4 != nil {
 					rp.Spec.ServiceRedirectPolicy.Destinations =
 						append(rp.Spec.ServiceRedirectPolicy.Destinations,
 							Destinations{
-								Ip:  dcInfo.serviceEp.Ipv4.String(),
-								Mac: dcInfo.serviceEp.Mac,
+								Ip:  serviceEp.Ipv4.String(),
+								Mac: serviceEp.Mac,
 							})
 				}
-				if dcInfo.serviceEp.Ipv6 != nil {
+				if serviceEp.Ipv6 != nil {
 					rp.Spec.ServiceRedirectPolicy.Destinations =
 						append(rp.Spec.ServiceRedirectPolicy.Destinations,
 							Destinations{
-								Ip:  dcInfo.serviceEp.Ipv6.String(),
-								Mac: dcInfo.serviceEp.Mac,
+								Ip:  serviceEp.Ipv6.String(),
+								Mac: serviceEp.Mac,
 							})
 				}
 			}
 			serviceObjs = append(serviceObjs, rp)
 		}
 
-		// 4. Service graph contract
+		// 2. Service graph contract
 		// The service graph contract must be bound to the service
 		// graph.  This contract must be consumed by the default
 		// layer 3 network and provided by the service layer 3
@@ -427,7 +378,7 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 
 			serviceObjs = append(serviceObjs,
 				NewFilter(cont.config.AciVrfTenant, name))
-			cs.Spec.ContractSubject.ServiceGraphName = name
+			cs.Spec.ContractSubject.ServiceGraphName = graphName
 			cs.Spec.ContractSubject.BiFilters = []string{name}
 			serviceObjs = append(serviceObjs, cs)
 
@@ -451,20 +402,20 @@ func (cont *AciController) updateServiceGraph(key string, service *v1.Service) {
 
 		}
 
-		// 5. Device cluster context
+		// 3. Device cluster context
 		// The logical device context binds the service contract
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		{
 			cc := NewDeviceClusterContext(cont.config.AciVrfTenant,
-				name, name, "LoadBalancer")
+				name, graphName, "LoadBalancer")
 			cc.Spec.DeviceClusterContext.BridgeDomainTenantName =
 				cont.config.AciVrfTenant
 			cc.Spec.DeviceClusterContext.BridgeDomainName =
 				cont.aciNameForKey("bd", "kubernetes-service")
 			cc.Spec.DeviceClusterContext.DeviceClusterTenantName =
 				cont.config.AciVrfTenant
-			cc.Spec.DeviceClusterContext.DeviceClusterName = name
+			cc.Spec.DeviceClusterContext.DeviceClusterName = graphName
 			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyTenantName =
 				cont.config.AciVrfTenant
 			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyName = name
@@ -502,6 +453,76 @@ func opflexDeviceKeyEq(a *Aci, b *Aci) bool {
 func (cont *AciController) opflexDeviceMatchesVmm(aci *Aci) bool {
 	return aci.Spec.OpflexDevice.DomainName == cont.config.AciVmmDomain &&
 		aci.Spec.OpflexDevice.ControllerName == cont.config.AciVmmController
+}
+
+func (cont *AciController) updateDeviceCluster() {
+	nodeMap := make(map[string]string)
+
+	cont.indexMutex.Lock()
+	for node, _ := range cont.nodeServiceMetaCache {
+		fabricPath, ok := cont.fabricPathForNode(node)
+		if !ok {
+			continue
+		}
+		nodeMap[node] = fabricPath
+	}
+	cont.indexMutex.Unlock()
+
+	var nodes []string
+	for node, _ := range nodeMap {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
+
+	name := cont.aciNameForKey("service", "kubernetes")
+	var serviceObjs aciSlice
+
+	// 1. Device cluster:
+	// The device cluster is a set of physical paths that need
+	// to be created for each unique set of nodes that host
+	// services.  It’s also possible to simply configure this
+	// with every node and rely on the redirect policy later
+	// limit the scope of service redirects.
+	{
+		dc := NewDeviceCluster(cont.config.AciVrfTenant, name)
+		f := false
+		dc.Spec.DeviceCluster.Managed = &f
+		dc.Spec.DeviceCluster.PhysicalDomainName =
+			cont.config.AciServicePhysDom
+		dc.Spec.DeviceCluster.Encap = cont.config.AciServiceEncap
+		for _, node := range nodes {
+			path, ok := nodeMap[node]
+			if !ok {
+				continue
+			}
+
+			dc.Spec.DeviceCluster.Devices =
+				append(dc.Spec.DeviceCluster.Devices, Devices{
+					Name: node,
+					Path: path,
+				})
+		}
+		serviceObjs = append(serviceObjs, dc)
+	}
+
+	// 2. Service graph template
+	// The service graph controls how the traffic will be
+	// redirected.  The service graph should always be created
+	// exactly as in the example below.  A service graph must
+	// be created for each device cluster.
+	{
+		sg := NewServiceGraph(cont.config.AciVrfTenant, name)
+		sg.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
+			LinearChainNodes{
+				DeviceClusterTenantName: cont.config.AciVrfTenant,
+				DeviceClusterName:       name,
+				Name:                    "LoadBalancer",
+			},
+		}
+		serviceObjs = append(serviceObjs, sg)
+	}
+
+	cont.writeAimObjects("DeviceCluster", "static", serviceObjs)
 }
 
 func (cont *AciController) fabricPathLogger(node string,
@@ -567,6 +588,7 @@ func (cont *AciController) opflexDeviceChanged(aci *Aci) {
 	}
 	cont.indexMutex.Unlock()
 
+	cont.updateDeviceCluster()
 	for _, node := range nodeUpdates {
 		cont.updateServicesForNode(node)
 	}
@@ -595,6 +617,7 @@ func (cont *AciController) opflexDeviceDeleted(aci *Aci) {
 	}
 	cont.indexMutex.Unlock()
 
+	cont.updateDeviceCluster()
 	for _, node := range nodeUpdates {
 		cont.updateServicesForNode(node)
 	}
@@ -602,6 +625,14 @@ func (cont *AciController) opflexDeviceDeleted(aci *Aci) {
 
 func (cont *AciController) serviceChanged(obj interface{}) {
 	cont.queueServiceUpdate(obj.(*v1.Service))
+}
+
+// XXX TODO sync services before allocating any service IPs
+func (cont *AciController) serviceFullSync() {
+	cache.ListAll(cont.serviceInformer.GetIndexer(), labels.Everything(),
+		func(sobj interface{}) {
+			cont.serviceChanged(sobj)
+		})
 }
 
 func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
@@ -713,7 +744,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		}
 	}
 
-	cont.updateServiceGraph(servicekey, service)
+	cont.updateServiceDeviceInstance(servicekey, service)
 	return false
 }
 

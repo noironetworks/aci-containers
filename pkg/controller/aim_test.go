@@ -142,11 +142,12 @@ func TestAimIndexDiff(t *testing.T) {
 	cont.stop()
 }
 
-func fixAciSlice(slice aciSlice, ktype string, key string) {
+func fixAciSlice(slice aciSlice, ktype string, key string) aciSlice {
 	sort.Sort(slice)
 	for _, o := range slice {
 		addAimLabels(ktype, key, o)
 	}
+	return slice
 }
 
 func staticGlobalKey() aimKey {

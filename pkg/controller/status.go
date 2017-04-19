@@ -35,9 +35,11 @@ func (cont *AciController) RunStatus() {
 	}
 
 	http.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cont.config)
 	})
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		cont.indexMutex.Lock()
 		status := &contStatus{
 			PodIpPool: metadata.NetIps{

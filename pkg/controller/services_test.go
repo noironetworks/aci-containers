@@ -164,8 +164,8 @@ func TestServiceGraph(t *testing.T) {
 		return cont
 	}
 
-	name := "service__testns_service1"
-	twoNodeCluster := NewDeviceCluster("common", name)
+	graphName := "service__kubernetes"
+	twoNodeCluster := NewDeviceCluster("common", graphName)
 	f := false
 	twoNodeCluster.Spec.DeviceCluster.Managed = &f
 	twoNodeCluster.Spec.DeviceCluster.PhysicalDomainName = "service-physdom"
@@ -181,7 +181,7 @@ func TestServiceGraph(t *testing.T) {
 		},
 	}
 
-	oneNodeCluster := NewDeviceCluster("common", name)
+	oneNodeCluster := NewDeviceCluster("common", graphName)
 	oneNodeCluster.Spec.DeviceCluster.Managed = &f
 	oneNodeCluster.Spec.DeviceCluster.PhysicalDomainName = "service-physdom"
 	oneNodeCluster.Spec.DeviceCluster.Encap = "vlan-4001"
@@ -192,15 +192,16 @@ func TestServiceGraph(t *testing.T) {
 		},
 	}
 
-	graph := NewServiceGraph("common", name)
+	graph := NewServiceGraph("common", graphName)
 	graph.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
 		LinearChainNodes{
 			DeviceClusterTenantName: "common",
-			DeviceClusterName:       name,
+			DeviceClusterName:       graphName,
 			Name:                    "LoadBalancer",
 		},
 	}
 
+	name := "service__testns_service1"
 	twoNodeRedirect :=
 		NewServiceRedirectPolicy("common", name)
 	twoNodeRedirect.Spec.ServiceRedirectPolicy.Destinations = []Destinations{
@@ -230,7 +231,7 @@ func TestServiceGraph(t *testing.T) {
 	contract := NewContract("common", name)
 	contractSubj := NewContractSubject("common", name, "LoadBalancedService")
 	f_in := NewFilter("common", name)
-	contractSubj.Spec.ContractSubject.ServiceGraphName = name
+	contractSubj.Spec.ContractSubject.ServiceGraphName = graphName
 	contractSubj.Spec.ContractSubject.BiFilters = []string{name}
 	fe_tcp_80_in := NewFilterEntry("common", name, "0")
 	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ip"
@@ -244,18 +245,19 @@ func TestServiceGraph(t *testing.T) {
 	fe_udp_53_in.Spec.FilterEntry.DestToPort = "53"
 
 	s1Dcc := NewDeviceClusterContext("common",
-		name, name, "LoadBalancer")
+		name, graphName, "LoadBalancer")
 	s1Dcc.Spec.DeviceClusterContext.BridgeDomainTenantName =
 		"common"
 	s1Dcc.Spec.DeviceClusterContext.BridgeDomainName =
 		"bd__kubernetes-service"
 	s1Dcc.Spec.DeviceClusterContext.DeviceClusterTenantName =
 		"common"
-	s1Dcc.Spec.DeviceClusterContext.DeviceClusterName = name
+	s1Dcc.Spec.DeviceClusterContext.DeviceClusterName = graphName
 	s1Dcc.Spec.DeviceClusterContext.ServiceRedirectPolicyTenantName =
 		"common"
 	s1Dcc.Spec.DeviceClusterContext.ServiceRedirectPolicyName = name
 
+	graphkey := aimKey{"DeviceCluster", "static"}
 	s1key := aimKey{"Service", name}
 	s2key := aimKey{"Service", "service__testns_service2"}
 
@@ -334,8 +336,6 @@ func TestServiceGraph(t *testing.T) {
 				defer cont.indexMutex.Unlock()
 
 				for key, slice := range expected {
-					fixAciSlice(slice,
-						"Service", name)
 					if !tu.WaitEqual(t, last, slice,
 						cont.aimDesiredState[key], desc, key) {
 						if last && len(slice) == len(cont.aimDesiredState[key]) {
@@ -369,14 +369,27 @@ func TestServiceGraph(t *testing.T) {
 	}
 
 	expected := map[aimKey]aciSlice{
-		s1key: aciSlice{twoNodeCluster, graph, twoNodeRedirect,
+		graphkey: fixAciSlice(aciSlice{twoNodeCluster, graph},
+			"DeviceCluster", "static"),
+		s1key: fixAciSlice(aciSlice{twoNodeRedirect,
 			extNet, extNetSub, contract, contractSubj, f_in,
 			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
+			"Service", name),
 	}
+
 	expectedOneNode := map[aimKey]aciSlice{
-		s1key: aciSlice{oneNodeCluster, graph, oneNodeRedirect,
+		graphkey: fixAciSlice(aciSlice{oneNodeCluster, graph},
+			"DeviceCluster", "static"),
+		s1key: fixAciSlice(aciSlice{oneNodeRedirect,
 			extNet, extNetSub, contract, contractSubj, f_in,
 			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
+			"Service", name),
+	}
+	expectedNoService := map[aimKey]aciSlice{
+		graphkey: fixAciSlice(aciSlice{twoNodeCluster, graph},
+			"DeviceCluster", "static"),
+		s1key: nil,
+		s2key: nil,
 	}
 
 	cont := sgCont()
@@ -388,7 +401,7 @@ func TestServiceGraph(t *testing.T) {
 	cont.fakeAimSource.Add(opflexDevice2)
 	cont.run()
 
-	sgWait(t, "non-lb", cont, map[aimKey]aciSlice{s2key: nil})
+	sgWait(t, "non-lb", cont, expectedNoService)
 
 	cont.serviceUpdates = nil
 	cont.fakeEndpointsSource.Add(endpoints1)

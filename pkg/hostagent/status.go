@@ -34,6 +34,7 @@ func (agent *HostAgent) RunStatus() {
 	}
 
 	http.HandleFunc("/endpoints", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
 		eps := make([]*opflexEndpoint, 0, len(agent.opflexEps))
 		for _, eps := range agent.opflexEps {
@@ -45,6 +46,7 @@ func (agent *HostAgent) RunStatus() {
 		agent.indexMutex.Unlock()
 	})
 	http.HandleFunc("/services", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
 		services := make([]*opflexService, 0, len(agent.opflexServices))
 		for _, service := range agent.opflexServices {
@@ -54,9 +56,11 @@ func (agent *HostAgent) RunStatus() {
 		agent.indexMutex.Unlock()
 	})
 	http.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(agent.config)
 	})
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
 		status := &agentStatus{
 			Endpoints: len(agent.opflexEps),
