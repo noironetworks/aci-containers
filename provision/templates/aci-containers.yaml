@@ -276,8 +276,6 @@ spec:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host
           imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
           env:
             - name: KUBERNETES_NODE_NAME
               valueFrom:
@@ -303,8 +301,6 @@ spec:
         - name: opflex-agent
           image: {{ config.registry.image_prefix }}/opflex
           imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
           env:
             - name: KUBERNETES_NODE_NAME
               valueFrom:
@@ -332,8 +328,6 @@ spec:
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -396,7 +390,11 @@ spec:
           image: {{ config.registry.image_prefix }}/openvswitch
           imagePullPolicy: IfNotPresent
           securityContext:
-            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+                - SYS_NICE
           env:
             - name: ACI_ENCAP_TYPE
               value: {{ config.node_config.encap_type|yaml_quote }}
