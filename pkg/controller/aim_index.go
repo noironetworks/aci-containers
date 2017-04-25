@@ -253,7 +253,7 @@ func (cont *AciController) executeAimDiff(adds aciSlice,
 
 	for _, delete := range deletes {
 		cont.log.WithFields(logrus.Fields{"Name": delete}).
-			Debug("Applying ACI object  delete")
+			Debug("Applying ACI object delete")
 		err := cont.deleteAim(delete, nil)
 		if err != nil {
 			cont.log.Error("Could not delete AIM object: ", err)
@@ -267,7 +267,7 @@ func (cont *AciController) executeAimDiff(adds aciSlice,
 		}
 	}
 	for _, add := range adds {
-		cont.aciObjLogger(add).Debug("Applying ACI object  add")
+		cont.aciObjLogger(add).Debug("Applying ACI object add")
 		_, err := cont.addAim(add)
 		if err != nil {
 			cont.log.Error("Could not add AIM object: ", err)
