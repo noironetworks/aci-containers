@@ -13,5 +13,4 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/mcast
 fi
 
-exec ${MCAST_DAEMON} \o
-     -d ${VARDIR}/lib/opflex-agent-ovs/mcast
+exec ${MCAST_DAEMON}

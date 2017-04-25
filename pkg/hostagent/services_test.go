@@ -211,8 +211,8 @@ func TestServiceSync(t *testing.T) {
 	agent.config.NodeName = "test-node"
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
-	agent.config.ServiceIface = "eth42"
-	agent.config.ServiceIfaceVlan = 4003
+	agent.config.UplinkIface = "eth42"
+	agent.config.ServiceVlan = 4003
 	agent.config.AciVrf = "kubernetes-vrf"
 	agent.config.AciVrfTenant = "common"
 

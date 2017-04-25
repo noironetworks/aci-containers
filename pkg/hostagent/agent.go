@@ -46,7 +46,8 @@ type HostAgent struct {
 	podIpsV4         []*ipam.IpAlloc
 	podIpsV6         []*ipam.IpAlloc
 
-	syncEnabled bool
+	syncEnabled         bool
+	opflexConfigWritten bool
 
 	netNsFuncChan chan func()
 }

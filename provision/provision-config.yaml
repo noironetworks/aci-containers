@@ -19,6 +19,7 @@ aci_config:
   # services
   physical_domain:
     domain: kubernetes-control
+  disable_ssl: true
 
 # Configuration that applies to each kubernetes node
 node_config:
@@ -92,6 +93,16 @@ kubernetes_config:
   # in the node service IP pool
   node_service_gw_subnets:
     - "10.6.0.1/16"
+
+  # Set to false to disable cluster role configurations for ACI
+  # containers components (requires Kubernetes version >= 1.6).
+  # Default true
+  use_cluster_role: false
+
+  # Set to true to enable rolling updates for ACI containers
+  # daemonsets when (requires Kubernetes version >= 1.6).  Default
+  # true
+  use_ds_rolling_update: false
 
 # Configuration for container registry
 registry:

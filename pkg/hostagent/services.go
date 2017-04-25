@@ -244,14 +244,14 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	}
 
 	if external {
-		if agent.config.ServiceIface == "" ||
+		if agent.config.UplinkIface == "" ||
 			agent.serviceEp.Ipv4 == nil ||
 			agent.serviceEp.Mac == "" {
 			return false
 		}
 
-		ofas.InterfaceName = agent.config.ServiceIface
-		ofas.InterfaceVlan = uint16(agent.config.ServiceIfaceVlan)
+		ofas.InterfaceName = agent.config.UplinkIface
+		ofas.InterfaceVlan = uint16(agent.config.ServiceVlan)
 		ofas.ServiceMac = agent.serviceEp.Mac
 		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"

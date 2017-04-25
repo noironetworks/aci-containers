@@ -96,6 +96,8 @@ if __name__ == "__main__":
             "node_service_ip_pool": [
                 {"start": "10.6.1.1", "end": "10.6.1.254"}
             ],
+            "use_cluster_role": True,
+            "use_ds_rolling_update": True,
         },
         "logging": {
             "controller_log_level": "info",

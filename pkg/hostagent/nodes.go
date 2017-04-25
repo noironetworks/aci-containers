@@ -72,6 +72,9 @@ func (agent *HostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (agent *HostAgent) nodeChanged(obj interface{}) {
+	updateServices := false
+	updateOpflexConfig := false
+
 	agent.indexMutex.Lock()
 
 	node := obj.(*v1.Node)
@@ -85,26 +88,64 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 		agent.updateIpamAnnotation(pnet)
 	}
 
-	var newServiceEp metadata.ServiceEndpoint
-	epval, ok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
-	if ok {
-		err := json.Unmarshal([]byte(epval), &newServiceEp)
-		if err != nil {
+	{
+		var newServiceEp metadata.ServiceEndpoint
+		epval, ok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
+		if ok {
+			err := json.Unmarshal([]byte(epval), &newServiceEp)
+			if err != nil {
+				agent.log.WithFields(logrus.Fields{
+					"epval": epval,
+				}).Warn("Could not parse node ",
+					"service endpoint annotation: ", err)
+			}
+		}
+		if !reflect.DeepEqual(newServiceEp, agent.serviceEp) {
 			agent.log.WithFields(logrus.Fields{
 				"epval": epval,
-			}).Warn("Could not parse node ",
-				"service endpoint annotation: ", err)
+			}).Info("Updated service endpoint")
+			agent.serviceEp = newServiceEp
+			updateServices = true
 		}
 	}
-	if !reflect.DeepEqual(newServiceEp, agent.serviceEp) {
-		agent.log.WithFields(logrus.Fields{
-			"epval": epval,
-		}).Info("Updated service endpoint")
-		agent.serviceEp = newServiceEp
-		agent.indexMutex.Unlock()
-		agent.updateAllServices()
+
+	if agent.config.OpFlexConfigPath != "" {
+		orval, ok := node.ObjectMeta.Annotations[metadata.OverrideNodeConfig]
+		if ok {
+			var newNodeConfig HostAgentNodeConfig
+			err := json.Unmarshal([]byte(orval), &newNodeConfig)
+			if err != nil {
+				agent.log.WithFields(logrus.Fields{
+					"orval": orval,
+				}).Warn("Could not parse node ",
+					"configuration override annotation: ", err)
+			}
+			if !reflect.DeepEqual(newNodeConfig,
+				agent.config.HostAgentNodeConfig) {
+
+				agent.config.HostAgentNodeConfig = newNodeConfig
+				updateServices = true
+				updateOpflexConfig = true
+			}
+		}
+		if !agent.opflexConfigWritten {
+			updateOpflexConfig = true
+		}
 	} else {
-		agent.indexMutex.Unlock()
+		agent.log.Debug("OpFlex agent configuration path not set")
+	}
+
+	if updateOpflexConfig {
+		agent.opflexConfigWritten = true
+		err := agent.writeOpflexConfig()
+		if err != nil {
+			agent.log.Error("Could not write OpFlex configuration file", err)
+		}
+	}
+	agent.indexMutex.Unlock()
+
+	if updateServices {
+		agent.updateAllServices()
 	}
 }
 

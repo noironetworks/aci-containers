@@ -32,8 +32,27 @@ type cniNetConfig struct {
 	Routes  []route        `json:"routes,omitempty"`
 }
 
+type HostAgentNodeConfig struct {
+	// Uplink interface for this host
+	UplinkIface string `json:"uplink-iface,omitempty"`
+
+	// VLAN for service traffic
+	ServiceVlan uint `json:"service-vlan,omitempty"`
+
+	// Vlan used for ACI infrastructure traffic
+	AciInfraVlan uint `json:"aci-infra-vlan,omitempty"`
+
+	// Type of encapsulation to use for uplink; either vlan or vxlan
+	EncapType string `json:"encap-type,omitempty"`
+
+	// Subinterface of uplink interface on AciInfraVlan
+	VxlanIface string `json:"vxlan-iface,omitempty"`
+}
+
 // Configuration for the host agent
 type HostAgentConfig struct {
+	HostAgentNodeConfig
+
 	// Log level
 	LogLevel string `json:"log-level,omitempty"`
 
@@ -51,6 +70,9 @@ type HostAgentConfig struct {
 
 	// Name of the CNI network
 	CniNetwork string `json:"cni-network,omitempty"`
+
+	// Directory for writing Opflex configuration
+	OpFlexConfigPath string `json:"opflex-config-path,omitempty"`
 
 	// Directory for writing OpFlex endpoint metadata
 	OpFlexEndpointDir string `json:"opflex-endpoint-dir,omitempty"`
@@ -71,17 +93,17 @@ type HostAgentConfig struct {
 	// Name of the OVS access bridge
 	AccessBridgeName string `json:"access-bridge-name,omitempty"`
 
-	// Interface for external service traffic
-	ServiceIface string `json:"service-iface,omitempty"`
-
-	// VLAN for service interface traffic
-	ServiceIfaceVlan uint `json:"service-iface-vlan,omitempty"`
-
 	// Interface MTU to use when configuring container interfaces
 	InterfaceMtu int `json:"interface-mtu,omitempty"`
 
 	// Configuration for CNI networks
 	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
+
+	// The name of the ACI VMM domain
+	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
+
+	// The name of the ACI VMM domain controller instance
+	AciVmmController string `json:"aci-vmm-controller,omitempty"`
 
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
@@ -101,6 +123,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
 
+	flag.StringVar(&config.OpFlexConfigPath, "opflex-config-path", "/usr/local/etc/opflex-agent-ovs/base-conf.d", "Directory for writing Opflex configuration")
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 
@@ -112,8 +135,15 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
 
-	flag.StringVar(&config.ServiceIface, "service-iface", "eth2", "Interface for external service traffic")
-	flag.UintVar(&config.ServiceIfaceVlan, "service-iface-vlan", 4003, "VLAN for service interface traffic")
+	flag.UintVar(&config.ServiceVlan, "service-vlan", 4003, "VLAN for service traffic")
+
+	flag.StringVar(&config.UplinkIface, "uplink-iface", "eth1", "Uplink interface for this host")
+	flag.UintVar(&config.AciInfraVlan, "aci-infra-vlan", 4093, "Vlan used for ACI infrastructure traffic")
+	flag.StringVar(&config.UplinkIface, "encap-type", "vxlan", "Type of encapsulation to use for uplink; either vlan or vxlan")
+	flag.StringVar(&config.VxlanIface, "vxlan-iface", "eth1.4093", "Subinterface of uplink interface on AciInfraVlan")
+
+	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubernetes", "ACI VMM domain")
+	flag.StringVar(&config.AciVmmController, "aci-vmm-controller", "kubernetes", "ACI VMM domain controller")
 
 	flag.StringVar(&config.AciVrf, "aci-vrf", "kubernetes-vrf", "ACI VRF for this kubernetes instance")
 	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
