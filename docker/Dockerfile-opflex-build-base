@@ -6,14 +6,15 @@ RUN apk add --no-cache build-base \
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
-RUN git clone https://github.com/miloyip/rapidjson.git --branch v1.0.2 --depth 1 \
+ARG make_args=-j4
+RUN git clone https://github.com/miloyip/rapidjson.git --branch v1.1.0 --depth 1 \
   && cd rapidjson \
   && cmake . && make install
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && cd ovs \
   && patch -p1 < /ovs-musl.patch \
   && ./boot.sh && ./configure --disable-ssl --disable-libcapng \
-  && make -j4 && make install \
+  && make $make_args && make install \
   && ROOT=/usr/local \
   && mkdir -p $ROOT/include/openvswitch/openvswitch \
   && mv $ROOT/include/openvswitch/*.h $ROOT/include/openvswitch/openvswitch \
