@@ -509,6 +509,10 @@ spec:
               value: {{ config.aci_config.vmm_domain.pods|join(' ')|yaml_quote }}
             - name: APIC_MONITOR_TENANTS
               value: {{ config.kubernetes_config.aci_vrf.tenant|yaml_quote }}
+            - name: K8S_VMM_DOMAIN
+              value: {{ config.aci_config.vmm_domain.domain|yaml_quote }}
+            - name: K8S_VMM_CONTROLLER
+              value: {{ config.aci_config.vmm_domain.controller|yaml_quote }}
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local

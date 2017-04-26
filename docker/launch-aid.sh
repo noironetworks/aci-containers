@@ -20,6 +20,8 @@ aim_store = k8s
 [aim_k8s]
 k8s_config_path =
 k8s_namespace = kube-system
+k8s_vmm_domain = ${K8S_VMM_DOMAIN}
+k8s_controller = ${K8S_VMM_CONTROLLER}
 
 [apic]
 # Hostname:port list of APIC controllers
