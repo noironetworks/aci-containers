@@ -10,8 +10,6 @@ aci_config:
 
   # The ACI VMM domain
   vmm_domain:
-    pods:
-      - "1"
     domain: kubernetes1
     controller: kubernetes1
 

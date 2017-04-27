@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/socketplane/libovsdb"
 
@@ -145,7 +144,9 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 	brNames :=
 		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
 	for _, brName := range brNames {
-		found[brName] = make(map[string]bool)
+		found[brName] = map[string]bool{
+			brName: true,
+		}
 	}
 
 	agent.indexMutex.Lock()
@@ -212,6 +213,31 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			}
 		}
 	}
+
+	intbr, ok := bridges[agent.config.IntBridgeName]
+	if ok {
+		uplinks := make(map[string]addUplinkIfaceFunc)
+		if agent.config.UplinkIface != "" {
+			uplinks[agent.config.UplinkIface] = addUplinkIfaceOps
+		}
+		if agent.config.EncapType == "vxlan" {
+			uplinks["vxlan0"] = addVxlanIfaceOps
+		}
+		for iface, addFunc := range uplinks {
+			if _, pok := intbr.ports[iface]; pok {
+				found[agent.config.IntBridgeName][iface] = true
+			} else {
+				agent.log.Debug("Adding uplink port ", iface)
+				adds, err := addFunc(agent.config,
+					bridges[agent.config.IntBridgeName].uuid)
+				if err != nil {
+					agent.log.Error(err)
+				}
+				ops = append(ops, adds...)
+			}
+		}
+	}
+
 	agent.indexMutex.Unlock()
 
 	for _, brName := range brNames {
@@ -223,10 +249,11 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 
 		var delports []libovsdb.UUID
 		for name, uuid := range br.ports {
-			if strings.Contains(name, "veth") && !found[brName][name] {
-				agent.log.Debug("Deleting stale port for ", brName, ": ", name)
-				delports = append(delports, libovsdb.UUID{GoUUID: uuid})
+			if found[brName][name] {
+				continue
 			}
+			agent.log.Debug("Deleting stale port for ", brName, ": ", name)
+			delports = append(delports, libovsdb.UUID{GoUUID: uuid})
 		}
 		if len(delports) > 0 {
 			ops = append(ops, delBrPortOp(br.uuid, delports))
@@ -247,6 +274,107 @@ func delBrPortOp(brUuid string, pUuid []libovsdb.UUID) libovsdb.Operation {
 		Mutations: m,
 		Where:     c,
 	}
+}
+
+type addUplinkIfaceFunc func(config *HostAgentConfig,
+	intBrUuid string) ([]libovsdb.Operation, error)
+
+func addVxlanIfaceOps(config *HostAgentConfig,
+	intBrUuid string) ([]libovsdb.Operation, error) {
+	uuidVxlanP := "vxlan_uuid_port"
+	uuidVxlanI := "vxlan_uuid_interface"
+
+	opti, err := libovsdb.NewOvsMap(map[string]interface{}{
+		"dst_port":  "8472",
+		"key":       "flow",
+		"remote_ip": "flow",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
+		libovsdb.UUID{GoUUID: uuidVxlanP},
+	})
+	if err != nil {
+		return nil, err
+	}
+	mibridge := []interface{}{libovsdb.NewMutation("ports", "insert", iports)}
+	cibridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
+		libovsdb.UUID{GoUUID: intBrUuid})}
+
+	ops := []libovsdb.Operation{
+		libovsdb.Operation{
+			Op:    "insert",
+			Table: "Interface",
+			Row: map[string]interface{}{
+				"name":    "vxlan0",
+				"type":    "vxlan",
+				"options": opti,
+			},
+			UUIDName: uuidVxlanI,
+		},
+		libovsdb.Operation{
+			Op:    "insert",
+			Table: "Port",
+			Row: map[string]interface{}{
+				"name":       "vxlan0",
+				"interfaces": libovsdb.UUID{GoUUID: uuidVxlanI},
+			},
+			UUIDName: uuidVxlanP,
+		},
+		libovsdb.Operation{
+			Op:        "mutate",
+			Table:     "Bridge",
+			Mutations: mibridge,
+			Where:     cibridge,
+		},
+	}
+	return ops, nil
+}
+
+func addUplinkIfaceOps(config *HostAgentConfig,
+	intBrUuid string) ([]libovsdb.Operation, error) {
+
+	uuidUplinkP := "uplink_uuid_port"
+	uuidUplinkI := "uplink_uuid_interface"
+
+	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
+		libovsdb.UUID{GoUUID: uuidUplinkP},
+	})
+	if err != nil {
+		return nil, err
+	}
+	mibridge := []interface{}{libovsdb.NewMutation("ports", "insert", iports)}
+	cibridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
+		libovsdb.UUID{GoUUID: intBrUuid})}
+
+	ops := []libovsdb.Operation{
+		libovsdb.Operation{
+			Op:    "insert",
+			Table: "Interface",
+			Row: map[string]interface{}{
+				"name": config.UplinkIface,
+			},
+			UUIDName: uuidUplinkI,
+		},
+		libovsdb.Operation{
+			Op:    "insert",
+			Table: "Port",
+			Row: map[string]interface{}{
+				"name":       config.UplinkIface,
+				"interfaces": libovsdb.UUID{GoUUID: uuidUplinkI},
+			},
+			UUIDName: uuidUplinkP,
+		},
+		libovsdb.Operation{
+			Op:        "mutate",
+			Table:     "Bridge",
+			Mutations: mibridge,
+			Where:     cibridge,
+		},
+	}
+	return ops, nil
 }
 
 func addIfaceOps(hostVethName string, patchIntName string,

@@ -409,10 +409,6 @@ spec:
                 - SYS_MODULE
                 - SYS_NICE
           env:
-            - name: ACI_ENCAP_TYPE
-              value: {{ config.node_config.encap_type|yaml_quote }}
-            - name: ACI_UPLINK_IFACE
-              value: {{ config.node_config.uplink_iface|yaml_quote }}
             - name: OVS_RUNDIR
               value: /usr/local/var/run/openvswitch
           volumeMounts:
@@ -505,8 +501,6 @@ spec:
                   key: password
             - name: APIC_HOSTS
               value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
-            - name: APIC_MONITOR_PODS
-              value: {{ config.aci_config.vmm_domain.pods|join(' ')|yaml_quote }}
             - name: APIC_MONITOR_TENANTS
               value: {{ config.kubernetes_config.aci_vrf.tenant|yaml_quote }}
             - name: K8S_VMM_DOMAIN

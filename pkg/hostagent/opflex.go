@@ -44,7 +44,7 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
             "access-bridge-name": "br-access",
             "encap": {
                 "vxlan" : {
-                    "encap-iface": "br-int_vxlan0",
+                    "encap-iface": "vxlan0",
                     "uplink-iface": "{{.VxlanIface | js}}",
                     "uplink-vlan": "{{.AciInfraVlan}}",
                     "remote-ip": "10.0.0.32",

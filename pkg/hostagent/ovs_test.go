@@ -110,6 +110,8 @@ func TestDiffPorts(t *testing.T) {
 	copy(updatePartial, delPartial)
 	updatePartial = append(updatePartial, addOnePod...)
 
+	emptyMeta := map[string]map[string]*md.ContainerMetadata{}
+
 	diffPortTests := []diffPortTest{
 		diffPortTest{
 			bridges:  emptyBr,
@@ -131,7 +133,7 @@ func TestDiffPorts(t *testing.T) {
 		},
 		diffPortTest{
 			bridges:  partialBr,
-			metadata: map[string]map[string]*md.ContainerMetadata{},
+			metadata: emptyMeta,
 			expected: delPartial,
 			desc:     "stale",
 		},
@@ -141,4 +143,15 @@ func TestDiffPorts(t *testing.T) {
 		agent.epMetadata = pt.metadata
 		assert.Equal(t, pt.expected, agent.diffPorts(pt.bridges), pt.desc)
 	}
+
+	agent.config.UplinkIface = "eth2"
+	agent.config.EncapType = "vxlan"
+	addUplinks, _ :=
+		addUplinkIfaceOps(agent.config, "aba85930-00f9-4665-9917-40beff731d87")
+	addVxlan, _ :=
+		addVxlanIfaceOps(agent.config, "aba85930-00f9-4665-9917-40beff731d87")
+	addUplinks = append(addUplinks, addVxlan...)
+
+	agent.epMetadata = emptyMeta
+	assert.Equal(t, addUplinks, agent.diffPorts(emptyBr), "uplinks")
 }

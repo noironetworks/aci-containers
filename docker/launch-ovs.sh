@@ -19,18 +19,6 @@ for i in br-int br-access; do
     fi
 done
 
-# Add uplink interfaces if needed
-if ! ${VSCTL} iface-to-br ${ACI_UPLINK_IFACE}; then
-    ${VSCTL} add-port br-int ${ACI_UPLINK_IFACE}
-fi
-if [[ ${ACI_ENCAP_TYPE} = "vxlan" ]]; then
-    if ! ${VSCTL} iface-to-br br-int_vxlan0; then
-	${VSCTL} add-port br-int br-int_vxlan0 -- \
-		 set Interface br-int_vxlan0 type=vxlan \
-		 options:remote_ip=flow options:key=flow options:dst_port=8472
-    fi
-fi
-
 # Signal the host agent to resync OVS port configuration
 ovsresync /usr/local/var/run/aci-containers-ep-rpc.sock
 
