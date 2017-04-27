@@ -41,14 +41,8 @@ apic_model = apicapi.db.noop_manager
 EOF
 
 ${AIMCTLRUN} config update
-
-for pod in `${AIMCTLRUN} manager pod-find -p | tail -n+2`; do
-    ${AIMCTLRUN} manager pod-delete $pod
-done
-for pod in ${APIC_MONITOR_PODS}; do
-    ${AIMCTLRUN} manager pod-create $pod --monitored=true
-done
-
+${AIMCTLRUN} manager topology-create
+${AIMCTLRUN} manager vmm-policy-create Kubernetes --monitored=true
 for tenant in `${AIMCTLRUN} manager tenant-find -p | tail -n+2`; do
     ${AIMCTLRUN} manager tenant-delete $tenant
 done
