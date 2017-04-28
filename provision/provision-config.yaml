@@ -95,12 +95,12 @@ kubernetes_config:
   # Set to false to disable cluster role configurations for ACI
   # containers components (requires Kubernetes version >= 1.6).
   # Default true
-  use_cluster_role: false
+  use_cluster_role: true
 
   # Set to true to enable rolling updates for ACI containers
   # daemonsets when (requires Kubernetes version >= 1.6).  Default
   # true
-  use_ds_rolling_update: false
+  use_ds_rolling_update: true
 
 # Configuration for container registry
 registry:

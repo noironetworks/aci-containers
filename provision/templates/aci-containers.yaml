@@ -98,45 +98,9 @@ rules:
   - ""
   resources:
   - nodes
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - namespaces
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - "extensions"
-  resources:
-  - deployments
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - pods
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - endpoints
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - services
   verbs:
   - list
@@ -145,16 +109,13 @@ rules:
 - apiGroups:
   - "extensions"
   resources:
+  - deployments
+  - replicasets
   - networkpolicies
+  - thirdpartyresources
   verbs:
   - list
   - watch
-  - get
-- apiGroups:
-  - "extensions"
-  resources:
-  - thirdpartyresources
-  verbs:
   - get
 - apiGroups:
   - "acicontainers.cisco.com"
@@ -172,17 +133,7 @@ rules:
   - ""
   resources:
   - pods
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
   - nodes
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
   - services/status
   verbs:
   - update
@@ -198,29 +149,8 @@ rules:
   - ""
   resources:
   - nodes
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - pods
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - endpoints
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
   - services
   verbs:
   - list
@@ -280,6 +210,9 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host
@@ -398,6 +331,9 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch
