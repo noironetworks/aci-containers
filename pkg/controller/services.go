@@ -627,11 +627,10 @@ func (cont *AciController) serviceChanged(obj interface{}) {
 	cont.queueServiceUpdate(obj.(*v1.Service))
 }
 
-// XXX TODO sync services before allocating any service IPs
 func (cont *AciController) serviceFullSync() {
 	cache.ListAll(cont.serviceInformer.GetIndexer(), labels.Everything(),
 		func(sobj interface{}) {
-			cont.serviceChanged(sobj)
+			cont.queueServiceUpdate(sobj.(*v1.Service))
 		})
 }
 
@@ -680,6 +679,11 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 				}
 			}
 		}
+	}
+
+	if !cont.serviceSyncEnabled {
+		cont.indexMutex.Unlock()
+		return false
 	}
 
 	// try to give the requested load balancer IP to the pod

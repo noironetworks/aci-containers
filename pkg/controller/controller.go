@@ -87,8 +87,9 @@ type AciController struct {
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 
-	nodeSyncEnabled bool
-	syncEnabled     bool
+	nodeSyncEnabled    bool
+	serviceSyncEnabled bool
+	syncEnabled        bool
 }
 
 type nodeServiceMeta struct {
@@ -265,11 +266,24 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
 
+	go cont.endpointsInformer.Run(stopCh)
+	go cont.serviceInformer.Run(stopCh)
+	go processQueue(cont.serviceQueue, cont.serviceInformer,
+		func(obj interface{}) bool {
+			return cont.handleServiceUpdate(obj.(*v1.Service))
+		}, stopCh)
+	cont.log.Debug("Waiting for service cache sync")
+	cache.WaitForCacheSync(stopCh,
+		cont.endpointsInformer.HasSynced,
+		cont.serviceInformer.HasSynced)
+	cont.indexMutex.Lock()
+	cont.serviceSyncEnabled = true
+	cont.indexMutex.Unlock()
+	cont.serviceFullSync()
+
 	go cont.namespaceInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
-	go cont.endpointsInformer.Run(stopCh)
-	go cont.serviceInformer.Run(stopCh)
 	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.aimInformer.Run(stopCh)
 	go processQueue(cont.podQueue, cont.podInformer,
@@ -280,18 +294,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
 		}, stopCh)
-	go processQueue(cont.serviceQueue, cont.serviceInformer,
-		func(obj interface{}) bool {
-			return cont.handleServiceUpdate(obj.(*v1.Service))
-		}, stopCh)
 
 	cont.log.Debug("Waiting for cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.endpointsInformer.HasSynced,
-		cont.serviceInformer.HasSynced,
 		cont.networkPolicyInformer.HasSynced,
 		cont.aimInformer.HasSynced)
 
