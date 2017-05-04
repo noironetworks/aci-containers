@@ -192,6 +192,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	tarWriter := tar.NewWriter(gzWriter)
 
 	now := time.Now()
+	hasErrors := false
 	for _, cmd := range cmds {
 		buffer := new(bytes.Buffer)
 
@@ -199,6 +200,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		err = execKubectl(cmd.args, buffer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			hasErrors = true
+			continue
 		}
 
 		tarWriter.WriteHeader(&tar.Header{
@@ -213,7 +216,11 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	tarWriter.Close()
 	gzWriter.Close()
 
-	fmt.Fprintln(os.Stderr, "Finished writing report to ", output)
+	if hasErrors {
+		fmt.Fprintln(os.Stderr, "Wrote report (with errors) to", output)
+	} else {
+		fmt.Fprintln(os.Stderr, "Finished writing report to", output)
+	}
 }
 
 func outputCmd(cmd *cobra.Command, cmdArgs []string) {
