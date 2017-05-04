@@ -47,6 +47,7 @@ cat <<EOF > /etc/logrotate.d/openvswitch
 EOF
 
 run_logrotate() {
+    set +x
     while true; do
 	sleep 60
 	logrotate /etc/logrotate.conf

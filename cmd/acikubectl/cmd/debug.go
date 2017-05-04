@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -49,10 +50,22 @@ type reportCmdElem struct {
 	args []string
 }
 
+type reportNodeCmd struct {
+	path     string
+	cont     string
+	selector string
+	args     []string
+	argFunc  nodeCmdArgFunc
+}
+
 func clusterReport(cmd *cobra.Command, args []string) {
 	output, err := cmd.PersistentFlags().GetString("output")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	if output == "" {
+		fmt.Fprintln(os.Stderr, "Output file not specified (use --output)")
 		return
 	}
 
@@ -84,23 +97,86 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
 	}
 
-	const nodeLog = "cluster-report/logs/node-%s/%s.log"
-	nodeLogItems := map[string]string{
-		"opflex-agent":               opflexAgentSelector,
-		"aci-containers-host":        hostAgentSelector,
-		"aci-containers-openvswitch": openvswitchSelector,
+	nodeItems := []reportNodeCmd{
+		reportNodeCmd{
+			path:     "cluster-report/logs/node-%s/opflex-agent.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  nodeLogCmdArgs,
+		},
+		reportNodeCmd{
+			path:     "cluster-report/logs/node-%s/aci-containers-host.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  nodeLogCmdArgs,
+		},
+		reportNodeCmd{
+			path:     "cluster-report/logs/node-%s/aci-containers-openvswitch.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  nodeLogCmdArgs,
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/gbp-inspect.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  inspectArgs,
+			args:     []string{"-rfpq", "DmtreeRoot"},
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-int.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  ovsOfCtlArgs,
+			args:     []string{"dump-flows", "br-int"},
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-access.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  ovsOfCtlArgs,
+			args:     []string{"dump-flows", "br-access"},
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/ovs-vsctl-show.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  ovsVsCtlArgs,
+			args:     []string{"show"},
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/ip-a.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  otherNodeArgs,
+			args:     []string{"ip", "a"},
+		},
+		reportNodeCmd{
+			path:     "cluster-report/cmds/node-%s/ip-r.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  otherNodeArgs,
+			args:     []string{"ip", "r"},
+		},
 	}
 
+	nodePodMap := make(map[string]string)
+
 	for _, node := range nodes.Items {
-		for cont, selector := range nodeLogItems {
-			cmdArgs, err := nodeLogCmdArgs(node.Name, selector, cont)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				continue
+		for _, nodeItem := range nodeItems {
+			key := node.Name + ";" + nodeItem.selector
+			podName, cached := nodePodMap[key]
+			if !cached {
+				podName, err = podForNode(node.Name, nodeItem.selector)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
+				}
 			}
+
 			cmds = append(cmds, reportCmdElem{
-				name: fmt.Sprintf(nodeLog, node.Name, cont),
-				args: cmdArgs,
+				name: fmt.Sprintf(nodeItem.path, node.Name),
+				args: nodeItem.argFunc(podName, nodeItem.cont, nodeItem.args),
 			})
 		}
 	}
@@ -113,26 +189,31 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	defer outfile.Close()
 
 	gzWriter := gzip.NewWriter(outfile)
-	defer gzWriter.Close()
-
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
 
+	now := time.Now()
 	for _, cmd := range cmds {
 		buffer := new(bytes.Buffer)
 
+		fmt.Fprintln(os.Stderr, "Running command: kubectl", cmd.args)
 		err = execKubectl(cmd.args, buffer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 
 		tarWriter.WriteHeader(&tar.Header{
-			Name: cmd.name,
-			Mode: 0644,
-			Size: int64(buffer.Len()),
+			Name:    cmd.name,
+			Mode:    0644,
+			ModTime: now,
+			Size:    int64(buffer.Len()),
 		})
 		buffer.WriteTo(tarWriter)
 	}
+
+	tarWriter.Close()
+	gzWriter.Close()
+
+	fmt.Fprintln(os.Stderr, "Finished writing report to ", output)
 }
 
 func outputCmd(cmd *cobra.Command, cmdArgs []string) {
@@ -176,8 +257,12 @@ func accLog(cmd *cobra.Command, args []string) {
 	outputCmd(logCmd, accLogCmdArgs())
 }
 
-func nodeLog(selector string, containerName string) {
-	node, err := nodeLogCmd.PersistentFlags().GetString("node")
+type nodeCmdArgFunc func(string, string, []string) []string
+
+func nodeCmd(cmd *cobra.Command, args []string, selector string,
+	containerName string, argFunc nodeCmdArgFunc) {
+
+	node, err := cmd.PersistentFlags().GetString("node")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -187,20 +272,26 @@ func nodeLog(selector string, containerName string) {
 		return
 	}
 
-	args, err := nodeLogCmdArgs(node, selector, containerName)
+	podName, err := podForNode(node, selector)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	outputCmd(logCmd, args)
+
+	outputCmd(logCmd, argFunc(podName, containerName, args))
 }
 
-func nodeLogCmdArgs(node string, selector string,
-	containerName string) ([]string, error) {
+func nodeLogCmdArgs(podName string, containerName string,
+	args []string) []string {
 
+	return []string{"-n", "kube-system", "--limit-bytes=10048576",
+		"logs", podName, "-c", containerName}
+}
+
+func podForNode(node string, selector string) (string, error) {
 	kubeClient, err := initClient()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	opts := metav1.ListOptions{
@@ -209,16 +300,14 @@ func nodeLogCmdArgs(node string, selector string,
 	pods, err :=
 		kubeClient.CoreV1().Pods("kube-system").List(opts)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	for _, pod := range pods.Items {
 		if pod.Spec.NodeName == node {
-			return []string{"-n", "kube-system",
-				"--limit-bytes=10048576",
-				"logs", pod.Name, "-c", containerName}, nil
+			return pod.Name, nil
 		}
 	}
-	return nil, errors.New("Could not find pod on node: " + node)
+	return "", errors.New("Could not find pod on node: " + node)
 }
 
 const opflexAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
@@ -226,15 +315,57 @@ const hostAgentSelector = "network-plugin=aci-containers,name=aci-containers-hos
 const openvswitchSelector = "network-plugin=aci-containers,name=aci-containers-openvswitch"
 
 func opflexAgentLog(cmd *cobra.Command, args []string) {
-	nodeLog(opflexAgentSelector, "opflex-agent")
+	nodeCmd(nodeLogCmd, args, opflexAgentSelector,
+		"opflex-agent", nodeLogCmdArgs)
 }
 
 func hostAgentLog(cmd *cobra.Command, args []string) {
-	nodeLog(hostAgentSelector, "aci-containers-host")
+	nodeCmd(nodeLogCmd, args, hostAgentSelector,
+		"aci-containers-host", nodeLogCmdArgs)
 }
 
 func openvswitchLog(cmd *cobra.Command, args []string) {
-	nodeLog(openvswitchSelector, "aci-containers-openvswitch")
+	nodeCmd(nodeLogCmd, args, openvswitchSelector,
+		"aci-containers-openvswitch", nodeLogCmdArgs)
+}
+
+func inspectArgs(podName string, containerName string,
+	args []string) []string {
+	return append([]string{"-n", "kube-system", "exec",
+		podName, "-c", containerName, "--", "gbp_inspect"}, args...)
+}
+
+func inspect(cmd *cobra.Command, args []string) {
+	nodeCmd(cmdCmd, args, opflexAgentSelector, "opflex-agent", inspectArgs)
+}
+
+func ovsVsCtlArgs(podName string, containerName string,
+	args []string) []string {
+	return append([]string{"-n", "kube-system", "exec",
+		podName, "-c", containerName, "--", "ovs-vsctl"}, args...)
+}
+
+func ovsVsCtl(cmd *cobra.Command, args []string) {
+	nodeCmd(cmdCmd, args, openvswitchSelector,
+		"aci-containers-openvswitch", ovsVsCtlArgs)
+}
+
+func ovsOfCtlArgs(podName string, containerName string,
+	args []string) []string {
+	return append([]string{"-n", "kube-system", "exec",
+		podName, "-c", containerName, "--",
+		"ovs-ofctl", "-OOpenFlow13"}, args...)
+}
+
+func ovsOfCtl(cmd *cobra.Command, args []string) {
+	nodeCmd(cmdCmd, args, openvswitchSelector,
+		"aci-containers-openvswitch", ovsOfCtlArgs)
+}
+
+func otherNodeArgs(podName string, containerName string,
+	args []string) []string {
+	return append([]string{"-n", "kube-system", "exec",
+		podName, "-c", containerName, "--"}, args...)
 }
 
 var debugCmd = &cobra.Command{
@@ -242,6 +373,7 @@ var debugCmd = &cobra.Command{
 	Short: "Commands to help diagnose problems with ACI containers",
 	Long: `Commands in the debug section may be added, removed, or changed in
 different versions of ACI Containers`,
+	Example: `acikubectl debug cluster-report -o cluster-report.tar.gz`,
 }
 
 var reportCmd = &cobra.Command{
@@ -297,6 +429,32 @@ var openvswitchNodeLogCmd = &cobra.Command{
 	Run:   openvswitchLog,
 }
 
+var cmdCmd = &cobra.Command{
+	Use:   "node-cmd",
+	Short: "Run a command on an ACI containers host container",
+}
+
+var inspectCmd = &cobra.Command{
+	Use:     "gbp-inspect",
+	Short:   "Run the GBP inspect tool for a node",
+	Example: `acikubectl debug cmd -n node1 gbp-inspect -- -rq DmtreeRoot`,
+	Run:     inspect,
+}
+
+var ovsVsCtlCmd = &cobra.Command{
+	Use:     "ovs-vsctl",
+	Short:   "Run the ovs-vsctl tool for a node",
+	Example: `acikubectl debug cmd -n node1 ovs-vsctl -- show`,
+	Run:     ovsVsCtl,
+}
+
+var ovsOfCtlCmd = &cobra.Command{
+	Use:     "ovs-ofctl",
+	Short:   "Run the ovs-ofctl tool for a node",
+	Example: `acikubectl debug cmd -n node1 ovs-ofctl -- dump-flows br-int`,
+	Run:     ovsOfCtl,
+}
+
 func init() {
 	logCmd.PersistentFlags().StringP("output", "o", "",
 		"Output to the specified file")
@@ -315,7 +473,14 @@ func init() {
 	reportCmd.PersistentFlags().StringP("output", "o", "",
 		"Output to the specified file")
 
+	cmdCmd.PersistentFlags().StringP("node", "n", "",
+		"Run command on the specified node")
+	cmdCmd.AddCommand(inspectCmd)
+	cmdCmd.AddCommand(ovsVsCtlCmd)
+	cmdCmd.AddCommand(ovsOfCtlCmd)
+
 	debugCmd.AddCommand(logCmd)
 	debugCmd.AddCommand(reportCmd)
+	debugCmd.AddCommand(cmdCmd)
 	RootCmd.AddCommand(debugCmd)
 }
