@@ -155,7 +155,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	if pod.Spec.NodeName != "" {
 		newg := metadata.OpflexGroup{
 			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        pod.Spec.NodeName,
+			Name:        cont.aciNameForKey("node", pod.Spec.NodeName),
 		}
 		if _, ok := gset[newg]; !ok {
 			gset[newg] = true
@@ -167,7 +167,7 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	{
 		newg := metadata.OpflexGroup{
 			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        "static",
+			Name:        cont.aciNameForKey("np", "static"),
 		}
 		if _, ok := gset[newg]; !ok {
 			gset[newg] = true
