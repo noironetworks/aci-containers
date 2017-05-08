@@ -1,16 +1,20 @@
 #!/usr/bin/python
 
-import yaml
+import argparse
 import base64
 import json
+import yaml
+
 from jinja2 import Environment, PackageLoader
-import argparse
+
 
 def json_indent(s):
     return json.dumps(s, indent=4)
 
+
 def yaml_quote(s):
     return "'%s'" % str(s).replace("'", "''")
+
 
 def generate_infra_yaml(config, output):
     env = Environment(
@@ -22,28 +26,30 @@ def generate_infra_yaml(config, output):
     env.filters['json'] = json_indent
     env.filters['yaml_quote'] = yaml_quote
     template = env.get_template('aci-containers.yaml')
-    
+
     print "Writing kubernetes infrastructure YAML to \"%s\"" % output
     template.stream(config=config).dump(output)
 
+
 def deep_merge(user, default):
-    if isinstance(user,dict) and isinstance(default,dict):
-        for k,v in default.iteritems():
+    if isinstance(user, dict) and isinstance(default, dict):
+        for k, v in default.iteritems():
             if k not in user:
                 user[k] = v
             else:
-                user[k] = deep_merge(user[k],v)
+                user[k] = deep_merge(user[k], v)
     return user
-    
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Provision an ACI containers installation')
-    
+
     parser.add_argument('-c', '--config', required=True,
                         help='A configuration file containing default values')
     parser.add_argument('-o', '--output', required=True,
                         help='Output kubernetes infrastructure YAML to file')
-    
+
     args = parser.parse_args()
     # Default values for configuration
     default_config = {
@@ -70,7 +76,7 @@ if __name__ == "__main__":
             },
             "aci_l3out": {
                 "name": "kubernetes_l3out",
-                "external_networks" : ["default"],
+                "external_networks": ["default"],
             },
             "default_endpoint_group": {
                 "tenant": "kubernetes",
@@ -84,7 +90,7 @@ if __name__ == "__main__":
                 "subnet": "10.1.0.0/16",
                 "gateway": "10.1.0.1",
                 "routes": [
-                    { "dst": "0.0.0.0/0", "gw": "10.1.0.1" }
+                    {"dst": "0.0.0.0/0", "gw": "10.1.0.1"}
                 ],
             }],
             "service_ip_pool": [
