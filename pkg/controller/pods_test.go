@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -34,6 +35,17 @@ type annotTest struct {
 
 const egAnnot = "{\"policy-space\":\"testps\",\"name\":\"test|test-eg\"}"
 const sgAnnot = "[{\"policy-space\":\"testps\",\"name\":\"test-sg\"}]"
+
+var egAnnotVal = opflexGroup{
+	PolicySpace: "testps",
+	Name:        "test|test-eg",
+}
+var sgAnnotVal = []opflexGroup{
+	opflexGroup{
+		PolicySpace: "testps",
+		Name:        "test-sg",
+	},
+}
 
 var annotTests = []annotTest{
 	{"testns", egAnnot, "", "egonly"},
@@ -60,13 +72,58 @@ func waitForGroupAnnot(t *testing.T, cont *testAciController,
 		})
 }
 
+func TestPodDefault(t *testing.T) {
+	for _, test := range annotTests {
+		cont := testController()
+		cont.defaultEg = test.egannot
+		cont.defaultSg = test.sgannot
+		cont.run()
+
+		cont.podUpdates = nil
+		cont.fakePodSource.Add(pod(test.ns, "testpod", "", ""))
+		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
+
+		cont.stop()
+	}
+}
+
+func TestPodNamespaceDefault(t *testing.T) {
+	for _, test := range annotTests {
+		cont := testController()
+		if test.egannot != "" {
+			var eg opflexGroup
+			err := json.Unmarshal([]byte(test.egannot), &eg)
+			if err != nil {
+				cont.log.Error(err)
+			}
+			cont.config.NamespaceDefaultEg[test.ns] = eg
+		}
+		if test.sgannot != "" {
+			groups := make([]opflexGroup, 0)
+			err := json.Unmarshal([]byte(test.sgannot), &groups)
+			if err != nil {
+				cont.log.Error(err)
+			}
+
+			cont.config.NamespaceDefaultSg[test.ns] = groups
+		}
+		cont.run()
+
+		cont.podUpdates = nil
+		cont.fakePodSource.Add(pod(test.ns, "testpod", "", ""))
+		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
+
+		cont.stop()
+	}
+}
+
 func TestPodAnnotation(t *testing.T) {
 	cont := testController()
 	cont.run()
 
 	for _, test := range annotTests {
 		cont.podUpdates = nil
-		cont.fakePodSource.Add(pod("testpod", test.ns, test.egannot, test.sgannot))
+		cont.fakePodSource.Add(pod(test.ns, "testpod", test.egannot, test.sgannot))
 		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
 	}
 

@@ -186,6 +186,15 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	return &result, nil
 }
 
+func (cont *AciController) serializeGroup(g interface{}) string {
+	edata, err := json.Marshal(g)
+	if err != nil {
+		cont.log.Error("Could not serialize group: ", err)
+		return ""
+	}
+	return string(edata)
+}
+
 func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	if !podFilter(pod) {
 		return false
@@ -209,6 +218,24 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	// top-level default annotation
 	egval := &cont.defaultEg
 	sgval := &cont.defaultSg
+
+	// configured namespace override has next-highest priority
+	cont.log.Info("checking eg override ", pod.Namespace, " ",
+		cont.config.NamespaceDefaultEg)
+	if nseg, ok := cont.config.NamespaceDefaultEg[pod.Namespace]; ok {
+		cont.log.Info("eg override")
+		egdata := cont.serializeGroup(nseg)
+		if egdata != "" {
+			cont.log.Info("gud")
+			egval = &egdata
+		}
+	}
+	if nssgs, ok := cont.config.NamespaceDefaultSg[pod.Namespace]; ok {
+		sgdata := cont.serializeGroup(nssgs)
+		if sgdata != "" {
+			sgval = &sgdata
+		}
+	}
 
 	// namespace annotation has next-highest priority
 	namespaceobj, exists, err :=

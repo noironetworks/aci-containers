@@ -42,6 +42,14 @@ type ControllerConfig struct {
 	// Default security group annotation value
 	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
 
+	// Override default endpoint group assignments for a namespace
+	// map ns name -> group
+	NamespaceDefaultEg map[string]opflexGroup `json:"namespace-default-security-group,omitempty"`
+
+	// Override default security group assignments for namespaces
+	// map ns name -> slice of groups
+	NamespaceDefaultSg map[string][]opflexGroup `json:"namespace-default-security-group,omitempty"`
+
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
@@ -111,6 +119,8 @@ func newNetIps() *netIps {
 func NewConfig() *ControllerConfig {
 	return &ControllerConfig{
 		DefaultSg:          make([]opflexGroup, 0),
+		NamespaceDefaultEg: make(map[string]opflexGroup),
+		NamespaceDefaultSg: make(map[string][]opflexGroup),
 		AciPolicyTenant:    "kubernetes",
 		PodIpPoolChunkSize: 128,
 	}
