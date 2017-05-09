@@ -3,6 +3,6 @@
 #
 
 test:
-	pep8 aci-containers-provision.py
-	flake8 aci-containers-provision.py
-	py.test aci-containers-provision.py
+	pep8 --ignore E501 aci-containers-provision.py apic.py
+	flake8 --ignore E501 aci-containers-provision.py apic.py
+	py.test aci-containers-provision.py apic.py
