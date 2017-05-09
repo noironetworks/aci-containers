@@ -62,18 +62,17 @@ def main(config_file, output_file):
     default_config = {
         "aci_config": {
             "vmm_domain": {
-                "pods": ["1"],
                 "domain": "kubernetes",
                 "controller": "kubernetes",
             },
             "physical_domain": {
                 "domain": "physdom",
-            }
+            },
+            "infra_vlan": 4093,
+            "service_vlan": 4003,
         },
         "node_config": {
             "encap_type": "vxlan",
-            "infra_vlan": 4093,
-            "service_vlan": 4003,
         },
         "kubernetes_config": {
             "aci_policy_tenant": "kubernetes",

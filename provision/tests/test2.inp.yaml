@@ -4,6 +4,8 @@ aci_config:
   apic_login:
     username: admin
     password: noir0123
+  infra_vlan: 4093
+  service_vlan: 4003
 
   vmm_domain:
     domain: kubernetes1
@@ -15,10 +17,8 @@ aci_config:
 
 node_config:
   uplink_iface: eth2
-  infra_vlan: 4093
   encap_type: vxlan
   vxlan_uplink_iface: eth2.4093
-  service_vlan: 4003
 
 kubernetes_config:
   aci_policy_tenant: common

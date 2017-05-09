@@ -13,7 +13,7 @@ data:
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
-        "aci-service-encap": {{ ("vlan-" ~ config.node_config.service_vlan)|json }},
+        "aci-service-encap": {{ ("vlan-" ~ config.aci_config.service_vlan)|json }},
         "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
         "aci-l3out": {{config.kubernetes_config.aci_l3out.name|json}},
         "aci-ext-networks": {{ config.kubernetes_config.aci_l3out.external_networks|json|indent(width=8) }},
@@ -36,9 +36,9 @@ data:
         "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
         "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
         "uplink-iface": {{ config.node_config.uplink_iface|json }},
-        "service-vlan": {{ config.node_config.service_vlan|json }},
+        "service-vlan": {{ config.aci_config.service_vlan|json }},
         "encap-type": {{ config.node_config.encap_type|json }},
-        "aci-infra-vlan": {{ config.node_config.infra_vlan|json }},
+        "aci-infra-vlan": {{ config.aci_config.infra_vlan|json }},
         "vxlan-iface": {{ config.node_config.vxlan_uplink_iface|json }},
         "cni-netconfig": {{ config.kubernetes_config.pod_network|json|indent(width=8) }}
     }
