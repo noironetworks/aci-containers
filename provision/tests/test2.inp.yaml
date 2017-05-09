@@ -1,0 +1,73 @@
+aci_config:
+  apic_hosts:
+    - 10.30.120.100
+  apic_login:
+    username: admin
+    password: noir0123
+
+  vmm_domain:
+    domain: kubernetes1
+    controller: kubernetes1
+
+  physical_domain:
+    domain: kubernetes-control
+  disable_ssl: true
+
+node_config:
+  uplink_iface: eth2
+  infra_vlan: 4093
+  encap_type: vxlan
+  vxlan_uplink_iface: eth2.4093
+  service_vlan: 4003
+
+kubernetes_config:
+  aci_policy_tenant: common
+
+  aci_vrf:
+    tenant: common
+    name: kubernetes-vrf
+
+  aci_l3out:
+    name: l3out
+    external_networks:
+      - l3out
+
+  default_endpoint_group:
+    tenant: demo
+    app_profile: default
+    group: default
+
+  pod_ip_pool:
+    - start: 10.1.0.2
+      end: 10.1.255.254
+  pod_network:
+    - subnet: 10.1.0.0/16
+      gateway: 10.1.0.1
+      routes:
+        - dst: 0.0.0.0/0
+          gw: 10.1.0.1
+
+  service_ip_pool:
+    - start: 10.4.1.1
+      end: 10.4.255.254
+  static_service_ip_pool:
+    - start: 10.4.0.1
+      end: 10.4.0.255
+  node_service_ip_pool:
+    - start: 10.6.1.1
+      end: 10.6.1.254
+  node_service_gw_subnets:
+    - "10.6.0.1/16"
+
+  use_cluster_role: true
+
+  use_ds_rolling_update: true
+
+registry:
+  image_prefix: noiro
+
+logging:
+  controller_log_level: debug
+  hostagent_log_level: debug
+  opflexagent_log_level: info
+  aim_debug: True

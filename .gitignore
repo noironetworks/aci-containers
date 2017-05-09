@@ -5,6 +5,8 @@
 /vendor
 *.egg-info
 __pycache__
+.cache
 *~
+*.swp
 *.pyc
 coverage.out

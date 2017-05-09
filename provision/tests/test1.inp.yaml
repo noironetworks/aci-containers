@@ -1,0 +1,119 @@
+# Configuration for ACI
+aci_config:
+  # List of APIC hosts to connect to for APIC API access
+  apic_hosts:
+    - 10.30.120.100
+  # login credentials for APIC
+  apic_login:
+    username: admin
+    password: noir0123
+
+  # The ACI VMM domain
+  vmm_domain:
+    domain: kubernetes1
+    controller: kubernetes1
+
+  # The ACI physical domain used for control network and external
+  # services
+  physical_domain:
+    domain: kubernetes-control
+  disable_ssl: true
+
+# Configuration that applies to each kubernetes node
+node_config:
+  # The name of the interface that uplinks to the ACI fabric
+  uplink_iface: eth2
+  # the ACI infrastructure VLAN
+  infra_vlan: 4093
+  # The type of encapsulation to use; either vxlan or vlan
+  encap_type: vxlan
+  # If encap type is vxlan, this is the name of the uplink used for
+  # the vxlan connection.  This is typically a subinterface on the
+  # uplink interface on the infra vlan.
+  vxlan_uplink_iface: eth2.4093
+  # The service VLAN used for external LoadBalancer services
+  service_vlan: 4003
+
+# Configuration related to kubernetes pods and policy
+kubernetes_config:
+  # The ACI tenant in which policy objects will be created
+  aci_policy_tenant: common
+
+  # The ACI VRF that contains this kubernetes install
+  aci_vrf:
+    tenant: common
+    name: kubernetes-vrf
+
+  # Layer 3 out used to provide external connectivity for pod network
+  # This will be used to provision load balancers external service IPs
+  # This l3out must be in the VRF listed above
+  aci_l3out:
+    name: l3out
+    # The external networks on the l3out from which external services
+    # should be reachable
+    external_networks:
+      - l3out
+
+  # The global ACI default endpoint group to assign to pods without
+  # another overriding assignment
+  default_endpoint_group:
+    tenant: demo
+    app_profile: default
+    group: default
+
+  # A pool of IP addresses used for the pod network
+  pod_ip_pool:
+    - start: 10.1.0.2
+      end: 10.1.255.254
+  # Subnet and route configuration for pod networking
+  pod_network:
+    - subnet: 10.1.0.0/16
+      gateway: 10.1.0.1
+      routes:
+        - dst: 0.0.0.0/0
+          gw: 10.1.0.1
+
+  # A pool of IP addresses used for external LoadBalancer services
+  service_ip_pool:
+    - start: 10.4.1.1
+      end: 10.4.255.254
+  # A pool of IP addresses that are available for services that select
+  # a static IP address
+  static_service_ip_pool:
+    - start: 10.4.0.1
+      end: 10.4.0.255
+  # A pool of IP addresses for assigning per-node IP addresses used
+  # for load balancing external services
+  node_service_ip_pool:
+    - start: 10.6.1.1
+      end: 10.6.1.254
+  # a list of subnet/gateway CIDR addresses that cover the addresses
+  # in the node service IP pool
+  node_service_gw_subnets:
+    - "10.6.0.1/16"
+
+  # Set to false to disable cluster role configurations for ACI
+  # containers components (requires Kubernetes version >= 1.6).
+  # Default true
+  use_cluster_role: true
+
+  # Set to true to enable rolling updates for ACI containers
+  # daemonsets when (requires Kubernetes version >= 1.6).  Default
+  # true
+  use_ds_rolling_update: true
+
+# Configuration for container registry
+registry:
+  # If a custom container registry is desired, specify the label prefix.
+  # Example: "registry.example.com/noiro"
+  image_prefix: noiro
+  # If you need to specify an image pull secret to access a customer
+  # registry, specify the name below
+  # image_pull_secret: secret_name
+
+# Enable additional logging for services
+logging:
+  controller_log_level: debug
+  hostagent_log_level: debug
+  opflexagent_log_level: info
+  aim_debug: True

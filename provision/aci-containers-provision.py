@@ -2,7 +2,11 @@
 
 import argparse
 import base64
+import filecmp
+import glob
 import json
+import os
+import tempfile
 import yaml
 
 from jinja2 import Environment, PackageLoader
@@ -41,7 +45,7 @@ def deep_merge(user, default):
     return user
 
 
-if __name__ == "__main__":
+def parse_args():
     parser = argparse.ArgumentParser(
         description='Provision an ACI containers installation')
 
@@ -50,7 +54,10 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', required=True,
                         help='Output kubernetes infrastructure YAML to file')
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main(config_file, output_file):
     # Default values for configuration
     default_config = {
         "aci_config": {
@@ -117,10 +124,23 @@ if __name__ == "__main__":
     }
     config = default_config
 
-    if args.config:
-        print "Loading configuration from \"%s\"" % args.config
-        with open(args.config, 'r') as file:
+    if config_file:
+        print "Loading configuration from \"%s\"" % config_file
+        with open(config_file, 'r') as file:
             config = yaml.load(file)
             deep_merge(config, default_config)
 
-    generate_infra_yaml(config, args.output)
+    generate_infra_yaml(config, output_file)
+
+
+def test_main():
+    tmpfile = tempfile.mkstemp()[1]
+    for inp in glob.glob("tests/*.inp.yaml"):
+        expected = inp[:-8] + 'out.yaml'
+        main(inp, tmpfile)
+        assert filecmp.cmp(tmpfile, expected)
+    os.remove(tmpfile)
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args.config, args.output)
