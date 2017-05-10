@@ -71,7 +71,12 @@ class Apic(object):
     def unprovision(self, data):
         for path in data:
             try:
-                if path not in ["/api/node/mo/uni/tn-common.json"]:
+                if path not in [
+                        "/api/node/mo/uni/infra.json",
+                        "/api/node/mo/uni/tn-infra.json",
+                        "/api/node/mo/uni/tn-mgmt.json",
+                        "/api/node/mo/uni/tn-common.json",
+                ]:
                     resp = self.delete(path)
                     if self.debug:
                         print path, resp.text
@@ -94,6 +99,7 @@ class ApicKubeConfig(object):
         update(data, self.mcast_pool())
         update(data, self.phys_dom())
         update(data, self.kube_dom())
+        update(data, self.associate_aep())
         update(data, self.kube_tn())
         return data
 
@@ -223,6 +229,63 @@ class ApicKubeConfig(object):
                             "attributes": {
                                 "tDn": "uni/infra/maddrns-%s" % mpool_name
                             }
+                        }
+                    }
+                ]
+            }
+        }
+        return path, data
+
+    def associate_aep(self):
+        aep_name = self.config["aci_config"]["aep"]
+        phys_name = self.config["aci_config"]["physical_domain"]["domain"]
+        vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        infra_vlan = self.config["net_config"]["infra_vlan"]
+
+        path = "/api/mo/uni/infra.json"
+        data = {
+            "infraAttEntityP": {
+                "attributes": {
+                    "name": aep_name,
+                },
+                "children": [
+                    {
+                        "infraRsDomP": {
+                            "attributes": {
+                                "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                            }
+                        }
+                    },
+                    {
+                        "infraRsDomP": {
+                            "attributes": {
+                                "tDn": "uni/phys-%s" % phys_name
+                            }
+                        }
+                    },
+                    {
+                        "infraProvAcc": {
+                            "attributes": {
+                                "name": "provacc",
+                            },
+                            "children": [
+                                {
+                                    "infraRsFuncToEpg": {
+                                        "attributes": {
+                                            "encap": "vlan-%s" % str(infra_vlan),
+                                            "mode": "regular",
+                                            "tDn": "uni/tn-infra/ap-access/epg-default"
+                                        }
+                                    }
+                                },
+                                {
+                                    "dhcpInfraProvP": {
+                                        "attributes": {
+                                            "mode": "controller",
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 ]

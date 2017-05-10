@@ -8,17 +8,21 @@ aci_config:
   apic_login:                           # Login credentials for APIC
     username: admin
     password: noir0123
-  vrf:                                  # VRF used to create all subnets used bu this Kubernetes cluster
-    name: kube                          # This should exist, the provisioning tool does not create it
-    tenant: common                      # This can be system-id (tenant for this cluster) or common
-  l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
-    name: l3out                         # This is used to provision external service IPs/LB, must exist
-    external_networks: [default]        # This should also exist, the provisioning tool does not create it
   vmm_domain:                           # Kubernetes VMM domain configuration
     encap_type: vxlan                   # Encap mode: vxlan or vlan
     mcast_range:                        # Every vxlan VMM on the same fabric must use a distinct range
         start: 225.2.1.1
         end: 225.2.255.255
+
+  # The following resources must already exist on the APIC,
+  # this is a reference to use them
+  aep: kube-cluster                     # The attachment profile for ports/VPCs connected to this cluster
+  vrf:                                  # VRF used to create all subnets used by this Kubernetes cluster
+    name: kube                          # This should exist, the provisioning tool does not create it
+    tenant: common                      # This can be tenant for this cluster (system-id) or common
+  l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
+    name: l3out                         # This is used to provision external service IPs/LB
+    external_networks: [default]        # This should also exist, the provisioning tool does not create it
 #
 # Networks used by Kubernetes
 #

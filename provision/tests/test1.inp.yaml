@@ -8,6 +8,7 @@ aci_config:
   apic_login:                           # Login credentials for APIC
     username: admin
     password: noir0123
+  aep: kube-aep
   vrf:                                  # VRF used to create all subnets used bu this Kubernetes cluster
     name: kube
     tenant: common
