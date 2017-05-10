@@ -210,6 +210,7 @@ def config_validate(config):
     try:
         checks = {
             "system_id": (config["aci_config"]["system_id"], required),
+            "aep": (config["aci_config"]["aep"], required),
             "apic_host": (config["aci_config"]["apic_hosts"][0], required),
             "apic_username": (config["aci_config"]["apic_login"]["username"], required),
             "apic_password": (config["aci_config"]["apic_login"]["password"], required),
@@ -288,7 +289,7 @@ def parse_args():
                         help='A configuration file containing default values')
     parser.add_argument('-o', '--output', required=True,
                         help='Output kubernetes infrastructure YAML to file')
-    parser.add_argument('-s', '--skip-apic', action='store_true', default=False,
+    parser.add_argument('-a', '--apic', action='store_true', default=False,
                         help='Skip APIC provisioning')
     parser.add_argument('-u', '--unprovision', action='store_true', default=False,
                         help='Unprovision the resources APIC provisioning')
@@ -335,9 +336,9 @@ def test_main():
 
 if __name__ == "__main__":
     args = parse_args()
-    prov_apic = True
-    if args.unprovision:
-        prov_apic = False
-    if args.skip_apic:
-        prov_apic = None
+    prov_apic = None
+    if args.apic:
+        prov_apic = True
+        if args.unprovision:
+            prov_apic = False
     main(args.config, args.output, prov_apic=prov_apic)

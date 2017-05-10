@@ -6,6 +6,7 @@ aci_config:
   apic_login:
     username: admin
     password: noir0123
+  aep: kube-aep
   vrf:
     name: kubernetes-vrf
     tenant: common
