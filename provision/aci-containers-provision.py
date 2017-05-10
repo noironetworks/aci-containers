@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
+from __future__ import print_function
 
 import argparse
 import base64
@@ -6,10 +8,26 @@ import filecmp
 import glob
 import json
 import os
-import tempfile
+import socket
+import struct
+import sys
 import yaml
 
+
+from apic import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
+
+
+def info(msg):
+    print("INFO: " + msg, file=sys.stdout)
+
+
+def warn(msg):
+    print("WARN: " + msg, file=sys.stderr)
+
+
+def err(msg):
+    print("ERR:  " + msg, file=sys.stderr)
 
 
 def json_indent(s):
@@ -18,21 +36,6 @@ def json_indent(s):
 
 def yaml_quote(s):
     return "'%s'" % str(s).replace("'", "''")
-
-
-def generate_infra_yaml(config, output):
-    env = Environment(
-        loader=PackageLoader('aci-containers-provision', 'templates'),
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    env.filters['base64enc'] = base64.b64encode
-    env.filters['json'] = json_indent
-    env.filters['yaml_quote'] = yaml_quote
-    template = env.get_template('aci-containers.yaml')
-
-    print "Writing kubernetes infrastructure YAML to \"%s\"" % output
-    template.stream(config=config).dump(output)
 
 
 def deep_merge(user, default):
@@ -45,71 +48,45 @@ def deep_merge(user, default):
     return user
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Provision an ACI containers installation')
-
-    parser.add_argument('-c', '--config', required=True,
-                        help='A configuration file containing default values')
-    parser.add_argument('-o', '--output', required=True,
-                        help='Output kubernetes infrastructure YAML to file')
-
-    return parser.parse_args()
-
-
-def main(config_file, output_file):
+def config_default():
     # Default values for configuration
     default_config = {
         "aci_config": {
-            "vmm_domain": {
-                "domain": "kubernetes",
-                "controller": "kubernetes",
+            "system_id": "kube",
+            "vrf": {
+                "name": "kube",
+                "tenant": "common",
             },
-            "physical_domain": {
-                "domain": "physdom",
-            },
-            "infra_vlan": 4093,
-            "service_vlan": 4003,
-        },
-        "node_config": {
-            "encap_type": "vxlan",
-        },
-        "kubernetes_config": {
-            "aci_policy_tenant": "kubernetes",
-            "aci_vrf": {
-                "tenant": "kubernetes",
-                "name": "kubernetes_vrf",
-            },
-            "aci_l3out": {
-                "name": "kubernetes_l3out",
+            "l3out": {
+                "name": "l3out",
                 "external_networks": ["default"],
             },
-            "default_endpoint_group": {
-                "tenant": "kubernetes",
-                "app_profile": "default",
-                "group": "default",
+            "vmm_domain": {
+                "encap_type": "vxlan",
+                "mcast_fabric": "225.1.2.3",
+                "mcast_range": {
+                    "start": "225.2.1.1",
+                    "end": "225.2.255.255",
+                },
             },
-            "pod_ip_pool": [
-                {"start": "10.1.0.2", "end": "10.1.255.254"}
-            ],
-            "pod_network": [{
-                "subnet": "10.1.0.0/16",
-                "gateway": "10.1.0.1",
-                "routes": [
-                    {"dst": "0.0.0.0/0", "gw": "10.1.0.1"}
-                ],
-            }],
-            "service_ip_pool": [
-                {"start": "10.4.1.1", "end": "10.4.255.254"}
-            ],
-            "static_service_ip_pool": [
-                {"start": "10.4.0.1", "end": "10.4.0.255"}
-            ],
-            "node_service_ip_pool": [
-                {"start": "10.6.1.1", "end": "10.6.1.254"}
-            ],
+        },
+        "net_config": {
+            "node_subnet": "10.1.0.1/16",
+            "pod_subnet": "10.2.0.1/16",
+            "extern_dynamic": "10.3.0.1/24",
+            "extern_static": "10.4.0.1/24",
+            "node_svc_subnet": "10.5.0.1/24",
+            "kubeapi_vlan": 4001,
+            "service_vlan": 4003,
+            "infra_vlan": 4093,
+        },
+        "kube_config": {
+            "controller": "1.1.1.1",
             "use_cluster_role": True,
             "use_ds_rolling_update": True,
+        },
+        "registry": {
+            "image_prefix": "noiro",
         },
         "logging": {
             "controller_log_level": "info",
@@ -117,29 +94,250 @@ def main(config_file, output_file):
             "opflexagent_log_level": "info",
             "aim_debug": "False",
         },
-        "registry": {
-            "image_prefix": "noiro",
-        }
     }
-    config = default_config
+    return default_config
 
+
+def config_user(config_file):
+    config = {}
     if config_file:
-        print "Loading configuration from \"%s\"" % config_file
+        info("Loading configuration from \"%s\"" % config_file)
         with open(config_file, 'r') as file:
             config = yaml.load(file)
-            deep_merge(config, default_config)
+    return config
 
-    generate_infra_yaml(config, output_file)
+
+def cidr_split(cidr):
+    ip2int = lambda a: struct.unpack("!I", socket.inet_aton(a))[0]
+    int2ip = lambda a: socket.inet_ntoa(struct.pack("!I", a))
+    rtr, mask = cidr.split('/')
+    maskbits = int('1' * (32 - int(mask)), 2)
+    rtri = ip2int(rtr)
+    starti = rtri + 1
+    endi = (rtri | maskbits) - 1
+    subi = (rtri & (0xffffffff ^ maskbits))
+    return int2ip(starti), int2ip(endi), rtr, int2ip(subi), mask
+
+
+def config_adjust(config, prov_apic):
+    apic = None
+    if prov_apic is not None:
+        apic = get_apic(config)
+
+    system_id = config["aci_config"]["system_id"]
+    infra_vlan = config["net_config"]["infra_vlan"]
+    if apic is not None:
+        infra_vlan = apic.get_infravlan()
+
+    pod_subnet = config["net_config"]["pod_subnet"]
+    extern_dynamic = config["net_config"]["extern_dynamic"]
+    extern_static = config["net_config"]["extern_static"]
+    node_svc_subnet = config["net_config"]["node_svc_subnet"]
+    encap_type = config["aci_config"]["vmm_domain"]["encap_type"]
+    tenant = system_id
+
+    adj_config = {
+        "aci_config": {
+            "cluster_tenant": tenant,
+            "physical_domain": {
+                "domain": system_id + "-pdom",
+                "vlan_pool": system_id + "-pool",
+            },
+            "vmm_domain": {
+                "domain": system_id,
+                "controller": system_id,
+                "mcast_pool": system_id + "-mpool",
+            },
+        },
+        "net_config": {
+            "infra_vlan": infra_vlan,
+        },
+        "node_config": {
+            "encap_type": encap_type,
+        },
+        "kube_config": {
+            "default_endpoint_group": {
+                "tenant": tenant,
+                "app_profile": "kubernetes",
+                "group": "kube-default",
+            },
+            "pod_ip_pool": [
+                {
+                    "start": cidr_split(pod_subnet)[0],
+                    "end": cidr_split(pod_subnet)[1],
+                }
+            ],
+            "pod_network": [
+                {
+                    "subnet": "%s/%s" % cidr_split(pod_subnet)[3:],
+                    "gateway": cidr_split(pod_subnet)[2],
+                    "routes": [
+                        {
+                            "dst": "0.0.0.0/0",
+                            "gw": cidr_split(pod_subnet)[2],
+                        }
+                    ],
+                },
+            ],
+            "service_ip_pool": [
+                {
+                    "start": cidr_split(extern_dynamic)[0],
+                    "end": cidr_split(extern_dynamic)[1],
+                },
+            ],
+            "static_service_ip_pool": [
+                {
+                    "start": cidr_split(extern_static)[0],
+                    "end": cidr_split(extern_static)[1],
+                },
+            ],
+            "node_service_ip_pool": [
+                {
+                    "start": cidr_split(node_svc_subnet)[0],
+                    "end": cidr_split(node_svc_subnet)[1],
+                },
+            ],
+            "node_service_gw_subnets": [
+                node_svc_subnet,
+            ],
+        },
+    }
+    return adj_config
+
+
+def config_validate(config):
+    required = lambda x: x
+    try:
+        checks = {
+            "system_id": (config["aci_config"]["system_id"], required),
+            "apic_host": (config["aci_config"]["apic_hosts"][0], required),
+            "apic_username": (config["aci_config"]["apic_login"]["username"], required),
+            "apic_password": (config["aci_config"]["apic_login"]["password"], required),
+            "uplink_if": (config["node_config"]["uplink_iface"], required),
+            "vxlan_if": (config["node_config"]["vxlan_uplink_iface"], required),
+            "kubeapi_vlan": (config["net_config"]["kubeapi_vlan"], required),
+            "service_vlan": (config["net_config"]["service_vlan"], required),
+        }
+        for k in checks:
+            value, validator = checks[k]
+            if not validator(value):
+                raise Exception(k)
+    except Exception as e:
+        err("Required configuration not present or not correct: '%s'" % e.message)
+        return False
+    return True
+
+
+def config_advise(config, prov_apic):
+    try:
+        checks = {
+        }
+        for k in checks:
+            value, validator = checks[k]
+            if not validator(value):
+                raise Exception(k)
+    except Exception as e:
+        warn("Required configuration not present or not correct: '%s'" % e.message)
+    return True
+
+
+def generate_kube_yaml(config, output):
+    env = Environment(
+        loader=PackageLoader('aci-containers-provision', 'templates'),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    env.filters['base64enc'] = base64.b64encode
+    env.filters['json'] = json_indent
+    env.filters['yaml_quote'] = yaml_quote
+    template = env.get_template('aci-containers.yaml')
+
+    info("Writing kubernetes infrastructure YAML to \"%s\"" % output)
+    template.stream(config=config).dump(output)
+    return config
+
+
+def generate_apic_config(config, prov_apic, apic_file):
+    apic_config = ApicKubeConfig(config).get_config()
+    if apic_file:
+        with open(apic_file, 'w') as outfile:
+            json.dump(apic_config, outfile, sort_keys=True, indent=4)
+    if prov_apic is None:
+        return apic_config
+
+    apic = get_apic(config)
+    if prov_apic is True:
+        apic.provision(apic_config)
+    if prov_apic is False:
+        apic.unprovision(apic_config)
+    return apic_config
+
+
+def get_apic(config):
+    apic_host = config["aci_config"]["apic_hosts"][0]
+    apic_username = config["aci_config"]["apic_login"]["username"]
+    apic_password = config["aci_config"]["apic_login"]["password"]
+    apic = Apic(apic_host, apic_username, apic_password)
+    return apic
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Provision an ACI containers installation')
+    parser.add_argument('-c', '--config', required=True,
+                        help='A configuration file containing default values')
+    parser.add_argument('-o', '--output', required=True,
+                        help='Output kubernetes infrastructure YAML to file')
+    parser.add_argument('-s', '--skip-apic', action='store_true', default=False,
+                        help='Skip APIC provisioning')
+    parser.add_argument('-u', '--unprovision', action='store_true', default=False,
+                        help='Unprovision the resources APIC provisioning')
+    return parser.parse_args()
+
+
+def main(config_file, output_file, prov_apic=True, apic_file=None):
+    # Create config
+    default_config = config_default()
+    config = config_user(config_file)
+    deep_merge(config, default_config)
+
+    # Validate config
+    if not config_validate(config):
+        err("Please fix configuration and retry.")
+        return None
+
+    # Adjust config based on convention/apic data
+    adj_config = config_adjust(config, prov_apic)
+    deep_merge(config, adj_config)
+    config["net_config"]["infra_vlan"] = \
+        adj_config["net_config"]["infra_vlan"]
+
+    # Advisory checks, including apic checks, ignore failures
+    if not config_advise(config, prov_apic):
+        pass
+
+    # generate output files; and program apic if needed
+    generate_apic_config(config, prov_apic, apic_file)
+    generate_kube_yaml(config, output_file)
 
 
 def test_main():
-    tmpfile = tempfile.mkstemp()[1]
     for inp in glob.glob("tests/*.inp.yaml"):
-        expected = inp[:-8] + 'out.yaml'
-        main(inp, tmpfile)
-        assert filecmp.cmp(tmpfile, expected)
-    os.remove(tmpfile)
+        kubefile = os.tempnam(".", "tmp-kube-")
+        apicfile = os.tempnam(".", "tmp-apic-")
+        main(inp, kubefile, prov_apic=None, apic_file=apicfile)
+        expectedkube = inp[:-8] + 'out.yaml'
+        assert filecmp.cmp(kubefile, expectedkube)
+        # expectedapic = inp[:-8] + 'apic.yaml'
+        # assert filecmp.cmp(apicfile, expectedapic)
+        os.remove(kubefile)
+        os.remove(apicfile)
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args.config, args.output)
+    prov_apic = True
+    if args.unprovision:
+        prov_apic = False
+    if args.skip_apic:
+        prov_apic = None
+    main(args.config, args.output, prov_apic=prov_apic)

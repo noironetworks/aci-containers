@@ -11,7 +11,7 @@ data:
         "log-level": "debug",
         "aci-vmm-domain": "kubernetes1",
         "aci-vmm-controller": "kubernetes1",
-        "aci-policy-tenant": "demo",
+        "aci-policy-tenant": "kube",
         "aci-service-phys-dom": "kubernetes-control",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
@@ -21,19 +21,19 @@ data:
         ],
         "aci-vrf": "kubernetes-vrf",
         "default-endpoint-group": {
-            "policy-space": "demo",
-            "name": "default|default"
+            "policy-space": "kube",
+            "name": "kubernetes|kube-default"
         },
         "service-ip-pool": [
             {
-                "start": "10.4.1.1", 
+                "start": "10.4.0.2", 
                 "end": "10.4.255.254"
             }
         ],
         "static-service-ip-pool": [
             {
-                "start": "10.4.0.1", 
-                "end": "10.4.0.255"
+                "start": "10.3.0.2", 
+                "end": "10.3.0.254"
             }
         ],
         "pod-ip-pool": [
@@ -44,12 +44,12 @@ data:
         ],
         "node-service-ip-pool": [
             {
-                "start": "10.6.1.1", 
-                "end": "10.6.1.254"
+                "start": "10.6.0.2", 
+                "end": "10.6.0.254"
             }
         ],
         "node-service-subnets": [
-            "10.6.0.1/16"
+            "10.6.0.1/24"
         ]
     }
   host-agent-config: |-

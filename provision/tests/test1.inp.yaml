@@ -1,119 +1,63 @@
-# Configuration for ACI
+#
+# Configuration for ACI Fabric
+#
 aci_config:
-  # List of APIC hosts to connect to for APIC API access
-  apic_hosts:
-    - 10.30.120.100
-  # login credentials for APIC
-  apic_login:
+  system_id: kube                       # Every opflex cluster on the same fabric must have a distict ID
+  apic_hosts:                           # List of APIC hosts to connect to for APIC API access
+    - 10.30.120.140
+  apic_login:                           # Login credentials for APIC
     username: admin
     password: noir0123
-  # the ACI infrastructure VLAN
-  infra_vlan: 4093
-  # The service VLAN used for external LoadBalancer services
-  service_vlan: 4003
-
-  # The ACI VMM domain
-  vmm_domain:
-    domain: kubernetes1
-    controller: kubernetes1
-
-  # The ACI physical domain used for control network and external
-  # services
-  physical_domain:
-    domain: kubernetes-control
-  disable_ssl: true
-
-# Configuration that applies to each kubernetes node
-node_config:
-  # The name of the interface that uplinks to the ACI fabric
-  uplink_iface: eth2
-  # The type of encapsulation to use; either vxlan or vlan
-  encap_type: vxlan
-  # If encap type is vxlan, this is the name of the uplink used for
-  # the vxlan connection.  This is typically a subinterface on the
-  # uplink interface on the infra vlan.
-  vxlan_uplink_iface: eth2.4093
-
-# Configuration related to kubernetes pods and policy
-kubernetes_config:
-  # The ACI tenant in which policy objects will be created
-  aci_policy_tenant: common
-
-  # The ACI VRF that contains this kubernetes install
-  aci_vrf:
+  vrf:                                  # VRF used to create all subnets used bu this Kubernetes cluster
+    name: kube
     tenant: common
-    name: kubernetes-vrf
-
-  # Layer 3 out used to provide external connectivity for pod network
-  # This will be used to provision load balancers external service IPs
-  # This l3out must be in the VRF listed above
-  aci_l3out:
-    name: l3out
-    # The external networks on the l3out from which external services
-    # should be reachable
-    external_networks:
-      - l3out
-
-  # The global ACI default endpoint group to assign to pods without
-  # another overriding assignment
-  default_endpoint_group:
-    tenant: demo
-    app_profile: default
-    group: default
-
-  # A pool of IP addresses used for the pod network
-  pod_ip_pool:
-    - start: 10.1.0.2
-      end: 10.1.255.254
-  # Subnet and route configuration for pod networking
-  pod_network:
-    - subnet: 10.1.0.0/16
-      gateway: 10.1.0.1
-      routes:
-        - dst: 0.0.0.0/0
-          gw: 10.1.0.1
-
-  # A pool of IP addresses used for external LoadBalancer services
-  service_ip_pool:
-    - start: 10.4.1.1
-      end: 10.4.255.254
-  # A pool of IP addresses that are available for services that select
-  # a static IP address
-  static_service_ip_pool:
-    - start: 10.4.0.1
-      end: 10.4.0.255
-  # A pool of IP addresses for assigning per-node IP addresses used
-  # for load balancing external services
-  node_service_ip_pool:
-    - start: 10.6.1.1
-      end: 10.6.1.254
-  # a list of subnet/gateway CIDR addresses that cover the addresses
-  # in the node service IP pool
-  node_service_gw_subnets:
-    - "10.6.0.1/16"
-
-  # Set to false to disable cluster role configurations for ACI
-  # containers components (requires Kubernetes version >= 1.6).
-  # Default true
-  use_cluster_role: true
-
-  # Set to true to enable rolling updates for ACI containers
-  # daemonsets when (requires Kubernetes version >= 1.6).  Default
-  # true
-  use_ds_rolling_update: true
-
+  l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
+    name: l3out                         # This is also used to provision external service IPs/LB
+    external_networks: [default]        #
+  vmm_domain:                           # Kubernetes VMM domain configuration
+    encap_type: vxlan                     # Encap mode: vxlan or vlan
+    mcast_range:                        # Every vxlan VMM on the same fabric must use a distinct range
+        start: 225.2.1.1
+        end: 225.2.255.255
+#
+# Networks used by Kubernetes
+#
+net_config:
+  node_subnet: 10.1.0.1/16              # Subnet to use for nodes
+  pod_subnet: 10.2.0.1/16               # Subnet to use for Kubernetes Pods
+  extern_dynamic: 10.3.0.1/24           # Subnet to use for dynamically allocated external services
+  extern_static: 10.4.0.1/24            # Subnet to use for statically allocated external services
+  node_svc_subnet: 10.5.0.1/24          # Subnet to use for service graph
+  kubeapi_vlan: 4001                    # The VLAN used by the internal physdom for nodes
+  service_vlan: 4003                    # The VLAN used for external LoadBalancer services
+  infra_vlan: 4093                      # ACI infrastructure VLAN
+#
+# Configuration that applies to each kubernetes node
+#
+node_config:
+  uplink_iface: eth2                    # The name of the interface that uplinks to the ACI fabric
+  vxlan_uplink_iface: eth2.4093         # If encap type is vxlan, this is the name of the uplink
+                                        # This is the infra-vlan subinterface on the uplink interface
+#
+# Configuration related to kubernetes pods and policy
+#
+kube_config:
+  controller: 1.1.1.1                   # IP address of kubernetes controller, not used
+                                        # The following need kubernetes >= 1.6, set to false for < 1.6
+  use_cluster_role: true                # Set to false to disable cluster role configurations for ACI components
+  use_ds_rolling_update: true           # Set to true to enable rolling updates for ACI containers daemonsets
+#
 # Configuration for container registry
+# Update if a custom container registry has been setup
+#
 registry:
-  # If a custom container registry is desired, specify the label prefix.
-  # Example: "registry.example.com/noiro"
-  image_prefix: noiro
-  # If you need to specify an image pull secret to access a customer
-  # registry, specify the name below
-  # image_pull_secret: secret_name
-
-# Enable additional logging for services
+  image_prefix: noiro                   # Example: "registry.example.com/noiro"
+  # image_pull_secret: secret_name      # If you need to specify an image pull secret for custom registry
+#
+# Enable/disable logging for ACI components on kubernetes
+#
 logging:
-  controller_log_level: debug
-  hostagent_log_level: debug
+  controller_log_level: info
+  hostagent_log_level: info
   opflexagent_log_level: info
-  aim_debug: True
+  aim_debug: False

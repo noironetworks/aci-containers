@@ -1,6 +1,6 @@
+import collections
 import json
 import requests
-
 
 requests.packages.urllib3.disable_warnings()
 
@@ -78,9 +78,9 @@ class ApicKubeConfig(object):
     def get_config(self):
         def update(data, x):
             if x:
-                data[x[0]] = str(x[1])
+                data[x[0]] = json.dumps(x[1], sort_keys=True)
 
-        data = {}
+        data = collections.OrderedDict()
         update(data, self.vlan_pool())
         update(data, self.mcast_pool())
         update(data, self.phys_dom())
@@ -89,16 +89,15 @@ class ApicKubeConfig(object):
         return data
 
     def vlan_pool(self):
-        pool_name = self.config["aci_config"]["system_id"] + "-pool"
-        kubeapi_vlan = self.config["aci_config"]["kubeapi_vlan"]
-        service_vlan = self.config["aci_config"]["service_vlan"]
+        pool_name = self.config["aci_config"]["physical_domain"]["vlan_pool"]
+        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+        service_vlan = self.config["net_config"]["service_vlan"]
 
         path = "/api/mo/uni/infra/vlanns-[%s]-static.json" % pool_name
         data = {
             "fvnsVlanInstP": {
                 "attributes": {
                     "name": pool_name,
-                    "dn": "uni/infra/vlanns-[%s]-static" % pool_name,
                     "allocMode": "static"
                 },
                 "children": [
@@ -126,9 +125,9 @@ class ApicKubeConfig(object):
         return path, data
 
     def mcast_pool(self):
-        mpool_name = self.config["aci_config"]["system_id"] + "-mpool"
-        mcast_start = "225.2.1.1"
-        mcast_end = "225.2.255.255"
+        mpool_name = self.config["aci_config"]["vmm_domain"]["mcast_pool"]
+        mcast_start = self.config["aci_config"]["vmm_domain"]["mcast_range"]["start"]
+        mcast_end = self.config["aci_config"]["vmm_domain"]["mcast_range"]["end"]
 
         path = "/api/mo/uni/infra/maddrns-%s.json" % mpool_name
         data = {
@@ -152,8 +151,8 @@ class ApicKubeConfig(object):
         return path, data
 
     def phys_dom(self):
-        phys_name = self.config["aci_config"]["system_id"] + "-pdom"
-        pool_name = self.config["aci_config"]["system_id"] + "-pool"
+        phys_name = self.config["aci_config"]["physical_domain"]["domain"]
+        pool_name = self.config["aci_config"]["physical_domain"]["vlan_pool"]
 
         path = "/api/mo/uni/phys-%s.json" % phys_name
         data = {
@@ -176,52 +175,45 @@ class ApicKubeConfig(object):
         return path, data
 
     def kube_dom(self):
-        vmm_name = self.config["aci_config"]["system_id"]
-        mpool_name = self.config["aci_config"]["system_id"] + "-mpool"
+        vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
+        mcast_fabric = self.config["aci_config"]["vmm_domain"]["mcast_fabric"]
+        mpool_name = self.config["aci_config"]["vmm_domain"]["mcast_pool"]
+        kube_controller = self.config["kube_config"]["controller"]
 
         path = "/api/mo/uni/vmmp-Kubernetes/dom-%s.json" % vmm_name
         data = {
-            "vmmProvP": {
+            "vmmDomP": {
                 "attributes": {
-                    "vendor": "Kubernetes"
+                    "name": vmm_name,
+                    "mode": "k8s",
+                    "enfPref": "sw",
+                    "encapMode": encap_type,
+                    "prefEncapMode": encap_type,
+                    "mcastAddr": mcast_fabric,
                 },
                 "children": [
                     {
-                        "vmmDomP": {
+                        "vmmCtrlrP": {
                             "attributes": {
-                                "name": "kube",
+                                "name": vmm_name,
                                 "mode": "k8s",
-                                "enfPref": "sw",
-                                "encapMode": "vxlan",
-                                "prefEncapMode": "vxlan",
-                                "mcastAddr": "225.1.2.3"
+                                "scope": "kubernetes",
+                                "hostOrIp": kube_controller,
                             },
                             "children": [
                                 {
-                                    "vmmCtrlrP": {
-                                        "attributes": {
-                                            "name": "kube",
-                                            "scope": "kube",
-                                            "rootContName": "kube",
-                                            "mode": "k8s",
-                                            "hostOrIp": "1.1.1.1"
-                                        },
-                                        "children": [
-                                            {
-                                                "vmmInjectedCont": {
-                                                }
-                                            }
-                                        ]
-                                    }
-                                },
-                                {
-                                    "vmmRsDomMcastAddrNs": {
-                                        "attributes": {
-                                            "tDn": "uni/infra/maddrns-%s" % mpool_name
-                                        }
+                                    "vmmInjectedCont": {
                                     }
                                 }
                             ]
+                        }
+                    },
+                    {
+                        "vmmRsDomMcastAddrNs": {
+                            "attributes": {
+                                "tDn": "uni/infra/maddrns-%s" % mpool_name
+                            }
                         }
                     }
                 ]
@@ -230,16 +222,16 @@ class ApicKubeConfig(object):
         return path, data
 
     def kube_tn(self):
-        tn_name = self.config["aci_config"]["system_id"]
-        vmm_name = self.config["aci_config"]["system_id"]
-        phys_name = self.config["aci_config"]["system_id"] + "-pdom"
-        kubeapi_vlan = self.config["aci_config"]["kubeapi_vlan"]
-        kube_vrf = "kube-vrf"
-        kube_l3out = "kube-l3out"
-        node_subnet = "10.1.0.1/16"
-        pod_subnet = "10.2.0.1/16"
+        tn_name = self.config["aci_config"]["cluster_tenant"]
+        vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        phys_name = self.config["aci_config"]["physical_domain"]["domain"]
+        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+        kube_vrf = self.config["aci_config"]["vrf"]["name"]
+        kube_l3out = self.config["aci_config"]["l3out"]["name"]
+        node_subnet = self.config["net_config"]["node_subnet"]
+        pod_subnet = self.config["net_config"]["pod_subnet"]
 
-        path = "/api/mo/uni/tn-%s" % tn_name
+        path = "/api/mo/uni/tn-%s.json" % tn_name
         data = {
             "fvTenant": {
                 "attributes": {
@@ -779,21 +771,3 @@ class ApicKubeConfig(object):
             }
         }
         return path, data
-
-
-if __name__ == "__main__":
-    config = {
-        "aci_config": {
-            "system_id": "kubernetes",
-            "infra_vlan": 4093,
-            "service_vlan": 4003,
-            "kubeapi_vlan": 4001,
-        }
-    }
-    data = ApicKubeConfig(config)
-    print data.get_config().keys()
-
-    apic = Apic('10.30.120.140', 'admin', 'noir0123')
-    apic.debug = True
-    apic.provision(data)
-    apic.unprovision(data)

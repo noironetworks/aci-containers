@@ -450,7 +450,7 @@ spec:
                   name: apic-user-pass
                   key: password
             - name: APIC_HOSTS
-              value: '10.30.120.140'
+              value: '10.30.120.100'
             - name: APIC_MONITOR_TENANTS
               value: 'common'
             - name: K8S_VMM_DOMAIN

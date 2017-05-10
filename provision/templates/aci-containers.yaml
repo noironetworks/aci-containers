@@ -11,36 +11,36 @@ data:
         "log-level": {{config.logging.controller_log_level|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
-        "aci-policy-tenant": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
+        "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
-        "aci-service-encap": {{ ("vlan-" ~ config.aci_config.service_vlan)|json }},
-        "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
-        "aci-l3out": {{config.kubernetes_config.aci_l3out.name|json}},
-        "aci-ext-networks": {{ config.kubernetes_config.aci_l3out.external_networks|json|indent(width=8) }},
-        "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
+        "aci-service-encap": {{ ("vlan-" ~ config.net_config.service_vlan)|json }},
+        "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
+        "aci-l3out": {{config.aci_config.l3out.name|json}},
+        "aci-ext-networks": {{ config.aci_config.l3out.external_networks|json|indent(width=8) }},
+        "aci-vrf": {{config.aci_config.vrf.name|json}},
         "default-endpoint-group": {
-            "policy-space": {{config.kubernetes_config.default_endpoint_group.tenant|json}},
-            "name": {{(config.kubernetes_config.default_endpoint_group.app_profile ~ "|" ~ config.kubernetes_config.default_endpoint_group.group)|json}}
+            "policy-space": {{config.kube_config.default_endpoint_group.tenant|json}},
+            "name": {{(config.kube_config.default_endpoint_group.app_profile ~ "|" ~ config.kube_config.default_endpoint_group.group)|json}}
         },
-        "service-ip-pool": {{ config.kubernetes_config.service_ip_pool|json|indent(width=8) }},
-        "static-service-ip-pool": {{ config.kubernetes_config.static_service_ip_pool|json|indent(width=8) }},
-        "pod-ip-pool": {{ config.kubernetes_config.pod_ip_pool|json|indent(width=8) }},
-        "node-service-ip-pool": {{ config.kubernetes_config.node_service_ip_pool|json|indent(width=8) }},
-        "node-service-subnets": {{ config.kubernetes_config.node_service_gw_subnets|json|indent(width=8) }}
+        "service-ip-pool": {{ config.kube_config.service_ip_pool|json|indent(width=8) }},
+        "static-service-ip-pool": {{ config.kube_config.static_service_ip_pool|json|indent(width=8) }},
+        "pod-ip-pool": {{ config.kube_config.pod_ip_pool|json|indent(width=8) }},
+        "node-service-ip-pool": {{ config.kube_config.node_service_ip_pool|json|indent(width=8) }},
+        "node-service-subnets": {{ config.kube_config.node_service_gw_subnets|json|indent(width=8) }}
     }
   host-agent-config: |-
     {
         "log-level": {{config.logging.hostagent_log_level|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
-        "aci-vrf": {{config.kubernetes_config.aci_vrf.name|json}},
-        "aci-vrf-tenant": {{config.kubernetes_config.aci_vrf.tenant|json}},
+        "aci-vrf": {{config.aci_config.vrf.name|json}},
+        "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
         "uplink-iface": {{ config.node_config.uplink_iface|json }},
-        "service-vlan": {{ config.aci_config.service_vlan|json }},
+        "service-vlan": {{ config.net_config.service_vlan|json }},
         "encap-type": {{ config.node_config.encap_type|json }},
-        "aci-infra-vlan": {{ config.aci_config.infra_vlan|json }},
+        "aci-infra-vlan": {{ config.net_config.infra_vlan|json }},
         "vxlan-iface": {{ config.node_config.vxlan_uplink_iface|json }},
-        "cni-netconfig": {{ config.kubernetes_config.pod_network|json|indent(width=8) }}
+        "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
     }
   opflex-agent-config: |-
     {
@@ -86,7 +86,7 @@ metadata:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
-{% if config.kubernetes_config.use_cluster_role %}
+{% if config.kube_config.use_cluster_role %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
@@ -192,7 +192,7 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kubernetes_config.use_ds_rolling_update %}
+  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
   {% endif %}
@@ -314,7 +314,7 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kubernetes_config.use_ds_rolling_update %}
+  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
   {% endif %}
@@ -438,7 +438,7 @@ spec:
             - name: APIC_HOSTS
               value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
             - name: APIC_MONITOR_TENANTS
-              value: {{ config.kubernetes_config.aci_vrf.tenant|yaml_quote }}
+              value: {{ config.aci_config.vrf.tenant|yaml_quote }}
             - name: K8S_VMM_DOMAIN
               value: {{ config.aci_config.vmm_domain.domain|yaml_quote }}
             - name: K8S_VMM_CONTROLLER
