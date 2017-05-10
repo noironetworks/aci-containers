@@ -100,6 +100,7 @@ class ApicKubeConfig(object):
         update(data, self.phys_dom())
         update(data, self.kube_dom())
         update(data, self.associate_aep())
+        update(data, self.common_tn())
         update(data, self.kube_tn())
         return data
 
@@ -293,7 +294,67 @@ class ApicKubeConfig(object):
         }
         return path, data
 
+    def common_tn(self):
+        system_id = self.config["aci_config"]["system_id"]
+
+        path = "/api/mo/uni/tn-common.json"
+        data = {
+            "fvTenant": {
+                "attributes": {
+                    "name": "common",
+                    "dn": "uni/tn-common",
+                },
+                "children": [
+                    {
+                        "vzFilter": {
+                            "attributes": {
+                                "name": "allow-all-filter"
+                            },
+                            "children": [
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "allow-all"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "vzBrCP": {
+                            "attributes": {
+                                "name": "%s-l3out-allow-all" % system_id
+                            },
+                            "children": [
+                                {
+                                    "vzSubj": {
+                                        "attributes": {
+                                            "name": "allow-all-subj",
+                                            "consMatchT": "AtleastOne",
+                                            "provMatchT": "AtleastOne"
+                                        },
+                                        "children": [
+                                            {
+                                                "vzRsSubjFiltAtt": {
+                                                    "attributes": {
+                                                        "tnVzFilterName": "allow-all-filter"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                ]
+            }
+        }
+        return path, data
+
     def kube_tn(self):
+        system_id = self.config["aci_config"]["system_id"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         phys_name = self.config["aci_config"]["physical_domain"]["domain"]
@@ -340,7 +401,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "fvRsCons": {
                                                     "attributes": {
-                                                        "tnVzBrCPName": "l3out-allow-all"
+                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
                                                     }
                                                 }
                                             },
@@ -419,7 +480,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "fvRsCons": {
                                                     "attributes": {
-                                                        "tnVzBrCPName": "l3out-allow-all"
+                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
                                                     }
                                                 }
                                             },
@@ -470,7 +531,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "fvRsCons": {
                                                     "attributes": {
-                                                        "tnVzBrCPName": "l3out-allow-all"
+                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
                                                     }
                                                 }
                                             },
@@ -662,22 +723,6 @@ class ApicKubeConfig(object):
                         }
                     },
                     {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "allow-all-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "allow-all"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
                         "vzBrCP": {
                             "attributes": {
                                 "name": "arp"
@@ -749,33 +794,6 @@ class ApicKubeConfig(object):
                                                 "vzRsSubjFiltAtt": {
                                                     "attributes": {
                                                         "tnVzFilterName": "health-check-filter"
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "l3out-allow-all"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "allow-all-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "allow-all-filter"
                                                     }
                                                 }
                                             }
