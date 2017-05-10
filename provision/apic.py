@@ -45,8 +45,17 @@ class Apic(object):
         return req
 
     def get_infravlan(self):
-        # TODO: Need to find the model to get this
-        return 4093
+        infra_vlan = 4093
+        path = '/api/node/mo/uni/infra/attentp-default/provacc' + \
+               '/rsfuncToEpg-[uni/tn-infra/ap-access/epg-default].json'
+        try:
+            resp = self.get(path)
+            data = json.loads(resp.text)["imdata"][0]
+            encap = data["infraRsFuncToEpg"]["attributes"]["encap"]
+            infra_vlan = int(encap.split("-")[1])
+        except Exception as e:
+            print "Error in getting infa-vlan: %s: " % str(e)
+        return infra_vlan
 
     def provision(self, data):
         for path in data:
@@ -771,3 +780,7 @@ class ApicKubeConfig(object):
             }
         }
         return path, data
+
+
+if __name__ == "__main__":
+    pass
