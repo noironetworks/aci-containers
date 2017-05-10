@@ -4,8 +4,8 @@
 aci_config:
   system_id: kube                       # Every opflex cluster on the same fabric must have a distict ID
   apic_hosts:                           # List of APIC hosts to connect to for APIC API access
-    - 10.30.120.100
-  apic_login:                           # Login credentials for APIC 
+    - 10.30.120.140
+  apic_login:                           # Login credentials for APIC
     username: admin
     password: noir0123
   vrf:                                  # VRF used to create all subnets used bu this Kubernetes cluster
@@ -31,7 +31,7 @@ net_config:
   kubeapi_vlan: 4001                    # The VLAN used by the internal physdom for nodes
   service_vlan: 4003                    # The VLAN used for external LoadBalancer services
   infra_vlan: 4093                      # ACI infrastructure VLAN
-# 
+#
 # Configuration that applies to each kubernetes node
 #
 node_config:

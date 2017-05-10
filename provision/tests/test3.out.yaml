@@ -8,54 +8,86 @@ metadata:
 data:
   controller-config: |-
     {
-        "log-level": {{config.logging.controller_log_level|json}},
-        "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
-        "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
-        "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
-        "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
-        "aci-service-encap": {{ ("vlan-" ~ config.net_config.service_vlan)|json }},
-        "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
-        "aci-l3out": {{config.aci_config.l3out.name|json}},
-        "aci-ext-networks": {{ config.aci_config.l3out.external_networks|json|indent(width=8) }},
-        "aci-vrf": {{config.aci_config.vrf.name|json}},
+        "log-level": "info",
+        "aci-vmm-domain": "kube",
+        "aci-vmm-controller": "kube",
+        "aci-policy-tenant": "kube",
+        "aci-service-phys-dom": "kube-pdom",
+        "aci-service-encap": "vlan-4003",
+        "aci-vrf-tenant": "common",
+        "aci-l3out": "l3out",
+        "aci-ext-networks": [
+            "default"
+        ],
+        "aci-vrf": "kube",
         "default-endpoint-group": {
-            "policy-space": {{config.kube_config.default_endpoint_group.tenant|json}},
-            "name": {{(config.kube_config.default_endpoint_group.app_profile ~ "|" ~ config.kube_config.default_endpoint_group.group)|json}}
+            "policy-space": "kube",
+            "name": "kubernetes|kube-default"
         },
-        "service-ip-pool": {{ config.kube_config.service_ip_pool|json|indent(width=8) }},
-        "static-service-ip-pool": {{ config.kube_config.static_service_ip_pool|json|indent(width=8) }},
-        "pod-ip-pool": {{ config.kube_config.pod_ip_pool|json|indent(width=8) }},
-        "node-service-ip-pool": {{ config.kube_config.node_service_ip_pool|json|indent(width=8) }},
-        "node-service-subnets": {{ config.kube_config.node_service_gw_subnets|json|indent(width=8) }}
+        "service-ip-pool": [
+            {
+                "start": "10.3.0.2", 
+                "end": "10.3.0.254"
+            }
+        ],
+        "static-service-ip-pool": [
+            {
+                "start": "10.4.0.2", 
+                "end": "10.4.0.254"
+            }
+        ],
+        "pod-ip-pool": [
+            {
+                "start": "10.2.0.2", 
+                "end": "10.2.255.254"
+            }
+        ],
+        "node-service-ip-pool": [
+            {
+                "start": "10.5.0.2", 
+                "end": "10.5.0.254"
+            }
+        ],
+        "node-service-subnets": [
+            "10.5.0.1/24"
+        ]
     }
   host-agent-config: |-
     {
-        "log-level": {{config.logging.hostagent_log_level|json}},
-        "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
-        "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
-        "aci-vrf": {{config.aci_config.vrf.name|json}},
-        "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
-        "uplink-iface": {{ config.node_config.uplink_iface|json }},
-        "service-vlan": {{ config.net_config.service_vlan|json }},
-        "encap-type": {{ config.node_config.encap_type|json }},
-        "aci-infra-vlan": {{ config.net_config.infra_vlan|json }},
-        "vxlan-iface": {{ config.node_config.vxlan_uplink_iface|json }},
-        "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
+        "log-level": "info",
+        "aci-vmm-domain": "kube",
+        "aci-vmm-controller": "kube",
+        "aci-vrf": "kube",
+        "aci-vrf-tenant": "common",
+        "uplink-iface": "eth2",
+        "service-vlan": 4003,
+        "encap-type": "vxlan",
+        "aci-infra-vlan": 4093,
+        "vxlan-iface": "eth2.4093",
+        "cni-netconfig": [
+            {
+                "routes": [
+                    {
+                        "gw": "10.2.0.1", 
+                        "dst": "0.0.0.0/0"
+                    }
+                ], 
+                "subnet": "10.2.0.0/16", 
+                "gateway": "10.2.0.1"
+            }
+        ]
     }
   opflex-agent-config: |-
     {
         "log": {
-            "level": {{config.logging.opflexagent_log_level|json}}
+            "level": "info"
         },
         "opflex": {
-          {% if config.aci_config.disable_ssl %}
-            "ssl": { "mode": "disabled" }
-          {% endif %}
         }
     }
   aim-config: |-
     [DEFAULT]
-    debug = {{config.logging.aim_debug}}
+    debug = False
 ---
 apiVersion: v1
 kind: Secret
@@ -63,8 +95,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: {{config.aci_config.apic_login.username|base64enc}}
-  password: {{config.aci_config.apic_login.password|base64enc}}
+  username: YWRtaW4=
+  password: bm9pcjAxMjM=
 ---
 apiVersion: extensions/v1beta1
 kind: ThirdPartyResource
@@ -86,7 +118,6 @@ metadata:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
-{% if config.kube_config.use_cluster_role %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
@@ -183,7 +214,6 @@ subjects:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
-{% endif %}
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -192,10 +222,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
@@ -206,16 +234,12 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
-      {% if config.registry.image_pull_secret %}
-      imagePullSecrets:
-        - name: {{ config.registry.image_pull_secret|yaml_quote }}
-      {% endif %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: {{ config.registry.image_prefix }}/aci-containers-host
+          image: noiro/aci-containers-host
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -247,7 +271,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: {{ config.registry.image_prefix }}/opflex
+          image: noiro/opflex
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -265,7 +289,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: {{ config.registry.image_prefix }}/opflex
+          image: noiro/opflex
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: IfNotPresent
@@ -314,10 +338,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
@@ -327,16 +349,12 @@ spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
-      {% if config.registry.image_pull_secret %}
-      imagePullSecrets:
-        - name: {{ config.registry.image_pull_secret|yaml_quote }}
-      {% endif %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
-          image: {{ config.registry.image_prefix }}/openvswitch
+          image: noiro/openvswitch
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -406,13 +424,9 @@ spec:
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
-      {% if config.registry.image_pull_secret %}
-      imagePullSecrets:
-        - name: {{ config.registry.image_pull_secret|yaml_quote }}
-      {% endif %}
       containers:
         - name: aci-containers-controller
-          image: {{ config.registry.image_prefix }}/aci-containers-controller
+          image: noiro/aci-containers-controller
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: controller-config-volume
@@ -422,7 +436,7 @@ spec:
               path: /status
               port: 8091
         - name: aci-integration-module
-          image: {{ config.registry.image_prefix }}/aci-integration-module
+          image: noiro/aci-integration-module
           imagePullPolicy: IfNotPresent
           env:
             - name: APIC_USERNAME
@@ -436,13 +450,13 @@ spec:
                   name: apic-user-pass
                   key: password
             - name: APIC_HOSTS
-              value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
+              value: '10.30.120.100'
             - name: APIC_MONITOR_TENANTS
-              value: {{ config.aci_config.vrf.tenant|yaml_quote }}
+              value: 'common'
             - name: K8S_VMM_DOMAIN
-              value: {{ config.aci_config.vmm_domain.domain|yaml_quote }}
+              value: 'kube'
             - name: K8S_VMM_CONTROLLER
-              value: {{ config.aci_config.vmm_domain.controller|yaml_quote }}
+              value: 'kube'
           volumeMounts:
             - name: aim-config-volume
               mountPath: /usr/local/etc/aim-local
