@@ -231,14 +231,28 @@ def config_validate(config):
 
 def config_advise(config, prov_apic):
     try:
-        checks = {
-        }
-        for k in checks:
-            value, validator = checks[k]
-            if not validator(value):
-                raise Exception(k)
+        if prov_apic is not None:
+            apic = get_apic(config)
+
+            aep_name = config["aci_config"]["aep"]
+            aep = apic.get_aep(aep_name)
+            if aep is None:
+                warn("AEP not defined in the APIC: %s" % aep_name)
+
+            vrf_tenant = config["aci_config"]["vrf"]["tenant"]
+            vrf_name = config["aci_config"]["vrf"]["name"]
+            l3out_name = config["aci_config"]["l3out"]["name"]
+            vrf = apic.get_vrf(vrf_tenant, vrf_name)
+            if vrf is None:
+                warn("VRF not defined in the APIC: %s/%s" %
+                     (vrf_tenant, vrf_name))
+            l3out = apic.get_l3out(vrf_tenant, l3out_name)
+            if l3out is None:
+                warn("L3out not defined in the APIC: %s/%s" %
+                     (vrf_tenant, l3out_name))
+
     except Exception as e:
-        warn("Required configuration not present or not correct: '%s'" % e.message)
+        warn("Error in validating existence of AEP: '%s'" % e.message)
     return True
 
 

@@ -44,18 +44,38 @@ class Apic(object):
             self.cookies = {'APIC-Cookie': token}
         return req
 
+    def get_path(self, path):
+        ret = None
+        try:
+            resp = self.get(path)
+            respj = json.loads(resp.text)
+            if len(respj["imdata"]) > 0:
+                ret = respj["imdata"][0]
+        except Exception as e:
+            print "Error in getting %s: %s: " % (path, str(e))
+        return ret
+
     def get_infravlan(self):
         infra_vlan = 4093
         path = '/api/node/mo/uni/infra/attentp-default/provacc' + \
                '/rsfuncToEpg-[uni/tn-infra/ap-access/epg-default].json'
-        try:
-            resp = self.get(path)
-            data = json.loads(resp.text)["imdata"][0]
+        data = self.get_path(path)
+        if data:
             encap = data["infraRsFuncToEpg"]["attributes"]["encap"]
             infra_vlan = int(encap.split("-")[1])
-        except Exception as e:
-            print "Error in getting infa-vlan: %s: " % str(e)
         return infra_vlan
+
+    def get_aep(self, aep_name):
+        path = '/api/mo/uni/infra/attentp-%s.json' % aep_name
+        return self.get_path(path)
+
+    def get_vrf(self, tenant, name):
+        path = '/api/mo/uni/tn-%s/ctx-%s.json' % (tenant, name)
+        return self.get_path(path)
+
+    def get_l3out(self, tenant, name):
+        path = '/api/mo/uni/tn-%s/out-%s.json' % (tenant, name)
+        return self.get_path(path)
 
     def provision(self, data):
         for path in data:
