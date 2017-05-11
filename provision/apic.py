@@ -1,8 +1,17 @@
-import collections
+from __future__ import print_function
 import json
 import requests
+import sys
 
 requests.packages.urllib3.disable_warnings()
+
+
+def err(msg):
+    print("ERR:  " + msg, file=sys.stderr)
+
+
+def dbg(msg):
+    print("DBG:  " + msg, file=sys.stderr)
 
 
 class Apic(object):
@@ -61,7 +70,7 @@ class Apic(object):
             if len(respj["imdata"]) > 0:
                 ret = respj["imdata"][0]
         except Exception as e:
-            print "Error in getting %s: %s: " % (path, str(e))
+            err("Error in getting %s: %s: " % (path, str(e)))
         return ret
 
     def get_infravlan(self):
@@ -87,45 +96,52 @@ class Apic(object):
         return self.get_path(path)
 
     def provision(self, data):
-        for path in data:
+        for path, config in data:
             try:
-                if data[path] is not None:
-                    resp = self.post(path, data[path])
+                if config is not None:
+                    resp = self.post(path, config)
                     self.check_resp(resp)
                     if self.debug:
-                        print path, resp.text
+                        dbg("%s: %s", (path, resp.text))
             except Exception as e:
-                # print it, otherwise ignore it
-                print "Error in provisioning %s: %s" % (path, str(e))
+                # log it, otherwise ignore it
+                err("Error in provisioning %s: %s" % (path, str(e)))
 
     def unprovision(self, data):
-        for path in data:
+        for path, config in data:
             try:
                 if path not in [
-                        "/api/node/mo/uni/infra.json",
-                        "/api/node/mo/uni/tn-common.json",
+                        "/api/mo/uni/infra.json",
+                        "/api/mo/uni/tn-common.json",
                 ]:
                     resp = self.delete(path)
                     self.check_resp(resp)
                     if self.debug:
-                        print path, resp.text
+                        dbg("%s: %s", (path, resp.text))
             except Exception as e:
-                # print it, otherwise ignore it
-                print "Error in un-provisioning %s: %s" % (path, str(e))
+                # log it, otherwise ignore it
+                err("Error in un-provisioning %s: %s" % (path, str(e)))
 
 
 class ApicKubeConfig(object):
     def __init__(self, config):
         self.config = config
 
+    @staticmethod
+    def save_config(config, outfilep):
+        for path, data in config:
+            print(path, file=outfilep)
+            print(data, file=outfilep)
+
     def get_config(self):
         def update(data, x):
             if x:
-                data[x[0]] = json.dumps(x[1], sort_keys=True, indent=4)
+                data.append(
+                    (x[0], json.dumps(x[1], sort_keys=True, indent=4)))
                 for path in x[2:]:
-                    data[path] = None
+                    data.append((path, None))
 
-        data = collections.OrderedDict()
+        data = []
         update(data, self.vlan_pool())
         update(data, self.mcast_pool())
         update(data, self.phys_dom())

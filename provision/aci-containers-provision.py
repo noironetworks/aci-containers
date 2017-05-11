@@ -278,15 +278,14 @@ def generate_apic_config(config, prov_apic, apic_file):
     apic_config = ApicKubeConfig(config).get_config()
     if apic_file:
         with open(apic_file, 'w') as outfile:
-            json.dump(apic_config, outfile, sort_keys=True, indent=4)
-    if prov_apic is None:
-        return apic_config
+            ApicKubeConfig.save_config(apic_config, outfile)
 
-    apic = get_apic(config)
-    if prov_apic is True:
-        apic.provision(apic_config)
-    if prov_apic is False:
-        apic.unprovision(apic_config)
+    if prov_apic is not None:
+        apic = get_apic(config)
+        if prov_apic is True:
+            apic.provision(apic_config)
+        if prov_apic is False:
+            apic.unprovision(apic_config)
     return apic_config
 
 
@@ -346,8 +345,8 @@ def test_main():
         main(inp, kubefile, prov_apic=None, apic_file=apicfile)
         expectedkube = inp[:-8] + 'out.yaml'
         assert filecmp.cmp(kubefile, expectedkube)
-        # expectedapic = inp[:-8] + 'apic.yaml'
-        # assert filecmp.cmp(apicfile, expectedapic)
+        expectedapic = inp[:-8] + 'apic.txt'
+        assert filecmp.cmp(apicfile, expectedapic)
         os.remove(kubefile)
         os.remove(apicfile)
 
