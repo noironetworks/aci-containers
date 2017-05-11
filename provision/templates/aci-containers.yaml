@@ -48,7 +48,7 @@ data:
             "level": {{config.logging.opflexagent_log_level|json}}
         },
         "opflex": {
-          {% if config.aci_config.disable_ssl %}
+          {% if not config.aci_config.client_ssl %}
             "ssl": { "mode": "disabled" }
           {% endif %}
         }

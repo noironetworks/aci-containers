@@ -23,7 +23,7 @@ aci_config:
     mcast_range:
         start: 225.2.1.1
         end: 225.2.255.255
-  disable_ssl: true
+  client_ssl: false
 
 net_config:
   node_subnet: 10.1.0.1/16
