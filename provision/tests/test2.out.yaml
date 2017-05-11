@@ -24,6 +24,11 @@ data:
             "policy-space": "kube",
             "name": "kubernetes|kube-default"
         },
+        "namespace-default-endpoint-group": {
+            "kube-system":
+                "policy-space": "kube",
+                "name": "kubernetes|kube-system"
+        },
         "service-ip-pool": [
             {
                 "start": "10.4.0.2", 

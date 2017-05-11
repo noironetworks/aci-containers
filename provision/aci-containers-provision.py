@@ -163,6 +163,13 @@ def config_adjust(config, prov_apic):
                 "app_profile": "kubernetes",
                 "group": "kube-default",
             },
+            "namespace_default_endpoint_group": {
+                "kube-system": {
+                    "tenant": tenant,
+                    "app_profile": "kubernetes",
+                    "group": "kube-system",
+                },
+            },
             "pod_ip_pool": [
                 {
                     "start": cidr_split(pod_subnet)[0],

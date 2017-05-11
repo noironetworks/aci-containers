@@ -22,6 +22,13 @@ data:
             "policy-space": {{config.kube_config.default_endpoint_group.tenant|json}},
             "name": {{(config.kube_config.default_endpoint_group.app_profile ~ "|" ~ config.kube_config.default_endpoint_group.group)|json}}
         },
+        "namespace-default-endpoint-group": {
+            {% for ns, val in config.kube_config.namespace_default_endpoint_group.iteritems() %}
+            "{{ns}}":
+                "policy-space": {{val['tenant']|json}},
+                "name": {{(val['app_profile'] ~ "|" ~ val['group'])|json}}
+            {% endfor %}
+        },
         "service-ip-pool": {{ config.kube_config.service_ip_pool|json|indent(width=8) }},
         "static-service-ip-pool": {{ config.kube_config.static_service_ip_pool|json|indent(width=8) }},
         "pod-ip-pool": {{ config.kube_config.pod_ip_pool|json|indent(width=8) }},
@@ -459,3 +466,4 @@ spec:
             items:
               - key: aim-config
                 path: aim-local.conf
+
