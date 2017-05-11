@@ -93,6 +93,8 @@ class ApicKubeConfig(object):
         def update(data, x):
             if x:
                 data[x[0]] = json.dumps(x[1], sort_keys=True)
+                for path in x[2:]:
+                    data[path] = None
 
         data = collections.OrderedDict()
         update(data, self.vlan_pool())
@@ -292,7 +294,11 @@ class ApicKubeConfig(object):
                 ]
             }
         }
-        return path, data
+
+        base = '/api/mo/uni/infra/attentp-%s' % aep_name
+        rsvmm = base + '/rsdomP-[uni/vmmp-Kubernetes/dom-%s].json' % vmm_name
+        rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
+        return path, data, rsvmm, rsphy
 
     def common_tn(self):
         system_id = self.config["aci_config"]["system_id"]
@@ -351,7 +357,9 @@ class ApicKubeConfig(object):
                 ]
             }
         }
-        return path, data
+
+        brc = '/api/mo/uni/tn-common/brc-%s-l3out-allow-all.json' % system_id
+        return path, data, brc
 
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]
