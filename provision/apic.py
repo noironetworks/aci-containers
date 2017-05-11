@@ -44,10 +44,19 @@ class Apic(object):
             self.cookies = {'APIC-Cookie': token}
         return req
 
+    def check_resp(self, resp):
+        respj = json.loads(resp.text)
+        if len(respj["imdata"]) > 0:
+            ret = respj["imdata"][0]
+            if "error" in ret:
+                raise Exception("APIC REST Error: %s" % ret["error"])
+        return resp
+
     def get_path(self, path):
         ret = None
         try:
             resp = self.get(path)
+            self.check_resp(resp)
             respj = json.loads(resp.text)
             if len(respj["imdata"]) > 0:
                 ret = respj["imdata"][0]
@@ -82,6 +91,7 @@ class Apic(object):
             try:
                 if data[path] is not None:
                     resp = self.post(path, data[path])
+                    self.check_resp(resp)
                     if self.debug:
                         print path, resp.text
             except Exception as e:
@@ -93,11 +103,10 @@ class Apic(object):
             try:
                 if path not in [
                         "/api/node/mo/uni/infra.json",
-                        "/api/node/mo/uni/tn-infra.json",
-                        "/api/node/mo/uni/tn-mgmt.json",
                         "/api/node/mo/uni/tn-common.json",
                 ]:
                     resp = self.delete(path)
+                    self.check_resp(resp)
                     if self.debug:
                         print path, resp.text
             except Exception as e:
@@ -112,7 +121,7 @@ class ApicKubeConfig(object):
     def get_config(self):
         def update(data, x):
             if x:
-                data[x[0]] = json.dumps(x[1], sort_keys=True)
+                data[x[0]] = json.dumps(x[1], sort_keys=True, indent=4)
                 for path in x[2:]:
                     data[path] = None
 
@@ -122,6 +131,7 @@ class ApicKubeConfig(object):
         update(data, self.phys_dom())
         update(data, self.kube_dom())
         update(data, self.associate_aep())
+        update(data, self.client_cert())
         update(data, self.common_tn())
         update(data, self.kube_tn())
         return data
@@ -204,7 +214,7 @@ class ApicKubeConfig(object):
                         "infraRsVlanNs": {
                             "attributes": {
                                 "tDn": "uni/infra/vlanns-[%s]-static" % pool_name
-                            }
+                            },
                         }
                     }
                 ]
@@ -319,6 +329,34 @@ class ApicKubeConfig(object):
         rsvmm = base + '/rsdomP-[uni/vmmp-Kubernetes/dom-%s].json' % vmm_name
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
         return path, data, rsvmm, rsphy
+
+    def client_cert(self):
+        def yesno(flag):
+            if flag:
+                return "yes"
+            return "no"
+
+        client_cert = self.config["aci_config"]["client_cert"]
+        client_ssl = self.config["aci_config"]["client_ssl"]
+
+        path = "/api/mo/uni/infra.json"
+        data = {
+            "opflexpProto": {
+                "attributes": {
+                },
+                "children": [
+                    {
+                        "opflexpSettings": {
+                            "attributes": {
+                                "authenticateClients": yesno(client_cert),
+                                "useSsl": yesno(client_ssl),
+                            },
+                        },
+                    },
+                ],
+            },
+        }
+        return path, data
 
     def common_tn(self):
         system_id = self.config["aci_config"]["system_id"]

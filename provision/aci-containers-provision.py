@@ -69,6 +69,8 @@ def config_default():
                     "end": "225.2.255.255",
                 },
             },
+            "client_cert": False,
+            "client_ssl": True,
         },
         "net_config": {
             "node_subnet": "10.1.0.1/16",
