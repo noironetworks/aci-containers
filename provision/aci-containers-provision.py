@@ -284,15 +284,16 @@ def get_apic(config):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Provision an ACI containers installation')
-    parser.add_argument('-c', '--config', required=True,
-                        help='A configuration file containing default values')
-    parser.add_argument('-o', '--output', required=True,
-                        help='Output kubernetes infrastructure YAML to file')
+        description='Provision an ACI kubernetes installation'
+    )
+    parser.add_argument('-c', '--config', required=True, metavar='',
+                        help='Input file with your fabric configuration')
+    parser.add_argument('-o', '--output', required=True, metavar='',
+                        help='Output file for your kubernetes deployment')
     parser.add_argument('-a', '--apic', action='store_true', default=False,
-                        help='Skip APIC provisioning')
+                        help='Execute the required APIC configuration as well')
     parser.add_argument('-u', '--unprovision', action='store_true', default=False,
-                        help='Unprovision the resources APIC provisioning')
+                        help='Unprovision the APIC resources')
     return parser.parse_args()
 
 
