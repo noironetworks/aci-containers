@@ -944,6 +944,127 @@ class ApicKubeConfig(object):
         }
         return path, data
 
+        def kube_user(self, config):
+            name = self.config["aci_config"]["aim_user"]["name"]
+            password = self.config["aci_config"]["aim_user"]["password"]
+            certfile = self.config["aci_config"]["aim_user"]["certfile"]
+
+            path = "/api/node/mo/uni/userext/user-%s.json" % name
+            data = {
+                "aaaUser": {
+                    "attributes": {
+                        "name": name,
+                    },
+                    "children": [
+                        {
+                            "aaaUserDomain": {
+                                "attributes": {
+                                    "name": "all",
+                                },
+                                "children": [
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "aaa",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "access-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "fabric-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "nw-svc-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "ops",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "read-all",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "tenant-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "tenant-ext-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    },
+                                    {
+                                        "aaaUserRole": {
+                                            "attributes": {
+                                                "name": "vmm-admin",
+                                                "privType": "writePriv",
+                                            },
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+
+            if certfile is not None:
+                cert = None
+                with open(certfile, "r") as cfile:
+                    cert = cfile.read()
+                if cert is not None:
+                    certdata = {
+                        "attributes": {
+                            "name": "%s.crt" % name,
+                            "data": cert,
+                        },
+                    }
+                    data["aaaUser"]["children"][0]["aaaUserCert"] = certdata
+            elif password is not None:
+                data["aaaUser"]["attributes"]["pwd"] = password
+            return path, data
+
 
 if __name__ == "__main__":
     pass

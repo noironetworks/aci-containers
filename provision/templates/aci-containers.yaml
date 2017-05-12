@@ -71,8 +71,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: {{config.aci_config.apic_login.username|base64enc}}
-  password: {{config.aci_config.apic_login.password|base64enc}}
+  username: {{config.aci_config.aim_login.username|base64enc}}
+  password: {{config.aci_config.aim_login.password|base64enc}}
 ---
 apiVersion: extensions/v1beta1
 kind: ThirdPartyResource

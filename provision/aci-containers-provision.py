@@ -6,6 +6,7 @@ import argparse
 import base64
 import filecmp
 import glob
+import hashlib
 import json
 import os
 import socket
@@ -149,6 +150,12 @@ def config_adjust(config, prov_apic):
                 "domain": system_id,
                 "controller": system_id,
                 "mcast_pool": system_id + "-mpool",
+            },
+            "aim_login": {
+                "username": system_id,
+                # Tmp hack, till I generate certificates
+                "password": hashlib.md5(system_id).hexdigest(),
+                "certfile": None,
             },
         },
         "net_config": {

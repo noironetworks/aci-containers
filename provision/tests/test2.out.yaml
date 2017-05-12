@@ -101,8 +101,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: YWRtaW4=
-  password: bm9pcjAxMjM=
+  username: a3ViZQ==
+  password: NGI4N2Y1YWY5YzY1NjQ1MGM0YTljYWZiZmIwMDczYTE=
 ---
 apiVersion: extensions/v1beta1
 kind: ThirdPartyResource
