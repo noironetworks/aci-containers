@@ -24,9 +24,10 @@ data:
         },
         "namespace-default-endpoint-group": {
             {% for ns, val in config.kube_config.namespace_default_endpoint_group.iteritems() %}
-            "{{ns}}":
+            "{{ns}}": {
                 "policy-space": {{val['tenant']|json}},
                 "name": {{(val['app_profile'] ~ "|" ~ val['group'])|json}}
+            }
             {% endfor %}
         },
         "service-ip-pool": {{ config.kube_config.service_ip_pool|json|indent(width=8) }},
@@ -466,4 +467,3 @@ spec:
             items:
               - key: aim-config
                 path: aim-local.conf
-
