@@ -1,7 +1,9 @@
 from __future__ import print_function
+
 import json
-import requests
 import sys
+
+import requests
 
 requests.packages.urllib3.disable_warnings()
 
@@ -102,7 +104,7 @@ class Apic(object):
                     resp = self.post(path, config)
                     self.check_resp(resp)
                     if self.debug:
-                        dbg("%s: %s", (path, resp.text))
+                        dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in provisioning %s: %s" % (path, str(e)))
@@ -117,7 +119,7 @@ class Apic(object):
                     resp = self.delete(path)
                     self.check_resp(resp)
                     if self.debug:
-                        dbg("%s: %s", (path, resp.text))
+                        dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in un-provisioning %s: %s" % (path, str(e)))
