@@ -9,6 +9,7 @@ data:
   controller-config: |-
     {
         "log-level": "info",
+        "aci-prefix": "kube",
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
         "aci-policy-tenant": "kube",
@@ -25,9 +26,10 @@ data:
             "name": "kubernetes|kube-default"
         },
         "namespace-default-endpoint-group": {
-            "kube-system":
+            "kube-system": {
                 "policy-space": "kube",
                 "name": "kubernetes|kube-system"
+            }
         },
         "service-ip-pool": [
             {
@@ -100,8 +102,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: YWRtaW4=
-  password: bm9pcjAxMjM=
+  username: a3ViZQ==
+  password: VG9CZUZpeGVkIQ==
 ---
 apiVersion: extensions/v1beta1
 kind: ThirdPartyResource
@@ -455,7 +457,7 @@ spec:
                   name: apic-user-pass
                   key: password
             - name: APIC_HOSTS
-              value: '10.30.120.140'
+              value: '10.30.120.100'
             - name: APIC_MONITOR_TENANTS
               value: 'common'
             - name: K8S_VMM_DOMAIN

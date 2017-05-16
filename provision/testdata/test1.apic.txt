@@ -722,3 +722,32 @@ None
         ]
     }
 }
+/api/node/mo/uni/userext/user-kube.json
+{
+    "aaaUser": {
+        "attributes": {
+            "accountStatus": "active", 
+            "name": "kube", 
+            "pwd": "ToBeFixed!"
+        }, 
+        "children": [
+            {
+                "aaaUserDomain": {
+                    "attributes": {
+                        "name": "all"
+                    }, 
+                    "children": [
+                        {
+                            "aaaUserRole": {
+                                "attributes": {
+                                    "name": "admin", 
+                                    "privType": "writePriv"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

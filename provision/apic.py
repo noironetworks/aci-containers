@@ -1,7 +1,9 @@
 from __future__ import print_function
+
 import json
-import requests
 import sys
+
+import requests
 
 requests.packages.urllib3.disable_warnings()
 
@@ -102,7 +104,7 @@ class Apic(object):
                     resp = self.post(path, config)
                     self.check_resp(resp)
                     if self.debug:
-                        dbg("%s: %s", (path, resp.text))
+                        dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in provisioning %s: %s" % (path, str(e)))
@@ -117,7 +119,7 @@ class Apic(object):
                     resp = self.delete(path)
                     self.check_resp(resp)
                     if self.debug:
-                        dbg("%s: %s", (path, resp.text))
+                        dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in un-provisioning %s: %s" % (path, str(e)))
@@ -150,6 +152,7 @@ class ApicKubeConfig(object):
         update(data, self.client_cert())
         update(data, self.common_tn())
         update(data, self.kube_tn())
+        update(data, self.kube_user())
         return data
 
     def vlan_pool(self):
@@ -434,6 +437,56 @@ class ApicKubeConfig(object):
 
         brc = '/api/mo/uni/tn-common/brc-%s-l3out-allow-all.json' % system_id
         return path, data, brc
+
+    def kube_user(self):
+        name = self.config["aci_config"]["aim_login"]["username"]
+        password = self.config["aci_config"]["aim_login"]["password"]
+        certfile = self.config["aci_config"]["aim_login"]["certfile"]
+
+        path = "/api/node/mo/uni/userext/user-%s.json" % name
+        data = {
+            "aaaUser": {
+                "attributes": {
+                    "name": name,
+                    "accountStatus": "active",
+                },
+                "children": [
+                    {
+                        "aaaUserDomain": {
+                            "attributes": {
+                                "name": "all",
+                            },
+                            "children": [
+                                {
+                                    "aaaUserRole": {
+                                        "attributes": {
+                                            "name": "admin",
+                                            "privType": "writePriv",
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+
+        if certfile is not None:
+            cert = None
+            with open(certfile, "r") as cfile:
+                cert = cfile.read()
+            if cert is not None:
+                certdata = {
+                    "attributes": {
+                        "name": "%s.crt" % name,
+                        "data": cert,
+                    },
+                }
+                data["aaaUser"]["children"][0]["aaaUserCert"] = certdata
+        elif password is not None:
+            data["aaaUser"]["attributes"]["pwd"] = password
+        return path, data
 
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]

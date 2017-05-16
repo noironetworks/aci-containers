@@ -19,7 +19,7 @@ from jinja2 import Environment, PackageLoader
 
 
 def info(msg):
-    print("INFO: " + msg, file=sys.stdout)
+    print("INFO: " + msg, file=sys.stderr)
 
 
 def warn(msg):
@@ -103,9 +103,13 @@ def config_default():
 def config_user(config_file):
     config = {}
     if config_file:
-        info("Loading configuration from \"%s\"" % config_file)
-        with open(config_file, 'r') as file:
-            config = yaml.load(file)
+        if config_file == "_":
+            info("Loading configuration from \"STDIN\"")
+            config = yaml.load(sys.stdin)
+        else:
+            info("Loading configuration from \"%s\"" % config_file)
+            with open(config_file, 'r') as file:
+                config = yaml.load(file)
     return config
 
 
@@ -149,6 +153,12 @@ def config_adjust(config, prov_apic):
                 "domain": system_id,
                 "controller": system_id,
                 "mcast_pool": system_id + "-mpool",
+            },
+            "aim_login": {
+                "username": system_id,
+                # Tmp hack, till I generate certificates
+                "password": "ToBeFixed!",
+                "certfile": None,
             },
         },
         "net_config": {
@@ -284,8 +294,13 @@ def generate_kube_yaml(config, output):
 def generate_apic_config(config, prov_apic, apic_file):
     apic_config = ApicKubeConfig(config).get_config()
     if apic_file:
-        with open(apic_file, 'w') as outfile:
-            ApicKubeConfig.save_config(apic_config, outfile)
+        if apic_file == "-":
+            info("Writing kubernetes configuration to \"STDOUT\"")
+            ApicKubeConfig.save_config(apic_config, sys.stdout)
+        else:
+            info("Writing kubernetes configuration to \"%s\"" % apic_file)
+            with open(apic_file, 'w') as outfile:
+                ApicKubeConfig.save_config(apic_config, outfile)
 
     if prov_apic is not None:
         apic = get_apic(config)
@@ -308,9 +323,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Provision an ACI kubernetes installation'
     )
-    parser.add_argument('-c', '--config', required=True, metavar='',
+    parser.add_argument('-c', '--config', default="-", metavar='',
                         help='Input file with your fabric configuration')
-    parser.add_argument('-o', '--output', required=True, metavar='',
+    parser.add_argument('-o', '--output', default="-", metavar='',
                         help='Output file for your kubernetes deployment')
     parser.add_argument('-a', '--apic', action='store_true', default=False,
                         help='Execute the required APIC configuration as well')
@@ -346,7 +361,7 @@ def main(config_file, output_file, prov_apic=True, apic_file=None):
 
 
 def test_main():
-    for inp in glob.glob("tests/*.inp.yaml"):
+    for inp in glob.glob("testdata/*.inp.yaml"):
         kubefile = os.tempnam(".", "tmp-kube-")
         apicfile = os.tempnam(".", "tmp-apic-")
         main(inp, kubefile, prov_apic=None, apic_file=apicfile)
