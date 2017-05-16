@@ -219,9 +219,11 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      {% if config.kube_config.use_tolerations %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
+      {% endif %}
       containers:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host
@@ -340,9 +342,11 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      {% if config.kube_config.use_tolerations %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
+      {% endif %}
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch
@@ -397,9 +401,11 @@ metadata:
     name: aci-containers-controller
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ''
+    {% if config.kube_config.use_tolerations %}
     scheduler.alpha.kubernetes.io/tolerations: |
       [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
        {"key":"CriticalAddonsOnly", "operator":"Exists"}]
+    {% endif %}
 spec:
   replicas: 1
   strategy:

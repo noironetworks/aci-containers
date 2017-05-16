@@ -85,6 +85,7 @@ def config_default():
         },
         "kube_config": {
             "controller": "1.1.1.1",
+            "use_tolerations": True,
             "use_cluster_role": True,
             "use_ds_rolling_update": True,
         },

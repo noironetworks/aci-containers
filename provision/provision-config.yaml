@@ -47,6 +47,7 @@ node_config:
 kube_config:
   controller: 1.1.1.1                   # IP address of kubernetes controller, not used
                                         # The following need kubernetes >= 1.6, set to false for < 1.6
+  use_tolerations: true                 # Set to false to disable using tolerations
   use_cluster_role: true                # Set to false to disable cluster role configurations for ACI components
   use_ds_rolling_update: true           # Set to true to enable rolling updates for ACI containers daemonsets
 #
