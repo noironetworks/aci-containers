@@ -395,7 +395,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(args, apic_file=None):
+def main(args=None, apic_file=None):
+    # args, apic_file are set by the test functions
+    if args is None:
+        args = parse_args()
     config_file = args.config
     output_file = args.output
     prov_apic = None
@@ -487,5 +490,4 @@ def test_main():
         os.remove(apicfile)
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main()

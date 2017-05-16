@@ -495,20 +495,11 @@ class ApicKubeConfig(object):
                 },
                 "children": [
                     {
-                        "aaaUserDomain": {
+                        "aaaUserCert": {
                             "attributes": {
-                                "name": "all",
-                            },
-                            "children": [
-                                {
-                                    "aaaUserCert": {
-                                        "attributes": {
-                                            "name": "%s.crt" % name,
-                                            "data": cert,
-                                        }
-                                    }
-                                }
-                            ]
+                                "name": "%s.crt" % name,
+                                "data": cert,
+                            }
                         }
                     }
                 ]
