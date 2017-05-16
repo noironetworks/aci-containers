@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import base64
+import collections
 import filecmp
 import glob
 import json
@@ -110,6 +111,8 @@ def config_user(config_file):
             info("Loading configuration from \"%s\"" % config_file)
             with open(config_file, 'r') as file:
                 config = yaml.load(file)
+    if config is None:
+        config = {}
     return config
 
 
@@ -226,26 +229,30 @@ def config_adjust(config, prov_apic):
 
 def config_validate(config):
     required = lambda x: x
-    try:
-        checks = {
-            "system_id": (config["aci_config"]["system_id"], required),
-            "aep": (config["aci_config"]["aep"], required),
-            "apic_host": (config["aci_config"]["apic_hosts"][0], required),
-            "apic_username": (config["aci_config"]["apic_login"]["username"], required),
-            "apic_password": (config["aci_config"]["apic_login"]["password"], required),
-            "uplink_if": (config["node_config"]["uplink_iface"], required),
-            "vxlan_if": (config["node_config"]["vxlan_uplink_iface"], required),
-            "kubeapi_vlan": (config["net_config"]["kubeapi_vlan"], required),
-            "service_vlan": (config["net_config"]["service_vlan"], required),
-        }
-        for k in checks:
-            value, validator = checks[k]
+    get = lambda t: reduce(lambda x, y: x and x.get(y), t, config)
+
+    checks = {
+        "system_id": (get(("aci_config", "system_id")), required),
+        "aep": (get(("aci_config", "aep")), required),
+        "apic_host": (get(("aci_config", "apic_hosts")), required),
+        "apic_username": (get(("aci_config", "apic_login", "username")), required),
+        "apic_password": (get(("aci_config", "apic_login", "password")), required),
+        "uplink_if": (get(("node_config", "uplink_iface")), required),
+        "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
+        "kubeapi_vlan": (get(("net_config", "kubeapi_vlan")), required),
+        "service_vlan": (get(("net_config", "service_vlan")), required),
+    }
+
+    ret = True
+    for k in checks:
+        value, validator = checks[k]
+        try:
             if not validator(value):
                 raise Exception(k)
-    except Exception as e:
-        err("Required configuration not present or not correct: '%s'" % e.message)
-        return False
-    return True
+        except Exception as e:
+            err("Required configuration not present or not correct: '%s'" % e.message)
+            ret = False
+    return ret
 
 
 def config_advise(config, prov_apic):
@@ -273,6 +280,12 @@ def config_advise(config, prov_apic):
     except Exception as e:
         warn("Error in validating existence of AEP: '%s'" % e.message)
     return True
+
+
+def generate_sample(filep):
+    with open('provision-config.yaml', 'r') as inp:
+        print(inp.read(), file=filep)
+    return filep
 
 
 def generate_kube_yaml(config, output):
@@ -333,22 +346,54 @@ def parse_args():
     parser.add_argument('-o', '--output', default="-", metavar='',
                         help='Output file for your kubernetes deployment')
     parser.add_argument('-a', '--apic', action='store_true', default=False,
-                        help='Execute the required APIC configuration as well')
-    parser.add_argument('-u', '--unprovision', action='store_true', default=False,
-                        help='Unprovision the APIC resources')
+                        help='Create/Validate the required APIC resources')
+    parser.add_argument('-d', '--delete', action='store_true', default=False,
+                        help='Delete the APIC resources that would have be created')
+    parser.add_argument('-s', '--sample', action='store_true', default=False,
+                        help='Print a sample input file with fabric configuration')
+    parser.add_argument('-u', '--username', default=None, metavar='',
+                        help='APIC admin username to use for APIC API access')
+    parser.add_argument('-p', '--password', default=None, metavar='',
+                        help='APIC admin password to use for APIC API access')
     return parser.parse_args()
 
 
-def main(config_file, output_file, prov_apic=True, apic_file=None):
+def main(args, apic_file=None):
+    config_file = args.config
+    output_file = args.output
+    prov_apic = None
+    if args.apic:
+        prov_apic = True
+        if args.delete:
+            prov_apic = False
+
+    # Print sample, if needed
+    if args.sample:
+        generate_sample(sys.stdout)
+        return True
+
+    # command line config
+    config = {
+        "aci_config": {
+            "apic_login": {
+            }
+        }
+    }
+    if args.username:
+        config["aci_config"]["apic_login"]["username"] = args.username
+    if args.password:
+        config["aci_config"]["apic_login"]["password"] = args.password
+
     # Create config
     default_config = config_default()
-    config = config_user(config_file)
+    user_config = config_user(config_file)
+    deep_merge(config, user_config)
     deep_merge(config, default_config)
 
     # Validate config
     if not config_validate(config):
         err("Please fix configuration and retry.")
-        return None
+        return False
 
     # Adjust config based on convention/apic data
     adj_config = config_adjust(config, prov_apic)
@@ -363,25 +408,40 @@ def main(config_file, output_file, prov_apic=True, apic_file=None):
     # generate output files; and program apic if needed
     generate_apic_config(config, prov_apic, apic_file)
     generate_kube_yaml(config, output_file)
+    return True
 
 
 def test_main():
+    arg = {
+        "config": None,
+        "output": None,
+        "apicfile": None,
+        "apic": False,
+        "delete": False,
+        "username": "admin",
+        "password": "",
+        "sample": False,
+    }
+    argc = collections.namedtuple('argc', arg.keys())
+    args = argc(**arg)
+
     for inp in glob.glob("testdata/*.inp.yaml"):
-        kubefile = os.tempnam(".", "tmp-kube-")
+        # Exec main
+        args = args._replace(config=inp)
+        args = args._replace(output=os.tempnam(".", "tmp-kube-"))
         apicfile = os.tempnam(".", "tmp-apic-")
-        main(inp, kubefile, prov_apic=None, apic_file=apicfile)
+        main(args, apicfile)
+
+        # Verify generated configs
         expectedkube = inp[:-8] + 'out.yaml'
-        assert filecmp.cmp(kubefile, expectedkube)
+        assert filecmp.cmp(args.output, expectedkube)
         expectedapic = inp[:-8] + 'apic.txt'
         assert filecmp.cmp(apicfile, expectedapic)
-        os.remove(kubefile)
+
+        # Cleanup
+        os.remove(args.output)
         os.remove(apicfile)
 
 if __name__ == "__main__":
     args = parse_args()
-    prov_apic = None
-    if args.apic:
-        prov_apic = True
-        if args.unprovision:
-            prov_apic = False
-    main(args.config, args.output, prov_apic=prov_apic)
+    main(args)
