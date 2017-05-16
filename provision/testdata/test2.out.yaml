@@ -248,7 +248,7 @@ spec:
       containers:
         - name: aci-containers-host
           image: noiro/aci-containers-host
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             capabilities:
               add:
@@ -280,7 +280,7 @@ spec:
               port: 8090
         - name: opflex-agent
           image: noiro/opflex
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             capabilities:
               add:
@@ -300,7 +300,7 @@ spec:
           image: noiro/opflex
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -363,7 +363,7 @@ spec:
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             capabilities:
               add:
@@ -435,7 +435,7 @@ spec:
       containers:
         - name: aci-containers-controller
           image: noiro/aci-containers-controller
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume
               mountPath: /usr/local/etc/aci-containers/
@@ -445,7 +445,7 @@ spec:
               port: 8091
         - name: aci-integration-module
           image: noiro/aci-integration-module
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: APIC_USERNAME
               valueFrom:

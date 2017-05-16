@@ -15,8 +15,10 @@ import sys
 import yaml
 
 
+from OpenSSL import crypto
 from apic import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
+from os.path import exists
 
 
 def info(msg):
@@ -88,6 +90,7 @@ def config_default():
             "use_tolerations": True,
             "use_cluster_role": True,
             "use_ds_rolling_update": True,
+            "image_pull_policy": "Always",
         },
         "registry": {
             "image_prefix": "noiro",
@@ -162,7 +165,8 @@ def config_adjust(config, prov_apic):
                 "username": system_id,
                 # Tmp hack, till I generate certificates
                 "password": "ToBeFixed!",
-                "certfile": None,
+                "certfile": "user-%s.crt" % system_id,
+                "keyfile": "user-%s.key" % system_id,
             },
         },
         "net_config": {
@@ -289,6 +293,35 @@ def generate_sample(filep):
     return filep
 
 
+def generate_cert(username, cert_file, key_file):
+    if not exists(cert_file) or not exists(key_file):
+        # Do not overwrite previously generated data if it exists
+
+        # create a key pair
+        k = crypto.PKey()
+        k.generate_key(crypto.TYPE_RSA, 1024)
+
+        # create a self-signed cert
+        cert = crypto.X509()
+        cert.get_subject().C = "US"
+        cert.get_subject().O = "Cisco Systems"
+        cert.get_subject().CN = "User %s" % username
+        cert.set_serial_number(1000)
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
+        cert.set_issuer(cert.get_subject())
+        cert.set_pubkey(k)
+        cert.sign(k, 'sha1')
+
+        cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+        key_data = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
+        with open(cert_file, "wt") as certp:
+            certp.write(cert_data)
+        with open(key_file, "wt") as keyp:
+            keyp.write(key_data)
+        return cert_data
+
+
 def generate_kube_yaml(config, output):
     env = Environment(
         loader=PackageLoader('aci-containers-provision', 'templates'),
@@ -334,7 +367,8 @@ def get_apic(config):
     apic_host = config["aci_config"]["apic_hosts"][0]
     apic_username = config["aci_config"]["apic_login"]["username"]
     apic_password = config["aci_config"]["apic_login"]["password"]
-    apic = Apic(apic_host, apic_username, apic_password)
+    debug = config["apic_debug"]
+    apic = Apic(apic_host, apic_username, apic_password, debug=debug)
     return apic
 
 
@@ -356,6 +390,8 @@ def parse_args():
                         help='APIC admin username to use for APIC API access')
     parser.add_argument('-p', '--password', default=None, metavar='',
                         help='APIC admin password to use for APIC API access')
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+                        help='Enable debug')
     return parser.parse_args()
 
 
@@ -375,6 +411,7 @@ def main(args, apic_file=None):
 
     # command line config
     config = {
+        "apic_debug": args.verbose,
         "aci_config": {
             "apic_login": {
             }
@@ -407,6 +444,10 @@ def main(args, apic_file=None):
         pass
 
     # generate output files; and program apic if needed
+    username = config["aci_config"]["aim_login"]["username"]
+    certfile = config["aci_config"]["aim_login"]["certfile"]
+    keyfile = config["aci_config"]["aim_login"]["keyfile"]
+    generate_cert(username, certfile, keyfile)
     generate_apic_config(config, prov_apic, apic_file)
     generate_kube_yaml(config, output_file)
     return True
@@ -422,11 +463,13 @@ def test_main():
         "username": "admin",
         "password": "",
         "sample": False,
+        "verbose": True,
     }
     argc = collections.namedtuple('argc', arg.keys())
     args = argc(**arg)
 
-    for inp in glob.glob("testdata/*.inp.yaml"):
+    os.chdir("testdata")
+    for inp in glob.glob("*.inp.yaml"):
         # Exec main
         args = args._replace(config=inp)
         args = args._replace(output=os.tempnam(".", "tmp-kube-"))

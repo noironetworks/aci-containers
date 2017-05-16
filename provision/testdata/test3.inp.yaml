@@ -13,6 +13,9 @@ aci_config:
     name: l3out
     external_networks:
       - default
+  aim_login:
+    certfile: user.crt
+    keyfile: user.key
   vmm_domain:
     encap_type: vxlan
     mcast_range:

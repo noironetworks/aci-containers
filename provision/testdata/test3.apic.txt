@@ -751,3 +751,30 @@ None
         ]
     }
 }
+/api/node/mo/uni/userext/user-kube.json
+{
+    "aaaUser": {
+        "attributes": {
+            "name": "kube"
+        }, 
+        "children": [
+            {
+                "aaaUserDomain": {
+                    "attributes": {
+                        "name": "all"
+                    }, 
+                    "children": [
+                        {
+                            "aaaUserCert": {
+                                "attributes": {
+                                    "data": "-----BEGIN CERTIFICATE-----\nMIIB6DCCAVECAgPoMA0GCSqGSIb3DQEBBQUAMDwxCzAJBgNVBAYTAlVTMRYwFAYD\nVQQKDA1DaXNjbyBTeXN0ZW1zMRUwEwYDVQQDDAxVc2VyIG1hbmRlZXAwHhcNMTcw\nNTE2MjEyOTMwWhcNMjcwNTE0MjEyOTMwWjA8MQswCQYDVQQGEwJVUzEWMBQGA1UE\nCgwNQ2lzY28gU3lzdGVtczEVMBMGA1UEAwwMVXNlciBtYW5kZWVwMIGfMA0GCSqG\nSIb3DQEBAQUAA4GNADCBiQKBgQDa/gPoDimwFVaybG9/mVm3J1V6P4HbsSE5L5tP\nZHohQp/lKf0hnar+gIfo5SXxe7r/hYAibQsQ/O6mMNKuQ3BlSyHHxeGVG/QfKyVi\ngSOsCX8bTHxblDWNuHIMEKSaqzFKgA8/zFvsK2XobEpxbMnsF0d/PHkexCow1noH\nScj3FwIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAHX+kLTe6LCABewmCTvMsjusHdpZ\nki01+nQ7KhnERbBm/tZ5scZE4ctIqch3ny1EITHNtYWKBN4CdUKcjvDW2h2vkHeg\nrtYbV+AaEsq0m4vGF9Emvt1cp9Y41IyMBZYqw8c/V1AtmRQcRTYQA8H3OFDchyB2\n0JHSDnBoS7ffSbBx\n-----END CERTIFICATE-----\n", 
+                                    "name": "kube.crt"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
