@@ -9,6 +9,7 @@ data:
   controller-config: |-
     {
         "log-level": {{config.logging.controller_log_level|json}},
+        "aci-prefix": {{config.aci_config.system_id|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
@@ -467,3 +468,4 @@ spec:
             items:
               - key: aim-config
                 path: aim-local.conf
+

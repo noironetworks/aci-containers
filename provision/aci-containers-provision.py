@@ -362,7 +362,7 @@ def main(config_file, output_file, prov_apic=True, apic_file=None):
 
 
 def test_main():
-    for inp in glob.glob("tests/*.inp.yaml"):
+    for inp in glob.glob("testdata/*.inp.yaml"):
         kubefile = os.tempnam(".", "tmp-kube-")
         apicfile = os.tempnam(".", "tmp-apic-")
         main(inp, kubefile, prov_apic=None, apic_file=apicfile)
