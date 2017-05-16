@@ -44,7 +44,7 @@ type ControllerConfig struct {
 
 	// Override default endpoint group assignments for a namespace
 	// map ns name -> group
-	NamespaceDefaultEg map[string]opflexGroup `json:"namespace-default-security-group,omitempty"`
+	NamespaceDefaultEg map[string]opflexGroup `json:"namespace-default-endpoint-group,omitempty"`
 
 	// Override default security group assignments for namespaces
 	// map ns name -> slice of groups
