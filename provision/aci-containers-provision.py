@@ -103,7 +103,7 @@ def config_default():
 def config_user(config_file):
     config = {}
     if config_file:
-        if config_file == "_":
+        if config_file == "-":
             info("Loading configuration from \"STDIN\"")
             config = yaml.load(sys.stdin)
         else:
@@ -286,8 +286,13 @@ def generate_kube_yaml(config, output):
     env.filters['yaml_quote'] = yaml_quote
     template = env.get_template('aci-containers.yaml')
 
-    info("Writing kubernetes infrastructure YAML to \"%s\"" % output)
-    template.stream(config=config).dump(output)
+    if output:
+        if output == "-":
+            info("Writing kubernetes infrastructure YAML to \"STDOUT\"")
+            template.stream(config=config).dump(sys.stdout)
+        else:
+            info("Writing kubernetes infrastructure YAML to \"%s\"" % output)
+            template.stream(config=config).dump(output)
     return config
 
 
@@ -295,10 +300,10 @@ def generate_apic_config(config, prov_apic, apic_file):
     apic_config = ApicKubeConfig(config).get_config()
     if apic_file:
         if apic_file == "-":
-            info("Writing kubernetes configuration to \"STDOUT\"")
+            info("Writing apic configuration to \"STDOUT\"")
             ApicKubeConfig.save_config(apic_config, sys.stdout)
         else:
-            info("Writing kubernetes configuration to \"%s\"" % apic_file)
+            info("Writing apic configuration to \"%s\"" % apic_file)
             with open(apic_file, 'w') as outfile:
                 ApicKubeConfig.save_config(apic_config, outfile)
 
