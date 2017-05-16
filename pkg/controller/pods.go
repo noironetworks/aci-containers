@@ -220,13 +220,9 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	sgval := &cont.defaultSg
 
 	// configured namespace override has next-highest priority
-	cont.log.Info("checking eg override ", pod.Namespace, " ",
-		cont.config.NamespaceDefaultEg)
 	if nseg, ok := cont.config.NamespaceDefaultEg[pod.Namespace]; ok {
-		cont.log.Info("eg override")
 		egdata := cont.serializeGroup(nseg)
 		if egdata != "" {
-			cont.log.Info("gud")
 			egval = &egdata
 		}
 	}

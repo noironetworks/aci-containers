@@ -20,7 +20,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
-type opflexGroup struct {
+type OpflexGroup struct {
 	PolicySpace string `json:"policy-space,omitempty"`
 	Name        string `json:"name,omitempty"`
 }
@@ -37,18 +37,18 @@ type ControllerConfig struct {
 	StatusPort int `json:"status-port,omitempty"`
 
 	// Default endpoint group annotation value
-	DefaultEg opflexGroup `json:"default-endpoint-group,omitempty"`
+	DefaultEg OpflexGroup `json:"default-endpoint-group,omitempty"`
 
 	// Default security group annotation value
-	DefaultSg []opflexGroup `json:"default-security-group,omitempty"`
+	DefaultSg []OpflexGroup `json:"default-security-group,omitempty"`
 
 	// Override default endpoint group assignments for a namespace
 	// map ns name -> group
-	NamespaceDefaultEg map[string]opflexGroup `json:"namespace-default-endpoint-group,omitempty"`
+	NamespaceDefaultEg map[string]OpflexGroup `json:"namespace-default-endpoint-group,omitempty"`
 
 	// Override default security group assignments for namespaces
 	// map ns name -> slice of groups
-	NamespaceDefaultSg map[string][]opflexGroup `json:"namespace-default-security-group,omitempty"`
+	NamespaceDefaultSg map[string][]OpflexGroup `json:"namespace-default-security-group,omitempty"`
 
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
@@ -118,9 +118,9 @@ func newNetIps() *netIps {
 
 func NewConfig() *ControllerConfig {
 	return &ControllerConfig{
-		DefaultSg:          make([]opflexGroup, 0),
-		NamespaceDefaultEg: make(map[string]opflexGroup),
-		NamespaceDefaultSg: make(map[string][]opflexGroup),
+		DefaultSg:          make([]OpflexGroup, 0),
+		NamespaceDefaultEg: make(map[string]OpflexGroup),
+		NamespaceDefaultSg: make(map[string][]OpflexGroup),
 		AciPolicyTenant:    "kubernetes",
 		PodIpPoolChunkSize: 128,
 	}
