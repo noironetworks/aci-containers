@@ -152,6 +152,7 @@ class ApicKubeConfig(object):
         update(data, self.client_cert())
         update(data, self.common_tn())
         update(data, self.kube_tn())
+        update(data, self.kube_user())
         return data
 
     def vlan_pool(self):
@@ -436,6 +437,56 @@ class ApicKubeConfig(object):
 
         brc = '/api/mo/uni/tn-common/brc-%s-l3out-allow-all.json' % system_id
         return path, data, brc
+
+    def kube_user(self):
+        name = self.config["aci_config"]["aim_login"]["username"]
+        password = self.config["aci_config"]["aim_login"]["password"]
+        certfile = self.config["aci_config"]["aim_login"]["certfile"]
+
+        path = "/api/node/mo/uni/userext/user-%s.json" % name
+        data = {
+            "aaaUser": {
+                "attributes": {
+                    "name": name,
+                    "accountStatus": "active",
+                },
+                "children": [
+                    {
+                        "aaaUserDomain": {
+                            "attributes": {
+                                "name": "all",
+                            },
+                            "children": [
+                                {
+                                    "aaaUserRole": {
+                                        "attributes": {
+                                            "name": "admin",
+                                            "privType": "writePriv",
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+
+        if certfile is not None:
+            cert = None
+            with open(certfile, "r") as cfile:
+                cert = cfile.read()
+            if cert is not None:
+                certdata = {
+                    "attributes": {
+                        "name": "%s.crt" % name,
+                        "data": cert,
+                    },
+                }
+                data["aaaUser"]["children"][0]["aaaUserCert"] = certdata
+        elif password is not None:
+            data["aaaUser"]["attributes"]["pwd"] = password
+        return path, data
 
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]
@@ -945,127 +996,6 @@ class ApicKubeConfig(object):
             }
         }
         return path, data
-
-        def kube_user(self, config):
-            name = self.config["aci_config"]["aim_user"]["name"]
-            password = self.config["aci_config"]["aim_user"]["password"]
-            certfile = self.config["aci_config"]["aim_user"]["certfile"]
-
-            path = "/api/node/mo/uni/userext/user-%s.json" % name
-            data = {
-                "aaaUser": {
-                    "attributes": {
-                        "name": name,
-                    },
-                    "children": [
-                        {
-                            "aaaUserDomain": {
-                                "attributes": {
-                                    "name": "all",
-                                },
-                                "children": [
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "aaa",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "access-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "fabric-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "nw-svc-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "ops",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "read-all",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "tenant-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "tenant-ext-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    },
-                                    {
-                                        "aaaUserRole": {
-                                            "attributes": {
-                                                "name": "vmm-admin",
-                                                "privType": "writePriv",
-                                            },
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-
-            if certfile is not None:
-                cert = None
-                with open(certfile, "r") as cfile:
-                    cert = cfile.read()
-                if cert is not None:
-                    certdata = {
-                        "attributes": {
-                            "name": "%s.crt" % name,
-                            "data": cert,
-                        },
-                    }
-                    data["aaaUser"]["children"][0]["aaaUserCert"] = certdata
-            elif password is not None:
-                data["aaaUser"]["attributes"]["pwd"] = password
-            return path, data
 
 
 if __name__ == "__main__":

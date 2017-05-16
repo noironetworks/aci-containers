@@ -6,7 +6,6 @@ import argparse
 import base64
 import filecmp
 import glob
-import hashlib
 import json
 import os
 import socket
@@ -158,7 +157,7 @@ def config_adjust(config, prov_apic):
             "aim_login": {
                 "username": system_id,
                 # Tmp hack, till I generate certificates
-                "password": hashlib.md5(system_id).hexdigest(),
+                "password": "ToBeFixed!",
                 "certfile": None,
             },
         },
