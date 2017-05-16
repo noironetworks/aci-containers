@@ -227,7 +227,7 @@ spec:
       containers:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             capabilities:
               add:
@@ -259,7 +259,7 @@ spec:
               port: 8090
         - name: opflex-agent
           image: {{ config.registry.image_prefix }}/opflex
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             capabilities:
               add:
@@ -279,7 +279,7 @@ spec:
           image: {{ config.registry.image_prefix }}/opflex
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -350,7 +350,7 @@ spec:
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             capabilities:
               add:
@@ -428,7 +428,7 @@ spec:
       containers:
         - name: aci-containers-controller
           image: {{ config.registry.image_prefix }}/aci-containers-controller
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           volumeMounts:
             - name: controller-config-volume
               mountPath: /usr/local/etc/aci-containers/
@@ -438,7 +438,7 @@ spec:
               port: 8091
         - name: aci-integration-module
           image: {{ config.registry.image_prefix }}/aci-integration-module
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           env:
             - name: APIC_USERNAME
               valueFrom:

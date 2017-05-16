@@ -16,6 +16,9 @@ aci_config:
       - l3out
   physical_domain:
     domain: kubernetes-control
+  aim_login:
+    certfile: user.crt
+    keyfile: user.key
   vmm_domain:
     domain: kubernetes1
     controller: kubernetes1

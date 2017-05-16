@@ -17,14 +17,15 @@ def dbg(msg):
 
 
 class Apic(object):
-    def __init__(self, addr, username, password, ssl=True, verify=False):
+    def __init__(self, addr, username, password,
+                 ssl=True, verify=False, debug=False):
         self.addr = addr
         self.ssl = ssl
         self.username = username
         self.password = password
         self.cookies = None
         self.verify = verify
-        self.debug = False
+        self.debug = debug
         self.login()
 
     def url(self, path):
@@ -153,6 +154,7 @@ class ApicKubeConfig(object):
         update(data, self.common_tn())
         update(data, self.kube_tn())
         update(data, self.kube_user())
+        update(data, self.kube_cert())
         return data
 
     def vlan_pool(self):
@@ -441,7 +443,6 @@ class ApicKubeConfig(object):
     def kube_user(self):
         name = self.config["aci_config"]["aim_login"]["username"]
         password = self.config["aci_config"]["aim_login"]["password"]
-        certfile = self.config["aci_config"]["aim_login"]["certfile"]
 
         path = "/api/node/mo/uni/userext/user-%s.json" % name
         data = {
@@ -472,20 +473,38 @@ class ApicKubeConfig(object):
             }
         }
 
-        if certfile is not None:
-            cert = None
-            with open(certfile, "r") as cfile:
-                cert = cfile.read()
-            if cert is not None:
-                certdata = {
-                    "attributes": {
-                        "name": "%s.crt" % name,
-                        "data": cert,
-                    },
-                }
-                data["aaaUser"]["children"][0]["aaaUserCert"] = certdata
-        elif password is not None:
+        if password is not None:
             data["aaaUser"]["attributes"]["pwd"] = password
+        return path, data
+
+    def kube_cert(self):
+        name = self.config["aci_config"]["aim_login"]["username"]
+        certfile = self.config["aci_config"]["aim_login"]["certfile"]
+
+        if certfile is None:
+            return None
+
+        cert = None
+        with open(certfile, "r") as cfile:
+            cert = cfile.read()
+        path = "/api/node/mo/uni/userext/user-%s.json" % name
+        data = {
+            "aaaUser": {
+                "attributes": {
+                    "name": name,
+                },
+                "children": [
+                    {
+                        "aaaUserCert": {
+                            "attributes": {
+                                "name": "%s.crt" % name,
+                                "data": cert,
+                            }
+                        }
+                    }
+                ]
+            }
+        }
         return path, data
 
     def kube_tn(self):
