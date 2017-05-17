@@ -1,13 +1,13 @@
 # Install
 
 Install using pip as:
-'''
+```
   pip install acc_provision
-'''
+```
 
 # Running
 
-'''
+```
 usage: acc_provision [-h] [-c] [-o] [-a] [-d] [-s] [-u] [-p] [-v]
 
 Provision an ACI kubernetes installation
@@ -23,5 +23,4 @@ optional arguments:
   -p , --password   APIC admin password to use for APIC API access
   -v, --verbose     Enable debug
 
-'''
-
+```
