@@ -18,6 +18,7 @@ setup(
     },
     install_requires=[
           'requests',
+          'pyyaml',
           'jinja2',
           'pyopenssl',
     ],

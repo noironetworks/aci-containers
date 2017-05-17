@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import base64
 import json
+import pkgutil
 import socket
 import struct
 import sys
@@ -284,8 +285,8 @@ def config_advise(config, prov_apic):
 
 
 def generate_sample(filep):
-    with open('provision-config.yaml', 'r') as inp:
-        print(inp.read(), file=filep)
+    data = pkgutil.get_data('acc_provision', 'provision-config.yaml')
+    print(data, file=filep)
     return filep
 
 
