@@ -292,6 +292,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 			}
 
 			ep.Attributes = pod.ObjectMeta.Labels
+			if ep.Attributes == nil {
+				ep.Attributes = make(map[string]string)
+			}
 			ep.Attributes["vm-name"] = pod.ObjectMeta.Name
 			ep.Attributes["namespace"] = pod.ObjectMeta.Namespace
 			ep.Attributes["interface-name"] = iface.HostVethName
