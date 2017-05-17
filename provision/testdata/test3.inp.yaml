@@ -12,7 +12,7 @@ aci_config:
   l3out:
     name: l3out
     external_networks:
-      - default
+    - default
   aim_login:
     certfile: user.crt
     keyfile: user.key

@@ -4,10 +4,10 @@
 aci_config:
   system_id: kube                       # Every opflex cluster on the same fabric must have a distict ID
   apic_hosts:                           # List of APIC hosts to connect to for APIC API access
-    - 10.30.120.100
+    - 10.1.1.101
   apic_login:                           # Login credentials for APIC
     username: admin
-    password: noir0123
+    password: mypa$$w0rd
   vmm_domain:                           # Kubernetes VMM domain configuration
     encap_type: vxlan                   # Encap mode: vxlan or vlan
     mcast_range:                        # Every vxlan VMM on the same fabric must use a distinct range
@@ -22,7 +22,8 @@ aci_config:
     tenant: common                      # This can be tenant for this cluster (system-id) or common
   l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
     name: l3out                         # This is used to provision external service IPs/LB
-    external_networks: [default]        # This should also exist, the provisioning tool does not create it
+    external_networks:                  # This should also exist, the provisioning tool does not create it
+    - default
 #
 # Networks used by Kubernetes
 #

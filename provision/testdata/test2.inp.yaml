@@ -13,7 +13,7 @@ aci_config:
   l3out:
     name: l3out
     external_networks:
-      - l3out
+    - l3out
   physical_domain:
     domain: kubernetes-control
   aim_login:

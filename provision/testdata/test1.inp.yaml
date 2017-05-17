@@ -14,7 +14,8 @@ aci_config:
     tenant: common
   l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
     name: l3out                         # This is also used to provision external service IPs/LB
-    external_networks: [default]        #
+    external_networks:
+    - default
   aim_login:
     certfile: user.crt
     keyfile: user.key
