@@ -4,11 +4,7 @@ from __future__ import print_function
 
 import argparse
 import base64
-import collections
-import filecmp
-import glob
 import json
-import os
 import socket
 import struct
 import sys
@@ -16,7 +12,7 @@ import yaml
 
 
 from OpenSSL import crypto
-from apic import Apic, ApicKubeConfig
+from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
@@ -324,7 +320,7 @@ def generate_cert(username, cert_file, key_file):
 
 def generate_kube_yaml(config, output):
     env = Environment(
-        loader=PackageLoader('aci-containers-provision', 'templates'),
+        loader=PackageLoader('acc_provision', 'templates'),
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -455,39 +451,6 @@ def main(args=None, apic_file=None):
     generate_kube_yaml(config, output_file)
     return True
 
-
-def test_main():
-    arg = {
-        "config": None,
-        "output": None,
-        "apicfile": None,
-        "apic": False,
-        "delete": False,
-        "username": "admin",
-        "password": "",
-        "sample": False,
-        "verbose": True,
-    }
-    argc = collections.namedtuple('argc', arg.keys())
-    args = argc(**arg)
-
-    os.chdir("testdata")
-    for inp in glob.glob("*.inp.yaml"):
-        # Exec main
-        args = args._replace(config=inp)
-        args = args._replace(output=os.tempnam(".", "tmp-kube-"))
-        apicfile = os.tempnam(".", "tmp-apic-")
-        main(args, apicfile)
-
-        # Verify generated configs
-        expectedkube = inp[:-8] + 'out.yaml'
-        assert filecmp.cmp(args.output, expectedkube)
-        expectedapic = inp[:-8] + 'apic.txt'
-        assert filecmp.cmp(apicfile, expectedapic)
-
-        # Cleanup
-        os.remove(args.output)
-        os.remove(apicfile)
 
 if __name__ == "__main__":
     main()
