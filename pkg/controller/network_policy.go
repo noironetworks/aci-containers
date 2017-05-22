@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 )
 
@@ -179,56 +180,54 @@ func (cont *AciController) initNetPolPodIndex() {
 	)
 }
 
-func (cont *AciController) staticNetPolObjs() aciSlice {
-	var netPolObjs aciSlice
-
+func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 	staticName := cont.aciNameForKey("np", "static")
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, staticName))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			staticName, "Egress"))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			staticName, "Discovery"))
+	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, staticName)
+	hppDn := hpp.GetDn()
+	{
+		egressSubj := apicapi.NewHostprotSubj(hppDn, "egress")
+		{
+			outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
+				"allow-all-reflexive")
+			outbound.SetAttr("direction", "egress")
+			outbound.SetAttr("ethertype", "ipv4")
+			egressSubj.AddChild(outbound)
+		}
+		hpp.AddChild(egressSubj)
+	}
+	{
+		discSubj := apicapi.NewHostprotSubj(hppDn, "discovery")
+		discDn := discSubj.GetDn()
+		{
+			arpin := apicapi.NewHostprotRule(discDn, "arp-ingress")
+			arpin.SetAttr("direction", "ingress")
+			arpin.SetAttr("ethertype", "arp")
+			arpin.SetAttr("connTrack", "normal")
+			discSubj.AddChild(arpin)
+		}
+		{
+			arpout := apicapi.NewHostprotRule(discDn, "arp-egress")
+			arpout.SetAttr("direction", "egress")
+			arpout.SetAttr("ethertype", "arp")
+			arpout.SetAttr("connTrack", "normal")
+			discSubj.AddChild(arpout)
+		}
+		{
+			icmpin := apicapi.NewHostprotRule(discDn, "icmp-ingress")
+			icmpin.SetAttr("direction", "ingress")
+			icmpin.SetAttr("ethertype", "ipv4")
+			icmpin.SetAttr("protocol", "icmp")
+			discSubj.AddChild(icmpin)
+		}
 
-	{
-		outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
-			staticName, "Egress", "allow-all-reflexive")
-		outbound.Spec.SecurityGroupRule.Direction = "egress"
-		outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
-		netPolObjs = append(netPolObjs, outbound)
-	}
-	{
-		arpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
-			"Discovery", "arp-ingress")
-		arpin.Spec.SecurityGroupRule.Direction = "ingress"
-		arpin.Spec.SecurityGroupRule.Ethertype = "arp"
-		arpin.Spec.SecurityGroupRule.ConnTrack = "normal"
-		netPolObjs = append(netPolObjs, arpin)
-	}
-	{
-		arpout := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
-			"Discovery", "arp-egress")
-		arpout.Spec.SecurityGroupRule.Direction = "egress"
-		arpout.Spec.SecurityGroupRule.Ethertype = "arp"
-		arpout.Spec.SecurityGroupRule.ConnTrack = "normal"
-		netPolObjs = append(netPolObjs, arpout)
-	}
-	{
-		icmpin := NewSecurityGroupRule(cont.config.AciPolicyTenant, staticName,
-			"Discovery", "icmp-ingress")
-		icmpin.Spec.SecurityGroupRule.Direction = "ingress"
-		icmpin.Spec.SecurityGroupRule.Ethertype = "ipv4"
-		icmpin.Spec.SecurityGroupRule.IpProtocol = "icmp"
-		netPolObjs = append(netPolObjs, icmpin)
+		hpp.AddChild(discSubj)
 	}
 
-	return netPolObjs
+	return apicapi.ApicSlice{hpp}
 }
 
 func (cont *AciController) initStaticNetPolObjs() {
-	cont.writeAimObjects("StaticNetworkPolicy", "static",
+	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_np_static",
 		cont.staticNetPolObjs())
 }
 
@@ -308,13 +307,9 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 		}
 	}
 
-	var netPolObjs aciSlice
 	labelKey := cont.aciNameForKey("np", key)
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, labelKey))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			labelKey, "NetworkPolicy"))
+	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
+	subj := apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy")
 
 	for i, ingress := range np.Spec.Ingress {
 		var remoteIps []string
@@ -333,30 +328,32 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 		}
 
 		if ingress.Ports == nil {
-			rule := NewSecurityGroupRule(cont.config.AciPolicyTenant, labelKey,
-				"NetworkPolicy", strconv.Itoa(i))
-			rule.Spec.SecurityGroupRule.Direction = "ingress"
-			rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
-			rule.Spec.SecurityGroupRule.Ethertype = "ipv4"
-			netPolObjs = append(netPolObjs, rule)
+			rule := apicapi.NewHostprotRule(subj.GetDn(), strconv.Itoa(i))
+			rule.SetAttr("direction", "ingress")
+			rule.SetAttr("ethertype", "ipv4")
+			for _, ip := range remoteIps {
+				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
+			}
+			subj.AddChild(rule)
 		} else {
 			for j, p := range ingress.Ports {
 				proto := "tcp"
 				if p.Protocol != nil && *p.Protocol == v1.ProtocolUDP {
 					proto = "udp"
 				}
-				rule := NewSecurityGroupRule(cont.config.AciPolicyTenant,
-					labelKey, "NetworkPolicy",
+
+				rule := apicapi.NewHostprotRule(subj.GetDn(),
 					strconv.Itoa(i)+"_"+strconv.Itoa(j))
-				rule.Spec.SecurityGroupRule.Direction = "ingress"
-				rule.Spec.SecurityGroupRule.RemoteIps = remoteIps
-				rule.Spec.SecurityGroupRule.Ethertype = "ipv4"
-				rule.Spec.SecurityGroupRule.IpProtocol = proto
+				rule.SetAttr("direction", "ingress")
+				rule.SetAttr("ethertype", "ipv4")
+				rule.SetAttr("protocol", proto)
+				for _, ip := range remoteIps {
+					rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
+				}
 
 				if p.Port != nil {
 					if p.Port.Type == intstr.Int {
-						rule.Spec.SecurityGroupRule.ToPort =
-							p.Port.String()
+						rule.SetAttr("toPort", p.Port.String())
 					} else {
 						// the spec says that this field can be either
 						// an integer or a "named port on a pod".
@@ -367,13 +364,14 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 						continue
 					}
 				}
-				netPolObjs = append(netPolObjs, rule)
+				subj.AddChild(rule)
 			}
 		}
 
 	}
 
-	cont.writeAimObjects("NetworkPolicy", labelKey, netPolObjs)
+	hpp.AddChild(subj)
+	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
 	return false
 }
 
@@ -408,5 +406,5 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.clearAimObjects("NetworkPolicy", cont.aciNameForKey("np", key))
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("np", key))
 }

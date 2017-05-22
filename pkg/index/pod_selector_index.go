@@ -272,7 +272,6 @@ func (i *PodSelectorIndex) UpdateNamespace(ns *v1.Namespace) {
 		}
 
 		namespaces := i.getObjNamespaces(obj)
-		i.log.Info(namespaces)
 		if !reflect.DeepEqual(namespaces, i.objNsIndex[objkey]) {
 			newupdated, objupdated := i.updateSelectorObjForNs(obj, namespaces)
 			for u, _ := range newupdated {

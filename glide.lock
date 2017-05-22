@@ -1,5 +1,5 @@
-hash: 0f74cc9bee8db87df2696dab909c8d04a71074c8d239f2c57d972cb652333013
-updated: 2017-04-07T16:07:50.688514521-07:00
+hash: 9c03b0466591e49f6162859f17055e6e3d09c847f9bd1e536a78a8da0e97449d
+updated: 2017-05-18T13:51:25.088674359-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -67,6 +67,8 @@ imports:
   - lru
 - name: github.com/google/gofuzz
   version: 44d81051d367757e1c7c6a5a86423ece9afcf63c
+- name: github.com/gorilla/websocket
+  version: 3ab3a8b8831546bd18fd182c20687ca853b2bb13
 - name: github.com/hashicorp/hcl
   version: d8c773c4cba11b11539e3d45f93daeaa5dcf1fa1
   subpackages:

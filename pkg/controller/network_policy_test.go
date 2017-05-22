@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	v1 "k8s.io/client-go/pkg/api/v1"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -73,13 +75,13 @@ func netpol(namespace string, name string, podSelector *metav1.LabelSelector,
 }
 
 type npTest struct {
-	netPol  *v1beta1.NetworkPolicy
-	aciObjs map[aimKey]aciSlice
-	desc    string
+	netPol *v1beta1.NetworkPolicy
+	aciObj apicapi.ApicObject
+	desc   string
 }
 
-func staticNetPolKey() aimKey {
-	return aimKey{"StaticNetworkPolicy", "static"}
+func staticNetPolKey() string {
+	return "kube_np_static"
 }
 
 func TestNetworkPolicy(t *testing.T) {
@@ -88,114 +90,98 @@ func TestNetworkPolicy(t *testing.T) {
 	port80 := 80
 	port443 := 443
 
-	rule_0_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0")
-	rule_0_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_0_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-
-	rule_1_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0_0")
-	rule_1_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_1_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_1_0.Spec.SecurityGroupRule.IpProtocol = "tcp"
-	rule_1_0.Spec.SecurityGroupRule.ToPort = "80"
-
-	rule_3_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0_0")
-	rule_3_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_3_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_3_0.Spec.SecurityGroupRule.IpProtocol = "udp"
-	rule_3_0.Spec.SecurityGroupRule.ToPort = "80"
-
-	rule_4_1 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0_1")
-	rule_4_1.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_4_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_4_1.Spec.SecurityGroupRule.IpProtocol = "tcp"
-	rule_4_1.Spec.SecurityGroupRule.ToPort = "443"
-
-	rule_5_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0")
-	rule_5_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_5_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_5_0.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1", "1.1.1.2"}
-
-	rule_6_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0")
-	rule_6_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_6_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_6_0.Spec.SecurityGroupRule.RemoteIps =
-		[]string{"1.1.1.3", "1.1.1.4", "1.1.1.5"}
-
-	rule_7_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0")
-	rule_7_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_7_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_7_0.Spec.SecurityGroupRule.RemoteIps =
-		[]string{"1.1.1.1"}
-
-	rule_8_0 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "0_0")
-	rule_8_0.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_8_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_8_0.Spec.SecurityGroupRule.IpProtocol = "tcp"
-	rule_8_0.Spec.SecurityGroupRule.ToPort = "80"
-	rule_8_0.Spec.SecurityGroupRule.RemoteIps =
-		[]string{"1.1.1.1"}
-	rule_8_1 := NewSecurityGroupRule("test-tenant", "np__testns_np1",
-		"NetworkPolicy", "1_0")
-	rule_8_1.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_8_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_8_1.Spec.SecurityGroupRule.IpProtocol = "tcp"
-	rule_8_1.Spec.SecurityGroupRule.ToPort = "443"
-	rule_8_1.Spec.SecurityGroupRule.RemoteIps =
-		[]string{"1.1.1.2"}
-
-	baseSlice := func() aciSlice {
-		return aciSlice{
-			NewSecurityGroup("test-tenant", "np__testns_np1"),
-			NewSecurityGroupSubject("test-tenant", "np__testns_np1",
-				"NetworkPolicy"),
+	makeNp := func(rules apicapi.ApicSlice) apicapi.ApicObject {
+		np1 := apicapi.NewHostprotPol("test-tenant", "kube_np_testns_np1")
+		np1Subj := apicapi.NewHostprotSubj(np1.GetDn(), "networkpolicy")
+		np1.AddChild(np1Subj)
+		for _, r := range rules {
+			np1Subj.AddChild(r)
 		}
+		return np1
 	}
+
+	np1SDn := fmt.Sprintf("%s/subj-networkpolicy", makeNp(nil).GetDn())
+
+	rule_0_0 := apicapi.NewHostprotRule(np1SDn, "0")
+	rule_0_0.SetAttr("direction", "ingress")
+	rule_0_0.SetAttr("ethertype", "ipv4")
+
+	rule_1_0 := apicapi.NewHostprotRule(np1SDn, "0_0")
+	rule_1_0.SetAttr("direction", "ingress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("toPort", "80")
+
+	rule_3_0 := apicapi.NewHostprotRule(np1SDn, "0_0")
+	rule_3_0.SetAttr("direction", "ingress")
+	rule_3_0.SetAttr("ethertype", "ipv4")
+	rule_3_0.SetAttr("protocol", "udp")
+	rule_3_0.SetAttr("toPort", "80")
+
+	rule_4_1 := apicapi.NewHostprotRule(np1SDn, "0_1")
+	rule_4_1.SetAttr("direction", "ingress")
+	rule_4_1.SetAttr("ethertype", "ipv4")
+	rule_4_1.SetAttr("protocol", "tcp")
+	rule_4_1.SetAttr("toPort", "443")
+
+	rule_5_0 := apicapi.NewHostprotRule(np1SDn, "0")
+	rule_5_0.SetAttr("direction", "ingress")
+	rule_5_0.SetAttr("ethertype", "ipv4")
+	rule_5_0.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0.GetDn(), "1.1.1.1"))
+	rule_5_0.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0.GetDn(), "1.1.1.2"))
+
+	rule_6_0 := apicapi.NewHostprotRule(np1SDn, "0")
+	rule_6_0.SetAttr("direction", "ingress")
+	rule_6_0.SetAttr("ethertype", "ipv4")
+	rule_6_0.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0.GetDn(), "1.1.1.3"))
+	rule_6_0.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0.GetDn(), "1.1.1.4"))
+	rule_6_0.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0.GetDn(), "1.1.1.5"))
+
+	rule_7_0 := apicapi.NewHostprotRule(np1SDn, "0")
+	rule_7_0.SetAttr("direction", "ingress")
+	rule_7_0.SetAttr("ethertype", "ipv4")
+	rule_7_0.AddChild(apicapi.NewHostprotRemoteIp(rule_7_0.GetDn(), "1.1.1.1"))
+
+	rule_8_0 := apicapi.NewHostprotRule(np1SDn, "0_0")
+	rule_8_0.SetAttr("direction", "ingress")
+	rule_8_0.SetAttr("ethertype", "ipv4")
+	rule_8_0.SetAttr("protocol", "tcp")
+	rule_8_0.SetAttr("toPort", "80")
+	rule_8_0.AddChild(apicapi.NewHostprotRemoteIp(rule_8_0.GetDn(), "1.1.1.1"))
+	rule_8_1 := apicapi.NewHostprotRule(np1SDn, "1_0")
+	rule_8_1.SetAttr("direction", "ingress")
+	rule_8_1.SetAttr("ethertype", "ipv4")
+	rule_8_1.SetAttr("protocol", "tcp")
+	rule_8_1.SetAttr("toPort", "443")
+	rule_8_1.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1.GetDn(), "1.1.1.2"))
 
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_0_0),
-			}, "allow-all"},
+			makeNp(apicapi.ApicSlice{rule_0_0}),
+			"allow-all"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{port(&tcp, &port80)}, nil)}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_1_0),
-			}, "allow-http"},
+			makeNp(apicapi.ApicSlice{rule_1_0}),
+			"allow-http"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{port(nil, &port80)}, nil)}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_1_0),
-			}, "allow-http-defproto"},
+			makeNp(apicapi.ApicSlice{rule_1_0}),
+			"allow-http-defproto"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{port(&udp, &port80)}, nil)}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_3_0),
-			}, "allow-80-udp"},
+			makeNp(apicapi.ApicSlice{rule_3_0}),
+			"allow-80-udp"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{
 					port(nil, &port80), port(nil, &port443),
 				}, nil)}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_1_0, rule_4_1),
-			}, "allow-http-https"},
+			makeNp(apicapi.ApicSlice{rule_1_0, rule_4_1}),
+			"allow-http-https"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
 				[]v1beta1.NetworkPolicyPeer{peer(nil,
@@ -204,10 +190,8 @@ func TestNetworkPolicy(t *testing.T) {
 					}),
 				}),
 			}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_5_0),
-			}, "allow-all-from-ns"},
+			makeNp(apicapi.ApicSlice{rule_5_0}),
+			"allow-all-from-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
 				[]v1beta1.NetworkPolicyPeer{peer(nil,
@@ -216,10 +200,8 @@ func TestNetworkPolicy(t *testing.T) {
 					}),
 				}),
 			}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_6_0),
-			}, "allow-all-from-multiple-ns"},
+			makeNp(apicapi.ApicSlice{rule_6_0}),
+			"allow-all-from-multiple-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
 				[]v1beta1.NetworkPolicyPeer{
@@ -228,10 +210,8 @@ func TestNetworkPolicy(t *testing.T) {
 					}, nil),
 				}),
 			}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_7_0),
-			}, "allow-all-select-pods"},
+			makeNp(apicapi.ApicSlice{rule_7_0}),
+			"allow-all-select-pods"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{
@@ -249,10 +229,8 @@ func TestNetworkPolicy(t *testing.T) {
 					}, nil),
 				}),
 			}),
-			map[aimKey]aciSlice{
-				aimKey{"NetworkPolicy", "np__testns_np1"}: append(baseSlice(),
-					rule_8_0, rule_8_1),
-			}, "multiple-from"},
+			makeNp(apicapi.ApicSlice{rule_8_0, rule_8_1}),
+			"multiple-from"},
 	}
 
 	cont := testController()
@@ -285,9 +263,9 @@ func TestNetworkPolicy(t *testing.T) {
 	cont.run()
 
 	static := cont.staticNetPolObjs()
-	fixAciSlice(static, staticNetPolKey().ktype, staticNetPolKey().key)
+	apicapi.PrepareApicSlice(static, staticNetPolKey())
 	assert.Equal(t, static,
-		cont.aimDesiredState[staticNetPolKey()], "np__static")
+		cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
 
 	for _, nt := range npTests {
 		cont.log.Info("Starting ", nt.desc)
@@ -298,14 +276,14 @@ func TestNetworkPolicy(t *testing.T) {
 				cont.indexMutex.Lock()
 				defer cont.indexMutex.Unlock()
 
-				for key, slice := range nt.aciObjs {
-					fixAciSlice(slice, "NetworkPolicy",
-						cont.aciNameForKey("np",
-							nt.netPol.Namespace+"_"+nt.netPol.Name))
-					if !tu.WaitEqual(t, last, slice,
-						cont.aimDesiredState[key], nt.desc, key) {
-						return false, nil
-					}
+				slice := apicapi.ApicSlice{nt.aciObj}
+				key := cont.aciNameForKey("np",
+					nt.netPol.Namespace+"_"+nt.netPol.Name)
+				apicapi.PrepareApicSlice(slice, key)
+
+				if !tu.WaitEqual(t, last, slice,
+					cont.apicConn.GetDesiredState(key), nt.desc, key) {
+					return false, nil
 				}
 				return true, nil
 			})
@@ -318,11 +296,12 @@ func TestNetworkPolicy(t *testing.T) {
 			cont.indexMutex.Lock()
 			defer cont.indexMutex.Unlock()
 
-			for key, _ := range npTests[0].aciObjs {
-				if !tu.WaitEqual(t, last, 0,
-					len(cont.aimDesiredState[key]), "delete") {
-					return false, nil
-				}
+			nt := npTests[0]
+			key := cont.aciNameForKey("np",
+				nt.netPol.Namespace+"_"+nt.netPol.Name)
+			if !tu.WaitEqual(t, last, 0,
+				len(cont.apicConn.GetDesiredState(key)), "delete") {
+				return false, nil
 			}
 			return true, nil
 		})

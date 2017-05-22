@@ -36,12 +36,12 @@ type annotTest struct {
 const egAnnot = "{\"policy-space\":\"testps\",\"name\":\"test|test-eg\"}"
 const sgAnnot = "[{\"policy-space\":\"testps\",\"name\":\"test-sg\"}]"
 
-var egAnnotVal = opflexGroup{
+var egAnnotVal = OpflexGroup{
 	PolicySpace: "testps",
 	Name:        "test|test-eg",
 }
-var sgAnnotVal = []opflexGroup{
-	opflexGroup{
+var sgAnnotVal = []OpflexGroup{
+	OpflexGroup{
 		PolicySpace: "testps",
 		Name:        "test-sg",
 	},
@@ -91,7 +91,7 @@ func TestPodNamespaceDefault(t *testing.T) {
 	for _, test := range annotTests {
 		cont := testController()
 		if test.egannot != "" {
-			var eg opflexGroup
+			var eg OpflexGroup
 			err := json.Unmarshal([]byte(test.egannot), &eg)
 			if err != nil {
 				cont.log.Error(err)
@@ -99,7 +99,7 @@ func TestPodNamespaceDefault(t *testing.T) {
 			cont.config.NamespaceDefaultEg[test.ns] = eg
 		}
 		if test.sgannot != "" {
-			groups := make([]opflexGroup, 0)
+			groups := make([]OpflexGroup, 0)
 			err := json.Unmarshal([]byte(test.sgannot), &groups)
 			if err != nil {
 				cont.log.Error(err)
@@ -199,9 +199,9 @@ func TestNamespaceIsolation(t *testing.T) {
 		"{\"ingress\":{\"isolation\":\"DefaultDeny\"}}"
 	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"node__test-node\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"np__static\"}]",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
 		"added")
 
 	ns2 := namespace("testns", "", "")
@@ -214,17 +214,17 @@ func TestNamespaceIsolation(t *testing.T) {
 	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"node__test-node\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"np__static\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
 		"combine")
 
 	pod := pod("testns", "testpod", "", "")
 	pod.Spec.NodeName = ""
 	cont.fakePodSource.Add(pod)
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"np__testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"np__static\"}]",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
 		"no-node")
 
 	cont.stop()

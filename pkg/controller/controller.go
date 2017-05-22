@@ -15,12 +15,16 @@
 package controller
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/gorilla/websocket"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -37,9 +42,6 @@ import (
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
-type aimUpdateFunc func(*Aci) (*Aci, error)
-type aimAddFunc func(*Aci) (*Aci, error)
-type aimDeleteFunc func(name string, options *v1.DeleteOptions) error
 
 type AciController struct {
 	log    *logrus.Logger
@@ -59,14 +61,10 @@ type AciController struct {
 	deploymentInformer    cache.SharedIndexInformer
 	nodeInformer          cache.SharedIndexInformer
 	networkPolicyInformer cache.SharedIndexInformer
-	aimInformer           cache.SharedIndexInformer
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
 	updateServiceStatus serviceUpdateFunc
-	addAim              aimAddFunc
-	updateAim           aimUpdateFunc
-	deleteAim           aimDeleteFunc
 
 	indexMutex sync.Mutex
 
@@ -80,16 +78,15 @@ type AciController struct {
 	netPolPods        *index.PodSelectorIndex
 	netPolIngressPods *index.PodSelectorIndex
 
-	aimDesiredState map[aimKey]aciSlice
+	apicConn *apicapi.ApicConnection
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
-	nodeOpflexDevice     map[string]aciSlice
+	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 
 	nodeSyncEnabled    bool
 	serviceSyncEnabled bool
-	syncEnabled        bool
 }
 
 type nodeServiceMeta struct {
@@ -132,8 +129,7 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 
-		nodeOpflexDevice: make(map[string]aciSlice),
-		aimDesiredState:  make(map[aimKey]aciSlice),
+		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
@@ -142,7 +138,7 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 }
 
 func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
-	tprClient rest.Interface, netPolClient rest.Interface) {
+	netPolClient rest.Interface) {
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
 	}
@@ -152,36 +148,6 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().
 			Services(service.ObjectMeta.Namespace).UpdateStatus(service)
-	}
-	cont.addAim = func(a *Aci) (result *Aci, err error) {
-		result = &Aci{}
-		err = tprClient.Post().
-			Namespace(aimNamespace).
-			Resource("acis").
-			Body(a).
-			Do().
-			Into(result)
-		return
-	}
-	cont.updateAim = func(a *Aci) (result *Aci, err error) {
-		result = &Aci{}
-		err = tprClient.Put().
-			Namespace(aimNamespace).
-			Resource("acis").
-			Name(a.Name).
-			Body(a).
-			Do().
-			Into(result)
-		return
-	}
-	cont.deleteAim = func(name string, options *v1.DeleteOptions) error {
-		return tprClient.Delete().
-			Namespace(aimNamespace).
-			Resource("acis").
-			Name(name).
-			Body(options).
-			Do().
-			Error()
 	}
 
 	egdata, err := json.Marshal(cont.config.DefaultEg)
@@ -209,54 +175,74 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.initEndpointsInformerFromClient(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
 	cont.initNetworkPolicyInformerFromRest(netPolClient)
-	cont.initAimInformerFromRest(tprClient)
 
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
 }
 
-func processQueue(queue workqueue.RateLimitingInterface,
+func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 	informer cache.SharedIndexInformer,
 	handler func(interface{}) bool,
 	stopCh <-chan struct{}) {
-	for i := 0; i < 2; i++ {
-		go wait.Until(func() {
-			for {
-				key, quit := queue.Get()
-				if quit {
-					break
-				}
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
 
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
 				obj, exists, err :=
-					informer.GetStore().GetByKey(key.(string))
+					informer.GetStore().GetByKey(key)
 				if err == nil && exists {
 					if handler(obj) {
 						queue.Add(key)
 					}
 				}
-				queue.Forget(key)
-				queue.Done(key)
-
 			}
-		}, time.Second, stopCh)
-	}
+			queue.Forget(key)
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
 	<-stopCh
 	queue.ShutDown()
 }
 
-func (cont *AciController) globalStaticObjs() aciSlice {
-	return aciSlice{}
+func (cont *AciController) globalStaticObjs() apicapi.ApicSlice {
+	return apicapi.ApicSlice{}
+}
+
+func (cont *AciController) aciNameForKey(ktype string, key string) string {
+	return cont.config.AciPrefix + "_" + ktype +
+		"_" + strings.Replace(key, "/", "_", -1)
 }
 
 func (cont *AciController) initStaticObjs() {
 	cont.initStaticNetPolObjs()
 	cont.initStaticServiceObjs()
-	cont.writeAimObjects("Controller", "static",
+	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_static",
 		cont.globalStaticObjs())
 }
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {
+	// XXX TODO enable client certificates
+	tls := &tls.Config{InsecureSkipVerify: true}
+	dialer := &websocket.Dialer{
+		TLSClientConfig: tls,
+	}
+	var err error
+	cont.apicConn, err = apicapi.New(dialer, cont.log,
+		cont.config.ApicHosts, cont.config.ApicUsername,
+		cont.config.ApicPassword, cont.config.AciPrefix)
+	if err != nil {
+		panic(err)
+	}
+
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	cont.log.Debug("Waiting for node cache sync")
@@ -268,7 +254,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
-	go processQueue(cont.serviceQueue, cont.serviceInformer,
+	go cont.processQueue(cont.serviceQueue, cont.serviceInformer,
 		func(obj interface{}) bool {
 			return cont.handleServiceUpdate(obj.(*v1.Service))
 		}, stopCh)
@@ -285,12 +271,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
 	go cont.networkPolicyInformer.Run(stopCh)
-	go cont.aimInformer.Run(stopCh)
-	go processQueue(cont.podQueue, cont.podInformer,
+	go cont.processQueue(cont.podQueue, cont.podInformer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, stopCh)
-	go processQueue(cont.netPolQueue, cont.networkPolicyInformer,
+	go cont.processQueue(cont.netPolQueue, cont.networkPolicyInformer,
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
 		}, stopCh)
@@ -300,15 +285,50 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.namespaceInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.networkPolicyInformer.HasSynced,
-		cont.aimInformer.HasSynced)
+		cont.networkPolicyInformer.HasSynced)
 
 	cont.initStaticObjs()
 
-	cont.log.Info("Enabling object sync")
-	cont.indexMutex.Lock()
-	cont.syncEnabled = true
-	cont.indexMutex.Unlock()
-	cont.aimFullSync()
-	cont.log.Debug("Initial object sync complete")
+	cont.apicConn.FullSyncHook = func() {
+		// put a channel into each work queue and wait on it to
+		// checkpoint object syncing in response to new subscription
+		// updates
+		cont.log.Debug("Starting checkpoint")
+		var chans []chan struct{}
+		qs := []workqueue.RateLimitingInterface{
+			cont.podQueue, cont.netPolQueue, cont.serviceQueue,
+		}
+		for _, q := range qs {
+			c := make(chan struct{})
+			chans = append(chans, c)
+			q.Add(c)
+		}
+		for _, c := range chans {
+			<-c
+		}
+		cont.log.Debug("Checkpoint complete")
+	}
+	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
+		[]string{"hostprotPol"})
+	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
+		[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
+			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol"})
+	cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
+		cont.config.AciVrfTenant, cont.config.AciL3Out),
+		[]string{"fvRsCons"})
+	cont.apicConn.AddSubscriptionClass("opflexODev",
+		[]string{"opflexODev"},
+		fmt.Sprintf("and(eq(opflexODev.domName,\"%s\"),"+
+			"eq(opflexODev.ctrlrName,\"%s\"))",
+			cont.config.AciVmmDomain, cont.config.AciVmmController))
+
+	cont.apicConn.SetSubscriptionHooks("opflexODev",
+		func(obj apicapi.ApicObject) bool {
+			cont.opflexDeviceChanged(obj)
+			return true
+		},
+		func(dn string) {
+			cont.opflexDeviceDeleted(dn)
+		})
+	go cont.apicConn.Run(stopCh)
 }

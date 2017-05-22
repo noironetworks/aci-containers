@@ -17,7 +17,7 @@ package controller
 import (
 	"encoding/json"
 	"net"
-	"sort"
+	//"sort"
 	"testing"
 	"time"
 
@@ -26,8 +26,9 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	"github.com/stretchr/testify/assert"
+	//"github.com/stretchr/testify/assert"
 )
 
 func waitForSEpAnnot(t *testing.T, cont *testAciController, ipv4 net.IP, ipv6 net.IP, desc string) {
@@ -229,32 +230,22 @@ func TestNodeNetPol(t *testing.T) {
 	cont.fakeNodeSource.Add(node)
 	cont.run()
 
-	rule_0_0 := NewSecurityGroupRule("test-tenant", "node__node1",
-		"LocalNode", "allow-all-egress")
-	rule_0_0.Spec.SecurityGroupRule.Direction = "egress"
-	rule_0_0.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_0_0.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
-	rule_0_0.Spec.SecurityGroupRule.ConnTrack = "normal"
-	rule_0_1 := NewSecurityGroupRule("test-tenant", "node__node1",
-		"LocalNode", "allow-all-ingress")
-	rule_0_1.Spec.SecurityGroupRule.Direction = "ingress"
-	rule_0_1.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	rule_0_1.Spec.SecurityGroupRule.RemoteIps = []string{"1.1.1.1"}
-	rule_0_1.Spec.SecurityGroupRule.ConnTrack = "normal"
-	expected := aciSlice{
-		NewSecurityGroup("test-tenant", "node__node1"),
-		NewSecurityGroupSubject("test-tenant", "node__node1", "LocalNode"),
-		rule_0_0, rule_0_1,
-	}
-	sort.Sort(expected)
-	for _, o := range expected {
-		addAimLabels("Node", "node1", o)
-	}
+	key := cont.aciNameForKey("node", "node1")
+	sg := apicNodeNetPol(key, "test-tenant", []string{"1.1.1.1"})
 
-	cont.indexMutex.Lock()
-	assert.Equal(t, expected,
-		cont.aimDesiredState[aimKey{"Node", "node1"}], "node-rule")
-	cont.indexMutex.Unlock()
+	tu.WaitFor(t, "node-net-pol", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			cont.indexMutex.Lock()
+			defer cont.indexMutex.Unlock()
 
+			slice := apicapi.ApicSlice{sg}
+			apicapi.PrepareApicSlice(slice, key)
+
+			if !tu.WaitEqual(t, last, slice,
+				cont.apicConn.GetDesiredState(key), "node-net-pol", key) {
+				return false, nil
+			}
+			return true, nil
+		})
 	cont.stop()
 }

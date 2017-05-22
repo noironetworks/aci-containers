@@ -16,12 +16,14 @@ package controller
 
 import (
 	"net"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/client-go/pkg/api/v1"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -138,6 +140,8 @@ func TestServiceIp(t *testing.T) {
 	cont.stop()
 }
 
+type seMap map[string]*metadata.ServiceEndpoint
+
 func TestServiceGraph(t *testing.T) {
 	sgCont := func() *testAciController {
 		cont := testController()
@@ -164,102 +168,80 @@ func TestServiceGraph(t *testing.T) {
 		return cont
 	}
 
-	graphName := "service__kubernetes"
-	twoNodeCluster := NewDeviceCluster("common", graphName)
-	f := false
-	twoNodeCluster.Spec.DeviceCluster.Managed = &f
-	twoNodeCluster.Spec.DeviceCluster.PhysicalDomainName = "service-physdom"
-	twoNodeCluster.Spec.DeviceCluster.Encap = "vlan-4001"
-	twoNodeCluster.Spec.DeviceCluster.Devices = []Devices{
-		Devices{
-			Name: "node1",
-			Path: "topology/pod-1/paths-301/pathep-[eth1/33]",
+	graphName := "kube_service_global"
+	cluster := func(nmap map[string]string) apicapi.ApicObject {
+		var nodes []string
+		for node, _ := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		dc, _ := apicDeviceCluster(graphName, "common", "service-physdom",
+			"vlan-4001", nodes, nmap)
+		return dc
+	}
+	twoNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/33]",
+		"node2": "topology/pod-1/paths-301/pathep-[eth1/34]",
+	})
+	oneNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/100]",
+	})
+
+	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
+
+	name := "kube_service_testns_service1"
+	nameS2 := "kube_service_testns_service2"
+	redirect := func(nmap seMap) apicapi.ApicObject {
+		var nodes []string
+		for node, _ := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		dc, _ := apicRedirectPol(name, "common", nodes, nmap)
+		return dc
+	}
+	twoNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			Mac:  "8a:35:a1:a6:e4:60",
+			Ipv4: net.ParseIP("10.6.1.1"),
 		},
-		Devices{
-			Name: "node2",
-			Path: "topology/pod-1/paths-301/pathep-[eth1/34]",
+		"node2": &metadata.ServiceEndpoint{
+			Mac:  "a2:7e:45:57:a0:d4",
+			Ipv4: net.ParseIP("10.6.1.2"),
 		},
+	})
+	oneNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			Mac:  "8a:35:a1:a6:e4:60",
+			Ipv4: net.ParseIP("10.6.1.1"),
+		},
+	})
+
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
+	contract := apicContract(name, "common", graphName)
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
+
+	filter := apicapi.NewVzFilter("common", name)
+	filterDn := filter.GetDn()
+	{
+		fe := apicapi.NewVzEntry(filterDn, "0")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "tcp")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
+		filter.AddChild(fe)
+	}
+	{
+		fe := apicapi.NewVzEntry(filterDn, "1")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "udp")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
+		filter.AddChild(fe)
 	}
 
-	oneNodeCluster := NewDeviceCluster("common", graphName)
-	oneNodeCluster.Spec.DeviceCluster.Managed = &f
-	oneNodeCluster.Spec.DeviceCluster.PhysicalDomainName = "service-physdom"
-	oneNodeCluster.Spec.DeviceCluster.Encap = "vlan-4001"
-	oneNodeCluster.Spec.DeviceCluster.Devices = []Devices{
-		Devices{
-			Name: "node1",
-			Path: "topology/pod-1/paths-301/pathep-[eth1/100]",
-		},
-	}
-
-	graph := NewServiceGraph("common", graphName)
-	graph.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
-		LinearChainNodes{
-			DeviceClusterTenantName: "common",
-			DeviceClusterName:       graphName,
-			Name:                    "LoadBalancer",
-		},
-	}
-
-	name := "service__testns_service1"
-	twoNodeRedirect :=
-		NewServiceRedirectPolicy("common", name)
-	twoNodeRedirect.Spec.ServiceRedirectPolicy.Destinations = []Destinations{
-		Destinations{
-			Ip:  "10.6.1.1",
-			Mac: "8a:35:a1:a6:e4:60",
-		},
-		Destinations{
-			Ip:  "10.6.1.2",
-			Mac: "a2:7e:45:57:a0:d4",
-		},
-	}
-
-	oneNodeRedirect :=
-		NewServiceRedirectPolicy("common", name)
-	oneNodeRedirect.Spec.ServiceRedirectPolicy.Destinations = []Destinations{
-		Destinations{
-			Ip:  "10.6.1.1",
-			Mac: "8a:35:a1:a6:e4:60",
-		},
-	}
-
-	extNet := NewExternalNetwork("common", "l3out", name)
-	extNet.Spec.ExternalNetwork.ProvidedContractNames =
-		[]string{name}
-	extNetSub := NewExternalSubnet("common", "l3out", name, "10.4.2.2/32")
-	contract := NewContract("common", name)
-	contractSubj := NewContractSubject("common", name, "LoadBalancedService")
-	f_in := NewFilter("common", name)
-	contractSubj.Spec.ContractSubject.ServiceGraphName = graphName
-	contractSubj.Spec.ContractSubject.BiFilters = []string{name}
-	fe_tcp_80_in := NewFilterEntry("common", name, "0")
-	fe_tcp_80_in.Spec.FilterEntry.EtherType = "ip"
-	fe_tcp_80_in.Spec.FilterEntry.IpProtocol = "tcp"
-	fe_tcp_80_in.Spec.FilterEntry.DestFromPort = "80"
-	fe_tcp_80_in.Spec.FilterEntry.DestToPort = "80"
-	fe_udp_53_in := NewFilterEntry("common", name, "1")
-	fe_udp_53_in.Spec.FilterEntry.EtherType = "ip"
-	fe_udp_53_in.Spec.FilterEntry.IpProtocol = "udp"
-	fe_udp_53_in.Spec.FilterEntry.DestFromPort = "53"
-	fe_udp_53_in.Spec.FilterEntry.DestToPort = "53"
-
-	s1Dcc := NewDeviceClusterContext("common",
-		name, graphName, "LoadBalancer")
-	s1Dcc.Spec.DeviceClusterContext.BridgeDomainTenantName =
-		"common"
-	s1Dcc.Spec.DeviceClusterContext.BridgeDomainName =
-		"bd__kubernetes-service"
-	s1Dcc.Spec.DeviceClusterContext.DeviceClusterTenantName =
-		"common"
-	s1Dcc.Spec.DeviceClusterContext.DeviceClusterName = graphName
-	s1Dcc.Spec.DeviceClusterContext.ServiceRedirectPolicyTenantName =
-		"common"
-	s1Dcc.Spec.DeviceClusterContext.ServiceRedirectPolicyName = name
-
-	graphkey := aimKey{"DeviceCluster", "static"}
-	s1key := aimKey{"Service", name}
-	s2key := aimKey{"Service", "service__testns_service2"}
+	s1Dcc := apicDevCtx(name, "common", graphName,
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn())
 
 	endpoints1 := endpoints("testns", "service1", []string{"node1", "node2"})
 	service1 := service("testns", "service1", "10.4.2.2")
@@ -285,50 +267,76 @@ func TestServiceGraph(t *testing.T) {
 	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
 
-	opflexDevice0 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
-	opflexDevice0.Spec.OpflexDevice.HostName = "node1"
-	opflexDevice0.Spec.OpflexDevice.DomainName = "not-kube-domain"
-	opflexDevice0.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice0.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/42]"
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/33]")
 
-	opflexDevice1 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
-	opflexDevice1.Spec.OpflexDevice.HostName = "node1"
-	opflexDevice1.Spec.OpflexDevice.DomainName = "kube-domain"
-	opflexDevice1.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice1.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/33]"
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice2.SetAttr("hostName", "node2")
+	opflexDevice2.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/34]")
 
-	opflexDevice2 := NewOpflexDevice("pod1", "node-301", "br", "dev2")
-	opflexDevice2.Spec.OpflexDevice.HostName = "node2"
-	opflexDevice2.Spec.OpflexDevice.DomainName = "kube-domain"
-	opflexDevice2.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice2.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/34]"
+	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice3.SetAttr("hostName", "node3")
+	opflexDevice3.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/50]")
 
-	opflexDevice3 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
-	opflexDevice3.Spec.OpflexDevice.HostName = "node3"
-	opflexDevice3.Spec.OpflexDevice.DomainName = "kube-domain"
-	opflexDevice3.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice3.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/50]"
+	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice4.SetAttr("hostName", "node4")
+	opflexDevice4.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/51]")
 
-	opflexDevice4 := NewOpflexDevice("pod1", "node-301", "br", "dev2")
-	opflexDevice4.Spec.OpflexDevice.HostName = "node4"
-	opflexDevice4.Spec.OpflexDevice.DomainName = "kube-domain"
-	opflexDevice4.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice4.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/51]"
+	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1_alt.SetAttr("hostName", "node1")
+	opflexDevice1_alt.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/100]")
 
-	opflexDevice1_alt := NewOpflexDevice("pod1", "node-301", "br", "dev1")
-	opflexDevice1_alt.Spec.OpflexDevice.HostName = "node1"
-	opflexDevice1_alt.Spec.OpflexDevice.DomainName = "kube-domain"
-	opflexDevice1_alt.Spec.OpflexDevice.ControllerName = "kube-controller"
-	opflexDevice1_alt.Spec.OpflexDevice.FabricPathDn =
-		"topology/pod-1/paths-301/pathep-[eth1/100]"
-
+	//
+	//opflexDevice0 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
+	//opflexDevice0.Spec.OpflexDevice.HostName = "node1"
+	//opflexDevice0.Spec.OpflexDevice.DomainName = "not-kube-domain"
+	//opflexDevice0.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice0.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/42]"
+	//
+	//opflexDevice1 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
+	//opflexDevice1.Spec.OpflexDevice.HostName = "node1"
+	//opflexDevice1.Spec.OpflexDevice.DomainName = "kube-domain"
+	//opflexDevice1.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice1.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/33]"
+	//
+	//opflexDevice2 := NewOpflexDevice("pod1", "node-301", "br", "dev2")
+	//opflexDevice2.Spec.OpflexDevice.HostName = "node2"
+	//opflexDevice2.Spec.OpflexDevice.DomainName = "kube-domain"
+	//opflexDevice2.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice2.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/34]"
+	//
+	//opflexDevice3 := NewOpflexDevice("pod1", "node-301", "br", "dev1")
+	//opflexDevice3.Spec.OpflexDevice.HostName = "node3"
+	//opflexDevice3.Spec.OpflexDevice.DomainName = "kube-domain"
+	//opflexDevice3.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice3.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/50]"
+	//
+	//opflexDevice4 := NewOpflexDevice("pod1", "node-301", "br", "dev2")
+	//opflexDevice4.Spec.OpflexDevice.HostName = "node4"
+	//opflexDevice4.Spec.OpflexDevice.DomainName = "kube-domain"
+	//opflexDevice4.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice4.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/51]"
+	//
+	//opflexDevice1_alt := NewOpflexDevice("pod1", "node-301", "br", "dev1")
+	//opflexDevice1_alt.Spec.OpflexDevice.HostName = "node1"
+	//opflexDevice1_alt.Spec.OpflexDevice.DomainName = "kube-domain"
+	//opflexDevice1_alt.Spec.OpflexDevice.ControllerName = "kube-controller"
+	//opflexDevice1_alt.Spec.OpflexDevice.FabricPathDn =
+	//	"topology/pod-1/paths-301/pathep-[eth1/100]"
+	//
 	sgWait := func(t *testing.T, desc string, cont *testAciController,
-		expected map[aimKey]aciSlice) {
+		expected map[string]apicapi.ApicSlice) {
 
 		tu.WaitFor(t, desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
@@ -336,70 +344,88 @@ func TestServiceGraph(t *testing.T) {
 				defer cont.indexMutex.Unlock()
 
 				for key, slice := range expected {
-					if !tu.WaitEqual(t, last, slice,
-						cont.aimDesiredState[key], desc, key) {
-						if last && len(slice) == len(cont.aimDesiredState[key]) {
-							for i := range slice {
-								assert.Equal(t, slice[i], cont.aimDesiredState[key][i])
+					ds := cont.apicConn.GetDesiredState(key)
+					if !tu.WaitEqual(t, last, slice, ds, desc, key) {
+						for i := range slice {
+							if last &&
+								assert.Equal(t, len(slice[i]), len(ds[i])) {
+								assert.Equal(t, slice[i], ds[i])
+							} else {
+								return false, nil
 							}
 						}
-						return false, nil
 					}
 				}
 				return true, nil
 			})
 		cont.log.Info("Finished waiting for ", desc)
 	}
-
-	mWait := func(t *testing.T, desc string, cont *testAciController,
-		expected []string) {
-
-		tu.WaitFor(t, desc, 500*time.Millisecond,
-			func(last bool) (bool, error) {
-				if !tu.WaitEqual(t, last, 1, len(cont.aimUpdates)) {
-					return false, nil
-				}
-				for _, a := range cont.aimUpdates {
-					return tu.WaitEqual(t, last, expected,
-						a.Spec.ExternalNetwork.ConsumedContractNames,
-						desc), nil
-				}
-				return false, nil
-			})
+	//
+	//mWait := func(t *testing.T, desc string, cont *testAciController,
+	//	expected []string) {
+	//
+	//	tu.WaitFor(t, desc, 500*time.Millisecond,
+	//		func(last bool) (bool, error) {
+	//			if !tu.WaitEqual(t, last, 1, len(cont.aimUpdates)) {
+	//				return false, nil
+	//			}
+	//			for _, a := range cont.aimUpdates {
+	//				return tu.WaitEqual(t, last, expected,
+	//					a.Spec.ExternalNetwork.ConsumedContractNames,
+	//					desc), nil
+	//			}
+	//			return false, nil
+	//		})
+	//}
+	//
+	expected := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect,
+			extNet, contract, rsCons, filter, s1Dcc}, name),
+		nameS2: nil,
 	}
 
-	expected := map[aimKey]aciSlice{
-		graphkey: fixAciSlice(aciSlice{twoNodeCluster, graph},
-			"DeviceCluster", "static"),
-		s1key: fixAciSlice(aciSlice{twoNodeRedirect,
-			extNet, extNetSub, contract, contractSubj, f_in,
-			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
-			"Service", name),
+	expectedOneNode := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeCluster,
+			graph},
+			graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeRedirect,
+			extNet, contract, rsCons, filter, s1Dcc}, name),
+		nameS2: nil,
 	}
 
-	expectedOneNode := map[aimKey]aciSlice{
-		graphkey: fixAciSlice(aciSlice{oneNodeCluster, graph},
-			"DeviceCluster", "static"),
-		s1key: fixAciSlice(aciSlice{oneNodeRedirect,
-			extNet, extNetSub, contract, contractSubj, f_in,
-			fe_tcp_80_in, fe_udp_53_in, s1Dcc},
-			"Service", name),
-	}
-	expectedNoService := map[aimKey]aciSlice{
-		graphkey: fixAciSlice(aciSlice{twoNodeCluster, graph},
-			"DeviceCluster", "static"),
-		s1key: nil,
-		s2key: nil,
+	expectedNoService := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph},
+			graphName),
+		name:   nil,
+		nameS2: nil,
 	}
 
+	//
+	//expectedOneNode := map[aimKey]aciSlice{
+	//	graphkey: fixAciSlice(aciSlice{oneNodeCluster, graph},
+	//		"DeviceCluster", "static"),
+	//	s1key: fixAciSlice(aciSlice{oneNodeRedirect,
+	//		extNet, extNetSub, contract, contractSubj, f_in,
+	//		fe_tcp_80_in, fe_udp_53_in, s1Dcc},
+	//		"Service", name),
+	//}
+	//expectedNoService := map[aimKey]aciSlice{
+	//	graphkey: fixAciSlice(aciSlice{twoNodeCluster, graph},
+	//		"DeviceCluster", "static"),
+	//	s1key: nil,
+	//	s2key: nil,
+	//}
+	//
 	cont := sgCont()
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
 	cont.fakeServiceSource.Add(service2)
-	cont.fakeAimSource.Add(opflexDevice0)
-	cont.fakeAimSource.Add(opflexDevice1)
-	cont.fakeAimSource.Add(opflexDevice2)
 	cont.run()
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
 
 	sgWait(t, "non-lb", cont, expectedNoService)
 
@@ -409,54 +435,38 @@ func TestServiceGraph(t *testing.T) {
 
 	sgWait(t, "create", cont, expected)
 
-	cont.fakeAimSource.Delete(opflexDevice1)
-	cont.fakeAimSource.Delete(opflexDevice2)
-	sgWait(t, "delete device", cont, map[aimKey]aciSlice{s1key: nil})
+	cont.opflexDeviceDeleted(opflexDevice1.GetDn())
+	cont.opflexDeviceDeleted(opflexDevice2.GetDn())
+	sgWait(t, "delete device", cont,
+		map[string]apicapi.ApicSlice{name: nil})
 
-	cont.fakeAimSource.Add(opflexDevice1)
-	cont.fakeAimSource.Add(opflexDevice2)
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
 	sgWait(t, "add device", cont, expected)
 
-	cont.fakeAimSource.Add(opflexDevice1_alt)
-	cont.fakeAimSource.Delete(opflexDevice2)
+	cont.opflexDeviceChanged(opflexDevice1_alt)
+	cont.opflexDeviceDeleted(opflexDevice2.GetDn())
 	sgWait(t, "update device", cont, expectedOneNode)
 
-	cont.fakeAimSource.Add(opflexDevice3)
-	cont.fakeAimSource.Add(opflexDevice4)
-	sgWait(t, "move device", cont, map[aimKey]aciSlice{s1key: nil})
+	cont.opflexDeviceChanged(opflexDevice3)
+	cont.opflexDeviceChanged(opflexDevice4)
+	sgWait(t, "move device", cont,
+		map[string]apicapi.ApicSlice{name: nil})
 
-	cont.fakeAimSource.Add(opflexDevice1)
-	cont.fakeAimSource.Add(opflexDevice2)
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
 	sgWait(t, "restore device", cont, expected)
 
 	cont.fakeEndpointsSource.Delete(endpoints1)
-	sgWait(t, "delete eps", cont, map[aimKey]aciSlice{s1key: nil})
+	sgWait(t, "delete eps", cont,
+		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.fakeEndpointsSource.Add(endpoints1)
 	sgWait(t, "add eps", cont, expected)
 
-	cont.aimUpdates = nil
-	monitored := NewExternalNetwork("common", "l3out", "ext1")
-	tru := true
-	monitored.Spec.ExternalNetwork.Monitored = &tru
-
-	cont.fakeAimSource.Add(monitored)
-	mWait(t, "add extnet", cont, []string{name})
-	cont.aimUpdates = nil
-
-	cont.fakeServiceSource.Delete(service1)
-	sgWait(t, "delete service", cont, map[aimKey]aciSlice{s1key: nil})
-	mWait(t, "delete service monitored extnet", cont, nil)
-	cont.aimUpdates = nil
-
-	cont.fakeServiceSource.Add(service1)
-	sgWait(t, "add service", cont, expected)
-	mWait(t, "add service monitored extnet", cont, []string{name})
-	cont.aimUpdates = nil
-
 	cont.fakeNodeSource.Delete(node1)
 	cont.fakeNodeSource.Delete(node2)
-	sgWait(t, "delete node", cont, map[aimKey]aciSlice{s1key: nil})
+	sgWait(t, "delete node", cont, map[string]apicapi.ApicSlice{name: nil})
 
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
@@ -464,12 +474,9 @@ func TestServiceGraph(t *testing.T) {
 
 	service1.Spec.Type = ""
 	cont.fakeServiceSource.Add(service1)
-	sgWait(t, "convert to non-lb", cont, map[aimKey]aciSlice{s1key: nil})
+	sgWait(t, "convert to non-lb", cont,
+		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.stop()
 
-}
-
-func staticServiceKey() aimKey {
-	return aimKey{"StaticService", "static"}
 }

@@ -15,6 +15,7 @@
 package testutil
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -44,13 +45,29 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 	return nil
 }
 
+// isNil checks if a specified object is nil or not, without Failing.
+func isNil(object interface{}) bool {
+	if object == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(object)
+	kind := value.Kind()
+	if kind >= reflect.Chan && kind <= reflect.Slice && value.IsNil() {
+		return true
+	}
+
+	return false
+}
+
 // returns true if the object is nil.  If final is true, also
 // asserts that that the object is nil.
 func WaitNil(t *testing.T, final bool, object interface{}, msgAndArgs ...interface{}) bool {
 	if final {
 		assert.Nil(t, object, msgAndArgs...)
 	}
-	return object == nil
+
+	return isNil(object)
 }
 
 // returns true if the object is not nil.  If final is true, also
@@ -59,7 +76,7 @@ func WaitNotNil(t *testing.T, final bool, object interface{}, msgAndArgs ...inte
 	if final {
 		assert.NotNil(t, object, msgAndArgs...)
 	}
-	return object != nil
+	return !isNil(object)
 }
 
 // returns true if the comparison is true.  If final is true, also

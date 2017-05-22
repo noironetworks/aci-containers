@@ -50,6 +50,15 @@ type ControllerConfig struct {
 	// map ns name -> slice of groups
 	NamespaceDefaultSg map[string][]OpflexGroup `json:"namespace-default-security-group,omitempty"`
 
+	// The hostnames or IPs for connecting to apic
+	ApicHosts []string `json:"apic-hosts,omitempty"`
+
+	// The username for connecting to APIC
+	ApicUsername string `json:"apic-username,omitempty"`
+
+	// The password for connecting to APIC
+	ApicPassword string `json:"apic-password,omitempty"`
+
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
@@ -122,6 +131,7 @@ func NewConfig() *ControllerConfig {
 		NamespaceDefaultEg: make(map[string]OpflexGroup),
 		NamespaceDefaultSg: make(map[string][]OpflexGroup),
 		AciPolicyTenant:    "kubernetes",
+		AciPrefix:          "kube",
 		PodIpPoolChunkSize: 128,
 	}
 }

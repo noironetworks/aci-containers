@@ -74,10 +74,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(),
 		},
-		reportCmdElem{
-			name: "cluster-report/logs/controller/aid.log",
-			args: aidLogCmdArgs(),
-		},
 	}
 
 	kubeClient, err := initClient()
@@ -244,20 +240,10 @@ func outputCmd(cmd *cobra.Command, cmdArgs []string) {
 	}
 }
 
-func aidLogCmdArgs() []string {
-	return []string{"-n", "kube-system", "--limit-bytes=10048576",
-		"logs", "deployment/aci-containers-controller",
-		"-c", "aci-integration-module"}
-}
-
 func accLogCmdArgs() []string {
 	return []string{"-n", "kube-system", "--limit-bytes=10048576",
 		"logs", "deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
-}
-
-func aidLog(cmd *cobra.Command, args []string) {
-	outputCmd(logCmd, aidLogCmdArgs())
 }
 
 func accLog(cmd *cobra.Command, args []string) {
@@ -401,12 +387,6 @@ var controllerLogCmd = &cobra.Command{
 	Short: "Get logs from an ACI containers controller container",
 }
 
-var aidControllerLogCmd = &cobra.Command{
-	Use:   "aid",
-	Short: "Get logs from the AID container",
-	Run:   aidLog,
-}
-
 var accControllerLogCmd = &cobra.Command{
 	Use:   "acc",
 	Short: "Get logs from the ACC container",
@@ -466,7 +446,6 @@ func init() {
 	logCmd.PersistentFlags().StringP("output", "o", "",
 		"Output to the specified file")
 
-	controllerLogCmd.AddCommand(aidControllerLogCmd)
 	controllerLogCmd.AddCommand(accControllerLogCmd)
 	logCmd.AddCommand(controllerLogCmd)
 

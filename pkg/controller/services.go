@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"sort"
@@ -31,6 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -129,113 +131,30 @@ func returnIps(pool *netIps, ips []net.IP) {
 	}
 }
 
-func (cont *AciController) updateMonitoredExternalNetworks() {
-	var aciObjs aciSlice
-
-	cache.ListAllByNamespace(cont.aimInformer.GetIndexer(),
-		aimNamespace, labels.SelectorFromSet(labels.Set{
-			"aim_type": "external_network",
-		}),
-		func(aimobj interface{}) {
-			aci := aimobj.(*Aci)
-			if aci.Spec.Type == "external_network" &&
-				aci.Spec.ExternalNetwork != nil &&
-				aci.Spec.ExternalNetwork.Monitored != nil &&
-				*aci.Spec.ExternalNetwork.Monitored == true {
-				aciObjs = append(aciObjs, aci)
-			}
-		})
-
-	cont.reconcileMonitoredExternalNetworks(aciObjs)
-}
-
-func (cont *AciController) reconcileMonitoredExternalNetworks(aciObjs aciSlice) {
-	enets := make(map[string]bool)
-	for _, extNet := range cont.config.AciExtNetworks {
-		enets[extNet] = true
-	}
-
-	var extNets aciSlice
-	for _, aci := range aciObjs {
-		_, isEnet := enets[aci.Spec.ExternalNetwork.Name]
-		if aci.Spec.ExternalNetwork.TenantName == cont.config.AciVrfTenant &&
-			isEnet {
-			extNets = append(extNets, aci)
-		}
-	}
-	if len(extNets) == 0 {
-		return
-	}
-
-	var cnames []string
-	cache.ListAll(cont.serviceInformer.GetIndexer(), labels.Everything(),
-		func(serviceobj interface{}) {
-			service := serviceobj.(*v1.Service)
-
-			isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
-			if !isLoadBalancer {
-				return
-			}
-
-			servicekey, err := cache.MetaNamespaceKeyFunc(service)
-			if err != nil {
-				serviceLogger(cont.log, service).
-					Error("Could not create service key: ", err)
-				return
-			}
-
-			cnames = append(cnames, cont.aciNameForKey("service", servicekey))
-		})
-
-	sort.Strings(cnames)
-
-	for _, aci := range extNets {
-		sort.Strings(aci.Spec.ExternalNetwork.ConsumedContractNames)
-		if reflect.DeepEqual(cnames,
-			aci.Spec.ExternalNetwork.ConsumedContractNames) {
-			continue
-		}
-
-		aci.Spec.ExternalNetwork.ConsumedContractNames = cnames
-		cont.aciObjLogger(aci).Debug("Updating monitored external network: ",
-			cnames)
-		// Note we don't use AIM index here since this is a monitored
-		// object with special behavior in AID
-		_, err := cont.updateAim(aci)
-		if err != nil {
-			cont.log.Error("Could not update AIM object: ", err)
-		}
-	}
-}
-
-func (cont *AciController) staticServiceObjs() aciSlice {
-	var serviceObjs aciSlice
-
+func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 	// Service bridge domain
 	bdName := cont.aciNameForKey("bd", "kubernetes-service")
-	{
-		bd := NewBridgeDomain(cont.config.AciVrfTenant, bdName)
-		t := true
-		f := false
-		bd.Spec.BridgeDomain.EnableArpFlood = &t
-		bd.Spec.BridgeDomain.EnableRouting = &t
-		bd.Spec.BridgeDomain.IpLearning = &f
-		bd.Spec.BridgeDomain.L2UnknownUnicastMode = "flood"
-		bd.Spec.BridgeDomain.VrfName = cont.config.AciVrf
-		bd.Spec.BridgeDomain.L3outNames = []string{cont.config.AciL3Out}
-		serviceObjs = append(serviceObjs, bd)
-	}
+
+	bd := apicapi.NewBridgeDomain(cont.config.AciVrfTenant, bdName)
+	bd.SetAttr("arpFlood", "yes")
+	bd.SetAttr("ipLearning", "no")
+	bd.SetAttr("unkMacUcastAct", "flood")
+	bdToOut := apicapi.NewRsBdToOut(bd.GetDn(), cont.config.AciL3Out)
+	bd.AddChild(bdToOut)
+	bdToVrf := apicapi.NewRsCtx(bd.GetDn(), cont.config.AciVrf)
+	bd.AddChild(bdToVrf)
+
+	bdn := bd.GetDn()
 	for _, cidr := range cont.config.NodeServiceSubnets {
-		serviceObjs = append(serviceObjs,
-			NewSubnet(cont.config.AciVrfTenant, bdName, cidr))
-
+		sn := apicapi.NewSubnet(bdn, cidr)
+		bd.AddChild(sn)
 	}
 
-	return serviceObjs
+	return apicapi.ApicSlice{bd}
 }
 
 func (cont *AciController) initStaticServiceObjs() {
-	cont.writeAimObjects("StaticService", "static",
+	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_service_static",
 		cont.staticServiceObjs())
 }
 
@@ -265,12 +184,82 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 // must have index lock
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	for _, device := range cont.nodeOpflexDevice[name] {
-		if !cont.opflexDeviceMatchesVmm(device) {
-			continue
-		}
-		return device.Spec.OpflexDevice.FabricPathDn, true
+		return device.GetAttrStr("fabricPathDn"), true
 	}
 	return "", false
+}
+
+func apicRedirectPol(name string, tenantName string, nodes []string,
+	nodeMap map[string]*metadata.ServiceEndpoint) (apicapi.ApicObject, string) {
+	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
+	rpDn := rp.GetDn()
+	for _, node := range nodes {
+		serviceEp, ok := nodeMap[node]
+		if !ok {
+			continue
+		}
+		if serviceEp.Ipv4 != nil {
+			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
+				serviceEp.Ipv4.String(), serviceEp.Mac))
+		}
+		if serviceEp.Ipv6 != nil {
+			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
+				serviceEp.Ipv6.String(), serviceEp.Mac))
+		}
+	}
+	return rp, rpDn
+}
+
+func apicExtNet(name string, tenantName string, l3Out string,
+	ingresses []string) apicapi.ApicObject {
+
+	en := apicapi.NewL3extInstP(tenantName, l3Out, name)
+	enDn := en.GetDn()
+	en.AddChild(apicapi.NewFvRsProv(enDn, name))
+	for _, ingress := range ingresses {
+		en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/32"))
+	}
+	return en
+}
+
+func apicExtNetCons(conName string, tenantName string,
+	l3Out string, net string) apicapi.ApicObject {
+
+	enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
+	return apicapi.NewFvRsCons(enDn, conName)
+}
+
+func apicContract(conName string, tenantName string,
+	graphName string) apicapi.ApicObject {
+	con := apicapi.NewVzBrCP(tenantName, conName)
+	cs := apicapi.NewVzSubj(con.GetDn(), "loadbalancedservice")
+	csDn := cs.GetDn()
+	cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
+	cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
+	con.AddChild(cs)
+	return con
+}
+
+func apicDevCtx(name string, tenantName string,
+	graphName string, bdName string, rpDn string) apicapi.ApicObject {
+
+	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
+	ccDn := cc.GetDn()
+	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, graphName)
+	lifDn := fmt.Sprintf("%s/lIf-%s", graphDn, "interface")
+	bdDn := fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, bdName)
+	cc.AddChild(apicapi.NewVnsRsLDevCtxToLDev(ccDn, graphDn))
+	for _, ctxConn := range []string{"consumer", "provider"} {
+		lifCtx := apicapi.NewVnsLIfCtx(ccDn, ctxConn)
+		lifCtxDn := lifCtx.GetDn()
+		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToSvcRedirectPol(lifCtxDn,
+			rpDn))
+		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToBD(lifCtxDn, bdDn))
+		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToLIf(lifCtxDn, lifDn))
+		cc.AddChild(lifCtx)
+	}
+
+	return cc
 }
 
 func (cont *AciController) updateServiceDeviceInstance(key string,
@@ -315,8 +304,8 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	sort.Strings(nodes)
 
 	name := cont.aciNameForKey("service", key)
-	graphName := cont.aciNameForKey("service", "kubernetes")
-	var serviceObjs aciSlice
+	graphName := cont.aciNameForKey("service", "global")
+	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
 
 		// 1. Service redirect policy
@@ -324,108 +313,63 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// and IP address of each of the service endpoints for
 		// each node that hosts a pod for this service.  The
 		// example below shows the case of two nodes.
-		{
-			rp := NewServiceRedirectPolicy(cont.config.AciVrfTenant, name)
-			for _, node := range nodes {
-				serviceEp, ok := nodeMap[node]
-				if !ok {
-					continue
-				}
-				if serviceEp.Ipv4 != nil {
-					rp.Spec.ServiceRedirectPolicy.Destinations =
-						append(rp.Spec.ServiceRedirectPolicy.Destinations,
-							Destinations{
-								Ip:  serviceEp.Ipv4.String(),
-								Mac: serviceEp.Mac,
-							})
-				}
-				if serviceEp.Ipv6 != nil {
-					rp.Spec.ServiceRedirectPolicy.Destinations =
-						append(rp.Spec.ServiceRedirectPolicy.Destinations,
-							Destinations{
-								Ip:  serviceEp.Ipv6.String(),
-								Mac: serviceEp.Mac,
-							})
-				}
-			}
-			serviceObjs = append(serviceObjs, rp)
-		}
+		rp, rpDn :=
+			apicRedirectPol(name, cont.config.AciVrfTenant, nodes, nodeMap)
+		serviceObjs = append(serviceObjs, rp)
 
-		// 2. Service graph contract
+		// 2. Service graph contract and external network
 		// The service graph contract must be bound to the service
 		// graph.  This contract must be consumed by the default
 		// layer 3 network and provided by the service layer 3
 		// network.
 		{
-			en := NewExternalNetwork(cont.config.AciVrfTenant,
-				cont.config.AciL3Out, name)
-			en.Spec.ExternalNetwork.ProvidedContractNames =
-				[]string{name}
-			serviceObjs = append(serviceObjs, en)
-		}
-
-		for _, ingress := range service.Status.LoadBalancer.Ingress {
+			var ingresses []string
+			for _, ingress := range service.Status.LoadBalancer.Ingress {
+				ingresses = append(ingresses, ingress.IP)
+			}
 			serviceObjs = append(serviceObjs,
-				NewExternalSubnet(cont.config.AciVrfTenant,
-					cont.config.AciL3Out, name, ingress.IP+"/32"))
+				apicExtNet(name, cont.config.AciVrfTenant,
+					cont.config.AciL3Out, ingresses))
 		}
 
+		serviceObjs = append(serviceObjs,
+			apicContract(name, cont.config.AciVrfTenant, graphName))
+
+		for _, net := range cont.config.AciExtNetworks {
+			serviceObjs = append(serviceObjs,
+				apicExtNetCons(name, cont.config.AciVrfTenant,
+					cont.config.AciL3Out, net))
+		}
 		{
-			serviceObjs = append(serviceObjs,
-				NewContract(cont.config.AciVrfTenant, name))
-			cs := NewContractSubject(cont.config.AciVrfTenant, name,
-				"LoadBalancedService")
-
-			serviceObjs = append(serviceObjs,
-				NewFilter(cont.config.AciVrfTenant, name))
-			cs.Spec.ContractSubject.ServiceGraphName = graphName
-			cs.Spec.ContractSubject.BiFilters = []string{name}
-			serviceObjs = append(serviceObjs, cs)
+			filter := apicapi.NewVzFilter(cont.config.AciVrfTenant, name)
+			filterDn := filter.GetDn()
 
 			for i, port := range service.Spec.Ports {
-				fe_in := NewFilterEntry(cont.config.AciVrfTenant,
-					name, strconv.Itoa(i))
-
-				fe_in.Spec.FilterEntry.EtherType = "ip"
+				fe := apicapi.NewVzEntry(filterDn, strconv.Itoa(i))
+				fe.SetAttr("etherT", "ip")
 				if port.Protocol == v1.ProtocolUDP {
-					fe_in.Spec.FilterEntry.IpProtocol = "udp"
+					fe.SetAttr("prot", "udp")
 				} else {
-					fe_in.Spec.FilterEntry.IpProtocol = "tcp"
+					fe.SetAttr("prot", "tcp")
 				}
-				fe_in.Spec.FilterEntry.DestFromPort =
-					strconv.Itoa(int(port.Port))
-				fe_in.Spec.FilterEntry.DestToPort =
-					fe_in.Spec.FilterEntry.DestFromPort
-
-				serviceObjs = append(serviceObjs, fe_in)
+				pstr := strconv.Itoa(int(port.Port))
+				fe.SetAttr("dFromPort", pstr)
+				fe.SetAttr("dToPort", pstr)
+				filter.AddChild(fe)
 			}
-
+			serviceObjs = append(serviceObjs, filter)
 		}
 
 		// 3. Device cluster context
 		// The logical device context binds the service contract
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
-		{
-			cc := NewDeviceClusterContext(cont.config.AciVrfTenant,
-				name, graphName, "LoadBalancer")
-			cc.Spec.DeviceClusterContext.BridgeDomainTenantName =
-				cont.config.AciVrfTenant
-			cc.Spec.DeviceClusterContext.BridgeDomainName =
-				cont.aciNameForKey("bd", "kubernetes-service")
-			cc.Spec.DeviceClusterContext.DeviceClusterTenantName =
-				cont.config.AciVrfTenant
-			cc.Spec.DeviceClusterContext.DeviceClusterName = graphName
-			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyTenantName =
-				cont.config.AciVrfTenant
-			cc.Spec.DeviceClusterContext.ServiceRedirectPolicyName = name
-
-			serviceObjs = append(serviceObjs, cc)
-		}
+		serviceObjs = append(serviceObjs,
+			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+				cont.aciNameForKey("bd", "kubernetes-service"), rpDn))
 	}
 
-	cont.writeAimObjects("Service", name, serviceObjs)
-	cont.updateMonitoredExternalNetworks()
+	cont.apicConn.WriteApicObjects(name, serviceObjs)
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {
@@ -442,19 +386,99 @@ func (cont *AciController) queueServiceUpdate(service *v1.Service) {
 	cont.serviceQueue.Add(key)
 }
 
-func opflexDeviceKeyEq(a *Aci, b *Aci) bool {
-	return a.Spec.OpflexDevice.BridgeInterface ==
-		b.Spec.OpflexDevice.BridgeInterface &&
-		a.Spec.OpflexDevice.DevId == b.Spec.OpflexDevice.DevId &&
-		a.Spec.OpflexDevice.NodeId == b.Spec.OpflexDevice.NodeId &&
-		a.Spec.OpflexDevice.PodId == b.Spec.OpflexDevice.PodId
+func apicDeviceCluster(name string, vrfTenant string,
+	physDom string, encap string,
+	nodes []string, nodeMap map[string]string) (apicapi.ApicObject, string) {
+
+	dc := apicapi.NewVnsLDevVip(vrfTenant, name)
+	dc.SetAttr("managed", "no")
+	dcDn := dc.GetDn()
+	dc.AddChild(apicapi.NewVnsRsALDevToPhysDomP(dcDn,
+		fmt.Sprintf("uni/phys-%s", physDom)))
+	lif := apicapi.NewVnsLIf(dcDn, "interface")
+	lif.SetAttr("encap", encap)
+	lifDn := lif.GetDn()
+
+	for _, node := range nodes {
+		path, ok := nodeMap[node]
+		if !ok {
+			continue
+		}
+
+		cdev := apicapi.NewVnsCDev(dcDn, node)
+		cif := apicapi.NewVnsCif(cdev.GetDn(), "interface")
+		cif.AddChild(apicapi.NewVnsRsCIfPathAtt(cif.GetDn(), path))
+		cdev.AddChild(cif)
+		lif.AddChild(apicapi.NewVnsRsCIfAttN(lifDn, cif.GetDn()))
+		dc.AddChild(cdev)
+	}
+
+	dc.AddChild(lif)
+
+	return dc, dcDn
 }
 
-func (cont *AciController) opflexDeviceMatchesVmm(aci *Aci) bool {
-	return aci.Spec.OpflexDevice.DomainName == cont.config.AciVmmDomain &&
-		aci.Spec.OpflexDevice.ControllerName == cont.config.AciVmmController
-}
+func apicServiceGraph(name string, tenantName string,
+	dcDn string) apicapi.ApicObject {
 
+	sg := apicapi.NewVnsAbsGraph(tenantName, name)
+	sgDn := sg.GetDn()
+	var provDn string
+	var consDn string
+	var cTermDn string
+	var pTermDn string
+	{
+		an := apicapi.NewVnsAbsNode(sgDn, "loadbalancer")
+		an.SetAttr("managed", "no")
+		an.SetAttr("routingMode", "Redirect")
+		anDn := an.GetDn()
+		cons := apicapi.NewVnsAbsFuncConn(anDn, "consumer")
+		consDn = cons.GetDn()
+		an.AddChild(cons)
+		prov := apicapi.NewVnsAbsFuncConn(anDn, "provider")
+		provDn = prov.GetDn()
+		an.AddChild(prov)
+		an.AddChild(apicapi.NewVnsRsNodeToLDev(anDn, dcDn))
+		sg.AddChild(an)
+	}
+	{
+		tnc := apicapi.NewVnsAbsTermNodeCon(sgDn, "T1")
+		tncDn := tnc.GetDn()
+		cTerm := apicapi.NewVnsAbsTermConn(tncDn)
+		cTermDn = cTerm.GetDn()
+		tnc.AddChild(cTerm)
+		tnc.AddChild(apicapi.NewVnsInTerm(tncDn))
+		tnc.AddChild(apicapi.NewVnsOutTerm(tncDn))
+		sg.AddChild(tnc)
+	}
+	{
+		tnp := apicapi.NewVnsAbsTermNodeProv(sgDn, "T2")
+		tnpDn := tnp.GetDn()
+		pTerm := apicapi.NewVnsAbsTermConn(tnpDn)
+		pTermDn = pTerm.GetDn()
+		tnp.AddChild(pTerm)
+		tnp.AddChild(apicapi.NewVnsInTerm(tnpDn))
+		tnp.AddChild(apicapi.NewVnsOutTerm(tnpDn))
+		sg.AddChild(tnp)
+	}
+	{
+		acc := apicapi.NewVnsAbsConnection(sgDn, "C1")
+		acc.SetAttr("connDir", "provider")
+		accDn := acc.GetDn()
+		acc.AddChild(apicapi.NewVnsRsAbsConnectionConns(accDn, consDn))
+		acc.AddChild(apicapi.NewVnsRsAbsConnectionConns(accDn, cTermDn))
+		sg.AddChild(acc)
+	}
+	{
+		acp := apicapi.NewVnsAbsConnection(sgDn, "C2")
+		acp.SetAttr("connDir", "provider")
+		acpDn := acp.GetDn()
+		acp.AddChild(apicapi.NewVnsRsAbsConnectionConns(acpDn, provDn))
+		acp.AddChild(apicapi.NewVnsRsAbsConnectionConns(acpDn, pTermDn))
+		sg.AddChild(acp)
+	}
+	return sg
+}
 func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
 
@@ -474,67 +498,37 @@ func (cont *AciController) updateDeviceCluster() {
 	}
 	sort.Strings(nodes)
 
-	name := cont.aciNameForKey("service", "kubernetes")
-	var serviceObjs aciSlice
+	name := cont.aciNameForKey("service", "global")
+	var serviceObjs apicapi.ApicSlice
 
 	// 1. Device cluster:
-	// The device cluster is a set of physical paths that need
-	// to be created for each unique set of nodes that host
-	// services.  It’s also possible to simply configure this
-	// with every node and rely on the redirect policy later
-	// limit the scope of service redirects.
-	{
-		dc := NewDeviceCluster(cont.config.AciVrfTenant, name)
-		f := false
-		dc.Spec.DeviceCluster.Managed = &f
-		dc.Spec.DeviceCluster.PhysicalDomainName =
-			cont.config.AciServicePhysDom
-		dc.Spec.DeviceCluster.Encap = cont.config.AciServiceEncap
-		for _, node := range nodes {
-			path, ok := nodeMap[node]
-			if !ok {
-				continue
-			}
-
-			dc.Spec.DeviceCluster.Devices =
-				append(dc.Spec.DeviceCluster.Devices, Devices{
-					Name: node,
-					Path: path,
-				})
-		}
-		serviceObjs = append(serviceObjs, dc)
-	}
+	// The device cluster is a set of physical paths that need to be
+	// created for each node in the cluster, that correspond to the
+	// service interface for each node.
+	dc, dcDn := apicDeviceCluster(name, cont.config.AciVrfTenant,
+		cont.config.AciServicePhysDom, cont.config.AciServiceEncap,
+		nodes, nodeMap)
+	serviceObjs = append(serviceObjs, dc)
 
 	// 2. Service graph template
-	// The service graph controls how the traffic will be
-	// redirected.  The service graph should always be created
-	// exactly as in the example below.  A service graph must
-	// be created for each device cluster.
-	{
-		sg := NewServiceGraph(cont.config.AciVrfTenant, name)
-		sg.Spec.ServiceGraph.LinearChainNodes = []LinearChainNodes{
-			LinearChainNodes{
-				DeviceClusterTenantName: cont.config.AciVrfTenant,
-				DeviceClusterName:       name,
-				Name:                    "LoadBalancer",
-			},
-		}
-		serviceObjs = append(serviceObjs, sg)
-	}
+	// The service graph controls how the traffic will be redirected.
+	// A service graph must be created for each device cluster.
+	serviceObjs = append(serviceObjs,
+		apicServiceGraph(name, cont.config.AciVrfTenant, dcDn))
 
-	cont.writeAimObjects("DeviceCluster", "static", serviceObjs)
+	cont.apicConn.WriteApicObjects(name, serviceObjs)
 }
 
 func (cont *AciController) fabricPathLogger(node string,
-	aci *Aci) *logrus.Entry {
+	obj apicapi.ApicObject) *logrus.Entry {
 
 	return cont.log.WithFields(logrus.Fields{
-		"fabricPath": aci.Spec.OpflexDevice.FabricPathDn,
+		"fabricPath": obj.GetAttr("fabricPathDn"),
 		"node":       node,
 	})
 }
 
-func (cont *AciController) opflexDeviceChanged(aci *Aci) {
+func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
@@ -542,17 +536,17 @@ func (cont *AciController) opflexDeviceChanged(aci *Aci) {
 	for node, devices := range cont.nodeOpflexDevice {
 		found := false
 
-		if node == aci.Spec.OpflexDevice.HostName {
+		if node == obj.GetAttrStr("hostName") {
 			nodefound = true
 		}
 
 		for i, device := range devices {
-			if !opflexDeviceKeyEq(device, aci) {
+			if device.GetDn() != obj.GetDn() {
 				continue
 			}
 			found = true
 
-			if aci.Spec.OpflexDevice.HostName != node {
+			if obj.GetAttrStr("hostName") != node {
 				cont.fabricPathLogger(node, device).
 					Debug("Moving opflex device path from node")
 
@@ -560,30 +554,30 @@ func (cont *AciController) opflexDeviceChanged(aci *Aci) {
 				cont.nodeOpflexDevice[node] = devices
 				nodeUpdates = append(nodeUpdates, node)
 				break
-			} else if device.Spec.OpflexDevice.FabricPathDn !=
-				aci.Spec.OpflexDevice.FabricPathDn {
-				cont.fabricPathLogger(node, aci).
+			} else if device.GetAttrStr("fabricPathDn") !=
+				obj.GetAttrStr("fabricPathDn") {
+				cont.fabricPathLogger(node, obj).
 					Debug("Updating opflex device path")
 
-				devices = append(append(devices[:i], devices[i+1:]...), aci)
+				devices = append(append(devices[:i], devices[i+1:]...), obj)
 				cont.nodeOpflexDevice[node] = devices
 				nodeUpdates = append(nodeUpdates, node)
 				break
 			}
 		}
-		if !found && aci.Spec.OpflexDevice.HostName == node {
-			cont.fabricPathLogger(node, aci).
+		if !found && obj.GetAttrStr("hostName") == node {
+			cont.fabricPathLogger(node, obj).
 				Debug("Appending opflex device path")
 
-			devices = append(devices, aci)
+			devices = append(devices, obj)
 			cont.nodeOpflexDevice[node] = devices
 			nodeUpdates = append(nodeUpdates, node)
 		}
 	}
 	if !nodefound {
-		node := aci.Spec.OpflexDevice.HostName
-		cont.fabricPathLogger(node, aci).Debug("Adding opflex device path")
-		cont.nodeOpflexDevice[node] = aciSlice{aci}
+		node := obj.GetAttrStr("hostName")
+		cont.fabricPathLogger(node, obj).Debug("Adding opflex device path")
+		cont.nodeOpflexDevice[node] = apicapi.ApicSlice{obj}
 		nodeUpdates = append(nodeUpdates, node)
 	}
 	cont.indexMutex.Unlock()
@@ -594,26 +588,28 @@ func (cont *AciController) opflexDeviceChanged(aci *Aci) {
 	}
 }
 
-func (cont *AciController) opflexDeviceDeleted(aci *Aci) {
+func (cont *AciController) opflexDeviceDeleted(dn string) {
+	cont.log.Debug("odev Deleted ", dn)
+
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		for i, device := range devices {
-			if !opflexDeviceKeyEq(device, aci) {
+			if device.GetDn() != dn {
 				continue
 			}
 
-			cont.fabricPathLogger(node, aci).
+			cont.fabricPathLogger(node, device).
 				Debug("Deleting opflex device path")
 			devices = append(devices[:i], devices[i+1:]...)
 			cont.nodeOpflexDevice[node] = devices
 			nodeUpdates = append(nodeUpdates, node)
 			break
 		}
-	}
-	if len(cont.nodeOpflexDevice[aci.Spec.OpflexDevice.HostName]) == 0 {
-		delete(cont.nodeOpflexDevice, aci.Spec.OpflexDevice.HostName)
+		if len(devices) == 0 {
+			delete(cont.nodeOpflexDevice, node)
+		}
 	}
 	cont.indexMutex.Unlock()
 
@@ -768,6 +764,5 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 		delete(cont.serviceMetaCache, servicekey)
 	}
 	cont.indexMutex.Unlock()
-	cont.clearAimObjects("Service", cont.aciNameForKey("service", servicekey))
-	cont.updateMonitoredExternalNetworks()
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service", servicekey))
 }

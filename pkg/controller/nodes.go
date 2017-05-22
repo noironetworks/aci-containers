@@ -22,7 +22,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"sort"
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -75,16 +75,37 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 
 }
 
+func apicNodeNetPol(name string, tenantName string,
+	nodeIps []string) apicapi.ApicObject {
+
+	hpp := apicapi.NewHostprotPol(tenantName, name)
+	hppDn := hpp.GetDn()
+	nodeSubj := apicapi.NewHostprotSubj(hppDn, "local-node")
+	if len(nodeIps) > 0 {
+		nodeSubjDn := nodeSubj.GetDn()
+		outbound := apicapi.NewHostprotRule(nodeSubjDn, "allow-all-egress")
+		outbound.SetAttr("direction", "egress")
+		outbound.SetAttr("ethertype", "ipv4")
+		outbound.SetAttr("connTrack", "normal")
+
+		inbound := apicapi.NewHostprotRule(nodeSubjDn, "allow-all-ingress")
+		inbound.SetAttr("direction", "ingress")
+		inbound.SetAttr("ethertype", "ipv4")
+		inbound.SetAttr("connTrack", "normal")
+
+		for _, ip := range nodeIps {
+			outbound.AddChild(apicapi.NewHostprotRemoteIp(outbound.GetDn(), ip))
+			inbound.AddChild(apicapi.NewHostprotRemoteIp(inbound.GetDn(), ip))
+		}
+
+		nodeSubj.AddChild(inbound)
+		nodeSubj.AddChild(outbound)
+	}
+	hpp.AddChild(nodeSubj)
+	return hpp
+}
+
 func (cont *AciController) createNetPolForNode(node *v1.Node) {
-	var netPolObjs aciSlice
-
-	sgName := cont.aciNameForKey("node", node.Name)
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroup(cont.config.AciPolicyTenant, sgName))
-	netPolObjs = append(netPolObjs,
-		NewSecurityGroupSubject(cont.config.AciPolicyTenant,
-			sgName, "LocalNode"))
-
 	var nodeIps []string
 	for _, a := range node.Status.Addresses {
 		if a.Address != "" &&
@@ -92,28 +113,12 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 			nodeIps = append(nodeIps, a.Address)
 		}
 	}
-	if len(nodeIps) == 0 {
-		return
-	}
-	sort.Strings(nodeIps)
 
-	outbound := NewSecurityGroupRule(cont.config.AciPolicyTenant,
-		sgName, "LocalNode", "allow-all-egress")
-	outbound.Spec.SecurityGroupRule.Direction = "egress"
-	outbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	outbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
-	outbound.Spec.SecurityGroupRule.ConnTrack = "normal"
-	netPolObjs = append(netPolObjs, outbound)
-
-	inbound := NewSecurityGroupRule(cont.config.AciPolicyTenant, sgName,
-		"LocalNode", "allow-all-ingress")
-	inbound.Spec.SecurityGroupRule.Direction = "ingress"
-	inbound.Spec.SecurityGroupRule.Ethertype = "ipv4"
-	inbound.Spec.SecurityGroupRule.RemoteIps = nodeIps
-	inbound.Spec.SecurityGroupRule.ConnTrack = "normal"
-	netPolObjs = append(netPolObjs, inbound)
-
-	cont.writeAimObjects("Node", node.Name, netPolObjs)
+	sgName := cont.aciNameForKey("node", node.Name)
+	cont.apicConn.WriteApicObjects(sgName,
+		apicapi.ApicSlice{
+			apicNodeNetPol(sgName, cont.config.AciPolicyTenant, nodeIps),
+		})
 }
 
 func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
@@ -256,7 +261,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
 	node := obj.(*v1.Node)
-	cont.clearAimObjects("Node", node.Name)
+	cont.apicConn.ClearApicObjects("node" + node.Name)
 
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()

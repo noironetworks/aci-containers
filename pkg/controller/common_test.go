@@ -42,9 +42,6 @@ type testAciController struct {
 	podUpdates     []*v1.Pod
 	nodeUpdates    []*v1.Node
 	serviceUpdates []*v1.Service
-	aimAdds        aciSlice
-	aimUpdates     aciSlice
-	aimDeletes     []string
 }
 
 func testController() *testAciController {
@@ -107,13 +104,6 @@ func testController() *testAciController {
 			WatchFunc: cont.fakeNetworkPolicySource.Watch,
 		})
 
-	cont.fakeAimSource = framework.NewFakeControllerSource()
-	cont.initAimInformerBase(
-		&cache.ListWatch{
-			ListFunc:  cont.fakeAimSource.List,
-			WatchFunc: cont.fakeAimSource.Watch,
-		})
-
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		cont.podUpdates = append(cont.podUpdates, pod)
 		return pod, nil
@@ -125,18 +115,6 @@ func testController() *testAciController {
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		cont.serviceUpdates = append(cont.serviceUpdates, service)
 		return service, nil
-	}
-	cont.updateAim = func(aim *Aci) (*Aci, error) {
-		cont.aimUpdates = append(cont.aimUpdates, aim)
-		return aim, nil
-	}
-	cont.addAim = func(aim *Aci) (*Aci, error) {
-		cont.aimAdds = append(cont.aimAdds, aim)
-		return aim, nil
-	}
-	cont.deleteAim = func(name string, options *v1.DeleteOptions) error {
-		cont.aimDeletes = append(cont.aimDeletes, name)
-		return nil
 	}
 
 	cont.initDepPodIndex()

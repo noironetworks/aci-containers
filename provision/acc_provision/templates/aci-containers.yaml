@@ -436,9 +436,6 @@ spec:
             httpGet:
               path: /status
               port: 8091
-        - name: aci-integration-module
-          image: {{ config.registry.image_prefix }}/aci-integration-module
-          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           env:
             - name: APIC_USERNAME
               valueFrom:
@@ -450,17 +447,6 @@ spec:
                 secretKeyRef:
                   name: apic-user-pass
                   key: password
-            - name: APIC_HOSTS
-              value: {{ config.aci_config.apic_hosts|join(',')|yaml_quote }}
-            - name: APIC_MONITOR_TENANTS
-              value: {{ config.aci_config.vrf.tenant|yaml_quote }}
-            - name: K8S_VMM_DOMAIN
-              value: {{ config.aci_config.vmm_domain.domain|yaml_quote }}
-            - name: K8S_VMM_CONTROLLER
-              value: {{ config.aci_config.vmm_domain.controller|yaml_quote }}
-          volumeMounts:
-            - name: aim-config-volume
-              mountPath: /usr/local/etc/aim-local
       volumes:
         - name: controller-config-volume
           configMap:

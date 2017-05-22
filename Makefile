@@ -3,6 +3,7 @@ BASE=github.com/noironetworks/aci-containers
 METADATA_SRC=$(wildcard pkg/metadata/*.go)
 IPAM_SRC=$(wildcard pkg/ipam/*.go)
 INDEX_SRC=$(wildcard pkg/index/*.go)
+APICAPI_SRC=$(wildcard pkg/apicapi/*.go)
 EPRPCCLIENT_SRC=$(wildcard pkg/eprpcclient/*.go)
 HOSTAGENT_SRC=$(wildcard cmd/hostagent/*.go pkg/hostagent/*.go)
 AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
@@ -13,7 +14,9 @@ SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
 AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC}
-CONTROLLER_DEPS=${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} ${CONTROLLER_SRC}
+CONTROLLER_DEPS= \
+	${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} \
+	${APICAPI_SRC} ${CONTROLLER_SRC}
 ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC}
 OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC}
 SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC}
@@ -93,11 +96,13 @@ container-openvswitch: dist-static/ovsresync
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 
-check: check-ipam check-index check-controller check-hostagent
+check: check-ipam check-index check-apicapi check-controller check-hostagent
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
 	${TEST_CMD} ${BASE}/pkg/index ${TEST_ARGS}
+check-apicapi:
+	${TEST_CMD} ${BASE}/pkg/apicapi ${TEST_ARGS}
 check-hostagent:
 	${TEST_CMD} ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:

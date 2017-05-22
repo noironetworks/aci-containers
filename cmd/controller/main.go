@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"os"
 
 	"github.com/Sirupsen/logrus"
 
@@ -49,6 +50,13 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
+	}
+
+	if config.ApicUsername == "" {
+		config.ApicUsername = os.Getenv("APIC_USERNAME")
+	}
+	if config.ApicPassword == "" {
+		config.ApicPassword = os.Getenv("APIC_PASSWORD")
 	}
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
@@ -83,17 +91,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	err = controller.InitAimThirdPartyResource(kubeClient, log)
-	if err != nil {
-		panic(err.Error())
-	}
 
-	aimconfig := *restconfig
-	controller.ConfigureAimClient(&aimconfig)
-	tprClient, err := rest.RESTClientFor(&aimconfig)
-	if err != nil {
-		panic(err)
-	}
 	npconfig := *restconfig
 	controller.ConfigureNetPolClient(&npconfig)
 	netPolClient, err := rest.RESTClientFor(&npconfig)
@@ -102,7 +100,7 @@ func main() {
 	}
 
 	cont := controller.NewController(config, log)
-	cont.Init(kubeClient, tprClient, netPolClient)
+	cont.Init(kubeClient, netPolClient)
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
 }
