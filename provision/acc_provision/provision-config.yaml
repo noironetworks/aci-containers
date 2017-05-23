@@ -2,64 +2,68 @@
 # Configuration for ACI Fabric
 #
 aci_config:
-  system_id: kube                       # Every opflex cluster on the same fabric must have a distict ID
-  apic_hosts:                           # List of APIC hosts to connect to for APIC API access
-    - 10.1.1.101
-  apic_login:                           # Login credentials for APIC
-    username: admin
-    password: mypa$$w0rd
-  vmm_domain:                           # Kubernetes VMM domain configuration
-    encap_type: vxlan                   # Encap mode: vxlan or vlan
-    mcast_range:                        # Every vxlan VMM on the same fabric must use a distinct range
-        start: 225.2.1.1
-        end: 225.2.255.255
+  system_id: mykube             # Every opflex cluster must have a distict ID
+  apic_hosts:                   # List of APIC hosts to connect for APIC API
+  - 10.1.1.101
+  vmm_domain:                   # Kubernetes VMM domain configuration
+    encap_type: vxlan           # Encap mode: vxlan or vlan
+    mcast_range:                # Every opflex VMM must use a distinct range
+      start: 225.2.1.1
+      end: 225.2.255.255
 
   # The following resources must already exist on the APIC,
-  # this is a reference to use them
-  aep: kube-cluster                     # The attachment profile for ports/VPCs connected to this cluster
-  vrf:                                  # VRF used to create all subnets used by this Kubernetes cluster
-    name: kube                          # This should exist, the provisioning tool does not create it
-    tenant: common                      # This can be tenant for this cluster (system-id) or common
-  l3out:                                # L3out to use for this kubernetes cluster (in the VRF above)
-    name: l3out                         # This is used to provision external service IPs/LB
-    external_networks:                  # This should also exist, the provisioning tool does not create it
-    - default
+  # they are used, but not created by the provisioning tool.
+  aep: kube-cluster             # The AEP for ports/VPCs used by this cluster
+  vrf:                          # This VRF used to create all kubernetes EPs
+    name: mykube-vrf
+    tenant: common              # This can be system-id or common
+  l3out:
+    name: mykube_l3out          # Used to provision external IPs
+    external_networks:
+    - default                   # Used for external contracts
+
 #
 # Networks used by Kubernetes
 #
 net_config:
-  node_subnet: 10.1.0.1/16              # Subnet to use for nodes
-  pod_subnet: 10.2.0.1/16               # Subnet to use for Kubernetes Pods
-  extern_dynamic: 10.3.0.1/24           # Subnet to use for dynamically allocated external services
-  extern_static: 10.4.0.1/24            # Subnet to use for statically allocated external services
-  node_svc_subnet: 10.5.0.1/24          # Subnet to use for service graph
-  kubeapi_vlan: 4001                    # The VLAN used by the internal physdom for nodes
-  service_vlan: 4003                    # The VLAN used for external LoadBalancer services
+  node_subnet: 10.1.0.1/16      # Subnet to use for nodes
+  pod_subnet: 10.2.0.1/16       # Subnet to use for Kubernetes Pods
+  extern_dynamic: 10.3.0.1/24   # Subnet to use for dynamic external IPs
+  extern_static: 10.4.0.1/24    # Subnet to use for static external IPs
+  node_svc_subnet: 10.5.0.1/24  # Subnet to use for service graph
+  kubeapi_vlan: 4001            # The VLAN used by the physdom for nodes
+  service_vlan: 4003            # The VLAN used by LoadBalancer services
+
 #
 # Configuration that applies to each kubernetes node
 #
 node_config:
-  uplink_iface: eth2                    # The name of the interface that uplinks to the ACI fabric
-  vxlan_uplink_iface: eth2.4093         # If encap type is vxlan, this is the name of the uplink
-                                        # This is the infra-vlan subinterface on the uplink interface
+  uplink_iface: eth2            # The name of the uplink interface to ACI
+  vxlan_uplink_iface: eth2.4093 # for vxlan, the infra-vlan subinterface
+
 #
 # Configuration related to kubernetes pods and policy
 #
 kube_config:
-  controller: 1.1.1.1                   # IP address of kubernetes controller, not used
-                                        # The following need kubernetes >= 1.6, set to false for < 1.6
-  use_tolerations: true                 # Set to false to disable using tolerations
-  use_cluster_role: true                # Set to false to disable cluster role configurations for ACI components
-  use_ds_rolling_update: true           # Set to true to enable rolling updates for ACI containers daemonsets
+  controller: 1.1.1.1           # IP address of k8s controller
+
+  # The following attributes may be used for ACI components if
+  # using kubernetes >= 1.6. Set to false for older versions
+  #
+  use_tolerations: true         # enable/disable using tolerations
+  use_cluster_role: true        # enable/disable cluster role
+  use_ds_rolling_update: true   # enable/disable rolling updates
+
 #
 # Configuration for container registry
 # Update if a custom container registry has been setup
 #
 registry:
-  image_prefix: noiro                   # Example: "registry.example.com/noiro"
-  # image_pull_secret: secret_name      # If you need to specify an image pull secret for custom registry
+  image_prefix: noiro                   # e.g: "registry.example.com/noiro"
+  # image_pull_secret: secret_name      # (if needed)
+
 #
-# Enable/disable logging for ACI components on kubernetes
+# Enable/disable logging for ACI components in kubernetes
 #
 logging:
   controller_log_level: info
