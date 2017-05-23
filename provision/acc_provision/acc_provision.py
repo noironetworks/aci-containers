@@ -52,14 +52,14 @@ def config_default():
     # Default values for configuration
     default_config = {
         "aci_config": {
-            "system_id": "kube",
+            "system_id": None,
             "vrf": {
-                "name": "kube",
-                "tenant": "common",
+                "name": None,
+                "tenant": None,
             },
             "l3out": {
-                "name": "l3out",
-                "external_networks": ["default"],
+                "name": None,
+                "external_networks": None,
             },
             "vmm_domain": {
                 "encap_type": "vxlan",
@@ -73,13 +73,13 @@ def config_default():
             "client_ssl": True,
         },
         "net_config": {
-            "node_subnet": "10.1.0.1/16",
-            "pod_subnet": "10.2.0.1/16",
-            "extern_dynamic": "10.3.0.1/24",
-            "extern_static": "10.4.0.1/24",
-            "node_svc_subnet": "10.5.0.1/24",
-            "kubeapi_vlan": 4001,
-            "service_vlan": 4003,
+            "node_subnet": None,
+            "pod_subnet": None,
+            "extern_dynamic": None,
+            "extern_static": None,
+            "node_svc_subnet": None,
+            "kubeapi_vlan": None,
+            "service_vlan": None,
             "infra_vlan": 4093,
         },
         "kube_config": {
@@ -236,14 +236,31 @@ def config_validate(config):
     checks = {
         "system_id": (get(("aci_config", "system_id")), required),
         "aep": (get(("aci_config", "aep")), required),
+        "vrf-name": (get(("aci_config", "vrf", "name")), required),
+        "vrf-tenant": (get(("aci_config", "vrf", "tenant")), required),
+        "l3out-name": (get(("aci_config", "l3out", "name")), required),
+        "l3out-external-network":
+            (get(("aci_config", "l3out", "external_networks")), required),
         "apic_host": (get(("aci_config", "apic_hosts")), required),
-        "apic_username": (get(("aci_config", "apic_login", "username")), required),
-        "apic_password": (get(("aci_config", "apic_login", "password")), required),
         "uplink_if": (get(("node_config", "uplink_iface")), required),
         "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
+        "node_subnet": (get(("net_config", "node_subnet")), required),
+        "pod_subnet": (get(("net_config", "pod_subnet")), required),
+        "extern_dynamic": (get(("net_config", "extern_dynamic")), required),
+        "extern_static": (get(("net_config", "extern_static")), required),
+        "node_svc_subnet": (get(("net_config", "node_svc_subnet")), required),
         "kubeapi_vlan": (get(("net_config", "kubeapi_vlan")), required),
         "service_vlan": (get(("net_config", "service_vlan")), required),
+        "infra_vlan": (get(("net_config", "infra_vlan")), required),
     }
+
+    if get(("provision", "prov_apic")) is not None:
+        checks.update({
+            "apic_username":
+                (get(("aci_config", "apic_login", "username")), required),
+            "apic_password":
+                (get(("aci_config", "apic_login", "password")), required),
+        })
 
     ret = True
     for k in checks:
@@ -252,7 +269,8 @@ def config_validate(config):
             if not validator(value):
                 raise Exception(k)
         except Exception as e:
-            err("Required configuration not present or not correct: '%s'" % e.message)
+            err("Required configuration not present or not correct: '%s'"
+                % e.message)
             ret = False
     return ret
 
@@ -364,7 +382,7 @@ def get_apic(config):
     apic_host = config["aci_config"]["apic_hosts"][0]
     apic_username = config["aci_config"]["apic_login"]["username"]
     apic_password = config["aci_config"]["apic_login"]["password"]
-    debug = config["apic_debug"]
+    debug = config["provision"]["debug_apic"]
     apic = Apic(apic_host, apic_username, apic_password, debug=debug)
     return apic
 
@@ -373,22 +391,30 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Provision an ACI kubernetes installation'
     )
-    parser.add_argument('-c', '--config', default="-", metavar='',
-                        help='Input file with your fabric configuration')
-    parser.add_argument('-o', '--output', default="-", metavar='',
-                        help='Output file for your kubernetes deployment')
-    parser.add_argument('-a', '--apic', action='store_true', default=False,
-                        help='Create/Validate the required APIC resources')
-    parser.add_argument('-d', '--delete', action='store_true', default=False,
-                        help='Delete the APIC resources that would have be created')
-    parser.add_argument('-s', '--sample', action='store_true', default=False,
-                        help='Print a sample input file with fabric configuration')
-    parser.add_argument('-u', '--username', default=None, metavar='',
-                        help='APIC admin username to use for APIC API access')
-    parser.add_argument('-p', '--password', default=None, metavar='',
-                        help='APIC admin password to use for APIC API access')
-    parser.add_argument('-v', '--verbose', action='store_true', default=False,
-                        help='Enable debug')
+    parser.add_argument(
+        '-c', '--config', default="-", metavar='',
+        help='Input file with your fabric configuration')
+    parser.add_argument(
+        '-o', '--output', default="-", metavar='',
+        help='Output file for your kubernetes deployment')
+    parser.add_argument(
+        '-a', '--apic', action='store_true', default=False,
+        help='Create/Validate the required APIC resources')
+    parser.add_argument(
+        '-d', '--delete', action='store_true', default=False,
+        help='Delete the APIC resources that would have be created')
+    parser.add_argument(
+        '-s', '--sample', action='store_true', default=False,
+        help='Print a sample input file with fabric configuration')
+    parser.add_argument(
+        '-u', '--username', default=None, metavar='',
+        help='APIC admin username to use for APIC API access')
+    parser.add_argument(
+        '-p', '--password', default=None, metavar='',
+        help='APIC admin password to use for APIC API access')
+    parser.add_argument(
+        '-v', '--verbose', action='store_true', default=False,
+        help='Enable debug')
     return parser.parse_args()
 
 
@@ -411,11 +437,14 @@ def main(args=None, apic_file=None):
 
     # command line config
     config = {
-        "apic_debug": args.verbose,
         "aci_config": {
             "apic_login": {
             }
-        }
+        },
+        "provision": {
+            "prov_apic": prov_apic,
+            "debug_apic": args.verbose,
+        },
     }
     if args.username:
         config["aci_config"]["apic_login"]["username"] = args.username
