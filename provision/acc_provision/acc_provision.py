@@ -311,7 +311,7 @@ def config_advise(config, prov_apic):
 
 def generate_sample(filep):
     data = pkgutil.get_data('acc_provision', 'provision-config.yaml')
-    print(data, file=filep)
+    filep.write(data)
     return filep
 
 
@@ -398,6 +398,9 @@ class CustomFormatter(argparse.HelpFormatter):
     def _format_action_invocation(self, action):
         ret = super(CustomFormatter, self)._format_action_invocation(action)
         ret = ret.replace(' ,', ',')
+        ret = ret.replace(' file,', ',')
+        ret = ret.replace(' name,', ',')
+        ret = ret.replace(' pass,', ',')
         return ret
 
 
@@ -416,10 +419,16 @@ def parse_args():
     parser.add_argument(
         '-v', '--version', action='version', version=version)
     parser.add_argument(
-        '-c', '--config', default="-", metavar='',
+        '--debug', action='store_true', default=False,
+        help='enable debug')
+    parser.add_argument(
+        '--sample', action='store_true', default=False,
+        help='print a sample input file with fabric configuration')
+    parser.add_argument(
+        '-c', '--config', default="-", metavar='file',
         help='input file with your fabric configuration')
     parser.add_argument(
-        '-o', '--output', default="-", metavar='',
+        '-o', '--output', default="-", metavar='file',
         help='output file for your kubernetes deployment')
     parser.add_argument(
         '-a', '--apic', action='store_true', default=False,
@@ -428,17 +437,11 @@ def parse_args():
         '-d', '--delete', action='store_true', default=False,
         help='delete the APIC resources that would have been created')
     parser.add_argument(
-        '-s', '--sample', action='store_true', default=False,
-        help='print a sample input file with fabric configuration')
-    parser.add_argument(
-        '-u', '--username', default=None, metavar='',
+        '-u', '--username', default=None, metavar='name',
         help='apic-admin username to use for APIC API access')
     parser.add_argument(
-        '-p', '--password', default=None, metavar='',
+        '-p', '--password', default=None, metavar='pass',
         help='apic-admin password to use for APIC API access')
-    parser.add_argument(
-        '--debug', action='store_true', default=False,
-        help='enable debug')
     return parser.parse_args()
 
 
