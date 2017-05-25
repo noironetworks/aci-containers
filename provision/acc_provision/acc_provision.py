@@ -376,10 +376,11 @@ def generate_apic_config(config, prov_apic, apic_file):
             with open(apic_file, 'w') as outfile:
                 ApicKubeConfig.save_config(apic_config, outfile)
 
+    aim_login = config["aci_config"]["aim_login"]["username"]
     if prov_apic is not None:
         apic = get_apic(config)
         if prov_apic is True:
-            apic.provision(apic_config)
+            apic.provision(apic_config, aim_login)
         if prov_apic is False:
             apic.unprovision(apic_config)
     return apic_config

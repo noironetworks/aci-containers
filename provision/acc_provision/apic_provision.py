@@ -12,6 +12,10 @@ def err(msg):
     print("ERR:  " + msg, file=sys.stderr)
 
 
+def warn(msg):
+    print("WARN: " + msg, file=sys.stderr)
+
+
 def dbg(msg):
     print("DBG:  " + msg, file=sys.stderr)
 
@@ -98,9 +102,22 @@ class Apic(object):
         path = '/api/mo/uni/tn-%s/out-%s.json' % (tenant, name)
         return self.get_path(path)
 
-    def provision(self, data):
+    def get_user(self, name):
+        path = "/api/node/mo/uni/userext/user-%s.json" % name
+        return self.get_path(path)
+
+    def provision(self, data, aim_login):
+        ignore_list = []
+        if self.get_user(aim_login):
+            warn("User already exists (%s), skipping user provisioning" %
+                 aim_login)
+            ignore_list.append("/api/node/mo/uni/userext/user-%s.json" %
+                               aim_login)
+
         for path, config in data:
             try:
+                if path in ignore_list:
+                    continue
                 if config is not None:
                     resp = self.post(path, config)
                     self.check_resp(resp)
@@ -150,7 +167,7 @@ class ApicKubeConfig(object):
         update(data, self.phys_dom())
         update(data, self.kube_dom())
         update(data, self.associate_aep())
-        update(data, self.client_cert())
+        update(data, self.opflex_cert())
         update(data, self.common_tn())
         update(data, self.kube_tn())
         update(data, self.kube_user())
@@ -351,7 +368,7 @@ class ApicKubeConfig(object):
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
         return path, data, rsvmm, rsphy
 
-    def client_cert(self):
+    def opflex_cert(self):
         def yesno(flag):
             if flag:
                 return "yes"
