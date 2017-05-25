@@ -16,7 +16,7 @@ def test_main():
         "username": "admin",
         "password": "",
         "sample": False,
-        "verbose": True,
+        "debug": True,
     }
     argc = collections.namedtuple('argc', arg.keys())
     args = argc(**arg)

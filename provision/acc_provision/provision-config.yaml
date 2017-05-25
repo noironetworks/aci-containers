@@ -42,12 +42,6 @@ node_config:
   vxlan_uplink_iface: eth2.4093 # for vxlan, the infra-vlan subinterface
 
 #
-# Configuration related to kubernetes pods and policy
-#
-kube_config:
-  controller: 1.1.1.1           # IP address of k8s controller
-
-#
 # Configuration for container registry
 # Update if a custom container registry has been setup
 #

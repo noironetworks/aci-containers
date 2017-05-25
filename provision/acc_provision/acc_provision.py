@@ -235,28 +235,34 @@ def config_validate(config):
     get = lambda t: reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
+        # ACI config
         "system_id": (get(("aci_config", "system_id")), required),
+        "apic_host": (get(("aci_config", "apic_hosts")), required),
         "aep": (get(("aci_config", "aep")), required),
         "vrf-name": (get(("aci_config", "vrf", "name")), required),
         "vrf-tenant": (get(("aci_config", "vrf", "tenant")), required),
         "l3out-name": (get(("aci_config", "l3out", "name")), required),
         "l3out-external-network":
             (get(("aci_config", "l3out", "external_networks")), required),
-        "apic_host": (get(("aci_config", "apic_hosts")), required),
-        "uplink_if": (get(("node_config", "uplink_iface")), required),
-        "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
+
+        # Network Config
+        "infra_vlan": (get(("net_config", "infra_vlan")), required),
+        "kubeapi_vlan": (get(("net_config", "kubeapi_vlan")), required),
+        "service_vlan": (get(("net_config", "service_vlan")), required),
         "node_subnet": (get(("net_config", "node_subnet")), required),
         "pod_subnet": (get(("net_config", "pod_subnet")), required),
         "extern_dynamic": (get(("net_config", "extern_dynamic")), required),
         "extern_static": (get(("net_config", "extern_static")), required),
         "node_svc_subnet": (get(("net_config", "node_svc_subnet")), required),
-        "kubeapi_vlan": (get(("net_config", "kubeapi_vlan")), required),
-        "service_vlan": (get(("net_config", "service_vlan")), required),
-        "infra_vlan": (get(("net_config", "infra_vlan")), required),
+
+        # Node config
+        "uplink_if": (get(("node_config", "uplink_iface")), required),
+        "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
     }
 
     if get(("provision", "prov_apic")) is not None:
         checks.update({
+            # auth for API access
             "apic_username":
                 (get(("aci_config", "apic_login", "username")), required),
             "apic_password":
@@ -264,7 +270,7 @@ def config_validate(config):
         })
 
     ret = True
-    for k in checks:
+    for k in sorted(checks.keys()):
         value, validator = checks[k]
         try:
             if not validator(value):
@@ -407,7 +413,8 @@ def parse_args():
         description='Provision an ACI/Kubernetes installation',
         formatter_class=CustomFormatter,
     )
-    parser.add_argument('--version', action='version', version=version)
+    parser.add_argument(
+        '-v', '--version', action='version', version=version)
     parser.add_argument(
         '-c', '--config', default="-", metavar='',
         help='input file with your fabric configuration')
@@ -419,7 +426,7 @@ def parse_args():
         help='create/validate the required APIC resources')
     parser.add_argument(
         '-d', '--delete', action='store_true', default=False,
-        help='delete the APIC resources that would have be created')
+        help='delete the APIC resources that would have been created')
     parser.add_argument(
         '-s', '--sample', action='store_true', default=False,
         help='print a sample input file with fabric configuration')
@@ -430,7 +437,7 @@ def parse_args():
         '-p', '--password', default=None, metavar='',
         help='apic-admin password to use for APIC API access')
     parser.add_argument(
-        '-v', '--verbose', action='store_true', default=False,
+        '--debug', action='store_true', default=False,
         help='enable debug')
     return parser.parse_args()
 
@@ -460,7 +467,7 @@ def provision(args, apic_file):
         },
         "provision": {
             "prov_apic": prov_apic,
-            "debug_apic": args.verbose,
+            "debug_apic": args.debug,
         },
     }
     if args.username:
