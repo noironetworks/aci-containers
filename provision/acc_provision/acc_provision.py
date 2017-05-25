@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import base64
 import json
+import pkg_resources
 import pkgutil
 import socket
 import struct
@@ -387,38 +388,54 @@ def get_apic(config):
     return apic
 
 
+class CustomFormatter(argparse.HelpFormatter):
+    def _format_action_invocation(self, action):
+        ret = super(CustomFormatter, self)._format_action_invocation(action)
+        ret = ret.replace(' ,', ',')
+        return ret
+
+
 def parse_args():
+    version = 'Unknown'
+    try:
+        version = pkg_resources.require("acc_provision")[0].version
+    except pkg_resources.DistributionNotFound:
+        # ignore, expected in case running from source
+        pass
+
     parser = argparse.ArgumentParser(
-        description='Provision an ACI kubernetes installation'
+        description='Provision an ACI/Kubernetes installation',
+        formatter_class=CustomFormatter,
     )
+    parser.add_argument('--version', action='version', version=version)
     parser.add_argument(
         '-c', '--config', default="-", metavar='',
-        help='Input file with your fabric configuration')
+        help='input file with your fabric configuration')
     parser.add_argument(
         '-o', '--output', default="-", metavar='',
-        help='Output file for your kubernetes deployment')
+        help='output file for your kubernetes deployment')
     parser.add_argument(
         '-a', '--apic', action='store_true', default=False,
-        help='Create/Validate the required APIC resources')
+        help='create/validate the required APIC resources')
     parser.add_argument(
         '-d', '--delete', action='store_true', default=False,
-        help='Delete the APIC resources that would have be created')
+        help='delete the APIC resources that would have be created')
     parser.add_argument(
         '-s', '--sample', action='store_true', default=False,
-        help='Print a sample input file with fabric configuration')
+        help='print a sample input file with fabric configuration')
     parser.add_argument(
         '-u', '--username', default=None, metavar='',
-        help='APIC admin username to use for APIC API access')
+        help='apic-admin username to use for APIC API access')
     parser.add_argument(
         '-p', '--password', default=None, metavar='',
-        help='APIC admin password to use for APIC API access')
+        help='apic-admin password to use for APIC API access')
     parser.add_argument(
         '-v', '--verbose', action='store_true', default=False,
-        help='Enable debug')
+        help='enable debug')
     return parser.parse_args()
 
 
-def main(args=None, apic_file=None):
+def provision(args, apic_file):
     # args, apic_file are set by the test functions
     if args is None:
         args = parse_args()
@@ -480,6 +497,15 @@ def main(args=None, apic_file=None):
     generate_apic_config(config, prov_apic, apic_file)
     generate_kube_yaml(config, output_file)
     return True
+
+
+def main(args=None, apic_file=None):
+    try:
+        provision(args, apic_file)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        err("%s: %s" % (e.__class__.__name__, e))
 
 
 if __name__ == "__main__":
