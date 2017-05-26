@@ -81,7 +81,7 @@ class Apic(object):
         return ret
 
     def get_infravlan(self):
-        infra_vlan = 4093
+        infra_vlan = None
         path = '/api/node/mo/uni/infra/attentp-default/provacc' + \
                '/rsfuncToEpg-[uni/tn-infra/ap-access/epg-default].json'
         data = self.get_path(path)

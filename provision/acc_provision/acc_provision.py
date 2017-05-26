@@ -138,7 +138,13 @@ def config_adjust(config, prov_apic):
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
     if apic is not None:
-        infra_vlan = apic.get_infravlan()
+        real_infra_vlan = apic.get_infravlan()
+        if real_infra_vlan is not None and real_infra_vlan != infra_vlan:
+            if infra_vlan != 4093:
+                warn("Real infra_vlan (%s) is different from config file (%s)" %
+                     (real_infra_vlan, infra_vlan))
+            infra_vlan = real_infra_vlan
+            config["net_config"]["infra_vlan"] = real_infra_vlan
 
     pod_subnet = config["net_config"]["pod_subnet"]
     extern_dynamic = config["net_config"]["extern_dynamic"]
@@ -493,8 +499,6 @@ def provision(args, apic_file):
     # Adjust config based on convention/apic data
     adj_config = config_adjust(config, prov_apic)
     deep_merge(config, adj_config)
-    config["net_config"]["infra_vlan"] = \
-        adj_config["net_config"]["infra_vlan"]
 
     # Advisory checks, including apic checks, ignore failures
     if not config_advise(config, prov_apic):
