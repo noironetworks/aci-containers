@@ -81,7 +81,6 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
-            "infra_vlan": 4093,
         },
         "kube_config": {
             "controller": "1.1.1.1",
@@ -118,6 +117,29 @@ def config_user(config_file):
     return config
 
 
+def config_discover(config, prov_apic):
+    apic = None
+    if prov_apic is not None:
+        apic = get_apic(config)
+
+    ret = {
+        "net_config": {
+            "infra_vlan": None,
+        }
+    }
+    if apic:
+        infra_vlan = apic.get_infravlan()
+        ret["net_config"]["infra_vlan"] = infra_vlan
+        orig_infra_vlan = config["net_config"].get("infra_vlan")
+        if orig_infra_vlan is not None and orig_infra_vlan != infra_vlan:
+            warn("ACI infra_vlan (%s) is different from input file (%s)" %
+                 (infra_vlan, orig_infra_vlan))
+        if orig_infra_vlan is None:
+            info("Using infra_vlan from ACI: %s" %
+                 (infra_vlan,))
+    return ret
+
+
 def cidr_split(cidr):
     ip2int = lambda a: struct.unpack("!I", socket.inet_aton(a))[0]
     int2ip = lambda a: socket.inet_ntoa(struct.pack("!I", a))
@@ -131,21 +153,8 @@ def cidr_split(cidr):
 
 
 def config_adjust(config, prov_apic):
-    apic = None
-    if prov_apic is not None:
-        apic = get_apic(config)
-
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
-    if apic is not None:
-        real_infra_vlan = apic.get_infravlan()
-        if real_infra_vlan is not None and real_infra_vlan != infra_vlan:
-            if infra_vlan != 4093:
-                warn("Real infra_vlan (%s) is different from config file (%s)" %
-                     (real_infra_vlan, infra_vlan))
-            infra_vlan = real_infra_vlan
-            config["net_config"]["infra_vlan"] = real_infra_vlan
-
     pod_subnet = config["net_config"]["pod_subnet"]
     extern_dynamic = config["net_config"]["extern_dynamic"]
     extern_static = config["net_config"]["extern_static"]
@@ -453,9 +462,6 @@ def parse_args():
 
 
 def provision(args, apic_file):
-    # args, apic_file are set by the test functions
-    if args is None:
-        args = parse_args()
     config_file = args.config
     output_file = args.output
     prov_apic = None
@@ -490,6 +496,7 @@ def provision(args, apic_file):
     user_config = config_user(config_file)
     deep_merge(config, user_config)
     deep_merge(config, default_config)
+    deep_merge(config, config_discover(config, prov_apic))
 
     # Validate config
     if not config_validate(config):
@@ -515,12 +522,19 @@ def provision(args, apic_file):
 
 
 def main(args=None, apic_file=None):
-    try:
+    # args, apic_file are set by the test functions
+    if args is None:
+        args = parse_args()
+
+    if args.debug:
         provision(args, apic_file)
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        err("%s: %s" % (e.__class__.__name__, e))
+    else:
+        try:
+            provision(args, apic_file)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            err("%s: %s" % (e.__class__.__name__, e))
 
 
 if __name__ == "__main__":
