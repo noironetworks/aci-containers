@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -342,8 +343,35 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	return false
 }
 
+func (cont *AciController) writeApicPod(pod *v1.Pod) {
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
+		return
+	}
+	key := cont.aciNameForKey("pod", podkey)
+	if !podFilter(pod) || pod.Spec.NodeName == "" {
+		cont.apicConn.ClearApicObjects(key)
+		return
+	}
+
+	aobj := apicapi.NewVmmInjectedContGrp("Kubernetes",
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		pod.Namespace, pod.Name)
+	aobj.SetAttr("guid", string(pod.UID))
+	aobj.SetAttr("hostName", pod.Spec.NodeName)
+	for _, or := range pod.OwnerReferences {
+		if or.Kind == "ReplicaSet" && or.Name != "" {
+			aobj.SetAttr("replicaSetName", or.Name)
+			break
+		}
+	}
+	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
+}
+
 func (cont *AciController) podAdded(obj interface{}) {
 	pod := obj.(*v1.Pod)
+	cont.writeApicPod(pod)
 	cont.depPods.UpdatePodNoCallback(pod)
 	cont.netPolPods.UpdatePodNoCallback(pod)
 	cont.netPolIngressPods.UpdatePodNoCallback(pod)
@@ -353,6 +381,8 @@ func (cont *AciController) podAdded(obj interface{}) {
 func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	oldpod := oldobj.(*v1.Pod)
 	newpod := newobj.(*v1.Pod)
+
+	cont.writeApicPod(newpod)
 
 	shouldqueue := false
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
@@ -383,6 +413,8 @@ func (cont *AciController) podDeleted(obj interface{}) {
 		logger.Error("Could not create pod key:" + err.Error())
 		return
 	}
+
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", pod.Name))
 
 	cont.depPods.DeletePod(pod)
 	cont.netPolPods.DeletePod(pod)

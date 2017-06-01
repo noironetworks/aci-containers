@@ -15,6 +15,7 @@
 package apicapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -88,6 +89,7 @@ type ApicConnection struct {
 
 	desiredState   map[string]ApicSlice
 	desiredStateDn map[string]ApicObject
+	containerDns   map[string]bool
 	cachedState    map[string]ApicSlice
 	cacheDnSubIds  map[string][]string
 	errorUpdates   map[string]ApicObject
@@ -140,17 +142,13 @@ func (o ApicObject) GetDn() string {
 	return o.GetAttrStr("dn")
 }
 
-//func (o ApicObjectBody) String() string {
-//	return fmt.Sprintf("attributes: %v, children: %v",
-//		o.Attributes, o.Children)
-//}
-//
-//func (o ApicObject) String() string {
-//	for class, body := range o {
-//		return fmt.Sprintf("%s{%v}", class, *body)
-//	}
-//	return "[invalid]"
-//}
+func (o ApicObject) String() string {
+	data, err := json.Marshal(&o)
+	if err != nil {
+		return "[invalid]"
+	}
+	return string(data)
+}
 
 func (o ApicObject) GetRn() string {
 	for _, body := range o {
@@ -284,7 +282,7 @@ func EmptyApicObject(class string, dn string) ApicObject {
 	}
 }
 
-func NewBridgeDomain(tenantName string, name string) ApicObject {
+func NewFvBD(tenantName string, name string) ApicObject {
 	ret := newApicObject("fvBD")
 	ret["fvBD"].Attributes["name"] = name
 	ret["fvBD"].Attributes["dn"] =
@@ -292,7 +290,7 @@ func NewBridgeDomain(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewSubnet(parentDn string, gwIpMask string) ApicObject {
+func NewFvSubnet(parentDn string, gwIpMask string) ApicObject {
 	ret := newApicObject("fvSubnet")
 	ret["fvSubnet"].Attributes["ip"] = gwIpMask
 	ret["fvSubnet"].Attributes["dn"] =
@@ -646,5 +644,93 @@ func NewFvRsCons(parentDn string, tnVzBrCPName string) ApicObject {
 	ret["fvRsCons"].Attributes["tnVzBrCPName"] = tnVzBrCPName
 	ret["fvRsCons"].Attributes["dn"] =
 		fmt.Sprintf("%s/rscons-%s", parentDn, tnVzBrCPName)
+	return ret
+}
+
+func NewVmmInjectedContGrp(vendor string, domain string, controller string,
+	namespace string, name string) ApicObject {
+	ret := newApicObject("vmmInjectedContGrp")
+	ret["vmmInjectedContGrp"].Attributes["name"] = name
+	ret["vmmInjectedContGrp"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/grp-[%s]",
+			vendor, domain, controller, namespace, name)
+	return ret
+}
+
+func NewVmmInjectedDepl(vendor string, domain string, controller string,
+	namespace string, name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedDepl")
+	ret["vmmInjectedDepl"].Attributes["name"] = name
+	ret["vmmInjectedDepl"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/depl-[%s]",
+			vendor, domain, controller, namespace, name)
+	return ret
+}
+
+func NewVmmInjectedReplSet(vendor string, domain string, controller string,
+	namespace string, name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedReplSet")
+	ret["vmmInjectedReplSet"].Attributes["name"] = name
+	ret["vmmInjectedReplSet"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/rs-[%s]",
+			vendor, domain, controller, namespace, name)
+	return ret
+}
+
+func NewVmmInjectedSvc(vendor string, domain string, controller string,
+	namespace string, name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedSvc")
+	ret["vmmInjectedSvc"].Attributes["name"] = name
+	ret["vmmInjectedSvc"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/svc-[%s]",
+			vendor, domain, controller, namespace, name)
+	return ret
+}
+
+func NewVmmInjectedSvcEp(parentDn string, contGrpName string) ApicObject {
+	ret := newApicObject("vmmInjectedSvcEp")
+	ret["vmmInjectedSvcEp"].Attributes["contGrpName"] = contGrpName
+	ret["vmmInjectedSvcEp"].Attributes["dn"] =
+		fmt.Sprintf("%s/ep-%s", parentDn, contGrpName)
+	return ret
+}
+
+func NewVmmInjectedSvcPort(parentDn string, port string,
+	protocol string, targetPort string) ApicObject {
+	ret := newApicObject("vmmInjectedSvcPort")
+	port = normalizePort(port)
+	targetPort = normalizePort(targetPort)
+	protocol = normalizeProto(protocol)
+	ret["vmmInjectedSvcPort"].Attributes["port"] = port
+	ret["vmmInjectedSvcPort"].Attributes["protocol"] = protocol
+	ret["vmmInjectedSvcPort"].Attributes["targetPort"] = targetPort
+	ret["vmmInjectedSvcPort"].Attributes["dn"] =
+		fmt.Sprintf("%s/p-%s-prot-%s-t-%s",
+			parentDn, port, protocol, targetPort)
+	return ret
+}
+
+func NewVmmInjectedHost(vendor string, domain string, controller string,
+	name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedHost")
+	ret["vmmInjectedHost"].Attributes["name"] = name
+	ret["vmmInjectedHost"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/host-[%s]",
+			vendor, domain, controller, name)
+	return ret
+}
+
+func NewVmmInjectedNs(vendor string, domain string, controller string,
+	name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedNs")
+	ret["vmmInjectedNs"].Attributes["name"] = name
+	ret["vmmInjectedNs"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]",
+			vendor, domain, controller, name)
 	return ret
 }

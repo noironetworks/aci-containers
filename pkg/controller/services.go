@@ -135,7 +135,7 @@ func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 	// Service bridge domain
 	bdName := cont.aciNameForKey("bd", "kubernetes-service")
 
-	bd := apicapi.NewBridgeDomain(cont.config.AciVrfTenant, bdName)
+	bd := apicapi.NewFvBD(cont.config.AciVrfTenant, bdName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
@@ -146,7 +146,7 @@ func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 
 	bdn := bd.GetDn()
 	for _, cidr := range cont.config.NodeServiceSubnets {
-		sn := apicapi.NewSubnet(bdn, cidr)
+		sn := apicapi.NewFvSubnet(bdn, cidr)
 		bd.AddChild(sn)
 	}
 
@@ -306,6 +306,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	name := cont.aciNameForKey("service", key)
 	graphName := cont.aciNameForKey("service", "global")
 	var serviceObjs apicapi.ApicSlice
+
 	if len(nodes) > 0 {
 
 		// 1. Service redirect policy
@@ -630,6 +631,66 @@ func (cont *AciController) serviceFullSync() {
 		})
 }
 
+func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
+	endpointsobj, _, err :=
+		cont.endpointsInformer.GetStore().GetByKey(key)
+	if err != nil {
+		cont.log.Error("Could not lookup endpoints for " +
+			key + ": " + err.Error())
+		return
+	}
+
+	aobj := apicapi.NewVmmInjectedSvc("Kubernetes",
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		service.Namespace, service.Name)
+	aobjDn := aobj.GetDn()
+	aobj.SetAttr("guid", string(service.UID))
+	// APIC model only allows one of these
+	for _, ingress := range service.Status.LoadBalancer.Ingress {
+		aobj.SetAttr("lbIp", ingress.IP)
+		break
+	}
+	aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
+	var t string
+	switch service.Spec.Type {
+	case v1.ServiceTypeClusterIP:
+		t = "clusterIp"
+	case v1.ServiceTypeNodePort:
+		t = "nodePort"
+	case v1.ServiceTypeLoadBalancer:
+		t = "loadBalancer"
+	case v1.ServiceTypeExternalName:
+		t = "externalName"
+	}
+	aobj.SetAttr("type", t)
+	for _, port := range service.Spec.Ports {
+		var proto string
+		if port.Protocol == v1.ProtocolUDP {
+			proto = "udp"
+		} else {
+			proto = "tcp"
+		}
+		p := apicapi.NewVmmInjectedSvcPort(aobjDn,
+			strconv.Itoa(int(port.Port)), proto, port.TargetPort.String())
+		p.SetAttr("nodePort", strconv.Itoa(int(port.NodePort)))
+		aobj.AddChild(p)
+	}
+	if endpointsobj != nil {
+		for _, subset := range endpointsobj.(*v1.Endpoints).Subsets {
+			for _, addr := range subset.Addresses {
+				if addr.TargetRef == nil || addr.TargetRef.Kind != "Pod" {
+					continue
+				}
+				aobj.AddChild(apicapi.NewVmmInjectedSvcEp(aobjDn,
+					addr.TargetRef.Name))
+			}
+		}
+	}
+
+	name := cont.aciNameForKey("service-vmm", key)
+	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
+}
+
 func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	cont.indexMutex.Lock()
 	logger := serviceLogger(cont.log, service)
@@ -640,11 +701,14 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		cont.indexMutex.Unlock()
 		return false
 	}
+
+	cont.writeApicSvc(servicekey, service)
+
 	meta, ok := cont.serviceMetaCache[servicekey]
 	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
 	if ok && !isLoadBalancer {
 		cont.indexMutex.Unlock()
-		cont.serviceDeleted(service)
+		cont.clearLbService(servicekey)
 		return false
 	}
 	if !isLoadBalancer {
@@ -748,15 +812,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	return false
 }
 
-func (cont *AciController) serviceDeleted(obj interface{}) {
-	service := obj.(*v1.Service)
-	logger := serviceLogger(cont.log, service)
-
-	servicekey, err := cache.MetaNamespaceKeyFunc(service)
-	if err != nil {
-		logger.Error("Could not create service key: ", err)
-		return
-	}
+func (cont *AciController) clearLbService(servicekey string) {
 	cont.indexMutex.Lock()
 	if meta, ok := cont.serviceMetaCache[servicekey]; ok {
 		returnIps(cont.serviceIps, meta.ingressIps)
@@ -765,4 +821,17 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 	}
 	cont.indexMutex.Unlock()
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service", servicekey))
+}
+
+func (cont *AciController) serviceDeleted(obj interface{}) {
+	service := obj.(*v1.Service)
+	servicekey, err := cache.MetaNamespaceKeyFunc(service)
+	if err != nil {
+		serviceLogger(cont.log, service).
+			Error("Could not create service key: ", err)
+		return
+	}
+	cont.clearLbService(servicekey)
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service-vmm",
+		servicekey))
 }

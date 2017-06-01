@@ -20,6 +20,46 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+func (conn *ApicConnection) apicBodyAttrCmp(class string,
+	bodyc *ApicObjectBody, bodyd *ApicObjectBody) bool {
+	meta, ok := metadata[class]
+	if !ok {
+		conn.log.Warning("No metadata for class ", class)
+		return true
+	}
+	for p, def := range meta.attributes {
+		ac, ok := bodyc.Attributes[p]
+		if !ok {
+			ac = def
+		}
+		ad, ok := bodyd.Attributes[p]
+		if !ok {
+			ad = def
+		}
+
+		if ac != ad {
+			return false
+			break
+		}
+	}
+	return true
+}
+
+func (conn *ApicConnection) apicCntCmp(current ApicObject,
+	desired ApicObject) bool {
+	for classc, bodyc := range current {
+		for classd, bodyd := range desired {
+			if classc != classd {
+				conn.log.Warning("Invalid comparison ", classc, " != ", classd)
+				return false
+			}
+
+			return conn.apicBodyAttrCmp(classc, bodyc, bodyd)
+		}
+	}
+	return true
+}
+
 func (conn *ApicConnection) apicObjCmp(current ApicObject,
 	desired ApicObject) (update bool, deletes []string) {
 
@@ -30,25 +70,8 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 				return
 			}
 
-			meta, ok := metadata[classc]
-			if !ok {
-				conn.log.Warning("No metadata for class ", classc)
-				return
-			}
-			for p, def := range meta.attributes {
-				ac, ok := bodyc.Attributes[p]
-				if !ok {
-					ac = def
-				}
-				ad, ok := bodyd.Attributes[p]
-				if !ok {
-					ad = def
-				}
-
-				if ac != ad {
-					update = true
-					break
-				}
+			if !conn.apicBodyAttrCmp(classc, bodyc, bodyd) {
+				update = true
 			}
 
 			i := 0
@@ -56,7 +79,6 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			for i < len(bodyc.Children) && j < len(bodyd.Children) {
 				cmp := cmpApicObject(bodyc.Children[i], bodyd.Children[j])
 				if cmp < 0 {
-					conn.log.Error("1, ", bodyc.Children[i].GetDn())
 					deletes = append(deletes, bodyc.Children[i].GetDn())
 					i++
 				} else if cmp > 0 {
@@ -75,7 +97,6 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 				}
 			}
 			for i < len(bodyc.Children) {
-				conn.log.Error("2, ", bodyc.Children[i].GetDn())
 				deletes = append(deletes, bodyc.Children[i].GetDn())
 				i++
 			}
@@ -105,11 +126,17 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 			updates = append(updates, desiredState[j])
 			j++
 		} else {
-			cu, cd := conn.apicObjCmp(currentState[i], desiredState[j])
-			if cu {
-				updates = append(updates, desiredState[j])
+			if conn.containerDns[currentState[i].GetDn()] {
+				if !conn.apicCntCmp(currentState[i], desiredState[j]) {
+					updates = append(updates, desiredState[j])
+				}
+			} else {
+				cu, cd := conn.apicObjCmp(currentState[i], desiredState[j])
+				if cu {
+					updates = append(updates, desiredState[j])
+				}
+				deletes = append(deletes, cd...)
 			}
-			deletes = append(deletes, cd...)
 
 			i++
 			j++
@@ -131,6 +158,8 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 
 func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	context string) {
+	sort.Sort(updates)
+	sort.Strings(deletes)
 
 	for _, delete := range deletes {
 		conn.log.WithFields(logrus.Fields{"DN": delete, "context": context}).
@@ -143,10 +172,6 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 			Debug("Applying APIC object update")
 		conn.postDn(dn, update)
 	}
-}
-
-func (conn *ApicConnection) ClearApicObjects(key string) {
-	conn.WriteApicObjects(key, nil)
 }
 
 func PrepareApicSlice(objects ApicSlice, key string) ApicSlice {
@@ -260,7 +285,8 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 	}
 }
 
-func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
+func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
+	container bool) {
 	PrepareApicSlice(objects, key)
 
 	conn.indexMutex.Lock()
@@ -268,16 +294,24 @@ func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
 
 	conn.updateDnIndex(objects)
 	for _, del := range deletes {
+		delete(conn.errorUpdates, del)
 		conn.removeFromDnIndex(del)
+		if container {
+			delete(conn.containerDns, del)
+		}
+	}
+	for _, update := range updates {
+		dn := update.GetDn()
+		delete(conn.errorUpdates, dn)
+		if container {
+			conn.containerDns[dn] = true
+		}
 	}
 
 	if objects == nil {
 		delete(conn.desiredState, key)
 	} else {
 		conn.desiredState[key] = objects
-	}
-	for dn := range conn.errorUpdates {
-		delete(conn.errorUpdates, dn)
 	}
 
 	if conn.syncEnabled {
@@ -286,6 +320,22 @@ func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
 	} else {
 		conn.indexMutex.Unlock()
 	}
+}
+
+func (conn *ApicConnection) ClearApicContainer(key string) {
+	conn.WriteApicContainer(key, nil)
+}
+
+func (conn *ApicConnection) WriteApicContainer(key string, objects ApicSlice) {
+	conn.doWriteApicObjects(key, objects, true)
+}
+
+func (conn *ApicConnection) ClearApicObjects(key string) {
+	conn.WriteApicObjects(key, nil)
+}
+
+func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
+	conn.doWriteApicObjects(key, objects, false)
 }
 
 func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
@@ -301,15 +351,23 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 	var deletes []string
 
 	if eobj, ok := conn.desiredStateDn[dn]; ok {
-		update, odels := conn.apicObjCmp(aci, eobj)
-		if update {
-			updates = ApicSlice{eobj}
-		}
-		deletes = append(deletes, odels...)
+		if conn.containerDns[dn] {
+			if !conn.apicCntCmp(aci, eobj) {
+				updates = ApicSlice{eobj}
+				conn.log.WithFields(logrus.Fields{"DN": dn}).
+					Warning("Unexpected ACI container alteration")
+			}
+		} else {
+			update, odels := conn.apicObjCmp(aci, eobj)
+			if update {
+				updates = ApicSlice{eobj}
+			}
+			deletes = append(deletes, odels...)
 
-		if update || len(odels) != 0 {
-			conn.log.WithFields(logrus.Fields{"DN": dn}).
-				Warning("Unexpected ACI object alteration")
+			if update || len(odels) != 0 {
+				conn.log.WithFields(logrus.Fields{"DN": dn}).
+					Warning("Unexpected ACI object alteration")
+			}
 		}
 	} else {
 		tag := aci.GetTag()

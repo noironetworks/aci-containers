@@ -126,6 +126,21 @@ func filterEntryNormalizer(b *ApicObjectBody) {
 	}
 }
 
+func injectedSvcPortNormalizer(b *ApicObjectBody) {
+	if b.Attributes == nil {
+		return
+	}
+	normalizePorts(b, []string{"port", "nodePort"})
+
+	v, ok := b.Attributes["protocol"]
+	if ok {
+		switch vStr := v.(type) {
+		case string:
+			b.Attributes["protocol"] = normalizeProto(vStr)
+		}
+	}
+}
+
 var metadata = map[string]*apicMeta{
 	"fvBD": &apicMeta{
 		attributes: map[string]interface{}{
@@ -470,6 +485,75 @@ var metadata = map[string]*apicMeta{
 	"fvRsCons": &apicMeta{
 		attributes: map[string]interface{}{
 			"tnVzBrCPName": "",
+		},
+	},
+	"vmmInjectedContGrp": &apicMeta{
+		attributes: map[string]interface{}{
+			"guid":           "",
+			"name":           "",
+			"replicaSetName": "",
+			"hostName":       "",
+		},
+	},
+	"vmmInjectedDepl": &apicMeta{
+		attributes: map[string]interface{}{
+			"guid":     "",
+			"name":     "",
+			"replicas": "",
+		},
+	},
+	"vmmInjectedReplSet": &apicMeta{
+		attributes: map[string]interface{}{
+			"guid":           "",
+			"name":           "",
+			"deploymentName": "",
+		},
+	},
+	"vmmInjectedSvc": &apicMeta{
+		attributes: map[string]interface{}{
+			"guid":      "",
+			"name":      "",
+			"clusterIp": "0.0.0.0",
+			"lbIp":      "0.0.0.0",
+			"type":      "clusterUp",
+		},
+		children: []string{
+			"vmmInjectedSvcEp",
+			"vmmInjectedSvcPort",
+		},
+	},
+	"vmmInjectedSvcEp": &apicMeta{
+		attributes: map[string]interface{}{
+			"name":        "",
+			"contGrpName": "",
+		},
+	},
+	"vmmInjectedSvcPort": &apicMeta{
+		attributes: map[string]interface{}{
+			"protocol":   "",
+			"port":       "",
+			"nodePort":   "",
+			"targetPort": "",
+		},
+		normalizer: injectedSvcPortNormalizer,
+	},
+	"vmmInjectedHost": &apicMeta{
+		attributes: map[string]interface{}{
+			"name":      "",
+			"hostName":  "",
+			"kernelVer": "",
+			"os":        "",
+		},
+	},
+	"vmmInjectedNs": &apicMeta{
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"vmmInjectedContGrp",
+			"vmmInjectedSvc",
+			"vmmInjectedDepl",
+			"vmmInjectedReplSet",
 		},
 	},
 }

@@ -28,6 +28,8 @@ import (
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 func (cont *AciController) initNamespaceInformerFromClient(
@@ -72,8 +74,17 @@ func (cont *AciController) updatePodsForNamespace(ns string) {
 		})
 }
 
+func (cont *AciController) writeApicNs(ns *v1.Namespace) {
+	aobj := apicapi.NewVmmInjectedNs("Kubernetes",
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		ns.Name)
+	cont.apicConn.WriteApicContainer(cont.aciNameForKey("ns", ns.Name),
+		apicapi.ApicSlice{aobj})
+}
+
 func (cont *AciController) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
+	cont.writeApicNs(ns)
 	cont.depPods.UpdateNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
@@ -83,6 +94,9 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 
 	oldns := oldobj.(*v1.Namespace)
 	newns := newobj.(*v1.Namespace)
+
+	cont.writeApicNs(newns)
+
 	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
 		cont.depPods.UpdateNamespace(newns)
 	}
@@ -94,6 +108,7 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 
 func (cont *AciController) namespaceDeleted(obj interface{}) {
 	ns := obj.(*v1.Namespace)
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("ns", ns.Name))
 	cont.depPods.DeleteNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }

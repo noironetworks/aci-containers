@@ -327,14 +327,14 @@ func TestSubscription(t *testing.T) {
 }
 
 func existingState() ApicSlice {
-	bd := NewBridgeDomain("common", "testbd1")
-	subnet := NewSubnet(bd.GetDn(), "10.42.10.1/16")
-	subnet2 := NewSubnet(bd.GetDn(), "10.43.10.1/16")
+	bd := NewFvBD("common", "testbd1")
+	subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
+	subnet2 := NewFvSubnet(bd.GetDn(), "10.43.10.1/16")
 	bd.AddChild(subnet)
 	bd.AddChild(subnet2)
 
-	bd2 := NewBridgeDomain("common", "testbd2")
-	bd0 := NewBridgeDomain("common", "testbd0")
+	bd2 := NewFvBD("common", "testbd2")
+	bd0 := NewFvBD("common", "testbd0")
 
 	s := ApicSlice{bd0, bd, bd2}
 
@@ -381,8 +381,8 @@ type syncTest struct {
 
 func TestFullSync(t *testing.T) {
 
-	bd0 := NewBridgeDomain("common", "testbd0")
-	bd4 := NewBridgeDomain("common", "testbd4")
+	bd0 := NewFvBD("common", "testbd0")
+	bd4 := NewFvBD("common", "testbd4")
 
 	syncTests := []syncTest{
 		syncTest{
@@ -403,8 +403,8 @@ func TestFullSync(t *testing.T) {
 				},
 			},
 			desiredState: func() map[string]ApicSlice {
-				bd := NewBridgeDomain("common", "testbd1")
-				subnet := NewSubnet(bd.GetDn(), "10.42.10.1/16")
+				bd := NewFvBD("common", "testbd1")
+				subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
 				bd.AddChild(subnet)
 				return map[string]ApicSlice{"kube-key1": {bd}}
 			}(),
@@ -425,15 +425,15 @@ func TestFullSync(t *testing.T) {
 				},
 			},
 			desiredState: func() map[string]ApicSlice {
-				bd := NewBridgeDomain("common", "testbd1")
-				subnet := NewSubnet(bd.GetDn(), "10.42.10.1/16")
-				subnet2 := NewSubnet(bd.GetDn(), "10.43.10.1/16")
+				bd := NewFvBD("common", "testbd1")
+				subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
+				subnet2 := NewFvSubnet(bd.GetDn(), "10.43.10.1/16")
 				bd.AddChild(subnet)
 				bd.AddChild(subnet2)
 
-				bd2 := NewBridgeDomain("common", "testbd2")
+				bd2 := NewFvBD("common", "testbd2")
 
-				subnet3 := NewSubnet(bd0.GetDn(), "10.44.10.1/16")
+				subnet3 := NewFvSubnet(bd0.GetDn(), "10.44.10.1/16")
 				bd0.AddChild(subnet3)
 
 				s := ApicSlice{bd0, bd, bd2, bd4}
@@ -489,29 +489,29 @@ type reconcileTest struct {
 }
 
 func TestReconcile(t *testing.T) {
-	bd1exp := NewBridgeDomain("common", "testbd1")
-	subnetexp := NewSubnet(bd1exp.GetDn(), "10.42.10.1/16")
+	bd1exp := NewFvBD("common", "testbd1")
+	subnetexp := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
 	{
-		subnet2 := NewSubnet(bd1exp.GetDn(), "10.43.10.1/16")
+		subnet2 := NewFvSubnet(bd1exp.GetDn(), "10.43.10.1/16")
 		bd1exp.AddChild(subnetexp)
 		bd1exp.AddChild(subnet2)
 	}
-	bdExtra := NewBridgeDomain("common", "testbd_extra")
-	bdExtra2 := NewBridgeDomain("common", "testbd_extra2")
+	bdExtra := NewFvBD("common", "testbd_extra")
+	bdExtra2 := NewFvBD("common", "testbd_extra2")
 	// note don't prepare bdExtra2
 	PrepareApicSlice(ApicSlice{bd1exp, bdExtra}, "kube-key1")
 
-	bd1 := NewBridgeDomain("common", "testbd1")
+	bd1 := NewFvBD("common", "testbd1")
 	{
 		bd1.SetAttr("arpFlood", "yes")
-		subnet := NewSubnet(bd1.GetDn(), "10.42.10.1/16")
-		subnet2 := NewSubnet(bd1.GetDn(), "10.43.10.1/16")
+		subnet := NewFvSubnet(bd1.GetDn(), "10.42.10.1/16")
+		subnet2 := NewFvSubnet(bd1.GetDn(), "10.43.10.1/16")
 		bd1.AddChild(subnet)
 		bd1.AddChild(subnet2)
 
 	}
 
-	subnet_mod := NewSubnet(bd1.GetDn(), "10.42.10.1/16")
+	subnet_mod := NewFvSubnet(bd1.GetDn(), "10.42.10.1/16")
 	subnet_mod.SetAttr("virtual", "yes")
 
 	reconcileTests := []reconcileTest{

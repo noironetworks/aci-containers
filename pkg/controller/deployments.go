@@ -19,6 +19,7 @@ package controller
 
 import (
 	"reflect"
+	"strconv"
 
 	"github.com/Sirupsen/logrus"
 
@@ -31,6 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 )
 
@@ -95,7 +97,30 @@ func deploymentLogger(log *logrus.Logger, dep *v1beta1.Deployment) *logrus.Entry
 	})
 }
 
+func (cont *AciController) writeApicDepl(dep *v1beta1.Deployment) {
+	depkey, err :=
+		cache.MetaNamespaceKeyFunc(dep)
+	if err != nil {
+		deploymentLogger(cont.log, dep).
+			Error("Could not create key: ", err)
+		return
+	}
+	key := cont.aciNameForKey("deployment", depkey)
+
+	aobj := apicapi.NewVmmInjectedDepl("Kubernetes",
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		dep.Namespace, dep.Name)
+	aobj.SetAttr("guid", string(dep.UID))
+	if dep.Spec.Replicas != nil {
+		aobj.SetAttr("replicas", strconv.Itoa(int(*dep.Spec.Replicas)))
+	} else {
+		aobj.SetAttr("replicas", "1")
+	}
+	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
+}
+
 func (cont *AciController) deploymentAdded(obj interface{}) {
+	cont.writeApicDepl(obj.(*v1beta1.Deployment))
 	cont.depPods.UpdateSelectorObj(obj)
 }
 
@@ -104,6 +129,8 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 
 	olddep := oldobj.(*v1beta1.Deployment)
 	newdep := newobj.(*v1beta1.Deployment)
+
+	cont.writeApicDepl(newdep)
 
 	if !reflect.DeepEqual(olddep.Spec.Selector, newdep.Spec.Selector) {
 		cont.depPods.UpdateSelectorObj(newobj)
@@ -129,5 +156,15 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 }
 
 func (cont *AciController) deploymentDeleted(obj interface{}) {
+	dep := obj.(*v1beta1.Deployment)
+	depkey, err :=
+		cache.MetaNamespaceKeyFunc(dep)
+	if err != nil {
+		deploymentLogger(cont.log, dep).
+			Error("Could not create key: ", err)
+	} else {
+		key := cont.aciNameForKey("deployment", depkey)
+		cont.apicConn.ClearApicObjects(key)
+	}
 	cont.depPods.DeleteSelectorObj(obj)
 }

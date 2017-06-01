@@ -60,9 +60,9 @@ func TestNormalizerRedirectDest(t *testing.T) {
 
 func TestTypes(t *testing.T) {
 	assert.Equal(t, "uni/tn-common/BD-test",
-		NewBridgeDomain("common", "test").GetDn())
+		NewFvBD("common", "test").GetDn())
 	assert.Equal(t, "fake/dn/subnet-[1.1.3.4/24]",
-		NewSubnet("fake/dn", "1.1.3.4/24").GetDn())
+		NewFvSubnet("fake/dn", "1.1.3.4/24").GetDn())
 	assert.Equal(t, "fake/dn/rsctx",
 		NewRsCtx("fake/dn", "rd").GetDn())
 	assert.Equal(t, "fake/dn/rsBDToOut-l3out",
@@ -149,4 +149,20 @@ func TestTypes(t *testing.T) {
 		NewFvRsProv("fake/dn", "prov").GetDn())
 	assert.Equal(t, "fake/dn/rscons-con",
 		NewFvRsCons("fake/dn", "con").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[ns]/grp-[name]",
+		NewVmmInjectedContGrp("kube", "domain", "cont", "ns", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[ns]/depl-[name]",
+		NewVmmInjectedDepl("kube", "domain", "cont", "ns", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[ns]/rs-[name]",
+		NewVmmInjectedReplSet("kube", "domain", "cont", "ns", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[ns]/svc-[name]",
+		NewVmmInjectedSvc("kube", "domain", "cont", "ns", "name").GetDn())
+	assert.Equal(t, "fake/dn/ep-podName",
+		NewVmmInjectedSvcEp("fake/dn", "podName").GetDn())
+	assert.Equal(t, "fake/dn/p-http-prot-tcp-t-https",
+		NewVmmInjectedSvcPort("fake/dn", "80", "6", "443").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/host-[name]",
+		NewVmmInjectedHost("kube", "domain", "cont", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[name]",
+		NewVmmInjectedNs("kube", "domain", "cont", "name").GetDn())
 }

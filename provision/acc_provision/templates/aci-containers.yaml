@@ -75,14 +75,6 @@ data:
   username: {{config.aci_config.aim_login.username|base64enc}}
   password: {{config.aci_config.aim_login.password|base64enc}}
 ---
-apiVersion: extensions/v1beta1
-kind: ThirdPartyResource
-description: ACI policy model objects to be synchronized with ACI
-metadata:
-  name: aci.acicontainers.cisco.com
-versions:
-- name: v1
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -121,7 +113,6 @@ rules:
   - deployments
   - replicasets
   - networkpolicies
-  - thirdpartyresources
   verbs:
   - list
   - watch

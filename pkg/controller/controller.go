@@ -58,6 +58,7 @@ type AciController struct {
 	podInformer           cache.SharedIndexInformer
 	endpointsInformer     cache.SharedIndexInformer
 	serviceInformer       cache.SharedIndexInformer
+	replicaSetInformer    cache.SharedIndexInformer
 	deploymentInformer    cache.SharedIndexInformer
 	nodeInformer          cache.SharedIndexInformer
 	networkPolicyInformer cache.SharedIndexInformer
@@ -170,6 +171,7 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.log.Debug("Initializing informers")
 	cont.initNodeInformerFromClient(kubeClient)
 	cont.initNamespaceInformerFromClient(kubeClient)
+	cont.initReplicaSetInformerFromClient(kubeClient)
 	cont.initDeploymentInformerFromClient(kubeClient)
 	cont.initPodInformerFromClient(kubeClient)
 	cont.initEndpointsInformerFromClient(kubeClient)
@@ -245,8 +247,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
-	cont.log.Debug("Waiting for node cache sync")
-	cache.WaitForCacheSync(stopCh, cont.nodeInformer.HasSynced)
+	go cont.namespaceInformer.Run(stopCh)
+	cont.log.Debug("Waiting for node/namespace cache sync")
+	cache.WaitForCacheSync(stopCh,
+		cont.nodeInformer.HasSynced, cont.namespaceInformer.HasSynced)
 	cont.indexMutex.Lock()
 	cont.nodeSyncEnabled = true
 	cont.indexMutex.Unlock()
@@ -267,7 +271,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.indexMutex.Unlock()
 	cont.serviceFullSync()
 
-	go cont.namespaceInformer.Run(stopCh)
+	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
 	go cont.networkPolicyInformer.Run(stopCh)
@@ -283,6 +287,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Waiting for cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
+		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
 		cont.networkPolicyInformer.HasSynced)
@@ -316,6 +321,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
 		cont.config.AciVrfTenant, cont.config.AciL3Out),
 		[]string{"fvRsCons"})
+	vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
+		"Kubernetes", cont.config.AciVmmDomain, cont.config.AciVmmController)
+	cont.apicConn.AddSubscriptionDn(vmmDn,
+		[]string{"vmmInjectedHost", "vmmInjectedNs",
+			"vmmInjectedContGrp", "vmmInjectedDepl",
+			"vmmInjectedSvc", "vmmInjectedReplSet"})
 	cont.apicConn.AddSubscriptionClass("opflexODev",
 		[]string{"opflexODev"},
 		fmt.Sprintf("and(eq(opflexODev.domName,\"%s\"),"+

@@ -166,6 +166,16 @@ func (cont *AciController) nodeFullSync() {
 		})
 }
 
+func (cont *AciController) writeApicNode(node *v1.Node) {
+	key := cont.aciNameForKey("node-vmm", node.Name)
+	aobj := apicapi.NewVmmInjectedHost("Kubernetes",
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		node.Name)
+	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)
+	aobj.SetAttr("kernelVer", node.Status.NodeInfo.KernelVersion)
+	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
+}
+
 func (cont *AciController) nodeChanged(obj interface{}) {
 	cont.indexMutex.Lock()
 
@@ -236,6 +246,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	cont.indexMutex.Unlock()
 
 	cont.createNetPolForNode(node)
+	cont.writeApicNode(node)
 
 	if nodeUpdated {
 		_, err := cont.updateNode(node)
@@ -261,7 +272,8 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
 	node := obj.(*v1.Node)
-	cont.apicConn.ClearApicObjects("node" + node.Name)
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node", node.Name))
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node-vmm", node.Name))
 
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()

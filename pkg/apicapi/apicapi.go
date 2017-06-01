@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -29,6 +31,11 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
 )
+
+func complete(resp *http.Response) {
+	io.Copy(ioutil.Discard, resp.Body)
+	resp.Body.Close()
+}
 
 func (conn *ApicConnection) login() (string, error) {
 	url := fmt.Sprintf("https://%s/api/aaaLogin.json",
@@ -50,7 +57,7 @@ func (conn *ApicConnection) login() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer complete(resp)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Error while logging into APIC", resp)
@@ -97,6 +104,7 @@ func New(dialer *websocket.Dialer, log *logrus.Logger,
 	client := &http.Client{
 		Transport: tr,
 		Jar:       jar,
+		Timeout:   10 * time.Second,
 	}
 	conn := &ApicConnection{
 		ReconnectInterval: time.Second,
@@ -115,6 +123,7 @@ func New(dialer *websocket.Dialer, log *logrus.Logger,
 		},
 		desiredState:   make(map[string]ApicSlice),
 		desiredStateDn: make(map[string]ApicObject),
+		containerDns:   make(map[string]bool),
 		cachedState:    make(map[string]ApicSlice),
 		cacheDnSubIds:  make(map[string][]string),
 		errorUpdates:   make(map[string]ApicObject),
@@ -326,12 +335,12 @@ func (conn *ApicConnection) refresh() {
 		return
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close()
 		conn.logErrorResp("Error while refreshing login", resp)
-		resp.Body.Close()
+		complete(resp)
 		conn.restart()
 		return
 	}
+	complete(resp)
 
 	for _, sub := range conn.subscriptions.subs {
 		url := fmt.Sprintf("https://%s/api/subscriptionRefresh.json?id=%s",
@@ -344,11 +353,11 @@ func (conn *ApicConnection) refresh() {
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			conn.logErrorResp("Error while refreshing subscription", resp)
-			resp.Body.Close()
+			complete(resp)
 			conn.restart()
 			return
 		}
-		resp.Body.Close()
+		complete(resp)
 	}
 }
 
@@ -366,7 +375,6 @@ func (conn *ApicConnection) retry() {
 
 func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 	var apicresp ApicResponse
-	conn.log.Error(resp.Request.URL)
 	err := json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
 		conn.log.Error("Could not parse APIC error response: ", err)
@@ -390,6 +398,7 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 		conn.log.WithFields(logrus.Fields{
 			"text":   text,
 			"code":   code,
+			"url":    resp.Request.URL,
 			"status": resp.StatusCode,
 		}).Error(message)
 	}
@@ -410,10 +419,11 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		conn.restart()
 		return
 	}
-	defer resp.Body.Close()
+	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not get subtree for "+dn, resp)
 		conn.restart()
+		return
 	}
 
 	var apicresp ApicResponse
@@ -456,7 +466,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
 		conn.log.Error("Could not update dn ", dn, ": ", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not update dn "+dn, resp)
 		if resp.StatusCode == 400 {
@@ -482,7 +492,7 @@ func (conn *ApicConnection) deleteDn(dn string) {
 		conn.log.Error("Could not delete dn ", dn, ": ", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not delete dn "+dn, resp)
 		conn.restart()
@@ -575,7 +585,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		conn.log.Error("Failed to subscribe to ", value, ": ", err)
 		return false
 	}
-	defer resp.Body.Close()
+	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not subscribe to "+value, resp)
 		return false
