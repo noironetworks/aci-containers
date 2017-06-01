@@ -9,6 +9,7 @@ data:
   controller-config: |-
     {
         "log-level": {{config.logging.controller_log_level|json}},
+        "apic-hosts": {{config.aci_config.apic_hosts|json|indent(width=8)}},
         "aci-prefix": {{config.aci_config.system_id|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
