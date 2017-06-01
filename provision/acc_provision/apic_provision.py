@@ -287,12 +287,6 @@ class ApicKubeConfig(object):
                                 "scope": "kubernetes",
                                 "hostOrIp": kube_controller,
                             },
-                            "children": [
-                                {
-                                    "vmmInjectedCont": {
-                                    }
-                                }
-                            ]
                         }
                     },
                     {
