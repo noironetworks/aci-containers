@@ -299,7 +299,13 @@ func TestSubscription(t *testing.T) {
 	server.mux.Handle("/api/aaaLogin.json", &loginSucc{})
 	server.mux.Handle("/sockettesttoken", server.sh)
 	server.mux.Handle("/api/mo/uni/tn-common.json", &subHandler{id: "42"})
-	server.mux.Handle("/api/class/opflexODev.json", &subHandler{id: "43"})
+
+	odev := EmptyApicObject("opflexODev", "some/dn")
+	server.mux.Handle("/api/class/opflexODev.json",
+		&subHandler{
+			id:       "43",
+			response: ApicSlice{odev},
+		})
 
 	conn, err := server.testConn()
 	assert.Nil(t, err)
@@ -310,17 +316,49 @@ func TestSubscription(t *testing.T) {
 	conn.AddSubscriptionClass(class, []string{"opflexODev"},
 		"eq(opflexODev.ctrlrName,\"controller\")")
 
+	changed := make(map[string]bool)
+	deleted := make(map[string]bool)
+	conn.SetSubscriptionHooks("opflexODev",
+		func(obj ApicObject) bool {
+			changed[obj.GetDn()] = true
+			return true
+		},
+		func(dn string) {
+			deleted[dn] = true
+		})
+
 	stopCh := make(chan struct{})
 	go conn.Run(stopCh)
 
 	tu.WaitFor(t, "subscription", 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			if !tu.WaitEqual(t, last, "42",
-				conn.subscriptions.subs[dn].id, "subscription id") {
+				conn.subscriptions.subs[dn].id, "subscription id dn") {
 				return false, nil
 			}
-			return tu.WaitEqual(t, last, "43",
-				conn.subscriptions.subs[class].id, "subscription id"), nil
+			if !tu.WaitEqual(t, last, "43",
+				conn.subscriptions.subs[class].id, "subscription id class") {
+				return false, nil
+			}
+			return true, nil
+		})
+
+	tu.WaitFor(t, "subscription", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return tu.WaitEqual(t, last, map[string]bool{"some/dn": true},
+				changed, "sub hook change"), nil
+		})
+
+	odev.SetAttr("status", "deleted")
+	server.sh.socketConn.WriteJSON(ApicResponse{
+		SubscriptionId: []string{"43"},
+		Imdata:         []ApicObject{odev},
+	})
+
+	tu.WaitFor(t, "subscription", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return tu.WaitEqual(t, last, map[string]bool{"some/dn": true},
+				deleted, "sub hook delete"), nil
 		})
 
 	close(stopCh)
@@ -373,16 +411,19 @@ func (h *recorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 type syncTest struct {
-	desiredState map[string]ApicSlice
-	existing     ApicSlice
-	expected     []request
-	desc         string
+	desiredState   map[string]ApicSlice
+	containerState map[string]ApicSlice
+	existing       ApicSlice
+	expected       []request
+	desc           string
 }
 
 func TestFullSync(t *testing.T) {
 
 	bd0 := NewFvBD("common", "testbd0")
 	bd4 := NewFvBD("common", "testbd4")
+	ns := NewVmmInjectedNs("v", "d", "c", "n")
+	depl := NewVmmInjectedDepl("v", "d", "c", "n", "d")
 
 	syncTests := []syncTest{
 		syncTest{
@@ -440,7 +481,33 @@ func TestFullSync(t *testing.T) {
 				return map[string]ApicSlice{"kube-key1": s}
 			}(),
 		},
-	}
+		syncTest{
+			desc:     "container",
+			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			expected: []request{
+				request{
+					method: "POST",
+					uri:    fmt.Sprintf("/api/mo/%s.json", ns.GetDn()),
+					body:   ns,
+				},
+				request{
+					method: "POST",
+					uri:    fmt.Sprintf("/api/mo/%s.json", depl.GetDn()),
+					body:   depl,
+				},
+			},
+			desiredState: func() map[string]ApicSlice {
+				return map[string]ApicSlice{
+					"kube-key1": existingState(),
+					"d-vmm-1":   ApicSlice{depl},
+				}
+			}(),
+			containerState: func() map[string]ApicSlice {
+				return map[string]ApicSlice{
+					"ns-vmm": ApicSlice{ns},
+				}
+			}(),
+		}}
 
 	for _, test := range syncTests {
 		server := newTestServer()
@@ -453,6 +520,7 @@ func TestFullSync(t *testing.T) {
 			})
 		rec := &recorder{}
 		server.mux.Handle("/api/mo/uni/tn-common/", rec)
+		server.mux.Handle("/api/mo/comp/", rec)
 
 		conn, err := server.testConn()
 		assert.Nil(t, err)
@@ -460,6 +528,9 @@ func TestFullSync(t *testing.T) {
 		dn := "uni/tn-common"
 		conn.AddSubscriptionDn(dn, []string{"fvBD"})
 
+		for key, value := range test.containerState {
+			conn.WriteApicContainer(key, value)
+		}
 		for key, value := range test.desiredState {
 			conn.WriteApicObjects(key, value)
 		}
