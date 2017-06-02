@@ -1,0 +1,16 @@
+usage: acc_provision.py [-h] [-v] [--debug] [--sample] [-c file] [-o file]
+                        [-a] [-d] [-u name] [-p pass]
+
+Provision an ACI/Kubernetes installation
+
+optional arguments:
+  -h, --help           show this help message and exit
+  -v, --version        show program's version number and exit
+  --debug              enable debug
+  --sample             print a sample input file with fabric configuration
+  -c, --config file    input file with your fabric configuration
+  -o, --output file    output file for your kubernetes deployment
+  -a, --apic           create/validate the required APIC resources
+  -d, --delete         delete the APIC resources that would have been created
+  -u, --username name  apic-admin username to use for APIC API access
+  -p, --password pass  apic-admin password to use for APIC API access

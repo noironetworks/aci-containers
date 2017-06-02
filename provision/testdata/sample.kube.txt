@@ -8,66 +8,66 @@ metadata:
 data:
   controller-config: |-
     {
-        "log-level": "debug",
+        "log-level": "info",
         "apic-hosts": [
-            "10.30.120.100"
+            "10.1.1.101"
         ],
-        "aci-prefix": "kube",
-        "aci-vmm-domain": "kubernetes1",
-        "aci-vmm-controller": "kubernetes1",
-        "aci-policy-tenant": "kube",
-        "aci-service-phys-dom": "kubernetes-control",
+        "aci-prefix": "mykube",
+        "aci-vmm-domain": "mykube",
+        "aci-vmm-controller": "mykube",
+        "aci-policy-tenant": "mykube",
+        "aci-service-phys-dom": "mykube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
-        "aci-l3out": "l3out",
+        "aci-l3out": "mykube_l3out",
         "aci-ext-networks": [
-            "l3out"
+            "default"
         ],
-        "aci-vrf": "kubernetes-vrf",
+        "aci-vrf": "mykube-vrf",
         "default-endpoint-group": {
-            "policy-space": "kube",
+            "policy-space": "mykube",
             "name": "kubernetes|kube-default"
         },
         "namespace-default-endpoint-group": {
             "kube-system": {
-                "policy-space": "kube",
+                "policy-space": "mykube",
                 "name": "kubernetes|kube-system"
             }
         },
         "service-ip-pool": [
             {
-                "start": "10.4.0.2", 
-                "end": "10.4.255.254"
-            }
-        ],
-        "static-service-ip-pool": [
-            {
                 "start": "10.3.0.2", 
                 "end": "10.3.0.254"
             }
         ],
+        "static-service-ip-pool": [
+            {
+                "start": "10.4.0.2", 
+                "end": "10.4.0.254"
+            }
+        ],
         "pod-ip-pool": [
             {
-                "start": "10.1.0.2", 
-                "end": "10.1.255.254"
+                "start": "10.2.0.2", 
+                "end": "10.2.255.254"
             }
         ],
         "node-service-ip-pool": [
             {
-                "start": "10.6.0.2", 
-                "end": "10.6.0.254"
+                "start": "10.5.0.2", 
+                "end": "10.5.0.254"
             }
         ],
         "node-service-subnets": [
-            "10.6.0.1/24"
+            "10.5.0.1/24"
         ]
     }
   host-agent-config: |-
     {
-        "log-level": "debug",
-        "aci-vmm-domain": "kubernetes1",
-        "aci-vmm-controller": "kubernetes1",
-        "aci-vrf": "kubernetes-vrf",
+        "log-level": "info",
+        "aci-vmm-domain": "mykube",
+        "aci-vmm-controller": "mykube",
+        "aci-vrf": "mykube-vrf",
         "aci-vrf-tenant": "common",
         "uplink-iface": "eth2",
         "service-vlan": 4003,
@@ -78,12 +78,12 @@ data:
             {
                 "routes": [
                     {
-                        "gw": "10.1.0.1", 
+                        "gw": "10.2.0.1", 
                         "dst": "0.0.0.0/0"
                     }
                 ], 
-                "subnet": "10.1.0.0/16", 
-                "gateway": "10.1.0.1"
+                "subnet": "10.2.0.0/16", 
+                "gateway": "10.2.0.1"
             }
         ]
     }
@@ -93,12 +93,11 @@ data:
             "level": "info"
         },
         "opflex": {
-            "ssl": { "mode": "disabled" }
         }
     }
   aim-config: |-
     [DEFAULT]
-    debug = True
+    debug = False
 ---
 apiVersion: v1
 kind: Secret
@@ -106,7 +105,7 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: a3ViZQ==
+  username: bXlrdWJl
   password: VG9CZUZpeGVkIQ==
 ---
 apiVersion: v1

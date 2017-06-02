@@ -9,6 +9,9 @@ data:
   controller-config: |-
     {
         "log-level": "info",
+        "apic-hosts": [
+            "10.30.120.100"
+        ],
         "aci-prefix": "kube",
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
@@ -105,14 +108,6 @@ data:
   username: a3ViZQ==
   password: VG9CZUZpeGVkIQ==
 ---
-apiVersion: extensions/v1beta1
-kind: ThirdPartyResource
-description: ACI policy model objects to be synchronized with ACI
-metadata:
-  name: aci.acicontainers.cisco.com
-versions:
-- name: v1
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -150,7 +145,6 @@ rules:
   - deployments
   - replicasets
   - networkpolicies
-  - thirdpartyresources
   verbs:
   - list
   - watch
@@ -442,9 +436,6 @@ spec:
             httpGet:
               path: /status
               port: 8091
-        - name: aci-integration-module
-          image: noiro/aci-integration-module
-          imagePullPolicy: Always
           env:
             - name: APIC_USERNAME
               valueFrom:
@@ -456,17 +447,6 @@ spec:
                 secretKeyRef:
                   name: apic-user-pass
                   key: password
-            - name: APIC_HOSTS
-              value: '10.30.120.100'
-            - name: APIC_MONITOR_TENANTS
-              value: 'common'
-            - name: K8S_VMM_DOMAIN
-              value: 'kube'
-            - name: K8S_VMM_CONTROLLER
-              value: 'kube'
-          volumeMounts:
-            - name: aim-config-volume
-              mountPath: /usr/local/etc/aim-local
       volumes:
         - name: controller-config-volume
           configMap:

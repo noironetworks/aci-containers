@@ -83,12 +83,7 @@
                         "mode": "k8s", 
                         "name": "kube", 
                         "scope": "kubernetes"
-                    }, 
-                    "children": [
-                        {
-                            "vmmInjectedCont": {}
-                        }
-                    ]
+                    }
                 }
             }, 
             {
