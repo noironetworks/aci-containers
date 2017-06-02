@@ -1,4 +1,3 @@
-INFO: Loading configuration from "/dev/null"
 ERR:  Required configuration not present or not correct: 'aep'
 ERR:  Required configuration not present or not correct: 'apic_host'
 ERR:  Required configuration not present or not correct: 'extern_dynamic'
