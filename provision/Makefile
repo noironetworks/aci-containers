@@ -11,7 +11,7 @@ test:
 	py.test acc_provision
 
 clean:
-	rm -rf dist acc_provision.egg-info
+	rm -rf dist acc_provision.egg-info acc_provision/__pycache__ testdata/tmp-*
 
 upload: clean
 	python setup.py sdist upload

@@ -21,7 +21,7 @@ data:
         "aci-vrf-tenant": "common",
         "aci-l3out": "mykube_l3out",
         "aci-ext-networks": [
-            "default"
+            "mykube_extepg"
         ],
         "aci-vrf": "mykube-vrf",
         "default-endpoint-group": {

@@ -20,7 +20,7 @@ aci_config:
   l3out:
     name: mykube_l3out          # Used to provision external IPs
     external_networks:
-    - default                   # Used for external contracts
+    - mykube_extepg             # Used for external contracts
 
 #
 # Networks used by Kubernetes
