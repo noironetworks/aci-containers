@@ -414,7 +414,7 @@ func (cont *AciController) podDeleted(obj interface{}) {
 		return
 	}
 
-	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", pod.Name))
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", podkey))
 
 	cont.depPods.DeletePod(pod)
 	cont.netPolPods.DeletePod(pod)
