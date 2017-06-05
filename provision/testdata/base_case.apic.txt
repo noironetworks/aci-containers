@@ -141,6 +141,23 @@
                         }
                     ]
                 }
+            }, 
+            {
+                "infraGeneric": {
+                    "attributes": {
+                        "name": "default"
+                    }, 
+                    "children": [
+                        {
+                            "infraRsFuncToEpg": {
+                                "attributes": {
+                                    "encap": "vlan-4001", 
+                                    "tDn": "uni/tn-kube/ap-kubernetes/epg-kube-system"
+                                }
+                            }
+                        }
+                    ]
+                }
             }
         ]
     }
@@ -148,6 +165,8 @@
 /api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-Kubernetes/dom-kube].json
 None
 /api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/phys-kube-pdom].json
+None
+/api/mo/uni/infra/attentp-kube-aep/gen-default.json
 None
 /api/mo/uni/infra.json
 {

@@ -306,6 +306,8 @@ class ApicKubeConfig(object):
         phys_name = self.config["aci_config"]["physical_domain"]["domain"]
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
+        tn_name = self.config["aci_config"]["cluster_tenant"]
+        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
 
         path = "/api/mo/uni/infra.json"
         data = {
@@ -352,6 +354,23 @@ class ApicKubeConfig(object):
                                 }
                             ]
                         }
+                    },
+                    {
+                        "infraGeneric": {
+                            "attributes": {
+                                "name": "default",
+                            },
+                            "children": [
+                                {
+                                    "infraRsFuncToEpg": {
+                                        "attributes": {
+                                            "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-system" % (tn_name,),
+                                            "encap": "vlan-%s" % (kubeapi_vlan,),
+                                        }
+                                    }
+                                }
+                            ]
+                        }
                     }
                 ]
             }
@@ -360,7 +379,8 @@ class ApicKubeConfig(object):
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
         rsvmm = base + '/rsdomP-[uni/vmmp-Kubernetes/dom-%s].json' % vmm_name
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
-        return path, data, rsvmm, rsphy
+        rsfun = base + '/gen-default.json'
+        return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
         def yesno(flag):
