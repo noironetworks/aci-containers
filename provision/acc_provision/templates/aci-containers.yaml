@@ -63,9 +63,6 @@ data:
           {% endif %}
         }
     }
-  aim-config: |-
-    [DEFAULT]
-    debug = {{config.logging.aim_debug}}
 ---
 apiVersion: v1
 kind: Secret
@@ -73,8 +70,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: {{config.aci_config.aim_login.username|base64enc}}
-  password: {{config.aci_config.aim_login.password|base64enc}}
+  username: {{config.aci_config.apic_login.username|base64enc}}
+  password: {{config.aci_config.apic_login.password|base64enc}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -446,10 +443,4 @@ spec:
             items:
               - key: controller-config
                 path: controller.conf
-        - name: aim-config-volume
-          configMap:
-            name: aci-containers-config
-            items:
-              - key: aim-config
-                path: aim-local.conf
 
