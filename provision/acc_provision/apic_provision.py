@@ -106,13 +106,13 @@ class Apic(object):
         path = "/api/node/mo/uni/userext/user-%s.json" % name
         return self.get_path(path)
 
-    def provision(self, data, apic_login):
+    def provision(self, data, sync_login):
         ignore_list = []
-        if self.get_user(apic_login):
+        if self.get_user(sync_login):
             warn("User already exists (%s), skipping user provisioning" %
-                 apic_login)
+                 sync_login)
             ignore_list.append("/api/node/mo/uni/userext/user-%s.json" %
-                               apic_login)
+                               sync_login)
 
         for path, config in data:
             try:
@@ -364,7 +364,7 @@ class ApicKubeConfig(object):
                                 {
                                     "infraRsFuncToEpg": {
                                         "attributes": {
-                                            "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-system" % (tn_name,),
+                                            "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-nodes" % (tn_name,),
                                             "encap": "vlan-%s" % (kubeapi_vlan,),
                                         }
                                     }
@@ -472,8 +472,8 @@ class ApicKubeConfig(object):
         return path, data, brc
 
     def kube_user(self):
-        name = self.config["aci_config"]["apic_login"]["username"]
-        password = self.config["aci_config"]["apic_login"]["password"]
+        name = self.config["aci_config"]["sync_login"]["username"]
+        password = self.config["aci_config"]["sync_login"]["password"]
 
         path = "/api/node/mo/uni/userext/user-%s.json" % name
         data = {
@@ -509,8 +509,8 @@ class ApicKubeConfig(object):
         return path, data
 
     def kube_cert(self):
-        name = self.config["aci_config"]["apic_login"]["username"]
-        certfile = self.config["aci_config"]["apic_login"]["certfile"]
+        name = self.config["aci_config"]["sync_login"]["username"]
+        certfile = self.config["aci_config"]["sync_login"]["certfile"]
 
         if certfile is None:
             return None

@@ -152,7 +152,7 @@
                             "infraRsFuncToEpg": {
                                 "attributes": {
                                     "encap": "vlan-4001", 
-                                    "tDn": "uni/tn-demo/ap-kubernetes/epg-kube-system"
+                                    "tDn": "uni/tn-demo/ap-kubernetes/epg-kube-nodes"
                                 }
                             }
                         }

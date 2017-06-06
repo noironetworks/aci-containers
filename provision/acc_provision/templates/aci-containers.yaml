@@ -70,8 +70,8 @@ metadata:
   name: apic-user-pass
   namespace: kube-system
 data:
-  username: {{config.aci_config.apic_login.username|base64enc}}
-  password: {{config.aci_config.apic_login.password|base64enc}}
+  username: {{config.aci_config.sync_login.username|base64enc}}
+  password: {{config.aci_config.sync_login.password|base64enc}}
 ---
 apiVersion: v1
 kind: ServiceAccount

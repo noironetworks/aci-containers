@@ -96,9 +96,6 @@ data:
             "ssl": { "mode": "disabled" }
         }
     }
-  aim-config: |-
-    [DEFAULT]
-    debug = True
 ---
 apiVersion: v1
 kind: Secret
@@ -455,9 +452,3 @@ spec:
             items:
               - key: controller-config
                 path: controller.conf
-        - name: aim-config-volume
-          configMap:
-            name: aci-containers-config
-            items:
-              - key: aim-config
-                path: aim-local.conf

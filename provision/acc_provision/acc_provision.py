@@ -173,7 +173,7 @@ def config_adjust(config, prov_apic):
                 "controller": system_id,
                 "mcast_pool": system_id + "-mpool",
             },
-            "apic_login": {
+            "sync_login": {
                 "username": system_id,
                 # Tmp hack, till I generate certificates
                 "password": "ToBeFixed!",
@@ -390,11 +390,11 @@ def generate_apic_config(config, prov_apic, apic_file):
             with open(apic_file, 'w') as outfile:
                 ApicKubeConfig.save_config(apic_config, outfile)
 
-    apic_login = config["aci_config"]["apic_login"]["username"]
+    sync_login = config["aci_config"]["sync_login"]["username"]
     if prov_apic is not None:
         apic = get_apic(config)
         if prov_apic is True:
-            apic.provision(apic_config, apic_login)
+            apic.provision(apic_config, sync_login)
         if prov_apic is False:
             apic.unprovision(apic_config)
     return apic_config
@@ -511,9 +511,9 @@ def provision(args, apic_file):
         pass
 
     # generate output files; and program apic if needed
-    username = config["aci_config"]["apic_login"]["username"]
-    certfile = config["aci_config"]["apic_login"]["certfile"]
-    keyfile = config["aci_config"]["apic_login"]["keyfile"]
+    username = config["aci_config"]["sync_login"]["username"]
+    certfile = config["aci_config"]["sync_login"]["certfile"]
+    keyfile = config["aci_config"]["sync_login"]["keyfile"]
     generate_cert(username, certfile, keyfile)
     generate_apic_config(config, prov_apic, apic_file)
     generate_kube_yaml(config, output_file)

@@ -16,7 +16,7 @@ aci_config:
     name: l3out                         # This is also used to provision external service IPs/LB
     external_networks:
     - default
-  aim_login:
+  sync_login:
     certfile: user.crt
     keyfile: user.key
   vmm_domain:                           # Kubernetes VMM domain configuration

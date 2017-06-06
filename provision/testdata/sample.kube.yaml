@@ -95,9 +95,6 @@ data:
         "opflex": {
         }
     }
-  aim-config: |-
-    [DEFAULT]
-    debug = False
 ---
 apiVersion: v1
 kind: Secret
@@ -454,9 +451,3 @@ spec:
             items:
               - key: controller-config
                 path: controller.conf
-        - name: aim-config-volume
-          configMap:
-            name: aci-containers-config
-            items:
-              - key: aim-config
-                path: aim-local.conf
