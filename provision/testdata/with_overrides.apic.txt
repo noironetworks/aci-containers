@@ -742,7 +742,7 @@ None
         "attributes": {
             "accountStatus": "active", 
             "name": "kube", 
-            "pwd": "ToBeFixed!"
+            "pwd": "NotRandom!"
         }, 
         "children": [
             {

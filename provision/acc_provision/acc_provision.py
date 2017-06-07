@@ -7,7 +7,9 @@ import base64
 import json
 import pkg_resources
 import pkgutil
+import random
 import socket
+import string
 import struct
 import sys
 import yaml
@@ -151,7 +153,7 @@ def cidr_split(cidr):
     return int2ip(starti), int2ip(endi), rtr, int2ip(subi), mask
 
 
-def config_adjust(config, prov_apic):
+def config_adjust(config, prov_apic, no_random):
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
     pod_subnet = config["net_config"]["pod_subnet"]
@@ -175,8 +177,7 @@ def config_adjust(config, prov_apic):
             },
             "sync_login": {
                 "username": system_id,
-                # Tmp hack, till I generate certificates
-                "password": "ToBeFixed!",
+                "password": generate_password(no_random),
                 "certfile": "user-%s.crt" % system_id,
                 "keyfile": "user-%s.key" % system_id,
             },
@@ -329,6 +330,14 @@ def generate_sample(filep):
     return filep
 
 
+def generate_password(no_random):
+    chars = string.letters + string.digits + ("_-+=!" * 3)
+    ret = ''.join(random.SystemRandom().sample(chars, 20))
+    if no_random:
+        ret = "NotRandom!"
+    return ret
+
+
 def generate_cert(username, cert_file, key_file):
     if not exists(cert_file) or not exists(key_file):
         # Do not overwrite previously generated data if it exists
@@ -355,7 +364,12 @@ def generate_cert(username, cert_file, key_file):
             certp.write(cert_data)
         with open(key_file, "wt") as keyp:
             keyp.write(key_data)
-        return cert_data
+    else:
+        with open(cert_file, "r") as certp:
+            cert_data = certp.read()
+        with open(key_file, "r") as keyp:
+            key_data = keyp.read()
+    return key_data, cert_data
 
 
 def generate_kube_yaml(config, output):
@@ -460,7 +474,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def provision(args, apic_file):
+def provision(args, apic_file, no_random):
     config_file = args.config
     output_file = args.output
     prov_apic = None
@@ -503,33 +517,37 @@ def provision(args, apic_file):
         return False
 
     # Adjust config based on convention/apic data
-    adj_config = config_adjust(config, prov_apic)
+    adj_config = config_adjust(config, prov_apic, no_random)
     deep_merge(config, adj_config)
 
     # Advisory checks, including apic checks, ignore failures
     if not config_advise(config, prov_apic):
         pass
 
-    # generate output files; and program apic if needed
+    # generate key and cert if needed
     username = config["aci_config"]["sync_login"]["username"]
     certfile = config["aci_config"]["sync_login"]["certfile"]
     keyfile = config["aci_config"]["sync_login"]["keyfile"]
-    generate_cert(username, certfile, keyfile)
+    key_data, cert_data = generate_cert(username, certfile, keyfile)
+    config["aci_config"]["sync_login"]["key_data"] = key_data
+    config["aci_config"]["sync_login"]["cert_data"] = cert_data
+
+    # generate output files; and program apic if needed
     generate_apic_config(config, prov_apic, apic_file)
     generate_kube_yaml(config, output_file)
     return True
 
 
-def main(args=None, apic_file=None):
-    # args, apic_file are set by the test functions
+def main(args=None, apic_file=None, no_random=False):
+    # apic_file and no_random are used by the test functions
     if args is None:
         args = parse_args()
 
     if args.debug:
-        provision(args, apic_file)
+        provision(args, apic_file, no_random)
     else:
         try:
-            provision(args, apic_file)
+            provision(args, apic_file, no_random)
         except KeyboardInterrupt:
             pass
         except Exception as e:

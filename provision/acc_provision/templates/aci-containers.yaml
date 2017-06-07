@@ -74,6 +74,15 @@ data:
   password: {{config.aci_config.sync_login.password|base64enc}}
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: aci-user-cert
+  namespace: kube-system
+data:
+  user.key: {{config.aci_config.sync_login.key_data|base64enc}}
+  user.crt: {{config.aci_config.sync_login.cert_data|base64enc}}
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-controller
@@ -421,6 +430,8 @@ spec:
           volumeMounts:
             - name: controller-config-volume
               mountPath: /usr/local/etc/aci-containers/
+            - name: aci-user-cert-volume
+              mountPath: /usr/local/etc/aci-cert/
           livenessProbe:
             httpGet:
               path: /status
@@ -437,6 +448,9 @@ spec:
                   name: apic-user-pass
                   key: password
       volumes:
+        - name: aci-user-cert-volume
+          secret:
+            secretName: aci-user-cert
         - name: controller-config-volume
           configMap:
             name: aci-containers-config

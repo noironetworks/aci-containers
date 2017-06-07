@@ -56,7 +56,7 @@ def test_sample():
         sys.stdout = tmpoutfd
         try:
             args = get_args(sample=True)
-            acc_provision.main(args)
+            acc_provision.main(args, no_random=True)
         finally:
             sys.stdout = origout
     assert filecmp.cmp(tmpout, "../acc_provision/provision-config.yaml")
@@ -72,7 +72,7 @@ def test_devnull_errors():
         sys.stderr = tmperrfd
         try:
             args = get_args()
-            acc_provision.main(args)
+            acc_provision.main(args, no_random=True)
         finally:
             sys.stderr = origout
     assert filecmp.cmp(tmperr, "devnull.stderr.txt")
@@ -87,7 +87,7 @@ def test_helpmsg():
         sys.stdout = tmpoutfd
         try:
             sys.argv = ["acc_provision.py", "--help"]
-            acc_provision.main()
+            acc_provision.main(no_random=True)
         except SystemExit:
             pass
         finally:
@@ -120,7 +120,7 @@ def run_provision(inpfile, expectedkube=None, expectedapic=None):
         config=inpfile,
         output=os.tempnam(".", "tmp-kube-"))
     apicfile = os.tempnam(".", "tmp-apic-")
-    acc_provision.main(args, apicfile)
+    acc_provision.main(args, apicfile, no_random=True)
 
     # Verify generated configs
     if expectedkube is not None:
