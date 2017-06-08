@@ -352,7 +352,7 @@ def generate_cert(username, cert_file, key_file):
         cert.get_subject().O = "Cisco Systems"
         cert.get_subject().CN = "User %s" % username
         cert.set_serial_number(1000)
-        cert.gmtime_adj_notBefore(-60*60*12)
+        cert.gmtime_adj_notBefore(0)
         cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
         cert.set_issuer(cert.get_subject())
         cert.set_pubkey(k)
