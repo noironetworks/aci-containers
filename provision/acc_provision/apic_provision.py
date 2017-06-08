@@ -510,14 +510,8 @@ class ApicKubeConfig(object):
 
     def kube_cert(self):
         name = self.config["aci_config"]["sync_login"]["username"]
-        certfile = self.config["aci_config"]["sync_login"]["certfile"]
+        certdata = self.config["aci_config"]["sync_login"]["cert_data"]
 
-        if certfile is None:
-            return None
-
-        cert = None
-        with open(certfile, "r") as cfile:
-            cert = cfile.read()
         path = "/api/node/mo/uni/userext/user-%s.json" % name
         data = {
             "aaaUser": {
@@ -529,7 +523,7 @@ class ApicKubeConfig(object):
                         "aaaUserCert": {
                             "attributes": {
                                 "name": "%s.crt" % name,
-                                "data": cert,
+                                "data": certdata,
                             }
                         }
                     }
