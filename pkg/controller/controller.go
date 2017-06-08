@@ -15,16 +15,15 @@
 package controller
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/gorilla/websocket"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -232,15 +231,24 @@ func (cont *AciController) initStaticObjs() {
 }
 
 func (cont *AciController) Run(stopCh <-chan struct{}) {
-	// XXX TODO enable client certificates
-	tls := &tls.Config{InsecureSkipVerify: true}
-	dialer := &websocket.Dialer{
-		TLSClientConfig: tls,
-	}
 	var err error
-	cont.apicConn, err = apicapi.New(dialer, cont.log,
-		cont.config.ApicHosts, cont.config.ApicUsername,
-		cont.config.ApicPassword, cont.config.AciPrefix)
+	var privKey []byte
+	var apicCert []byte
+	if cont.config.ApicPrivateKeyPath != "" {
+		privKey, err = ioutil.ReadFile(cont.config.ApicPrivateKeyPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+	if cont.config.ApicCertPath != "" {
+		apicCert, err = ioutil.ReadFile(cont.config.ApicCertPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
+		cont.config.ApicUsername, cont.config.ApicPassword,
+		privKey, apicCert, cont.config.AciPrefix)
 	if err != nil {
 		panic(err)
 	}

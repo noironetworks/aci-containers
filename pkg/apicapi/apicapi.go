@@ -17,6 +17,8 @@ package apicapi
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,7 +26,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"strings"
 	"time"
 
@@ -37,23 +38,72 @@ func complete(resp *http.Response) {
 	resp.Body.Close()
 }
 
-func (conn *ApicConnection) login() (string, error) {
-	url := fmt.Sprintf("https://%s/api/aaaLogin.json",
-		conn.apic[conn.apicIndex])
-	login := &ApicObject{
-		"aaaUser": &ApicObjectBody{
-			Attributes: map[string]interface{}{
-				"name": conn.user,
-				"pwd":  conn.password,
-			},
-		},
+// Yes, this is really stupid, but this is really how this works
+func (conn *ApicConnection) sign(req *http.Request, uri string, body []byte) {
+	if conn.signer == nil {
+		return
 	}
-	raw, err := json.Marshal(login)
+
+	sig, err := conn.signer.sign(req.Method, uri, body)
+	if err != nil {
+		conn.log.Error("Failed to sign request: ", err)
+		return
+	}
+
+	req.Header.Set("Cookie", conn.apicSigCookie(sig, conn.token))
+}
+
+func (conn *ApicConnection) apicSigCookie(sig string, token string) string {
+	tokc := ""
+	if token != "" {
+		tokc = "; APIC-WebSocket-Session=" + token
+	}
+	return fmt.Sprintf("APIC-Request-Signature=%s; "+
+		"APIC-Certificate-Algorithm=v1.0; "+
+		"APIC-Certificate-DN=uni/userext/user-%s/usercert-%s.crt; "+
+		"APIC-Certificate-Fingerprint=fingerprint%s",
+		sig, conn.user, conn.user, tokc)
+}
+
+func (conn *ApicConnection) login() (string, error) {
+	var path string
+	var method string
+
+	if conn.signer == nil {
+		path = "aaaLogin"
+		method = "POST"
+	} else {
+		path = "webtokenSession"
+		method = "GET"
+	}
+	uri := fmt.Sprintf("/api/%s.json", path)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+
+	var reqBody io.Reader
+	var raw []byte
+	var err error
+	if conn.signer == nil {
+		login := &ApicObject{
+			"aaaUser": &ApicObjectBody{
+				Attributes: map[string]interface{}{
+					"name": conn.user,
+					"pwd":  conn.password,
+				},
+			},
+		}
+		raw, err = json.Marshal(login)
+		if err != nil {
+			return "", err
+		}
+		reqBody = bytes.NewBuffer(raw)
+	}
+	req, err := http.NewRequest(method, url, reqBody)
 	if err != nil {
 		return "", err
 	}
-	resp, err := conn.client.Post(url,
-		"application/json", bytes.NewBuffer(raw))
+	conn.sign(req, uri, raw)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := conn.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -71,14 +121,17 @@ func (conn *ApicConnection) login() (string, error) {
 	}
 
 	for _, obj := range apicresp.Imdata {
-		aaaLogin, ok := obj["aaaLogin"]
+		lresp, ok := obj["aaaLogin"]
 		if !ok {
-			continue
+			lresp, ok = obj["webtokenSession"]
+			if !ok {
+				continue
+			}
 		}
 
-		token, ok := aaaLogin.Attributes["token"]
+		token, ok := lresp.Attributes["token"]
 		if !ok {
-			return "", errors.New("Token not found in aaaLogin response")
+			return "", errors.New("Token not found in login response")
 		}
 		switch token := token.(type) {
 		default:
@@ -87,13 +140,39 @@ func (conn *ApicConnection) login() (string, error) {
 			return token, nil
 		}
 	}
-	return "", errors.New("aaaLogin not found in login response")
+	return "", errors.New("Login response not found")
 }
 
-func New(dialer *websocket.Dialer, log *logrus.Logger,
-	apic []string, user string, password string,
-	prefix string) (*ApicConnection, error) {
+func configureTls(cert []byte) (*tls.Config, error) {
+	if cert == nil {
+		return &tls.Config{InsecureSkipVerify: true}, nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(cert) {
+		return nil, errors.New("Could not load CA certificates")
+	}
+	return &tls.Config{RootCAs: pool}, nil
+}
 
+func New(log *logrus.Logger, apic []string, user string,
+	password string, privKey []byte, cert []byte,
+	prefix string) (*ApicConnection, error) {
+	tls, err := configureTls(cert)
+	if err != nil {
+		return nil, err
+	}
+
+	var signer *signer
+	if privKey != nil {
+		signer, err = newSigner(privKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dialer := &websocket.Dialer{
+		TLSClientConfig: tls,
+	}
 	tr := &http.Transport{
 		TLSClientConfig: dialer.TLSClientConfig,
 	}
@@ -110,6 +189,7 @@ func New(dialer *websocket.Dialer, log *logrus.Logger,
 		ReconnectInterval: time.Second,
 		RefreshInterval:   30 * time.Second,
 		RetryInterval:     5 * time.Second,
+		signer:            signer,
 		dialer:            dialer,
 		log:               log,
 		apic:              apic,
@@ -311,10 +391,22 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 				conn.log.Error("Failed to log into APIC: ", err)
 				return
 			}
+			conn.token = token
 
-			url := fmt.Sprintf("wss://%s/socket%s",
-				conn.apic[conn.apicIndex], token)
-			conn.connection, _, err = conn.dialer.Dial(url, nil)
+			uri := fmt.Sprintf("/socket%s", token)
+			url := fmt.Sprintf("wss://%s%s",
+				conn.apic[conn.apicIndex], uri)
+			header := make(http.Header)
+			if conn.signer != nil {
+				sig, err := conn.signer.sign("GET", uri, nil)
+				if err != nil {
+					conn.log.Error("Failed to sign request: ", err)
+					return
+				}
+				header.Set("Cookie", conn.apicSigCookie(sig, token))
+			}
+
+			conn.connection, _, err = conn.dialer.Dial(url, header)
 			if err != nil {
 				conn.log.Error("Failed to open APIC websocket: ", err)
 				return
@@ -326,26 +418,39 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 }
 
 func (conn *ApicConnection) refresh() {
-	url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
-		conn.apic[conn.apicIndex])
-	resp, err := conn.client.Get(url)
-	if err != nil {
-		conn.log.Error("Failed to refresh APIC session: ", err)
-		conn.restart()
-		return
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		conn.logErrorResp("Error while refreshing login", resp)
+	if conn.signer == nil {
+		url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
+			conn.apic[conn.apicIndex])
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			conn.log.Error("Could not create request: ", err)
+			return
+		}
+		resp, err := conn.client.Do(req)
+		if err != nil {
+			conn.log.Error("Failed to refresh APIC session: ", err)
+			conn.restart()
+			return
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			conn.logErrorResp("Error while refreshing login", resp)
+			complete(resp)
+			conn.restart()
+			return
+		}
 		complete(resp)
-		conn.restart()
-		return
 	}
-	complete(resp)
 
 	for _, sub := range conn.subscriptions.subs {
-		url := fmt.Sprintf("https://%s/api/subscriptionRefresh.json?id=%s",
-			conn.apic[conn.apicIndex], sub.id)
-		resp, err := conn.client.Get(url)
+		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
+		url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			conn.log.Error("Could not create request: ", err)
+			return
+		}
+		conn.sign(req, uri, nil)
+		resp, err := conn.client.Do(req)
 		if err != nil {
 			conn.log.Error("Failed to refresh APIC subscription: ", err)
 			conn.restart()
@@ -407,13 +512,20 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	updateHandlers []ApicObjectHandler) {
 
-	args := url.Values{
-		"rsp-subtree":       []string{"full"},
-		"rsp-subtree-class": []string{strings.Join(respClasses, ",")},
+	args := []string{
+		"rsp-subtree=full",
+		"rsp-subtree-class=" + strings.Join(respClasses, ","),
 	}
-	url := fmt.Sprintf("https://%s/api/mo/%s.json?%s",
-		conn.apic[conn.apicIndex], dn, args.Encode())
-	resp, err := conn.client.Get(url)
+	// properly encoding the URI query parameters breaks APIC
+	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not get subtree for ", dn, ": ", err)
 		conn.restart()
@@ -453,15 +565,21 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
 	conn.indexMutex.Lock()
 	conn.indexMutex.Unlock()
 
-	url := fmt.Sprintf("https://%s/api/mo/%s.json",
-		conn.apic[conn.apicIndex], dn)
+	uri := fmt.Sprintf("/api/mo/%s.json", dn)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 	}
 	//conn.log.Debug(string(raw))
-	resp, err := conn.client.Post(url,
-		"application/json", bytes.NewBuffer(raw))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return
+	}
+	conn.sign(req, uri, raw)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not update dn ", dn, ": ", err)
 		return
@@ -480,13 +598,14 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
 }
 
 func (conn *ApicConnection) deleteDn(dn string) {
-	url := fmt.Sprintf("https://%s/api/mo/%s.json",
-		conn.apic[conn.apicIndex], dn)
+	uri := fmt.Sprintf("/api/mo/%s.json", dn)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
 		return
 	}
+	conn.sign(req, uri, nil)
 	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not delete dn ", dn, ": ", err)
@@ -564,23 +683,32 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 }
 
 func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
-	args := url.Values{
-		"query-target":         []string{"subtree"},
-		"target-subtree-class": []string{strings.Join(sub.targetClasses, ",")},
-		"rsp-subtree":          []string{"full"},
-		"rsp-subtree-class":    []string{strings.Join(sub.respClasses, ",")},
+	args := []string{
+		"query-target=subtree",
+		"rsp-subtree=full",
+		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
+		"rsp-subtree-class=" + strings.Join(sub.respClasses, ","),
 	}
 	if sub.targetFilter != "" {
-		args["query-target-filter"] = []string{sub.targetFilter}
+		args = append(args, "query-target-filter="+sub.targetFilter)
 	}
+
 	kind := "mo"
 	if sub.kind == apicSubClass {
 		kind = "class"
 	}
 
-	url := fmt.Sprintf("https://%s/api/%s/%s.json?subscription=yes&%s",
-		conn.apic[conn.apicIndex], kind, value, args.Encode())
-	resp, err := conn.client.Get(url)
+	// properly encoding the URI query parameters breaks APIC
+	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s",
+		kind, value, strings.Join(args, "&"))
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return false
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Failed to subscribe to ", value, ": ", err)
 		return false

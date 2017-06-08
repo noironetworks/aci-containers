@@ -10,6 +10,8 @@ data:
     {
         "log-level": {{config.logging.controller_log_level|json}},
         "apic-hosts": {{config.aci_config.apic_hosts|json|indent(width=8)}},
+        "apic-username": {{config.aci_config.sync_login.username|json}},
+        "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": {{config.aci_config.system_id|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
@@ -63,15 +65,6 @@ data:
           {% endif %}
         }
     }
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: apic-user-pass
-  namespace: kube-system
-data:
-  username: {{config.aci_config.sync_login.username|base64enc}}
-  password: {{config.aci_config.sync_login.password|base64enc}}
 ---
 apiVersion: v1
 kind: Secret
@@ -436,17 +429,6 @@ spec:
             httpGet:
               path: /status
               port: 8091
-          env:
-            - name: APIC_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: apic-user-pass
-                  key: username
-            - name: APIC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: apic-user-pass
-                  key: password
       volumes:
         - name: aci-user-cert-volume
           secret:

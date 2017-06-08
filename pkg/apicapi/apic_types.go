@@ -82,6 +82,8 @@ type ApicConnection struct {
 	restartCh     chan struct{}
 	subscriptions subIndex
 	log           *logrus.Logger
+	signer        *signer
+	token         string
 
 	indexMutex  sync.Mutex
 	syncEnabled bool

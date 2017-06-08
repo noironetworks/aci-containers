@@ -15,9 +15,16 @@
 package apicapi
 
 import (
-	"crypto/tls"
+	"bytes"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -57,13 +64,62 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-type loginSucc struct{}
+type certHandler struct {
+	pubKey  interface{}
+	handler http.Handler
+}
+
+func (h *certHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("CertHandler")
+	var raw []byte
+	if req.Method == "POST" {
+		raw, _ := ioutil.ReadAll(req.Body)
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(raw))
+	}
+	sh := h.handler
+
+	var sig []byte
+	for _, c := range req.Cookies() {
+		if c.Name == "APIC-Request-Signature" {
+			s, err := base64.StdEncoding.DecodeString(c.Value)
+			if err != nil {
+				sh = &errorHandler{code: "401", status: 401, text: err.Error()}
+				break
+			}
+			sig = s
+		}
+	}
+
+	if sig == nil {
+		sh = &errorHandler{code: "401", status: 401, text: "Signature missing"}
+	} else {
+		hash := hash(req.Method, req.URL.Path, raw)
+		fmt.Println("v ", req.Method, " ", req.URL.Path, " ",
+			base64.StdEncoding.EncodeToString(hash))
+		switch k := h.pubKey.(type) {
+		case *rsa.PublicKey:
+			err := rsa.VerifyPKCS1v15(k, crypto.SHA256, hash, sig)
+			if err != nil {
+				sh = &errorHandler{code: "401", status: 401, text: err.Error()}
+			}
+		}
+	}
+	sh.ServeHTTP(w, req)
+}
+
+type loginSucc struct {
+	cert bool
+}
 
 func (h *loginSucc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	class := "aaaLogin"
+	if h.cert {
+		class = "webtokenSession"
+	}
 	result := map[string]interface{}{
 		"imdata": []interface{}{
 			map[string]interface{}{
-				"aaaLogin": map[string]interface{}{
+				class: map[string]interface{}{
 					"attributes": map[string]interface{}{
 						"token": "testtoken",
 					},
@@ -109,7 +165,7 @@ func (h *socketHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.socketConn, h.err = c, err
 }
 
-func (server *testServer) testConn() (*ApicConnection, error) {
+func (server *testServer) testConn(key []byte) (*ApicConnection, error) {
 	u, _ := url.Parse(server.server.URL)
 	apic := fmt.Sprintf("%s:%s", u.Hostname(), u.Port())
 
@@ -119,12 +175,12 @@ func (server *testServer) testConn() (*ApicConnection, error) {
 		DisableColors: true,
 	}
 
-	tls := &tls.Config{InsecureSkipVerify: true}
-	dialer := &websocket.Dialer{
-		TLSClientConfig: tls,
-	}
+	cert := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: server.server.TLS.Certificates[0].Certificate[0],
+	})
 
-	n, err := New(dialer, log, []string{apic}, "admin", "noir0123", "kube")
+	n, err := New(log, []string{apic}, "admin", "noir0123", key, cert, "kube")
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +241,7 @@ func TestLoginSuccess(t *testing.T) {
 	server.mux.Handle("/api/aaaLogin.json", &loginSucc{})
 	server.mux.Handle("/sockettesttoken", server.sh)
 
-	conn, err := server.testConn()
+	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
 
 	stopCh := make(chan struct{})
@@ -212,8 +268,48 @@ func TestLoginRetry(t *testing.T) {
 		})
 	server.mux.Handle("/sockettesttoken", server.sh)
 
-	conn, err := server.testConn()
+	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
+
+	stopCh := make(chan struct{})
+	go conn.Run(stopCh)
+
+	tu.WaitFor(t, "login", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return tu.WaitNotNil(t, last, server.sh.socketConn,
+				"socket connection"), nil
+		})
+
+	close(stopCh)
+}
+
+func TestCertLogin(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 1024)
+	assert.Nil(t, err)
+
+	server := newTestServer()
+	defer server.server.Close()
+	server.mux.Handle("/api/webtokenSession.json",
+		&certHandler{
+			pubKey:  priv.Public(),
+			handler: &loginSucc{cert: true},
+		})
+	server.mux.Handle("/sockettesttoken",
+		&certHandler{
+			pubKey:  priv.Public(),
+			handler: server.sh,
+		})
+
+	key := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+
+	conn, err := server.testConn(key)
+	assert.Nil(t, err)
+	if err != nil {
+		return
+	}
 
 	stopCh := make(chan struct{})
 	go conn.Run(stopCh)
@@ -249,7 +345,7 @@ func TestReconnect(t *testing.T) {
 		})
 	server.mux.Handle("/api/mo/uni/tn-common.json", &subHandler{})
 
-	conn, err := server.testConn()
+	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
 
 	stopCh := make(chan struct{})
@@ -307,7 +403,7 @@ func TestSubscription(t *testing.T) {
 			response: ApicSlice{odev},
 		})
 
-	conn, err := server.testConn()
+	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
 
 	dn := "uni/tn-common"
@@ -522,7 +618,7 @@ func TestFullSync(t *testing.T) {
 		server.mux.Handle("/api/mo/uni/tn-common/", rec)
 		server.mux.Handle("/api/mo/comp/", rec)
 
-		conn, err := server.testConn()
+		conn, err := server.testConn(nil)
 		assert.Nil(t, err)
 
 		dn := "uni/tn-common"
@@ -716,7 +812,7 @@ func TestReconcile(t *testing.T) {
 				})
 		}
 
-		conn, err := server.testConn()
+		conn, err := server.testConn(nil)
 		assert.Nil(t, err)
 
 		dn := "uni/tn-common"

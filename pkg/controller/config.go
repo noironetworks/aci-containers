@@ -59,6 +59,14 @@ type ControllerConfig struct {
 	// The password for connecting to APIC
 	ApicPassword string `json:"apic-password,omitempty"`
 
+	// A path for a PEM-encoded private key for client certificate
+	// authentication for APIC API
+	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
+
+	// A path for a PEM-encoded public certificate for APIC server to
+	// enable secure TLS server verifification
+	ApicCertPath string `json:"apic-cert-path,omitempty"`
+
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
