@@ -12,6 +12,8 @@ data:
         "apic-hosts": [
             "10.30.120.140"
         ],
+        "apic-username": "kube",
+        "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": "kube",
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
@@ -95,15 +97,6 @@ data:
         "opflex": {
         }
     }
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: apic-user-pass
-  namespace: kube-system
-data:
-  username: a3ViZQ==
-  password: Tm90UmFuZG9tIQ==
 ---
 apiVersion: v1
 kind: Secret
@@ -444,17 +437,6 @@ spec:
             httpGet:
               path: /status
               port: 8091
-          env:
-            - name: APIC_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: apic-user-pass
-                  key: username
-            - name: APIC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: apic-user-pass
-                  key: password
       volumes:
         - name: aci-user-cert-volume
           secret:
