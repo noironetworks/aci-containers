@@ -360,6 +360,10 @@ def generate_cert(username, cert_file, key_file):
 
         cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
         key_data = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
+        with open(cert_file, "wt") as certp:
+            certp.write(cert_data)
+        with open(key_file, "wt") as keyp:
+            keyp.write(key_data)
     else:
         with open(cert_file, "r") as certp:
             cert_data = certp.read()
