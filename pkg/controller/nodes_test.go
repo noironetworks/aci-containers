@@ -239,7 +239,7 @@ func TestNodeNetPol(t *testing.T) {
 			defer cont.indexMutex.Unlock()
 
 			slice := apicapi.ApicSlice{sg}
-			apicapi.PrepareApicSlice(slice, key)
+			apicapi.PrepareApicSlice(slice, "kube", key)
 
 			if !tu.WaitEqual(t, last, slice,
 				cont.apicConn.GetDesiredState(key), "node-net-pol", key) {

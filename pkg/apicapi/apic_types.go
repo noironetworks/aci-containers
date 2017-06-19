@@ -91,6 +91,7 @@ type ApicConnection struct {
 
 	desiredState   map[string]ApicSlice
 	desiredStateDn map[string]ApicObject
+	keyHashes      map[string]string
 	containerDns   map[string]bool
 	cachedState    map[string]ApicSlice
 	cacheDnSubIds  map[string][]string

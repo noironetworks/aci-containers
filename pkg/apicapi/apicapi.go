@@ -203,6 +203,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		},
 		desiredState:   make(map[string]ApicSlice),
 		desiredStateDn: make(map[string]ApicObject),
+		keyHashes:      make(map[string]string),
 		containerDns:   make(map[string]bool),
 		cachedState:    make(map[string]ApicSlice),
 		cacheDnSubIds:  make(map[string][]string),
@@ -766,11 +767,11 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			continue
 		}
 
-		//conn.log.WithFields(logrus.Fields{
-		//	"dn":  dn,
-		//	"tag": tag,
-		//	//"obj": obj,
-		//}).Debug("Caching")
+		conn.log.WithFields(logrus.Fields{
+			"dn":  dn,
+			"tag": tag,
+			//"obj": obj,
+		}).Debug("Caching")
 
 		prepareApicCache("", obj)
 		conn.indexMutex.Lock()

@@ -263,7 +263,7 @@ func TestNetworkPolicy(t *testing.T) {
 	cont.run()
 
 	static := cont.staticNetPolObjs()
-	apicapi.PrepareApicSlice(static, staticNetPolKey())
+	apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
 	assert.Equal(t, static,
 		cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
 
@@ -279,7 +279,7 @@ func TestNetworkPolicy(t *testing.T) {
 				slice := apicapi.ApicSlice{nt.aciObj}
 				key := cont.aciNameForKey("np",
 					nt.netPol.Namespace+"_"+nt.netPol.Name)
-				apicapi.PrepareApicSlice(slice, key)
+				apicapi.PrepareApicSlice(slice, "kube", key)
 
 				if !tu.WaitEqual(t, last, slice,
 					cont.apicConn.GetDesiredState(key), nt.desc, key) {

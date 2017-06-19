@@ -70,7 +70,6 @@ type certHandler struct {
 }
 
 func (h *certHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("CertHandler")
 	var raw []byte
 	if req.Method == "POST" {
 		raw, _ := ioutil.ReadAll(req.Body)
@@ -94,8 +93,6 @@ func (h *certHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		sh = &errorHandler{code: "401", status: 401, text: "Signature missing"}
 	} else {
 		hash := hash(req.Method, req.URL.Path, raw)
-		fmt.Println("v ", req.Method, " ", req.URL.Path, " ",
-			base64.StdEncoding.EncodeToString(hash))
 		switch k := h.pubKey.(type) {
 		case *rsa.PublicKey:
 			err := rsa.VerifyPKCS1v15(k, crypto.SHA256, hash, sig)
@@ -524,7 +521,7 @@ func TestFullSync(t *testing.T) {
 	syncTests := []syncTest{
 		syncTest{
 			desc:     "deletes",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
 				request{
 					method: "DELETE",
@@ -548,7 +545,7 @@ func TestFullSync(t *testing.T) {
 		},
 		syncTest{
 			desc:     "adds",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
 				request{
 					method: "POST",
@@ -579,7 +576,7 @@ func TestFullSync(t *testing.T) {
 		},
 		syncTest{
 			desc:     "container",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
 				request{
 					method: "POST",
@@ -666,7 +663,7 @@ func TestReconcile(t *testing.T) {
 	bdExtra := NewFvBD("common", "testbd_extra")
 	bdExtra2 := NewFvBD("common", "testbd_extra2")
 	// note don't prepare bdExtra2
-	PrepareApicSlice(ApicSlice{bd1exp, bdExtra}, "kube-key1")
+	PrepareApicSlice(ApicSlice{bd1exp, bdExtra}, "kube", "kube-key1")
 
 	bd1 := NewFvBD("common", "testbd1")
 	{
@@ -684,7 +681,7 @@ func TestReconcile(t *testing.T) {
 	reconcileTests := []reconcileTest{
 		reconcileTest{
 			desc:     "modify parent",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
 				"kube-key1": existingState(),
 			},
@@ -704,7 +701,7 @@ func TestReconcile(t *testing.T) {
 		},
 		reconcileTest{
 			desc:     "modify child",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
 				"kube-key1": existingState(),
 			},
@@ -724,7 +721,7 @@ func TestReconcile(t *testing.T) {
 		},
 		reconcileTest{
 			desc:     "delete parent",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
 				"kube-key1": existingState(),
 			},
@@ -744,7 +741,7 @@ func TestReconcile(t *testing.T) {
 		},
 		reconcileTest{
 			desc:     "delete child",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
 				"kube-key1": existingState(),
 			},
@@ -764,7 +761,7 @@ func TestReconcile(t *testing.T) {
 		},
 		reconcileTest{
 			desc:     "update for extra object",
-			existing: PrepareApicSlice(existingState(), "kube-key1"),
+			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
 				"kube-key1": existingState(),
 			},

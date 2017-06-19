@@ -31,7 +31,7 @@ func TestNormalizerHostprotRule(t *testing.T) {
 	rule.SetAttr("fromPort", "80")
 	rule.SetAttr("toPort", "443")
 	rule.SetAttr("proto", "6")
-	PrepareApicSlice(ApicSlice{rule}, "tag")
+	PrepareApicSlice(ApicSlice{rule}, "kube", "tag")
 	assert.Equal(t, "http", rule.GetAttr("fromPort"))
 	assert.Equal(t, "https", rule.GetAttr("toPort"))
 	assert.Equal(t, "tcp", rule.GetAttr("proto"))
@@ -44,7 +44,7 @@ func TestNormalizerFilterEntry(t *testing.T) {
 	entry.SetAttr("dFromPort", "80")
 	entry.SetAttr("dToPort", "443")
 	entry.SetAttr("prot", "6")
-	PrepareApicSlice(ApicSlice{entry}, "tag")
+	PrepareApicSlice(ApicSlice{entry}, "kube", "tag")
 	assert.Equal(t, "http", entry.GetAttr("sFromPort"))
 	assert.Equal(t, "https", entry.GetAttr("sToPort"))
 	assert.Equal(t, "http", entry.GetAttr("dFromPort"))
@@ -54,7 +54,7 @@ func TestNormalizerFilterEntry(t *testing.T) {
 
 func TestNormalizerRedirectDest(t *testing.T) {
 	d := NewVnsRedirectDest("fake/dn", "1.1.1.1", "0a:0b:0c:0d:0e:0f")
-	PrepareApicSlice(ApicSlice{d}, "tag")
+	PrepareApicSlice(ApicSlice{d}, "kube", "tag")
 	assert.Equal(t, "0A:0B:0C:0D:0E:0F", d.GetAttr("mac"))
 }
 

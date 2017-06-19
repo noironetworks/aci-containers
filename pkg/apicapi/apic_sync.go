@@ -15,6 +15,9 @@
 package apicapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"sort"
 
 	"github.com/Sirupsen/logrus"
@@ -174,14 +177,23 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	}
 }
 
-func PrepareApicSlice(objects ApicSlice, key string) ApicSlice {
+func getTagFromKey(prefix string, key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(hash[:]))
+}
+
+func PrepareApicSlice(objects ApicSlice, prefix string, key string) ApicSlice {
+	return prepareApicSliceTag(objects, getTagFromKey(prefix, key))
+}
+
+func prepareApicSliceTag(objects ApicSlice, tag string) ApicSlice {
 	sort.Sort(objects)
 	for _, obj := range objects {
 		for class, body := range obj {
 			if class != "tagInst" {
-				obj.SetTag(key)
+				obj.SetTag(tag)
 			}
-			PrepareApicSlice(body.Children, key)
+			prepareApicSliceTag(body.Children, tag)
 
 			if md, ok := metadata[class]; ok {
 				if md.normalizer != nil {
@@ -218,12 +230,15 @@ func (conn *ApicConnection) fullSync() {
 	conn.indexMutex.Lock()
 	for tag, current := range conn.cachedState {
 		sort.Sort(current)
-		u, d := conn.diffApicState(current, conn.desiredState[tag])
+		key := conn.keyHashes[tag]
+		u, d := conn.diffApicState(current, conn.desiredState[key])
 		updates = append(updates, u...)
 		deletes = append(deletes, d...)
 	}
 
-	for tag, desired := range conn.desiredState {
+	for key, desired := range conn.desiredState {
+		tag := getTagFromKey(conn.prefix, key)
+		conn.log.Info(tag, " ", key)
 		if _, ok := conn.cachedState[tag]; !ok {
 			// entire key not present in current state
 			a, _ := conn.diffApicState(nil, desired)
@@ -287,7 +302,8 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	container bool) {
-	PrepareApicSlice(objects, key)
+	tag := getTagFromKey(conn.prefix, key)
+	prepareApicSliceTag(objects, tag)
 
 	conn.indexMutex.Lock()
 	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
@@ -310,8 +326,10 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 
 	if objects == nil {
 		delete(conn.desiredState, key)
+		delete(conn.keyHashes, tag)
 	} else {
 		conn.desiredState[key] = objects
+		conn.keyHashes[tag] = key
 	}
 
 	if conn.syncEnabled {
