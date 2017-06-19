@@ -393,19 +393,11 @@ class ApicKubeConfig(object):
 
         path = "/api/mo/uni/infra.json"
         data = {
-            "opflexpProto": {
+            "infraSetPol": {
                 "attributes": {
+                    "opflexpAuthenticateClients": yesno(client_cert),
+                    "opflexpUseSsl": yesno(client_ssl),
                 },
-                "children": [
-                    {
-                        "opflexpSettings": {
-                            "attributes": {
-                                "authenticateClients": yesno(client_cert),
-                                "useSsl": yesno(client_ssl),
-                            },
-                        },
-                    },
-                ],
             },
         }
         return path, data
