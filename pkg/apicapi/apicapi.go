@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
+	"regexp"
 	"strings"
 	"time"
 
@@ -782,6 +783,9 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	return true
 }
 
+var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
+
 func (conn *ApicConnection) isSyncTag(tag string) bool {
-	return tag != "" && strings.HasPrefix(tag, conn.prefix)
+	return tag != "" && strings.HasPrefix(tag, conn.prefix) &&
+		tagRegexp.MatchString(tag)
 }

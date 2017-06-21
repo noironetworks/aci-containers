@@ -232,6 +232,14 @@ func (h *retryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func TestIsSyncTag(t *testing.T) {
+	server := newTestServer()
+	defer server.server.Close()
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+	assert.True(t, conn.isSyncTag("kube-135cf888d314a2ca48f11a1d6ef95c67"))
+}
+
 func TestLoginSuccess(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
