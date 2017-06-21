@@ -786,6 +786,6 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
 
 func (conn *ApicConnection) isSyncTag(tag string) bool {
-	return tag != "" && strings.HasPrefix(tag, conn.prefix) &&
-		tagRegexp.MatchString(tag)
+	return tagRegexp.MatchString(tag) &&
+		strings.HasPrefix(tag, conn.prefix+"-")
 }

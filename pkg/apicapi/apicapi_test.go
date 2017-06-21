@@ -238,6 +238,9 @@ func TestIsSyncTag(t *testing.T) {
 	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
 	assert.True(t, conn.isSyncTag("kube-135cf888d314a2ca48f11a1d6ef95c67"))
+	assert.False(t, conn.isSyncTag("kub-135cf888d314a2ca48f11a1d6ef95c67"))
+	assert.False(t, conn.isSyncTag("kuber-135cf888d314a2ca48f11a1d6ef95c67"))
+	assert.False(t, conn.isSyncTag("kube-35cf888d314a2ca48f11a1d6ef95c67"))
 }
 
 func TestLoginSuccess(t *testing.T) {
