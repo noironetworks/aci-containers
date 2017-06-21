@@ -298,6 +298,9 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 
 	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
 	ofas.Attributes = as.ObjectMeta.Labels
+	if ofas.Attributes == nil {
+		ofas.Attributes = make(map[string]string)
+	}
 	ofas.Attributes["namespace"] = as.ObjectMeta.Namespace
 	ofas.Attributes["name"] = as.ObjectMeta.Name
 	ofas.Attributes["service-name"] = id
