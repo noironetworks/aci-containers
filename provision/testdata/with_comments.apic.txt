@@ -170,18 +170,11 @@ None
 None
 /api/mo/uni/infra.json
 {
-    "opflexpProto": {
-        "attributes": {}, 
-        "children": [
-            {
-                "opflexpSettings": {
-                    "attributes": {
-                        "authenticateClients": "no", 
-                        "useSsl": "yes"
-                    }
-                }
-            }
-        ]
+    "infraSetPol": {
+        "attributes": {
+            "opflexpAuthenticateClients": "no", 
+            "opflexpUseSsl": "yes"
+        }
     }
 }
 /api/mo/uni/tn-common.json
