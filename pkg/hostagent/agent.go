@@ -87,19 +87,20 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	agent.log.Debug("Starting node informer")
 	go agent.nodeInformer.Run(stopCh)
 
-	agent.log.Debug("Waiting for node cache sync")
+	agent.log.Info("Waiting for node cache sync")
 	cache.WaitForCacheSync(stopCh, agent.nodeInformer.HasSynced)
-	agent.log.Debug("Node cache sync successful")
+	agent.log.Info("Node cache sync successful")
 
 	agent.log.Debug("Starting remaining informers")
 	go agent.podInformer.Run(stopCh)
 	go agent.endpointsInformer.Run(stopCh)
 	go agent.serviceInformer.Run(stopCh)
 
-	agent.log.Debug("Waiting for cache sync for remaining objects")
+	agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		agent.podInformer.HasSynced, agent.endpointsInformer.HasSynced,
 		agent.serviceInformer.HasSynced)
+	agent.log.Info("Cache sync successful")
 
 	agent.log.Debug("Building IP address management database")
 	agent.rebuildIpam()
@@ -117,7 +118,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		agent.log.Debug("Initial OpFlex sync complete")
 	}
 
-	agent.log.Debug("Starting endpoint RPC")
+	agent.log.Info("Starting endpoint RPC")
 	err := agent.runEpRPC(stopCh)
 	if err != nil {
 		panic(err.Error())

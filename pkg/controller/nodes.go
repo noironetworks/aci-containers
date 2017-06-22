@@ -185,6 +185,9 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	})
 
 	nodeUpdated := false
+	if node.ObjectMeta.Annotations == nil {
+		node.ObjectMeta.Annotations = make(map[string]string)
+	}
 	epval, epok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
 
 	if existing, ok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]; ok {

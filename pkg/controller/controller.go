@@ -256,13 +256,14 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
-	cont.log.Debug("Waiting for node/namespace cache sync")
+	cont.log.Info("Waiting for node/namespace cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.nodeInformer.HasSynced, cont.namespaceInformer.HasSynced)
 	cont.indexMutex.Lock()
 	cont.nodeSyncEnabled = true
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
+	cont.log.Info("Node/namespace cache sync successful")
 
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
@@ -278,6 +279,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.serviceSyncEnabled = true
 	cont.indexMutex.Unlock()
 	cont.serviceFullSync()
+	cont.log.Info("Service cache sync successful")
 
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
@@ -292,13 +294,14 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
 		}, stopCh)
 
-	cont.log.Debug("Waiting for cache sync")
+	cont.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
 		cont.networkPolicyInformer.HasSynced)
+	cont.log.Info("Cache sync successful")
 
 	cont.initStaticObjs()
 
