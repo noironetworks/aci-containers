@@ -179,7 +179,7 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 
 func getTagFromKey(prefix string, key string) string {
 	hash := sha256.Sum256([]byte(key))
-	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(hash[:32]))
+	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(hash[:16]))
 }
 
 func PrepareApicSlice(objects ApicSlice, prefix string, key string) ApicSlice {

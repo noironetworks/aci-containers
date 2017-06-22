@@ -243,6 +243,11 @@ func TestIsSyncTag(t *testing.T) {
 	assert.False(t, conn.isSyncTag("kube-35cf888d314a2ca48f11a1d6ef95c67"))
 }
 
+func TestTagFromKey(t *testing.T) {
+	assert.Equal(t, "kube-2c70e12b7a0646f92279f427c7b38e73",
+		getTagFromKey("kube", "key"))
+}
+
 func TestLoginSuccess(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
