@@ -238,7 +238,6 @@ func (conn *ApicConnection) fullSync() {
 
 	for key, desired := range conn.desiredState {
 		tag := getTagFromKey(conn.prefix, key)
-		conn.log.Info(tag, " ", key)
 		if _, ok := conn.cachedState[tag]; !ok {
 			// entire key not present in current state
 			a, _ := conn.diffApicState(nil, desired)
