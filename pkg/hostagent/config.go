@@ -139,7 +139,7 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.UplinkIface, "uplink-iface", "eth1", "Uplink interface for this host")
 	flag.UintVar(&config.AciInfraVlan, "aci-infra-vlan", 4093, "Vlan used for ACI infrastructure traffic")
-	flag.StringVar(&config.UplinkIface, "encap-type", "vxlan", "Type of encapsulation to use for uplink; either vlan or vxlan")
+	flag.StringVar(&config.EncapType, "encap-type", "vxlan", "Type of encapsulation to use for uplink; either vlan or vxlan")
 	flag.StringVar(&config.VxlanIface, "vxlan-iface", "eth1.4093", "Subinterface of uplink interface on AciInfraVlan")
 
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubernetes", "ACI VMM domain")
