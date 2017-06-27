@@ -58,6 +58,11 @@ func main() {
 	}
 	log.Level = logLevel
 
+	if config.ChildMode {
+		hostagent.StartPlugin(log)
+		return
+	}
+
 	if config.NodeName == "" {
 		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
 	}

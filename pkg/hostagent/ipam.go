@@ -159,18 +159,7 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	}
 
 	if result != nil {
-		for _, ip := range iface.IPs {
-			if ip.Address.IP == nil {
-				continue
-			}
-			if ip.Address.IP.To4() != nil {
-				deallocateIp(ip.Address.IP, agent.podIpsV4)
-			} else if ip.Address.IP.To16() != nil {
-				deallocateIp(ip.Address.IP, agent.podIpsV6)
-			}
-		}
-
-		iface.IPs = nil
+		agent.deallocateIps(iface)
 	} else {
 		agent.log.WithFields(logrus.Fields{
 			"IPs": iface.IPs,
@@ -180,7 +169,22 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	return result
 }
 
-func (agent *HostAgent) deallocateIps(md *metadata.ContainerMetadata) {
+func (agent *HostAgent) deallocateIps(iface *metadata.ContainerIfaceMd) {
+	for _, ip := range iface.IPs {
+		if ip.Address.IP == nil {
+			continue
+		}
+		if ip.Address.IP.To4() != nil {
+			deallocateIp(ip.Address.IP, agent.podIpsV4)
+		} else if ip.Address.IP.To16() != nil {
+			deallocateIp(ip.Address.IP, agent.podIpsV6)
+		}
+	}
+
+	iface.IPs = nil
+}
+
+func (agent *HostAgent) deallocateMdIps(md *metadata.ContainerMetadata) {
 	if agent.config.NetConfig == nil {
 		// using external ipam
 		return

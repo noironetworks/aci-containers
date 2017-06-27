@@ -17,52 +17,122 @@ package hostagent
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ipam"
 	"github.com/containernetworking/cni/pkg/ns"
 	cnitypes "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/natefinch/pie"
 	"github.com/vishvananda/netlink"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
-func setupVeth(netns ns.NetNS, ifName string, mtu int) (string, string, error) {
-	var hostVethName string
-	var mac string
+func StartPlugin(log *logrus.Logger) {
+	p := pie.NewProvider()
+	if err := p.Register(&ClientRPC{}); err != nil {
+		log.Fatalf("failed to register Plugin: %s", err)
+		return
+	}
 
-	err := netns.Do(func(hostNS ns.NetNS) error {
-		// create the veth pair in the container and move host end into host netns
-		hostVeth, _, err := ip.SetupVeth(ifName, mtu, hostNS)
-		if err != nil {
-			return err
-		}
-
-		hostVethName = hostVeth.Name
-
-		contVeth, err := netlink.LinkByName(ifName)
-		if err != nil {
-			return err
-		}
-
-		mac = contVeth.Attrs().HardwareAddr.String()
-		return nil
-	})
-
-	return hostVethName, mac, err
+	log.Debug("Starting plugin provider")
+	p.Serve()
 }
 
-func clearVeth(netns ns.NetNS, ifName string) error {
-	if err := netns.Do(func(_ ns.NetNS) error {
-		iface, err := netlink.LinkByName(ifName)
+func runPluginCmd(method string, args interface{}, reply interface{}) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	client, err := pie.StartProvider(os.Stderr, exe, "-child-mode")
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	return client.Call(method, args, reply)
+}
+
+type ClientRPC struct{}
+
+type SetupVethArgs struct {
+	Sandbox string
+	IfName  string
+	Mtu     int
+}
+
+type SetupVethResult struct {
+	HostVethName string
+	Mac          string
+}
+
+func runSetupVeth(sandbox string, ifName string,
+	mtu int) (string, string, error) {
+	result := &SetupVethResult{}
+	err := runPluginCmd("ClientRPC.SetupVeth",
+		&SetupVethArgs{sandbox, ifName, mtu}, result)
+	return result.HostVethName, result.Mac, err
+}
+
+func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error {
+	netns, err := ns.GetNS(args.Sandbox)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+	}
+	defer netns.Close()
+
+	return netns.Do(func(hostNS ns.NetNS) error {
+		// create the veth pair in the container and move host end
+		// into host netns
+		hostVeth, _, err := ip.SetupVeth(args.IfName, args.Mtu, hostNS)
 		if err != nil {
-			return fmt.Errorf("failed to lookup %q: %v", ifName, err)
+			return err
+		}
+
+		result.HostVethName = hostVeth.Name
+
+		contVeth, err := netlink.LinkByName(args.IfName)
+		if err != nil {
+			return err
+		}
+
+		result.Mac = contVeth.Attrs().HardwareAddr.String()
+		return nil
+	})
+}
+
+type ClearVethArgs struct {
+	Sandbox string
+	IfName  string
+}
+
+func runClearVeth(sandbox string, ifName string) error {
+	ack := false
+	err := runPluginCmd("ClientRPC.ClearVeth",
+		&ClearVethArgs{sandbox, ifName}, &ack)
+	return err
+}
+
+func (*ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
+	netns, err := ns.GetNS(args.Sandbox)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+	}
+	defer netns.Close()
+
+	*ack = false
+	if err := netns.Do(func(_ ns.NetNS) error {
+		iface, err := netlink.LinkByName(args.IfName)
+		if err != nil {
+			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
 		}
 
 		err = netlink.LinkDel(iface)
 		if err != nil {
-			return fmt.Errorf("failed to delete %q: %v", ifName, err)
+			return fmt.Errorf("failed to delete %q: %v", args.IfName, err)
 		}
 
 		return nil
@@ -70,13 +140,35 @@ func clearVeth(netns ns.NetNS, ifName string) error {
 		return err
 	}
 
+	*ack = true
 	return nil
-
 }
 
-func setupNetwork(netns ns.NetNS, ifName string, result *cnitypes.Result) error {
+type SetupNetworkArgs struct {
+	Sandbox string
+	IfName  string
+	Result  *cnitypes.Result
+}
+
+func runSetupNetwork(sandbox string, ifName string,
+	result *cnitypes.Result) error {
+
+	ack := false
+	err := runPluginCmd("ClientRPC.SetupNetwork",
+		&SetupNetworkArgs{sandbox, ifName, result}, &ack)
+	return err
+}
+
+func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
+	netns, err := ns.GetNS(args.Sandbox)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+	}
+	defer netns.Close()
+
+	*ack = false
 	if err := netns.Do(func(_ ns.NetNS) error {
-		if err := ipam.ConfigureIface(ifName, result); err != nil {
+		if err := ipam.ConfigureIface(args.IfName, args.Result); err != nil {
 			return err
 		}
 
@@ -85,6 +177,7 @@ func setupNetwork(netns ns.NetNS, ifName string, result *cnitypes.Result) error 
 		return err
 	}
 
+	*ack = true
 	return nil
 }
 
@@ -140,14 +233,9 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 
 	for ifaceind, iface := range metadata.Ifaces {
-		netns, err := ns.GetNS(iface.Sandbox)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open netns %q: %v", iface.Sandbox, err)
-		}
-		defer netns.Close()
-
+		var err error
 		iface.HostVethName, iface.Mac, err =
-			setupVeth(netns, iface.Name, agent.config.InterfaceMtu)
+			runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu)
 		if err != nil {
 			return nil, err
 		}
@@ -165,8 +253,9 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		agent.addToResult(iface, ifaceind, result)
 
 		logger.Debug("Configuring network for ", iface.Name)
-		err = setupNetwork(netns, iface.Name, result)
+		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
 		if err != nil {
+			agent.deallocateIps(iface)
 			return nil, err
 		}
 	}
@@ -230,21 +319,13 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 	}
 
 	logger.Debug("Deallocating IP address(es)")
-	agent.deallocateIps(metadata)
+	agent.deallocateMdIps(metadata)
 
 	logger.Debug("Clearing container interface")
 	for _, iface := range metadata.Ifaces {
-		netns, err := ns.GetNS(iface.Sandbox)
+		err = runClearVeth(iface.Sandbox, iface.Name)
 		if err != nil {
-			logger.Error("Could not unconfigure iface:",
-				fmt.Errorf("failed to open netns %q: %v", iface.Sandbox, err))
-		} else {
-			defer netns.Close()
-
-			err = clearVeth(netns, iface.Name)
-			if err != nil {
-				logger.Error("Could not clear Veth ports: ", err)
-			}
+			logger.Error("Could not clear Veth ports: ", err)
 		}
 	}
 

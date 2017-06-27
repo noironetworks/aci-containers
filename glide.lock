@@ -1,5 +1,5 @@
-hash: 9c03b0466591e49f6162859f17055e6e3d09c847f9bd1e536a78a8da0e97449d
-updated: 2017-05-18T13:51:25.088674359-07:00
+hash: d7f1343de339742b5a74146bab17c2ec4003923cb8824d7cc1e52bc38bd8f6b7
+updated: 2017-06-27T10:54:51.833400838-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -68,7 +68,7 @@ imports:
 - name: github.com/google/gofuzz
   version: 44d81051d367757e1c7c6a5a86423ece9afcf63c
 - name: github.com/gorilla/websocket
-  version: 3ab3a8b8831546bd18fd182c20687ca853b2bb13
+  version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/hashicorp/hcl
   version: d8c773c4cba11b11539e3d45f93daeaa5dcf1fa1
   subpackages:
@@ -100,6 +100,8 @@ imports:
   - jwriter
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
+- name: github.com/natefinch/pie
+  version: 13d3874dc4836d5db81d3a950aa5436b1eb23372
 - name: github.com/pelletier/go-buffruneio
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml

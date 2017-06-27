@@ -53,6 +53,10 @@ type HostAgentNodeConfig struct {
 type HostAgentConfig struct {
 	HostAgentNodeConfig
 
+	// Run as child mode for executing network namespace commands in a
+	// separate process.
+	ChildMode bool `json:"child-mode,omitempty"`
+
 	// Log level
 	LogLevel string `json:"log-level,omitempty"`
 
@@ -113,6 +117,8 @@ type HostAgentConfig struct {
 }
 
 func (config *HostAgentConfig) InitFlags() {
+	flag.BoolVar(&config.ChildMode, "child-mode", false, "Child Mode")
+
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
