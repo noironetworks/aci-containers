@@ -264,6 +264,9 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 				if p.Protocol != sp.Protocol {
 					continue
 				}
+				if p.Name != sp.Name {
+					continue
+				}
 
 				sm := &opflexServiceMapping{
 					ServicePort:  uint16(sp.Port),
