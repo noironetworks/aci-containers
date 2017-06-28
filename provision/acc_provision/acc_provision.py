@@ -93,6 +93,7 @@ def config_default():
         },
         "registry": {
             "image_prefix": "noiro",
+            "version": "latest",
         },
         "logging": {
             "controller_log_level": "info",
