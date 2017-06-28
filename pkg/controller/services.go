@@ -691,30 +691,12 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
 }
 
-func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
-	cont.indexMutex.Lock()
+func (cont *AciController) allocateServiceIps(servicekey string,
+	service *v1.Service) {
 	logger := serviceLogger(cont.log, service)
 
-	servicekey, err := cache.MetaNamespaceKeyFunc(service)
-	if err != nil {
-		logger.Error("Could not create service key: ", err)
-		cont.indexMutex.Unlock()
-		return false
-	}
-
-	cont.writeApicSvc(servicekey, service)
-
+	cont.indexMutex.Lock()
 	meta, ok := cont.serviceMetaCache[servicekey]
-	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
-	if ok && !isLoadBalancer {
-		cont.indexMutex.Unlock()
-		cont.clearLbService(servicekey)
-		return false
-	}
-	if !isLoadBalancer {
-		cont.indexMutex.Unlock()
-		return false
-	}
 	if !ok {
 		meta = &serviceMeta{}
 		cont.serviceMetaCache[servicekey] = meta
@@ -743,7 +725,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 
 	if !cont.serviceSyncEnabled {
 		cont.indexMutex.Unlock()
-		return false
+		return
 	}
 
 	// try to give the requested load balancer IP to the pod
@@ -807,8 +789,33 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 			}).Info("Updated service load balancer status")
 		}
 	}
+}
 
-	cont.updateServiceDeviceInstance(servicekey, service)
+func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
+	servicekey, err := cache.MetaNamespaceKeyFunc(service)
+	if err != nil {
+		serviceLogger(cont.log, service).
+			Error("Could not create service key: ", err)
+		return false
+	}
+
+	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
+	if isLoadBalancer {
+		if *cont.config.AllocateServiceIps {
+			cont.allocateServiceIps(servicekey, service)
+		}
+		cont.indexMutex.Lock()
+		if cont.serviceSyncEnabled {
+			cont.indexMutex.Unlock()
+			cont.updateServiceDeviceInstance(servicekey, service)
+			cont.writeApicSvc(servicekey, service)
+		} else {
+			cont.indexMutex.Unlock()
+		}
+	} else {
+		cont.clearLbService(servicekey)
+	}
+
 	return false
 }
 

@@ -106,6 +106,10 @@ type ControllerConfig struct {
 	// The number of IP addresses to allocate when a pod starts to run low
 	PodIpPoolChunkSize int `json:"pod-ip-pool-chunk-size,omitempty"`
 
+	// Whether to allocate service IPs or to assume they will be
+	// allocated by another controller
+	AllocateServiceIps *bool `json:"allocate-service-ips,omitempty"`
+
 	// IP addresses used for externally exposed load balanced services
 	ServiceIpPool []ipam.IpRange `json:"service-ip-pool,omitempty"`
 
@@ -134,6 +138,7 @@ func newNetIps() *netIps {
 }
 
 func NewConfig() *ControllerConfig {
+	t := true
 	return &ControllerConfig{
 		DefaultSg:          make([]OpflexGroup, 0),
 		NamespaceDefaultEg: make(map[string]OpflexGroup),
@@ -141,6 +146,7 @@ func NewConfig() *ControllerConfig {
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
 		PodIpPoolChunkSize: 128,
+		AllocateServiceIps: &t,
 	}
 }
 
