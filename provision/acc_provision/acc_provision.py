@@ -326,7 +326,7 @@ def config_advise(config, prov_apic):
 
 
 def generate_sample(filep):
-    data = pkgutil.get_data('acc_provision', 'provision-config.yaml')
+    data = pkgutil.get_data('templates', 'provision-config.yaml')
     filep.write(data)
     return filep
 
