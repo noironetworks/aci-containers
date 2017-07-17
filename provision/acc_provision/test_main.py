@@ -59,7 +59,7 @@ def test_sample():
             acc_provision.main(args, no_random=True)
         finally:
             sys.stdout = origout
-    assert filecmp.cmp(tmpout, "../acc_provision/provision-config.yaml")
+    assert filecmp.cmp(tmpout, "../acc_provision/templates/provision-config.yaml")
     run_provision(tmpout, "sample.kube.yaml", None)
     os.remove(tmpout)
 

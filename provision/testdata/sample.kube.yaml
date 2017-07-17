@@ -149,18 +149,6 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "acicontainers.cisco.com"
-  resources:
-  - acis
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - delete
-  - deletecollection
-- apiGroups:
   - ""
   resources:
   - pods
@@ -239,9 +227,10 @@ spec:
         key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host
+          image: noiro/aci-containers-host:1.0-beta1
           imagePullPolicy: Always
           securityContext:
+            privileged: true
             capabilities:
               add:
                 - SYS_ADMIN
@@ -271,7 +260,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex
+          image: noiro/opflex:1.0-beta1
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -289,7 +278,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex
+          image: noiro/opflex:1.0-beta1
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -349,12 +338,13 @@ spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
+      serviceAccountName: aci-containers-host-agent
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
-          image: noiro/openvswitch
+          image: noiro/openvswitch:1.0-beta1
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -362,6 +352,7 @@ spec:
                 - NET_ADMIN
                 - SYS_MODULE
                 - SYS_NICE
+                - IPC_LOCK
           env:
             - name: OVS_RUNDIR
               value: /usr/local/var/run/openvswitch
@@ -426,7 +417,7 @@ spec:
       serviceAccountName: aci-containers-controller
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller
+          image: noiro/aci-containers-controller:1.0-beta1
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume
