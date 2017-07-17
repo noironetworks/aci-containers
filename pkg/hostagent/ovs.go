@@ -216,19 +216,22 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 
 	intbr, ok := bridges[agent.config.IntBridgeName]
 	if ok {
+		var uplinkList []string
 		uplinks := make(map[string]addUplinkIfaceFunc)
 		if agent.config.UplinkIface != "" {
+			uplinkList = append(uplinkList, agent.config.UplinkIface)
 			uplinks[agent.config.UplinkIface] = addUplinkIfaceOps
 		}
 		if agent.config.EncapType == "vxlan" {
+			uplinkList = append(uplinkList, "vxlan0")
 			uplinks["vxlan0"] = addVxlanIfaceOps
 		}
-		for iface, addFunc := range uplinks {
+		for _, iface := range uplinkList {
 			if _, pok := intbr.ports[iface]; pok {
 				found[agent.config.IntBridgeName][iface] = true
 			} else {
 				agent.log.Debug("Adding uplink port ", iface)
-				adds, err := addFunc(agent.config,
+				adds, err := uplinks[iface](agent.config,
 					bridges[agent.config.IntBridgeName].uuid)
 				if err != nil {
 					agent.log.Error(err)
