@@ -78,8 +78,9 @@ func cnimd(namespace string, name string,
 	}
 }
 
-const egAnnot = "{\"policy-space\": \"testps\", \"name\": \"test|test-eg\"}"
-const sgAnnot = "[{\"policy-space\": \"testps\", \"name\": \"test-sg\"}]"
+const egAnnot = "{\"tenant\": \"testps\", " +
+	"\"app-profile\": \"test\", \"name\": \"test-eg\"}"
+const sgAnnot = "[{\"tenant\": \"testps\", \"name\": \"test-sg\"}]"
 
 type podTest struct {
 	uuid      string
@@ -155,8 +156,9 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 	epidstr := pt.uuid + "_" + pt.cont + "_" + pt.veth
 	assert.Equal(t, epidstr, ep.Uuid, desc, pt.name, "uuid")
 	assert.Equal(t, []string{pt.ip}, ep.IpAddress, desc, pt.name, "ip")
-	assert.Equal(t, eg.PolicySpace, ep.EgPolicySpace, desc, pt.name, "eg pspace")
-	assert.Equal(t, eg.Name, ep.EndpointGroup, desc, pt.name, "eg")
+	assert.Equal(t, eg.Tenant, ep.EgPolicySpace, desc, pt.name, "eg pspace")
+	assert.Equal(t, eg.AppProfile+"|"+eg.Name, ep.EndpointGroup,
+		desc, pt.name, "eg")
 	assert.Equal(t, sg, ep.SecurityGroup, desc, pt.name, "secgroup")
 }
 
