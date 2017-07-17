@@ -21,8 +21,12 @@ import (
 )
 
 // An opflex security or endpoint group
+// Tenant is an alias for policy space and will override policyspace
+// If AppProfile is not set the Name is interpreted as AppProfile|Name
 type OpflexGroup struct {
+	Tenant      string `json:"tenant"`
 	PolicySpace string `json:"policy-space"`
+	AppProfile  string `json:"app-profile"`
 	Name        string `json:"name"`
 }
 

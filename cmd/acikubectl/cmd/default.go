@@ -210,13 +210,21 @@ func formatEgAnnot(egAnnot string) {
 			egAnnot, err)
 	} else {
 		fmt.Println("Endpoint Group:")
-		fmt.Println("  Tenant:", g.PolicySpace)
-		eg := strings.Split(g.Name, "|")
-		if len(eg) == 2 {
-			fmt.Println("  App profile:", eg[0])
-			fmt.Println("  Endpoint group:", eg[1])
+		if g.Tenant != "" {
+			fmt.Println("  Tenant:", g.Tenant)
 		} else {
-			fmt.Println("  Endpoint group:", g.Name)
+			fmt.Println("  Tenant:", g.PolicySpace)
+		}
+		if g.AppProfile != "" {
+			fmt.Println("  App profile:", g.AppProfile)
+		} else {
+			eg := strings.Split(g.Name, "|")
+			if len(eg) == 2 {
+				fmt.Println("  App profile:", eg[0])
+				fmt.Println("  Endpoint group:", eg[1])
+			} else {
+				fmt.Println("  Endpoint group:", g.Name)
+			}
 		}
 	}
 }
@@ -235,7 +243,11 @@ func formatSgAnnot(sgAnnot string) {
 	} else {
 		for _, group := range g {
 			fmt.Println("Security Group:")
-			fmt.Println("  Tenant:", group.PolicySpace)
+			if group.Tenant != "" {
+				fmt.Println("  Tenant:", group.Tenant)
+			} else {
+				fmt.Println("  Tenant:", group.PolicySpace)
+			}
 			fmt.Println("  Security Group:", group.Name)
 		}
 	}
@@ -286,8 +298,9 @@ func setDefaultEg(cmd *cobra.Command, args []string) {
 		}
 
 		eg := &metadata.OpflexGroup{
-			PolicySpace: tenant,
-			Name:        appProfile + "|" + egName,
+			Tenant:     tenant,
+			AppProfile: appProfile,
+			Name:       egName,
 		}
 
 		raw, err := json.Marshal(eg)
@@ -343,8 +356,8 @@ func setDefaultSg(cmd *cobra.Command, args []string) {
 		sg := make([]metadata.OpflexGroup, 0)
 		for _, sgName := range sgNames {
 			sg = append(sg, metadata.OpflexGroup{
-				PolicySpace: tenant,
-				Name:        sgName,
+				Tenant: tenant,
+				Name:   sgName,
 			})
 		}
 

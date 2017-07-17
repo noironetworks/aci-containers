@@ -307,8 +307,16 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 						"EgAnnotation": egval,
 					}).Error("Could not decode annotation: ", err)
 				} else {
-					ep.EgPolicySpace = g.PolicySpace
-					ep.EndpointGroup = g.Name
+					if g.Tenant != "" {
+						ep.EgPolicySpace = g.Tenant
+					} else {
+						ep.EgPolicySpace = g.PolicySpace
+					}
+					if g.AppProfile != "" {
+						ep.EndpointGroup = g.AppProfile + "|" + g.Name
+					} else {
+						ep.EndpointGroup = g.Name
+					}
 				}
 			}
 			if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
