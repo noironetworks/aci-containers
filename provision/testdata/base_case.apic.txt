@@ -428,6 +428,7 @@ None
             {
                 "fvBD": {
                     "attributes": {
+                        "arpFlood": "yes", 
                         "name": "kube-node-bd"
                     }, 
                     "children": [

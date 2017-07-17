@@ -20,6 +20,12 @@ def dbg(msg):
     print("DBG:  " + msg, file=sys.stderr)
 
 
+def yesno(flag):
+    if flag:
+        return "yes"
+    return "no"
+
+
 class Apic(object):
     def __init__(self, addr, username, password,
                  ssl=True, verify=False, debug=False):
@@ -383,11 +389,6 @@ class ApicKubeConfig(object):
         return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
-        def yesno(flag):
-            if flag:
-                return "yes"
-            return "no"
-
         client_cert = self.config["aci_config"]["client_cert"]
         client_ssl = self.config["aci_config"]["client_ssl"]
 
@@ -736,7 +737,8 @@ class ApicKubeConfig(object):
                     {
                         "fvBD": {
                             "attributes": {
-                                "name": "kube-node-bd"
+                                "name": "kube-node-bd",
+                                "arpFlood": yesno(True)
                             },
                             "children": [
                                 {
