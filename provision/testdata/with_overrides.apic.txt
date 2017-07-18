@@ -753,7 +753,7 @@ None
         ]
     }
 }
-/api/mo/uni/tn-common/out-l3out/instP-l3out/rsprov-kube-l3out-allow-all.json
+/api/mo/uni/tn-common/out-l3out/instP-l3out.json
 {
     "fvRsProv": {
         "attributes": {
@@ -762,6 +762,8 @@ None
         }
     }
 }
+/api/mo/uni/tn-common/out-l3out/instP-l3out/rsprov-kube-l3out-allow-all.json
+None
 /api/node/mo/uni/userext/user-kube.json
 {
     "aaaUser": {

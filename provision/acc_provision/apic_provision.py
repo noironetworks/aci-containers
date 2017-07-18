@@ -136,6 +136,8 @@ class Apic(object):
     def unprovision(self, data):
         for path, config in data:
             try:
+                if path.split("/")[-1].startswith("instP-"):
+                    continue
                 if path not in [
                         "/api/mo/uni/infra.json",
                         "/api/mo/uni/tn-common.json",
@@ -471,19 +473,22 @@ class ApicKubeConfig(object):
     def l3out_contract(self, l3out_instp):
         system_id = self.config["aci_config"]["system_id"]
         l3out = self.config["aci_config"]["l3out"]["name"]
-        l3out_rsprov = "%s-l3out-allow-all" % system_id
+        l3out_rsprov_name = "%s-l3out-allow-all" % system_id
 
-        pathc = (l3out, l3out_instp, l3out_rsprov)
-        path = "/api/mo/uni/tn-common/out-%s/instP-%s/rsprov-%s.json" % pathc
+        pathc = (l3out, l3out_instp)
+        path = "/api/mo/uni/tn-common/out-%s/instP-%s.json" % pathc
         data = {
             "fvRsProv": {
                 "attributes": {
                     "matchT": "AtleastOne",
-                    "tnVzBrCPName": "kube-l3out-allow-all"
+                    "tnVzBrCPName": l3out_rsprov_name
                 }
             }
         }
-        return path, data
+
+        rsprovc = (l3out, l3out_instp, l3out_rsprov_name)
+        rsprov = "/api/mo/uni/tn-common/out-%s/instP-%s/rsprov-%s.json" % rsprovc
+        return path, data, rsprov
 
     def kube_user(self):
         name = self.config["aci_config"]["sync_login"]["username"]
