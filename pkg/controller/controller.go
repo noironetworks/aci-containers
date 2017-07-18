@@ -15,6 +15,8 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -219,8 +221,34 @@ func (cont *AciController) globalStaticObjs() apicapi.ApicSlice {
 }
 
 func (cont *AciController) aciNameForKey(ktype string, key string) string {
-	return cont.config.AciPrefix + "_" + ktype +
+	name := cont.config.AciPrefix + "_" + ktype +
 		"_" + strings.Replace(key, "/", "_", -1)
+	if len(name) < 64 {
+		return name
+	}
+
+	hash := sha256.New()
+	if len(cont.config.AciPrefix)+len(ktype)+1 > 31 {
+		if len(cont.config.AciPrefix) > 31 {
+			hash.Write([]byte(cont.config.AciPrefix))
+			hash.Write([]byte("_"))
+		} else {
+			name = cont.config.AciPrefix
+		}
+
+		hash.Write([]byte(ktype))
+		hash.Write([]byte("_"))
+	} else {
+		name = cont.config.AciPrefix + "_" + ktype
+	}
+	hash.Write([]byte(key))
+
+	hashstr := hex.EncodeToString(hash.Sum(nil)[:16])
+	if len(cont.config.AciPrefix) > 31 {
+		return hashstr
+	} else {
+		return fmt.Sprintf("%s_%s", name, hashstr)
+	}
 }
 
 func (cont *AciController) initStaticObjs() {

@@ -303,8 +303,8 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	}
 	sort.Strings(nodes)
 
-	name := cont.aciNameForKey("service", key)
-	graphName := cont.aciNameForKey("service", "global")
+	name := cont.aciNameForKey("svc", key)
+	graphName := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
 
 	if len(nodes) > 0 {
@@ -499,7 +499,7 @@ func (cont *AciController) updateDeviceCluster() {
 	}
 	sort.Strings(nodes)
 
-	name := cont.aciNameForKey("service", "global")
+	name := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
 
 	// 1. Device cluster:
@@ -827,7 +827,7 @@ func (cont *AciController) clearLbService(servicekey string) {
 		delete(cont.serviceMetaCache, servicekey)
 	}
 	cont.indexMutex.Unlock()
-	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service", servicekey))
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("svc", servicekey))
 }
 
 func (cont *AciController) serviceDeleted(obj interface{}) {

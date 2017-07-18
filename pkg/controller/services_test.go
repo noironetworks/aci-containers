@@ -168,7 +168,7 @@ func TestServiceGraph(t *testing.T) {
 		return cont
 	}
 
-	graphName := "kube_service_global"
+	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
 		for node, _ := range nmap {
@@ -189,8 +189,8 @@ func TestServiceGraph(t *testing.T) {
 
 	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
 
-	name := "kube_service_testns_service1"
-	nameS2 := "kube_service_testns_service2"
+	name := "kube_svc_testns_service1"
+	nameS2 := "kube_svc_testns_service2"
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
 		for node, _ := range nmap {
