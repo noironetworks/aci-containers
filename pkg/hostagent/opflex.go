@@ -25,7 +25,7 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
         "name": "{{.NodeName | js}}",
         "domain": "{{print "comp/prov-Kubernetes/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
         "peers": [
-            {"hostname": "10.0.0.30", "port": "8009"}
+            {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
         ]
     } ,
     "endpoint-sources": {
@@ -47,7 +47,7 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
                     "encap-iface": "vxlan0",
                     "uplink-iface": "{{.VxlanIface | js}}",
                     "uplink-vlan": "{{.AciInfraVlan}}",
-                    "remote-ip": "10.0.0.32",
+                    "remote-ip": "{{.VxlanAnycastIp | js}}",
                     "remote-port": 8472
                 }
             }

@@ -47,6 +47,12 @@ type HostAgentNodeConfig struct {
 
 	// Subinterface of uplink interface on AciInfraVlan
 	VxlanIface string `json:"vxlan-iface,omitempty"`
+
+	// Anycast IP used for unicast VXLAN packets
+	VxlanAnycastIp string `json:"vxlan-anycast-ip,omitempty"`
+
+	// Anycast IP used for OpFlex communication
+	OpflexPeerIp string `json:"opflex-peer-ip,omitempty"`
 }
 
 // Configuration for the host agent
@@ -147,6 +153,8 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.UintVar(&config.AciInfraVlan, "aci-infra-vlan", 4093, "Vlan used for ACI infrastructure traffic")
 	flag.StringVar(&config.EncapType, "encap-type", "vxlan", "Type of encapsulation to use for uplink; either vlan or vxlan")
 	flag.StringVar(&config.VxlanIface, "vxlan-iface", "eth1.4093", "Subinterface of uplink interface on AciInfraVlan")
+	flag.StringVar(&config.VxlanAnycastIp, "vxlan-anycast-ip", "10.0.0.32", "Anycast IP used for unicast VXLAN packets")
+	flag.StringVar(&config.OpflexPeerIp, "opflex-peer-ip", "10.0.0.30", "Anycast IP used for OpFlex communication")
 
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubernetes", "ACI VMM domain")
 	flag.StringVar(&config.AciVmmController, "aci-vmm-controller", "kubernetes", "ACI VMM domain controller")
