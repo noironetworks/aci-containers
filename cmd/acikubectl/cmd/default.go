@@ -217,6 +217,7 @@ func formatEgAnnot(egAnnot string) {
 		}
 		if g.AppProfile != "" {
 			fmt.Println("  App profile:", g.AppProfile)
+			fmt.Println("  Endpoint group:", g.Name)
 		} else {
 			eg := strings.Split(g.Name, "|")
 			if len(eg) == 2 {
