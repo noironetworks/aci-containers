@@ -524,8 +524,6 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "dFromPort": "8000", 
-                                    "dToPort": "11000", 
                                     "etherT": "ip", 
                                     "name": "health-check", 
                                     "prot": "tcp", 
@@ -557,10 +555,34 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
+                                    "dFromPort": "8053", 
+                                    "dToPort": "8053", 
+                                    "etherT": "ip", 
+                                    "name": "dns2-udp", 
+                                    "prot": "udp"
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
                                     "dFromPort": "dns", 
                                     "dToPort": "dns", 
                                     "etherT": "ip", 
                                     "name": "dns-tcp", 
+                                    "prot": "tcp", 
+                                    "stateful": "no", 
+                                    "tcpRules": ""
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "dFromPort": "8053", 
+                                    "dToPort": "8053", 
+                                    "etherT": "ip", 
+                                    "name": "dns2-tcp", 
                                     "prot": "tcp", 
                                     "stateful": "no", 
                                     "tcpRules": ""
@@ -657,7 +679,8 @@ None
                                 "attributes": {
                                     "consMatchT": "AtleastOne", 
                                     "name": "health-check-subj", 
-                                    "provMatchT": "AtleastOne"
+                                    "provMatchT": "AtleastOne", 
+                                    "revFltPorts": "yes"
                                 }, 
                                 "children": [
                                     {
@@ -728,6 +751,15 @@ None
                 }
             }
         ]
+    }
+}
+/api/mo/uni/tn-common/out-l3out/instP-l3out/rsprov-kube-l3out-allow-all.json
+{
+    "fvRsProv": {
+        "attributes": {
+            "matchT": "AtleastOne", 
+            "tnVzBrCPName": "kube-l3out-allow-all"
+        }
     }
 }
 /api/node/mo/uni/userext/user-kube.json

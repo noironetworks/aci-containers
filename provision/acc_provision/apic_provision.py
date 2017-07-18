@@ -174,8 +174,12 @@ class ApicKubeConfig(object):
         update(data, self.kube_dom())
         update(data, self.associate_aep())
         update(data, self.opflex_cert())
+
         update(data, self.common_tn())
         update(data, self.kube_tn())
+        for l3out_instp in self.config["aci_config"]["l3out"]["external_networks"]:
+            update(data, self.l3out_contract(l3out_instp))
+
         update(data, self.kube_user())
         update(data, self.kube_cert())
         return data
@@ -463,6 +467,23 @@ class ApicKubeConfig(object):
 
         brc = '/api/mo/uni/tn-common/brc-%s-l3out-allow-all.json' % system_id
         return path, data, brc
+
+    def l3out_contract(self, l3out_instp):
+        system_id = self.config["aci_config"]["system_id"]
+        l3out = self.config["aci_config"]["l3out"]["name"]
+        l3out_rsprov = "%s-l3out-allow-all" % system_id
+
+        pathc = (l3out, l3out_instp, l3out_rsprov)
+        path = "/api/mo/uni/tn-common/out-%s/instP-%s/rsprov-%s.json" % pathc
+        data = {
+            "fvRsProv": {
+                "attributes": {
+                    "matchT": "AtleastOne",
+                    "tnVzBrCPName": "kube-l3out-allow-all"
+                }
+            }
+        }
+        return path, data
 
     def kube_user(self):
         name = self.config["aci_config"]["sync_login"]["username"]
@@ -836,8 +857,6 @@ class ApicKubeConfig(object):
                                             "name": "health-check",
                                             "etherT": "ip",
                                             "prot": "tcp",
-                                            "dFromPort": "8000",
-                                            "dToPort": "11000",
                                             "stateful": "no",
                                             "tcpRules": ""
                                         }
@@ -866,11 +885,35 @@ class ApicKubeConfig(object):
                                 {
                                     "vzEntry": {
                                         "attributes": {
+                                            "name": "dns2-udp",
+                                            "etherT": "ip",
+                                            "prot": "udp",
+                                            "dFromPort": "8053",
+                                            "dToPort": "8053"
+                                        }
+                                    }
+                                },
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
                                             "name": "dns-tcp",
                                             "etherT": "ip",
                                             "prot": "tcp",
                                             "dFromPort": "dns",
                                             "dToPort": "dns",
+                                            "stateful": "no",
+                                            "tcpRules": ""
+                                        }
+                                    }
+                                },
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "dns2-tcp",
+                                            "etherT": "ip",
+                                            "prot": "tcp",
+                                            "dFromPort": "8053",
+                                            "dToPort": "8053",
                                             "stateful": "no",
                                             "tcpRules": ""
                                         }
@@ -965,6 +1008,7 @@ class ApicKubeConfig(object):
                                     "vzSubj": {
                                         "attributes": {
                                             "name": "health-check-subj",
+                                            "revFltPorts": "yes",
                                             "consMatchT": "AtleastOne",
                                             "provMatchT": "AtleastOne"
                                         },
