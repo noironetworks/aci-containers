@@ -83,6 +83,8 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
+            "vxlan_anycast_ip": "10.0.0.32",
+            "opflex_peer_ip": "10.0.0.30",
         },
         "kube_config": {
             "controller": "1.1.1.1",
