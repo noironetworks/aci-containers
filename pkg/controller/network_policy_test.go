@@ -196,6 +196,16 @@ func TestNetworkPolicy(t *testing.T) {
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
 				[]v1beta1.NetworkPolicyPeer{peer(nil,
 					&metav1.LabelSelector{
+						MatchLabels: map[string]string{"test": "notathing"},
+					}),
+				}),
+			}),
+			makeNp(nil),
+			"allow-all-from-ns-no-match"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
+				[]v1beta1.NetworkPolicyPeer{peer(nil,
+					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"nl": "nv"},
 					}),
 				}),

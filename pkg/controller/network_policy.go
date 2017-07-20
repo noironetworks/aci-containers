@@ -324,6 +324,10 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 					}
 				}
 			}
+			if len(remoteIps) == 0 {
+				// ingress matches no pods; don't create the rule
+				continue
+			}
 			sort.Strings(remoteIps)
 		}
 
