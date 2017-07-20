@@ -127,7 +127,8 @@ func (cont *AciController) ingressPodSelector(np *v1beta1.NetworkPolicy) []index
 					Namespace:   &np.ObjectMeta.Namespace,
 					PodSelector: selector,
 				})
-			} else if peer.NamespaceSelector != nil {
+			}
+			if peer.NamespaceSelector != nil {
 				selector, err := metav1.
 					LabelSelectorAsSelector(peer.NamespaceSelector)
 				if err != nil {
@@ -258,7 +259,8 @@ func (cont *AciController) peerMatchesPod(npNs string,
 		} else {
 			return selector.Matches(labels.Set(pod.ObjectMeta.Labels))
 		}
-	} else if peer.NamespaceSelector != nil {
+	}
+	if peer.NamespaceSelector != nil {
 		selector, err :=
 			metav1.LabelSelectorAsSelector(peer.NamespaceSelector)
 		if err != nil {
@@ -313,6 +315,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 
 	for i, ingress := range np.Spec.Ingress {
 		var remoteIps []string
+		ipMap := make(map[string]bool)
 		if ingress.From != nil {
 			// only applies to matching pods
 			for _, pod := range peerPods {
@@ -320,7 +323,13 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 					if ns, ok := peerNs[pod.ObjectMeta.Namespace]; ok &&
 						cont.peerMatchesPod(np.ObjectMeta.Namespace,
 							&from, pod, ns) {
-						remoteIps = append(remoteIps, ipsForPod(pod)...)
+						podIps := ipsForPod(pod)
+						for _, ip := range podIps {
+							if _, exists := ipMap[ip]; !exists {
+								ipMap[ip] = true
+								remoteIps = append(remoteIps, ip)
+							}
+						}
 					}
 				}
 			}

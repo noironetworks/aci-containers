@@ -155,6 +155,14 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_1.SetAttr("toPort", "443")
 	rule_8_1.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1.GetDn(), "1.1.1.2"))
 
+	rule_9_0 := apicapi.NewHostprotRule(np1SDn, "0")
+	rule_9_0.SetAttr("direction", "ingress")
+	rule_9_0.SetAttr("ethertype", "ipv4")
+	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.1"))
+	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.3"))
+	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.4"))
+	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.5"))
+
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}),
@@ -222,6 +230,18 @@ func TestNetworkPolicy(t *testing.T) {
 			}),
 			makeNp(apicapi.ApicSlice{rule_7_0}),
 			"allow-all-select-pods"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
+				[]v1beta1.NetworkPolicyPeer{
+					peer(&metav1.LabelSelector{
+						MatchLabels: map[string]string{"l1": "v1"},
+					}, &metav1.LabelSelector{
+						MatchLabels: map[string]string{"nl": "nv"},
+					}),
+				}),
+			}),
+			makeNp(apicapi.ApicSlice{rule_9_0}),
+			"allow-all-select-pods-and-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1beta1.NetworkPolicyIngressRule{
 				rule([]v1beta1.NetworkPolicyPort{
