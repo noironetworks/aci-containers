@@ -95,7 +95,7 @@ type ApicConnection struct {
 	containerDns   map[string]bool
 	cachedState    map[string]ApicSlice
 	cacheDnSubIds  map[string][]string
-	errorUpdates   map[string]ApicObject
+	errorUpdates   map[string]bool
 }
 
 func (s ApicSlice) Len() int {

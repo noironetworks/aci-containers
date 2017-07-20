@@ -208,7 +208,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		containerDns:   make(map[string]bool),
 		cachedState:    make(map[string]ApicSlice),
 		cacheDnSubIds:  make(map[string][]string),
-		errorUpdates:   make(map[string]ApicObject),
+		errorUpdates:   make(map[string]bool),
 	}
 	return conn, nil
 }
@@ -471,12 +471,18 @@ func (conn *ApicConnection) refresh() {
 func (conn *ApicConnection) retry() {
 	conn.indexMutex.Lock()
 	updates := conn.errorUpdates
-	conn.errorUpdates = make(map[string]ApicObject)
+	conn.errorUpdates = make(map[string]bool)
 	conn.indexMutex.Unlock()
 
-	for dn, obj := range updates {
-		conn.log.Info("Retrying update for ", dn)
-		conn.postDn(dn, obj)
+	for dn, _ := range updates {
+		conn.indexMutex.Lock()
+		obj, ok := conn.desiredStateDn[dn]
+		conn.indexMutex.Unlock()
+
+		if ok {
+			conn.log.Info("Retrying update for ", dn)
+			conn.postDn(dn, obj)
+		}
 	}
 }
 
@@ -564,9 +570,6 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 }
 
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
-	conn.indexMutex.Lock()
-	conn.indexMutex.Unlock()
-
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	raw, err := json.Marshal(obj)
@@ -591,7 +594,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
 		conn.logErrorResp("Could not update dn "+dn, resp)
 		if resp.StatusCode == 400 {
 			conn.indexMutex.Lock()
-			conn.errorUpdates[dn] = obj
+			conn.errorUpdates[dn] = true
 			conn.indexMutex.Unlock()
 		} else {
 			conn.restart()
