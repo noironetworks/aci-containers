@@ -263,44 +263,52 @@ func TestNetworkPolicy(t *testing.T) {
 			"multiple-from"},
 	}
 
-	cont := testController()
-	cont.config.AciPolicyTenant = "test-tenant"
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
 
-	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
-		map[string]string{"test": "testv"}))
-	cont.fakeNamespaceSource.Add(namespaceLabel("ns1",
-		map[string]string{"nl": "nv"}))
-	cont.fakeNamespaceSource.Add(namespaceLabel("ns2",
-		map[string]string{"nl": "nv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns1",
+			map[string]string{"nl": "nv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns2",
+			map[string]string{"nl": "nv"}))
+		return cont
+	}
 
-	p := podLabel("testns", "pod1", map[string]string{"l1": "v1"})
-	p.Status.PodIP = "1.1.1.1"
-	cont.fakePodSource.Add(p)
-	p = podLabel("testns", "pod2", map[string]string{"l1": "v2"})
-	p.Status.PodIP = "1.1.1.2"
-	cont.fakePodSource.Add(p)
-	p = podLabel("ns1", "pod3", map[string]string{"l1": "v1"})
-	p.Status.PodIP = "1.1.1.3"
-	cont.fakePodSource.Add(p)
-	p = podLabel("ns1", "pod4", map[string]string{"l1": "v2"})
-	p.Status.PodIP = "1.1.1.4"
-	cont.fakePodSource.Add(p)
-	p = podLabel("ns2", "pod5", map[string]string{"l1": "v1"})
-	p.Status.PodIP = "1.1.1.5"
-	cont.fakePodSource.Add(p)
-	p = podLabel("ns2", "pod6", map[string]string{"l1": "v2"})
-	cont.fakePodSource.Add(p)
-	cont.run()
+	addPods := func(cont *testAciController, incIps bool) {
+		pods := []*v1.Pod{
+			podLabel("testns", "pod1", map[string]string{"l1": "v1"}),
+			podLabel("testns", "pod2", map[string]string{"l1": "v2"}),
+			podLabel("ns1", "pod3", map[string]string{"l1": "v1"}),
+			podLabel("ns1", "pod4", map[string]string{"l1": "v2"}),
+			podLabel("ns2", "pod5", map[string]string{"l1": "v1"}),
+			podLabel("ns2", "pod6", map[string]string{"l1": "v2"}),
+		}
+		ips := []string{
+			"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
+		}
+		if incIps {
+			for i, _ := range pods {
+				pods[i].Status.PodIP = ips[i]
+			}
+		}
+		for _, pod := range pods {
+			cont.fakePodSource.Add(pod)
+		}
+	}
 
-	static := cont.staticNetPolObjs()
-	apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
-	assert.Equal(t, static,
-		cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
+	{
+		cont := testController()
+		cont.run()
+		static := cont.staticNetPolObjs()
+		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
+		assert.Equal(t, static,
+			cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
+		cont.stop()
+	}
 
-	for _, nt := range npTests {
-		cont.log.Info("Starting ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-
+	checkNp := func(nt *npTest, cont *testAciController) {
 		tu.WaitFor(t, nt.desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				cont.indexMutex.Lock()
@@ -318,23 +326,45 @@ func TestNetworkPolicy(t *testing.T) {
 				return true, nil
 			})
 	}
+	checkDelete := func(nt *npTest, cont *testAciController) {
+		tu.WaitFor(t, "delete", 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				cont.indexMutex.Lock()
+				defer cont.indexMutex.Unlock()
 
-	cont.log.Info("Starting delete")
-	cont.fakeNetworkPolicySource.Delete(npTests[0].netPol)
-	tu.WaitFor(t, "delete", 500*time.Millisecond,
-		func(last bool) (bool, error) {
-			cont.indexMutex.Lock()
-			defer cont.indexMutex.Unlock()
+				nt := npTests[0]
+				key := cont.aciNameForKey("np",
+					nt.netPol.Namespace+"_"+nt.netPol.Name)
+				if !tu.WaitEqual(t, last, 0,
+					len(cont.apicConn.GetDesiredState(key)), "delete") {
+					return false, nil
+				}
+				return true, nil
+			})
+	}
 
-			nt := npTests[0]
-			key := cont.aciNameForKey("np",
-				nt.netPol.Namespace+"_"+nt.netPol.Name)
-			if !tu.WaitEqual(t, last, 0,
-				len(cont.apicConn.GetDesiredState(key)), "delete") {
-				return false, nil
-			}
-			return true, nil
-		})
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", nt.desc)
+		addPods(cont, true)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		checkNp(&nt, cont)
 
-	cont.stop()
+		cont.log.Info("Starting delete ", nt.desc)
+		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		checkDelete(&nt, cont)
+		cont.stop()
+	}
+
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting npfirst ", nt.desc)
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.run()
+		addPods(cont, false)
+		addPods(cont, true)
+		checkNp(&nt, cont)
+		cont.stop()
+	}
 }

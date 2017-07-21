@@ -73,7 +73,16 @@ func NilSelectorFunc(interface{}) []PodSelector {
 type GetKeyFunc func(interface{}) (string, error)
 
 // Callback function for SetPodUpdateCallback or SetObjUpdateCallback
-type UpdateFunc func(podkey string)
+type UpdateFunc func(key string)
+
+// Calculate a hash over pod fields to detect pod changes that should
+// trigger an update
+type PodHashFunc func(pod *v1.Pod) string
+
+type podIndexState struct {
+	objKeys set
+	podHash string
+}
 
 // Pod selector index type
 type PodSelectorIndex struct {
@@ -86,13 +95,14 @@ type PodSelectorIndex struct {
 	getKey         GetKeyFunc
 	getPodSelector GetPodSelectorFunc
 
-	updatePod UpdateFunc
-	updateObj UpdateFunc
+	updatePod   UpdateFunc
+	updateObj   UpdateFunc
+	podHashFunc PodHashFunc
 
 	indexMutex sync.Mutex
 
 	// maps pod keys to a set of selector object keys
-	podIndex map[string]set
+	podIndex map[string]*podIndexState
 
 	// maps selector object keys to a set of pod keys
 	objPodIndex map[string]set
@@ -118,7 +128,7 @@ func NewPodSelectorIndex(log *logrus.Logger,
 		getKey:            getKey,
 		getPodSelector:    getPodSelector,
 
-		podIndex:    make(map[string]set),
+		podIndex:    make(map[string]*podIndexState),
 		objPodIndex: make(map[string]set),
 		objNsIndex:  make(map[string]map[string][]labels.Selector),
 	}
@@ -136,11 +146,19 @@ func (i *PodSelectorIndex) SetObjUpdateCallback(updateObj UpdateFunc) {
 	i.updateObj = updateObj
 }
 
+// Set a function to compute a hash over pod fields.  When the pod
+// hash changes, the object update callback will be called
+func (i *PodSelectorIndex) SetPodHashFunc(podHashFunc PodHashFunc) {
+	i.podHashFunc = podHashFunc
+}
+
 // Get the selector objects that match a given pod
 func (i *PodSelectorIndex) GetObjForPod(podkey string) (ret []string) {
 	i.indexMutex.Lock()
-	for objkey, _ := range i.podIndex[podkey] {
-		ret = append(ret, objkey)
+	if state, ok := i.podIndex[podkey]; ok {
+		for objkey, _ := range state.objKeys {
+			ret = append(ret, objkey)
+		}
 	}
 	i.indexMutex.Unlock()
 
@@ -174,6 +192,15 @@ func (i *PodSelectorIndex) UpdatePod(pod *v1.Pod) {
 // Call to update the index when a pod's labels change.  Returns true
 // if a pod update should be queued
 func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
+	var podHash string
+	if i.podHashFunc != nil {
+		podHash = i.podHashFunc(pod)
+		if podHash == "" {
+			i.DeletePod(pod)
+			return false
+		}
+	}
+
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		i.log.Error("Could not create pod key: ", err)
@@ -209,7 +236,13 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 	}
 
 	// Remove stale matches
-	for objkey, _ := range i.podIndex[podkey] {
+	state, ok := i.podIndex[podkey]
+	if !ok {
+		state = &podIndexState{}
+		i.podIndex[podkey] = state
+	}
+
+	for objkey, _ := range state.objKeys {
 		if _, mok := matched[objkey]; !mok {
 			if objm, ok := i.objPodIndex[objkey]; ok {
 				delete(objm, podkey)
@@ -222,7 +255,18 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 			updatedObjs[objkey] = true
 		}
 	}
-	i.podIndex[podkey] = matched
+
+	{
+		// when pod hash changes call all object callbacks and not
+		// just those that result from label changes.
+		if podHash != state.podHash {
+			for k, v := range matched {
+				updatedObjs[k] = v
+			}
+		}
+		state.objKeys = matched
+		state.podHash = podHash
+	}
 	i.indexMutex.Unlock()
 
 	i.updateObjs(updatedObjs)
@@ -240,8 +284,8 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 		return
 	}
 	i.indexMutex.Lock()
-	if podm, ok := i.podIndex[podkey]; ok {
-		for objkey, _ := range podm {
+	if state, ok := i.podIndex[podkey]; ok {
+		for objkey, _ := range state.objKeys {
 			if objm, ok := i.objPodIndex[objkey]; ok {
 				delete(objm, podkey)
 				if len(objm) == 0 {
@@ -340,15 +384,17 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 						return
 					}
 
-					podm, ok := i.podIndex[podkey]
+					state, ok := i.podIndex[podkey]
 					if !ok {
-						podm = make(set)
-						i.podIndex[podkey] = podm
+						state = &podIndexState{
+							objKeys: make(set),
+						}
+						i.podIndex[podkey] = state
 					}
 
 					matched[podkey] = true
-					if _, ok = podm[objkey]; !ok {
-						podm[objkey] = true
+					if _, ok = state.objKeys[objkey]; !ok {
+						state.objKeys[objkey] = true
 						updatedPods[podkey] = true
 					}
 				})
@@ -358,9 +404,9 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 	// check for old matches that no longer apply
 	for oldkey, _ := range i.objPodIndex[objkey] {
 		if _, ok := matched[oldkey]; !ok {
-			if podm, pok := i.podIndex[oldkey]; pok {
-				delete(podm, objkey)
-				if len(podm) == 0 {
+			if state, pok := i.podIndex[oldkey]; pok {
+				delete(state.objKeys, objkey)
+				if len(state.objKeys) == 0 {
 					delete(i.podIndex, oldkey)
 				}
 			}
@@ -415,9 +461,9 @@ func (i *PodSelectorIndex) DeleteSelectorObj(obj interface{}) {
 
 	i.indexMutex.Lock()
 	for oldkey, _ := range i.objPodIndex[objkey] {
-		if podm, pok := i.podIndex[oldkey]; pok {
-			delete(podm, objkey)
-			if len(podm) == 0 {
+		if state, pok := i.podIndex[oldkey]; pok {
+			delete(state.objKeys, objkey)
+			if len(state.objKeys) == 0 {
 				delete(i.podIndex, oldkey)
 			}
 			updated[oldkey] = true

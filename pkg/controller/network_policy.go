@@ -179,6 +179,16 @@ func (cont *AciController) initNetPolPodIndex() {
 			return cont.ingressPodSelector(obj.(*v1beta1.NetworkPolicy))
 		},
 	)
+	cont.netPolIngressPods.SetObjUpdateCallback(func(npkey string) {
+		npobj, exists, err :=
+			cont.networkPolicyInformer.GetStore().GetByKey(npkey)
+		if exists && err == nil {
+			cont.queueNetPolUpdate(npobj.(*v1beta1.NetworkPolicy))
+		}
+	})
+	cont.netPolIngressPods.SetPodHashFunc(func(pod *v1.Pod) string {
+		return pod.Status.PodIP
+	})
 }
 
 func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {

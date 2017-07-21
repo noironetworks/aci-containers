@@ -385,7 +385,8 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	cont.writeApicPod(newpod)
 
 	shouldqueue := false
-	if !reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
+	if oldpod.Status.PodIP != newpod.Status.PodIP ||
+		!reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
 		shouldqueue =
 			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
 		shouldqueue =
