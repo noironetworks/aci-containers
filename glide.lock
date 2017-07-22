@@ -1,5 +1,5 @@
-hash: d7f1343de339742b5a74146bab17c2ec4003923cb8824d7cc1e52bc38bd8f6b7
-updated: 2017-06-27T10:54:51.833400838-07:00
+hash: 635350b7d17d0a803b8c63c3deb360335cafed32e7289cebb611f87ea181a457
+updated: 2017-07-21T17:07:00.494397704-07:00
 imports:
 - name: github.com/cenkalti/hub
   version: 11382a9960d39b0ecda16fd01c424c11ff765a34
@@ -195,7 +195,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/apimachinery
-  version: 75b8dd260ef0469d96d578705a87cffd0e09dab8
+  version: 85ace5365f33b16fc735c866a12e3c765b9700f2
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
@@ -251,7 +251,7 @@ imports:
   - pkg/features
   - pkg/util/feature
 - name: k8s.io/client-go
-  version: 3627aeb7d4f6ade38f995d2c923e459146493c7e
+  version: 21300e3e11c918b8e6a70fb7293b310683d6c046
   subpackages:
   - discovery
   - kubernetes
