@@ -167,13 +167,13 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	for _, delete := range deletes {
 		conn.log.WithFields(logrus.Fields{"DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
-		conn.deleteDn(delete)
+		conn.queueDn(delete)
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
 		conn.log.WithFields(logrus.Fields{"DN": dn, "context": context}).
 			Debug("Applying APIC object update")
-		conn.postDn(dn, update)
+		conn.queueDn(dn)
 	}
 }
 
@@ -309,7 +309,6 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 
 	conn.updateDnIndex(objects)
 	for _, del := range deletes {
-		delete(conn.errorUpdates, del)
 		conn.removeFromDnIndex(del)
 		if container {
 			delete(conn.containerDns, del)
@@ -317,7 +316,6 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
-		delete(conn.errorUpdates, dn)
 		if container {
 			conn.containerDns[dn] = true
 		}
@@ -371,8 +369,11 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 		if conn.containerDns[dn] {
 			if !conn.apicCntCmp(aci, eobj) {
 				updates = ApicSlice{eobj}
-				conn.log.WithFields(logrus.Fields{"DN": dn}).
-					Warning("Unexpected ACI container alteration")
+				conn.log.WithFields(logrus.Fields{
+					"DN":       dn,
+					"expected": eobj,
+					"actual":   aci,
+				}).Warning("Unexpected ACI container alteration")
 			}
 		} else {
 			update, odels := conn.apicObjCmp(aci, eobj)
@@ -382,8 +383,11 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 			deletes = append(deletes, odels...)
 
 			if update || len(odels) != 0 {
-				conn.log.WithFields(logrus.Fields{"DN": dn}).
-					Warning("Unexpected ACI object alteration")
+				conn.log.WithFields(logrus.Fields{
+					"DN":       dn,
+					"expected": eobj,
+					"actual":   aci,
+				}).Warning("Unexpected ACI object alteration")
 			}
 		}
 	} else {

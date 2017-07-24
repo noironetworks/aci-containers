@@ -30,6 +30,9 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
 )
@@ -186,10 +189,10 @@ func New(log *logrus.Logger, apic []string, user string,
 		Jar:       jar,
 		Timeout:   10 * time.Second,
 	}
+
 	conn := &ApicConnection{
 		ReconnectInterval: time.Second,
 		RefreshInterval:   30 * time.Second,
-		RetryInterval:     5 * time.Second,
 		signer:            signer,
 		dialer:            dialer,
 		log:               log,
@@ -208,7 +211,6 @@ func New(log *logrus.Logger, apic []string, user string,
 		containerDns:   make(map[string]bool),
 		cachedState:    make(map[string]ApicSlice),
 		cacheDnSubIds:  make(map[string][]string),
-		errorUpdates:   make(map[string]bool),
 	}
 	return conn, nil
 }
@@ -278,9 +280,43 @@ func (conn *ApicConnection) restart() {
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
+	queueStop <-chan struct{}) {
+
+	go wait.Until(func() {
+		for {
+			dn, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var forget bool
+			switch dn := dn.(type) {
+			case string:
+				conn.indexMutex.Lock()
+				obj, ok := conn.desiredStateDn[dn]
+				conn.indexMutex.Unlock()
+				if ok {
+					forget = conn.postDn(dn, obj)
+				} else {
+					forget = conn.deleteDn(dn)
+				}
+			}
+			if forget {
+				queue.Forget(dn)
+			}
+			queue.Done(dn)
+
+		}
+	}, time.Second, queueStop)
+	<-queueStop
+	queue.ShutDown()
+}
+
 func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	done := make(chan struct{})
 	restart := make(chan struct{})
+	queueStop := make(chan struct{})
 	conn.restartCh = restart
 
 	go func() {
@@ -307,7 +343,11 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string][]string)
+	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.DefaultControllerRateLimiter(), "delta")
 	conn.indexMutex.Unlock()
+
+	go conn.processQueue(conn.deltaQueue, queueStop)
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
@@ -327,11 +367,12 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	refreshTicker := time.NewTicker(conn.RefreshInterval)
 	defer refreshTicker.Stop()
-	retryTicker := time.NewTicker(conn.RetryInterval)
-	defer retryTicker.Stop()
 
 	closeConn := func(stop bool) {
+		close(queueStop)
+
 		conn.indexMutex.Lock()
+		conn.deltaQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.indexMutex.Unlock()
@@ -355,8 +396,6 @@ loop:
 		select {
 		case <-refreshTicker.C:
 			conn.refresh()
-		case <-retryTicker.C:
-			conn.retry()
 		case <-restart:
 			closeConn(false)
 			break loop
@@ -468,24 +507,6 @@ func (conn *ApicConnection) refresh() {
 	}
 }
 
-func (conn *ApicConnection) retry() {
-	conn.indexMutex.Lock()
-	updates := conn.errorUpdates
-	conn.errorUpdates = make(map[string]bool)
-	conn.indexMutex.Unlock()
-
-	for dn, _ := range updates {
-		conn.indexMutex.Lock()
-		obj, ok := conn.desiredStateDn[dn]
-		conn.indexMutex.Unlock()
-
-		if ok {
-			conn.log.Info("Retrying update for ", dn)
-			conn.postDn(dn, obj)
-		}
-	}
-}
-
 func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 	var apicresp ApicResponse
 	err := json.NewDecoder(resp.Body).Decode(&apicresp)
@@ -569,7 +590,16 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	}
 }
 
-func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
+func (conn *ApicConnection) queueDn(dn string) {
+	conn.indexMutex.Lock()
+	if conn.deltaQueue != nil {
+		conn.deltaQueue.Add(dn)
+	}
+	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
+	conn.log.Debug("Posting update for ", dn)
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	raw, err := json.Marshal(obj)
@@ -580,48 +610,57 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) {
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
-		return
+		conn.restart()
+		return true
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not update dn ", dn, ": ", err)
-		return
+		conn.restart()
+		return true
 	}
 	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not update dn "+dn, resp)
 		if resp.StatusCode == 400 {
 			conn.indexMutex.Lock()
-			conn.errorUpdates[dn] = true
+			if conn.deltaQueue != nil {
+				conn.deltaQueue.AddRateLimited(dn)
+			}
 			conn.indexMutex.Unlock()
+			return false
 		} else {
 			conn.restart()
 		}
 	}
+	return true
 }
 
-func (conn *ApicConnection) deleteDn(dn string) {
+func (conn *ApicConnection) deleteDn(dn string) bool {
+	conn.log.Debug("Deleting ", dn)
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
-		return
+		conn.restart()
+		return true
 	}
 	conn.sign(req, uri, nil)
 	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not delete dn ", dn, ": ", err)
-		return
+		conn.restart()
+		return true
 	}
 	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not delete dn "+dn, resp)
 		conn.restart()
-		return
 	}
+	return true
 }
 
 func doComputeRespClasses(targetClasses []string,

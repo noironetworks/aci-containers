@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
 )
@@ -95,7 +97,8 @@ type ApicConnection struct {
 	containerDns   map[string]bool
 	cachedState    map[string]ApicSlice
 	cacheDnSubIds  map[string][]string
-	errorUpdates   map[string]bool
+
+	deltaQueue workqueue.RateLimitingInterface
 }
 
 func (s ApicSlice) Len() int {
