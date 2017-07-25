@@ -86,6 +86,8 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
 	cont.writeApicNs(ns)
 	cont.depPods.UpdateNamespace(ns)
+	cont.netPolPods.UpdateNamespace(ns)
+	cont.netPolIngressPods.UpdateNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
 
