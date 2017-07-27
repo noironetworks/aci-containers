@@ -343,7 +343,9 @@ def generate_password(no_random):
 
 def generate_cert(username, cert_file, key_file):
     if not exists(cert_file) or not exists(key_file):
-        # Do not overwrite previously generated data if it exists
+        info("Generating certs for kubernetes controller")
+        info("  Private key file: \"%s\"" % key_file)
+        info("  Certificate file: \"%s\"" % cert_file)
 
         # create a key pair
         k = crypto.PKey()
@@ -368,6 +370,10 @@ def generate_cert(username, cert_file, key_file):
         with open(key_file, "wt") as keyp:
             keyp.write(key_data)
     else:
+        # Do not overwrite previously generated data if it exists
+        info("Reusing existing certs for kubernetes controller")
+        info("  Private key file: \"%s\"" % key_file)
+        info("  Certificate file: \"%s\"" % cert_file)
         with open(cert_file, "r") as certp:
             cert_data = certp.read()
         with open(key_file, "r") as keyp:
@@ -390,7 +396,7 @@ def generate_kube_yaml(config, output):
         if output == "-":
             info("Writing kubernetes infrastructure YAML to \"STDOUT\"")
             template.stream(config=config).dump(sys.stdout)
-        else:
+        elif output != "/dev/null":
             info("Writing kubernetes infrastructure YAML to \"%s\"" % output)
             template.stream(config=config).dump(output)
     return config
@@ -488,6 +494,11 @@ def provision(args, apic_file, no_random):
         if args.delete:
             prov_apic = False
 
+    generate_cert_data = True
+    if args.delete:
+        output_file = "/dev/null"
+        generate_cert_data = False
+
     # Print sample, if needed
     if args.sample:
         generate_sample(sys.stdout)
@@ -533,7 +544,9 @@ def provision(args, apic_file, no_random):
     username = config["aci_config"]["sync_login"]["username"]
     certfile = config["aci_config"]["sync_login"]["certfile"]
     keyfile = config["aci_config"]["sync_login"]["keyfile"]
-    key_data, cert_data = generate_cert(username, certfile, keyfile)
+    key_data, cert_data = None, None
+    if generate_cert_data:
+        key_data, cert_data = generate_cert(username, certfile, keyfile)
     config["aci_config"]["sync_login"]["key_data"] = key_data
     config["aci_config"]["sync_login"]["cert_data"] = cert_data
 
