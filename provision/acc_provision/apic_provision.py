@@ -6,6 +6,7 @@ import sys
 import requests
 
 requests.packages.urllib3.disable_warnings()
+apic_debug = False
 
 
 def err(msg):
@@ -17,7 +18,8 @@ def warn(msg):
 
 
 def dbg(msg):
-    print("DBG:  " + msg, file=sys.stderr)
+    if apic_debug:
+        print("DBG:  " + msg, file=sys.stderr)
 
 
 def yesno(flag):
@@ -29,6 +31,8 @@ def yesno(flag):
 class Apic(object):
     def __init__(self, addr, username, password,
                  ssl=True, verify=False, debug=False):
+        global apic_debug
+        apic_debug = debug
         self.addr = addr
         self.ssl = ssl
         self.username = username
@@ -130,8 +134,7 @@ class Apic(object):
                 if config is not None:
                     resp = self.post(path, config)
                     self.check_resp(resp)
-                    if self.debug:
-                        dbg("%s: %s" % (path, resp.text))
+                    dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in provisioning %s: %s" % (path, str(e)))
@@ -147,8 +150,7 @@ class Apic(object):
                 ]:
                     resp = self.delete(path)
                     self.check_resp(resp)
-                    if self.debug:
-                        dbg("%s: %s" % (path, resp.text))
+                    dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in un-provisioning %s: %s" % (path, str(e)))
