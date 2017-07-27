@@ -413,7 +413,9 @@ def generate_apic_config(config, prov_apic, apic_file):
         if prov_apic is True:
             apic.provision(apic_config, sync_login)
         if prov_apic is False:
-            apic.unprovision(apic_config)
+            system_id = config["aci_config"]["system_id"]
+            tenant = config["aci_config"]["vrf"]["tenant"]
+            apic.unprovision(apic_config, system_id, tenant)
     return apic_config
 
 

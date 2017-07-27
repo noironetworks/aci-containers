@@ -74,14 +74,17 @@ class Apic(object):
                 raise Exception("APIC REST Error: %s" % ret["error"])
         return resp
 
-    def get_path(self, path):
+    def get_path(self, path, multi=False):
         ret = None
         try:
             resp = self.get(path)
             self.check_resp(resp)
             respj = json.loads(resp.text)
             if len(respj["imdata"]) > 0:
-                ret = respj["imdata"][0]
+                if multi:
+                    ret = respj["imdata"]
+                else:
+                    ret = respj["imdata"][0]
         except Exception as e:
             err("Error in getting %s: %s: " % (path, str(e)))
         return ret
@@ -133,7 +136,7 @@ class Apic(object):
                 # log it, otherwise ignore it
                 err("Error in provisioning %s: %s" % (path, str(e)))
 
-    def unprovision(self, data):
+    def unprovision(self, data, system_id, tenant):
         for path, config in data:
             try:
                 if path.split("/")[-1].startswith("instP-"):
@@ -149,6 +152,52 @@ class Apic(object):
             except Exception as e:
                 # log it, otherwise ignore it
                 err("Error in un-provisioning %s: %s" % (path, str(e)))
+
+        # Finally clean any stray resources in common
+        self.clean_tagged_resources(system_id, tenant)
+
+    def valid_tagged_resource(self, tag, system_id, tenant):
+        ret = False
+        prefix = "%s-" % system_id
+        if tag.startswith(prefix):
+            tagid = tag[len(prefix):]
+            if len(tagid) == 32:
+                try:
+                    int(tagid, base=16)
+                    ret = True
+                except:
+                    ret = False
+        return ret
+
+    def clean_tagged_resources(self, system_id, tenant):
+        tags = {}
+        tags_path = "/api/node/mo/uni/tn-%s.json" % (tenant,)
+        tags_path += "?query-target=subtree&target-subtree-class=tagInst"
+        tags_list = self.get_path(tags_path, multi=True)
+        for tag_mo in tags_list:
+            tag_name = tag_mo["tagInst"]["attributes"]["name"]
+            if self.valid_tagged_resource(tag_name, system_id, tenant):
+                tags[tag_name] = True
+                dbg("Deleting tag: %s" % tag_name)
+            else:
+                dbg("Ignoring tag: %s" % tag_name)
+
+        mos = {}
+        for tag in tags.keys():
+            dbg("Objcts selected for tag: %s" % tag)
+            mo_path = "/api/tag/%s.json" % tag
+            mo_list = self.get_path(mo_path, multi=True)
+            for mo_dict in mo_list:
+                for mo_key in mo_dict.keys():
+                    mo = mo_dict[mo_key]
+                    mo_dn = mo["attributes"]["dn"]
+                    mos[mo_dn] = True
+                    dbg("    - %s" % mo_dn)
+
+        for mo_dn in sorted(mos.keys(), reverse=True):
+            mo_path = "/api/node/mo/%s" % mo_dn
+            dbg("Deleting object: %s" % mo_dn)
+            self.del_path(mo_path)
 
 
 class ApicKubeConfig(object):
