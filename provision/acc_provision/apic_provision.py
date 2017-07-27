@@ -195,7 +195,7 @@ class Apic(object):
                     dbg("    - %s" % mo_dn)
 
         for mo_dn in sorted(mos.keys(), reverse=True):
-            mo_path = "/api/node/mo/%s" % mo_dn
+            mo_path = "/api/node/mo/%s.json" % mo_dn
             dbg("Deleting object: %s" % mo_dn)
             self.delete(mo_path)
 
