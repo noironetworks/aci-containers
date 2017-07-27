@@ -197,7 +197,7 @@ class Apic(object):
         for mo_dn in sorted(mos.keys(), reverse=True):
             mo_path = "/api/node/mo/%s" % mo_dn
             dbg("Deleting object: %s" % mo_dn)
-            self.del_path(mo_path)
+            self.delete(mo_path)
 
 
 class ApicKubeConfig(object):
