@@ -360,6 +360,7 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 		pod.Namespace, pod.Name)
 	aobj.SetAttr("guid", string(pod.UID))
 	aobj.SetAttr("hostName", pod.Spec.NodeName)
+	aobj.SetAttr("computeNodeName", pod.Spec.NodeName)
 	for _, or := range pod.OwnerReferences {
 		if or.Kind == "ReplicaSet" && or.Name != "" {
 			aobj.SetAttr("replicaSetName", or.Name)

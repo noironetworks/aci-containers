@@ -489,10 +489,11 @@ var metadata = map[string]*apicMeta{
 	},
 	"vmmInjectedContGrp": &apicMeta{
 		attributes: map[string]interface{}{
-			"guid":           "",
-			"name":           "",
-			"replicaSetName": "",
-			"hostName":       "",
+			"guid":            "",
+			"name":            "",
+			"replicaSetName":  "",
+			"hostName":        "",
+			"computeNodeName": "",
 		},
 	},
 	"vmmInjectedDepl": &apicMeta{
