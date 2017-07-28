@@ -808,13 +808,14 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		if cont.serviceSyncEnabled {
 			cont.indexMutex.Unlock()
 			cont.updateServiceDeviceInstance(servicekey, service)
-			cont.writeApicSvc(servicekey, service)
 		} else {
 			cont.indexMutex.Unlock()
 		}
 	} else {
 		cont.clearLbService(servicekey)
 	}
+
+	cont.writeApicSvc(servicekey, service)
 
 	return false
 }
