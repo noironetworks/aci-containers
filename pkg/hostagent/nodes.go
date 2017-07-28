@@ -88,27 +88,6 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 		agent.updateIpamAnnotation(pnet)
 	}
 
-	{
-		var newServiceEp metadata.ServiceEndpoint
-		epval, ok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
-		if ok {
-			err := json.Unmarshal([]byte(epval), &newServiceEp)
-			if err != nil {
-				agent.log.WithFields(logrus.Fields{
-					"epval": epval,
-				}).Warn("Could not parse node ",
-					"service endpoint annotation: ", err)
-			}
-		}
-		if !reflect.DeepEqual(newServiceEp, agent.serviceEp) {
-			agent.log.WithFields(logrus.Fields{
-				"epval": epval,
-			}).Info("Updated service endpoint")
-			agent.serviceEp = newServiceEp
-			updateServices = true
-		}
-	}
-
 	if agent.config.OpFlexConfigPath != "" {
 		orval, ok := node.ObjectMeta.Annotations[metadata.OverrideNodeConfig]
 		if ok {

@@ -35,7 +35,6 @@ type HostAgent struct {
 	opflexEps      map[string][]*opflexEndpoint
 	opflexServices map[string]*opflexService
 	epMetadata     map[string]map[string]*md.ContainerMetadata
-	serviceEp      md.ServiceEndpoint
 
 	podInformer       cache.SharedIndexInformer
 	endpointsInformer cache.SharedIndexInformer
