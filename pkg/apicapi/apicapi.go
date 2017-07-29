@@ -187,7 +187,7 @@ func New(log *logrus.Logger, apic []string, user string,
 	client := &http.Client{
 		Transport: tr,
 		Jar:       jar,
-		Timeout:   10 * time.Second,
+		Timeout:   5 * time.Minute,
 	}
 
 	conn := &ApicConnection{
