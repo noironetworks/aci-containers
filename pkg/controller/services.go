@@ -709,6 +709,7 @@ func (cont *AciController) allocateNodeServiceEps(servicekey string,
 		for node, ep := range annotMap {
 			_, ok := meta.nodeServiceEps[node]
 			if ok {
+				logger.Debug(meta.nodeServiceEps)
 				continue
 			}
 			valid := true
