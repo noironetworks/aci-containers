@@ -169,9 +169,9 @@ func opflexServiceLogger(log *logrus.Logger, as *opflexService) *logrus.Entry {
 	})
 }
 
-func (agent *HostAgent) syncServices() {
+func (agent *HostAgent) syncServices() bool {
 	if !agent.syncEnabled {
-		return
+		return false
 	}
 
 	agent.log.Debug("Syncing services")
@@ -181,7 +181,7 @@ func (agent *HostAgent) syncServices() {
 		agent.log.WithFields(
 			logrus.Fields{"serviceDir": agent.config.OpFlexServiceDir},
 		).Error("Could not read directory " + err.Error())
-		return
+		return true
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
@@ -231,6 +231,7 @@ func (agent *HostAgent) syncServices() {
 	}
 
 	agent.log.Debug("Finished service sync")
+	return false
 }
 
 func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
@@ -352,7 +353,7 @@ func (agent *HostAgent) doUpdateService(key string) {
 	doSync = agent.updateServiceDesc(false, as, endpoints) || doSync
 	doSync = agent.updateServiceDesc(true, as, endpoints) || doSync
 	if doSync {
-		agent.syncServices()
+		agent.scheduleSyncServices()
 	}
 }
 
@@ -396,7 +397,7 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 	if _, ok := agent.opflexServices[u]; ok {
 		delete(agent.opflexServices, u)
 		delete(agent.opflexServices, u+"-external")
-		agent.syncServices()
+		agent.scheduleSyncServices()
 	}
 }
 

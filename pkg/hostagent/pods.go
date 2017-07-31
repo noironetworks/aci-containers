@@ -133,9 +133,9 @@ func opflexEpLogger(log *logrus.Logger, ep *opflexEndpoint) *logrus.Entry {
 	})
 }
 
-func (agent *HostAgent) syncEps() {
+func (agent *HostAgent) syncEps() bool {
 	if !agent.syncEnabled {
-		return
+		return false
 	}
 
 	agent.log.Debug("Syncing endpoints")
@@ -144,7 +144,7 @@ func (agent *HostAgent) syncEps() {
 		agent.log.WithFields(
 			logrus.Fields{"endpointDir": agent.config.OpFlexEndpointDir},
 		).Error("Could not read directory ", err)
-		return
+		return true
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
@@ -216,6 +216,7 @@ func (agent *HostAgent) syncEps() {
 		}
 	}
 	agent.log.Debug("Finished endpoint sync")
+	return false
 }
 
 func podFilter(pod *v1.Pod) bool {
@@ -252,7 +253,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 
 	if !podFilter(pod) {
 		delete(agent.opflexEps, string(pod.ObjectMeta.UID))
-		agent.syncEps()
+		agent.scheduleSyncEps()
 		return
 	}
 
@@ -261,7 +262,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	if !ok {
 		logger.Debug("No metadata")
 		delete(agent.opflexEps, string(pod.ObjectMeta.UID))
-		agent.syncEps()
+		agent.scheduleSyncEps()
 		return
 	}
 
@@ -344,7 +345,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 
 		agent.opflexEps[string(pod.ObjectMeta.UID)] = neweps
 
-		agent.syncEps()
+		agent.scheduleSyncEps()
 	}
 }
 
@@ -360,6 +361,6 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	u := string(pod.ObjectMeta.UID)
 	if _, ok := agent.opflexEps[u]; ok {
 		delete(agent.opflexEps, u)
-		agent.syncEps()
+		agent.scheduleSyncEps()
 	}
 }

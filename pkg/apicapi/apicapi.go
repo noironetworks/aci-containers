@@ -35,6 +35,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
+	"github.com/juju/ratelimit"
 )
 
 func complete(resp *http.Response) {
@@ -344,7 +345,14 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string][]string)
 	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
-		workqueue.DefaultControllerRateLimiter(), "delta")
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(100)),
+			},
+		),
+		"delta")
 	conn.indexMutex.Unlock()
 
 	go conn.processQueue(conn.deltaQueue, queueStop)

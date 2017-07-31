@@ -15,6 +15,8 @@
 package hostagent
 
 import (
+	"bytes"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -78,13 +80,25 @@ func initTempl(name string, templ string) *template.Template {
 func (agent *HostAgent) writeConfigFile(name string,
 	templ *template.Template) error {
 
+	var buffer bytes.Buffer
+	templ.Execute(&buffer, agent.config)
+
 	path := filepath.Join(agent.config.OpFlexConfigPath, name)
+
+	existing, err := ioutil.ReadFile(path)
+	if err != nil {
+		if bytes.Equal(existing, buffer.Bytes()) {
+			agent.log.Info("OpFlex agent configuration file ",
+				path, " unchanged")
+			return nil
+		}
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-
-	templ.Execute(f, agent.config)
+	f.Write(buffer.Bytes())
 	f.Close()
 
 	agent.log.Info("Wrote OpFlex agent configuration file ", path)

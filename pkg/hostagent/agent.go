@@ -16,11 +16,15 @@ package hostagent
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/juju/ratelimit"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -48,6 +52,7 @@ type HostAgent struct {
 
 	syncEnabled         bool
 	opflexConfigWritten bool
+	syncQueue           workqueue.RateLimitingInterface
 
 	netNsFuncChan chan func()
 }
@@ -64,6 +69,10 @@ func NewHostAgent(config *HostAgentConfig, log *logrus.Logger) *HostAgent {
 		podIpsV6: []*ipam.IpAlloc{ipam.New(), ipam.New()},
 
 		netNsFuncChan: make(chan func()),
+		syncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(10)),
+			}, "sync"),
 	}
 }
 
@@ -81,6 +90,47 @@ func (agent *HostAgent) Init(kubeClient *kubernetes.Clientset) {
 	agent.initPodInformerFromClient(kubeClient)
 	agent.initEndpointsInformerFromClient(kubeClient)
 	agent.initServiceInformerFromClient(kubeClient)
+}
+
+func (agent *HostAgent) scheduleSyncEps() {
+	agent.syncQueue.AddRateLimited("eps")
+}
+
+func (agent *HostAgent) scheduleSyncServices() {
+	agent.syncQueue.AddRateLimited("services")
+}
+
+func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
+	queueStop <-chan struct{}) {
+
+	go wait.Until(func() {
+		for {
+			syncType, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch syncType := syncType.(type) {
+			case string:
+				switch syncType {
+				case "eps":
+					requeue = agent.syncEps()
+				case "services":
+					requeue = agent.syncServices()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(syncType)
+			} else {
+				queue.Forget(syncType)
+			}
+			queue.Done(syncType)
+
+		}
+	}, time.Second, queueStop)
+	<-queueStop
+	queue.ShutDown()
 }
 
 func (agent *HostAgent) Run(stopCh <-chan struct{}) {
@@ -112,10 +162,11 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		agent.log.Info("Enabling OpFlex endpoint and service sync")
 		agent.indexMutex.Lock()
 		agent.syncEnabled = true
-		agent.syncServices()
-		agent.syncEps()
 		agent.indexMutex.Unlock()
-		agent.log.Debug("Initial OpFlex sync complete")
+
+		agent.scheduleSyncServices()
+		agent.scheduleSyncEps()
+		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
 
 	agent.log.Info("Starting endpoint RPC")
