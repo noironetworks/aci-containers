@@ -40,10 +40,9 @@ type testAciController struct {
 	fakeNetworkPolicySource *framework.FakeControllerSource
 	fakeAimSource           *framework.FakeControllerSource
 
-	podUpdates           []*v1.Pod
-	nodeUpdates          []*v1.Node
-	serviceUpdates       []*v1.Service
-	serviceStatusUpdates []*v1.Service
+	podUpdates     []*v1.Pod
+	nodeUpdates    []*v1.Node
+	serviceUpdates []*v1.Service
 }
 
 func testController() *testAciController {
@@ -121,12 +120,8 @@ func testController() *testAciController {
 		cont.nodeUpdates = append(cont.nodeUpdates, node)
 		return node, nil
 	}
-	cont.updateService = func(service *v1.Service) (*v1.Service, error) {
-		cont.serviceUpdates = append(cont.serviceUpdates, service)
-		return service, nil
-	}
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
-		cont.serviceStatusUpdates = append(cont.serviceStatusUpdates, service)
+		cont.serviceUpdates = append(cont.serviceUpdates, service)
 		return service, nil
 	}
 

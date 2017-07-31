@@ -15,9 +15,6 @@
 package controller
 
 import (
-	"crypto/rand"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -124,20 +121,8 @@ func (cont *AciController) endpointsChanged(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
-func returnServiceEp(pool *netIps, ep *metadata.ServiceEndpoint) {
-	if ep.Ipv4 != nil && ep.Ipv4.To4() != nil {
-		pool.V4.AddIp(ep.Ipv4)
-	}
-	if ep.Ipv6 != nil && ep.Ipv6.To16() != nil {
-		pool.V6.AddIp(ep.Ipv6)
-	}
-}
-
 func returnIps(pool *netIps, ips []net.IP) {
 	for _, ip := range ips {
-		if ip == nil {
-			continue
-		}
 		if ip.To4() != nil {
 			pool.V4.AddIp(ip)
 		} else if ip.To16() != nil {
@@ -280,7 +265,43 @@ func apicDevCtx(name string, tenantName string,
 func (cont *AciController) updateServiceDeviceInstance(key string,
 	service *v1.Service) {
 
-	nodeMap, nodes := cont.getNodesForService(key, service)
+	endpointsobj, exists, err :=
+		cont.endpointsInformer.GetStore().GetByKey(key)
+	if err != nil {
+		cont.log.Error("Could not lookup endpoints for " +
+			key + ": " + err.Error())
+		return
+	}
+
+	cont.indexMutex.Lock()
+	nodeMap := make(map[string]*metadata.ServiceEndpoint)
+
+	if exists && endpointsobj != nil {
+		endpoints := endpointsobj.(*v1.Endpoints)
+		for _, subset := range endpoints.Subsets {
+			for _, addr := range subset.Addresses {
+				if addr.NodeName == nil {
+					continue
+				}
+				nodeMeta, ok := cont.nodeServiceMetaCache[*addr.NodeName]
+				if !ok {
+					continue
+				}
+				_, ok = cont.fabricPathForNode(*addr.NodeName)
+				if !ok {
+					continue
+				}
+				nodeMap[*addr.NodeName] = &nodeMeta.serviceEp
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	var nodes []string
+	for node, _ := range nodeMap {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
 
 	name := cont.aciNameForKey("svc", key)
 	graphName := cont.aciNameForKey("svc", "global")
@@ -463,17 +484,13 @@ func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
 
 	cont.indexMutex.Lock()
-	cache.ListAll(cont.nodeInformer.GetStore(), labels.Everything(),
-		func(nodeobj interface{}) {
-			name := nodeobj.(*v1.Node).ObjectMeta.Name
-
-			fabricPath, ok := cont.fabricPathForNode(name)
-			if !ok {
-				return
-			}
-
-			nodeMap[name] = fabricPath
-		})
+	for node, _ := range cont.nodeServiceMetaCache {
+		fabricPath, ok := cont.fabricPathForNode(node)
+		if !ok {
+			continue
+		}
+		nodeMap[node] = fabricPath
+	}
 	cont.indexMutex.Unlock()
 
 	var nodes []string
@@ -674,153 +691,34 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
 }
 
-func (cont *AciController) allocateNodeServiceEps(servicekey string,
-	service *v1.Service) {
-
-	endpointsobj, exists, err :=
-		cont.endpointsInformer.GetStore().GetByKey(servicekey)
-	if err != nil {
-		cont.log.Error("Could not lookup endpoints for "+
-			servicekey, ": ", err)
-		return
-	}
-
-	logger := serviceLogger(cont.log, service)
-
-	cont.indexMutex.Lock()
-	meta, ok := cont.serviceMetaCache[servicekey]
-	if !ok {
-		cont.indexMutex.Unlock()
-		return
-	}
-
-	if service.Annotations == nil {
-		service.Annotations = make(map[string]string)
-	}
-	annotMap := make(map[string]*metadata.ServiceEndpoint)
-	if epval, epok := service.Annotations[metadata.ServiceEpAnnotation]; epok {
-		err := json.Unmarshal([]byte(epval), &annotMap)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"epval": epval,
-			}).Error("Could not parse existing node ",
-				"service endpoint annotation: ", err)
-		}
-		for node, ep := range annotMap {
-			_, ok := meta.nodeServiceEps[node]
-			if ok {
-				logger.Debug(meta.nodeServiceEps)
-				continue
-			}
-			valid := true
-			_, err := net.ParseMAC(ep.Mac)
-			if err != nil {
-				logger.Error("Invalid MAC in existing ",
-					"node service endpoint: ", ep.Mac, ": ", err)
-				continue
-			}
-			if ep.Ipv4 != nil {
-				if !cont.nodeServiceIps.V4.RemoveIp(ep.Ipv4) {
-					logger.Error("IPv4 address not available ",
-						"for node service endpoint: ", ep.Ipv4)
-					valid = false
-				}
-			}
-			if valid && ep.Ipv6 != nil {
-				if !cont.nodeServiceIps.V6.RemoveIp(ep.Ipv6) {
-					logger.Error("IPv6 address not available ",
-						"for node service endpoint: ", ep.Ipv6)
-					valid = false
-					if ep.Ipv4 != nil {
-						cont.nodeServiceIps.V4.AddIp(ep.Ipv4)
-					}
-				}
-			}
-			if valid {
-				meta.nodeServiceEps[node] = ep
-			}
-		}
-	}
-
-	if !cont.serviceSyncEnabled {
-		cont.indexMutex.Unlock()
-		return
-	}
-
-	nodeMap := make(map[string]bool)
-	if exists && endpointsobj != nil {
-		endpoints := endpointsobj.(*v1.Endpoints)
-		for _, subset := range endpoints.Subsets {
-			for _, addr := range subset.Addresses {
-				if addr.NodeName == nil {
-					continue
-				}
-				nodeMap[*addr.NodeName] = true
-			}
-		}
-	}
-	for node, _ := range nodeMap {
-		if _, ok = meta.nodeServiceEps[node]; !ok {
-			newep, err := cont.createServiceEndpoint()
-			if err != nil {
-				cont.log.Error("Could not allocate service endpoint: ", err)
-				continue
-			}
-			meta.nodeServiceEps[node] = newep
-		}
-	}
-	for node, _ := range meta.nodeServiceEps {
-		if _, ok = nodeMap[node]; !ok {
-			delete(meta.nodeServiceEps, node)
-		}
-	}
-
-	if !reflect.DeepEqual(meta.nodeServiceEps, annotMap) {
-		raw, err := json.Marshal(meta.nodeServiceEps)
-		if err != nil {
-			logger.Error("Could not create node service endpoint annotation", err)
-		} else {
-			service.Annotations[metadata.ServiceEpAnnotation] = string(raw)
-		}
-
-		_, err = cont.updateService(service)
-		if err != nil {
-			logger.Error("Failed to update service: ", err)
-		} else {
-			logger.WithFields(logrus.Fields{
-				"annot": service.Annotations[metadata.ServiceEpAnnotation],
-			}).Debug("Updated service node ep annotation")
-		}
-	}
-
-	cont.indexMutex.Unlock()
-
-}
-
 func (cont *AciController) allocateServiceIps(servicekey string,
 	service *v1.Service) {
 	logger := serviceLogger(cont.log, service)
 
 	cont.indexMutex.Lock()
-	meta := cont.serviceMetaCache[servicekey]
+	meta, ok := cont.serviceMetaCache[servicekey]
+	if !ok {
+		meta = &serviceMeta{}
+		cont.serviceMetaCache[servicekey] = meta
 
-	// Read any existing IPs and attempt to allocate them to the pod
-	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		ip := net.ParseIP(ingress.IP)
-		if ip == nil {
-			continue
-		}
-		if ip.To4() != nil {
-			if cont.serviceIps.V4.RemoveIp(ip) {
-				meta.ingressIps = append(meta.ingressIps, ip)
-			} else if cont.staticServiceIps.V4.RemoveIp(ip) {
-				meta.staticIngressIps = append(meta.staticIngressIps, ip)
+		// Read any existing IPs and attempt to allocate them to the pod
+		for _, ingress := range service.Status.LoadBalancer.Ingress {
+			ip := net.ParseIP(ingress.IP)
+			if ip == nil {
+				continue
 			}
-		} else if ip.To16() != nil {
-			if cont.serviceIps.V6.RemoveIp(ip) {
-				meta.ingressIps = append(meta.ingressIps, ip)
-			} else if cont.staticServiceIps.V6.RemoveIp(ip) {
-				meta.staticIngressIps = append(meta.staticIngressIps, ip)
+			if ip.To4() != nil {
+				if cont.serviceIps.V4.RemoveIp(ip) {
+					meta.ingressIps = append(meta.ingressIps, ip)
+				} else if cont.staticServiceIps.V4.RemoveIp(ip) {
+					meta.staticIngressIps = append(meta.staticIngressIps, ip)
+				}
+			} else if ip.To16() != nil {
+				if cont.serviceIps.V6.RemoveIp(ip) {
+					meta.ingressIps = append(meta.ingressIps, ip)
+				} else if cont.staticServiceIps.V6.RemoveIp(ip) {
+					meta.staticIngressIps = append(meta.staticIngressIps, ip)
+				}
 			}
 		}
 	}
@@ -893,65 +791,6 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	}
 }
 
-func (cont *AciController) createServiceEndpoint() (*metadata.ServiceEndpoint, error) {
-	ep := &metadata.ServiceEndpoint{}
-	_, err := net.ParseMAC(ep.Mac)
-	if err != nil {
-		var mac net.HardwareAddr
-		mac = make([]byte, 6)
-		_, err := rand.Read(mac)
-		if err != nil {
-			return nil, err
-		}
-
-		mac[0] = (mac[0] & 254) | 2
-		ep.Mac = mac.String()
-	}
-
-	ipv4, err := cont.nodeServiceIps.V4.GetIp()
-	if err == nil {
-		ep.Ipv4 = ipv4
-	} else {
-		ep.Ipv4 = nil
-	}
-
-	ipv6, err := cont.nodeServiceIps.V6.GetIp()
-	if err == nil {
-		ep.Ipv6 = ipv6
-	} else {
-		ep.Ipv6 = nil
-	}
-
-	if ep.Ipv4 == nil && ep.Ipv6 == nil {
-		return nil, errors.New("No IP addresses available")
-	}
-
-	return ep, nil
-}
-
-func (cont *AciController) getNodesForService(key string,
-	service *v1.Service) (nodeMap map[string]*metadata.ServiceEndpoint,
-	nodes []string) {
-
-	nodeMap = make(map[string]*metadata.ServiceEndpoint)
-
-	cont.indexMutex.Lock()
-	if meta, ok := cont.serviceMetaCache[key]; ok {
-		for node, sep := range meta.nodeServiceEps {
-			if _, fpok := cont.fabricPathForNode(node); fpok {
-				nodeMap[node] = sep
-			}
-		}
-	}
-	cont.indexMutex.Unlock()
-
-	for node, _ := range nodeMap {
-		nodes = append(nodes, node)
-	}
-	sort.Strings(nodes)
-	return
-}
-
 func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	servicekey, err := cache.MetaNamespaceKeyFunc(service)
 	if err != nil {
@@ -962,19 +801,9 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 
 	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
 	if isLoadBalancer {
-		cont.indexMutex.Lock()
-		if _, ok := cont.serviceMetaCache[servicekey]; !ok {
-			cont.serviceMetaCache[servicekey] = &serviceMeta{
-				nodeServiceEps: make(map[string]*metadata.ServiceEndpoint),
-			}
-		}
-		cont.indexMutex.Unlock()
-
 		if *cont.config.AllocateServiceIps {
 			cont.allocateServiceIps(servicekey, service)
 		}
-		cont.allocateNodeServiceEps(servicekey, service)
-
 		cont.indexMutex.Lock()
 		if cont.serviceSyncEnabled {
 			cont.indexMutex.Unlock()
@@ -996,9 +825,6 @@ func (cont *AciController) clearLbService(servicekey string) {
 	if meta, ok := cont.serviceMetaCache[servicekey]; ok {
 		returnIps(cont.serviceIps, meta.ingressIps)
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
-		for _, ep := range meta.nodeServiceEps {
-			returnServiceEp(cont.nodeServiceIps, ep)
-		}
 		delete(cont.serviceMetaCache, servicekey)
 	}
 	cont.indexMutex.Unlock()

@@ -17,7 +17,10 @@
 package controller
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
@@ -118,6 +121,44 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 		})
 }
 
+func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
+	_, err := net.ParseMAC(ep.Mac)
+	if err != nil {
+		var mac net.HardwareAddr
+		mac = make([]byte, 6)
+		_, err := rand.Read(mac)
+		if err != nil {
+			return err
+		}
+
+		mac[0] = (mac[0] & 254) | 2
+		ep.Mac = mac.String()
+	}
+
+	if ep.Ipv4 == nil || !cont.nodeServiceIps.V4.RemoveIp(ep.Ipv4) {
+		ipv4, err := cont.nodeServiceIps.V4.GetIp()
+		if err == nil {
+			ep.Ipv4 = ipv4
+		} else {
+			ep.Ipv4 = nil
+		}
+	}
+	if ep.Ipv6 == nil || !cont.nodeServiceIps.V6.RemoveIp(ep.Ipv6) {
+		ipv6, err := cont.nodeServiceIps.V6.GetIp()
+		if err == nil {
+			ep.Ipv6 = ipv6
+		} else {
+			ep.Ipv6 = nil
+		}
+	}
+
+	if ep.Ipv4 == nil && ep.Ipv6 == nil {
+		return errors.New("No IP addresses available for service endpoint")
+	}
+
+	return nil
+}
+
 func (cont *AciController) nodeFullSync() {
 	cache.ListAll(cont.nodeInformer.GetIndexer(), labels.Everything(),
 		func(nodeobj interface{}) {
@@ -146,6 +187,42 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	nodeUpdated := false
 	if node.ObjectMeta.Annotations == nil {
 		node.ObjectMeta.Annotations = make(map[string]string)
+	}
+	epval, epok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
+
+	if existing, ok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
+		if !epok || existing.serviceEpAnnotation != epval {
+			node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+				existing.serviceEpAnnotation
+			nodeUpdated = true
+		}
+	} else if cont.nodeSyncEnabled {
+		nodeMeta := &nodeServiceMeta{}
+
+		if epok {
+			err := json.Unmarshal([]byte(epval), &nodeMeta.serviceEp)
+			if err != nil {
+				logger.WithFields(logrus.Fields{
+					"epval": epval,
+				}).Warn("Could not parse existing node ",
+					"service endpoint annotation: ", err)
+			}
+		}
+
+		cont.createServiceEndpoint(&nodeMeta.serviceEp)
+		raw, err := json.Marshal(&nodeMeta.serviceEp)
+		if err != nil {
+			logger.Error("Could not create node service endpoint annotation", err)
+		} else {
+			nodeMeta.serviceEpAnnotation = string(raw)
+			if !epok || nodeMeta.serviceEpAnnotation != epval {
+				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+					nodeMeta.serviceEpAnnotation
+				nodeUpdated = true
+			}
+			cont.nodeServiceMetaCache[node.ObjectMeta.Name] = nodeMeta
+			cont.updateServicesForNode(node.ObjectMeta.Name)
+		}
 	}
 
 	nodePodNet, ok := cont.nodePodNetCache[node.ObjectMeta.Name]
@@ -187,6 +264,8 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			logger.Error("Failed to update node: ", err)
 		} else {
 			logger.WithFields(logrus.Fields{
+				"ServiceEpAnnotation": node.
+					ObjectMeta.Annotations[metadata.ServiceEpAnnotation],
 				"PodNetworkRangeAnnotation": node.
 					ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation],
 			}).Info("Updated node annotations")
@@ -201,6 +280,17 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
+
+	if existing, ok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
+		if existing.serviceEp.Ipv4 != nil {
+			cont.nodeServiceIps.V4.AddIp(existing.serviceEp.Ipv4)
+		}
+		if existing.serviceEp.Ipv6 != nil {
+			cont.nodeServiceIps.V6.AddIp(existing.serviceEp.Ipv6)
+		}
+	}
+	delete(cont.nodeServiceMetaCache, node.ObjectMeta.Name)
+	cont.updateServicesForNode(node.ObjectMeta.Name)
 }
 
 // must have index lock

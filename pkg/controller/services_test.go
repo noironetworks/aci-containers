@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"net"
 	"sort"
 	"testing"
@@ -30,10 +29,8 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
-type seMap map[string]*metadata.ServiceEndpoint
-
-func waitForSEpAnnot(t *testing.T, cont *testAciController,
-	expected seMap, desc string) {
+func waitForSStatus(t *testing.T, cont *testAciController,
+	ips []string, desc string) {
 
 	tu.WaitFor(t, desc, 500*time.Millisecond,
 		func(last bool) (bool, error) {
@@ -42,140 +39,8 @@ func waitForSEpAnnot(t *testing.T, cont *testAciController,
 			}, desc, "update") {
 				return false, nil
 			}
-
-			annot := cont.serviceUpdates[len(cont.serviceUpdates)-1].
-				ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
-
-			epMap := make(seMap)
-			err := json.Unmarshal([]byte(annot), &epMap)
-			if !tu.WaitNil(t, last, err, desc, "unmarshal", err) {
-				return false, nil
-			}
-			for _, ep := range epMap {
-				_, err = net.ParseMAC(ep.Mac)
-				assert.Nil(t, err, "hardware addr parse")
-				ep.Mac = ""
-			}
-			return tu.WaitEqual(t, last, expected, epMap, "node ep map"), nil
-		})
-}
-
-func opflexDevice(name string, hostName string,
-	fabricPath string) apicapi.ApicObject {
-
-	opflexDevice := apicapi.EmptyApicObject("opflexODev", name)
-	opflexDevice.SetAttr("hostName", hostName)
-	opflexDevice.SetAttr("fabricPathDn", fabricPath)
-	return opflexDevice
-}
-
-func TestServiceEpAnnotationV4(t *testing.T) {
-	cont := testController()
-	cont.config.NodeServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{
-			Start: net.ParseIP("10.1.1.2"),
-			End:   net.ParseIP("10.1.1.5"),
-		},
-	}
-	cont.AciController.initIpam()
-	cont.run()
-
-	cont.fakeServiceSource.Add(service("testns", "service1", "10.4.2.1"))
-	cont.fakeEndpointsSource.Add(endpoints("testns", "service1",
-		[]string{"node1"}))
-	waitForSEpAnnot(t, cont, seMap{
-		"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.2")},
-	}, "simple")
-
-	cont.fakeEndpointsSource.Add(endpoints("testns", "service1",
-		[]string{"node1", "node2"}))
-	waitForSEpAnnot(t, cont, seMap{
-		"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.2")},
-		"node2": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.3")},
-	}, "two nodes")
-
-	cont.fakeServiceSource.Add(service("testns", "service2", "10.4.2.2"))
-	cont.fakeEndpointsSource.Add(endpoints("testns", "service2",
-		[]string{"node1"}))
-	waitForSEpAnnot(t, cont, seMap{
-		"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.4")},
-	}, "second")
-
-	cont.fakeServiceSource.Add(service("testns", "service3", "10.4.2.3"))
-	cont.fakeEndpointsSource.Add(endpoints("testns", "service3",
-		[]string{"node1"}))
-	cont.fakeEndpointsSource.Add(endpoints("testns", "service3",
-		[]string{"node1", "node2"}))
-	waitForSEpAnnot(t, cont, seMap{
-		"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.5")},
-	}, "noneleft")
-
-	cont.stop()
-}
-
-func TestServiceEpAnnotationExisting(t *testing.T) {
-	cont := testController()
-	cont.config.NodeServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{
-			Start: net.ParseIP("10.1.1.2"),
-			End:   net.ParseIP("10.1.1.5"),
-		},
-	}
-	cont.AciController.initIpam()
-	cont.run()
-
-	{
-		service := service("testns", "service1", "10.4.2.1")
-		existing := seMap{
-			"node1": &metadata.ServiceEndpoint{
-				Mac:  "d6:39:13:48:7e:2e",
-				Ipv4: net.ParseIP("10.1.1.1"),
-			},
-		}
-		raw, _ := json.Marshal(existing)
-		service.Annotations[metadata.ServiceEpAnnotation] = string(raw)
-		cont.fakeServiceSource.Add(service)
-		cont.fakeEndpointsSource.Add(endpoints("testns", "service1",
-			[]string{"node1"}))
-		waitForSEpAnnot(t, cont, seMap{
-			"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.2")},
-		}, "out of range")
-	}
-
-	{
-		service := service("testns", "service2", "10.4.2.2")
-		existing := seMap{
-			"node1": &metadata.ServiceEndpoint{
-				Mac:  "d6:39:13:48:7e:2e",
-				Ipv4: net.ParseIP("10.1.1.4"),
-			},
-		}
-		raw, _ := json.Marshal(existing)
-		service.Annotations[metadata.ServiceEpAnnotation] = string(raw)
-		cont.fakeServiceSource.Add(service)
-		cont.fakeEndpointsSource.Add(endpoints("testns", "service2",
-			[]string{"node1", "node2"}))
-		waitForSEpAnnot(t, cont, seMap{
-			"node1": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.4")},
-			"node2": &metadata.ServiceEndpoint{Ipv4: net.ParseIP("10.1.1.3")},
-		}, "in range only one")
-	}
-
-	cont.stop()
-}
-
-func waitForSStatus(t *testing.T, cont *testAciController,
-	ips []string, desc string) {
-
-	tu.WaitFor(t, desc, 500*time.Millisecond,
-		func(last bool) (bool, error) {
-			if !tu.WaitCondition(t, last, func() bool {
-				return len(cont.serviceStatusUpdates) >= 1
-			}, desc, "update") {
-				return false, nil
-			}
 			ingress :=
-				cont.serviceStatusUpdates[len(cont.serviceStatusUpdates)-1].
+				cont.serviceUpdates[len(cont.serviceUpdates)-1].
 					Status.LoadBalancer.Ingress
 			expected := make(map[string]bool)
 			for _, i := range ips {
@@ -208,71 +73,65 @@ func notHasIpCond(pool *ipam.IpAlloc, ipStr string) func() bool {
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{
-			Start: net.ParseIP("10.4.1.1"),
-			End:   net.ParseIP("10.4.1.255"),
-		},
+		ipam.IpRange{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
 	}
 	cont.config.StaticServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{
-			Start: net.ParseIP("10.4.2.1"),
-			End:   net.ParseIP("10.4.2.255"),
-		},
+		ipam.IpRange{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
 	}
 	cont.AciController.initIpam()
 	cont.run()
 
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", ""))
 		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service2", "10.4.2.1"))
 		waitForSStatus(t, cont, []string{"10.4.2.1"}, "static")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service3", "10.4.3.1"))
 		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", "10.4.2.2"))
 		waitForSStatus(t, cont, []string{"10.4.2.2"}, "add request")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service4", ""))
 		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool return")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		s := service("testns", "service5", "")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{v1.LoadBalancerIngress{IP: "10.4.1.32"}}
 		cont.handleServiceUpdate(s)
-		assert.Nil(t, cont.serviceStatusUpdates, "existing")
+		assert.Nil(t, cont.serviceUpdates, "existing")
 		assert.Condition(t, notHasIpCond(cont.serviceIps.V4, "10.4.1.32"),
 			"existing pool check")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		s := service("testns", "service6", "10.4.2.3")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{v1.LoadBalancerIngress{IP: "10.4.2.3"}}
 		cont.handleServiceUpdate(s)
-		assert.Nil(t, cont.serviceStatusUpdates, "static existing")
+		assert.Nil(t, cont.serviceUpdates, "static existing")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service1", "10.4.2.2"))
 		assert.Condition(t, hasIpCond(cont.staticServiceIps.V4, "10.4.2.2"),
 			"delete static return")
 	}
 	{
-		cont.serviceStatusUpdates = nil
+		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service5", ""))
 		assert.Condition(t, hasIpCond(cont.serviceIps.V4, "10.4.1.32"),
 			"delete pool return")
@@ -280,6 +139,8 @@ func TestServiceIp(t *testing.T) {
 
 	cont.stop()
 }
+
+type seMap map[string]*metadata.ServiceEndpoint
 
 func TestServiceGraph(t *testing.T) {
 	sgCont := func() *testAciController {
@@ -396,25 +257,39 @@ func TestServiceGraph(t *testing.T) {
 			Port:     53,
 		},
 	}
-	service1.Annotations[metadata.ServiceEpAnnotation] =
-		"{\"node1\": {\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}," +
-			"\"node2\": {\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}}"
-
 	service2 := service("testns", "service2", "")
 	service2.Spec.Type = ""
 
 	node1 := node("node1")
+	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
 	node2 := node("node2")
+	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
 
-	opflexDevice1 := opflexDevice("dev1", "node1",
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/33]")
-	opflexDevice2 := opflexDevice("dev2", "node2",
+
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice2.SetAttr("hostName", "node2")
+	opflexDevice2.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/34]")
-	opflexDevice3 := opflexDevice("dev1", "node3",
+
+	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice3.SetAttr("hostName", "node3")
+	opflexDevice3.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/50]")
-	opflexDevice4 := opflexDevice("dev2", "node4",
+
+	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice4.SetAttr("hostName", "node4")
+	opflexDevice4.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/51]")
-	opflexDevice1_alt := opflexDevice("dev1", "node1",
+
+	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1_alt.SetAttr("hostName", "node1")
+	opflexDevice1_alt.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/100]")
 
 	sgWait := func(t *testing.T, desc string, cont *testAciController,
@@ -476,7 +351,7 @@ func TestServiceGraph(t *testing.T) {
 
 	sgWait(t, "non-lb", cont, expectedNoService)
 
-	cont.serviceStatusUpdates = nil
+	cont.serviceUpdates = nil
 	cont.fakeEndpointsSource.Add(endpoints1)
 	cont.fakeServiceSource.Add(service1)
 

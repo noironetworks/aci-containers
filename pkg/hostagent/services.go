@@ -33,8 +33,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/kubernetes/pkg/controller"
-
-	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 type opflexServiceMapping struct {
@@ -246,38 +244,16 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	}
 
 	if external {
-		var serviceEp *metadata.ServiceEndpoint
-		{
-			if as.Annotations == nil {
-				return false
-			}
-			epval, epok := as.Annotations[metadata.ServiceEpAnnotation]
-			if !epok {
-				return false
-			}
-			nodeServiceMap := make(map[string]*metadata.ServiceEndpoint)
-			err := json.Unmarshal([]byte(epval), &nodeServiceMap)
-			serviceLogger(agent.log, as).WithFields(logrus.Fields{
-				"epval": epval,
-			}).Error("Could not parse node service endpoint annotation: ", err)
-
-			var ok bool
-			serviceEp, ok = nodeServiceMap[agent.config.NodeName]
-			if !ok {
-				return false
-			}
-		}
-
 		if agent.config.UplinkIface == "" ||
-			serviceEp.Ipv4 == nil ||
-			serviceEp.Mac == "" {
+			agent.serviceEp.Ipv4 == nil ||
+			agent.serviceEp.Mac == "" {
 			return false
 		}
 
 		ofas.InterfaceName = agent.config.UplinkIface
 		ofas.InterfaceVlan = uint16(agent.config.ServiceVlan)
-		ofas.ServiceMac = serviceEp.Mac
-		ofas.InterfaceIp = serviceEp.Ipv4.String()
+		ofas.ServiceMac = agent.serviceEp.Mac
+		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
 

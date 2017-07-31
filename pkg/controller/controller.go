@@ -66,7 +66,6 @@ type AciController struct {
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
-	updateService       serviceUpdateFunc
 	updateServiceStatus serviceUpdateFunc
 
 	indexMutex sync.Mutex
@@ -83,12 +82,18 @@ type AciController struct {
 
 	apicConn *apicapi.ApicConnection
 
-	nodeOpflexDevice map[string]apicapi.ApicSlice
-	nodePodNetCache  map[string]*nodePodNetMeta
-	serviceMetaCache map[string]*serviceMeta
+	nodeServiceMetaCache map[string]*nodeServiceMeta
+	nodeOpflexDevice     map[string]apicapi.ApicSlice
+	nodePodNetCache      map[string]*nodePodNetMeta
+	serviceMetaCache     map[string]*serviceMeta
 
 	nodeSyncEnabled    bool
 	serviceSyncEnabled bool
+}
+
+type nodeServiceMeta struct {
+	serviceEp           metadata.ServiceEndpoint
+	serviceEpAnnotation string
 }
 
 type nodePodNetMeta struct {
@@ -101,7 +106,6 @@ type serviceMeta struct {
 	requestedIp      net.IP
 	ingressIps       []net.IP
 	staticIngressIps []net.IP
-	nodeServiceEps   map[string]*metadata.ServiceEndpoint
 }
 
 func newNodePodNetMeta() *nodePodNetMeta {
@@ -128,8 +132,10 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		nodeServiceIps:          newNetIps(),
 
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
-		nodePodNetCache:  make(map[string]*nodePodNetMeta),
-		serviceMetaCache: make(map[string]*serviceMeta),
+
+		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
+		nodePodNetCache:      make(map[string]*nodePodNetMeta),
+		serviceMetaCache:     make(map[string]*serviceMeta),
 	}
 }
 
@@ -140,10 +146,6 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	}
 	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
 		return kubeClient.CoreV1().Nodes().Update(node)
-	}
-	cont.updateService = func(service *v1.Service) (*v1.Service, error) {
-		return kubeClient.CoreV1().
-			Services(service.ObjectMeta.Namespace).Update(service)
 	}
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().

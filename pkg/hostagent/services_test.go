@@ -38,13 +38,11 @@ func service(uuid string, namespace string, name string,
 			ClusterIP: clusterIp,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			UID:       apitypes.UID(uuid),
-			Namespace: namespace,
-			Name:      name,
-			Annotations: map[string]string{
-				metadata.ServiceEpAnnotation: "{\"test-node\": {\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}}",
-			},
-			Labels: map[string]string{},
+			UID:         apitypes.UID(uuid),
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
 		},
 	}
 
@@ -221,6 +219,9 @@ func TestServiceSync(t *testing.T) {
 	node := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
 		},
 	}
 	agent.fakeNodeSource.Add(node)
