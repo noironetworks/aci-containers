@@ -122,10 +122,10 @@ class Apic(object):
     def provision(self, data, sync_login):
         ignore_list = []
         if self.get_user(sync_login):
-            warn("User already exists (%s), skipping user provisioning" %
-                 sync_login)
-            ignore_list.append("/api/node/mo/uni/userext/user-%s.json" %
-                               sync_login)
+            warn("User already exists (%s), recreating user" % sync_login)
+            user_path = "/api/node/mo/uni/userext/user-%s.json" % sync_login
+            resp = self.delete(user_path)
+            dbg("%s: %s" % (user_path, resp.text))
 
         for path, config in data:
             try:
