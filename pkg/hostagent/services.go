@@ -175,6 +175,12 @@ func (agent *HostAgent) syncServices() bool {
 	}
 
 	agent.log.Debug("Syncing services")
+	agent.indexMutex.Lock()
+	opflexServices := make(map[string]*opflexService)
+	for k, v := range agent.opflexServices {
+		opflexServices[k] = v
+	}
+	agent.indexMutex.Unlock()
 
 	files, err := ioutil.ReadDir(agent.config.OpFlexServiceDir)
 	if err != nil {
@@ -199,7 +205,7 @@ func (agent *HostAgent) syncServices() bool {
 			logrus.Fields{"Uuid": uuid},
 		)
 
-		existing, ok := agent.opflexServices[uuid]
+		existing, ok := opflexServices[uuid]
 		if ok {
 			wrote, err := writeAs(asfile, existing)
 			if err != nil {
@@ -215,7 +221,7 @@ func (agent *HostAgent) syncServices() bool {
 		}
 	}
 
-	for _, as := range agent.opflexServices {
+	for _, as := range opflexServices {
 		if seen[as.Uuid] {
 			continue
 		}
@@ -234,6 +240,7 @@ func (agent *HostAgent) syncServices() bool {
 	return false
 }
 
+// Must have index lock
 func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	endpoints *v1.Endpoints) bool {
 	ofas := &opflexService{
@@ -325,6 +332,7 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	return false
 }
 
+// must have index lock
 func (agent *HostAgent) doUpdateService(key string) {
 	endpointsobj, exists, err :=
 		agent.endpointsInformer.GetStore().GetByKey(key)

@@ -139,6 +139,13 @@ func (agent *HostAgent) syncEps() bool {
 	}
 
 	agent.log.Debug("Syncing endpoints")
+	agent.indexMutex.Lock()
+	opflexEps := make(map[string][]*opflexEndpoint)
+	for k, v := range agent.opflexEps {
+		opflexEps[k] = v
+	}
+	agent.indexMutex.Unlock()
+
 	files, err := ioutil.ReadDir(agent.config.OpFlexEndpointDir)
 	if err != nil {
 		agent.log.WithFields(
@@ -173,7 +180,7 @@ func (agent *HostAgent) syncEps() bool {
 			},
 		)
 
-		existing, ok := agent.opflexEps[poduuid]
+		existing, ok := opflexEps[poduuid]
 		if ok {
 			ok = false
 			for _, ep := range existing {
@@ -199,7 +206,7 @@ func (agent *HostAgent) syncEps() bool {
 		}
 	}
 
-	for _, eps := range agent.opflexEps {
+	for _, eps := range opflexEps {
 		for _, ep := range eps {
 			if seen[ep.Uuid] {
 				continue
