@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+#DH_VERBOSE = 1
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
+
+%:
+	dh $@ --with python2 --buildsystem=python_distutils
+
+override_dh_auto_clean:
+	dh_clean
+
+override_dh_auto_install:
+	dh_auto_install --  -O1 --install-data /
+
+ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+override_dh_auto_test:
+	#testr init && ./run_tests.sh -N -P
+	true
+endif

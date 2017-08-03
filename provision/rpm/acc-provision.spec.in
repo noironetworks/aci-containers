@@ -1,0 +1,38 @@
+Name:		acc-provision
+Version:	@VERSION@
+Release:	@RELEASE@%{?dist}
+Summary:	Tools to provision and support ACI fabric DC workloads
+License:	ASL 2.0
+URL:		http://github.com/noironetworks/aci-containers/provision
+Source:		acc-provision-%{version}.tar.gz
+BuildArch:	noarch
+BuildRequires:	python2-devel
+BuildRequires:	python-pbr
+BuildRequires:	python-setuptools
+Requires:	pyOpenSSL >= 0.13
+Requires:	PyYAML >= 3.10
+Requires:	python-requests >= 2.2
+Requires:	python-jinja2 >= 2.7
+
+%description
+Tools to provision and support ACI fabric DC workloads
+
+%prep
+%setup -qn acc-provision-%{version}
+rm -f requirements.txt
+
+%build
+%{__python2} setup.py build
+
+%install
+%{__python2} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
+
+%files
+%doc README.md
+%{python2_sitelib}/acc-provision
+%{python2_sitelib}/acc-provision-%%{version}*.egg-info
+%{_bindir}/acc-provision
+
+%changelog
+* Tue Aug 01 2017 Mandeep Dhami <dhami@noironetworks.com> - 1.0.0
+- Initial release

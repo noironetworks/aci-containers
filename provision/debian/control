@@ -1,0 +1,16 @@
+Source: acc-provision
+Section: python
+Priority: optional
+Maintainer: Cisco Systems, Inc. <dhami@noironetworks.com>
+Build-Depends: debhelper (>= 9), python-setuptools (>= 3.3), python-all (>= 2.7)
+Standards-Version: 3.9.5
+Homepage: http://github.com/noironetworks/aci-containers/provision
+Vcs-Git: git://github.com/noironetworks/aci-containers.git
+Vcs-Browser: http://github.com/noironetworks/aci-containers/provision
+
+Package: acc-provision
+Architecture: all
+Depends: python-openssl (>=0.13), python-yaml (>=3.10), python-requests (>=2.2),
+         python-jinja2 (>=2.7), ${misc:Depends}, ${python:Depends}
+Description: Tools to provision and support ACI fabric DC workloads
+ Tools to provision and support ACI fabric DC workloads
