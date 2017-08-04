@@ -13,9 +13,13 @@ SYS_ID=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
 ${OVSCTL} start --system-id=${SYS_ID}
 
 # Create OVS bridges if needed
+dpid=0
 for i in br-int br-access; do
+    dpid=$((dpid+1))
     if ! ${VSCTL} br-exists ${i}; then
-	${VSCTL} add-br ${i} -- set-fail-mode ${i} secure
+	${VSCTL} add-br ${i} -- set-fail-mode ${i} secure \
+	    -- set bridge ${i} \
+	    other-config:datapath-id=000000000000000$dpid
     fi
 done
 
