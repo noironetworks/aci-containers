@@ -1,6 +1,7 @@
 #!/bin/bash
 # Should be run from the root of the source tree
 
+set -e -x
 BUILD_DIR=${BUILD_DIR:-`pwd`/rpmbuild}
 mkdir -p $BUILD_DIR/BUILD $BUILD_DIR/SOURCES $BUILD_DIR/SPECS $BUILD_DIR/RPMS $BUILD_DIR/SRPMS
 RELEASE=${RELEASE:-1}
