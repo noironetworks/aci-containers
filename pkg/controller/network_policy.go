@@ -256,7 +256,7 @@ func (cont *AciController) queueNetPolUpdate(netpol *v1beta1.NetworkPolicy) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.netPolQueue.Add(key)
+	cont.netPolQueue.AddRateLimited(key)
 }
 
 func (cont *AciController) peerMatchesPod(npNs string,

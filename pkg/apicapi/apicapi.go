@@ -291,19 +291,21 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 				break
 			}
 
-			var forget bool
+			var requeue bool
 			switch dn := dn.(type) {
 			case string:
 				conn.indexMutex.Lock()
 				obj, ok := conn.desiredStateDn[dn]
 				conn.indexMutex.Unlock()
 				if ok {
-					forget = conn.postDn(dn, obj)
+					requeue = conn.postDn(dn, obj)
 				} else {
-					forget = conn.deleteDn(dn)
+					requeue = conn.deleteDn(dn)
 				}
 			}
-			if forget {
+			if requeue {
+				queue.AddRateLimited(dn)
+			} else {
 				queue.Forget(dn)
 			}
 			queue.Done(dn)
@@ -601,7 +603,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.deltaQueue != nil {
-		conn.deltaQueue.Add(dn)
+		conn.deltaQueue.AddRateLimited(dn)
 	}
 	conn.indexMutex.Unlock()
 }
@@ -619,7 +621,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
 		conn.restart()
-		return true
+		return false
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
@@ -627,23 +629,18 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	if err != nil {
 		conn.log.Error("Could not update dn ", dn, ": ", err)
 		conn.restart()
-		return true
+		return false
 	}
 	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not update dn "+dn, resp)
 		if resp.StatusCode == 400 {
-			conn.indexMutex.Lock()
-			if conn.deltaQueue != nil {
-				conn.deltaQueue.AddRateLimited(dn)
-			}
-			conn.indexMutex.Unlock()
-			return false
+			return true
 		} else {
 			conn.restart()
 		}
 	}
-	return true
+	return false
 }
 
 func (conn *ApicConnection) deleteDn(dn string) bool {
@@ -654,21 +651,21 @@ func (conn *ApicConnection) deleteDn(dn string) bool {
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
 		conn.restart()
-		return true
+		return false
 	}
 	conn.sign(req, uri, nil)
 	resp, err := conn.client.Do(req)
 	if err != nil {
 		conn.log.Error("Could not delete dn ", dn, ": ", err)
 		conn.restart()
-		return true
+		return false
 	}
 	defer complete(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		conn.logErrorResp("Could not delete dn "+dn, resp)
 		conn.restart()
 	}
-	return true
+	return false
 }
 
 func doComputeRespClasses(targetClasses []string,

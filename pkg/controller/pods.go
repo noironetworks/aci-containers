@@ -93,7 +93,7 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
 		return
 	}
-	cont.podQueue.Add(podkey)
+	cont.podQueue.AddRateLimited(podkey)
 }
 
 func (cont *AciController) getNetPolIsolation(namespace *v1.Namespace) string {
@@ -333,6 +333,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 				}
 			}
 			logger.Error("Failed to update pod: ", err)
+			return true
 		} else {
 			logger.WithFields(logrus.Fields{
 				"Eg": pod.ObjectMeta.Annotations[metadata.CompEgAnnotation],
