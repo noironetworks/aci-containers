@@ -31,6 +31,15 @@ def test_base_case():
 
 
 @in_testdir
+def test_vlan_case():
+    run_provision(
+        "vlan_case.inp.yaml",
+        "vlan_case.kube.yaml",
+        "vlan_case.apic.txt"
+    )
+
+
+@in_testdir
 def test_with_comments():
     run_provision(
         "with_comments.inp.yaml",
