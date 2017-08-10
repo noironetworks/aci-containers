@@ -221,7 +221,8 @@ class ApicKubeConfig(object):
                     data.append((path, None))
 
         data = []
-        update(data, self.vlan_pool())
+        update(data, self.pdom_pool())
+        update(data, self.vdom_pool())
         update(data, self.mcast_pool())
         update(data, self.phys_dom())
         update(data, self.kube_dom())
@@ -237,7 +238,7 @@ class ApicKubeConfig(object):
         update(data, self.kube_cert())
         return data
 
-    def vlan_pool(self):
+    def pdom_pool(self):
         pool_name = self.config["aci_config"]["physical_domain"]["vlan_pool"]
         kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
@@ -268,6 +269,36 @@ class ApicKubeConfig(object):
                             }
                         }
                     }
+                ]
+            }
+        }
+        return path, data
+
+    def vdom_pool(self):
+        encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
+        vpool_name = self.config["aci_config"]["vmm_domain"]["vlan_pool"]
+        vlan_range = self.config["aci_config"]["vmm_domain"]["vlan_range"]
+
+        if encap_type != "vlan":
+            return None
+
+        path = "/api/mo/uni/infra/vlanns-[%s]-dynamic.json" % vpool_name
+        data = {
+            "fvnsVlanInstP": {
+                "attributes": {
+                    "name": vpool_name,
+                    "allocMode": "dynamic"
+                },
+                "children": [
+                    {
+                        "fvnsEncapBlk": {
+                            "attributes": {
+                                "allocMode": "dynamic",
+                                "from": "vlan-%s" % vlan_range["start"],
+                                "to": "vlan-%s" % vlan_range["end"],
+                            }
+                        }
+                    },
                 ]
             }
         }
@@ -328,6 +359,7 @@ class ApicKubeConfig(object):
         encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         mcast_fabric = self.config["aci_config"]["vmm_domain"]["mcast_fabric"]
         mpool_name = self.config["aci_config"]["vmm_domain"]["mcast_pool"]
+        vpool_name = self.config["aci_config"]["vmm_domain"]["vlan_pool"]
         kube_controller = self.config["kube_config"]["controller"]
 
         path = "/api/mo/uni/vmmp-Kubernetes/dom-%s.json" % vmm_name
@@ -362,6 +394,15 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+        if encap_type == "vlan":
+            vlan_pool_data = {
+                "infraRsVlanNs": {
+                    "attributes": {
+                        "tDn": "uni/infra/vlanns-[%s]-dynamic" % vpool_name
+                    }
+                }
+            }
+            data["vmmDomP"]["children"].append(vlan_pool_data)
         return path, data
 
     def associate_aep(self):

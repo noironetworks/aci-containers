@@ -177,6 +177,11 @@ def config_adjust(config, prov_apic, no_random):
                 "domain": system_id,
                 "controller": system_id,
                 "mcast_pool": system_id + "-mpool",
+                "vlan_pool": system_id + "-vpool",
+                "vlan_range": {
+                    "start": None,
+                    "end": None,
+                }
             },
             "sync_login": {
                 "username": system_id,
@@ -277,6 +282,12 @@ def config_validate(config):
         "uplink_if": (get(("node_config", "uplink_iface")), required),
         "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
     }
+
+    if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":
+        checks["vmm_vlanpool_start"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "start")), required)
+        checks["vmm_vlanpool_end"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "end")), required)
 
     if get(("provision", "prov_apic")) is not None:
         checks.update({
