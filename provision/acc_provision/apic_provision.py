@@ -709,6 +709,13 @@ class ApicKubeConfig(object):
                                                 }
                                             },
                                             {
+                                                "fvRsProv": {
+                                                    "attributes": {
+                                                        "tnVzBrCPName": "health-check"
+                                                    }
+                                                }
+                                            },
+                                            {
                                                 "fvRsCons": {
                                                     "attributes": {
                                                         "tnVzBrCPName": "icmp"
