@@ -91,6 +91,7 @@ def config_default():
             "use_tolerations": True,
             "use_cluster_role": True,
             "use_ds_rolling_update": True,
+            "use_netpol_annotation": True,
             "image_pull_policy": "Always",
         },
         "registry": {

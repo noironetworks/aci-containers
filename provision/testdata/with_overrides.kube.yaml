@@ -18,6 +18,7 @@ data:
         "aci-vmm-domain": "kubernetes1",
         "aci-vmm-controller": "kubernetes1",
         "aci-policy-tenant": "kube",
+        "require-netpol-annot": false,
         "aci-service-phys-dom": "kubernetes-control",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
@@ -122,89 +123,6 @@ metadata:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  labels:
-    network-plugin: aci-containers
-  name: aci-containers:controller
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  - namespaces
-  - pods
-  - endpoints
-  - services
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - "extensions"
-  resources:
-  - deployments
-  - replicasets
-  - networkpolicies
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - nodes
-  - services/status
-  verbs:
-  - update
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  labels:
-    network-plugin: aci-containers
-  name: aci-containers:host-agent
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  - pods
-  - endpoints
-  - services
-  verbs:
-  - list
-  - watch
-  - get
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: aci-containers:controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: aci-containers:controller
-subjects:
-- kind: ServiceAccount
-  name: aci-containers-controller
-  namespace: kube-system
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: aci-containers:host-agent
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: aci-containers:host-agent
-subjects:
-- kind: ServiceAccount
-  name: aci-containers-host-agent
-  namespace: kube-system
----
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -213,8 +131,6 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  updateStrategy:
-    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -225,9 +141,6 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
-      tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
           image: noiro/aci-containers-host:latest
@@ -330,8 +243,6 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  updateStrategy:
-    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -342,9 +253,6 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
-      tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch:latest
@@ -400,9 +308,6 @@ metadata:
     name: aci-containers-controller
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ''
-    scheduler.alpha.kubernetes.io/tolerations: |
-      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
 spec:
   replicas: 1
   strategy:

@@ -16,6 +16,7 @@ data:
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
+        "require-netpol-annot": {{config.kube_config.use_netpol_annotation|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
         "aci-service-encap": {{ ("vlan-" ~ config.net_config.service_vlan)|json }},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},

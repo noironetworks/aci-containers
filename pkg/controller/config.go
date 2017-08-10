@@ -80,6 +80,10 @@ type ControllerConfig struct {
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
 
+	// Require annotation on namespace to enable network policy for
+	// that namespace.
+	RequireNetPolAnnot bool `json:"require-netpol-annot,omitempty"`
+
 	// Physical domain used for service device clusters
 	AciServicePhysDom string `json:"aci-service-phys-dom,omitempty"`
 

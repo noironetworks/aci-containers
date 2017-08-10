@@ -107,6 +107,7 @@ func TestPodNamespaceDefault(t *testing.T) {
 
 			cont.config.NamespaceDefaultSg[test.ns] = groups
 		}
+		cont.config.RequireNetPolAnnot = true
 		cont.run()
 
 		cont.podUpdates = nil
@@ -123,15 +124,17 @@ func TestPodAnnotation(t *testing.T) {
 
 	for _, test := range annotTests {
 		cont.podUpdates = nil
-		cont.fakePodSource.Add(pod(test.ns, "testpod", test.egannot, test.sgannot))
+		cont.fakePodSource.Add(pod(test.ns, "testpod",
+			test.egannot, test.sgannot))
 		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
 	}
 
 	cont.stop()
 }
 
-func TestNamespaceAnnotation(t *testing.T) {
+func TestPodNamespaceAnnotation(t *testing.T) {
 	cont := testController()
+	cont.config.RequireNetPolAnnot = true
 	cont.run()
 
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
@@ -139,7 +142,8 @@ func TestNamespaceAnnotation(t *testing.T) {
 
 	for _, test := range annotTests {
 		cont.podUpdates = nil
-		cont.fakeNamespaceSource.Add(namespace(test.ns, test.egannot, test.sgannot))
+		cont.fakeNamespaceSource.Add(namespace(test.ns, test.egannot,
+			test.sgannot))
 		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
 	}
 
@@ -149,7 +153,7 @@ func TestNamespaceAnnotation(t *testing.T) {
 	cont.stop()
 }
 
-func TestDeploymentAnnotation(t *testing.T) {
+func TestPodDeploymentAnnotation(t *testing.T) {
 	cont := testController()
 	cont.run()
 
@@ -158,7 +162,8 @@ func TestDeploymentAnnotation(t *testing.T) {
 
 	for _, test := range annotTests {
 		cont.podUpdates = nil
-		cont.fakeDeploymentSource.Add(deployment(test.ns, "testdep", test.egannot, test.sgannot))
+		cont.fakeDeploymentSource.Add(deployment(test.ns, "testdep",
+			test.egannot, test.sgannot))
 		waitForGroupAnnot(t, cont, test.egannot, test.sgannot, test.desc)
 	}
 
@@ -168,7 +173,7 @@ func TestDeploymentAnnotation(t *testing.T) {
 	cont.stop()
 }
 
-func TestDeploymentAnnotationPre(t *testing.T) {
+func TestPodDeploymentAnnotationPre(t *testing.T) {
 	cont := testController()
 	cont.run()
 
@@ -176,7 +181,8 @@ func TestDeploymentAnnotationPre(t *testing.T) {
 	waitForGroupAnnot(t, cont, "", "", "pod1")
 
 	cont.podUpdates = nil
-	cont.fakeDeploymentSource.Add(deployment("testns", "testdep", egAnnot, sgAnnot))
+	cont.fakeDeploymentSource.Add(deployment("testns", "testdep",
+		egAnnot, sgAnnot))
 	waitForGroupAnnot(t, cont, egAnnot, sgAnnot, "pod1update")
 
 	cont.podUpdates = nil
@@ -186,12 +192,13 @@ func TestDeploymentAnnotationPre(t *testing.T) {
 	cont.stop()
 }
 
-func TestNamespaceIsolation(t *testing.T) {
+func TestPodNamespaceIsolation(t *testing.T) {
 	cont := testController()
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
 		&metav1.LabelSelector{},
 		[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}))
+	cont.config.RequireNetPolAnnot = true
 	cont.run()
 
 	ns := namespace("testns", "", "")
@@ -209,9 +216,27 @@ func TestNamespaceIsolation(t *testing.T) {
 	cont.fakeNamespaceSource.Add(ns2)
 	waitForGroupAnnot(t, cont, "", "", "invalid")
 
+	cont.stop()
+}
+
+func TestPodNetworkPolicy(t *testing.T) {
+	cont := testController()
+	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
+	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
+		&metav1.LabelSelector{},
+		[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}))
+	cont.run()
+
+	ns := namespace("testns", "", "")
+	cont.fakeNamespaceSource.Add(ns)
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
+		"added")
+
 	cont.fakePodSource.Add(pod("testns", "testpod", "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"}]"))
-	cont.fakeNamespaceSource.Add(ns)
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+

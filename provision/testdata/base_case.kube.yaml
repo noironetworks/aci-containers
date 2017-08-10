@@ -18,6 +18,7 @@ data:
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
         "aci-policy-tenant": "kube",
+        "require-netpol-annot": true,
         "aci-service-phys-dom": "kube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",

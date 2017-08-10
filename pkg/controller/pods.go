@@ -118,14 +118,21 @@ func (cont *AciController) getNetPolIsolation(namespace *v1.Namespace) string {
 func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	namespace *v1.Namespace, sgval *string) (*string, error) {
 
-	// If the namespace is not isolated, network policy has no effect
-	// so we set the pods in no security group to allow all traffic.
-	// This can still be set by the user with specific security group
-	// annotations however
-	if namespace == nil || cont.getNetPolIsolation(namespace) != "DefaultDeny" {
+	// The beta version of network policy required an annotation on
+	// the namespace set to DefaultDeny to enable it.  For the stable
+	// version this was changed so that policy is enabled on a pod if
+	// there exists at least one policy that selects the pod.  We have
+	// a configuration option to select the behavior.
+	//
+	// Specific security groups can still be set by the user with
+	// a security group annotation, however.
+	if namespace == nil ||
+		(cont.config.RequireNetPolAnnot &&
+			cont.getNetPolIsolation(namespace) != "DefaultDeny") {
 		return sgval, nil
 	}
 
+	// Add security groups from the user annotation
 	g := make([]metadata.OpflexGroup, 0)
 	if sgval != nil && *sgval != "" {
 		err := json.Unmarshal([]byte(*sgval), &g)
@@ -149,6 +156,14 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 		if _, ok := gset[newg]; !ok {
 			gset[newg] = true
 			g = append(g, newg)
+		}
+	}
+
+	if !cont.config.RequireNetPolAnnot {
+		// When the pod is not selected by any annotation or network
+		// policy, don't apply any security group
+		if len(gset) == 0 {
+			return sgval, nil
 		}
 	}
 

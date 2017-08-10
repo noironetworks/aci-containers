@@ -42,9 +42,11 @@ node_config:
   uplink_iface: eth2
   vxlan_uplink_iface: eth2.4093
 
-kubernetes_config:
-  use_cluster_role: true
-  use_ds_rolling_update: true
+kube_config:
+  use_tolerations: false
+  use_cluster_role: false
+  use_ds_rolling_update: false
+  use_netpol_annotation: false
 
 registry:
   image_prefix: noiro

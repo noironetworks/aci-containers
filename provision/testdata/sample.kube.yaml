@@ -18,6 +18,7 @@ data:
         "aci-vmm-domain": "mykube",
         "aci-vmm-controller": "mykube",
         "aci-policy-tenant": "mykube",
+        "require-netpol-annot": true,
         "aci-service-phys-dom": "mykube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
