@@ -8,8 +8,8 @@ aci_config:
   vmm_domain:                   # Kubernetes VMM domain configuration
     encap_type: vxlan           # Encap mode: vxlan or vlan
     mcast_range:                # Every opflex VMM must use a distinct range
-      start: 225.2.1.1
-      end: 225.2.255.255
+      start: 225.20.1.1
+      end: 225.20.255.255
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.

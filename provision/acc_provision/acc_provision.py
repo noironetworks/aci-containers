@@ -68,8 +68,8 @@ def config_default():
                 "encap_type": "vxlan",
                 "mcast_fabric": "225.1.2.3",
                 "mcast_range": {
-                    "start": "225.2.1.1",
-                    "end": "225.2.255.255",
+                    "start": "225.20.1.1",
+                    "end": "225.20.255.255",
                 },
             },
             "client_cert": False,
