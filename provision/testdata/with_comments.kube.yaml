@@ -233,7 +233,6 @@ spec:
           image: noiro/aci-containers-host:latest
           imagePullPolicy: Always
           securityContext:
-            privileged: true
             capabilities:
               add:
                 - SYS_ADMIN

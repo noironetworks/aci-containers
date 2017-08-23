@@ -94,11 +94,7 @@ metadata:
   namespace: kube-system
 ---
 {% if config.kube_config.use_cluster_role %}
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
 kind: ClusterRole
 metadata:
   labels:
@@ -136,11 +132,7 @@ rules:
   verbs:
   - update
 ---
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
 kind: ClusterRole
 metadata:
   labels:
@@ -160,11 +152,7 @@ rules:
   - get
 ---
 kind: ClusterRoleBinding
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
 metadata:
   name: aci-containers:controller
 roleRef:
@@ -177,11 +165,7 @@ subjects:
   namespace: kube-system
 ---
 kind: ClusterRoleBinding
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
 metadata:
   name: aci-containers:host-agent
 roleRef:
@@ -236,10 +220,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
@@ -254,17 +236,17 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
-      {% if config.kube_config.use_tolerations %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
-      {% endif %}
       containers:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
             privileged: true
+            {% endif %}
             capabilities:
               add:
                 - SYS_ADMIN
@@ -297,6 +279,9 @@ spec:
           image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
             capabilities:
               add:
                 - NET_ADMIN
@@ -316,6 +301,10 @@ spec:
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
+          {% if config.kube_config.use_privileged_containers %}
+          securityContext:
+            privileged: true
+          {% endif %}
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -361,10 +350,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
@@ -379,16 +366,17 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
-      {% if config.kube_config.use_tolerations %}
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
-      {% endif %}
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
             capabilities:
               add:
                 - NET_ADMIN
@@ -439,11 +427,9 @@ metadata:
     name: aci-containers-controller
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ''
-    {% if config.kube_config.use_tolerations %}
     scheduler.alpha.kubernetes.io/tolerations: |
       [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
        {"key":"CriticalAddonsOnly", "operator":"Exists"}]
-    {% endif %}
 spec:
   replicas: 1
   strategy:

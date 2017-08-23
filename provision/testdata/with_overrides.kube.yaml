@@ -49,6 +49,7 @@ data:
                 "end": "10.3.0.254"
             }
         ],
+        "allocate-service-ips": false,
         "pod-ip-pool": [
             {
                 "start": "10.1.0.2", 
@@ -123,6 +124,121 @@ metadata:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    network-plugin: aci-containers
+  name: aci-containers:controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - endpoints
+  - services
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "extensions"
+  resources:
+  - deployments
+  - replicasets
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - nodes
+  - services/status
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    network-plugin: aci-containers
+  name: aci-containers:host-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - pods
+  - endpoints
+  - services
+  verbs:
+  - list
+  - watch
+  - get
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: aci-containers:controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:controller
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-controller
+  namespace: kube-system
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: aci-containers:host-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:host-agent
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-host-agent
+  namespace: kube-system
+---
+kind: SecurityContextConstraints
+apiVersion: v1
+metadata:
+  name: aci-containers-scc
+users:
+  - system:serviceaccount:kube-system:aci-containers-controller
+  - system:serviceaccount:kube-system:aci-containers-host-agent
+allowHostDirVolumePlugin: true
+allowHostIPC: true
+allowHostNetwork: true
+allowHostPID: true
+allowHostPorts: false
+allowPrivilegedContainer: true
+allowedCapabilities:
+  - NET_ADMIN
+  - SYS_ADMIN
+  - SYS_MODULE
+  - SYS_NICE
+  - IPC_LOCK
+defaultAddCapabilities: null
+requiredDropCapabilities: null
+readOnlyRootFilesystem: false
+priority: null
+volumes:
+  - '*'
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -131,6 +247,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -141,6 +259,9 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
           image: noiro/aci-containers-host:latest
@@ -179,6 +300,7 @@ spec:
           image: noiro/opflex:latest
           imagePullPolicy: Always
           securityContext:
+            privileged: true
             capabilities:
               add:
                 - NET_ADMIN
@@ -198,6 +320,8 @@ spec:
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
+          securityContext:
+            privileged: true
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -243,6 +367,8 @@ metadata:
   labels:
     network-plugin: aci-containers
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -253,11 +379,15 @@ spec:
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch:latest
           imagePullPolicy: Always
           securityContext:
+            privileged: true
             capabilities:
               add:
                 - NET_ADMIN
@@ -308,6 +438,9 @@ metadata:
     name: aci-containers-controller
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ''
+    scheduler.alpha.kubernetes.io/tolerations: |
+      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
+       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
 spec:
   replicas: 1
   strategy:
