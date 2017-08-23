@@ -302,13 +302,6 @@ None
                                         }
                                     }, 
                                     {
-                                        "fvRsCons": {
-                                            "attributes": {
-                                                "tnVzBrCPName": "arp"
-                                            }
-                                        }
-                                    }, 
-                                    {
                                         "fvRsProv": {
                                             "attributes": {
                                                 "tnVzBrCPName": "health-check"
@@ -338,13 +331,6 @@ None
                                     "name": "kube-system"
                                 }, 
                                 "children": [
-                                    {
-                                        "fvRsProv": {
-                                            "attributes": {
-                                                "tnVzBrCPName": "arp"
-                                            }
-                                        }
-                                    }, 
                                     {
                                         "fvRsProv": {
                                             "attributes": {
@@ -410,6 +396,13 @@ None
                                     "name": "kube-nodes"
                                 }, 
                                 "children": [
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    }, 
                                     {
                                         "fvRsProv": {
                                             "attributes": {
@@ -517,23 +510,6 @@ None
             {
                 "vzFilter": {
                     "attributes": {
-                        "name": "arp-filter"
-                    }, 
-                    "children": [
-                        {
-                            "vzEntry": {
-                                "attributes": {
-                                    "etherT": "arp", 
-                                    "name": "arp"
-                                }
-                            }
-                        }
-                    ]
-                }
-            }, 
-            {
-                "vzFilter": {
-                    "attributes": {
                         "name": "icmp-filter"
                     }, 
                     "children": [
@@ -552,7 +528,7 @@ None
             {
                 "vzFilter": {
                     "attributes": {
-                        "name": "health-check-filter"
+                        "name": "health-check-filter-in"
                     }, 
                     "children": [
                         {
@@ -563,6 +539,26 @@ None
                                     "prot": "tcp", 
                                     "stateful": "no", 
                                     "tcpRules": ""
+                                }
+                            }
+                        }
+                    ]
+                }
+            }, 
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "health-check-filter-out"
+                    }, 
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "etherT": "ip", 
+                                    "name": "health-check", 
+                                    "prot": "tcp", 
+                                    "stateful": "no", 
+                                    "tcpRules": "est"
                                 }
                             }
                         }
@@ -589,34 +585,10 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "dFromPort": "8053", 
-                                    "dToPort": "8053", 
-                                    "etherT": "ip", 
-                                    "name": "dns2-udp", 
-                                    "prot": "udp"
-                                }
-                            }
-                        }, 
-                        {
-                            "vzEntry": {
-                                "attributes": {
                                     "dFromPort": "dns", 
                                     "dToPort": "dns", 
                                     "etherT": "ip", 
                                     "name": "dns-tcp", 
-                                    "prot": "tcp", 
-                                    "stateful": "no", 
-                                    "tcpRules": ""
-                                }
-                            }
-                        }, 
-                        {
-                            "vzEntry": {
-                                "attributes": {
-                                    "dFromPort": "8053", 
-                                    "dToPort": "8053", 
-                                    "etherT": "ip", 
-                                    "name": "dns2-tcp", 
                                     "prot": "tcp", 
                                     "stateful": "no", 
                                     "tcpRules": ""
@@ -635,41 +607,14 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "dFromPort": "6443", 
-                                    "dToPort": "6443", 
+                                    "dFromPort": "8443", 
+                                    "dToPort": "8443", 
                                     "etherT": "ip", 
-                                    "name": "kube-api", 
+                                    "name": "kube-api2", 
                                     "prot": "tcp", 
                                     "stateful": "no", 
                                     "tcpRules": ""
                                 }
-                            }
-                        }
-                    ]
-                }
-            }, 
-            {
-                "vzBrCP": {
-                    "attributes": {
-                        "name": "arp"
-                    }, 
-                    "children": [
-                        {
-                            "vzSubj": {
-                                "attributes": {
-                                    "consMatchT": "AtleastOne", 
-                                    "name": "arp-subj", 
-                                    "provMatchT": "AtleastOne"
-                                }, 
-                                "children": [
-                                    {
-                                        "vzRsSubjFiltAtt": {
-                                            "attributes": {
-                                                "tnVzFilterName": "arp-filter"
-                                            }
-                                        }
-                                    }
-                                ]
                             }
                         }
                     ]
@@ -718,10 +663,35 @@ None
                                 }, 
                                 "children": [
                                     {
-                                        "vzRsSubjFiltAtt": {
+                                        "vzOutTerm": {
                                             "attributes": {
-                                                "tnVzFilterName": "health-check-filter"
-                                            }
+                                                "name": ""
+                                            }, 
+                                            "children": [
+                                                {
+                                                    "vzRsFiltAtt": {
+                                                        "attributes": {
+                                                            "tnVzFilterName": "health-check-filter-out"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }, 
+                                    {
+                                        "vzInTerm": {
+                                            "attributes": {
+                                                "name": ""
+                                            }, 
+                                            "children": [
+                                                {
+                                                    "vzRsFiltAtt": {
+                                                        "attributes": {
+                                                            "tnVzFilterName": "health-check-filter-in"
+                                                        }
+                                                    }
+                                                }
+                                            ]
                                         }
                                     }
                                 ]

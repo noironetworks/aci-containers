@@ -702,13 +702,6 @@ class ApicKubeConfig(object):
                                                 }
                                             },
                                             {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "arp"
-                                                    }
-                                                }
-                                            },
-                                            {
                                                 "fvRsProv": {
                                                     "attributes": {
                                                         "tnVzBrCPName": "health-check"
@@ -738,13 +731,6 @@ class ApicKubeConfig(object):
                                             "name": "kube-system"
                                         },
                                         "children": [
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "arp"
-                                                    }
-                                                }
-                                            },
                                             {
                                                 "fvRsProv": {
                                                     "attributes": {
@@ -810,6 +796,13 @@ class ApicKubeConfig(object):
                                             "name": "kube-nodes"
                                         },
                                         "children": [
+                                            {
+                                                "fvRsProv": {
+                                                    "attributes": {
+                                                        "tnVzBrCPName": "dns"
+                                                    }
+                                                }
+                                            },
                                             {
                                                 "fvRsProv": {
                                                     "attributes": {
@@ -917,23 +910,6 @@ class ApicKubeConfig(object):
                     {
                         "vzFilter": {
                             "attributes": {
-                                "name": "arp-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "arp",
-                                            "etherT": "arp"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
                                 "name": "icmp-filter"
                             },
                             "children": [
@@ -952,7 +928,7 @@ class ApicKubeConfig(object):
                     {
                         "vzFilter": {
                             "attributes": {
-                                "name": "health-check-filter"
+                                "name": "health-check-filter-in"
                             },
                             "children": [
                                 {
@@ -963,6 +939,26 @@ class ApicKubeConfig(object):
                                             "prot": "tcp",
                                             "stateful": "no",
                                             "tcpRules": ""
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "vzFilter": {
+                            "attributes": {
+                                "name": "health-check-filter-out"
+                            },
+                            "children": [
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "health-check",
+                                            "etherT": "ip",
+                                            "prot": "tcp",
+                                            "stateful": "no",
+                                            "tcpRules": "est"
                                         }
                                     }
                                 }
@@ -989,17 +985,6 @@ class ApicKubeConfig(object):
                                 {
                                     "vzEntry": {
                                         "attributes": {
-                                            "name": "dns2-udp",
-                                            "etherT": "ip",
-                                            "prot": "udp",
-                                            "dFromPort": "8053",
-                                            "dToPort": "8053"
-                                        }
-                                    }
-                                },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
                                             "name": "dns-tcp",
                                             "etherT": "ip",
                                             "prot": "tcp",
@@ -1010,19 +995,6 @@ class ApicKubeConfig(object):
                                         }
                                     }
                                 },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "dns2-tcp",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "dFromPort": "8053",
-                                            "dToPort": "8053",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                }
                             ]
                         }
                     },
@@ -1043,33 +1015,17 @@ class ApicKubeConfig(object):
                                             "stateful": "no",
                                             "tcpRules": ""
                                         }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "arp"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
+                                    },
+                                    "vzEntry": {
                                         "attributes": {
-                                            "name": "arp-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "arp-filter"
-                                                    }
-                                                }
-                                            }
-                                        ]
+                                            "name": "kube-api2",
+                                            "etherT": "ip",
+                                            "prot": "tcp",
+                                            "dFromPort": "8443",
+                                            "dToPort": "8443",
+                                            "stateful": "no",
+                                            "tcpRules": ""
+                                        }
                                     }
                                 }
                             ]
@@ -1118,10 +1074,35 @@ class ApicKubeConfig(object):
                                         },
                                         "children": [
                                             {
-                                                "vzRsSubjFiltAtt": {
+                                                "vzOutTerm": {
                                                     "attributes": {
-                                                        "tnVzFilterName": "health-check-filter"
-                                                    }
+                                                        "name": ""
+                                                    },
+                                                    "children": [
+                                                        {
+                                                            "vzRsFiltAtt": {
+                                                                "attributes": {
+                                                                    "tnVzFilterName": "health-check-filter-out"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "vzInTerm": {
+                                                    "attributes": {
+                                                        "name": ""
+                                                    },
+                                                    "children": [
+                                                        {
+                                                            "vzRsFiltAtt": {
+                                                                "attributes": {
+                                                                    "tnVzFilterName": "health-check-filter-in"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
                                                 }
                                             }
                                         ]
