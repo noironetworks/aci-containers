@@ -56,6 +56,15 @@ def test_with_overrides():
         "with_overrides.apic.txt"
     )
 
+@in_testdir
+def test_flavor_openshift_36():
+    run_provision(
+        "base_case.inp.yaml",
+        "flavor_openshift_36.kube.yaml",
+        "flavor_openshift_36.apic.txt",
+        overrides={"flavor": "openshift-3.6"}
+    )
+
 
 @in_testdir
 def test_sample():
@@ -116,6 +125,8 @@ def get_args(**overrides):
         "password": "",
         "sample": False,
         "debug": False,
+        "list_flavors": False,
+        "flavor": None,
     }
     argc = collections.namedtuple('argc', arg.keys())
     args = argc(**arg)
@@ -123,11 +134,12 @@ def get_args(**overrides):
     return args
 
 
-def run_provision(inpfile, expectedkube=None, expectedapic=None):
+def run_provision(inpfile, expectedkube=None, expectedapic=None,
+                  overrides={}):
     # Exec main
     args = get_args(
         config=inpfile,
-        output=os.tempnam(".", "tmp-kube-"))
+        output=os.tempnam(".", "tmp-kube-"), **overrides)
     apicfile = os.tempnam(".", "tmp-apic-")
     acc_provision.main(args, apicfile, no_random=True)
 

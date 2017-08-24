@@ -20,6 +20,25 @@ from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
+DEFAULT_FLAVOR = "kubernetes-1.6"
+FLAVORS = {
+    "kubernetes-1.6": {
+        "desc": "Kubernetes 1.6",
+        "config": {},
+    },
+    "openshift-3.6": {
+        "desc": "Red Hat OpenShift Container Platform 3.6",
+        "config": {
+            "kube_config": {
+                "use_external_service_ip_allocator": True,
+                "use_netpol_annotation": False,
+                "use_privileged_containers": True,
+                "use_openshift_security_context_constraints": True,
+                "allow_kube_api_default_epg": True,
+            }
+        },
+    },
+}
 
 def info(msg):
     print("INFO: " + msg, file=sys.stderr)
@@ -88,9 +107,6 @@ def config_default():
         },
         "kube_config": {
             "controller": "1.1.1.1",
-            "use_tolerations": True,
-            "use_cluster_role": True,
-            "use_ds_rolling_update": True,
             "use_netpol_annotation": True,
             "image_pull_policy": "Always",
         },
@@ -494,6 +510,12 @@ def parse_args():
     parser.add_argument(
         '-p', '--password', default=None, metavar='pass',
         help='apic-admin password to use for APIC API access')
+    parser.add_argument(
+        '--list-flavors', action='store_true', default=False,
+        help='list available configuration flavors')
+    parser.add_argument(
+        '-f', '--flavor', default=None, metavar='flavor',
+        help='set configuration flavor.  Example: openshift-3.6')
     return parser.parse_args()
 
 
@@ -536,6 +558,8 @@ def provision(args, apic_file, no_random):
     default_config = config_default()
     user_config = config_user(config_file)
     deep_merge(config, user_config)
+    if args.flavor and args.flavor in FLAVORS:
+        deep_merge(config, FLAVORS[args.flavor]["config"])
     deep_merge(config, default_config)
     deep_merge(config, config_discover(config, prov_apic))
 
@@ -572,6 +596,15 @@ def main(args=None, apic_file=None, no_random=False):
     # apic_file and no_random are used by the test functions
     if args is None:
         args = parse_args()
+
+    if args.list_flavors:
+        info("Available configuration flavors:")
+        for flavor in FLAVORS:
+            info(flavor + ":\t" + FLAVORS[flavor]["desc"])
+        return
+    if args.flavor is not None and args.flavor not in FLAVORS:
+        err("Invalid configuration flavor: " + args.flavor)
+        return
 
     if args.debug:
         provision(args, apic_file, no_random)
