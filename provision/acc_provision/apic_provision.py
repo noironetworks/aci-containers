@@ -659,6 +659,61 @@ class ApicKubeConfig(object):
         kube_l3out = self.config["aci_config"]["l3out"]["name"]
         node_subnet = self.config["net_config"]["node_subnet"]
         pod_subnet = self.config["net_config"]["pod_subnet"]
+        kade = self.config["kube_config"].get("allow_kube_api_default_epg")
+
+        kube_default_children = [
+            {
+                "fvRsDomAtt": {
+                    "attributes": {
+                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "dns"
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
+                    }
+                }
+            },
+            {
+                "fvRsProv": {
+                    "attributes": {
+                        "tnVzBrCPName": "health-check"
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "icmp"
+                    }
+                }
+            },
+            {
+                "fvRsBd": {
+                    "attributes": {
+                        "tnFvBDName": "kube-pod-bd"
+                    }
+                }
+            }
+        ]
+
+        if kade is True:
+            kube_default_children.append({
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "kube-api"
+                    }
+                }
+            })
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = {
@@ -679,50 +734,7 @@ class ApicKubeConfig(object):
                                         "attributes": {
                                             "name": "kube-default"
                                         },
-                                        "children": [
-                                            {
-                                                "fvRsDomAtt": {
-                                                    "attributes": {
-                                                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "dns"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "health-check"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "icmp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsBd": {
-                                                    "attributes": {
-                                                        "tnFvBDName": "kube-pod-bd"
-                                                    }
-                                                }
-                                            }
-                                        ]
+                                        "children": kube_default_children
                                     }
                                 },
                                 {

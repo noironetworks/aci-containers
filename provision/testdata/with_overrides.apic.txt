@@ -294,6 +294,13 @@ None
                                                 "tnFvBDName": "kube-pod-bd"
                                             }
                                         }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
+                                            }
+                                        }
                                     }
                                 ]
                             }

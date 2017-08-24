@@ -47,6 +47,7 @@ kube_config:
   use_external_service_ip_allocator: true
   use_privileged_containers: true
   use_openshift_security_context_constraints: true
+  allow_kube_api_default_epg: true
   
 registry:
   image_prefix: noiro
