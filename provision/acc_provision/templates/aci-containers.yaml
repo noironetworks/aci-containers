@@ -237,6 +237,22 @@ spec:
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
+      {% if config.kube_config.use_cnideploy_initcontainer %}
+      initContainers:
+        - name: cnideploy
+          image: {{ config.registry.image_prefix }}/cnideploy:{{ config.registry.version }}
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
+          securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /mnt/cni-bin
+      {% endif %}
       containers:
         - name: aci-containers-host
           image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.version }}

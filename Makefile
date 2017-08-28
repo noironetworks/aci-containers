@@ -36,7 +36,7 @@ all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync
+	dist-static/ovsresync dist-static/loopback
 
 vendor-rebuild:
 	${VENDOR_BUILD_CMD}
@@ -93,6 +93,8 @@ container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch .
+container-cnideploy:
+	${DOCKER_BUILD_CMD} -t noiro/cnideploy -f ./docker/Dockerfile-cnideploy docker
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 
