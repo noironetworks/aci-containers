@@ -57,8 +57,6 @@ type NetworkPolicyIngress struct {
 	Isolation string `json:"isolation,omitempty"`
 }
 
-const NetworkPolicyAnnotation = "net.beta.kubernetes.io/network-policy"
-
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 

@@ -20,7 +20,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -107,7 +107,6 @@ func TestPodNamespaceDefault(t *testing.T) {
 
 			cont.config.NamespaceDefaultSg[test.ns] = groups
 		}
-		cont.config.RequireNetPolAnnot = true
 		cont.run()
 
 		cont.podUpdates = nil
@@ -134,7 +133,6 @@ func TestPodAnnotation(t *testing.T) {
 
 func TestPodNamespaceAnnotation(t *testing.T) {
 	cont := testController()
-	cont.config.RequireNetPolAnnot = true
 	cont.run()
 
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
@@ -192,39 +190,12 @@ func TestPodDeploymentAnnotationPre(t *testing.T) {
 	cont.stop()
 }
 
-func TestPodNamespaceIsolation(t *testing.T) {
-	cont := testController()
-	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
-	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
-		&metav1.LabelSelector{},
-		[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}))
-	cont.config.RequireNetPolAnnot = true
-	cont.run()
-
-	ns := namespace("testns", "", "")
-	ns.ObjectMeta.Annotations[metadata.NetworkPolicyAnnotation] =
-		"{\"ingress\":{\"isolation\":\"DefaultDeny\"}}"
-	cont.fakeNamespaceSource.Add(ns)
-	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
-		"added")
-
-	ns2 := namespace("testns", "", "")
-	ns2.ObjectMeta.Annotations[metadata.NetworkPolicyAnnotation] = "invalid"
-	cont.fakeNamespaceSource.Add(ns2)
-	waitForGroupAnnot(t, cont, "", "", "invalid")
-
-	cont.stop()
-}
-
 func TestPodNetworkPolicy(t *testing.T) {
 	cont := testController()
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
 		&metav1.LabelSelector{},
-		[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}))
+		[]v1net.NetworkPolicyIngressRule{rule(nil, nil)}))
 	cont.run()
 
 	ns := namespace("testns", "", "")
@@ -238,8 +209,8 @@ func TestPodNetworkPolicy(t *testing.T) {
 	cont.fakePodSource.Add(pod("testns", "testpod", "",
 		"[{\"policy-space\":\"test\",\"name\":\"mysg\"}]"))
 	waitForGroupAnnot(t, cont, "",
-		"[{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
 		"combine")

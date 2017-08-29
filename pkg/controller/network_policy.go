@@ -18,7 +18,6 @@
 package controller
 
 import (
-	"fmt"
 	"reflect"
 	"sort"
 	"strconv"
@@ -26,90 +25,47 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
-	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
+	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 )
 
-func ConfigureNetPolClient(config *rest.Config) {
-	gv, err := schema.ParseGroupVersion("extensions/v1beta1")
-	if err != nil {
-		panic(err)
-	}
-	// if extensions/v1beta1 is not enabled, return an error
-	if !api.Registry.IsEnabledVersion(gv) {
-		panic(fmt.Errorf("extensions/v1beta1 is not enabled"))
-	}
-	config.APIPath = "/apis"
-	if config.UserAgent == "" {
-		config.UserAgent = rest.DefaultKubernetesUserAgent()
-	}
-	copyGroupVersion := gv
-	config.GroupVersion = &copyGroupVersion
+func (cont *AciController) initNetworkPolicyInformerFromClient(
+	kubeClient kubernetes.Interface) {
 
-	config.NegotiatedSerializer =
-		serializer.DirectCodecFactory{CodecFactory: api.Codecs}
-}
-
-func (cont *AciController) initNetworkPolicyInformerFromRest(
-	restClient rest.Interface) {
-
-	cont.initNetworkPolicyInformerBase(&cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			result := &v1beta1.NetworkPolicyList{}
-			err := restClient.Get().
-				Namespace(metav1.NamespaceAll).
-				Resource("networkpolicies").
-				VersionedParams(&options, api.ParameterCodec).
-				Do().
-				Into(result)
-			return result, err
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return restClient.Get().
-				Prefix("watch").
-				Namespace(metav1.NamespaceAll).
-				Resource("networkpolicies").
-				VersionedParams(&options, api.ParameterCodec).
-				Watch()
-		},
-	})
+	cont.initNetworkPolicyInformerBase(
+		cache.NewListWatchFromClient(
+			kubeClient.NetworkingV1().RESTClient(), "networkpolicies",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
-	cont.networkPolicyInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1beta1.NetworkPolicy{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	cont.networkPolicyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.networkPolicyAdded(obj)
-		},
-		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-			cont.networkPolicyChanged(oldobj, newobj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.networkPolicyDeleted(obj)
-		},
-	})
-
+	cont.networkPolicyIndexer, cont.networkPolicyInformer =
+		cache.NewIndexerInformer(
+			listWatch, &v1net.NetworkPolicy{}, 0,
+			cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					cont.networkPolicyAdded(obj)
+				},
+				UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+					cont.networkPolicyChanged(oldobj, newobj)
+				},
+				DeleteFunc: func(obj interface{}) {
+					cont.networkPolicyDeleted(obj)
+				},
+			},
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
 }
 
-func (cont *AciController) ingressPodSelector(np *v1beta1.NetworkPolicy) []index.PodSelector {
+func (cont *AciController) ingressPodSelector(np *v1net.NetworkPolicy) []index.PodSelector {
 	var ret []index.PodSelector
 
 	for _, ingress := range np.Spec.Ingress {
@@ -151,19 +107,17 @@ func (cont *AciController) ingressPodSelector(np *v1beta1.NetworkPolicy) []index
 func (cont *AciController) initNetPolPodIndex() {
 	cont.netPolPods = index.NewPodSelectorIndex(
 		cont.log,
-		cont.podInformer,
-		cont.namespaceInformer,
-		cont.networkPolicyInformer,
+		cont.podIndexer, cont.namespaceIndexer, cont.networkPolicyIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			np := obj.(*v1beta1.NetworkPolicy)
+			np := obj.(*v1net.NetworkPolicy)
 			return index.PodSelectorFromNsAndSelector(np.ObjectMeta.Namespace,
 				&np.Spec.PodSelector)
 		},
 	)
 	cont.netPolPods.SetPodUpdateCallback(func(podkey string) {
 		podobj, exists, err :=
-			cont.podInformer.GetStore().GetByKey(podkey)
+			cont.podIndexer.GetByKey(podkey)
 		if exists && err == nil {
 			cont.queuePodUpdate(podobj.(*v1.Pod))
 		}
@@ -171,19 +125,16 @@ func (cont *AciController) initNetPolPodIndex() {
 
 	cont.netPolIngressPods = index.NewPodSelectorIndex(
 		cont.log,
-		cont.podInformer,
-		cont.namespaceInformer,
-		cont.networkPolicyInformer,
+		cont.podIndexer, cont.namespaceIndexer, cont.networkPolicyIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			return cont.ingressPodSelector(obj.(*v1beta1.NetworkPolicy))
+			return cont.ingressPodSelector(obj.(*v1net.NetworkPolicy))
 		},
 	)
 	cont.netPolIngressPods.SetObjUpdateCallback(func(npkey string) {
-		npobj, exists, err :=
-			cont.networkPolicyInformer.GetStore().GetByKey(npkey)
+		npobj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
 		if exists && err == nil {
-			cont.queueNetPolUpdate(npobj.(*v1beta1.NetworkPolicy))
+			cont.queueNetPolUpdate(npobj.(*v1net.NetworkPolicy))
 		}
 	})
 	cont.netPolIngressPods.SetPodHashFunc(func(pod *v1.Pod) string {
@@ -251,25 +202,25 @@ func (cont *AciController) initStaticNetPolObjs() {
 		cont.staticNetPolObjs())
 }
 
-func networkPolicyLogger(log *logrus.Logger, np *v1beta1.NetworkPolicy) *logrus.Entry {
+func networkPolicyLogger(log *logrus.Logger, np *v1net.NetworkPolicy) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": np.ObjectMeta.Namespace,
 		"name":      np.ObjectMeta.Name,
 	})
 }
 
-func (cont *AciController) queueNetPolUpdate(netpol *v1beta1.NetworkPolicy) {
+func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
 	key, err := cache.MetaNamespaceKeyFunc(netpol)
 	if err != nil {
 		networkPolicyLogger(cont.log, netpol).
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.netPolQueue.AddRateLimited(key)
+	cont.netPolQueue.Add(key)
 }
 
 func (cont *AciController) peerMatchesPod(npNs string,
-	peer *v1beta1.NetworkPolicyPeer, pod *v1.Pod, podNs *v1.Namespace) bool {
+	peer *v1net.NetworkPolicyPeer, pod *v1.Pod, podNs *v1.Namespace) bool {
 	if peer.PodSelector != nil && npNs == pod.ObjectMeta.Namespace {
 		selector, err :=
 			metav1.LabelSelectorAsSelector(peer.PodSelector)
@@ -298,7 +249,7 @@ func ipsForPod(pod *v1.Pod) []string {
 	return nil
 }
 
-func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
+func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
@@ -310,14 +261,12 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 	var peerPods []*v1.Pod
 	peerNs := make(map[string]*v1.Namespace)
 	for _, podkey := range peerPodKeys {
-		podobj, exists, err :=
-			cont.podInformer.GetStore().GetByKey(podkey)
+		podobj, exists, err := cont.podIndexer.GetByKey(podkey)
 		if exists && err == nil {
 			pod := podobj.(*v1.Pod)
 			if _, nsok := peerNs[pod.ObjectMeta.Namespace]; !nsok {
 				nsobj, exists, err :=
-					cont.namespaceInformer.GetStore().
-						GetByKey(pod.ObjectMeta.Namespace)
+					cont.namespaceIndexer.GetByKey(pod.ObjectMeta.Namespace)
 
 				if !exists || err != nil {
 					continue
@@ -410,14 +359,14 @@ func (cont *AciController) handleNetPolUpdate(np *v1beta1.NetworkPolicy) bool {
 func (cont *AciController) networkPolicyAdded(obj interface{}) {
 	cont.netPolPods.UpdateSelectorObj(obj)
 	cont.netPolIngressPods.UpdateSelectorObj(obj)
-	cont.queueNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
+	cont.queueNetPolUpdate(obj.(*v1net.NetworkPolicy))
 }
 
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	newobj interface{}) {
 
-	oldnp := oldobj.(*v1beta1.NetworkPolicy)
-	newnp := newobj.(*v1beta1.NetworkPolicy)
+	oldnp := oldobj.(*v1net.NetworkPolicy)
+	newnp := newobj.(*v1net.NetworkPolicy)
 
 	if !reflect.DeepEqual(&oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
 		cont.netPolPods.UpdateSelectorObjNoCallback(newobj)
@@ -434,7 +383,7 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
-		networkPolicyLogger(cont.log, obj.(*v1beta1.NetworkPolicy)).
+		networkPolicyLogger(cont.log, obj.(*v1net.NetworkPolicy)).
 			Error("Could not create network policy key: ", err)
 		return
 	}

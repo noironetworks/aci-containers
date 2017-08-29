@@ -22,14 +22,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	v1 "k8s.io/client-go/pkg/api/v1"
-	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-func port(proto *string, port *int) v1beta1.NetworkPolicyPort {
+func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	var portv intstr.IntOrString
 	var protov v1.Protocol
 	if port != nil {
@@ -38,36 +38,36 @@ func port(proto *string, port *int) v1beta1.NetworkPolicyPort {
 	if proto != nil {
 		protov = v1.Protocol(*proto)
 	}
-	return v1beta1.NetworkPolicyPort{
+	return v1net.NetworkPolicyPort{
 		Protocol: &protov,
 		Port:     &portv,
 	}
 }
 
 func peer(podSelector *metav1.LabelSelector,
-	nsSelector *metav1.LabelSelector) v1beta1.NetworkPolicyPeer {
-	return v1beta1.NetworkPolicyPeer{
+	nsSelector *metav1.LabelSelector) v1net.NetworkPolicyPeer {
+	return v1net.NetworkPolicyPeer{
 		PodSelector:       podSelector,
 		NamespaceSelector: nsSelector,
 	}
 }
 
-func rule(ports []v1beta1.NetworkPolicyPort,
-	from []v1beta1.NetworkPolicyPeer) v1beta1.NetworkPolicyIngressRule {
-	return v1beta1.NetworkPolicyIngressRule{
+func rule(ports []v1net.NetworkPolicyPort,
+	from []v1net.NetworkPolicyPeer) v1net.NetworkPolicyIngressRule {
+	return v1net.NetworkPolicyIngressRule{
 		Ports: ports,
 		From:  from,
 	}
 }
 
 func netpol(namespace string, name string, podSelector *metav1.LabelSelector,
-	rules []v1beta1.NetworkPolicyIngressRule) *v1beta1.NetworkPolicy {
-	return &v1beta1.NetworkPolicy{
+	rules []v1net.NetworkPolicyIngressRule) *v1net.NetworkPolicy {
+	return &v1net.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1beta1.NetworkPolicySpec{
+		Spec: v1net.NetworkPolicySpec{
 			PodSelector: *podSelector,
 			Ingress:     rules,
 		},
@@ -75,7 +75,7 @@ func netpol(namespace string, name string, podSelector *metav1.LabelSelector,
 }
 
 type npTest struct {
-	netPol *v1beta1.NetworkPolicy
+	netPol *v1net.NetworkPolicy
 	aciObj apicapi.ApicObject
 	desc   string
 }
@@ -165,34 +165,34 @@ func TestNetworkPolicy(t *testing.T) {
 
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil, nil)}),
+			[]v1net.NetworkPolicyIngressRule{rule(nil, nil)}),
 			makeNp(apicapi.ApicSlice{rule_0_0}),
 			"allow-all"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{
-				rule([]v1beta1.NetworkPolicyPort{port(&tcp, &port80)}, nil)}),
+			[]v1net.NetworkPolicyIngressRule{
+				rule([]v1net.NetworkPolicyPort{port(&tcp, &port80)}, nil)}),
 			makeNp(apicapi.ApicSlice{rule_1_0}),
 			"allow-http"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{
-				rule([]v1beta1.NetworkPolicyPort{port(nil, &port80)}, nil)}),
+			[]v1net.NetworkPolicyIngressRule{
+				rule([]v1net.NetworkPolicyPort{port(nil, &port80)}, nil)}),
 			makeNp(apicapi.ApicSlice{rule_1_0}),
 			"allow-http-defproto"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{
-				rule([]v1beta1.NetworkPolicyPort{port(&udp, &port80)}, nil)}),
+			[]v1net.NetworkPolicyIngressRule{
+				rule([]v1net.NetworkPolicyPort{port(&udp, &port80)}, nil)}),
 			makeNp(apicapi.ApicSlice{rule_3_0}),
 			"allow-80-udp"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{
-				rule([]v1beta1.NetworkPolicyPort{
+			[]v1net.NetworkPolicyIngressRule{
+				rule([]v1net.NetworkPolicyPort{
 					port(nil, &port80), port(nil, &port443),
 				}, nil)}),
 			makeNp(apicapi.ApicSlice{rule_1_0, rule_4_1}),
 			"allow-http-https"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
-				[]v1beta1.NetworkPolicyPeer{peer(nil,
+			[]v1net.NetworkPolicyIngressRule{rule(nil,
+				[]v1net.NetworkPolicyPeer{peer(nil,
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"test": "testv"},
 					}),
@@ -201,8 +201,8 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(apicapi.ApicSlice{rule_5_0}),
 			"allow-all-from-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
-				[]v1beta1.NetworkPolicyPeer{peer(nil,
+			[]v1net.NetworkPolicyIngressRule{rule(nil,
+				[]v1net.NetworkPolicyPeer{peer(nil,
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"test": "notathing"},
 					}),
@@ -211,8 +211,8 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(nil),
 			"allow-all-from-ns-no-match"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
-				[]v1beta1.NetworkPolicyPeer{peer(nil,
+			[]v1net.NetworkPolicyIngressRule{rule(nil,
+				[]v1net.NetworkPolicyPeer{peer(nil,
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{"nl": "nv"},
 					}),
@@ -221,8 +221,8 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(apicapi.ApicSlice{rule_6_0}),
 			"allow-all-from-multiple-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
-				[]v1beta1.NetworkPolicyPeer{
+			[]v1net.NetworkPolicyIngressRule{rule(nil,
+				[]v1net.NetworkPolicyPeer{
 					peer(&metav1.LabelSelector{
 						MatchLabels: map[string]string{"l1": "v1"},
 					}, nil),
@@ -231,8 +231,8 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(apicapi.ApicSlice{rule_7_0}),
 			"allow-all-select-pods"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{rule(nil,
-				[]v1beta1.NetworkPolicyPeer{
+			[]v1net.NetworkPolicyIngressRule{rule(nil,
+				[]v1net.NetworkPolicyPeer{
 					peer(&metav1.LabelSelector{
 						MatchLabels: map[string]string{"l1": "v1"},
 					}, &metav1.LabelSelector{
@@ -243,17 +243,17 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(apicapi.ApicSlice{rule_9_0}),
 			"allow-all-select-pods-and-ns"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
-			[]v1beta1.NetworkPolicyIngressRule{
-				rule([]v1beta1.NetworkPolicyPort{
+			[]v1net.NetworkPolicyIngressRule{
+				rule([]v1net.NetworkPolicyPort{
 					port(nil, &port80),
-				}, []v1beta1.NetworkPolicyPeer{
+				}, []v1net.NetworkPolicyPeer{
 					peer(&metav1.LabelSelector{
 						MatchLabels: map[string]string{"l1": "v1"},
 					}, nil),
 				}),
-				rule([]v1beta1.NetworkPolicyPort{
+				rule([]v1net.NetworkPolicyPort{
 					port(nil, &port443),
-				}, []v1beta1.NetworkPolicyPeer{
+				}, []v1net.NetworkPolicyPeer{
 					peer(&metav1.LabelSelector{
 						MatchLabels: map[string]string{"l1": "v2"},
 					}, nil),

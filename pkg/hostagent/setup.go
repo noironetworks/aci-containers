@@ -20,10 +20,10 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/containernetworking/cni/pkg/ip"
-	"github.com/containernetworking/cni/pkg/ipam"
-	"github.com/containernetworking/cni/pkg/ns"
-	cnitypes "github.com/containernetworking/cni/pkg/types/current"
+	cnicur "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/ipam"
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/natefinch/pie"
 	"github.com/vishvananda/netlink"
 
@@ -147,11 +147,11 @@ func (*ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
 type SetupNetworkArgs struct {
 	Sandbox string
 	IfName  string
-	Result  *cnitypes.Result
+	Result  *cnicur.Result
 }
 
 func runSetupNetwork(sandbox string, ifName string,
-	result *cnitypes.Result) error {
+	result *cnicur.Result) error {
 
 	ack := false
 	err := runPluginCmd("ClientRPC.SetupNetwork",
@@ -165,6 +165,17 @@ func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
 		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
 	}
 	defer netns.Close()
+
+	// in gob encoding, pointer to 0 gets turned into a nil pointer.
+	// This is a bug in the design of gob that will not be fixed:
+	// See https://github.com/golang/go/issues/4609
+	// Fix it to workaround I guess.
+	index := 0
+	for _, ip := range args.Result.IPs {
+		if ip.Interface == nil {
+			ip.Interface = &index
+		}
+	}
 
 	*ack = false
 	if err := netns.Do(func(_ ns.NetNS) error {
@@ -182,10 +193,10 @@ func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
 }
 
 func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
-	index int, result *cnitypes.Result) {
+	index int, result *cnicur.Result) {
 
 	result.Interfaces = append(result.Interfaces,
-		&cnitypes.Interface{
+		&cnicur.Interface{
 			Name:    iface.Name,
 			Sandbox: iface.Sandbox,
 			Mac:     iface.Mac,
@@ -203,9 +214,10 @@ func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 			continue
 		}
 
+		ind := index
 		result.IPs = append(result.IPs,
-			&cnitypes.IPConfig{
-				Interface: index,
+			&cnicur.IPConfig{
+				Interface: &ind,
 				Version:   version,
 				Address:   ip.Address,
 				Gateway:   ip.Gateway,
@@ -214,7 +226,7 @@ func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 
 }
 
-func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata) (*cnitypes.Result, error) {
+func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata) (*cnicur.Result, error) {
 	logger := agent.log.WithFields(logrus.Fields{
 		"pod":       metadata.Id.Pod,
 		"namespace": metadata.Id.Namespace,
@@ -225,7 +237,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	if len(metadata.Ifaces) == 0 {
 		return nil, errors.New("No interfaces specified")
 	}
-	result := &cnitypes.Result{}
+	result := &cnicur.Result{}
 
 	for _, nc := range agent.config.NetConfig {
 		result.Routes =
@@ -252,7 +264,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 
 		agent.addToResult(iface, ifaceind, result)
 
-		logger.Debug("Configuring network for ", iface.Name)
+		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
 		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
 		if err != nil {
 			agent.deallocateIps(iface)

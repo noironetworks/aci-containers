@@ -2,32 +2,32 @@ package: github.com/noironetworks/aci-containers
 import:
 - package: github.com/Sirupsen/logrus
   version: ^0.11.5
-- package: github.com/containernetworking/cni
-  version: ~0.5.2
-  subpackages:
-  - pkg/ip
-  - pkg/ipam
-  - pkg/ns
-  - pkg/skel
-  - pkg/types
-  - pkg/version
 - package: github.com/socketplane/libovsdb
+  version: 4de3618546deba09d8875d719752db32bd4652c0
 - package: github.com/vishvananda/netlink
+  version: 90380e4b7611054fa836147352dc7d1a6c88bc25
 - package: github.com/tatsushid/go-fastping
   version: d7bb493dee3e090e2ffb6914adddf17c1e7c026c
 - package: k8s.io/kubernetes
-  version: 1.6.1
+  version: ~1.7
 - package: k8s.io/client-go
-  version: ~3.0.0
+  version: ~4.0.0
+- package: k8s.io/apiserver
+  version: e24df9a2e58151a85874948908a454d511066460
 - package: github.com/stretchr/testify
   version: ^1.1.4
   subpackages:
   - assert
 - package: github.com/spf13/cobra
-- package: github.com/pelletier/go-toml
-  version: ~0.5.0
-- package: github.com/pelletier/go-buffruneio
-  version: ~0.2.0
 - package: github.com/gorilla/websocket
-  version: ^1.1.0
+  version: ^1.2.0
 - package: github.com/natefinch/pie
+  version: ^1.0
+- package: github.com/pelletier/go-toml
+  version: ^1.0.0
+- package: github.com/pelletier/go-buffruneio
+  version: ^0.2.0
+- package: github.com/containernetworking/plugins
+  version: ~0.6.0
+- package: github.com/containernetworking/cni
+  version: ~0.6.0

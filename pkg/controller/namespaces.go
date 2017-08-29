@@ -21,13 +21,11 @@ import (
 	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
@@ -36,39 +34,31 @@ func (cont *AciController) initNamespaceInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
 	cont.initNamespaceInformerBase(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Namespaces().List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Namespaces().Watch(options)
-			},
-		})
+		cache.NewListWatchFromClient(
+			kubeClient.CoreV1().RESTClient(), "namespaces",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initNamespaceInformerBase(listWatch *cache.ListWatch) {
-	cont.namespaceInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Namespace{},
-		controller.NoResyncPeriodFunc(),
+	cont.namespaceIndexer, cont.namespaceInformer = cache.NewIndexerInformer(
+		listWatch, &v1.Namespace{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.namespaceAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				cont.namespaceChanged(oldobj, newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.namespaceDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.namespaceAdded(obj)
-		},
-		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-			cont.namespaceChanged(oldobj, newobj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.namespaceDeleted(obj)
-		},
-	})
-
 }
 
 func (cont *AciController) updatePodsForNamespace(ns string) {
-	cache.ListAllByNamespace(cont.podInformer.GetIndexer(), ns, labels.Everything(),
+	cache.ListAllByNamespace(cont.podIndexer, ns, labels.Everything(),
 		func(podobj interface{}) {
 			cont.queuePodUpdate(podobj.(*v1.Pod))
 		})

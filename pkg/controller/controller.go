@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/juju/ratelimit"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
-	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
+	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -55,14 +55,22 @@ type AciController struct {
 	netPolQueue  workqueue.RateLimitingInterface
 	serviceQueue workqueue.RateLimitingInterface
 
-	namespaceInformer     cache.SharedIndexInformer
-	podInformer           cache.SharedIndexInformer
-	endpointsInformer     cache.SharedIndexInformer
-	serviceInformer       cache.SharedIndexInformer
-	replicaSetInformer    cache.SharedIndexInformer
-	deploymentInformer    cache.SharedIndexInformer
-	nodeInformer          cache.SharedIndexInformer
-	networkPolicyInformer cache.SharedIndexInformer
+	namespaceIndexer      cache.Indexer
+	namespaceInformer     cache.Controller
+	podIndexer            cache.Indexer
+	podInformer           cache.Controller
+	endpointsIndexer      cache.Indexer
+	endpointsInformer     cache.Controller
+	serviceIndexer        cache.Indexer
+	serviceInformer       cache.Controller
+	replicaSetIndexer     cache.Indexer
+	replicaSetInformer    cache.Controller
+	deploymentIndexer     cache.Indexer
+	deploymentInformer    cache.Controller
+	nodeIndexer           cache.Indexer
+	nodeInformer          cache.Controller
+	networkPolicyIndexer  cache.Indexer
+	networkPolicyInformer cache.Controller
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
@@ -114,6 +122,18 @@ func newNodePodNetMeta() *nodePodNetMeta {
 	}
 }
 
+func createQueue(name string) workqueue.RateLimitingInterface {
+	return workqueue.NewNamedRateLimitingQueue(
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(100)),
+			},
+		),
+		"delta")
+}
+
 func NewController(config *ControllerConfig, log *logrus.Logger) *AciController {
 	return &AciController{
 		log:       log,
@@ -121,9 +141,9 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 		defaultEg: "",
 		defaultSg: "",
 
-		podQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
-		netPolQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkPolicy"),
-		serviceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service"),
+		podQueue:     createQueue("pod"),
+		netPolQueue:  createQueue("networkPolicy"),
+		serviceQueue: createQueue("service"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -139,8 +159,7 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 	}
 }
 
-func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
-	netPolClient rest.Interface) {
+func (cont *AciController) Init(kubeClient *kubernetes.Clientset) {
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
 	}
@@ -177,7 +196,7 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 	cont.initPodInformerFromClient(kubeClient)
 	cont.initEndpointsInformerFromClient(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
-	cont.initNetworkPolicyInformerFromRest(netPolClient)
+	cont.initNetworkPolicyInformerFromClient(kubeClient)
 
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
@@ -185,8 +204,7 @@ func (cont *AciController) Init(kubeClient *kubernetes.Clientset,
 }
 
 func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
-	informer cache.SharedIndexInformer,
-	handler func(interface{}) bool,
+	store cache.Store, handler func(interface{}) bool,
 	stopCh <-chan struct{}) {
 	go wait.Until(func() {
 		for {
@@ -200,10 +218,11 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 			case chan struct{}:
 				close(key)
 			case string:
-				obj, exists, err :=
-					informer.GetStore().GetByKey(key)
+				obj, exists, err := store.GetByKey(key)
 				if err == nil && exists {
+					cont.log.Info("PROCESS ", key)
 					requeue = handler(obj)
+					cont.log.Info("PROCESS DONE ", key)
 				}
 			}
 			if requeue {
@@ -298,7 +317,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	go cont.endpointsInformer.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
-	go cont.processQueue(cont.serviceQueue, cont.serviceInformer,
+	go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
 		func(obj interface{}) bool {
 			return cont.handleServiceUpdate(obj.(*v1.Service))
 		}, stopCh)
@@ -316,13 +335,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
 	go cont.networkPolicyInformer.Run(stopCh)
-	go cont.processQueue(cont.podQueue, cont.podInformer,
+	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, stopCh)
-	go cont.processQueue(cont.netPolQueue, cont.networkPolicyInformer,
+	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 		func(obj interface{}) bool {
-			return cont.handleNetPolUpdate(obj.(*v1beta1.NetworkPolicy))
+			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, stopCh)
 
 	cont.log.Info("Waiting for cache sync for remaining objects")

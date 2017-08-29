@@ -88,9 +88,9 @@ type podIndexState struct {
 type PodSelectorIndex struct {
 	log *logrus.Logger
 
-	podInformer       cache.SharedIndexInformer
-	namespaceInformer cache.SharedIndexInformer
-	objInformer       cache.SharedIndexInformer
+	podIndexer       cache.Indexer
+	namespaceIndexer cache.Indexer
+	objIndexer       cache.Indexer
 
 	getKey         GetKeyFunc
 	getPodSelector GetPodSelectorFunc
@@ -114,19 +114,19 @@ type PodSelectorIndex struct {
 
 // Create a new pod selector index object
 func NewPodSelectorIndex(log *logrus.Logger,
-	podInformer cache.SharedIndexInformer,
-	namespaceInformer cache.SharedIndexInformer,
-	objInformer cache.SharedIndexInformer,
+	podIndexer cache.Indexer,
+	namespaceIndexer cache.Indexer,
+	objIndexer cache.Indexer,
 	getKey GetKeyFunc,
 	getPodSelector GetPodSelectorFunc) *PodSelectorIndex {
 
 	return &PodSelectorIndex{
-		log:               log,
-		podInformer:       podInformer,
-		namespaceInformer: namespaceInformer,
-		objInformer:       objInformer,
-		getKey:            getKey,
-		getPodSelector:    getPodSelector,
+		log:              log,
+		podIndexer:       podIndexer,
+		namespaceIndexer: namespaceIndexer,
+		objIndexer:       objIndexer,
+		getKey:           getKey,
+		getPodSelector:   getPodSelector,
 
 		podIndex:    make(map[string]*podIndexState),
 		objPodIndex: make(map[string]set),
@@ -308,7 +308,7 @@ func (i *PodSelectorIndex) UpdateNamespace(ns *v1.Namespace) {
 
 	i.indexMutex.Lock()
 
-	for _, obj := range i.objInformer.GetStore().List() {
+	for _, obj := range i.objIndexer.List() {
 		objkey, err := i.getKey(obj)
 		if err != nil {
 			i.log.Error("Could not create object key: ", err)
@@ -347,7 +347,7 @@ func (i *PodSelectorIndex) getObjNamespaces(obj interface{}) map[string][]labels
 		}
 
 		if selector.NsSelector != nil {
-			cache.ListAll(i.namespaceInformer.GetStore(), selector.NsSelector,
+			cache.ListAll(i.namespaceIndexer, selector.NsSelector,
 				func(nsobj interface{}) {
 					name := nsobj.(*v1.Namespace).ObjectMeta.Name
 					ret[name] = append(ret[name], selector.PodSelector)
@@ -374,7 +374,7 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 	i.objNsIndex[objkey] = namespaces
 	for ns, selectors := range namespaces {
 		for _, selector := range selectors {
-			cache.ListAllByNamespace(i.podInformer.GetIndexer(),
+			cache.ListAllByNamespace(i.podIndexer,
 				ns, selector,
 				func(podobj interface{}) {
 					pod := podobj.(*v1.Pod)

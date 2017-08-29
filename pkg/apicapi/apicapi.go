@@ -646,7 +646,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.deltaQueue != nil {
-		conn.deltaQueue.AddRateLimited(dn)
+		conn.deltaQueue.Add(dn)
 	}
 	conn.indexMutex.Unlock()
 }

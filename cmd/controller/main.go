@@ -24,7 +24,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -92,15 +91,8 @@ func main() {
 		panic(err.Error())
 	}
 
-	npconfig := *restconfig
-	controller.ConfigureNetPolClient(&npconfig)
-	netPolClient, err := rest.RESTClientFor(&npconfig)
-	if err != nil {
-		panic(err)
-	}
-
 	cont := controller.NewController(config, log)
-	cont.Init(kubeClient, netPolClient)
+	cont.Init(kubeClient)
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
 }

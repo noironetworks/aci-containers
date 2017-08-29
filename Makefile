@@ -12,14 +12,14 @@ ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
 OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
 SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 
-HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC}
-AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC}
+HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC} vendor
+AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC} vendor
 CONTROLLER_DEPS= \
 	${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} \
-	${APICAPI_SRC} ${CONTROLLER_SRC}
-ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC}
-OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC}
-SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC}
+	${APICAPI_SRC} ${CONTROLLER_SRC} vendor
+ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC} vendor
+OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC} vendor
+SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC} vendor
 
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
@@ -55,7 +55,7 @@ goinstall:
 	${INSTALL_CMD} ${BASE}/cmd/hostagent
 	${INSTALL_CMD} ${BASE}/cmd/acikubectl
 
-dist/opflex-agent-cni: ${AGENTCNI_DEPS}
+dist/opflex-agent-cni: ${AGENTCNI_DEPS} 
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni

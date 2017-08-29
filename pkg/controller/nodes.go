@@ -25,13 +25,11 @@ import (
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/Sirupsen/logrus"
 
@@ -44,35 +42,27 @@ func (cont *AciController) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
 
 	cont.initNodeInformerBase(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.Core().Nodes().List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.Core().Nodes().Watch(options)
-			},
-		})
+		cache.NewListWatchFromClient(
+			kubeClient.CoreV1().RESTClient(), "nodes",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
-	cont.nodeInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Node{},
-		controller.NoResyncPeriodFunc(),
+	cont.nodeIndexer, cont.nodeInformer = cache.NewIndexerInformer(
+		listWatch, &v1.Node{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.nodeChanged(obj)
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				cont.nodeChanged(obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.nodeDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.nodeChanged(obj)
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.nodeChanged(obj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.nodeDeleted(obj)
-		},
-	})
-
 }
 
 func apicNodeNetPol(name string, tenantName string,
@@ -160,7 +150,7 @@ func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) e
 }
 
 func (cont *AciController) nodeFullSync() {
-	cache.ListAll(cont.nodeInformer.GetIndexer(), labels.Everything(),
+	cache.ListAll(cont.nodeIndexer, labels.Everything(),
 		func(nodeobj interface{}) {
 			cont.nodeChanged(nodeobj)
 		})
@@ -386,8 +376,7 @@ func (cont *AciController) checkNodePodNet(nodename string) {
 
 	if changed {
 		go func() {
-			node, exists, err :=
-				cont.nodeInformer.GetStore().GetByKey(nodename)
+			node, exists, err := cont.nodeIndexer.GetByKey(nodename)
 			if err != nil {
 				cont.log.Error("Could not lookup node: ", err)
 				return

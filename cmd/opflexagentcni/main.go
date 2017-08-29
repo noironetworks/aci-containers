@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/containernetworking/cni/pkg/ipam"
-	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
+	"github.com/containernetworking/plugins/pkg/ipam"
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/tatsushid/go-fastping"
 
 	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
@@ -115,7 +115,8 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 			pinger.MaxRTT = time.Millisecond * 100
 			expected := 0
 			for _, ip := range result.IPs {
-				if ip.Gateway == nil || ip.Interface != index {
+				if ip.Gateway == nil ||
+					(ip.Interface != nil && *ip.Interface != index) {
 					continue
 				}
 				pinger.AddIPAddr(&net.IPAddr{IP: ip.Gateway})
@@ -178,8 +179,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 		if len(result.IPs) == 0 {
 			return errors.New("IPAM plugin returned missing IP config")
 		}
+		zero := 0
 		for _, ip := range result.IPs {
-			ip.Interface = 0
+			ip.Interface = &zero
 		}
 	} else {
 		result = &current.Result{}

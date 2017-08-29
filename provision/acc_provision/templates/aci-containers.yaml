@@ -121,11 +121,18 @@ rules:
   - watch
   - get
 - apiGroups:
+  - "networking.k8s.io"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
   - "extensions"
   resources:
   - deployments
   - replicasets
-  - networkpolicies
   verbs:
   - list
   - watch

@@ -24,13 +24,11 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -39,69 +37,55 @@ import (
 func (cont *AciController) initEndpointsInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
-	cont.initEndpointsInformerBase(&cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
-		},
-	})
+	cont.initEndpointsInformerBase(
+		cache.NewListWatchFromClient(
+			kubeClient.CoreV1().RESTClient(), "endpoints",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initEndpointsInformerBase(listWatch *cache.ListWatch) {
-	cont.endpointsInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Endpoints{},
-		controller.NoResyncPeriodFunc(),
+	cont.endpointsIndexer, cont.endpointsInformer = cache.NewIndexerInformer(
+		listWatch, &v1.Endpoints{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.endpointsChanged(obj)
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				cont.endpointsChanged(obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.endpointsChanged(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.endpointsChanged(obj)
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.endpointsChanged(obj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.endpointsChanged(obj)
-		},
-	})
-
 }
 
 func (cont *AciController) initServiceInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
 
 	cont.initServiceInformerBase(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Services(metav1.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(options)
-			},
-		})
+		cache.NewListWatchFromClient(
+			kubeClient.CoreV1().RESTClient(), "services",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initServiceInformerBase(listWatch *cache.ListWatch) {
-	cont.serviceInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Service{},
-		controller.NoResyncPeriodFunc(),
+	cont.serviceIndexer, cont.serviceInformer = cache.NewIndexerInformer(
+		listWatch, &v1.Service{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.serviceChanged(obj)
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				cont.serviceChanged(obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.serviceDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.serviceChanged(obj)
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			cont.serviceChanged(obj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.serviceDeleted(obj)
-		},
-	})
 }
 
 func serviceLogger(log *logrus.Logger, as *v1.Service) *logrus.Entry {
@@ -160,7 +144,7 @@ func (cont *AciController) initStaticServiceObjs() {
 
 // can be called with index lock
 func (cont *AciController) updateServicesForNode(nodename string) {
-	cache.ListAll(cont.endpointsInformer.GetIndexer(), labels.Everything(),
+	cache.ListAll(cont.endpointsIndexer, labels.Everything(),
 		func(endpointsobj interface{}) {
 			endpoints := endpointsobj.(*v1.Endpoints)
 			for _, subset := range endpoints.Subsets {
@@ -265,8 +249,7 @@ func apicDevCtx(name string, tenantName string,
 func (cont *AciController) updateServiceDeviceInstance(key string,
 	service *v1.Service) {
 
-	endpointsobj, exists, err :=
-		cont.endpointsInformer.GetStore().GetByKey(key)
+	endpointsobj, exists, err := cont.endpointsIndexer.GetByKey(key)
 	if err != nil {
 		cont.log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())
@@ -374,7 +357,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {
-	cont.serviceQueue.AddRateLimited(key)
+	cont.serviceQueue.Add(key)
 }
 
 func (cont *AciController) queueServiceUpdate(service *v1.Service) {
@@ -384,7 +367,7 @@ func (cont *AciController) queueServiceUpdate(service *v1.Service) {
 			Error("Could not create service key: ", err)
 		return
 	}
-	cont.serviceQueue.AddRateLimited(key)
+	cont.serviceQueue.Add(key)
 }
 
 func apicDeviceCluster(name string, vrfTenant string,
@@ -623,15 +606,14 @@ func (cont *AciController) serviceChanged(obj interface{}) {
 }
 
 func (cont *AciController) serviceFullSync() {
-	cache.ListAll(cont.serviceInformer.GetIndexer(), labels.Everything(),
+	cache.ListAll(cont.serviceIndexer, labels.Everything(),
 		func(sobj interface{}) {
 			cont.queueServiceUpdate(sobj.(*v1.Service))
 		})
 }
 
 func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
-	endpointsobj, _, err :=
-		cont.endpointsInformer.GetStore().GetByKey(key)
+	endpointsobj, _, err := cont.endpointsIndexer.GetByKey(key)
 	if err != nil {
 		cont.log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())

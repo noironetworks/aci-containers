@@ -24,13 +24,11 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
@@ -39,41 +37,34 @@ import (
 func (cont *AciController) initDeploymentInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
-	cont.initDeploymentInformerBase(&cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return kubeClient.ExtensionsV1beta1().Deployments(metav1.NamespaceAll).List(options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return kubeClient.ExtensionsV1beta1().Deployments(metav1.NamespaceAll).Watch(options)
-		},
-	})
+	cont.initDeploymentInformerBase(
+		cache.NewListWatchFromClient(
+			kubeClient.ExtensionsV1beta1().RESTClient(), "deployments",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initDeploymentInformerBase(listWatch *cache.ListWatch) {
-	cont.deploymentInformer = cache.NewSharedIndexInformer(
+	cont.deploymentIndexer, cont.deploymentInformer = cache.NewIndexerInformer(
 		listWatch,
-		&v1beta1.Deployment{},
-		controller.NoResyncPeriodFunc(),
+		&v1beta1.Deployment{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.deploymentAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				cont.deploymentChanged(oldobj, newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.deploymentDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.deploymentAdded(obj)
-		},
-		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-			cont.deploymentChanged(oldobj, newobj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.deploymentDeleted(obj)
-		},
-	})
-
 }
 
 func (cont *AciController) initDepPodIndex() {
-	cont.depPods = index.NewPodSelectorIndex(
-		cont.log, cont.podInformer,
-		cont.namespaceInformer, cont.deploymentInformer,
+	cont.depPods = index.NewPodSelectorIndex(cont.log,
+		cont.podIndexer, cont.namespaceIndexer, cont.deploymentIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
 			dep := obj.(*v1beta1.Deployment)
@@ -82,8 +73,7 @@ func (cont *AciController) initDepPodIndex() {
 		},
 	)
 	cont.depPods.SetPodUpdateCallback(func(podkey string) {
-		podobj, exists, err :=
-			cont.podInformer.GetStore().GetByKey(podkey)
+		podobj, exists, err := cont.podIndexer.GetByKey(podkey)
 		if exists && err == nil {
 			cont.queuePodUpdate(podobj.(*v1.Pod))
 		}
@@ -146,7 +136,7 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 		}
 		for _, podkey := range cont.depPods.GetPodForObj(depkey) {
 			podobj, exists, err :=
-				cont.podInformer.GetStore().GetByKey(podkey)
+				cont.podIndexer.GetByKey(podkey)
 			if exists && err == nil {
 				cont.queuePodUpdate(podobj.(*v1.Pod))
 			}

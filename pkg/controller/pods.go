@@ -25,13 +25,11 @@ import (
 
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -41,35 +39,27 @@ func (cont *AciController) initPodInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
 	cont.initPodInformerBase(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
-			},
-		})
+		cache.NewListWatchFromClient(
+			kubeClient.CoreV1().RESTClient(), "pods",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initPodInformerBase(listWatch *cache.ListWatch) {
-	cont.podInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Pod{},
-		controller.NoResyncPeriodFunc(),
+	cont.podIndexer, cont.podInformer = cache.NewIndexerInformer(
+		listWatch, &v1.Pod{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.podAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				cont.podUpdated(oldobj, newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.podDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.podAdded(obj)
-		},
-		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-			cont.podUpdated(oldobj, newobj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.podDeleted(obj)
-		},
-	})
-
 }
 
 func podLogger(log *logrus.Logger, pod *v1.Pod) *logrus.Entry {
@@ -93,59 +83,14 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
 		return
 	}
-	cont.podQueue.AddRateLimited(podkey)
-}
-
-func (cont *AciController) getNetPolIsolation(namespace *v1.Namespace) string {
-	if p, ok := namespace.Annotations[metadata.NetworkPolicyAnnotation]; ok {
-		np := &metadata.NetworkPolicy{}
-		err := json.Unmarshal([]byte(p), &np)
-		if err != nil {
-			cont.log.WithFields(logrus.Fields{
-				"Namespace":        namespace.Name,
-				"NetPolAnnotation": p,
-			}).Error("Could not decode annotation: ", err)
-			return ""
-		}
-
-		if np.Ingress != nil {
-			return np.Ingress.Isolation
-		}
-	}
-	return ""
+	cont.podQueue.Add(podkey)
 }
 
 func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	namespace *v1.Namespace, sgval *string) (*string, error) {
 
-	// The beta version of network policy required an annotation on
-	// the namespace set to DefaultDeny to enable it.  For the stable
-	// version this was changed so that policy is enabled on a pod if
-	// there exists at least one policy that selects the pod.  We have
-	// a configuration option to select the behavior.
-	//
-	// Specific security groups can still be set by the user with
-	// a security group annotation, however.
-	if namespace == nil ||
-		(cont.config.RequireNetPolAnnot &&
-			cont.getNetPolIsolation(namespace) != "DefaultDeny") {
-		return sgval, nil
-	}
-
-	// Add security groups from the user annotation
-	g := make([]metadata.OpflexGroup, 0)
-	if sgval != nil && *sgval != "" {
-		err := json.Unmarshal([]byte(*sgval), &g)
-		if err != nil {
-			cont.log.WithFields(logrus.Fields{
-				"SgAnnotation": sgval,
-			}).Error("Could not decode annotation: ", err)
-		}
-	}
 	gset := make(map[metadata.OpflexGroup]bool)
-	for _, og := range g {
-		gset[og] = true
-	}
+	g := make([]metadata.OpflexGroup, 0)
 
 	// Add network policies that directly select this pod
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
@@ -159,11 +104,24 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 		}
 	}
 
-	if !cont.config.RequireNetPolAnnot {
-		// When the pod is not selected by any annotation or network
-		// policy, don't apply any security group
-		if len(gset) == 0 {
-			return sgval, nil
+	// When the pod is not selected by any annotation or network
+	// policy, don't apply any extra security groups
+	if len(gset) == 0 {
+		return sgval, nil
+	}
+
+	// Add security groups from the user annotation
+	if sgval != nil && *sgval != "" {
+		userGroups := make([]metadata.OpflexGroup, 0)
+		err := json.Unmarshal([]byte(*sgval), &userGroups)
+		if err != nil {
+			cont.log.WithFields(logrus.Fields{
+				"SgAnnotation": sgval,
+			}).Error("Could not decode annotation: ", err)
+		}
+		for _, og := range userGroups {
+			gset[og] = true
+			g = append(g, og)
 		}
 	}
 
@@ -251,7 +209,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 
 	// namespace annotation has next-highest priority
 	namespaceobj, exists, err :=
-		cont.namespaceInformer.GetStore().GetByKey(pod.ObjectMeta.Namespace)
+		cont.namespaceIndexer.GetByKey(pod.ObjectMeta.Namespace)
 	var namespace *v1.Namespace
 	if err != nil {
 		cont.log.Error("Could not lookup namespace " +
@@ -273,7 +231,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	// annotation on associated deployment is next-highest priority
 	for _, depkey := range cont.depPods.GetObjForPod(podkey) {
 		deploymentobj, exists, err :=
-			cont.deploymentInformer.GetStore().GetByKey(depkey)
+			cont.deploymentIndexer.GetByKey(depkey)
 		if err != nil {
 			cont.log.Error("Could not lookup deployment " +
 				depkey + ": " + err.Error())

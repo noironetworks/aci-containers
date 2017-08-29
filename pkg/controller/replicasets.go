@@ -21,12 +21,10 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
@@ -34,35 +32,28 @@ import (
 func (cont *AciController) initReplicaSetInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
-	cont.initReplicaSetInformerBase(&cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return kubeClient.ExtensionsV1beta1().ReplicaSets(metav1.NamespaceAll).List(options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return kubeClient.ExtensionsV1beta1().ReplicaSets(metav1.NamespaceAll).Watch(options)
-		},
-	})
+	cont.initReplicaSetInformerBase(
+		cache.NewListWatchFromClient(
+			kubeClient.ExtensionsV1beta1().RESTClient(), "replicasets",
+			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initReplicaSetInformerBase(listWatch *cache.ListWatch) {
-	cont.replicaSetInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1beta1.ReplicaSet{},
-		controller.NoResyncPeriodFunc(),
+	cont.replicaSetIndexer, cont.replicaSetInformer = cache.NewIndexerInformer(
+		listWatch, &v1beta1.ReplicaSet{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.replicaSetAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				cont.replicaSetChanged(oldobj, newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				cont.replicaSetDeleted(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.replicaSetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			cont.replicaSetAdded(obj)
-		},
-		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-			cont.replicaSetChanged(oldobj, newobj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			cont.replicaSetDeleted(obj)
-		},
-	})
-
 }
 
 func replicaSetLogger(log *logrus.Logger, rs *v1beta1.ReplicaSet) *logrus.Entry {
