@@ -47,4 +47,3 @@ logging:
   controller_log_level: info
   hostagent_log_level: info
   opflexagent_log_level: info
-  aim_debug: False
