@@ -11,8 +11,6 @@ ERR:  Required configuration not present or not correct: 'node_svc_subnet'
 ERR:  Required configuration not present or not correct: 'pod_subnet'
 ERR:  Required configuration not present or not correct: 'service_vlan'
 ERR:  Required configuration not present or not correct: 'system_id'
-ERR:  Required configuration not present or not correct: 'uplink_if'
 ERR:  Required configuration not present or not correct: 'vrf-name'
 ERR:  Required configuration not present or not correct: 'vrf-tenant'
-ERR:  Required configuration not present or not correct: 'vxlan_if'
 ERR:  Please fix configuration and retry.

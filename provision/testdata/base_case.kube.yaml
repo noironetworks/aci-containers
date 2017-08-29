@@ -72,13 +72,9 @@ data:
         "aci-vmm-controller": "kube",
         "aci-vrf": "kube",
         "aci-vrf-tenant": "common",
-        "uplink-iface": "eth2",
         "service-vlan": 4003,
         "encap-type": "vxlan",
         "aci-infra-vlan": 4093,
-        "vxlan-iface": "eth2.4093",
-        "vxlan-anycast-ip": "10.0.0.32",
-        "opflex-peer-ip": "10.0.0.30",
         "cni-netconfig": [
             {
                 "routes": [

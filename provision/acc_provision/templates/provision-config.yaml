@@ -33,7 +33,7 @@ net_config:
   node_svc_subnet: 10.5.0.1/24  # Subnet to use for service graph
   kubeapi_vlan: 4001            # The VLAN used by the physdom for nodes
   service_vlan: 4003            # The VLAN used by LoadBalancer services
-  infra_vlan: 4093              # THe VLAN used by ACI infra
+  infra_vlan: 4093              # The VLAN used by ACI infra
 
 #
 # Configuration for container registry

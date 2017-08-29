@@ -38,10 +38,6 @@ net_config:
   service_vlan: 4003
   infra_vlan: 4093
 
-node_config:
-  uplink_iface: eth2
-  vxlan_uplink_iface: eth2.4093
-
 kube_config:
   use_netpol_annotation: false
   use_external_service_ip_allocator: true
