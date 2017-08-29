@@ -1,5 +1,5 @@
 FROM alpine:3.6
-RUN apk add --no-cache openssl ca-certificates && update-ca-certificates
+RUN apk add --no-cache wget ca-certificates && update-ca-certificates
 RUN mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz | tar xz -C /opt/cni/bin
 COPY launch-cnideploy.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-cnideploy.sh"]
