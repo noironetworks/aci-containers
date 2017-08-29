@@ -103,8 +103,6 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
-            "vxlan_anycast_ip": "10.0.0.32",
-            "opflex_peer_ip": "10.0.0.30",
         },
         "kube_config": {
             "controller": "1.1.1.1",
@@ -295,10 +293,6 @@ def config_validate(config):
         "extern_dynamic": (get(("net_config", "extern_dynamic")), required),
         "extern_static": (get(("net_config", "extern_static")), required),
         "node_svc_subnet": (get(("net_config", "node_svc_subnet")), required),
-
-        # Node config
-        "uplink_if": (get(("node_config", "uplink_iface")), required),
-        "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
     }
 
     if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":

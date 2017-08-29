@@ -51,13 +51,9 @@ data:
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-vrf": {{config.aci_config.vrf.name|json}},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
-        "uplink-iface": {{ config.node_config.uplink_iface|json }},
         "service-vlan": {{ config.net_config.service_vlan|json }},
         "encap-type": {{ config.node_config.encap_type|json }},
         "aci-infra-vlan": {{ config.net_config.infra_vlan|json }},
-        "vxlan-iface": {{ config.node_config.vxlan_uplink_iface|json }},
-        "vxlan-anycast-ip": {{config.net_config.vxlan_anycast_ip|json}},
-        "opflex-peer-ip": {{config.net_config.opflex_peer_ip|json}},
         "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
     }
   opflex-agent-config: |-

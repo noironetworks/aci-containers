@@ -36,15 +36,6 @@ type HostAgentNodeConfig struct {
 	// Uplink interface for this host
 	UplinkIface string `json:"uplink-iface,omitempty"`
 
-	// VLAN for service traffic
-	ServiceVlan uint `json:"service-vlan,omitempty"`
-
-	// Vlan used for ACI infrastructure traffic
-	AciInfraVlan uint `json:"aci-infra-vlan,omitempty"`
-
-	// Type of encapsulation to use for uplink; either vlan or vxlan
-	EncapType string `json:"encap-type,omitempty"`
-
 	// Subinterface of uplink interface on AciInfraVlan
 	VxlanIface string `json:"vxlan-iface,omitempty"`
 
@@ -96,6 +87,15 @@ type HostAgentConfig struct {
 	// Location of the endpoint RPC socket used for communicating with
 	// the CNI plugin
 	EpRpcSock string `json:"ep-rpc-sock,omitempty"`
+
+	// Vlan used for ACI infrastructure traffic
+	AciInfraVlan uint `json:"aci-infra-vlan,omitempty"`
+
+	// VLAN for service traffic
+	ServiceVlan uint `json:"service-vlan,omitempty"`
+
+	// Type of encapsulation to use for uplink; either vlan or vxlan
+	EncapType string `json:"encap-type,omitempty"`
 
 	// Name of the OVS integration bridge
 	IntBridgeName string `json:"int-bridge-name,omitempty"`

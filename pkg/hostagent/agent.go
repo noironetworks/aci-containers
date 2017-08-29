@@ -100,6 +100,20 @@ func (agent *HostAgent) scheduleSyncServices() {
 	agent.syncQueue.AddRateLimited("services")
 }
 
+func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			agent.updateOpflexConfig()
+		case <-stopCh:
+			return
+		}
+	}
+}
+
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
 
@@ -134,6 +148,10 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 }
 
 func (agent *HostAgent) Run(stopCh <-chan struct{}) {
+	agent.log.Debug("Discovering node configuration")
+	agent.updateOpflexConfig()
+	go agent.runTickers(stopCh)
+
 	agent.log.Debug("Starting node informer")
 	go agent.nodeInformer.Run(stopCh)
 

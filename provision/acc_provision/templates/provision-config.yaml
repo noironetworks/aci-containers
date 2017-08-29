@@ -36,13 +36,6 @@ net_config:
   infra_vlan: 4093              # THe VLAN used by ACI infra
 
 #
-# Configuration that applies to each kubernetes node
-#
-node_config:
-  uplink_iface: eth2            # The name of the uplink interface to ACI
-  vxlan_uplink_iface: eth2.4093 # for vxlan, the infra-vlan subinterface
-
-#
 # Configuration for container registry
 # Update if a custom container registry has been setup
 #

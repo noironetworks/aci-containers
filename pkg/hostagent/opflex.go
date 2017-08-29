@@ -16,11 +16,107 @@ package hostagent
 
 import (
 	"bytes"
+	"errors"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"text/template"
+
+	"github.com/Sirupsen/logrus"
+	"github.com/vishvananda/netlink"
 )
+
+func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		return
+	}
+
+	for _, link := range links {
+		switch link := link.(type) {
+		case *netlink.Vlan:
+			// find link with matching vlan
+			if link.VlanId != int(agent.config.AciInfraVlan) {
+				continue
+			}
+
+			if link.MTU < 1600 {
+				agent.log.WithFields(logrus.Fields{
+					"name": link.Name,
+					"vlan": agent.config.AciInfraVlan,
+					"mtu":  link.MTU,
+				}).Error("OpFlex link MTU must be >= 1600")
+				return
+			}
+
+			// find parent link
+			var parent netlink.Link
+			for _, plink := range links {
+				if plink.Attrs().Index != link.ParentIndex {
+					continue
+				}
+
+				parent = plink
+				if parent.Attrs().MTU < 1600 {
+					agent.log.WithFields(logrus.Fields{
+						"name": parent.Attrs().Name,
+						"vlan": agent.config.AciInfraVlan,
+						"mtu":  parent.Attrs().MTU,
+					}).Error("Uplink MTU must be >= 1600")
+					return
+				}
+			}
+			if parent == nil {
+				agent.log.WithFields(logrus.Fields{
+					"index": link.ParentIndex,
+					"name":  link.Name,
+				}).Error("Could not find parent link for OpFlex interface")
+				return
+			}
+
+			// Find address of link to compute anycast and peer IPs
+			addrs, err := netlink.AddrList(link, 2)
+			if err != nil {
+				agent.log.WithFields(logrus.Fields{
+					"name": link.Name,
+				}).Error("Could not enumerate link addresses: ", err)
+				return
+			}
+			var anycast net.IP
+			var peerIp net.IP
+			for _, addr := range addrs {
+				if addr.IP.To4() == nil || addr.IP.IsLoopback() {
+					continue
+				}
+				anycast = addr.IP.Mask(addr.Mask)
+				anycast[len(anycast)-1] = 32
+				peerIp = addr.IP.Mask(addr.Mask)
+				peerIp[len(peerIp)-1] = 30
+			}
+
+			if anycast == nil {
+				agent.log.WithFields(logrus.Fields{
+					"name": link.Name,
+					"vlan": agent.config.AciInfraVlan,
+				}).Error("IP address not set for OpFlex link")
+			}
+
+			conf = &HostAgentNodeConfig{}
+			conf.VxlanIface = link.Name
+			conf.UplinkIface = parent.Attrs().Name
+			conf.VxlanAnycastIp = anycast.String()
+			conf.OpflexPeerIp = peerIp.String()
+			return
+		}
+	}
+
+	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
+		Error("Could not find suitable host uplink interface for vlan")
+	return
+}
 
 var opflexConfigBase = initTempl("opflex-config-base", `{
     "opflex": {
@@ -104,6 +200,39 @@ func (agent *HostAgent) writeConfigFile(name string,
 	agent.log.Info("Wrote OpFlex agent configuration file ", path)
 
 	return nil
+}
+
+func (agent *HostAgent) updateOpflexConfig() {
+	if agent.config.OpFlexConfigPath == "" {
+		agent.log.Debug("OpFlex agent configuration path not set")
+		return
+	}
+
+	newNodeConfig := agent.discoverHostConfig()
+	if newNodeConfig == nil {
+		panic(errors.New("Node configuration autodiscovery failed"))
+	}
+	var update bool
+
+	agent.indexMutex.Lock()
+	if !reflect.DeepEqual(*newNodeConfig, agent.config.HostAgentNodeConfig) ||
+		!agent.opflexConfigWritten {
+
+		agent.config.HostAgentNodeConfig = *newNodeConfig
+		agent.log.WithFields(logrus.Fields{
+			"uplink-iface":     newNodeConfig.UplinkIface,
+			"vxlan-iface":      newNodeConfig.VxlanIface,
+			"vxlan-anycast-ip": newNodeConfig.VxlanAnycastIp,
+			"opflex-peer-ip":   newNodeConfig.OpflexPeerIp,
+		}).Info("Discovered node configuration")
+		agent.writeOpflexConfig()
+		agent.opflexConfigWritten = true
+	}
+	agent.indexMutex.Unlock()
+
+	if update {
+		agent.updateAllServices()
+	}
 }
 
 func (agent *HostAgent) writeOpflexConfig() error {

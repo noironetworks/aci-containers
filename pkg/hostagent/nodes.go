@@ -73,15 +73,14 @@ func (agent *HostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
 
 func (agent *HostAgent) nodeChanged(obj interface{}) {
 	updateServices := false
-	updateOpflexConfig := false
-
-	agent.indexMutex.Lock()
 
 	node := obj.(*v1.Node)
 	if node.ObjectMeta.Name != agent.config.NodeName {
 		agent.log.Error("Got incorrect node update for ", node.ObjectMeta.Name)
 		return
 	}
+
+	agent.indexMutex.Lock()
 
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if ok {
@@ -109,39 +108,6 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 		}
 	}
 
-	if agent.config.OpFlexConfigPath != "" {
-		orval, ok := node.ObjectMeta.Annotations[metadata.OverrideNodeConfig]
-		if ok {
-			var newNodeConfig HostAgentNodeConfig
-			err := json.Unmarshal([]byte(orval), &newNodeConfig)
-			if err != nil {
-				agent.log.WithFields(logrus.Fields{
-					"orval": orval,
-				}).Warn("Could not parse node ",
-					"configuration override annotation: ", err)
-			}
-			if !reflect.DeepEqual(newNodeConfig,
-				agent.config.HostAgentNodeConfig) {
-
-				agent.config.HostAgentNodeConfig = newNodeConfig
-				updateServices = true
-				updateOpflexConfig = true
-			}
-		}
-		if !agent.opflexConfigWritten {
-			updateOpflexConfig = true
-		}
-	} else {
-		agent.log.Debug("OpFlex agent configuration path not set")
-	}
-
-	if updateOpflexConfig {
-		agent.opflexConfigWritten = true
-		err := agent.writeOpflexConfig()
-		if err != nil {
-			agent.log.Error("Could not write OpFlex configuration file", err)
-		}
-	}
 	agent.indexMutex.Unlock()
 
 	if updateServices {
