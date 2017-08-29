@@ -36,7 +36,7 @@ all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync dist-static/loopback
+	dist-static/ovsresync
 
 vendor-rebuild:
 	${VENDOR_BUILD_CMD}
