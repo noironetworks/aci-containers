@@ -34,6 +34,7 @@ FLAVORS = {
                 "use_netpol_annotation": False,
                 "use_privileged_containers": True,
                 "use_openshift_security_context_constraints": True,
+                "use_openshift_cluster_role": True,
                 "use_cnideploy_initcontainer": True,
                 "allow_kube_api_default_epg": True,
             }

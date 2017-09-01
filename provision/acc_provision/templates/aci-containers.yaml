@@ -89,7 +89,11 @@ metadata:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
+{% if config.kube_config.use_openshift_cluster_role %}
+apiVersion: v1
+{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
+{% endif %}
 kind: ClusterRole
 metadata:
   labels:
@@ -127,7 +131,11 @@ rules:
   verbs:
   - update
 ---
+{% if config.kube_config.use_openshift_cluster_role %}
+apiVersion: v1
+{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
+{% endif %}
 kind: ClusterRole
 metadata:
   labels:
@@ -146,8 +154,12 @@ rules:
   - watch
   - get
 ---
-kind: ClusterRoleBinding
+{% if config.kube_config.use_openshift_cluster_role %}
+apiVersion: v1
+{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
+{% endif %}
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
 roleRef:
@@ -159,8 +171,12 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-kind: ClusterRoleBinding
+{% if config.kube_config.use_openshift_cluster_role %}
+apiVersion: v1
+{% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
+{% endif %}
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
 roleRef:
@@ -221,6 +237,8 @@ spec:
       labels:
         name: aci-containers-host
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
@@ -231,8 +249,9 @@ spec:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       {% if config.kube_config.use_cnideploy_initcontainer %}
       initContainers:
         - name: cnideploy
@@ -367,6 +386,8 @@ spec:
       labels:
         name: aci-containers-openvswitch
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
@@ -377,8 +398,9 @@ spec:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.version }}
@@ -435,11 +457,6 @@ metadata:
     network-plugin: aci-containers
     k8s-app: aci-containers-controller
     name: aci-containers-controller
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ''
-    scheduler.alpha.kubernetes.io/tolerations: |
-      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
 spec:
   replicas: 1
   strategy:
@@ -452,6 +469,8 @@ spec:
         network-plugin: aci-containers
         k8s-app: aci-containers-controller
         name: aci-containers-controller
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
@@ -459,6 +478,8 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      tolerations:
+        - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
           image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.version }}

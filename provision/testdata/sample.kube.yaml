@@ -175,8 +175,8 @@ rules:
   - watch
   - get
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
 roleRef:
@@ -188,8 +188,8 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
 roleRef:
@@ -216,14 +216,17 @@ spec:
       labels:
         name: aci-containers-host
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
           image: noiro/aci-containers-host:1.0
@@ -332,14 +335,17 @@ spec:
       labels:
         name: aci-containers-openvswitch
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch:1.0
@@ -393,11 +399,6 @@ metadata:
     network-plugin: aci-containers
     k8s-app: aci-containers-controller
     name: aci-containers-controller
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ''
-    scheduler.alpha.kubernetes.io/tolerations: |
-      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
 spec:
   replicas: 1
   strategy:
@@ -410,9 +411,13 @@ spec:
         network-plugin: aci-containers
         k8s-app: aci-containers-controller
         name: aci-containers-controller
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
+      tolerations:
+        - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
           image: noiro/aci-containers-controller:1.0
