@@ -14,7 +14,6 @@ import struct
 import sys
 import yaml
 
-
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
@@ -41,6 +40,7 @@ FLAVORS = {
         },
     },
 }
+
 
 def info(msg):
     print("INFO: " + msg, file=sys.stderr)

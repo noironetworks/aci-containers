@@ -1027,7 +1027,9 @@ class ApicKubeConfig(object):
                                             "stateful": "no",
                                             "tcpRules": ""
                                         }
-                                    },
+                                    }
+                                },
+                                {
                                     "vzEntry": {
                                         "attributes": {
                                             "name": "kube-api2",

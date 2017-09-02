@@ -56,6 +56,7 @@ def test_with_overrides():
         "with_overrides.apic.txt"
     )
 
+
 @in_testdir
 def test_flavor_openshift_36():
     run_provision(

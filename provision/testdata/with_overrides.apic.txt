@@ -587,6 +587,19 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
+                                    "dFromPort": "6443", 
+                                    "dToPort": "6443", 
+                                    "etherT": "ip", 
+                                    "name": "kube-api", 
+                                    "prot": "tcp", 
+                                    "stateful": "no", 
+                                    "tcpRules": ""
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
                                     "dFromPort": "8443", 
                                     "dToPort": "8443", 
                                     "etherT": "ip", 
