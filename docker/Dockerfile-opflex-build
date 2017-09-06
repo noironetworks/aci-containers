@@ -12,4 +12,10 @@ RUN cd /opflex/genie/target/libmodelgbp \
 COPY agent-ovs /opflex/agent-ovs
 RUN cd /opflex/agent-ovs \
   && ./autogen.sh && ./configure --disable-shared \
-  && make $make_args && make install-strip
+  && make $make_args && make install
+RUN cd /usr/local/bin \
+  && for p in agent_ovs gbp_inspect mcast_daemon; do \
+       objcopy --only-keep-debug "$p" "$p.debug"; \
+       objcopy --strip-debug "$p"; \
+       objcopy --add-gnu-debuglink="$p.debug" "$p"; \
+     done

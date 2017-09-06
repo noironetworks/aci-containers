@@ -23,6 +23,9 @@ docker build ${DOCKER_BUILD_ARGS} --build-arg make_args="${MAKE_ARGS}" -t noiro/
 docker run noiro/opflex-build tar -c -C /usr/local \
        bin/agent_ovs bin/gbp_inspect bin/mcast_daemon \
     | tar -x -C dist
+docker run noiro/opflex-build tar -zc -C /usr/local \
+       bin/agent_ovs.debug bin/gbp_inspect.debug bin/mcast_daemon.debug \
+    > debuginfo.tar.gz
 cp ../../docker/launch-opflexagent.sh dist/bin/
 cp ../../docker/launch-mcastdaemon.sh dist/bin/
 cp ../../docker/launch-ovs.sh dist/bin/
