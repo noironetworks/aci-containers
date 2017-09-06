@@ -128,6 +128,7 @@ def get_args(**overrides):
         "debug": False,
         "list_flavors": False,
         "flavor": None,
+        "version_token": "dummy",
     }
     argc = collections.namedtuple('argc', arg.keys())
     args = argc(**arg)

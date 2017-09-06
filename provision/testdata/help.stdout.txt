@@ -1,6 +1,6 @@
 usage: acc_provision.py [-h] [-v] [--debug] [--sample] [-c file] [-o file]
                         [-a] [-d] [-u name] [-p pass] [--list-flavors]
-                        [-f flavor]
+                        [-f flavor] [-t token]
 
 Provision an ACI/Kubernetes installation
 
@@ -18,3 +18,5 @@ optional arguments:
   --list-flavors        list available configuration flavors
   -f flavor, --flavor flavor
                         set configuration flavor. Example: openshift-3.6
+  -t token, --version-token token
+                        set a configuration version token. Default is UUID.

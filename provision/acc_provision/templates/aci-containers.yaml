@@ -4,6 +4,7 @@ metadata:
   name: aci-containers-config
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 data:
   controller-config: |-
@@ -73,6 +74,8 @@ kind: Secret
 metadata:
   name: aci-user-cert
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 data:
   user.key: {{config.aci_config.sync_login.key_data|base64enc}}
   user.crt: {{config.aci_config.sync_login.cert_data|base64enc}}
@@ -82,12 +85,16 @@ kind: ServiceAccount
 metadata:
   name: aci-containers-controller
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
 {% if config.kube_config.use_openshift_cluster_role %}
 apiVersion: v1
@@ -97,6 +104,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
   name: aci-containers:controller
 rules:
@@ -139,6 +147,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
   name: aci-containers:host-agent
 rules:
@@ -162,6 +171,8 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -179,6 +190,8 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -193,6 +206,8 @@ kind: SecurityContextConstraints
 apiVersion: v1
 metadata:
   name: aci-containers-scc
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 users:
   - system:serviceaccount:kube-system:aci-containers-controller
   - system:serviceaccount:kube-system:aci-containers-host-agent
@@ -228,6 +243,7 @@ metadata:
   name: aci-containers-host
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 spec:
   updateStrategy:
@@ -255,7 +271,7 @@ spec:
       {% if config.kube_config.use_cnideploy_initcontainer %}
       initContainers:
         - name: cnideploy
-          image: {{ config.registry.image_prefix }}/cnideploy:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/cnideploy:{{ config.registry.cnideploy_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             {% if config.kube_config.use_privileged_containers %}
@@ -270,7 +286,7 @@ spec:
       {% endif %}
       containers:
         - name: aci-containers-host
-          image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.aci_containers_host_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             {% if config.kube_config.use_privileged_containers %}
@@ -305,7 +321,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.opflex_agent_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             {% if config.kube_config.use_privileged_containers %}
@@ -326,7 +342,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.opflex_agent_version }}
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
@@ -377,6 +393,7 @@ metadata:
   name: aci-containers-openvswitch
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 spec:
   updateStrategy:
@@ -403,7 +420,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
-          image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.openvswitch_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
             {% if config.kube_config.use_privileged_containers %}
@@ -454,6 +471,7 @@ metadata:
   name: aci-containers-controller
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
     k8s-app: aci-containers-controller
     name: aci-containers-controller
@@ -482,7 +500,7 @@ spec:
         - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.aci_containers_controller_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           volumeMounts:
             - name: controller-config-volume
