@@ -117,7 +117,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			cont:     "opflex-agent",
 			selector: opflexAgentSelector,
 			argFunc:  inspectArgs,
-			args:     []string{"-rfpq", "DmtreeRoot"},
+			args:     []string{"-rfpq", "DmtreeRoot", "-t", "dump"},
 		},
 		reportNodeCmd{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-int.log",
@@ -241,8 +241,8 @@ func outputCmd(cmd *cobra.Command, cmdArgs []string) {
 }
 
 func accLogCmdArgs() []string {
-	return []string{"-n", "kube-system", "--limit-bytes=10048576",
-		"logs", "deployment/aci-containers-controller",
+	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
 }
 
@@ -277,8 +277,8 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 func nodeLogCmdArgs(podName string, containerName string,
 	args []string) []string {
 
-	return []string{"-n", "kube-system", "--limit-bytes=10048576",
-		"logs", podName, "-c", containerName}
+	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+		podName, "-c", containerName}
 }
 
 func podForNode(node string, selector string) (string, error) {
