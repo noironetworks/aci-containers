@@ -1,0 +1,10 @@
+language: go
+sudo: false
+go:
+  - 1.8
+install:
+  - go get -v github.com/Masterminds/glide
+  - go install github.com/Masterminds/glide
+  - export PATH=$PATH:$GOPATH/bin
+script:
+  - make vendor goinstall check
