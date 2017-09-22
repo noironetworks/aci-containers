@@ -45,9 +45,9 @@ func mditem(ip string) metadata.ContainerMetadata {
 			Namespace: "ns",
 		},
 		Ifaces: []*metadata.ContainerIfaceMd{
-			&metadata.ContainerIfaceMd{
+			{
 				IPs: []metadata.ContainerIfaceIP{
-					metadata.ContainerIfaceIP{
+					{
 						Address: net.IPNet{
 							IP: i,
 						},

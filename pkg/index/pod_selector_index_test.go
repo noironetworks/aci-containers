@@ -218,7 +218,7 @@ var depUpdateTests = []updateTest{
 			"label2": "value2"}),
 		[]string{"testns1/testpod1"},
 		map[string][]string{
-			"testns1/testpod1": []string{"testns1/testdep1"},
+			"testns1/testpod1": {"testns1/testdep1"},
 			"testns1/testpod2": nil,
 		},
 		"simple",
@@ -231,7 +231,7 @@ var depUpdateTests = []updateTest{
 		[]string{"testns1/testpod2", "testns1/testpod1"},
 		map[string][]string{
 			"testns1/testpod1": nil,
-			"testns1/testpod2": []string{"testns1/testdep1"},
+			"testns1/testpod2": {"testns1/testdep1"},
 		},
 		"change",
 	},
@@ -243,8 +243,8 @@ var depUpdateTests = []updateTest{
 		[]string{"testns2/testpod3"},
 		map[string][]string{
 			"testns1/testpod1": nil,
-			"testns1/testpod2": []string{"testns1/testdep1"},
-			"testns2/testpod3": []string{"testns2/testdep2"},
+			"testns1/testpod2": {"testns1/testdep1"},
+			"testns2/testpod3": {"testns2/testdep2"},
 		},
 		"diffns",
 	},
@@ -253,8 +253,8 @@ var depUpdateTests = []updateTest{
 		deployment("testns1", "testdep3", map[string]string{}),
 		[]string{"testns1/testpod1", "testns1/testpod2"},
 		map[string][]string{
-			"testns1/testpod1": []string{"testns1/testdep3"},
-			"testns1/testpod2": []string{"testns1/testdep1", "testns1/testdep3"},
+			"testns1/testpod1": {"testns1/testdep3"},
+			"testns1/testpod2": {"testns1/testdep1", "testns1/testdep3"},
 		},
 		"multimatch",
 	},
@@ -264,7 +264,7 @@ var depUpdateTests = []updateTest{
 		[]string{"testns1/testpod1", "testns1/testpod2"},
 		map[string][]string{
 			"testns1/testpod1": nil,
-			"testns1/testpod2": []string{"testns1/testdep1"},
+			"testns1/testpod2": {"testns1/testdep1"},
 		},
 		"remove",
 	},
@@ -286,7 +286,7 @@ var depUpdateTests = []updateTest{
 			"label2": "value4"}),
 		[]string{"testns1/testpod4"},
 		map[string][]string{
-			"testns1/testpod4": []string{"testns1/testdep1"},
+			"testns1/testpod4": {"testns1/testdep1"},
 		},
 		"addpodafterdep",
 	},
@@ -384,7 +384,7 @@ var nsMatchTests = []updateTest{
 	{
 		"add",
 		testObj("testns1", "testobj1", []PodSelector{
-			PodSelector{
+			{
 				NsSelector: labels.SelectorFromSet(labels.Set{
 					"nslabel1": "value1",
 					"nslabel2": "value2"}),
@@ -393,7 +393,7 @@ var nsMatchTests = []updateTest{
 		}),
 		[]string{"testns1/testobj1"},
 		map[string][]string{
-			"testns1/testobj1": []string{
+			"testns1/testobj1": {
 				"testns1/testpod1",
 				"testns1/testpod2"},
 		},
@@ -415,7 +415,7 @@ var nsMatchTests = []updateTest{
 			"nslabel2": "value2"}),
 		[]string{"testns1/testobj1"},
 		map[string][]string{
-			"testns1/testobj1": []string{
+			"testns1/testobj1": {
 				"testns1/testpod1",
 				"testns1/testpod2"},
 		},
@@ -424,7 +424,7 @@ var nsMatchTests = []updateTest{
 	{
 		"add",
 		testObj("testns1", "testobj1", []PodSelector{
-			PodSelector{
+			{
 				Namespace: &ns1,
 				PodSelector: labels.SelectorFromSet(labels.Set{
 					"label1": "value1",
@@ -433,7 +433,7 @@ var nsMatchTests = []updateTest{
 		}),
 		[]string{"testns1/testobj1"},
 		map[string][]string{
-			"testns1/testobj1": []string{
+			"testns1/testobj1": {
 				"testns1/testpod1"},
 		},
 		"podselector",

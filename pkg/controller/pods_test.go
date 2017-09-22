@@ -41,7 +41,7 @@ var egAnnotVal = OpflexGroup{
 	Name:        "test|test-eg",
 }
 var sgAnnotVal = []OpflexGroup{
-	OpflexGroup{
+	{
 		PolicySpace: "testps",
 		Name:        "test-sg",
 	},

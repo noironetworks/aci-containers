@@ -37,7 +37,7 @@ type ApicObject map[string]*ApicObjectBody
 
 type ApicResponse struct {
 	TotalCount     interface{}  `json:"totalCount"`
-	SubscriptionId interface{}  `json:"subscriptionId",omitempty`
+	SubscriptionId interface{}  `json:"subscriptionId,omitempty"`
 	Imdata         []ApicObject `json:"imdata"`
 }
 

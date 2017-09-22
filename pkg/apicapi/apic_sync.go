@@ -42,7 +42,6 @@ func (conn *ApicConnection) apicBodyAttrCmp(class string,
 
 		if ac != ad {
 			return false
-			break
 		}
 	}
 	return true

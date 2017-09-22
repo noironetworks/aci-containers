@@ -298,7 +298,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	cont.indexMutex.Unlock()
 
 	var nodes []string
-	for node, _ := range nodeMap {
+	for node := range nodeMap {
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)
@@ -484,7 +484,7 @@ func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
 
 	cont.indexMutex.Lock()
-	for node, _ := range cont.nodeServiceMetaCache {
+	for node := range cont.nodeServiceMetaCache {
 		fabricPath, ok := cont.fabricPathForNode(node)
 		if !ok {
 			continue
@@ -494,7 +494,7 @@ func (cont *AciController) updateDeviceCluster() {
 	cont.indexMutex.Unlock()
 
 	var nodes []string
-	for node, _ := range nodeMap {
+	for node := range nodeMap {
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)

@@ -62,11 +62,11 @@ func cnimd(namespace string, name string,
 			ContId:    cont,
 		},
 		Ifaces: []*md.ContainerIfaceMd{
-			&md.ContainerIfaceMd{
+			{
 				HostVethName: veth,
 				Name:         "eth0",
 				IPs: []md.ContainerIfaceIP{
-					md.ContainerIfaceIP{
+					{
 						Address: net.IPNet{
 							IP:   net.ParseIP(ip),
 							Mask: net.CIDRMask(24, 32),
@@ -95,7 +95,7 @@ type podTest struct {
 }
 
 var podTests = []podTest{
-	podTest{
+	{
 		"730a8e7a-8455-4d46-8e6e-f4fdf0e3a667",
 		"cont1",
 		"veth1",
@@ -106,7 +106,7 @@ var podTests = []podTest{
 		egAnnot,
 		sgAnnot,
 	},
-	podTest{
+	{
 		"730a8e7a-8455-4d46-8e6e-f4fdf0e3a667",
 		"cont2",
 		"veth2",
@@ -117,7 +117,7 @@ var podTests = []podTest{
 		egAnnot,
 		sgAnnot,
 	},
-	podTest{
+	{
 		"6a281ef1-0fcb-4140-a38c-62977ef25d72",
 		"cont2",
 		"veth2",

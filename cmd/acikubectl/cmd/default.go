@@ -40,7 +40,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 	}
 
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Error: Object name not specified\n")
+		fmt.Fprintf(os.Stderr, "Error: Object name not specified\n\n")
 		cmd.Usage()
 		return
 	}
@@ -143,7 +143,7 @@ func getObjectAnnot(annot string, format func(string),
 	}
 
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Error: Object name not specified\n")
+		fmt.Fprintf(os.Stderr, "Error: Object name not specified\n\n")
 		cmd.Usage()
 		return
 	}

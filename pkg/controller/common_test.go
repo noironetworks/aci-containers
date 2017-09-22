@@ -255,7 +255,7 @@ func endpoints(namespace string, name string, nodes []string) *v1.Endpoints {
 	}
 	return &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{
-			v1.EndpointSubset{
+			{
 				Addresses: addrs,
 			},
 		},

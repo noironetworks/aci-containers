@@ -50,7 +50,7 @@ func service(uuid string, namespace string, name string,
 		s.Status = v1.ServiceStatus{
 			LoadBalancer: v1.LoadBalancerStatus{
 				Ingress: []v1.LoadBalancerIngress{
-					v1.LoadBalancerIngress{
+					{
 						IP: externalIp,
 					},
 				},
@@ -111,7 +111,7 @@ type serviceTest struct {
 }
 
 var serviceTests = []serviceTest{
-	serviceTest{
+	{
 		"e93abb02-3ffd-41e8-8f3e-7d65b7f970c0",
 		"testns",
 		"service1",
@@ -120,7 +120,7 @@ var serviceTests = []serviceTest{
 		[]int32{80},
 		[]string{"10.1.1.1", "10.2.2.2"},
 	},
-	serviceTest{
+	{
 		"683c333d-a594-4f00-baa6-0d578a13d83f",
 		"testns",
 		"service2",
