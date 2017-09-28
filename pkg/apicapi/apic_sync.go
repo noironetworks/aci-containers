@@ -402,22 +402,3 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 
 	conn.applyDiff(updates, deletes, "reconcile "+dn)
 }
-
-func (conn *ApicConnection) reconcileApicDelete(dn string) {
-	conn.indexMutex.Lock()
-	if !conn.syncEnabled {
-		conn.indexMutex.Unlock()
-		return
-	}
-
-	var adds ApicSlice
-	if eobj, ok := conn.desiredStateDn[dn]; ok {
-		conn.log.WithFields(logrus.Fields{"DN": dn}).
-			Warning("Restoring unexpectedly deleted ACI object")
-		adds = ApicSlice{eobj}
-	}
-
-	conn.indexMutex.Unlock()
-
-	conn.applyDiff(adds, nil, "reconcile "+dn)
-}

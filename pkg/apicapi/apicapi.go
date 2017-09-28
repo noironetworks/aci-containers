@@ -206,17 +206,65 @@ func New(log *logrus.Logger, apic []string, user string,
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
 		},
-		desiredState:   make(map[string]ApicSlice),
-		desiredStateDn: make(map[string]ApicObject),
-		keyHashes:      make(map[string]string),
-		containerDns:   make(map[string]bool),
-		cachedState:    make(map[string]ApicSlice),
-		cacheDnSubIds:  make(map[string][]string),
+		desiredState:       make(map[string]ApicSlice),
+		desiredStateDn:     make(map[string]ApicObject),
+		keyHashes:          make(map[string]string),
+		containerDns:       make(map[string]bool),
+		cachedState:        make(map[string]ApicSlice),
+		cacheDnSubIds:      make(map[string][]string),
+		pendingSubDnUpdate: make(map[string]pendingChange),
 	}
 	return conn, nil
 }
 
 func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
+	var subIds []string
+	switch ids := apicresp.SubscriptionId.(type) {
+	case string:
+		subIds = append(subIds, ids)
+	case []interface{}:
+		for _, id := range ids {
+			subIds = append(subIds, id.(string))
+		}
+	}
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			switch dn := body.Attributes["dn"].(type) {
+			case string:
+				switch status := body.Attributes["status"].(type) {
+				case string:
+					var pendingKind int
+					if status == "deleted" {
+						pendingKind = pendingChangeDelete
+					} else {
+						pendingKind = pendingChangeUpdate
+					}
+					conn.indexMutex.Lock()
+					conn.pendingSubDnUpdate[dn] = pendingChange{
+						kind:   pendingKind,
+						subIds: subIds,
+					}
+					if conn.deltaQueue != nil {
+						conn.deltaQueue.AddRateLimited(dn)
+					}
+					conn.indexMutex.Unlock()
+				}
+			}
+		}
+	}
+}
+
+func (conn *ApicConnection) restart() {
+	conn.indexMutex.Lock()
+	if conn.restartCh != nil {
+		conn.log.Debug("Restarting connection")
+		close(conn.restartCh)
+		conn.restartCh = nil
+	}
+	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var respClasses []string
 	var updateHandlers []ApicObjectHandler
 	var deleteHandlers []ApicDnHandler
@@ -239,46 +287,48 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 		}
 		conn.indexMutex.Unlock()
 	}
-	switch ids := apicresp.SubscriptionId.(type) {
-	case string:
-		handleId(ids)
-	case []interface{}:
-		for _, id := range ids {
-			handleId(id.(string))
-		}
-	}
-	if len(respClasses) == 0 {
-		return
-	}
-	for _, obj := range apicresp.Imdata {
-		for _, body := range obj {
-			prepareApicCache("", obj)
-			switch dn := body.Attributes["dn"].(type) {
-			case string:
-				switch status := body.Attributes["status"].(type) {
-				case string:
-					if status == "deleted" {
-						for _, handler := range deleteHandlers {
-							handler(dn)
-						}
-						conn.reconcileApicDelete(dn)
-					} else {
-						conn.getSubtreeDn(dn, respClasses, updateHandlers)
-					}
-				}
-			}
-		}
-	}
-}
 
-func (conn *ApicConnection) restart() {
+	var requeue bool
 	conn.indexMutex.Lock()
-	if conn.restartCh != nil {
-		conn.log.Debug("Restarting connection")
-		close(conn.restartCh)
-		conn.restartCh = nil
-	}
+	pending, hasPendingChange := conn.pendingSubDnUpdate[dn]
+	delete(conn.pendingSubDnUpdate, dn)
+	obj, hasDesiredState := conn.desiredStateDn[dn]
 	conn.indexMutex.Unlock()
+
+	if hasPendingChange {
+		for _, id := range pending.subIds {
+			handleId(id)
+		}
+	}
+
+	if hasDesiredState {
+		if hasPendingChange {
+			if pending.kind == pendingChangeDelete {
+				conn.log.WithFields(logrus.Fields{"DN": dn}).
+					Warning("Restoring unexpectedly deleted" +
+						" ACI object")
+				requeue = conn.postDn(dn, obj)
+			} else if len(respClasses) > 0 {
+				conn.getSubtreeDn(dn, respClasses, updateHandlers)
+			}
+		} else {
+			requeue = conn.postDn(dn, obj)
+		}
+	} else {
+		if hasPendingChange {
+			if pending.kind == pendingChangeDelete {
+				for _, handler := range deleteHandlers {
+					handler(dn)
+				}
+			} else if len(respClasses) > 0 {
+				conn.getSubtreeDn(dn, respClasses, updateHandlers)
+			}
+		} else {
+			requeue = conn.deleteDn(dn)
+		}
+	}
+
+	return requeue
 }
 
 func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
@@ -294,14 +344,7 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			var requeue bool
 			switch dn := dn.(type) {
 			case string:
-				conn.indexMutex.Lock()
-				obj, ok := conn.desiredStateDn[dn]
-				conn.indexMutex.Unlock()
-				if ok {
-					requeue = conn.postDn(dn, obj)
-				} else {
-					requeue = conn.deleteDn(dn)
-				}
+				requeue = conn.handleQueuedDn(dn)
 			}
 			if requeue {
 				queue.AddRateLimited(dn)
@@ -346,6 +389,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string][]string)
+	conn.pendingSubDnUpdate = make(map[string]pendingChange)
 	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.NewMaxOfRateLimiter(
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
@@ -355,9 +399,8 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			},
 		),
 		"delta")
-	conn.indexMutex.Unlock()
-
 	go conn.processQueue(conn.deltaQueue, queueStop)
+	conn.indexMutex.Unlock()
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {

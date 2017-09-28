@@ -671,6 +671,7 @@ type reconcileTest struct {
 func TestReconcile(t *testing.T) {
 	bd1exp := NewFvBD("common", "testbd1")
 	subnetexp := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
+	subnetexp_copy := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
 	{
 		subnet2 := NewFvSubnet(bd1exp.GetDn(), "10.43.10.1/16")
 		bd1exp.AddChild(subnetexp)
@@ -763,7 +764,7 @@ func TestReconcile(t *testing.T) {
 			},
 			deleteBody: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					subnetexp.GetDn(): {subnetexp},
+					subnetexp.GetDn(): {subnetexp_copy},
 				}
 			}(),
 			deletes: []string{subnetexp.GetDn()},
@@ -824,6 +825,21 @@ func TestReconcile(t *testing.T) {
 					},
 				})
 		}
+		for dn, _ := range test.expected {
+			if _, ok := test.updateResp[dn]; ok {
+				continue
+			}
+			r := &recorder{}
+			recorders[dn] = r
+			server.mux.Handle(fmt.Sprintf("/api/mo/%s.json", dn),
+				&methodMux{
+					methods: map[string]http.Handler{
+						"GET":    r,
+						"POST":   r,
+						"DELETE": r,
+					},
+				})
+		}
 
 		conn, err := server.testConn(nil)
 		assert.Nil(t, err)
@@ -878,7 +894,6 @@ func TestReconcile(t *testing.T) {
 				}
 				return true, nil
 			})
-
 		close(stopCh)
 	}
 }
