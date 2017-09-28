@@ -348,7 +348,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		for _, q := range qs {
 			c := make(chan struct{})
 			chans = append(chans, c)
-			q.Add(c)
+			q.AddRateLimited(c)
 		}
 		for _, c := range chans {
 			<-c
