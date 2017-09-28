@@ -590,8 +590,6 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 }
 
 func (cont *AciController) opflexDeviceDeleted(dn string) {
-	cont.log.Debug("odev Deleted ", dn)
-
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
