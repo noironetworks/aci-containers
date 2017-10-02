@@ -43,12 +43,12 @@ func TestOpflexConfigVxlan(t *testing.T) {
 	agent := testAgent()
 	agent.config = &HostAgentConfig{
 		HostAgentNodeConfig: HostAgentNodeConfig{
-			EncapType:    "vxlan",
-			VxlanIface:   "eth1.4093",
-			AciInfraVlan: 4093,
-			UplinkIface:  "eth1",
+			VxlanIface:  "eth1.4093",
+			UplinkIface: "eth1",
 		},
-		NodeName: "node1",
+		EncapType:    "vxlan",
+		AciInfraVlan: 4093,
+		NodeName:     "node1",
 	}
 	doTestOpflex(t, agent)
 }
@@ -57,12 +57,12 @@ func TestOpflexConfigVlan(t *testing.T) {
 	agent := testAgent()
 	agent.config = &HostAgentConfig{
 		HostAgentNodeConfig: HostAgentNodeConfig{
-			EncapType:    "vlan",
-			VxlanIface:   "eth1.4093",
-			AciInfraVlan: 4093,
-			UplinkIface:  "eth1",
+			VxlanIface:  "eth1.4093",
+			UplinkIface: "eth1",
 		},
-		NodeName: "node1",
+		EncapType:    "vlan",
+		AciInfraVlan: 4093,
+		NodeName:     "node1",
 	}
 	doTestOpflex(t, agent)
 }

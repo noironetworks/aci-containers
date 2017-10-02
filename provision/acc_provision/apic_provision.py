@@ -659,6 +659,61 @@ class ApicKubeConfig(object):
         kube_l3out = self.config["aci_config"]["l3out"]["name"]
         node_subnet = self.config["net_config"]["node_subnet"]
         pod_subnet = self.config["net_config"]["pod_subnet"]
+        kade = self.config["kube_config"].get("allow_kube_api_default_epg")
+
+        kube_default_children = [
+            {
+                "fvRsDomAtt": {
+                    "attributes": {
+                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "dns"
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
+                    }
+                }
+            },
+            {
+                "fvRsProv": {
+                    "attributes": {
+                        "tnVzBrCPName": "health-check"
+                    }
+                }
+            },
+            {
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "icmp"
+                    }
+                }
+            },
+            {
+                "fvRsBd": {
+                    "attributes": {
+                        "tnFvBDName": "kube-pod-bd"
+                    }
+                }
+            }
+        ]
+
+        if kade is True:
+            kube_default_children.append({
+                "fvRsCons": {
+                    "attributes": {
+                        "tnVzBrCPName": "kube-api"
+                    }
+                }
+            })
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = {
@@ -679,57 +734,7 @@ class ApicKubeConfig(object):
                                         "attributes": {
                                             "name": "kube-default"
                                         },
-                                        "children": [
-                                            {
-                                                "fvRsDomAtt": {
-                                                    "attributes": {
-                                                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "dns"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "arp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "health-check"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "icmp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsBd": {
-                                                    "attributes": {
-                                                        "tnFvBDName": "kube-pod-bd"
-                                                    }
-                                                }
-                                            }
-                                        ]
+                                        "children": kube_default_children
                                     }
                                 },
                                 {
@@ -738,13 +743,6 @@ class ApicKubeConfig(object):
                                             "name": "kube-system"
                                         },
                                         "children": [
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "arp"
-                                                    }
-                                                }
-                                            },
                                             {
                                                 "fvRsProv": {
                                                     "attributes": {
@@ -810,6 +808,13 @@ class ApicKubeConfig(object):
                                             "name": "kube-nodes"
                                         },
                                         "children": [
+                                            {
+                                                "fvRsProv": {
+                                                    "attributes": {
+                                                        "tnVzBrCPName": "dns"
+                                                    }
+                                                }
+                                            },
                                             {
                                                 "fvRsProv": {
                                                     "attributes": {
@@ -917,23 +922,6 @@ class ApicKubeConfig(object):
                     {
                         "vzFilter": {
                             "attributes": {
-                                "name": "arp-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "arp",
-                                            "etherT": "arp"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
                                 "name": "icmp-filter"
                             },
                             "children": [
@@ -952,7 +940,7 @@ class ApicKubeConfig(object):
                     {
                         "vzFilter": {
                             "attributes": {
-                                "name": "health-check-filter"
+                                "name": "health-check-filter-in"
                             },
                             "children": [
                                 {
@@ -963,6 +951,26 @@ class ApicKubeConfig(object):
                                             "prot": "tcp",
                                             "stateful": "no",
                                             "tcpRules": ""
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "vzFilter": {
+                            "attributes": {
+                                "name": "health-check-filter-out"
+                            },
+                            "children": [
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "health-check",
+                                            "etherT": "ip",
+                                            "prot": "tcp",
+                                            "stateful": "no",
+                                            "tcpRules": "est"
                                         }
                                     }
                                 }
@@ -989,17 +997,6 @@ class ApicKubeConfig(object):
                                 {
                                     "vzEntry": {
                                         "attributes": {
-                                            "name": "dns2-udp",
-                                            "etherT": "ip",
-                                            "prot": "udp",
-                                            "dFromPort": "8053",
-                                            "dToPort": "8053"
-                                        }
-                                    }
-                                },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
                                             "name": "dns-tcp",
                                             "etherT": "ip",
                                             "prot": "tcp",
@@ -1010,19 +1007,6 @@ class ApicKubeConfig(object):
                                         }
                                     }
                                 },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "dns2-tcp",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "dFromPort": "8053",
-                                            "dToPort": "8053",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                }
                             ]
                         }
                     },
@@ -1044,32 +1028,18 @@ class ApicKubeConfig(object):
                                             "tcpRules": ""
                                         }
                                     }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "arp"
-                            },
-                            "children": [
+                                },
                                 {
-                                    "vzSubj": {
+                                    "vzEntry": {
                                         "attributes": {
-                                            "name": "arp-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "arp-filter"
-                                                    }
-                                                }
-                                            }
-                                        ]
+                                            "name": "kube-api2",
+                                            "etherT": "ip",
+                                            "prot": "tcp",
+                                            "dFromPort": "8443",
+                                            "dToPort": "8443",
+                                            "stateful": "no",
+                                            "tcpRules": ""
+                                        }
                                     }
                                 }
                             ]
@@ -1118,10 +1088,35 @@ class ApicKubeConfig(object):
                                         },
                                         "children": [
                                             {
-                                                "vzRsSubjFiltAtt": {
+                                                "vzOutTerm": {
                                                     "attributes": {
-                                                        "tnVzFilterName": "health-check-filter"
-                                                    }
+                                                        "name": ""
+                                                    },
+                                                    "children": [
+                                                        {
+                                                            "vzRsFiltAtt": {
+                                                                "attributes": {
+                                                                    "tnVzFilterName": "health-check-filter-out"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "vzInTerm": {
+                                                    "attributes": {
+                                                        "name": ""
+                                                    },
+                                                    "children": [
+                                                        {
+                                                            "vzRsFiltAtt": {
+                                                                "attributes": {
+                                                                    "tnVzFilterName": "health-check-filter-in"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
                                                 }
                                             }
                                         ]

@@ -298,7 +298,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	cont.indexMutex.Unlock()
 
 	var nodes []string
-	for node, _ := range nodeMap {
+	for node := range nodeMap {
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)
@@ -374,7 +374,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {
-	cont.serviceQueue.Add(key)
+	cont.serviceQueue.AddRateLimited(key)
 }
 
 func (cont *AciController) queueServiceUpdate(service *v1.Service) {
@@ -384,7 +384,7 @@ func (cont *AciController) queueServiceUpdate(service *v1.Service) {
 			Error("Could not create service key: ", err)
 		return
 	}
-	cont.serviceQueue.Add(key)
+	cont.serviceQueue.AddRateLimited(key)
 }
 
 func apicDeviceCluster(name string, vrfTenant string,
@@ -484,7 +484,7 @@ func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
 
 	cont.indexMutex.Lock()
-	for node, _ := range cont.nodeServiceMetaCache {
+	for node := range cont.nodeServiceMetaCache {
 		fabricPath, ok := cont.fabricPathForNode(node)
 		if !ok {
 			continue
@@ -494,7 +494,7 @@ func (cont *AciController) updateDeviceCluster() {
 	cont.indexMutex.Unlock()
 
 	var nodes []string
-	for node, _ := range nodeMap {
+	for node := range nodeMap {
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)
@@ -590,8 +590,6 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 }
 
 func (cont *AciController) opflexDeviceDeleted(dn string) {
-	cont.log.Debug("odev Deleted ", dn)
-
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
@@ -692,7 +690,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 }
 
 func (cont *AciController) allocateServiceIps(servicekey string,
-	service *v1.Service) {
+	service *v1.Service) bool {
 	logger := serviceLogger(cont.log, service)
 
 	cont.indexMutex.Lock()
@@ -725,7 +723,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 
 	if !cont.serviceSyncEnabled {
 		cont.indexMutex.Unlock()
-		return
+		return false
 	}
 
 	// try to give the requested load balancer IP to the pod
@@ -762,6 +760,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		ipv4, err := cont.serviceIps.V4.GetIp()
 		if err != nil {
 			logger.Error("No IP addresses available for service")
+			return true
 		} else {
 			meta.ingressIps = []net.IP{ipv4}
 		}
@@ -783,12 +782,14 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		_, err := cont.updateServiceStatus(service)
 		if err != nil {
 			logger.Error("Failed to update service: ", err)
+			return true
 		} else {
 			logger.WithFields(logrus.Fields{
 				"status": service.Status.LoadBalancer.Ingress,
 			}).Info("Updated service load balancer status")
 		}
 	}
+	return false
 }
 
 func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
@@ -799,10 +800,11 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		return false
 	}
 
+	var requeue bool
 	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
 	if isLoadBalancer {
 		if *cont.config.AllocateServiceIps {
-			cont.allocateServiceIps(servicekey, service)
+			requeue = cont.allocateServiceIps(servicekey, service)
 		}
 		cont.indexMutex.Lock()
 		if cont.serviceSyncEnabled {
@@ -817,7 +819,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 
 	cont.writeApicSvc(servicekey, service)
 
-	return false
+	return requeue
 }
 
 func (cont *AciController) clearLbService(servicekey string) {

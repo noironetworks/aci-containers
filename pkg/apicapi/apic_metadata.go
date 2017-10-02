@@ -142,7 +142,7 @@ func injectedSvcPortNormalizer(b *ApicObjectBody) {
 }
 
 var metadata = map[string]*apicMeta{
-	"fvBD": &apicMeta{
+	"fvBD": {
 		attributes: map[string]interface{}{
 			"arpFlood":       "no",
 			"ipLearning":     "yes",
@@ -157,29 +157,29 @@ var metadata = map[string]*apicMeta{
 			"fvRsBDToOut",
 		},
 	},
-	"fvRsCtx": &apicMeta{
+	"fvRsCtx": {
 		attributes: map[string]interface{}{
 			"tnFvCtxName": "",
 		},
 	},
-	"fvRsBDToOut": &apicMeta{
+	"fvRsBDToOut": {
 		attributes: map[string]interface{}{
 			"tnL3extOutName": "",
 		},
 	},
-	"fvSubnet": &apicMeta{
+	"fvSubnet": {
 		attributes: map[string]interface{}{
 			"ip":        "",
 			"virtual":   "no",
 			"preferred": "no",
 		},
 	},
-	"tagInst": &apicMeta{
+	"tagInst": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
 	},
-	"hostprotPol": &apicMeta{
+	"hostprotPol": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -187,7 +187,7 @@ var metadata = map[string]*apicMeta{
 			"hostprotSubj",
 		},
 	},
-	"hostprotSubj": &apicMeta{
+	"hostprotSubj": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -195,7 +195,7 @@ var metadata = map[string]*apicMeta{
 			"hostprotRule",
 		},
 	},
-	"hostprotRule": &apicMeta{
+	"hostprotRule": {
 		attributes: map[string]interface{}{
 			"name":      "",
 			"connTrack": "reflexive",
@@ -210,12 +210,12 @@ var metadata = map[string]*apicMeta{
 		},
 		normalizer: ruleNormalizer,
 	},
-	"hostprotRemoteIp": &apicMeta{
+	"hostprotRemoteIp": {
 		attributes: map[string]interface{}{
 			"addr": "",
 		},
 	},
-	"vnsLDevVip": &apicMeta{
+	"vnsLDevVip": {
 		attributes: map[string]interface{}{
 			"name":         "",
 			"devtype":      "PHYSICAL",
@@ -229,12 +229,12 @@ var metadata = map[string]*apicMeta{
 			"vnsCDev",
 		},
 	},
-	"vnsRsALDevToPhysDomP": &apicMeta{
+	"vnsRsALDevToPhysDomP": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsLIf": &apicMeta{
+	"vnsLIf": {
 		attributes: map[string]interface{}{
 			"name":  "",
 			"encap": "",
@@ -243,12 +243,12 @@ var metadata = map[string]*apicMeta{
 			"vnsRsCIfAttN",
 		},
 	},
-	"vnsRsCIfAttN": &apicMeta{
+	"vnsRsCIfAttN": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsCDev": &apicMeta{
+	"vnsCDev": {
 		attributes: map[string]interface{}{
 			"name":      "",
 			"devCtxLbl": "",
@@ -257,7 +257,7 @@ var metadata = map[string]*apicMeta{
 			"vnsCIf",
 		},
 	},
-	"vnsCIf": &apicMeta{
+	"vnsCIf": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -265,12 +265,12 @@ var metadata = map[string]*apicMeta{
 			"vnsRsCIfPathAtt",
 		},
 	},
-	"vnsRsCIfPathAtt": &apicMeta{
+	"vnsRsCIfPathAtt": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsAbsGraph": &apicMeta{
+	"vnsAbsGraph": {
 		attributes: map[string]interface{}{
 			"name":           "",
 			"uiTemplateType": "UNSPECIFIED",
@@ -282,7 +282,7 @@ var metadata = map[string]*apicMeta{
 			"vnsAbsNode",
 		},
 	},
-	"vnsAbsTermNodeCon": &apicMeta{
+	"vnsAbsTermNodeCon": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -292,7 +292,7 @@ var metadata = map[string]*apicMeta{
 			"vnsOutTerm",
 		},
 	},
-	"vnsAbsTermNodeProv": &apicMeta{
+	"vnsAbsTermNodeProv": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -302,16 +302,16 @@ var metadata = map[string]*apicMeta{
 			"vnsOutTerm",
 		},
 	},
-	"vnsAbsTermConn": &apicMeta{
+	"vnsAbsTermConn": {
 		attributes: map[string]interface{}{},
 	},
-	"vnsInTerm": &apicMeta{
+	"vnsInTerm": {
 		attributes: map[string]interface{}{},
 	},
-	"vnsOutTerm": &apicMeta{
+	"vnsOutTerm": {
 		attributes: map[string]interface{}{},
 	},
-	"vnsAbsConnection": &apicMeta{
+	"vnsAbsConnection": {
 		attributes: map[string]interface{}{
 			"name":          "",
 			"adjType":       "L2",
@@ -324,12 +324,12 @@ var metadata = map[string]*apicMeta{
 			"vnsRsAbsConnectionConns",
 		},
 	},
-	"vnsRsAbsConnectionConns": &apicMeta{
+	"vnsRsAbsConnectionConns": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsAbsNode": &apicMeta{
+	"vnsAbsNode": {
 		attributes: map[string]interface{}{
 			"name":             "",
 			"funcTemplateType": "OTHER",
@@ -344,17 +344,17 @@ var metadata = map[string]*apicMeta{
 			"vnsRsNodeToLDev",
 		},
 	},
-	"vnsAbsFuncConn": &apicMeta{
+	"vnsAbsFuncConn": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
 	},
-	"vnsRsNodeToLDev": &apicMeta{
+	"vnsRsNodeToLDev": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsSvcRedirectPol": &apicMeta{
+	"vnsSvcRedirectPol": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -362,14 +362,14 @@ var metadata = map[string]*apicMeta{
 			"vnsRedirectDest",
 		},
 	},
-	"vnsRedirectDest": &apicMeta{
+	"vnsRedirectDest": {
 		attributes: map[string]interface{}{
 			"ip":  "",
 			"mac": "",
 		},
 		normalizer: redirectDestNormalizer,
 	},
-	"vnsLDevCtx": &apicMeta{
+	"vnsLDevCtx": {
 		attributes: map[string]interface{}{
 			"ctrctNameOrLbl": "",
 			"graphNameOrLbl": "",
@@ -380,12 +380,12 @@ var metadata = map[string]*apicMeta{
 			"vnsLIfCtx",
 		},
 	},
-	"vnsRsLDevCtxToLDev": &apicMeta{
+	"vnsRsLDevCtxToLDev": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsLIfCtx": &apicMeta{
+	"vnsLIfCtx": {
 		attributes: map[string]interface{}{
 			"connNameOrLbl": "",
 		},
@@ -395,22 +395,22 @@ var metadata = map[string]*apicMeta{
 			"vnsRsLIfCtxToLIf",
 		},
 	},
-	"vnsRsLIfCtxToSvcRedirectPol": &apicMeta{
+	"vnsRsLIfCtxToSvcRedirectPol": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsRsLIfCtxToBD": &apicMeta{
+	"vnsRsLIfCtxToBD": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vnsRsLIfCtxToLIf": &apicMeta{
+	"vnsRsLIfCtxToLIf": {
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
 	},
-	"vzBrCP": &apicMeta{
+	"vzBrCP": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -418,7 +418,7 @@ var metadata = map[string]*apicMeta{
 			"vzSubj",
 		},
 	},
-	"vzSubj": &apicMeta{
+	"vzSubj": {
 		attributes: map[string]interface{}{
 			"name":        "",
 			"revFltPorts": "yes",
@@ -428,17 +428,17 @@ var metadata = map[string]*apicMeta{
 			"vzRsSubjGraphAtt",
 		},
 	},
-	"vzRsSubjFiltAtt": &apicMeta{
+	"vzRsSubjFiltAtt": {
 		attributes: map[string]interface{}{
 			"tnVzFilterName": "",
 		},
 	},
-	"vzRsSubjGraphAtt": &apicMeta{
+	"vzRsSubjGraphAtt": {
 		attributes: map[string]interface{}{
 			"tnVnsAbsGraphName": "",
 		},
 	},
-	"vzFilter": &apicMeta{
+	"vzFilter": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -446,7 +446,7 @@ var metadata = map[string]*apicMeta{
 			"vzEntry",
 		},
 	},
-	"vzEntry": &apicMeta{
+	"vzEntry": {
 		attributes: map[string]interface{}{
 			"name":        "",
 			"applyToFrag": "no",
@@ -461,7 +461,7 @@ var metadata = map[string]*apicMeta{
 		},
 		normalizer: filterEntryNormalizer,
 	},
-	"l3extInstP": &apicMeta{
+	"l3extInstP": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
@@ -471,23 +471,23 @@ var metadata = map[string]*apicMeta{
 			"fvRsCons",
 		},
 	},
-	"l3extSubnet": &apicMeta{
+	"l3extSubnet": {
 		attributes: map[string]interface{}{
 			"ip":    "",
 			"scope": "import-security",
 		},
 	},
-	"fvRsProv": &apicMeta{
+	"fvRsProv": {
 		attributes: map[string]interface{}{
 			"tnVzBrCPName": "",
 		},
 	},
-	"fvRsCons": &apicMeta{
+	"fvRsCons": {
 		attributes: map[string]interface{}{
 			"tnVzBrCPName": "",
 		},
 	},
-	"vmmInjectedContGrp": &apicMeta{
+	"vmmInjectedContGrp": {
 		attributes: map[string]interface{}{
 			"guid":            "",
 			"name":            "",
@@ -496,21 +496,21 @@ var metadata = map[string]*apicMeta{
 			"computeNodeName": "",
 		},
 	},
-	"vmmInjectedDepl": &apicMeta{
+	"vmmInjectedDepl": {
 		attributes: map[string]interface{}{
 			"guid":     "",
 			"name":     "",
 			"replicas": "",
 		},
 	},
-	"vmmInjectedReplSet": &apicMeta{
+	"vmmInjectedReplSet": {
 		attributes: map[string]interface{}{
 			"guid":           "",
 			"name":           "",
 			"deploymentName": "",
 		},
 	},
-	"vmmInjectedSvc": &apicMeta{
+	"vmmInjectedSvc": {
 		attributes: map[string]interface{}{
 			"guid":      "",
 			"name":      "",
@@ -523,13 +523,13 @@ var metadata = map[string]*apicMeta{
 			"vmmInjectedSvcPort",
 		},
 	},
-	"vmmInjectedSvcEp": &apicMeta{
+	"vmmInjectedSvcEp": {
 		attributes: map[string]interface{}{
 			"name":        "",
 			"contGrpName": "",
 		},
 	},
-	"vmmInjectedSvcPort": &apicMeta{
+	"vmmInjectedSvcPort": {
 		attributes: map[string]interface{}{
 			"protocol":   "",
 			"port":       "",
@@ -538,7 +538,7 @@ var metadata = map[string]*apicMeta{
 		},
 		normalizer: injectedSvcPortNormalizer,
 	},
-	"vmmInjectedHost": &apicMeta{
+	"vmmInjectedHost": {
 		attributes: map[string]interface{}{
 			"name":      "",
 			"hostName":  "",
@@ -546,7 +546,7 @@ var metadata = map[string]*apicMeta{
 			"os":        "",
 		},
 	},
-	"vmmInjectedNs": &apicMeta{
+	"vmmInjectedNs": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},

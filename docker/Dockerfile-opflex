@@ -1,5 +1,5 @@
 FROM alpine:3.6
-RUN apk add --no-cache libstdc++ libuv \
+RUN apk upgrade --no-cache && apk add --no-cache musl libstdc++ libuv \
   boost-program_options boost-system boost-date_time boost-filesystem \
   boost-iostreams libnl3 libssl1.0 libcrypto1.0 ca-certificates \
   && update-ca-certificates

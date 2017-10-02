@@ -73,10 +73,10 @@ func notHasIpCond(pool *ipam.IpAlloc, ipStr string) func() bool {
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
+		{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
 	}
 	cont.config.StaticServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
+		{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
 	}
 	cont.AciController.initIpam()
 	cont.run()
@@ -110,7 +110,7 @@ func TestServiceIp(t *testing.T) {
 		cont.serviceUpdates = nil
 		s := service("testns", "service5", "")
 		s.Status.LoadBalancer.Ingress =
-			[]v1.LoadBalancerIngress{v1.LoadBalancerIngress{IP: "10.4.1.32"}}
+			[]v1.LoadBalancerIngress{{IP: "10.4.1.32"}}
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "existing")
 		assert.Condition(t, notHasIpCond(cont.serviceIps.V4, "10.4.1.32"),
@@ -120,7 +120,7 @@ func TestServiceIp(t *testing.T) {
 		cont.serviceUpdates = nil
 		s := service("testns", "service6", "10.4.2.3")
 		s.Status.LoadBalancer.Ingress =
-			[]v1.LoadBalancerIngress{v1.LoadBalancerIngress{IP: "10.4.2.3"}}
+			[]v1.LoadBalancerIngress{{IP: "10.4.2.3"}}
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "static existing")
 	}
@@ -146,13 +146,13 @@ func TestServiceGraph(t *testing.T) {
 	sgCont := func() *testAciController {
 		cont := testController()
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
-			ipam.IpRange{Start: net.ParseIP("10.6.1.1"), End: net.ParseIP("10.6.1.2")},
+			{Start: net.ParseIP("10.6.1.1"), End: net.ParseIP("10.6.1.2")},
 		}
 		cont.config.ServiceIpPool = []ipam.IpRange{
-			ipam.IpRange{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
+			{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
 		}
 		cont.config.StaticServiceIpPool = []ipam.IpRange{
-			ipam.IpRange{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
+			{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
 		}
 		cont.AciController.initIpam()
 		cont.config.AciServicePhysDom = "service-physdom"
@@ -171,7 +171,7 @@ func TestServiceGraph(t *testing.T) {
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
-		for node, _ := range nmap {
+		for node := range nmap {
 			nodes = append(nodes, node)
 		}
 		sort.Strings(nodes)
@@ -193,7 +193,7 @@ func TestServiceGraph(t *testing.T) {
 	nameS2 := "kube_svc_testns_service2"
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
-		for node, _ := range nmap {
+		for node := range nmap {
 			nodes = append(nodes, node)
 		}
 		sort.Strings(nodes)
@@ -246,12 +246,12 @@ func TestServiceGraph(t *testing.T) {
 	endpoints1 := endpoints("testns", "service1", []string{"node1", "node2"})
 	service1 := service("testns", "service1", "10.4.2.2")
 	service1.Spec.Ports = []v1.ServicePort{
-		v1.ServicePort{
+		{
 			Name:     "tcp_80",
 			Protocol: "TCP",
 			Port:     80,
 		},
-		v1.ServicePort{
+		{
 			Name:     "udp_53",
 			Protocol: "UDP",
 			Port:     53,

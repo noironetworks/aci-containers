@@ -195,6 +195,7 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				break
 			}
 
+			var requeue bool
 			switch key := key.(type) {
 			case chan struct{}:
 				close(key)
@@ -202,12 +203,14 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				obj, exists, err :=
 					informer.GetStore().GetByKey(key)
 				if err == nil && exists {
-					if handler(obj) {
-						queue.Add(key)
-					}
+					requeue = handler(obj)
 				}
 			}
-			queue.Forget(key)
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
 			queue.Done(key)
 
 		}
@@ -345,7 +348,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		for _, q := range qs {
 			c := make(chan struct{})
 			chans = append(chans, c)
-			q.Add(c)
+			q.AddRateLimited(c)
 		}
 		for _, c := range chans {
 			<-c

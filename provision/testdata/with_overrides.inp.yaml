@@ -38,14 +38,13 @@ net_config:
   service_vlan: 4003
   infra_vlan: 4093
 
-node_config:
-  uplink_iface: eth2
-  vxlan_uplink_iface: eth2.4093
-
-kubernetes_config:
-  use_cluster_role: true
-  use_ds_rolling_update: true
-
+kube_config:
+  use_netpol_annotation: false
+  use_external_service_ip_allocator: true
+  use_privileged_containers: true
+  use_openshift_security_context_constraints: true
+  allow_kube_api_default_epg: true
+  
 registry:
   image_prefix: noiro
 
@@ -53,4 +52,3 @@ logging:
   controller_log_level: debug
   hostagent_log_level: debug
   opflexagent_log_level: info
-  aim_debug: True

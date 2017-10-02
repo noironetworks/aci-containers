@@ -1,3 +1,7 @@
+.. image:: https://travis-ci.org/noironetworks/aci-containers.svg?branch=master
+   :alt: Build Status
+   :target: https://travis-ci.org/noironetworks/aci-containers
+
 ACI Container Integration Plugins
 =================================
 

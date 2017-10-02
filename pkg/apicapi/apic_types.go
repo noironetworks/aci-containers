@@ -37,7 +37,7 @@ type ApicObject map[string]*ApicObjectBody
 
 type ApicResponse struct {
 	TotalCount     interface{}  `json:"totalCount"`
-	SubscriptionId interface{}  `json:"subscriptionId",omitempty`
+	SubscriptionId interface{}  `json:"subscriptionId,omitempty"`
 	Imdata         []ApicObject `json:"imdata"`
 }
 
@@ -66,6 +66,16 @@ type subIndex struct {
 	ids  map[string]string
 }
 
+const (
+	pendingChangeDelete = iota
+	pendingChangeUpdate = iota
+)
+
+type pendingChange struct {
+	kind   int
+	subIds []string
+}
+
 type ApicConnection struct {
 	apic      []string
 	apicIndex int
@@ -91,12 +101,13 @@ type ApicConnection struct {
 	syncEnabled bool
 	stopped     bool
 
-	desiredState   map[string]ApicSlice
-	desiredStateDn map[string]ApicObject
-	keyHashes      map[string]string
-	containerDns   map[string]bool
-	cachedState    map[string]ApicSlice
-	cacheDnSubIds  map[string][]string
+	desiredState       map[string]ApicSlice
+	desiredStateDn     map[string]ApicObject
+	keyHashes          map[string]string
+	containerDns       map[string]bool
+	cachedState        map[string]ApicSlice
+	cacheDnSubIds      map[string][]string
+	pendingSubDnUpdate map[string]pendingChange
 
 	deltaQueue workqueue.RateLimitingInterface
 }

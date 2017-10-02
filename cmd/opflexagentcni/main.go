@@ -193,7 +193,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			Pod:       string(k8sArgs.K8S_POD_NAME),
 		},
 		Ifaces: []*cnimd.ContainerIfaceMd{
-			&cnimd.ContainerIfaceMd{
+			{
 				Name:    args.IfName,
 				Sandbox: args.Netns,
 			},

@@ -27,26 +27,6 @@
         ]
     }
 }
-/api/mo/uni/infra/vlanns-[kube-vpool]-dynamic.json
-{
-    "fvnsVlanInstP": {
-        "attributes": {
-            "allocMode": "dynamic", 
-            "name": "kube-vpool"
-        }, 
-        "children": [
-            {
-                "fvnsEncapBlk": {
-                    "attributes": {
-                        "allocMode": "dynamic", 
-                        "from": "vlan-200", 
-                        "to": "vlan-299"
-                    }
-                }
-            }
-        ]
-    }
-}
 /api/mo/uni/infra/maddrns-kube-mpool.json
 {
     "fvnsMcastAddrInstP": {
@@ -88,12 +68,12 @@
 {
     "vmmDomP": {
         "attributes": {
-            "encapMode": "vlan", 
+            "encapMode": "vxlan", 
             "enfPref": "sw", 
             "mcastAddr": "225.1.2.3", 
             "mode": "k8s", 
             "name": "kube", 
-            "prefEncapMode": "vlan"
+            "prefEncapMode": "vxlan"
         }, 
         "children": [
             {
@@ -110,13 +90,6 @@
                 "vmmRsDomMcastAddrNs": {
                     "attributes": {
                         "tDn": "uni/infra/maddrns-kube-mpool"
-                    }
-                }
-            }, 
-            {
-                "infraRsVlanNs": {
-                    "attributes": {
-                        "tDn": "uni/infra/vlanns-[kube-vpool]-dynamic"
                     }
                 }
             }
@@ -319,6 +292,13 @@ None
                                         "fvRsBd": {
                                             "attributes": {
                                                 "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
                                             }
                                         }
                                     }

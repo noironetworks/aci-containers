@@ -4,6 +4,7 @@ metadata:
   name: aci-containers-config
   namespace: kube-system
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
 data:
   controller-config: |-
@@ -18,6 +19,7 @@ data:
         "aci-vmm-domain": "mykube",
         "aci-vmm-controller": "mykube",
         "aci-policy-tenant": "mykube",
+        "require-netpol-annot": true,
         "aci-service-phys-dom": "mykube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
@@ -71,13 +73,9 @@ data:
         "aci-vmm-controller": "mykube",
         "aci-vrf": "mykube-vrf",
         "aci-vrf-tenant": "common",
-        "uplink-iface": "eth2",
         "service-vlan": 4003,
         "encap-type": "vxlan",
         "aci-infra-vlan": 4093,
-        "vxlan-iface": "eth2.4093",
-        "vxlan-anycast-ip": "10.0.0.32",
-        "opflex-peer-ip": "10.0.0.30",
         "cni-netconfig": [
             {
                 "routes": [
@@ -105,6 +103,8 @@ kind: Secret
 metadata:
   name: aci-user-cert
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "dummy"
 data:
   user.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUNlQUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQW1Jd2dnSmVBZ0VBQW9HQkFOTmkzVUZvbWhtQjJrVlYKWkxOdVB3aG5wUW9Lb2Rkelo1Qmw2YktsZjlGMEFOQmNrNVlUWGhRcXZ1cGt6SFVUVWxCbW5VS1daZHRkQmovbwptQW5wNlZVNmVVNlg2V2ljWTJtSHhxOE0zNXVYcXc2MjRoSlRrN0JxZTh6R0o1NTRFeGxTOHRJcjBVVDNkbThXCk5Vb3JFZmR0dlFXdUVvVENZYnowUVBXUUp4MlhBZ01CQUFFQ2dZRUF3TXFlZVJWcDFuRzBIU0F3NCtWYzM5R0gKbUl6eDVvcCtuaGdVK0xZd3lWcy9rc21jWVhmd2lmd2llNnpMUE13T2V2M2IxK3RMb3JKSkRPaWFJaENRbVY2UApEL2Q1QWhCQnNIQUR3SGV3c1hFdm1XeGl1cEhVK3MxSUFIUEJoOXJoMFlnTGlMZ0IxWkZQSk5EOUFWTTJNZU1SCmcyMmZoWEJicXU1RUZHSjI0U0VDUVFEcWJIeTlTQXdMSUdOZHFaTExiUDZCdlVaSFMrd3k2R2JhQVlWdlZrcWcKNG1TbzY5aHdIUXhRUmYvOVF2TVN1b2lZbUc0TDdaQkRpUkMzdmJFNHVsMWRBa0VBNXRlUU9uN2FCSmdMeXliSgpxbkYreFlJRFVWMk0wQ0owQmpxNndjTkg5MnpSdnZVc0hxVnBwMUs5WTVsZGN6WGlYU014cHROcGIvMEhpbGk4CkRDSkRnd0pBWnE0eVRTNWJxQnY5cWk3Mmo0Z2tTbXUvZHNjNHBHdkxjVDR0VmtFejJ4aVBBcmFiVFRCTURuVTYKMVpJWHFtSnVKbmpONndlWm94dE1hVTc3YTErbU9RSkJBTUdlUXJuZGxnM09YZTM2VGFIcGFoUk5WVzBVa3p3cgorYmNUNFhzTnlUb05pdXVwQm1WNkJtRXlzK2xyUkllU3haZXJJa1UwQTdiTHUxeGR5dlErZFBNQ1FRQ0lNOW0yCkxXVVkvVUpINjA5QzUwK3A3b1F1cWVHWVRyRlVNcXFiaUJ5eFVjdCt4V0FaTXpmZWljNldaOFRvczFZSmZqYmcKOWFCL3dqVUdXazMwY1FtTAotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
   user.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUI1akNDQVU4Q0FnUG9NQTBHQ1NxR1NJYjNEUUVCQlFVQU1Ec3hDekFKQmdOVkJBWVRBbFZUTVJZd0ZBWUQKVlFRS0RBMURhWE5qYnlCVGVYTjBaVzF6TVJRd0VnWURWUVFEREF0VmMyVnlJRzE1YTNWaVpUQWVGdzB4TnpBMgpNREl3TmpJMU1qUmFGdzB5TnpBMU16RXdOakkxTWpSYU1Ec3hDekFKQmdOVkJBWVRBbFZUTVJZd0ZBWURWUVFLCkRBMURhWE5qYnlCVGVYTjBaVzF6TVJRd0VnWURWUVFEREF0VmMyVnlJRzE1YTNWaVpUQ0JuekFOQmdrcWhraUcKOXcwQkFRRUZBQU9CalFBd2dZa0NnWUVBMDJMZFFXaWFHWUhhUlZWa3MyNC9DR2VsQ2dxaDEzTm5rR1hwc3FWLwowWFFBMEZ5VGxoTmVGQ3ErNm1UTWRSTlNVR2FkUXBabDIxMEdQK2lZQ2VucFZUcDVUcGZwYUp4amFZZkdyd3pmCm01ZXJEcmJpRWxPVHNHcDd6TVlubm5nVEdWTHkwaXZSUlBkMmJ4WTFTaXNSOTIyOUJhNFNoTUpodlBSQTlaQW4KSFpjQ0F3RUFBVEFOQmdrcWhraUc5dzBCQVFVRkFBT0JnUUFvTVlhbHNaTDhZTHNBOFpwQnV2eFAydGwyWlRnYQp4WnFuN1hjZUlURlJ6UkR3M3lYOHZud0wxVkovSVJjekorcGUvNzB5NC90MVBpekxFM3h0VnpjSFU0S1ozWDMzCmg0ZGFnZmdWeHVVRFV1NWNjY1dVVTVVNnFNSkFEclBMaXh3d3FZUExKNXRUTUFtck9KZW4wNEt1VitYd0M5TVoKUDE2VXNKZmRETmdodmc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
@@ -114,17 +114,22 @@ kind: ServiceAccount
 metadata:
   name: aci-containers-controller
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "dummy"
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "dummy"
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
   name: aci-containers:controller
 rules:
@@ -163,6 +168,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
   name: aci-containers:host-agent
 rules:
@@ -178,10 +184,12 @@ rules:
   - watch
   - get
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
+  labels:
+    aci-containers-config-version: "dummy"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -191,10 +199,12 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
+  labels:
+    aci-containers-config-version: "dummy"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -210,6 +220,7 @@ metadata:
   name: aci-containers-host
   namespace: kube-system
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
 spec:
   updateStrategy:
@@ -219,20 +230,22 @@ spec:
       labels:
         name: aci-containers-host
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
           image: noiro/aci-containers-host:1.0
           imagePullPolicy: Always
           securityContext:
-            privileged: true
             capabilities:
               add:
                 - SYS_ADMIN
@@ -327,6 +340,7 @@ metadata:
   name: aci-containers-openvswitch
   namespace: kube-system
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
 spec:
   updateStrategy:
@@ -336,14 +350,17 @@ spec:
       labels:
         name: aci-containers-openvswitch
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch:1.0
@@ -394,14 +411,10 @@ metadata:
   name: aci-containers-controller
   namespace: kube-system
   labels:
+    aci-containers-config-version: "dummy"
     network-plugin: aci-containers
     k8s-app: aci-containers-controller
     name: aci-containers-controller
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ''
-    scheduler.alpha.kubernetes.io/tolerations: |
-      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
 spec:
   replicas: 1
   strategy:
@@ -414,9 +427,13 @@ spec:
         network-plugin: aci-containers
         k8s-app: aci-containers-controller
         name: aci-containers-controller
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
+      tolerations:
+        - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
           image: noiro/aci-containers-controller:1.0

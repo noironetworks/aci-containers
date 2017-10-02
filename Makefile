@@ -93,6 +93,8 @@ container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch .
+container-cnideploy:
+	${DOCKER_BUILD_CMD} -t noiro/cnideploy -f ./docker/Dockerfile-cnideploy docker
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 

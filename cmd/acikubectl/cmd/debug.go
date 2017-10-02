@@ -70,7 +70,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	}
 
 	cmds := []reportCmdElem{
-		reportCmdElem{
+		{
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(),
 		},
@@ -94,60 +94,60 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	}
 
 	nodeItems := []reportNodeCmd{
-		reportNodeCmd{
+		{
 			path:     "cluster-report/logs/node-%s/opflex-agent.log",
 			cont:     "opflex-agent",
 			selector: opflexAgentSelector,
 			argFunc:  nodeLogCmdArgs,
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/logs/node-%s/aci-containers-host.log",
 			cont:     "aci-containers-host",
 			selector: hostAgentSelector,
 			argFunc:  nodeLogCmdArgs,
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/logs/node-%s/aci-containers-openvswitch.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  nodeLogCmdArgs,
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/gbp-inspect.log",
 			cont:     "opflex-agent",
 			selector: opflexAgentSelector,
 			argFunc:  inspectArgs,
-			args:     []string{"-rfpq", "DmtreeRoot"},
+			args:     []string{"-rfpq", "DmtreeRoot", "-t", "dump"},
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-int.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  ovsOfCtlArgs,
 			args:     []string{"dump-flows", "br-int"},
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-access.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  ovsOfCtlArgs,
 			args:     []string{"dump-flows", "br-access"},
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-vsctl-show.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  ovsVsCtlArgs,
 			args:     []string{"show"},
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/ip-a.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  otherNodeArgs,
 			args:     []string{"ip", "a"},
 		},
-		reportNodeCmd{
+		{
 			path:     "cluster-report/cmds/node-%s/ip-r.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
@@ -241,8 +241,8 @@ func outputCmd(cmd *cobra.Command, cmdArgs []string) {
 }
 
 func accLogCmdArgs() []string {
-	return []string{"-n", "kube-system", "--limit-bytes=10048576",
-		"logs", "deployment/aci-containers-controller",
+	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
 }
 
@@ -277,8 +277,8 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 func nodeLogCmdArgs(podName string, containerName string,
 	args []string) []string {
 
-	return []string{"-n", "kube-system", "--limit-bytes=10048576",
-		"logs", podName, "-c", containerName}
+	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+		podName, "-c", containerName}
 }
 
 func podForNode(node string, selector string) (string, error) {

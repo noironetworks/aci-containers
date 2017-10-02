@@ -8,8 +8,8 @@ aci_config:
   vmm_domain:                   # Kubernetes VMM domain configuration
     encap_type: vxlan           # Encap mode: vxlan or vlan
     mcast_range:                # Every opflex VMM must use a distinct range
-      start: 225.2.1.1
-      end: 225.2.255.255
+      start: 225.20.1.1
+      end: 225.20.255.255
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.
@@ -33,20 +33,12 @@ net_config:
   node_svc_subnet: 10.5.0.1/24  # Subnet to use for service graph
   kubeapi_vlan: 4001            # The VLAN used by the physdom for nodes
   service_vlan: 4003            # The VLAN used by LoadBalancer services
-  infra_vlan: 4093              # THe VLAN used by ACI infra
-
-#
-# Configuration that applies to each kubernetes node
-#
-node_config:
-  uplink_iface: eth2            # The name of the uplink interface to ACI
-  vxlan_uplink_iface: eth2.4093 # for vxlan, the infra-vlan subinterface
+  infra_vlan: 4093              # The VLAN used by ACI infra
 
 #
 # Configuration for container registry
 # Update if a custom container registry has been setup
 #
 registry:
-  version: 1.0                          # version for ACI containers images
   image_prefix: noiro                   # e.g: registry.example.com/noiro
   # image_pull_secret: secret_name      # (if needed)

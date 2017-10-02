@@ -57,7 +57,7 @@ func PodSelectorFromNsAndSelector(ns string,
 	}
 
 	return []PodSelector{
-		PodSelector{
+		{
 			Namespace:   &ns,
 			PodSelector: s,
 		},
@@ -156,7 +156,7 @@ func (i *PodSelectorIndex) SetPodHashFunc(podHashFunc PodHashFunc) {
 func (i *PodSelectorIndex) GetObjForPod(podkey string) (ret []string) {
 	i.indexMutex.Lock()
 	if state, ok := i.podIndex[podkey]; ok {
-		for objkey, _ := range state.objKeys {
+		for objkey := range state.objKeys {
 			ret = append(ret, objkey)
 		}
 	}
@@ -168,7 +168,7 @@ func (i *PodSelectorIndex) GetObjForPod(podkey string) (ret []string) {
 // Get the pods that match a given selector object
 func (i *PodSelectorIndex) GetPodForObj(objkey string) (ret []string) {
 	i.indexMutex.Lock()
-	for podkey, _ := range i.objPodIndex[objkey] {
+	for podkey := range i.objPodIndex[objkey] {
 		ret = append(ret, podkey)
 	}
 	i.indexMutex.Unlock()
@@ -242,7 +242,7 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		i.podIndex[podkey] = state
 	}
 
-	for objkey, _ := range state.objKeys {
+	for objkey := range state.objKeys {
 		if _, mok := matched[objkey]; !mok {
 			if objm, ok := i.objPodIndex[objkey]; ok {
 				delete(objm, podkey)
@@ -285,7 +285,7 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 	}
 	i.indexMutex.Lock()
 	if state, ok := i.podIndex[podkey]; ok {
-		for objkey, _ := range state.objKeys {
+		for objkey := range state.objKeys {
 			if objm, ok := i.objPodIndex[objkey]; ok {
 				delete(objm, podkey)
 				if len(objm) == 0 {
@@ -318,7 +318,7 @@ func (i *PodSelectorIndex) UpdateNamespace(ns *v1.Namespace) {
 		namespaces := i.getObjNamespaces(obj)
 		if !reflect.DeepEqual(namespaces, i.objNsIndex[objkey]) {
 			newupdated, objupdated := i.updateSelectorObjForNs(obj, namespaces)
-			for u, _ := range newupdated {
+			for u := range newupdated {
 				updatedPods[u] = true
 			}
 			if objupdated {
@@ -402,7 +402,7 @@ func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 	}
 
 	// check for old matches that no longer apply
-	for oldkey, _ := range i.objPodIndex[objkey] {
+	for oldkey := range i.objPodIndex[objkey] {
 		if _, ok := matched[oldkey]; !ok {
 			if state, pok := i.podIndex[oldkey]; pok {
 				delete(state.objKeys, objkey)
@@ -460,7 +460,7 @@ func (i *PodSelectorIndex) DeleteSelectorObj(obj interface{}) {
 	}
 
 	i.indexMutex.Lock()
-	for oldkey, _ := range i.objPodIndex[objkey] {
+	for oldkey := range i.objPodIndex[objkey] {
 		if state, pok := i.podIndex[oldkey]; pok {
 			delete(state.objKeys, objkey)
 			if len(state.objKeys) == 0 {
@@ -480,7 +480,7 @@ func (i *PodSelectorIndex) updatePods(updated set) {
 	if i.updatePod == nil {
 		return
 	}
-	for key, _ := range updated {
+	for key := range updated {
 		i.updatePod(key)
 	}
 
@@ -490,7 +490,7 @@ func (i *PodSelectorIndex) updateObjs(updated set) {
 	if i.updateObj == nil {
 		return
 	}
-	for key, _ := range updated {
+	for key := range updated {
 		i.updateObj(key)
 	}
 

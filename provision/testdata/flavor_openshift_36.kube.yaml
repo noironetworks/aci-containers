@@ -9,25 +9,25 @@ metadata:
 data:
   controller-config: |-
     {
-        "log-level": "debug",
+        "log-level": "info",
         "apic-hosts": [
             "10.30.120.100"
         ],
         "apic-username": "kube",
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": "kube",
-        "aci-vmm-domain": "kubernetes1",
-        "aci-vmm-controller": "kubernetes1",
+        "aci-vmm-domain": "kube",
+        "aci-vmm-controller": "kube",
         "aci-policy-tenant": "kube",
         "require-netpol-annot": false,
-        "aci-service-phys-dom": "kubernetes-control",
+        "aci-service-phys-dom": "kube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
         "aci-l3out": "l3out",
         "aci-ext-networks": [
-            "l3out"
+            "default"
         ],
-        "aci-vrf": "kubernetes-vrf",
+        "aci-vrf": "kube",
         "default-endpoint-group": {
             "policy-space": "kube",
             "name": "kubernetes|kube-default"
@@ -40,39 +40,39 @@ data:
         },
         "service-ip-pool": [
             {
-                "start": "10.4.0.2", 
-                "end": "10.4.255.254"
+                "start": "10.3.0.2", 
+                "end": "10.3.0.254"
             }
         ],
         "static-service-ip-pool": [
             {
-                "start": "10.3.0.2", 
-                "end": "10.3.0.254"
+                "start": "10.4.0.2", 
+                "end": "10.4.0.254"
             }
         ],
         "allocate-service-ips": false,
         "pod-ip-pool": [
             {
-                "start": "10.1.0.2", 
-                "end": "10.1.255.254"
+                "start": "10.2.0.2", 
+                "end": "10.2.255.254"
             }
         ],
         "node-service-ip-pool": [
             {
-                "start": "10.6.0.2", 
-                "end": "10.6.0.254"
+                "start": "10.5.0.2", 
+                "end": "10.5.0.254"
             }
         ],
         "node-service-subnets": [
-            "10.6.0.1/24"
+            "10.5.0.1/24"
         ]
     }
   host-agent-config: |-
     {
-        "log-level": "debug",
-        "aci-vmm-domain": "kubernetes1",
-        "aci-vmm-controller": "kubernetes1",
-        "aci-vrf": "kubernetes-vrf",
+        "log-level": "info",
+        "aci-vmm-domain": "kube",
+        "aci-vmm-controller": "kube",
+        "aci-vrf": "kube",
         "aci-vrf-tenant": "common",
         "service-vlan": 4003,
         "encap-type": "vxlan",
@@ -81,12 +81,12 @@ data:
             {
                 "routes": [
                     {
-                        "gw": "10.1.0.1", 
+                        "gw": "10.2.0.1", 
                         "dst": "0.0.0.0/0"
                     }
                 ], 
-                "subnet": "10.1.0.0/16", 
-                "gateway": "10.1.0.1"
+                "subnet": "10.2.0.0/16", 
+                "gateway": "10.2.0.1"
             }
         ]
     }
@@ -96,7 +96,6 @@ data:
             "level": "info"
         },
         "opflex": {
-            "ssl": { "mode": "disabled" }
         }
     }
 ---
@@ -127,7 +126,7 @@ metadata:
   labels:
     aci-containers-config-version: "dummy"
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: v1
 kind: ClusterRole
 metadata:
   labels:
@@ -166,7 +165,7 @@ rules:
   verbs:
   - update
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: v1
 kind: ClusterRole
 metadata:
   labels:
@@ -186,7 +185,7 @@ rules:
   - watch
   - get
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
@@ -201,7 +200,7 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
@@ -277,9 +276,21 @@ spec:
         - key: CriticalAddonsOnly
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
+      initContainers:
+        - name: cnideploy
+          image: noiro/cnideploy:1.6
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /mnt/cni-bin
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.0
+          image: noiro/aci-containers-host:1.6
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -312,7 +323,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.0
+          image: noiro/opflex:1.6
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -331,7 +342,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.0
+          image: noiro/opflex:1.6
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -477,7 +488,7 @@ spec:
         - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.0
+          image: noiro/aci-containers-controller:1.6
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume

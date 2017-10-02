@@ -36,14 +36,14 @@ func TestDiffPorts(t *testing.T) {
 	agent.config.IntBridgeName = "br-int"
 
 	onepodBr := map[string]ovsBridge{
-		"br-access": ovsBridge{
+		"br-access": {
 			uuid: "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{
 				"vethf3323b92":    "640a7740-d51e-4579-86e2-609d38b38e11",
 				"pa-vethf3323b92": "9dd84a8e-7a8e-4fe3-828e-9bb859490763",
 			},
 		},
-		"br-int": ovsBridge{
+		"br-int": {
 			uuid: "aba85930-00f9-4665-9917-40beff731d87",
 			ports: map[string]string{
 				"pi-vethf3323b92": "baa976d4-3b8b-4cfb-976e-08477ffcf72c",
@@ -51,13 +51,13 @@ func TestDiffPorts(t *testing.T) {
 		},
 	}
 	partialBr := map[string]ovsBridge{
-		"br-access": ovsBridge{
+		"br-access": {
 			uuid: "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{
 				"vethf3323b92": "640a7740-d51e-4579-86e2-609d38b38e11",
 			},
 		},
-		"br-int": ovsBridge{
+		"br-int": {
 			uuid: "aba85930-00f9-4665-9917-40beff731d87",
 			ports: map[string]string{
 				"pi-vethf3323b92": "baa976d4-3b8b-4cfb-976e-08477ffcf72c",
@@ -65,11 +65,11 @@ func TestDiffPorts(t *testing.T) {
 		},
 	}
 	emptyBr := map[string]ovsBridge{
-		"br-access": ovsBridge{
+		"br-access": {
 			uuid:  "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{},
 		},
-		"br-int": ovsBridge{
+		"br-int": {
 			uuid:  "aba85930-00f9-4665-9917-40beff731d87",
 			ports: map[string]string{},
 		},
@@ -84,7 +84,7 @@ func TestDiffPorts(t *testing.T) {
 					Namespace: "ns",
 				},
 				Ifaces: []*md.ContainerIfaceMd{
-					&md.ContainerIfaceMd{
+					{
 						HostVethName: "vethf3323b92",
 					},
 				},
@@ -98,11 +98,11 @@ func TestDiffPorts(t *testing.T) {
 	delPartial := []libovsdb.Operation{
 		delBrPortOp("86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			[]libovsdb.UUID{
-				libovsdb.UUID{GoUUID: "640a7740-d51e-4579-86e2-609d38b38e11"},
+				{GoUUID: "640a7740-d51e-4579-86e2-609d38b38e11"},
 			}),
 		delBrPortOp("aba85930-00f9-4665-9917-40beff731d87",
 			[]libovsdb.UUID{
-				libovsdb.UUID{GoUUID: "baa976d4-3b8b-4cfb-976e-08477ffcf72c"},
+				{GoUUID: "baa976d4-3b8b-4cfb-976e-08477ffcf72c"},
 			}),
 	}
 
@@ -113,25 +113,25 @@ func TestDiffPorts(t *testing.T) {
 	emptyMeta := map[string]map[string]*md.ContainerMetadata{}
 
 	diffPortTests := []diffPortTest{
-		diffPortTest{
+		{
 			bridges:  emptyBr,
 			metadata: onepodMeta,
 			expected: addOnePod,
 			desc:     "simple add",
 		},
-		diffPortTest{
+		{
 			bridges:  onepodBr,
 			metadata: onepodMeta,
 			expected: nil,
 			desc:     "no change",
 		},
-		diffPortTest{
+		{
 			bridges:  partialBr,
 			metadata: onepodMeta,
 			expected: updatePartial,
 			desc:     "partial",
 		},
-		diffPortTest{
+		{
 			bridges:  partialBr,
 			metadata: emptyMeta,
 			expected: delPartial,

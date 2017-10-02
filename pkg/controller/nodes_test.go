@@ -58,7 +58,7 @@ func waitForSEpAnnot(t *testing.T, cont *testAciController, ipv4 net.IP, ipv6 ne
 func TestServiceEpAnnotationV4(t *testing.T) {
 	cont := testController()
 	cont.config.NodeServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 	}
 	cont.AciController.initIpam()
 	cont.run()
@@ -80,7 +80,7 @@ func TestServiceEpAnnotationV4(t *testing.T) {
 func TestServiceEpAnnotationV6(t *testing.T) {
 	cont := testController()
 	cont.config.NodeServiceIpPool = []ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::2"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::3")},
+		{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::2"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::3")},
 	}
 	cont.AciController.initIpam()
 	cont.run()
@@ -157,7 +157,7 @@ func TestPodNetAnnotation(t *testing.T) {
 	cont := testController()
 	cont.config.PodIpPoolChunkSize = 2
 	cont.config.PodIpPool = []ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.13")},
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.13")},
 	}
 	cont.AciController.initIpam()
 	cont.run()
@@ -224,8 +224,8 @@ func TestNodeNetPol(t *testing.T) {
 	cont.config.AciPolicyTenant = "test-tenant"
 	node := node("node1")
 	node.Status.Addresses = []v1.NodeAddress{
-		v1.NodeAddress{Type: "Hostname", Address: "test-node"},
-		v1.NodeAddress{Type: "InternalIP", Address: "1.1.1.1"},
+		{Type: "Hostname", Address: "test-node"},
+		{Type: "InternalIP", Address: "1.1.1.1"},
 	}
 	cont.fakeNodeSource.Add(node)
 	cont.run()

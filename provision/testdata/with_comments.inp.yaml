@@ -36,13 +36,7 @@ net_config:
   kubeapi_vlan: 4001                    # The VLAN used by the internal physdom for nodes
   service_vlan: 4003                    # The VLAN used for external LoadBalancer services
   infra_vlan: 4093                      # ACI infrastructure VLAN
-#
-# Configuration that applies to each kubernetes node
-#
-node_config:
-  uplink_iface: eth2                    # The name of the interface that uplinks to the ACI fabric
-  vxlan_uplink_iface: eth2.4093         # If encap type is vxlan, this is the name of the uplink
-                                        # This is the infra-vlan subinterface on the uplink interface
+
 #
 # Configuration related to kubernetes pods and policy
 #

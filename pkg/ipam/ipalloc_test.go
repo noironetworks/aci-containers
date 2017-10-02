@@ -75,144 +75,144 @@ var addRangeTests = []addRangeTest{
 	{[]IpRange{}, []IpRange{}, "empty"},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		"simple",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
 		},
 		"Separate",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.1")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.1")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"Overlapping by one",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"Overlapping by more",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"Out of order",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.1")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.1")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.1")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.1")},
 		},
 		"Multiple separate",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"Adjacent",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.255.255.255")},
-			IpRange{net.ParseIP("11.0.0.0"), net.ParseIP("11.255.255.255")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.255.255.255")},
+			{net.ParseIP("11.0.0.0"), net.ParseIP("11.255.255.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("11.255.255.255")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("11.255.255.255")},
 		},
 		"Adjacent carry",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.2")},
-			IpRange{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.2")},
+			{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.2")},
-			IpRange{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.2")},
+			{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
 		},
 		"Separate by one",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.2.3"), net.ParseIP("10.0.2.4")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.2.3"), net.ParseIP("10.0.2.4")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"merge",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
-			IpRange{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
+			{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
 		},
 		"can't merge",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
-			IpRange{net.ParseIP("10.0.2.3"), net.ParseIP("10.0.2.5")},
-			IpRange{net.ParseIP("10.0.2.6"), net.ParseIP("10.0.2.10")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
+			{net.ParseIP("10.0.2.3"), net.ParseIP("10.0.2.5")},
+			{net.ParseIP("10.0.2.6"), net.ParseIP("10.0.2.10")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"complex merge",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
-			IpRange{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
-			IpRange{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
-			IpRange{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.4")},
-			IpRange{net.ParseIP("10.0.2.7"), net.ParseIP("10.0.2.10")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.3")},
+			{net.ParseIP("10.0.2.10"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.2.5"), net.ParseIP("10.0.2.6")},
+			{net.ParseIP("10.0.2.4"), net.ParseIP("10.0.2.4")},
+			{net.ParseIP("10.0.2.7"), net.ParseIP("10.0.2.10")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.2.254")},
 		},
 		"complex merge adjacent",
 	},
@@ -239,7 +239,7 @@ var removeRangeTests = []removeRangeTest{
 	{
 		[]IpRange{},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{},
 		false,
@@ -247,10 +247,10 @@ var removeRangeTests = []removeRangeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{},
 		true,
@@ -258,177 +258,177 @@ var removeRangeTests = []removeRangeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.0.255")},
+			{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.0.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		false,
 		"miss left",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.2.128"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.2.128"), net.ParseIP("10.0.2.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		false,
 		"miss right",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.1.127")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
 		true,
 		"left overlap",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.1.0")},
+			{net.ParseIP("10.0.0.100"), net.ParseIP("10.0.1.0")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.254")},
 		},
 		true,
 		"left touch",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
 		true,
 		"left touch 2",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.100"), net.ParseIP("10.0.1.212")},
+			{net.ParseIP("10.0.1.100"), net.ParseIP("10.0.1.212")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
-			IpRange{net.ParseIP("10.0.1.213"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
+			{net.ParseIP("10.0.1.213"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		true,
 		"left overlap search",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 		},
 		true,
 		"right overlap",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.254"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.254"), net.ParseIP("10.0.2.128")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.253")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.253")},
 		},
 		true,
 		"right touch",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
 		},
 		true,
 		"right touch 2",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		true,
 		"right overlap search",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.2.128")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
-			IpRange{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
+			{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.10.0.0"), net.ParseIP("10.10.1.254")},
 		},
 		true,
 		"right overlap search 2",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.254")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.100"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.100"), net.ParseIP("10.0.1.127")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.99")},
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.99")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.254")},
 		},
 		true,
 		"center overlap",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.1")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.1")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.1")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.1")},
 		},
 		[]IpRange{},
 		true,
@@ -436,14 +436,14 @@ var removeRangeTests = []removeRangeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.126")},
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.126")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
 		},
 		true,
 		"one from middle",
@@ -479,7 +479,7 @@ var getIpTests = []getIpTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
 		},
 		[]IpRange{},
 		net.ParseIP("10.0.1.127"),
@@ -488,11 +488,11 @@ var getIpTests = []getIpTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
-			IpRange{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
 		},
 		net.ParseIP("10.0.1.127"),
 		false,
@@ -500,12 +500,12 @@ var getIpTests = []getIpTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.255")},
-			IpRange{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
-			IpRange{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.2.127"), net.ParseIP("10.0.2.255")},
 		},
 		net.ParseIP("10.0.1.127"),
 		false,
@@ -547,23 +547,23 @@ var getIpChunkTests = []getIpChunkTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
 		},
 		256,
 		nil,
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.1.127")},
 		},
 		true,
 		"notenough",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
 		},
 		256,
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.0"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{},
 		false,
@@ -571,11 +571,11 @@ var getIpChunkTests = []getIpChunkTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
 		},
 		258,
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.128")},
 		},
 		[]IpRange{},
 		false,
@@ -583,32 +583,32 @@ var getIpChunkTests = []getIpChunkTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
-			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
+			{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
 		},
 		129 + 11 + 247,
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
-			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.3.255")},
+			{net.ParseIP("10.0.1.127"), net.ParseIP("10.0.2.10")},
+			{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.3.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.4.0"), net.ParseIP("10.0.4.128")},
+			{net.ParseIP("10.0.4.0"), net.ParseIP("10.0.4.128")},
 		},
 		false,
 		"multichunk",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2:ffff:ffff:ffff:ffff")},
 		},
 		256,
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2::ff")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::100"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::100"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2:ffff:ffff:ffff:ffff")},
 		},
 		false,
@@ -644,15 +644,15 @@ var getSizeTests = []getSizeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
-			IpRange{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.3.9"), net.ParseIP("10.0.4.128")},
 		},
 		255 + 376,
 		"simple",
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff")},
 		},
 		4294967296,
@@ -660,7 +660,7 @@ var getSizeTests = []getSizeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2::ffff:ffff:ffff")},
 		},
 		0x1000000000000,
@@ -668,7 +668,7 @@ var getSizeTests = []getSizeTest{
 	},
 	{
 		[]IpRange{
-			IpRange{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
+			{net.ParseIP("fd43:85d7:bcf2:9ad2::"),
 				net.ParseIP("fd43:85d7:bcf2:9ad2:ffff:ffff:ffff:ffff")},
 		},
 		math.MaxInt64,
@@ -700,125 +700,125 @@ type intersectTest struct {
 }
 
 var intersectTests = []intersectTest{
-	intersectTest{
+	{
 		[]IpRange{},
 		[]IpRange{},
 		[]IpRange{},
 		"empty",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
 		},
 		"middle 1",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.4"), net.ParseIP("10.0.1.250")},
 		},
 		"middle 2",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.128"), net.ParseIP("10.0.1.250")},
 		},
 		"left",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		"left touch",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.250")},
 		},
 		"right touch",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.251"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.251"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{},
 		"left empty",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
-		},
-		"multiple",
-	},
-	intersectTest{
-		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
-		},
-		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
-		},
-		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.25")},
 		},
 		"multiple",
 	},
-	intersectTest{
+	{
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.3.250")},
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
-			IpRange{net.ParseIP("10.0.1.254"), net.ParseIP("10.0.2.255")},
-			IpRange{net.ParseIP("10.0.4.1"), net.ParseIP("10.0.4.4")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
 		},
 		[]IpRange{
-			IpRange{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
-			IpRange{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
-			IpRange{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
+		},
+		"multiple",
+	},
+	{
+		[]IpRange{
+			{net.ParseIP("10.0.1.1"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.3.250")},
+		},
+		[]IpRange{
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.255")},
+			{net.ParseIP("10.0.1.254"), net.ParseIP("10.0.2.255")},
+			{net.ParseIP("10.0.4.1"), net.ParseIP("10.0.4.4")},
+		},
+		[]IpRange{
+			{net.ParseIP("10.0.1.5"), net.ParseIP("10.0.1.10")},
+			{net.ParseIP("10.0.1.20"), net.ParseIP("10.0.1.250")},
+			{net.ParseIP("10.0.2.1"), net.ParseIP("10.0.2.255")},
 		},
 		"multiple 2",
 	},

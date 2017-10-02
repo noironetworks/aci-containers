@@ -535,19 +535,19 @@ func TestFullSync(t *testing.T) {
 	depl := NewVmmInjectedDepl("v", "d", "c", "n", "d")
 
 	syncTests := []syncTest{
-		syncTest{
+		{
 			desc:     "deletes",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
-				request{
+				{
 					method: "DELETE",
 					uri:    "/api/mo/uni/tn-common/BD-testbd0.json",
 				},
-				request{
+				{
 					method: "DELETE",
 					uri:    "/api/mo/uni/tn-common/BD-testbd1/subnet-[10.43.10.1/16].json",
 				},
-				request{
+				{
 					method: "DELETE",
 					uri:    "/api/mo/uni/tn-common/BD-testbd2.json",
 				},
@@ -559,16 +559,16 @@ func TestFullSync(t *testing.T) {
 				return map[string]ApicSlice{"kube-key1": {bd}}
 			}(),
 		},
-		syncTest{
+		{
 			desc:     "adds",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
-				request{
+				{
 					method: "POST",
 					uri:    "/api/mo/uni/tn-common/BD-testbd0.json",
 					body:   bd0,
 				},
-				request{
+				{
 					method: "POST",
 					uri:    "/api/mo/uni/tn-common/BD-testbd4.json",
 					body:   bd4,
@@ -590,16 +590,16 @@ func TestFullSync(t *testing.T) {
 				return map[string]ApicSlice{"kube-key1": s}
 			}(),
 		},
-		syncTest{
+		{
 			desc:     "container",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			expected: []request{
-				request{
+				{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", ns.GetDn()),
 					body:   ns,
 				},
-				request{
+				{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", depl.GetDn()),
 					body:   depl,
@@ -608,12 +608,12 @@ func TestFullSync(t *testing.T) {
 			desiredState: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
 					"kube-key1": existingState(),
-					"d-vmm-1":   ApicSlice{depl},
+					"d-vmm-1":   {depl},
 				}
 			}(),
 			containerState: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					"ns-vmm": ApicSlice{ns},
+					"ns-vmm": {ns},
 				}
 			}(),
 		}}
@@ -671,6 +671,7 @@ type reconcileTest struct {
 func TestReconcile(t *testing.T) {
 	bd1exp := NewFvBD("common", "testbd1")
 	subnetexp := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
+	subnetexp_copy := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
 	{
 		subnet2 := NewFvSubnet(bd1exp.GetDn(), "10.43.10.1/16")
 		bd1exp.AddChild(subnetexp)
@@ -695,7 +696,7 @@ func TestReconcile(t *testing.T) {
 	subnet_mod.SetAttr("virtual", "yes")
 
 	reconcileTests := []reconcileTest{
-		reconcileTest{
+		{
 			desc:     "modify parent",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
@@ -703,19 +704,19 @@ func TestReconcile(t *testing.T) {
 			},
 			updateResp: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					bd1.GetDn(): ApicSlice{bd1},
+					bd1.GetDn(): {bd1},
 				}
 			}(),
 			updates: []string{bd1.GetDn()},
 			expected: map[string][]request{
-				bd1.GetDn(): []request{request{
+				bd1.GetDn(): {{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", bd1.GetDn()),
 					body:   bd1exp,
 				}},
 			},
 		},
-		reconcileTest{
+		{
 			desc:     "modify child",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
@@ -723,19 +724,19 @@ func TestReconcile(t *testing.T) {
 			},
 			updateResp: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					subnet_mod.GetDn(): ApicSlice{subnet_mod},
+					subnet_mod.GetDn(): {subnet_mod},
 				}
 			}(),
 			updates: []string{subnet_mod.GetDn()},
 			expected: map[string][]request{
-				subnetexp.GetDn(): []request{request{
+				subnetexp.GetDn(): {{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", subnetexp.GetDn()),
 					body:   subnetexp,
 				}},
 			},
 		},
-		reconcileTest{
+		{
 			desc:     "delete parent",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
@@ -743,19 +744,19 @@ func TestReconcile(t *testing.T) {
 			},
 			deleteBody: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					bd1.GetDn(): ApicSlice{bd1},
+					bd1.GetDn(): {bd1},
 				}
 			}(),
 			deletes: []string{bd1.GetDn()},
 			expected: map[string][]request{
-				bd1.GetDn(): []request{request{
+				bd1.GetDn(): {{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", bd1.GetDn()),
 					body:   bd1exp,
 				}},
 			},
 		},
-		reconcileTest{
+		{
 			desc:     "delete child",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
@@ -763,19 +764,19 @@ func TestReconcile(t *testing.T) {
 			},
 			deleteBody: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					subnetexp.GetDn(): ApicSlice{subnetexp},
+					subnetexp.GetDn(): {subnetexp_copy},
 				}
 			}(),
 			deletes: []string{subnetexp.GetDn()},
 			expected: map[string][]request{
-				subnetexp.GetDn(): []request{request{
+				subnetexp.GetDn(): {{
 					method: "POST",
 					uri:    fmt.Sprintf("/api/mo/%s.json", subnetexp.GetDn()),
 					body:   subnetexp,
 				}},
 			},
 		},
-		reconcileTest{
+		{
 			desc:     "update for extra object",
 			existing: PrepareApicSlice(existingState(), "kube", "kube-key1"),
 			desiredState: map[string]ApicSlice{
@@ -783,13 +784,13 @@ func TestReconcile(t *testing.T) {
 			},
 			updateResp: func() map[string]ApicSlice {
 				return map[string]ApicSlice{
-					bdExtra.GetDn():  ApicSlice{bdExtra},
-					bdExtra2.GetDn(): ApicSlice{bdExtra2},
+					bdExtra.GetDn():  {bdExtra},
+					bdExtra2.GetDn(): {bdExtra2},
 				}
 			}(),
 			updates: []string{bdExtra2.GetDn(), bdExtra.GetDn()},
 			expected: map[string][]request{
-				bdExtra.GetDn(): []request{request{
+				bdExtra.GetDn(): {{
 					method: "DELETE",
 					uri:    fmt.Sprintf("/api/mo/%s.json", bdExtra.GetDn()),
 				}},
@@ -819,6 +820,21 @@ func TestReconcile(t *testing.T) {
 						"GET": &subHandler{
 							response: obj,
 						},
+						"POST":   r,
+						"DELETE": r,
+					},
+				})
+		}
+		for dn, _ := range test.expected {
+			if _, ok := test.updateResp[dn]; ok {
+				continue
+			}
+			r := &recorder{}
+			recorders[dn] = r
+			server.mux.Handle(fmt.Sprintf("/api/mo/%s.json", dn),
+				&methodMux{
+					methods: map[string]http.Handler{
+						"GET":    r,
 						"POST":   r,
 						"DELETE": r,
 					},
@@ -878,7 +894,6 @@ func TestReconcile(t *testing.T) {
 				}
 				return true, nil
 			})
-
 		close(stopCh)
 	}
 }

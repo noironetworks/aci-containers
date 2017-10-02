@@ -87,7 +87,7 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 						uuid:  uuid,
 						ports: map[string]string{},
 					}
-					for uuid, _ := range uuidSetToMap(row.New.Fields["ports"]) {
+					for uuid := range uuidSetToMap(row.New.Fields["ports"]) {
 						switch pn := pcache[uuid].Fields["name"].(type) {
 						case string:
 							br.ports[pn] = uuid
@@ -164,9 +164,9 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 				var delops []libovsdb.Operation
 				portmissing := false
 				portMap := map[string][]string{
-					agent.config.AccessBridgeName: []string{patchAccessName,
+					agent.config.AccessBridgeName: {patchAccessName,
 						iface.HostVethName},
-					agent.config.IntBridgeName: []string{patchIntName},
+					agent.config.IntBridgeName: {patchIntName},
 				}
 				for _, brName := range brNames {
 					portNames := portMap[brName]
@@ -297,7 +297,7 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 	}
 
 	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
-		libovsdb.UUID{GoUUID: uuidVxlanP},
+		{GoUUID: uuidVxlanP},
 	})
 	if err != nil {
 		return nil, err
@@ -307,7 +307,7 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 		libovsdb.UUID{GoUUID: intBrUuid})}
 
 	ops := []libovsdb.Operation{
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
@@ -317,7 +317,7 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 			},
 			UUIDName: uuidVxlanI,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Port",
 			Row: map[string]interface{}{
@@ -326,7 +326,7 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 			},
 			UUIDName: uuidVxlanP,
 		},
-		libovsdb.Operation{
+		{
 			Op:        "mutate",
 			Table:     "Bridge",
 			Mutations: mibridge,
@@ -343,7 +343,7 @@ func addUplinkIfaceOps(config *HostAgentConfig,
 	uuidUplinkI := "uplink_uuid_interface"
 
 	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
-		libovsdb.UUID{GoUUID: uuidUplinkP},
+		{GoUUID: uuidUplinkP},
 	})
 	if err != nil {
 		return nil, err
@@ -353,7 +353,7 @@ func addUplinkIfaceOps(config *HostAgentConfig,
 		libovsdb.UUID{GoUUID: intBrUuid})}
 
 	ops := []libovsdb.Operation{
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
@@ -361,7 +361,7 @@ func addUplinkIfaceOps(config *HostAgentConfig,
 			},
 			UUIDName: uuidUplinkI,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Port",
 			Row: map[string]interface{}{
@@ -370,7 +370,7 @@ func addUplinkIfaceOps(config *HostAgentConfig,
 			},
 			UUIDName: uuidUplinkP,
 		},
-		libovsdb.Operation{
+		{
 			Op:        "mutate",
 			Table:     "Bridge",
 			Mutations: mibridge,
@@ -426,7 +426,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 		libovsdb.UUID{GoUUID: intBrUuid})}
 
 	return []libovsdb.Operation{
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
@@ -434,7 +434,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidHostI,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
@@ -444,7 +444,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidPatchIntI,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
@@ -454,7 +454,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidPatchAccI,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Port",
 			Row: map[string]interface{}{
@@ -463,7 +463,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidHostP,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Port",
 			Row: map[string]interface{}{
@@ -472,7 +472,7 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidPatchIntP,
 		},
-		libovsdb.Operation{
+		{
 			Op:    "insert",
 			Table: "Port",
 			Row: map[string]interface{}{
@@ -481,13 +481,13 @@ func addIfaceOps(hostVethName string, patchIntName string,
 			},
 			UUIDName: uuidPatchAccP,
 		},
-		libovsdb.Operation{
+		{
 			Op:        "mutate",
 			Table:     "Bridge",
 			Mutations: mabridge,
 			Where:     cabridge,
 		},
-		libovsdb.Operation{
+		{
 			Op:        "mutate",
 			Table:     "Bridge",
 			Mutations: mibridge,

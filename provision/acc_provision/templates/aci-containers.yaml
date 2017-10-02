@@ -4,6 +4,7 @@ metadata:
   name: aci-containers-config
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 data:
   controller-config: |-
@@ -16,6 +17,7 @@ data:
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
+        "require-netpol-annot": {{config.kube_config.use_netpol_annotation|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
         "aci-service-encap": {{ ("vlan-" ~ config.net_config.service_vlan)|json }},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
@@ -50,13 +52,9 @@ data:
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-vrf": {{config.aci_config.vrf.name|json}},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
-        "uplink-iface": {{ config.node_config.uplink_iface|json }},
         "service-vlan": {{ config.net_config.service_vlan|json }},
         "encap-type": {{ config.node_config.encap_type|json }},
         "aci-infra-vlan": {{ config.net_config.infra_vlan|json }},
-        "vxlan-iface": {{ config.node_config.vxlan_uplink_iface|json }},
-        "vxlan-anycast-ip": {{config.net_config.vxlan_anycast_ip|json}},
-        "opflex-peer-ip": {{config.net_config.opflex_peer_ip|json}},
         "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
     }
   opflex-agent-config: |-
@@ -76,6 +74,8 @@ kind: Secret
 metadata:
   name: aci-user-cert
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 data:
   user.key: {{config.aci_config.sync_login.key_data|base64enc}}
   user.crt: {{config.aci_config.sync_login.cert_data|base64enc}}
@@ -85,14 +85,17 @@ kind: ServiceAccount
 metadata:
   name: aci-containers-controller
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
   namespace: kube-system
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
-{% if config.kube_config.use_cluster_role %}
 {% if config.kube_config.use_openshift_cluster_role %}
 apiVersion: v1
 {% else %}
@@ -101,6 +104,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
   name: aci-containers:controller
 rules:
@@ -143,6 +147,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
   name: aci-containers:host-agent
 rules:
@@ -158,14 +163,16 @@ rules:
   - watch
   - get
 ---
-kind: ClusterRoleBinding
 {% if config.kube_config.use_openshift_cluster_role %}
 apiVersion: v1
 {% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
 {% endif %}
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -175,14 +182,16 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-kind: ClusterRoleBinding
 {% if config.kube_config.use_openshift_cluster_role %}
 apiVersion: v1
 {% else %}
 apiVersion: rbac.authorization.k8s.io/v1beta1
 {% endif %}
+kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -192,12 +201,13 @@ subjects:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
-{% endif %}
 {% if config.kube_config.use_openshift_security_context_constraints %}
 kind: SecurityContextConstraints
 apiVersion: v1
 metadata:
   name: aci-containers-scc
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
 users:
   - system:serviceaccount:kube-system:aci-containers-controller
   - system:serviceaccount:kube-system:aci-containers-host-agent
@@ -233,17 +243,18 @@ metadata:
   name: aci-containers-host
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
         name: aci-containers-host
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
@@ -253,17 +264,34 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
-      {% if config.kube_config.use_tolerations %}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      {% if config.kube_config.use_cnideploy_initcontainer %}
+      initContainers:
+        - name: cnideploy
+          image: {{ config.registry.image_prefix }}/cnideploy:{{ config.registry.cnideploy_version }}
+          imagePullPolicy: {{ config.kube_config.image_pull_policy }}
+          securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /mnt/cni-bin
       {% endif %}
       containers:
         - name: aci-containers-host
-          image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/aci-containers-host:{{ config.registry.aci_containers_host_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
             privileged: true
+            {% endif %}
             capabilities:
               add:
                 - SYS_ADMIN
@@ -293,9 +321,12 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.opflex_agent_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
             capabilities:
               add:
                 - NET_ADMIN
@@ -311,10 +342,14 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/opflex:{{ config.registry.opflex_agent_version }}
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
+          {% if config.kube_config.use_privileged_containers %}
+          securityContext:
+            privileged: true
+          {% endif %}
           volumeMounts:
             - name: hostvar
               mountPath: /usr/local/var
@@ -358,17 +393,18 @@ metadata:
   name: aci-containers-openvswitch
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
 spec:
-  {% if config.kube_config.use_ds_rolling_update %}
   updateStrategy:
     type: RollingUpdate
-  {% endif %}
   template:
     metadata:
       labels:
         name: aci-containers-openvswitch
         network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       hostPID: true
@@ -378,16 +414,18 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
-      {% if config.kube_config.use_tolerations %}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-      {% endif %}
+        - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
-          image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.openvswitch_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           securityContext:
+            {% if config.kube_config.use_privileged_containers %}
+            privileged: true
+            {% endif %}
             capabilities:
               add:
                 - NET_ADMIN
@@ -433,16 +471,10 @@ metadata:
   name: aci-containers-controller
   namespace: kube-system
   labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
     k8s-app: aci-containers-controller
     name: aci-containers-controller
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ''
-    {% if config.kube_config.use_tolerations %}
-    scheduler.alpha.kubernetes.io/tolerations: |
-      [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-       {"key":"CriticalAddonsOnly", "operator":"Exists"}]
-    {% endif %}
 spec:
   replicas: 1
   strategy:
@@ -455,6 +487,8 @@ spec:
         network-plugin: aci-containers
         k8s-app: aci-containers-controller
         name: aci-containers-controller
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
@@ -462,9 +496,11 @@ spec:
       imagePullSecrets:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
+      tolerations:
+        - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.version }}
+          image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.aci_containers_controller_version }}
           imagePullPolicy: {{ config.kube_config.image_pull_policy }}
           volumeMounts:
             - name: controller-config-volume

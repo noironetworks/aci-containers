@@ -228,7 +228,16 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			icmpin.SetAttr("direction", "ingress")
 			icmpin.SetAttr("ethertype", "ipv4")
 			icmpin.SetAttr("protocol", "icmp")
+			icmpin.SetAttr("connTrack", "normal")
 			discSubj.AddChild(icmpin)
+		}
+		{
+			icmpout := apicapi.NewHostprotRule(discDn, "icmp-egress")
+			icmpout.SetAttr("direction", "egress")
+			icmpout.SetAttr("ethertype", "ipv4")
+			icmpout.SetAttr("protocol", "icmp")
+			icmpout.SetAttr("connTrack", "normal")
+			discSubj.AddChild(icmpout)
 		}
 
 		hpp.AddChild(discSubj)
@@ -256,7 +265,7 @@ func (cont *AciController) queueNetPolUpdate(netpol *v1beta1.NetworkPolicy) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.netPolQueue.Add(key)
+	cont.netPolQueue.AddRateLimited(key)
 }
 
 func (cont *AciController) peerMatchesPod(npNs string,

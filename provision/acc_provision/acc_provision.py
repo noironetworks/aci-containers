@@ -13,12 +13,79 @@ import string
 import struct
 import sys
 import yaml
-
+import uuid
 
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
+
+DEFAULT_FLAVOR = "kubernetes-1.6"
+
+VERSION_FIELDS = [
+    "cnideploy_version",
+    "aci_containers_host_version",
+    "opflex_agent_version",
+    "aci_containers_controller_version",
+    "openvswitch_version",
+]
+
+VERSIONS = {
+    "1.0": {
+        "cnideploy_version": "1.0",
+        "aci_containers_host_version": "1.0",
+        "opflex_agent_version": "1.0",
+        "aci_containers_controller_version": "1.0",
+        "openvswitch_version": "1.0",
+    },
+    "1.6": {
+        "cnideploy_version": "1.6",
+        "aci_containers_host_version": "1.6",
+        "opflex_agent_version": "1.6",
+        "aci_containers_controller_version": "1.6",
+        "openvswitch_version": "1.0",
+    },
+    "1.7": {
+        "cnideploy_version": "1.7",
+        "aci_containers_host_version": "1.7",
+        "opflex_agent_version": "1.7",
+        "aci_containers_controller_version": "1.7",
+        "openvswitch_version": "1.0",
+    },
+    "latest": {
+        "cnideploy_version": "latest",
+        "aci_containers_host_version": "latest",
+        "opflex_agent_version": "latest",
+        "aci_containers_controller_version": "latest",
+        "openvswitch_version": "latest",
+    }
+}
+
+FLAVORS = {
+    "kubernetes-1.6": {
+        "desc": "Kubernetes 1.6",
+        "default_version": "1.0",
+    },
+    "kubernetes-1.7": {
+        "desc": "Kubernetes 1.7",
+        "default_version": "1.7",
+    },
+    "openshift-3.6": {
+        "desc": "Red Hat OpenShift Container Platform 3.6",
+        "default_version": "1.6",
+        "config": {
+            "kube_config": {
+                "use_external_service_ip_allocator": True,
+                "use_netpol_annotation": False,
+                "use_privileged_containers": True,
+                "use_openshift_security_context_constraints": True,
+                "use_openshift_cluster_role": True,
+                "use_cnideploy_initcontainer": True,
+                "allow_kube_api_default_epg": True,
+            },
+        },
+    },
+}
 
 
 def info(msg):
@@ -68,8 +135,8 @@ def config_default():
                 "encap_type": "vxlan",
                 "mcast_fabric": "225.1.2.3",
                 "mcast_range": {
-                    "start": "225.2.1.1",
-                    "end": "225.2.255.255",
+                    "start": "225.20.1.1",
+                    "end": "225.20.255.255",
                 },
             },
             "client_cert": False,
@@ -83,19 +150,14 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
-            "vxlan_anycast_ip": "10.0.0.32",
-            "opflex_peer_ip": "10.0.0.30",
         },
         "kube_config": {
             "controller": "1.1.1.1",
-            "use_tolerations": True,
-            "use_cluster_role": True,
-            "use_ds_rolling_update": True,
+            "use_netpol_annotation": True,
             "image_pull_policy": "Always",
         },
         "registry": {
             "image_prefix": "noiro",
-            "version": "latest",
         },
         "logging": {
             "controller_log_level": "info",
@@ -155,8 +217,7 @@ def cidr_split(cidr):
     subi = (rtri & (0xffffffff ^ maskbits))
     return int2ip(starti), int2ip(endi), rtr, int2ip(subi), mask
 
-
-def config_adjust(config, prov_apic, no_random):
+def config_adjust(args, config, prov_apic, no_random):
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
     pod_subnet = config["net_config"]["pod_subnet"]
@@ -165,6 +226,9 @@ def config_adjust(config, prov_apic, no_random):
     node_svc_subnet = config["net_config"]["node_svc_subnet"]
     encap_type = config["aci_config"]["vmm_domain"]["encap_type"]
     tenant = system_id
+    token = str(uuid.uuid4())
+    if args.version_token:
+        token = args.version_token
 
     adj_config = {
         "aci_config": {
@@ -249,6 +313,9 @@ def config_adjust(config, prov_apic, no_random):
                 node_svc_subnet,
             ],
         },
+        "registry": {
+            "configuration_version": token,
+        }
     }
     return adj_config
 
@@ -277,11 +344,16 @@ def config_validate(config):
         "extern_dynamic": (get(("net_config", "extern_dynamic")), required),
         "extern_static": (get(("net_config", "extern_static")), required),
         "node_svc_subnet": (get(("net_config", "node_svc_subnet")), required),
-
-        # Node config
-        "uplink_if": (get(("node_config", "uplink_iface")), required),
-        "vxlan_if": (get(("node_config", "vxlan_uplink_iface")), required),
     }
+    # Versions
+    for field in VERSION_FIELDS:
+        checks[field] = (get(("registry", field)), required)
+
+    if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":
+        checks["vmm_vlanpool_start"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "start")), required)
+        checks["vmm_vlanpool_end"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "end")), required)
 
     if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":
         checks["vmm_vlanpool_start"] = \
@@ -403,6 +475,9 @@ def generate_kube_yaml(config, output):
     env.filters['yaml_quote'] = yaml_quote
     template = env.get_template('aci-containers.yaml')
 
+    info("Using configuration label aci-containers-config-version=" +
+         str(config["registry"]["configuration_version"]))
+
     if output:
         if output == "-":
             info("Writing kubernetes infrastructure YAML to \"STDOUT\"")
@@ -493,6 +568,15 @@ def parse_args():
     parser.add_argument(
         '-p', '--password', default=None, metavar='pass',
         help='apic-admin password to use for APIC API access')
+    parser.add_argument(
+        '--list-flavors', action='store_true', default=False,
+        help='list available configuration flavors')
+    parser.add_argument(
+        '-f', '--flavor', default=None, metavar='flavor',
+        help='set configuration flavor.  Example: openshift-3.6')
+    parser.add_argument(
+        '-t', '--version-token', default=None, metavar='token',
+        help='set a configuration version token.  Default is UUID.')
     return parser.parse_args()
 
 
@@ -532,10 +616,29 @@ def provision(args, apic_file, no_random):
         config["aci_config"]["apic_login"]["password"] = args.password
 
     # Create config
-    default_config = config_default()
     user_config = config_user(config_file)
     deep_merge(config, user_config)
-    deep_merge(config, default_config)
+
+    flavor = DEFAULT_FLAVOR
+    if args.flavor:
+        flavor = args.flavor
+    if flavor in FLAVORS:
+        info("Using configuration flavor " + flavor)
+        if "config" in FLAVORS[flavor]:
+            deep_merge(config, FLAVORS[flavor]["config"])
+        if "default_version" in FLAVORS[flavor]:
+            deep_merge(config, {
+                "registry": {
+                    "version": FLAVORS[flavor]["default_version"]
+                }
+            })
+
+    deep_merge(config, config_default())
+
+    if config["registry"]["version"] in VERSIONS:
+        deep_merge(config,
+                   {"registry": VERSIONS[config["registry"]["version"]]})
+
     deep_merge(config, config_discover(config, prov_apic))
 
     # Validate config
@@ -544,7 +647,7 @@ def provision(args, apic_file, no_random):
         return False
 
     # Adjust config based on convention/apic data
-    adj_config = config_adjust(config, prov_apic, no_random)
+    adj_config = config_adjust(args, config, prov_apic, no_random)
     deep_merge(config, adj_config)
 
     # Advisory checks, including apic checks, ignore failures
@@ -571,6 +674,15 @@ def main(args=None, apic_file=None, no_random=False):
     # apic_file and no_random are used by the test functions
     if args is None:
         args = parse_args()
+
+    if args.list_flavors:
+        info("Available configuration flavors:")
+        for flavor in FLAVORS:
+            info(flavor + ":\t" + FLAVORS[flavor]["desc"])
+        return
+    if args.flavor is not None and args.flavor not in FLAVORS:
+        err("Invalid configuration flavor: " + args.flavor)
+        return
 
     if args.debug:
         provision(args, apic_file, no_random)
