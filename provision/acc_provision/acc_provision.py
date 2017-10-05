@@ -38,6 +38,13 @@ VERSIONS = {
         "aci_containers_controller_version": "1.0",
         "openvswitch_version": "1.0",
     },
+    "1.1": {
+        "cnideploy_version": "1.1r0",
+        "aci_containers_host_version": "1.1r0",
+        "opflex_agent_version": "1.1r1",
+        "aci_containers_controller_version": "1.1r0",
+        "openvswitch_version": "1.0",
+    },
     "1.6": {
         "cnideploy_version": "1.6",
         "aci_containers_host_version": "1.6",
@@ -64,7 +71,7 @@ VERSIONS = {
 FLAVORS = {
     "kubernetes-1.6": {
         "desc": "Kubernetes 1.6",
-        "default_version": "1.0",
+        "default_version": "1.1",
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
