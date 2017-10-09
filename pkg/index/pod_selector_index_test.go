@@ -28,7 +28,6 @@ import (
 	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
-	"k8s.io/kubernetes/pkg/controller"
 
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
@@ -62,72 +61,69 @@ func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
 		fakePodSource:       framework.NewFakeControllerSource(),
 		fakeObjSource:       framework.NewFakeControllerSource(),
 	}
-	namespaceInformer := cache.NewSharedIndexInformer(
+	namespaceIndexer, namespaceInformer := cache.NewIndexerInformer(
 		&cache.ListWatch{
 			ListFunc:  testIndex.fakeNamespaceSource.List,
 			WatchFunc: testIndex.fakeNamespaceSource.Watch,
 		},
-		&v1.Namespace{},
-		controller.NoResyncPeriodFunc(),
+		&v1.Namespace{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				testIndex.si.UpdateNamespace(obj.(*v1.Namespace))
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				testIndex.si.UpdateNamespace(obj.(*v1.Namespace))
+			},
+			DeleteFunc: func(obj interface{}) {
+				testIndex.si.DeleteNamespace(obj.(*v1.Namespace))
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			testIndex.si.UpdateNamespace(obj.(*v1.Namespace))
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			testIndex.si.UpdateNamespace(obj.(*v1.Namespace))
-		},
-		DeleteFunc: func(obj interface{}) {
-			testIndex.si.DeleteNamespace(obj.(*v1.Namespace))
-		},
-	})
-	podInformer := cache.NewSharedIndexInformer(
+	podIndexer, podInformer := cache.NewIndexerInformer(
 		&cache.ListWatch{
 			ListFunc:  testIndex.fakePodSource.List,
 			WatchFunc: testIndex.fakePodSource.Watch,
 		},
-		&v1.Pod{},
-		controller.NoResyncPeriodFunc(),
+		&v1.Pod{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				testIndex.si.UpdatePod(obj.(*v1.Pod))
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				testIndex.si.UpdatePod(obj.(*v1.Pod))
+			},
+			DeleteFunc: func(obj interface{}) {
+				testIndex.si.DeletePod(obj.(*v1.Pod))
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			testIndex.si.UpdatePod(obj.(*v1.Pod))
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			testIndex.si.UpdatePod(obj.(*v1.Pod))
-		},
-		DeleteFunc: func(obj interface{}) {
-			testIndex.si.DeletePod(obj.(*v1.Pod))
-		},
-	})
 	var objtype runtime.Object
 	if dep {
 		objtype = &v1beta1.Deployment{}
 	} else {
 		objtype = &TestKubeObj{}
 	}
-	objInformer := cache.NewSharedIndexInformer(
+	objIndexer, objInformer := cache.NewIndexerInformer(
 		&cache.ListWatch{
 			ListFunc:  testIndex.fakeObjSource.List,
 			WatchFunc: testIndex.fakeObjSource.Watch,
 		},
-		objtype,
-		controller.NoResyncPeriodFunc(),
+		objtype, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				testIndex.si.UpdateSelectorObj(obj)
+			},
+			UpdateFunc: func(_ interface{}, obj interface{}) {
+				testIndex.si.UpdateSelectorObj(obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				testIndex.si.DeleteSelectorObj(obj)
+			},
+		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	objInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			testIndex.si.UpdateSelectorObj(obj)
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			testIndex.si.UpdateSelectorObj(obj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			testIndex.si.DeleteSelectorObj(obj)
-		},
-	})
 
 	updateCb := func(key string) {
 		testIndex.mutex.Lock()
@@ -137,7 +133,7 @@ func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
 
 	if dep {
 		testIndex.si = NewPodSelectorIndex(
-			log, podInformer, namespaceInformer, objInformer,
+			log, podIndexer, namespaceIndexer, objIndexer,
 			cache.MetaNamespaceKeyFunc,
 			func(obj interface{}) []PodSelector {
 				dep := obj.(*v1beta1.Deployment)
@@ -147,7 +143,7 @@ func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
 		testIndex.si.SetPodUpdateCallback(updateCb)
 	} else {
 		testIndex.si = NewPodSelectorIndex(
-			log, podInformer, namespaceInformer, objInformer,
+			log, podIndexer, namespaceIndexer, objIndexer,
 			cache.MetaNamespaceKeyFunc,
 			func(obj interface{}) []PodSelector {
 				to := obj.(*TestKubeObj)
