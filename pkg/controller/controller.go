@@ -220,9 +220,7 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 			case string:
 				obj, exists, err := store.GetByKey(key)
 				if err == nil && exists {
-					cont.log.Info("PROCESS ", key)
 					requeue = handler(obj)
-					cont.log.Info("PROCESS DONE ", key)
 				}
 			}
 			if requeue {

@@ -38,9 +38,9 @@ all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync
 
-vendor-rebuild:
+vendor-rebuild: glide.yaml glide.lock
 	${VENDOR_BUILD_CMD}
-vendor:
+vendor: glide.yaml glide.lock
 	${VENDOR_BUILD_CMD}
 
 clean-dist:
