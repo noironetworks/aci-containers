@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='acc_provision',
-    version='1.0.6',
+    version='1.7.0',
     description='Tool to provision ACI for ACI Containers Controller',
     author="Cisco Systems, Inc.",
     author_email="apicapi@noironetworks.com",
