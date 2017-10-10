@@ -41,7 +41,7 @@ VERSIONS = {
     "1.1": {
         "cnideploy_version": "1.1r0",
         "aci_containers_host_version": "1.1r0",
-        "opflex_agent_version": "1.1r1",
+        "opflex_agent_version": "1.1r2",
         "aci_containers_controller_version": "1.1r0",
         "openvswitch_version": "1.0",
     },
