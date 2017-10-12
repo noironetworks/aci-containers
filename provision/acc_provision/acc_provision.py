@@ -224,6 +224,7 @@ def cidr_split(cidr):
     subi = (rtri & (0xffffffff ^ maskbits))
     return int2ip(starti), int2ip(endi), rtr, int2ip(subi), mask
 
+
 def config_adjust(args, config, prov_apic, no_random):
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
