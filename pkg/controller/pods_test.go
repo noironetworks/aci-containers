@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"

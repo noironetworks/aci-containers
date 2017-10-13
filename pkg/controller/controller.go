@@ -28,10 +28,10 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/juju/ratelimit"
 
+	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/pkg/api/v1"
-	v1net "k8s.io/client-go/pkg/apis/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 

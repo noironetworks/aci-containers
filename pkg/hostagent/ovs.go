@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/socketplane/libovsdb"
-
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/socketplane/libovsdb"
 )
 
 type ovsBridge struct {

@@ -21,11 +21,11 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	v1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	v1 "k8s.io/client-go/pkg/api/v1"
-	v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 
@@ -50,6 +50,28 @@ type TestKubeObj struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	selector []PodSelector
+}
+
+func (in *TestKubeObj) DeepCopyInto(out *TestKubeObj) {
+	*out = *in
+	return
+}
+
+func (in *TestKubeObj) DeepCopy() *TestKubeObj {
+	if in == nil {
+		return nil
+	}
+	out := new(TestKubeObj)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *TestKubeObj) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
 }
 
 func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
