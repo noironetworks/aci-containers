@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"

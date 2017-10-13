@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
-	v1 "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
