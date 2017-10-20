@@ -76,9 +76,8 @@ FLAVORS = {
             "kube_config": {
                 "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
                 "use_netpol_annotation": False,
-                "use_rbac_api": "v1",
                 "use_netpol_apigroup": "extensions",
-            }
+            },
         }
     },
     "kubernetes-1.7": {
