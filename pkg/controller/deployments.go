@@ -107,7 +107,7 @@ func (cont *AciController) writeApicDepl(dep *v1beta1.Deployment) {
 	}
 	key := cont.aciNameForKey("deployment", depkey)
 
-	aobj := apicapi.NewVmmInjectedDepl("Kubernetes",
+	aobj := apicapi.NewVmmInjectedDepl(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		dep.Namespace, dep.Name)
 	aobj.SetAttr("guid", string(dep.UID))

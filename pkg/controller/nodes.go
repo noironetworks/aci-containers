@@ -168,7 +168,7 @@ func (cont *AciController) nodeFullSync() {
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
 	key := cont.aciNameForKey("node-vmm", node.Name)
-	aobj := apicapi.NewVmmInjectedHost("Kubernetes",
+	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		node.Name)
 	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)

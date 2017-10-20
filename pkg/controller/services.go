@@ -638,7 +638,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		return
 	}
 
-	aobj := apicapi.NewVmmInjectedSvc("Kubernetes",
+	aobj := apicapi.NewVmmInjectedSvc(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		service.Namespace, service.Name)
 	aobjDn := aobj.GetDn()

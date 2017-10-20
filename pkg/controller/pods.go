@@ -371,7 +371,7 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 		return
 	}
 
-	aobj := apicapi.NewVmmInjectedContGrp("Kubernetes",
+	aobj := apicapi.NewVmmInjectedContGrp(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		pod.Namespace, pod.Name)
 	aobj.SetAttr("guid", string(pod.UID))

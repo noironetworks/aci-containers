@@ -261,6 +261,14 @@ func (cont *AciController) initStaticObjs() {
 		cont.globalStaticObjs())
 }
 
+func (cont *AciController) vmmDomainProvider() (vmmProv string) {
+	vmmProv = "Kubernetes"
+	if strings.ToLower(cont.config.AciVmmDomainType) == "openshift" {
+		vmmProv = "OpenShift"
+	}
+	return
+}
+
 func (cont *AciController) Run(stopCh <-chan struct{}) {
 	var err error
 	var privKey []byte
@@ -355,6 +363,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		}
 		cont.log.Debug("Checkpoint complete")
 	}
+
+	oDevType := "k8s"
+	if strings.ToLower(cont.config.AciVmmDomainType) == "openshift" {
+		oDevType = "openshift"
+	}
+
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
 		[]string{"hostprotPol"})
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
@@ -364,16 +378,18 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.AciVrfTenant, cont.config.AciL3Out),
 		[]string{"fvRsCons"})
 	vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
-		"Kubernetes", cont.config.AciVmmDomain, cont.config.AciVmmController)
+		cont.vmmDomainProvider(), cont.config.AciVmmDomain,
+		cont.config.AciVmmController)
 	cont.apicConn.AddSubscriptionDn(vmmDn,
 		[]string{"vmmInjectedHost", "vmmInjectedNs",
 			"vmmInjectedContGrp", "vmmInjectedDepl",
 			"vmmInjectedSvc", "vmmInjectedReplSet"})
 	cont.apicConn.AddSubscriptionClass("opflexODev",
 		[]string{"opflexODev"},
-		fmt.Sprintf("and(eq(opflexODev.domName,\"%s\"),"+
+		fmt.Sprintf("and(eq(opflexODev.devType,\"%s\"),"+
+			"eq(opflexODev.domType,\"%s\"),"+
 			"eq(opflexODev.ctrlrName,\"%s\"))",
-			cont.config.AciVmmDomain, cont.config.AciVmmController))
+			oDevType, cont.config.AciVmmDomain, cont.config.AciVmmController))
 
 	cont.apicConn.SetSubscriptionHooks("opflexODev",
 		func(obj apicapi.ApicObject) bool {
