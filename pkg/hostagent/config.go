@@ -109,6 +109,10 @@ type HostAgentConfig struct {
 	// Configuration for CNI networks
 	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
 
+	// The type of the ACI VMM domain: either "Kubernetes" or
+	// "OpenShift"
+	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
+
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
@@ -156,6 +160,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.VxlanAnycastIp, "vxlan-anycast-ip", "10.0.0.32", "Anycast IP used for unicast VXLAN packets")
 	flag.StringVar(&config.OpflexPeerIp, "opflex-peer-ip", "10.0.0.30", "Anycast IP used for OpFlex communication")
 
+	flag.StringVar(&config.AciVmmDomainType, "aci-vmm-domain-type", "Kubernetes", "ACI VMM domain type")
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubernetes", "ACI VMM domain")
 	flag.StringVar(&config.AciVmmController, "aci-vmm-controller", "kubernetes", "ACI VMM domain controller")
 

@@ -69,7 +69,7 @@ type ControllerConfig struct {
 
 	// The type of the ACI VMM domain: either "kubernetes" or
 	// "openshift"
-	AciVmmDomainType string `json:"aci-vmm-domain-type,omitempty"`
+	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
 
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`

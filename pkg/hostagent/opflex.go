@@ -121,7 +121,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 var opflexConfigBase = initTempl("opflex-config-base", `{
     "opflex": {
         "name": "{{.NodeName | js}}",
-        "domain": "{{print "comp/prov-Kubernetes/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
+        "domain": "{{print "comp/prov-[" .AciVmmDomainType "]/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
         "peers": [
             {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
         ]
