@@ -73,7 +73,7 @@ func (cont *AciController) writeApicRs(rs *v1beta1.ReplicaSet) {
 	}
 	key := cont.aciNameForKey("replicaSet", rskey)
 
-	aobj := apicapi.NewVmmInjectedReplSet("Kubernetes",
+	aobj := apicapi.NewVmmInjectedReplSet(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		rs.Namespace, rs.Name)
 	aobj.SetAttr("guid", string(rs.UID))

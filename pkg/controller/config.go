@@ -67,6 +67,10 @@ type ControllerConfig struct {
 	// enable secure TLS server verifification
 	ApicCertPath string `json:"apic-cert-path,omitempty"`
 
+	// The type of the ACI VMM domain: either "kubernetes" or
+	// "openshift"
+	AciVmmDomainType string `json:"aci-vmm-domain-type,omitempty"`
+
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 

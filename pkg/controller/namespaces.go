@@ -65,7 +65,7 @@ func (cont *AciController) updatePodsForNamespace(ns string) {
 }
 
 func (cont *AciController) writeApicNs(ns *v1.Namespace) {
-	aobj := apicapi.NewVmmInjectedNs("Kubernetes",
+	aobj := apicapi.NewVmmInjectedNs(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		ns.Name)
 	cont.apicConn.WriteApicContainer(cont.aciNameForKey("ns", ns.Name),
