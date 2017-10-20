@@ -64,7 +64,7 @@
         ]
     }
 }
-/api/mo/uni/vmmp-Kubernetes/dom-kube.json
+/api/mo/uni/vmmp-openshift/dom-kube.json
 {
     "vmmDomP": {
         "attributes": {
@@ -106,7 +106,7 @@
             {
                 "infraRsDomP": {
                     "attributes": {
-                        "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                        "tDn": "uni/vmmp-openshift/dom-kube"
                     }
                 }
             }, 
@@ -162,7 +162,7 @@
         ]
     }
 }
-/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-Kubernetes/dom-kube].json
+/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-openshift/dom-kube].json
 None
 /api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/phys-kube-pdom].json
 None
@@ -256,7 +256,7 @@ None
                                     {
                                         "fvRsDomAtt": {
                                             "attributes": {
-                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                                "tDn": "uni/vmmp-openshift/dom-kube"
                                             }
                                         }
                                     }, 
@@ -356,7 +356,7 @@ None
                                     {
                                         "fvRsDomAtt": {
                                             "attributes": {
-                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                                "tDn": "uni/vmmp-openshift/dom-kube"
                                             }
                                         }
                                     }, 

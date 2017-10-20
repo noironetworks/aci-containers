@@ -20,7 +20,7 @@ from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-DEFAULT_FLAVOR = "kubernetes-1.6"
+DEFAULT_FLAVOR = "kubernetes-1.7"
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -72,6 +72,14 @@ FLAVORS = {
     "kubernetes-1.6": {
         "desc": "Kubernetes 1.6",
         "default_version": "1.1",
+        "config": {
+            "kube_config": {
+                "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
+                "use_netpol_annotation": False,
+                "use_rbac_api": "v1",
+                "use_netpol_apigroup": "extensions",
+            }
+        }
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
@@ -83,12 +91,17 @@ FLAVORS = {
         "config": {
             "kube_config": {
                 "use_external_service_ip_allocator": True,
-                "use_netpol_annotation": False,
                 "use_privileged_containers": True,
                 "use_openshift_security_context_constraints": True,
-                "use_openshift_cluster_role": True,
                 "use_cnideploy_initcontainer": True,
                 "allow_kube_api_default_epg": True,
+                "use_rbac_api": "v1",
+                "use_netpol_apigroup": "extensions",
+            },
+            "aci_config": {
+                "vmm_domain": {
+                    "type": "OpenShift",
+                },
             },
         },
     },
@@ -139,6 +152,7 @@ def config_default():
                 "external_networks": None,
             },
             "vmm_domain": {
+                "type": "Kubernetes",
                 "encap_type": "vxlan",
                 "mcast_fabric": "225.1.2.3",
                 "mcast_range": {
@@ -160,7 +174,9 @@ def config_default():
         },
         "kube_config": {
             "controller": "1.1.1.1",
-            "use_netpol_annotation": True,
+            "use_rbac_api": "rbac.authorization.k8s.io/v1",
+            "use_netpol_apigroup": "networking.k8s.io",
+            "use_netpol_annotation": False,
             "image_pull_policy": "Always",
         },
         "registry": {

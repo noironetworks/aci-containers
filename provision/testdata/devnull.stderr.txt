@@ -1,4 +1,4 @@
-INFO: Using configuration flavor kubernetes-1.6
+INFO: Using configuration flavor kubernetes-1.7
 ERR:  Required configuration not present or not correct: 'aep'
 ERR:  Required configuration not present or not correct: 'apic_host'
 ERR:  Required configuration not present or not correct: 'extern_dynamic'

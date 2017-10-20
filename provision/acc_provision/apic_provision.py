@@ -355,6 +355,7 @@ class ApicKubeConfig(object):
         return path, data
 
     def kube_dom(self):
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         mcast_fabric = self.config["aci_config"]["vmm_domain"]["mcast_fabric"]
@@ -362,7 +363,7 @@ class ApicKubeConfig(object):
         vpool_name = self.config["aci_config"]["vmm_domain"]["vlan_pool"]
         kube_controller = self.config["kube_config"]["controller"]
 
-        path = "/api/mo/uni/vmmp-Kubernetes/dom-%s.json" % vmm_name
+        path = "/api/mo/uni/vmmp-%s/dom-%s.json" % (vmm_type, vmm_name)
         data = {
             "vmmDomP": {
                 "attributes": {
@@ -412,6 +413,7 @@ class ApicKubeConfig(object):
         infra_vlan = self.config["net_config"]["infra_vlan"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
         kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
 
         path = "/api/mo/uni/infra.json"
         data = {
@@ -423,7 +425,7 @@ class ApicKubeConfig(object):
                     {
                         "infraRsDomP": {
                             "attributes": {
-                                "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                                "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                             }
                         }
                     },
@@ -481,7 +483,7 @@ class ApicKubeConfig(object):
         }
 
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
-        rsvmm = base + '/rsdomP-[uni/vmmp-Kubernetes/dom-%s].json' % vmm_name
+        rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
         rsfun = base + '/gen-default.json'
         return path, data, rsvmm, rsphy, rsfun
@@ -660,12 +662,13 @@ class ApicKubeConfig(object):
         node_subnet = self.config["net_config"]["node_subnet"]
         pod_subnet = self.config["net_config"]["pod_subnet"]
         kade = self.config["kube_config"].get("allow_kube_api_default_epg")
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
 
         kube_default_children = [
             {
                 "fvRsDomAtt": {
                     "attributes": {
-                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                     }
                 }
             },
@@ -788,7 +791,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "fvRsDomAtt": {
                                                     "attributes": {
-                                                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                                                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                                                     }
                                                 }
                                             },

@@ -16,6 +16,7 @@ data:
         "apic-username": "kube",
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": "kube",
+        "aci-vmm-type": "openshift",
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
         "aci-policy-tenant": "kube",
@@ -147,7 +148,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "networking.k8s.io"
+  - "extensions"
   resources:
   - networkpolicies
   verbs:

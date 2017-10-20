@@ -16,10 +16,11 @@ data:
         "apic-username": "mykube",
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": "mykube",
+        "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "mykube",
         "aci-vmm-controller": "mykube",
         "aci-policy-tenant": "mykube",
-        "require-netpol-annot": true,
+        "require-netpol-annot": false,
         "aci-service-phys-dom": "mykube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-vrf-tenant": "common",
@@ -125,7 +126,7 @@ metadata:
   labels:
     aci-containers-config-version: "dummy"
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -171,7 +172,7 @@ rules:
   verbs:
   - update
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -191,7 +192,7 @@ rules:
   - watch
   - get
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
@@ -206,7 +207,7 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
@@ -250,7 +251,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.1r0
+          image: noiro/aci-containers-host:1.7
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -282,7 +283,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.1r2
+          image: noiro/opflex:1.7
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -300,7 +301,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.1r2
+          image: noiro/opflex:1.7
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -443,7 +444,7 @@ spec:
         - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.1r0
+          image: noiro/aci-containers-controller:1.7
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume

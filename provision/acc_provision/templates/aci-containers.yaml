@@ -14,6 +14,7 @@ data:
         "apic-username": {{config.aci_config.sync_login.username|json}},
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": {{config.aci_config.system_id|json}},
+        "aci-vmm-type": {{config.aci_config.vmm_domain.type|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
@@ -96,11 +97,7 @@ metadata:
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
-apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
+apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRole
 metadata:
   labels:
@@ -121,7 +118,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "networking.k8s.io"
+  - "{{ config.kube_config.use_netpol_apigroup }}"
   resources:
   - networkpolicies
   verbs:
@@ -146,11 +143,7 @@ rules:
   verbs:
   - update
 ---
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
-apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
+apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRole
 metadata:
   labels:
@@ -170,11 +163,7 @@ rules:
   - watch
   - get
 ---
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
-apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
+apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
@@ -189,11 +178,7 @@ subjects:
   name: aci-containers-controller
   namespace: kube-system
 ---
-{% if config.kube_config.use_openshift_cluster_role %}
-apiVersion: v1
-{% else %}
-apiVersion: rbac.authorization.k8s.io/v1beta1
-{% endif %}
+apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
