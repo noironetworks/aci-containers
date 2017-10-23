@@ -387,7 +387,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn.AddSubscriptionClass("opflexODev",
 		[]string{"opflexODev"},
 		fmt.Sprintf("and(eq(opflexODev.devType,\"%s\"),"+
-			"eq(opflexODev.domType,\"%s\"),"+
+			"eq(opflexODev.domName,\"%s\"),"+
 			"eq(opflexODev.ctrlrName,\"%s\"))",
 			oDevType, cont.config.AciVmmDomain, cont.config.AciVmmController))
 
