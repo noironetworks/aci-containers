@@ -33,6 +33,9 @@ type ControllerConfig struct {
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
+	// Absolute path to CloudFoundry-specific config file
+	CfConfig string `json:"cfconfig,omitempty"`
+
 	// TCP port to run status server on (or 0 to disable)
 	StatusPort int `json:"status-port,omitempty"`
 
@@ -67,8 +70,8 @@ type ControllerConfig struct {
 	// enable secure TLS server verifification
 	ApicCertPath string `json:"apic-cert-path,omitempty"`
 
-	// The type of the ACI VMM domain: either "kubernetes" or
-	// "openshift"
+	// The type of the ACI VMM domain: either "kubernetes",
+	// "openshift" or "cloudfoundry"
 	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
 
 	// The name of the ACI VMM domain
@@ -110,6 +113,10 @@ type ControllerConfig struct {
 	// The number of IP addresses to allocate when a pod starts to run low
 	PodIpPoolChunkSize int `json:"pod-ip-pool-chunk-size,omitempty"`
 
+	// Pod subnet CIDRs in the form <gateway-address>/<prefix-length> that
+	// cover all pod-ip-pools
+	PodSubnets []string `json:"pod-subnets,omitempty"`
+
 	// Whether to allocate service IPs or to assume they will be
 	// allocated by another controller
 	AllocateServiceIps *bool `json:"allocate-service-ips,omitempty"`
@@ -147,6 +154,7 @@ func NewConfig() *ControllerConfig {
 		DefaultSg:          make([]OpflexGroup, 0),
 		NamespaceDefaultEg: make(map[string]OpflexGroup),
 		NamespaceDefaultSg: make(map[string][]OpflexGroup),
+		AciVmmDomainType:   "Kubernetes",
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
 		PodIpPoolChunkSize: 128,
@@ -158,6 +166,8 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+
+	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
 }
