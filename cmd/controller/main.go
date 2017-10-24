@@ -16,16 +16,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
-
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/noironetworks/aci-containers/pkg/controller"
 )
@@ -65,34 +63,28 @@ func main() {
 	log.Level = logLevel
 
 	log.WithFields(logrus.Fields{
-		"kubeconfig": config.KubeConfig,
-		"logLevel":   logLevel,
+		"logLevel": logLevel,
+		"vmm-domain-type": config.AciVmmDomainType,
 	}).Info("Starting")
 
-	log.Debug("Initializing kubernetes client")
-	var restconfig *restclient.Config
-	if config.KubeConfig != "" {
-		// use kubeconfig file from command line
-		restconfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfig)
-		if err != nil {
-			panic(err.Error())
-		}
+	var env controller.Environment
+	domType := strings.ToLower(config.AciVmmDomainType)
+	if domType == "kubernetes" || domType == "openshift" {
+		env, err = controller.NewK8sEnvironment(config, log)
+	} else if domType =="cloudfoundry" {
+		env, err = controller.NewCfEnvironment(config, log)
 	} else {
-		// creates the in-cluster config
-		restconfig, err = restclient.InClusterConfig()
-		if err != nil {
-			panic(err.Error())
-		}
+		err = errors.New("Unsupported ACI VMM domain type " + config.AciVmmDomainType)
+		log.Error(err)
 	}
 
-	// creates the client
-	kubeClient, err := kubernetes.NewForConfig(restconfig)
 	if err != nil {
+		log.Error("Environment set up failed for VMM domain type ", config.AciVmmDomainType)
 		panic(err.Error())
 	}
 
-	cont := controller.NewController(config, log)
-	cont.Init(kubeClient)
+	cont := controller.NewController(config, env, log)
+	cont.Init()
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
 }

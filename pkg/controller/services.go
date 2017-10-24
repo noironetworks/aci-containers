@@ -117,7 +117,7 @@ func returnIps(pool *netIps, ips []net.IP) {
 
 func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 	// Service bridge domain
-	bdName := cont.aciNameForKey("bd", "kubernetes-service")
+	bdName := cont.aciNameForKey("bd", cont.env.ServiceBd())
 
 	bd := apicapi.NewFvBD(cont.config.AciVrfTenant, bdName)
 	bd.SetAttr("arpFlood", "yes")
@@ -201,7 +201,12 @@ func apicExtNet(name string, tenantName string, l3Out string,
 	enDn := en.GetDn()
 	en.AddChild(apicapi.NewFvRsProv(enDn, name))
 	for _, ingress := range ingresses {
-		en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/32"))
+		ip := net.ParseIP(ingress)
+		if ip != nil && ip.To4() != nil {
+			en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/32"))
+		} else if ip != nil && ip.To16() != nil {
+			en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/128"))
+		}
 	}
 	return en
 }
@@ -350,7 +355,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
 			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
-				cont.aciNameForKey("bd", "kubernetes-service"), rpDn))
+				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn))
 	}
 
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
@@ -568,7 +573,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 
 	cont.updateDeviceCluster()
 	for _, node := range nodeUpdates {
-		cont.updateServicesForNode(node)
+		cont.env.NodeServiceChanged(node)
 	}
 }
 
@@ -597,7 +602,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 
 	cont.updateDeviceCluster()
 	for _, node := range nodeUpdates {
-		cont.updateServicesForNode(node)
+		cont.env.NodeServiceChanged(node)
 	}
 }
 
