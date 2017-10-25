@@ -363,12 +363,21 @@ class ApicKubeConfig(object):
         vpool_name = self.config["aci_config"]["vmm_domain"]["vlan_pool"]
         kube_controller = self.config["kube_config"]["controller"]
 
+        mode = "k8s"
+        scope = "kubernetes"
+        if vmm_type == "OpenShift":
+            mode = "openshift"
+            scope = "openshift"
+        elif vmm_type == "CloudFoundry":
+            mode = "cf"
+            scope = "cloudfoundry"
+
         path = "/api/mo/uni/vmmp-%s/dom-%s.json" % (vmm_type, vmm_name)
         data = {
             "vmmDomP": {
                 "attributes": {
                     "name": vmm_name,
-                    "mode": "k8s",
+                    "mode": mode,
                     "enfPref": "sw",
                     "encapMode": encap_type,
                     "prefEncapMode": encap_type,
@@ -379,8 +388,8 @@ class ApicKubeConfig(object):
                         "vmmCtrlrP": {
                             "attributes": {
                                 "name": vmm_name,
-                                "mode": "k8s",
-                                "scope": "kubernetes",
+                                "mode": mode,
+                                "scope": scope,
                                 "hostOrIp": kube_controller,
                             },
                         }
