@@ -71,6 +71,7 @@ data:
   host-agent-config: |-
     {
         "log-level": "debug",
+        "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "kubernetes1",
         "aci-vmm-controller": "kubernetes1",
         "aci-vrf": "kubernetes-vrf",

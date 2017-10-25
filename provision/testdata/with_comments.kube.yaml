@@ -70,6 +70,7 @@ data:
   host-agent-config: |-
     {
         "log-level": "info",
+        "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
         "aci-vrf": "kube",
