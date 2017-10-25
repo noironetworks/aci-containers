@@ -277,8 +277,9 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	if err != nil {
 		return nil, err
 	}
+
+	podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 	{
-		podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 		agent.indexMutex.Lock()
 		if _, ok := agent.epMetadata[podid]; !ok {
 			agent.epMetadata[podid] =
@@ -288,8 +289,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		agent.indexMutex.Unlock()
 	}
 
-	podkey := fmt.Sprintf("%s/%s", metadata.Id.Namespace, metadata.Id.Pod)
-	agent.podChanged(&podkey)
+	agent.env.CniDeviceChanged(&podid, &metadata.Id)
 
 	logger.Info("Successfully configured container interface")
 	return result, nil
@@ -303,6 +303,7 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 	})
 
 	podid := id.Namespace + "/" + id.Pod
+
 	agent.indexMutex.Lock()
 	mdmap, ok := agent.epMetadata[podid]
 	if !ok {
@@ -341,6 +342,8 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 		}
 	}
 
+	agent.env.CniDeviceDeleted(&podid, id)
+
 	logger.Info("Successfully unconfigured container interface")
 	return nil
 }
@@ -358,7 +361,7 @@ func (agent *HostAgent) cleanupSetup() {
 		})
 
 		logger.Debug("Checking")
-		_, exists, err := agent.podInformer.GetStore().GetByKey(podkey)
+		exists, err := agent.env.CheckPodExists(&podkey)
 		if err != nil {
 			logger.Error("Could not lookup pod: ", err)
 			continue

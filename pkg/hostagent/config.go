@@ -60,6 +60,9 @@ type HostAgentConfig struct {
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
+	// Absolute path to CloudFoundry-specific config file
+	CfConfig string `json:"cfconfig,omitempty"`
+
 	// Name of Kubernetes node on which this agent is running
 	NodeName string `json:"node-name,omitempty"`
 
@@ -88,6 +91,9 @@ type HostAgentConfig struct {
 	// the CNI plugin
 	EpRpcSock string `json:"ep-rpc-sock,omitempty"`
 
+	// Permissions to set for endpoint RPC socket file. Octal string.
+	EpRpcSockPerms string `json:"ep-rpc-sock-perms,omitempty"`
+
 	// Vlan used for ACI infrastructure traffic
 	AciInfraVlan uint `json:"aci-infra-vlan,omitempty"`
 
@@ -109,8 +115,8 @@ type HostAgentConfig struct {
 	// Configuration for CNI networks
 	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
 
-	// The type of the ACI VMM domain: either "Kubernetes" or
-	// "OpenShift"
+	// The type of the ACI VMM domain: either "Kubernetes",
+	// "OpenShift" or "CloudFoundry"
 	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
 
 	// The name of the ACI VMM domain
@@ -134,6 +140,8 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 
+	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
+
 	flag.IntVar(&config.StatusPort, "status-port", 8090, "TCP port to run status server on (or 0 to disable)")
 
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
@@ -145,6 +153,7 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
 	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")
+	flag.StringVar(&config.EpRpcSockPerms, "ep-rpc-sock-perms", "", "Permissions to set for endpoint RPC socket file. Octal string")
 
 	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")

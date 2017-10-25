@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strconv"
 
 	"github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types/current"
@@ -41,6 +42,19 @@ func (agent *HostAgent) runEpRPC(stopCh <-chan struct{}) error {
 	if err != nil {
 		agent.log.Error("Could not listen to rpc socket: ", err)
 		return err
+	}
+
+	// Set socket file permissions
+	if agent.config.EpRpcSockPerms != "" {
+		perms, err := strconv.ParseUint(agent.config.EpRpcSockPerms, 8, 32)
+		if err != nil {
+			agent.log.Warning("Could not parse socket file permissions: ", err)
+		} else {
+			err = os.Chmod(agent.config.EpRpcSock, os.FileMode(perms))
+			if err != nil {
+				agent.log.Warning("Could not set socket file permissions: ", err)
+			}
+		}
 	}
 
 	go rpc.Accept(l)
