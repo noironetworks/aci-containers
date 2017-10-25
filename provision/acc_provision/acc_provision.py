@@ -90,6 +90,11 @@ FLAVORS = {
                 "use_cnideploy_initcontainer": True,
                 "allow_kube_api_default_epg": True,
             },
+            "aci_config": {
+                "vmm_domain": {
+                    "type": "OpenShift",
+                },
+            },
         },
     },
 }
@@ -139,6 +144,7 @@ def config_default():
                 "external_networks": None,
             },
             "vmm_domain": {
+                "type": "Kubernetes",
                 "encap_type": "vxlan",
                 "mcast_fabric": "225.1.2.3",
                 "mcast_range": {

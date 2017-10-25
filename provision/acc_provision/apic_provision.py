@@ -356,18 +356,28 @@ class ApicKubeConfig(object):
 
     def kube_dom(self):
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         mcast_fabric = self.config["aci_config"]["vmm_domain"]["mcast_fabric"]
         mpool_name = self.config["aci_config"]["vmm_domain"]["mcast_pool"]
         vpool_name = self.config["aci_config"]["vmm_domain"]["vlan_pool"]
         kube_controller = self.config["kube_config"]["controller"]
 
-        path = "/api/mo/uni/vmmp-Kubernetes/dom-%s.json" % vmm_name
+        path = "/api/mo/uni/vmmp-%s/dom-%s.json" % (vmm_type, vmm_name)
+        mode = "k8s"
+        scope = "kubernetes"
+        if vmm_type == "OpenShift":
+            mode = "openshift"
+            scope = "openshift"
+        elif vmm_type == "CloudFoundry":
+            mode = "cf"
+            scope = "cloudfoundry"
+
         data = {
             "vmmDomP": {
                 "attributes": {
                     "name": vmm_name,
-                    "mode": "k8s",
+                    "mode": mode,
                     "enfPref": "sw",
                     "encapMode": encap_type,
                     "prefEncapMode": encap_type,
@@ -378,8 +388,8 @@ class ApicKubeConfig(object):
                         "vmmCtrlrP": {
                             "attributes": {
                                 "name": vmm_name,
-                                "mode": "k8s",
-                                "scope": "kubernetes",
+                                "mode": mode,
+                                "scope": scope,
                                 "hostOrIp": kube_controller,
                             },
                         }
@@ -409,6 +419,7 @@ class ApicKubeConfig(object):
         aep_name = self.config["aci_config"]["aep"]
         phys_name = self.config["aci_config"]["physical_domain"]["domain"]
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
         kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
@@ -423,7 +434,7 @@ class ApicKubeConfig(object):
                     {
                         "infraRsDomP": {
                             "attributes": {
-                                "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                                "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                             }
                         }
                     },
@@ -481,7 +492,7 @@ class ApicKubeConfig(object):
         }
 
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
-        rsvmm = base + '/rsdomP-[uni/vmmp-Kubernetes/dom-%s].json' % vmm_name
+        rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
         rsfun = base + '/gen-default.json'
         return path, data, rsvmm, rsphy, rsfun
@@ -653,6 +664,7 @@ class ApicKubeConfig(object):
         system_id = self.config["aci_config"]["system_id"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         phys_name = self.config["aci_config"]["physical_domain"]["domain"]
         kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         kube_vrf = self.config["aci_config"]["vrf"]["name"]
@@ -665,7 +677,7 @@ class ApicKubeConfig(object):
             {
                 "fvRsDomAtt": {
                     "attributes": {
-                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                     }
                 }
             },
@@ -788,7 +800,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "fvRsDomAtt": {
                                                     "attributes": {
-                                                        "tDn": "uni/vmmp-Kubernetes/dom-%s" % vmm_name
+                                                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
                                                     }
                                                 }
                                             },

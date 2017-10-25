@@ -16,6 +16,7 @@ data:
         "apic-username": "kube",
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": "kube",
+        "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "kubernetes1",
         "aci-vmm-controller": "kubernetes1",
         "aci-policy-tenant": "kube",
@@ -70,6 +71,7 @@ data:
   host-agent-config: |-
     {
         "log-level": "debug",
+        "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "kubernetes1",
         "aci-vmm-controller": "kubernetes1",
         "aci-vrf": "kubernetes-vrf",
@@ -279,7 +281,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.0
+          image: noiro/aci-containers-host:1.1r0
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -312,7 +314,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.0
+          image: noiro/opflex:1.1r2
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -331,7 +333,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.0
+          image: noiro/opflex:1.1r2
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -477,7 +479,7 @@ spec:
         - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.0
+          image: noiro/aci-containers-controller:1.1r0
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume

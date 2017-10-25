@@ -64,14 +64,14 @@
         ]
     }
 }
-/api/mo/uni/vmmp-Kubernetes/dom-kube.json
+/api/mo/uni/vmmp-OpenShift/dom-kube.json
 {
     "vmmDomP": {
         "attributes": {
             "encapMode": "vxlan", 
             "enfPref": "sw", 
             "mcastAddr": "225.1.2.3", 
-            "mode": "k8s", 
+            "mode": "openshift", 
             "name": "kube", 
             "prefEncapMode": "vxlan"
         }, 
@@ -80,9 +80,9 @@
                 "vmmCtrlrP": {
                     "attributes": {
                         "hostOrIp": "1.1.1.1", 
-                        "mode": "k8s", 
+                        "mode": "openshift", 
                         "name": "kube", 
-                        "scope": "kubernetes"
+                        "scope": "openshift"
                     }
                 }
             }, 
@@ -106,7 +106,7 @@
             {
                 "infraRsDomP": {
                     "attributes": {
-                        "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                        "tDn": "uni/vmmp-OpenShift/dom-kube"
                     }
                 }
             }, 
@@ -162,7 +162,7 @@
         ]
     }
 }
-/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-Kubernetes/dom-kube].json
+/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-OpenShift/dom-kube].json
 None
 /api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/phys-kube-pdom].json
 None
@@ -256,7 +256,7 @@ None
                                     {
                                         "fvRsDomAtt": {
                                             "attributes": {
-                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                                "tDn": "uni/vmmp-OpenShift/dom-kube"
                                             }
                                         }
                                     }, 
@@ -356,7 +356,7 @@ None
                                     {
                                         "fvRsDomAtt": {
                                             "attributes": {
-                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                                "tDn": "uni/vmmp-OpenShift/dom-kube"
                                             }
                                         }
                                     }, 

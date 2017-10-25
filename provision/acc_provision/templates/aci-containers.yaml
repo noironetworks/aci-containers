@@ -14,6 +14,7 @@ data:
         "apic-username": {{config.aci_config.sync_login.username|json}},
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
         "aci-prefix": {{config.aci_config.system_id|json}},
+        "aci-vmm-type": {{config.aci_config.vmm_domain.type|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-policy-tenant": {{config.kube_config.default_endpoint_group.tenant|json}},
@@ -48,6 +49,7 @@ data:
   host-agent-config: |-
     {
         "log-level": {{config.logging.hostagent_log_level|json}},
+        "aci-vmm-type": {{config.aci_config.vmm_domain.type|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
         "aci-vrf": {{config.aci_config.vrf.name|json}},
