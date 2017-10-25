@@ -96,6 +96,7 @@ FLAVORS = {
                 "allow_kube_api_default_epg": True,
                 "use_rbac_api": "v1",
                 "use_netpol_apigroup": "extensions",
+                "use_netpol_annotation": True,
             },
             "aci_config": {
                 "vmm_domain": {
