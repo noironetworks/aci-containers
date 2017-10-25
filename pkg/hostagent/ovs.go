@@ -254,6 +254,16 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			if found[brName][name] {
 				continue
 			}
+			skip_ok := false
+			for _, skip := range agent.ignoreOvsPorts[brName] {
+				if skip == name {
+					skip_ok = true
+					break
+				}
+			}
+			if skip_ok {
+				continue
+			}
 			agent.log.Debug("Deleting stale port for ", brName, ": ", name)
 			delports = append(delports, libovsdb.UUID{GoUUID: uuid})
 		}

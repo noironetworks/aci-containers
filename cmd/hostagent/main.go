@@ -19,14 +19,10 @@ import (
 	"errors"
 	"flag"
 	"io/ioutil"
-	"os"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
-
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/noironetworks/aci-containers/pkg/hostagent"
 )
@@ -57,53 +53,35 @@ func main() {
 		panic(err.Error())
 	}
 	log.Level = logLevel
-
 	if config.ChildMode {
 		hostagent.StartPlugin(log)
 		return
 	}
 
-	if config.NodeName == "" {
-		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
-	}
-	if config.NodeName == "" {
-		err := errors.New("Node name not specified and $KUBERNETES_NODE_NAME empty")
-		log.Error(err.Error())
-		panic(err.Error())
-	}
-
 	log.WithFields(logrus.Fields{
-		"kubeconfig":  config.KubeConfig,
-		"node-name":   config.NodeName,
 		"config-path": *configPath,
-		"logLevel":    logLevel,
+		"logLevel": logLevel,
+		"domain-type": config.AciVmmDomainType,
 	}).Info("Starting")
 
-	log.Debug("Initializing kubernetes client")
-	var restconfig *restclient.Config
-	if config.KubeConfig != "" {
-		// use kubeconfig file from command line
-		restconfig, err =
-			clientcmd.BuildConfigFromFlags("", config.KubeConfig)
-		if err != nil {
-			panic(err.Error())
-		}
+	var env hostagent.Environment
+	domType := strings.ToLower(config.AciVmmDomainType)
+	if domType == "kubernetes" || domType == "openshift" {
+		env, err = hostagent.NewK8sEnvironment(config, log)
+	} else if domType =="cloudfoundry" {
+		env, err = hostagent.NewCfEnvironment(config, log)
 	} else {
-		// creates the in-cluster config
-		restconfig, err = restclient.InClusterConfig()
-		if err != nil {
-			panic(err.Error())
-		}
+		err = errors.New("Unsupported ACI VMM domain type " + config.AciVmmDomainType)
+		log.Error(err)
 	}
 
-	// creates the kubernetes API client
-	kubeClient, err := kubernetes.NewForConfig(restconfig)
 	if err != nil {
+		log.Error("Environment set up failed for domain type ", config.AciVmmDomainType)
 		panic(err.Error())
 	}
 
-	agent := hostagent.NewHostAgent(config, log)
-	agent.Init(kubeClient)
+	agent := hostagent.NewHostAgent(config, env, log)
+	agent.Init()
 	agent.Run(wait.NeverStop)
 	agent.RunStatus()
 }

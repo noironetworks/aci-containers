@@ -39,8 +39,9 @@ func testAgent() *testHostAgent {
 	agent := &testHostAgent{
 		HostAgent: *NewHostAgent(&HostAgentConfig{
 			NodeName: nodename,
-		}, log),
+		}, &K8sEnvironment{}, log),
 	}
+	agent.env.(*K8sEnvironment).agent = &agent.HostAgent
 
 	agent.fakeNodeSource = framework.NewFakeControllerSource()
 	agent.initNodeInformerBase(
