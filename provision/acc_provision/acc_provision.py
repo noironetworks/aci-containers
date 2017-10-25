@@ -83,7 +83,6 @@ FLAVORS = {
         "config": {
             "kube_config": {
                 "use_external_service_ip_allocator": True,
-                "use_netpol_annotation": False,
                 "use_privileged_containers": True,
                 "use_openshift_security_context_constraints": True,
                 "use_openshift_cluster_role": True,
