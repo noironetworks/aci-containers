@@ -38,6 +38,8 @@ import (
 )
 
 var log = logrus.New()
+var logFile string
+var logFd *os.File
 
 func init() {
 	// This ensures that main runs only on main thread (thread group leader).
@@ -55,9 +57,11 @@ type K8SArgs struct {
 
 type NetConf struct {
 	types.NetConf
-	LogLevel       string `json:"log-level,omitempty"`
-	WaitForNetwork bool   `json:"wait-for-network"`
-	EpRpcSock      string `json:"ep-rpc-sock,omitempty"`
+	LogLevel       string    `json:"log-level,omitempty"`
+	LogFile        string    `json:"log-file,omitempty"`
+	WaitForNetwork bool      `json:"wait-for-network"`
+	EpRpcSock      string    `json:"ep-rpc-sock,omitempty"`
+	DomainType     string    `json:"domain-type,omitempty"`
 }
 
 func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
@@ -69,18 +73,36 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	}
 
 	log.Out = os.Stderr
+	if n.LogFile != "" {
+		var err error
+		logFd, err = os.OpenFile(n.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0664)
+		if err == nil {
+			log.Out = logFd
+			logFile = n.LogFile
+		} else {
+			log.Info(fmt.Sprintf("Failed to open log file %s: %v", logFile, err))
+		}
+	}
+
 	logLevel, err := logrus.ParseLevel(n.LogLevel)
 	if err == nil {
 		log.Level = logLevel
 	}
+	log.Debug("NetConf: ", n)
 
 	k8sArgs := &K8SArgs{}
-	err = types.LoadArgs(args.Args, k8sArgs)
-	if err != nil {
-		return nil, nil, "", err
+	if n.DomainType != "CloudFoundry" {
+		err = types.LoadArgs(args.Args, k8sArgs)
+		if err != nil {
+			return nil, nil, "", err
+		}
+	} else {
+		k8sArgs.K8S_POD_NAMESPACE = "_cf_"
+		k8sArgs.K8S_POD_NAME = types.UnmarshallableString(args.ContainerID)
 	}
 
 	id := args.ContainerID
+	log.Debug("Args: ", k8sArgs)
 
 	return n, k8sArgs, id, nil
 }
@@ -219,6 +241,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		waitForAllNetwork(result, id, 10*time.Second)
 	}
 
+	logger.Debug("ADD result: ", result)
 	return result.Print()
 }
 
@@ -262,4 +285,8 @@ func cmdDel(args *skel.CmdArgs) error {
 func main() {
 	skel.PluginMain(cmdAdd, cmdDel,
 		version.PluginSupports("0.3.0", "0.3.1"))
+
+	if logFile != "" {
+	    logFd.Close()
+	}
 }
