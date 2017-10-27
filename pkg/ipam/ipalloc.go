@@ -44,6 +44,14 @@ func New() *IpAlloc {
 	}
 }
 
+func Combine(ranges []*IpAlloc) *IpAlloc {
+	result := New()
+	for _, r := range ranges {
+		result.AddAll(r)
+	}
+	return result
+}
+
 // Create a new IpAlloc from an existing freelist
 func NewFromRanges(ranges []IpRange) *IpAlloc {
 	ipa := &IpAlloc{
@@ -115,6 +123,9 @@ func (ipa *IpAlloc) fixRange(index int) {
 }
 
 // Add the range of IP addresses provides to the free list
+//example: start:10.2.1.1 and end 10.2.1.1
+//example: ipa.FreeList = [{10.2.1.2 10.2.1.129}]
+//After the following function the ipa.Freelist = [{10.2.1.1 10.2.1.129}]
 func (ipa *IpAlloc) AddRange(start net.IP, end net.IP) {
 	if bytes.Compare(start, end) > 0 {
 		return

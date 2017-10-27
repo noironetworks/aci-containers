@@ -181,7 +181,7 @@ func (cont *AciController) initIpam() {
 		cont.config.PodIpPool)
 	cont.podNetworkIps.V4.AddAll(cont.configuredPodNetworkIps.V4)
 	cont.podNetworkIps.V6.AddAll(cont.configuredPodNetworkIps.V6)
-	cont.loadIpRanges(cont.serviceIps.V4, cont.serviceIps.V6, cont.config.ServiceIpPool)
+	cont.loadIpRanges(cont.serviceIpsV4[0], cont.serviceIpsV6[0], cont.config.ServiceIpPool)
 	cont.loadIpRanges(cont.staticServiceIps.V4, cont.staticServiceIps.V6,
 		cont.config.StaticServiceIpPool)
 	cont.loadIpRanges(cont.nodeServiceIps.V4, cont.nodeServiceIps.V6,
