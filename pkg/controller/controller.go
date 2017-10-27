@@ -38,7 +38,6 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
-	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
@@ -81,8 +80,7 @@ type AciController struct {
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
-	serviceIpsV4         []*ipam.IpAlloc
-	serviceIpsV6         []*ipam.IpAlloc
+	serviceIps              *netIps
 	staticServiceIps        *netIps
 	nodeServiceIps          *netIps
 
@@ -149,8 +147,7 @@ func NewController(config *ControllerConfig, log *logrus.Logger) *AciController 
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
-		serviceIpsV4: []*ipam.IpAlloc{ipam.New(), ipam.New()},
-		serviceIpsV6: []*ipam.IpAlloc{ipam.New(), ipam.New()},
+		serviceIps:              newNetIps(),
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 

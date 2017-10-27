@@ -104,7 +104,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service4", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.3"}, "next ip from pool")
+		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool return")
 	}
 	{
 		cont.serviceUpdates = nil
@@ -113,7 +113,7 @@ func TestServiceIp(t *testing.T) {
 			[]v1.LoadBalancerIngress{{IP: "10.4.1.32"}}
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "existing")
-		assert.Condition(t, notHasIpCond(cont.serviceIpsV4[0], "10.4.1.32"),
+		assert.Condition(t, notHasIpCond(cont.serviceIps.V4, "10.4.1.32"),
 			"existing pool check")
 	}
 	{
@@ -133,7 +133,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service5", ""))
-		assert.Condition(t, hasIpCond(cont.serviceIpsV4[1], "10.4.1.32"),
+		assert.Condition(t, hasIpCond(cont.serviceIps.V4, "10.4.1.32"),
 			"delete pool return")
 	}
 
