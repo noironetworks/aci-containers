@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
 type contStatus struct {
@@ -47,8 +48,8 @@ func (cont *AciController) RunStatus() {
 				V6: cont.podNetworkIps.V6.FreeList,
 			},
 			ServiceIpPool: metadata.NetIps{
-				V4: cont.serviceIps.V4.FreeList,
-				V6: cont.serviceIps.V6.FreeList,
+				V4: ipam.Combine(cont.serviceIpsV4).FreeList,
+				V6: ipam.Combine(cont.serviceIpsV6).FreeList,
 			},
 			StaticServiceIpPool: metadata.NetIps{
 				V4: cont.staticServiceIps.V4.FreeList,
