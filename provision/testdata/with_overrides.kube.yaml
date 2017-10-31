@@ -231,26 +231,26 @@ allowHostDirVolumePlugin: true
 allowHostIPC: true
 allowHostNetwork: true
 allowHostPID: true
-allowHostPorts: false
+allowHostPorts: true
 allowPrivilegedContainer: true
 allowedCapabilities:
-  - NET_ADMIN
-  - SYS_ADMIN
-  - SYS_MODULE
-  - SYS_NICE
-  - IPC_LOCK
-defaultAddCapabilities: null
-requiredDropCapabilities: null
+- '*'
+defaultAddCapabilities: []
+requiredDropCapabilities: []
 readOnlyRootFilesystem: false
-priority: null
-volumes:
-  - '*'
+fsGroup:
+  type: RunAsAny
 runAsUser:
   type: RunAsAny
 seLinuxContext:
-  type: MustRunAs
-fsGroup:
-  type: MustRunAs
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+seccompProfiles:
+- '*'
+volumes:
+- '*'
+priority: 100
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
