@@ -105,6 +105,16 @@ func (cont *AciController) endpointsChanged(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
+func (cont *AciController) returnserviceIps(ips []net.IP) {
+    for _, ip := range ips {
+        if ip.To4() != nil {
+            cont.serviceIpsV4[len(cont.serviceIpsV4)-1].AddIp(ip)
+        } else if ip.To16() != nil {
+            cont.serviceIpsV6[len(cont.serviceIpsV4)-1].AddIp(ip)
+        }
+    }
+}
+
 func returnIps(pool *netIps, ips []net.IP) {
 	for _, ip := range ips {
 		if ip.To4() != nil {
@@ -693,13 +703,13 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 				continue
 			}
 			if ip.To4() != nil {
-				if cont.serviceIps.V4.RemoveIp(ip) {
+				if cont.serviceIpsV4[0].RemoveIp(ip) {
 					meta.ingressIps = append(meta.ingressIps, ip)
 				} else if cont.staticServiceIps.V4.RemoveIp(ip) {
 					meta.staticIngressIps = append(meta.staticIngressIps, ip)
 				}
 			} else if ip.To16() != nil {
-				if cont.serviceIps.V6.RemoveIp(ip) {
+				if cont.serviceIpsV6[0].RemoveIp(ip) {
 					meta.ingressIps = append(meta.ingressIps, ip)
 				} else if cont.staticServiceIps.V6.RemoveIp(ip) {
 					meta.staticIngressIps = append(meta.staticIngressIps, ip)
@@ -732,7 +742,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 			}
 		}
 		if hasRequestedIp {
-			returnIps(cont.serviceIps, meta.ingressIps)
+			cont.returnserviceIps(meta.ingressIps)
 			meta.ingressIps = nil
 			meta.staticIngressIps = []net.IP{requestedIp}
 			meta.requestedIp = requestedIp
@@ -744,7 +754,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	}
 
 	if len(meta.ingressIps) == 0 && len(meta.staticIngressIps) == 0 {
-		ipv4, err := cont.serviceIps.V4.GetIp()
+		ipv4, err := cont.serviceIpsV4[0].GetIp()
 		if err != nil {
 			logger.Error("No IP addresses available for service")
 			return true
@@ -752,7 +762,6 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 			meta.ingressIps = []net.IP{ipv4}
 		}
 	}
-
 	cont.indexMutex.Unlock()
 
 	var newIngress []v1.LoadBalancerIngress
@@ -812,7 +821,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 func (cont *AciController) clearLbService(servicekey string) {
 	cont.indexMutex.Lock()
 	if meta, ok := cont.serviceMetaCache[servicekey]; ok {
-		returnIps(cont.serviceIps, meta.ingressIps)
+		cont.returnserviceIps(meta.ingressIps)
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
 		delete(cont.serviceMetaCache, servicekey)
 	}
