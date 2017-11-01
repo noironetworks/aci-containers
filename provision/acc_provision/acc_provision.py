@@ -46,10 +46,10 @@ VERSIONS = {
         "openvswitch_version": "1.0",
     },
     "1.6": {
-        "cnideploy_version": "1.6",
-        "aci_containers_host_version": "1.6",
-        "opflex_agent_version": "1.6",
-        "aci_containers_controller_version": "1.6",
+        "cnideploy_version": "1.6r0",
+        "aci_containers_host_version": "1.6r0",
+        "opflex_agent_version": "1.6r0",
+        "aci_containers_controller_version": "1.6r0",
         "openvswitch_version": "1.0",
     },
     "1.7": {
@@ -71,7 +71,7 @@ VERSIONS = {
 FLAVORS = {
     "kubernetes-1.6": {
         "desc": "Kubernetes 1.6",
-        "default_version": "1.1",
+        "default_version": "1.6",
         "config": {
             "kube_config": {
                 "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
