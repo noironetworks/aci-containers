@@ -38,10 +38,16 @@ all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync
 
+PESKY_ETCD_FILE=vendor/github.com/coreos/etcd/client/keys.generated.go
+
 vendor-rebuild: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
+	# remove once etcd > 3.2.9 is released
+	rm -f ${PESKY_ETCD_FILE}
 vendor: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
+	# remove once etcd > 3.2.9 is released
+	rm -f ${PESKY_ETCD_FILE}
 
 clean-dist:
 	rm -rf dist
@@ -98,7 +104,7 @@ container-cnideploy:
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 
-check: check-ipam check-index check-apicapi check-controller check-hostagent
+check: check-ipam check-index check-apicapi check-controller check-hostagent check-cf_etcd
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
@@ -109,3 +115,5 @@ check-hostagent:
 	${TEST_CMD} ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
 	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
+check-cf_etcd:
+	${TEST_CMD} ${BASE}/pkg/cf_etcd ${TEST_ARGS}
