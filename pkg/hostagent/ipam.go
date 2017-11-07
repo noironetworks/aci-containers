@@ -43,23 +43,15 @@ func (agent *HostAgent) rebuildIpam() {
 		for _, md := range mds {
 			for _, iface := range md.Ifaces {
 				for _, ip := range iface.IPs {
-					if ip.Address.IP.To4() != nil {
-						for _, ipa := range agent.podIpsV4 {
-							ipa.RemoveIp(ip.Address.IP)
-						}
-					} else if ip.Address.IP.To16() != nil {
-						for _, ipa := range agent.podIpsV6 {
-							ipa.RemoveIp(ip.Address.IP)
-						}
-					}
+					agent.podIps.RemoveIp(ip.Address.IP)
 				}
 			}
 		}
 	}
 
 	agent.log.WithFields(logrus.Fields{
-		"V4": combine(agent.podIpsV4).FreeList,
-		"V6": combine(agent.podIpsV6).FreeList,
+		"V4": agent.podIps.CombineV4(),
+		"V6": agent.podIps.CombineV6(),
 	}).Debug("Updated pod network ranges")
 }
 
@@ -76,13 +68,12 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 		return
 	}
 
-	agent.podIpsV4 = []*ipam.IpAlloc{ipam.New(), ipam.New()}
+	agent.podIps = ipam.NewIpCache()
 	if newRanges.V4 != nil {
-		agent.podIpsV4[0].AddRanges(newRanges.V4)
+		agent.podIps.LoadRanges(newRanges.V4)
 	}
-	agent.podIpsV6 = []*ipam.IpAlloc{ipam.New(), ipam.New()}
 	if newRanges.V6 != nil {
-		agent.podIpsV6[0].AddRanges(newRanges.V6)
+		agent.podIps.LoadRanges(newRanges.V6)
 	}
 
 	agent.rebuildIpam()
@@ -137,7 +128,7 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 		if nc.Subnet.IP != nil {
 			var ip net.IP
 			if nc.Subnet.IP.To4() != nil {
-				ip, agent.podIpsV4, err = allocateIp(agent.podIpsV4)
+				ip, err = agent.podIps.AllocateIp(true)
 				if err != nil {
 					result =
 						fmt.Errorf("Could not allocate IPv4 address: %v", err)
@@ -146,7 +137,7 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 						append(iface.IPs, makeIFaceIp(&nc, ip))
 				}
 			} else if nc.Subnet.IP.To16() != nil {
-				ip, agent.podIpsV6, err = allocateIp(agent.podIpsV6)
+				ip, err = agent.podIps.AllocateIp(false)
 				if err != nil {
 					result =
 						fmt.Errorf("Could not allocate IPv6 address: %v", err)
@@ -175,9 +166,9 @@ func (agent *HostAgent) deallocateIps(iface *metadata.ContainerIfaceMd) {
 			continue
 		}
 		if ip.Address.IP.To4() != nil {
-			deallocateIp(ip.Address.IP, agent.podIpsV4)
+			agent.podIps.DeallocateIp(ip.Address.IP)
 		} else if ip.Address.IP.To16() != nil {
-			deallocateIp(ip.Address.IP, agent.podIpsV6)
+			agent.podIps.DeallocateIp(ip.Address.IP)
 		}
 	}
 
@@ -196,9 +187,9 @@ func (agent *HostAgent) deallocateMdIps(md *metadata.ContainerMetadata) {
 			}
 
 			if ip.Address.IP.To4() != nil {
-				deallocateIp(ip.Address.IP, agent.podIpsV4)
+				agent.podIps.DeallocateIp(ip.Address.IP)
 			} else if ip.Address.IP.To16() != nil {
-				deallocateIp(ip.Address.IP, agent.podIpsV6)
+				agent.podIps.DeallocateIp(ip.Address.IP)
 			}
 			agent.log.WithFields(logrus.Fields{
 				"ip": ip.Address.IP,

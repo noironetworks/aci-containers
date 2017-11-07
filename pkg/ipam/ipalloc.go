@@ -17,6 +17,7 @@ package ipam
 
 import (
 	"bytes"
+
 	"errors"
 	"math"
 	"math/big"
@@ -115,6 +116,9 @@ func (ipa *IpAlloc) fixRange(index int) {
 }
 
 // Add the range of IP addresses provides to the free list
+//example: start:10.2.1.1 and end 10.2.1.1
+//example: ipa.FreeList = [{10.2.1.2 10.2.1.129}]
+//After the following function the ipa.Freelist = [{10.2.1.1 10.2.1.129}]
 func (ipa *IpAlloc) AddRange(start net.IP, end net.IP) {
 	if bytes.Compare(start, end) > 0 {
 		return
