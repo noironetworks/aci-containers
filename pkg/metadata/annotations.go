@@ -43,20 +43,6 @@ type NetIps struct {
 	V6 []ipam.IpRange `json:"V6,omitempty"`
 }
 
-// annotatation type for kubernetes
-// net.beta.kubernetes.io/network-policy annotation
-type NetworkPolicy struct {
-	Ingress *NetworkPolicyIngress `json:"ingress,omitempty"`
-}
-
-// The ingress object in the network policy annotation
-type NetworkPolicyIngress struct {
-	// the isolation level for ingress.  Possible values are:
-	// "DefaultDeny": Pods in the namespace will be inaccessible from any source except the
-	// pod’s local node
-	Isolation string `json:"isolation,omitempty"`
-}
-
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
