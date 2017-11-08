@@ -54,22 +54,6 @@ func waitForSStatus(t *testing.T, cont *testAciController,
 		})
 }
 
-func hasIpCond(pool *ipam.IpAlloc, ipStr string) func() bool {
-	return func() bool {
-		ip := net.ParseIP(ipStr)
-		r := pool.RemoveIp(ip)
-		if r {
-			pool.AddIp(ip)
-		}
-		return r
-	}
-}
-func notHasIpCond(pool *ipam.IpAlloc, ipStr string) func() bool {
-	return func() bool {
-		return !hasIpCond(pool, ipStr)()
-	}
-}
-
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{
@@ -104,7 +88,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service4", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool return")
+		waitForSStatus(t, cont, []string{"10.4.1.3"}, "next ip from pool")
 	}
 	{
 		cont.serviceUpdates = nil
@@ -113,7 +97,7 @@ func TestServiceIp(t *testing.T) {
 			[]v1.LoadBalancerIngress{{IP: "10.4.1.32"}}
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "existing")
-		assert.Condition(t, notHasIpCond(cont.serviceIps.V4, "10.4.1.32"),
+		assert.False(t, ipam.HasIp(cont.serviceIps.GetV4IpCache()[0], net.ParseIP("10.4.1.32")),
 			"existing pool check")
 	}
 	{
@@ -127,13 +111,13 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service1", "10.4.2.2"))
-		assert.Condition(t, hasIpCond(cont.staticServiceIps.V4, "10.4.2.2"),
+		assert.True(t, ipam.HasIp(cont.staticServiceIps.V4, net.ParseIP("10.4.2.2")),
 			"delete static return")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service5", ""))
-		assert.Condition(t, hasIpCond(cont.serviceIps.V4, "10.4.1.32"),
+		assert.True(t, ipam.HasIp(cont.serviceIps.GetV4IpCache()[1], net.ParseIP("10.4.1.32")),
 			"delete pool return")
 	}
 

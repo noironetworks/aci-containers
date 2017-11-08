@@ -66,8 +66,8 @@ func (agent *HostAgent) RunStatus() {
 			Endpoints: len(agent.opflexEps),
 			Services:  len(agent.opflexServices),
 			PodIps: metadata.NetIps{
-				V4: combine(agent.podIpsV4).FreeList,
-				V6: combine(agent.podIpsV6).FreeList,
+				V4: agent.podIps.CombineV4(),
+				V6: agent.podIps.CombineV6(),
 			},
 		}
 		json.NewEncoder(w).Encode(status)

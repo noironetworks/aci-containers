@@ -47,14 +47,13 @@ type HostAgent struct {
 	nodeInformer      cache.SharedIndexInformer
 
 	podNetAnnotation string
-	podIpsV4         []*ipam.IpAlloc
-	podIpsV6         []*ipam.IpAlloc
+	podIps           *ipam.IpCache
 
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 
-	ignoreOvsPorts      map[string][]string
+	ignoreOvsPorts map[string][]string
 
 	netNsFuncChan chan func()
 }
@@ -68,8 +67,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexServices: make(map[string]*opflexService),
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
 
-		podIpsV4: []*ipam.IpAlloc{ipam.New(), ipam.New()},
-		podIpsV6: []*ipam.IpAlloc{ipam.New(), ipam.New()},
+		podIps: ipam.NewIpCache(),
 
 		ignoreOvsPorts: make(map[string][]string),
 
