@@ -115,8 +115,8 @@ func TestEmptyIpPool(t *testing.T) {
 			continue
 		}
 		ipr, err := fakeagent.fakepodIps.AllocateIp(ipv4)
-		assert.Error(t, err, "Invalid ip pool")
-		assert.Nil(t, ipr, "Invalid ip pool")
+		assert.Error(t, err, "Empty ip pool")
+		assert.Nil(t, ipr, "Empty ip pool")
 	}
 	for _, ipr := range verifyAllocIpv6 {
 		if ipr.To16() == nil {
@@ -170,6 +170,10 @@ func TestIpCache(t *testing.T) {
 	assert.Equal(t, 0, len(fakeagent.fakepodIps.GetV4IpCache()[0].FreeList),
 		"verify v4 alloc")
 
+	ipr, err := fakeagent.fakepodIps.AllocateIp(ipv4)
+	assert.Error(t, err, "Empty ip pool")
+	assert.Nil(t, ipr, "Empty ip pool")
+
 	for _, ipr := range verifyAllocIpv4 {
 		fakeagent.fakepodIps.DeallocateIp(ipr)
 		assert.False(t, HasIp(fakeagent.fakepodIps.GetV4IpCache()[0],
@@ -178,6 +182,7 @@ func TestIpCache(t *testing.T) {
 			ipr), "verify v4 dealloc")
 		ipr, v4out = v4out[0], v4out[1:]
 	}
+
 	for _, ipr := range verifyAllocIpv4 {
 		if ipr.To4() == nil {
 			continue
