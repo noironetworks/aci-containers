@@ -139,6 +139,12 @@ func (ipa *IpAlloc) AddIp(ip net.IP) {
 	ipa.AddRange(ip, ip)
 }
 
+// Add the given subnet to the free list.  Note that this will include
+// the network address ip|mask in the range.
+func (ipa *IpAlloc) AddSubnet(subnet *net.IPNet) {
+	ipa.AddRange(subnetRange(subnet))
+}
+
 func cutRange(target IpRange, start net.IP, end net.IP) ([]IpRange, bool) {
 	result := make([]IpRange, 0)
 	changed := true
@@ -193,6 +199,11 @@ func (ipa *IpAlloc) RemoveRange(start net.IP, end net.IP) bool {
 		i += len(r)
 	}
 	return changed
+}
+
+// Remove the given subnet from the free list
+func (ipa *IpAlloc) RemoveSubnet(subnet *net.IPNet) bool {
+	return ipa.RemoveRange(subnetRange(subnet))
 }
 
 // Remove the given IP address from the free list

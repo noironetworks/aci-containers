@@ -32,18 +32,25 @@ func Range2Cidr(start, end net.IP) (r []*net.IPNet) {
 			m := net.CIDRMask(l-1, maxLen)
 			firstAddr := start.Mask(m)
 			lastAddr := last(start, m)
-			if bytes.Compare(start, firstAddr) != 0 || bytes.Compare(lastAddr, end) > 0 {
+			if bytes.Compare(start, firstAddr) != 0 ||
+				bytes.Compare(lastAddr, end) > 0 {
 				break
 			}
 			l--
 		}
-		r = append(r, &net.IPNet{IP: start, Mask:net.CIDRMask(l, maxLen)})
+		r = append(r, &net.IPNet{IP: start, Mask: net.CIDRMask(l, maxLen)})
 		lastAddr := last(start, net.CIDRMask(l, maxLen))
 		if bytes.Compare(lastAddr, endOfRange) == 0 {
 			break
 		}
 		start = next(lastAddr)
 	}
+	return
+}
+
+func subnetRange(subnet *net.IPNet) (start net.IP, end net.IP) {
+	start = subnet.IP.Mask(subnet.Mask)
+	end = last(start, subnet.Mask)
 	return
 }
 

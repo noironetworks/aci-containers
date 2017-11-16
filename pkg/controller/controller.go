@@ -87,6 +87,7 @@ type AciController struct {
 	depPods           *index.PodSelectorIndex
 	netPolPods        *index.PodSelectorIndex
 	netPolIngressPods *index.PodSelectorIndex
+	netPolEgressPods  *index.PodSelectorIndex
 
 	apicConn *apicapi.ApicConnection
 
