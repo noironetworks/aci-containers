@@ -23,8 +23,8 @@ import (
 )
 
 type range2cidrTest struct {
-	input       []string
-	output      []string
+	input  []string
+	output []string
 }
 
 var range2cidrTests = []range2cidrTest{
@@ -213,7 +213,7 @@ func TestRange2Cidr(t *testing.T) {
 		for _, n := range Range2Cidr(in.Start, in.End) {
 			out = append(out, n.String())
 		}
-		assert.Equal(t, rt.output, out, fmt.Sprintf("%s - %s", rt.input[0], rt.input[1]))
+		assert.Equal(t, rt.output, out,
+			fmt.Sprintf("%s - %s", rt.input[0], rt.input[1]))
 	}
 }
-

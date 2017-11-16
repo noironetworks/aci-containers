@@ -194,8 +194,7 @@ func TestPodNetworkPolicy(t *testing.T) {
 	cont := testController()
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
-		&metav1.LabelSelector{},
-		[]v1net.NetworkPolicyIngressRule{rule(nil, nil)}))
+		&metav1.LabelSelector{}, nil, nil, nil))
 	cont.run()
 
 	ns := namespace("testns", "", "")
@@ -203,7 +202,8 @@ func TestPodNetworkPolicy(t *testing.T) {
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-egress\"}]",
 		"added")
 
 	cont.fakePodSource.Add(pod("testns", "testpod", "",
@@ -212,15 +212,39 @@ func TestPodNetworkPolicy(t *testing.T) {
 		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
 			"{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-egress\"}]",
 		"combine")
+
+	cont.log.Info("BEGIN")
+	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
+		&metav1.LabelSelector{}, nil, nil, allPolicyTypes))
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"}]",
+		"all-policy-types")
+	cont.log.Info("END")
+
+	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
+		&metav1.LabelSelector{}, nil, nil,
+		[]v1net.PolicyType{v1net.PolicyTypeEgress}))
+	waitForGroupAnnot(t, cont, "",
+		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
+			"{\"policy-space\":\"test\",\"name\":\"mysg\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-ingress\"}]",
+		"egress-only")
 
 	pod := pod("testns", "testpod", "", "")
 	pod.Spec.NodeName = ""
 	cont.fakePodSource.Add(pod)
 	waitForGroupAnnot(t, cont, "",
 		"[{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_testns_np1\"},"+
-			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static\"}]",
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"},"+
+			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-ingress\"}]",
 		"no-node")
 
 	cont.stop()

@@ -25,6 +25,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/extensions/v1beta1"
+	v1net "k8s.io/api/networking/v1"
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -86,26 +87,39 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 	cont.podQueue.Add(podkey)
 }
 
+func addGroup(gset map[metadata.OpflexGroup]bool, g []metadata.OpflexGroup,
+	tenant string, name string) []metadata.OpflexGroup {
+	newg := metadata.OpflexGroup{
+		PolicySpace: tenant,
+		Name:        name,
+	}
+	if _, ok := gset[newg]; !ok {
+		gset[newg] = true
+		g = append(g, newg)
+	}
+	return g
+}
+
 func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	namespace *v1.Namespace, sgval *string) (*string, error) {
 
 	gset := make(map[metadata.OpflexGroup]bool)
-	g := make([]metadata.OpflexGroup, 0)
+	var g []metadata.OpflexGroup
+	ptypeset := make(map[v1net.PolicyType]bool)
 
 	// Add network policies that directly select this pod
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
-		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        cont.aciNameForKey("np", npkey),
-		}
-		if _, ok := gset[newg]; !ok {
-			gset[newg] = true
-			g = append(g, newg)
+		g = addGroup(gset, g, cont.config.AciPolicyTenant,
+			cont.aciNameForKey("np", npkey))
+		cont.log.Info(cont.getNetPolPolicyTypes(npkey))
+		for _, t := range cont.getNetPolPolicyTypes(npkey) {
+			ptypeset[t] = true
 		}
 	}
 
-	// When the pod is not selected by any annotation or network
-	// policy, don't apply any extra security groups
+	// When the pod is not selected by any network policy, don't apply
+	// any extra security groups and return the existing value from
+	// the user annotation
 	if len(gset) == 0 {
 		return sgval, nil
 	}
@@ -127,26 +141,23 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 
 	// Add network policy for accessing the pod's local node
 	if pod.Spec.NodeName != "" {
-		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        cont.aciNameForKey("node", pod.Spec.NodeName),
-		}
-		if _, ok := gset[newg]; !ok {
-			gset[newg] = true
-			g = append(g, newg)
-		}
+		g = addGroup(gset, g, cont.config.AciPolicyTenant,
+			cont.aciNameForKey("node", pod.Spec.NodeName))
 	}
 
-	// Add static network policy to allow egress traffic
-	{
-		newg := metadata.OpflexGroup{
-			PolicySpace: cont.config.AciPolicyTenant,
-			Name:        cont.aciNameForKey("np", "static"),
-		}
-		if _, ok := gset[newg]; !ok {
-			gset[newg] = true
-			g = append(g, newg)
-		}
+	// Add static-discovery network policy to allow ICMP/ARP
+	g = addGroup(gset, g, cont.config.AciPolicyTenant,
+		cont.aciNameForKey("np", "static-discovery"))
+
+	if !ptypeset[v1net.PolicyTypeIngress] {
+		// Add static-ingress since no policy applies to ingress
+		g = addGroup(gset, g, cont.config.AciPolicyTenant,
+			cont.aciNameForKey("np", "static-ingress"))
+	}
+	if !ptypeset[v1net.PolicyTypeEgress] {
+		// Add static-egress since no policy applies to egress
+		g = addGroup(gset, g, cont.config.AciPolicyTenant,
+			cont.aciNameForKey("np", "static-egress"))
 	}
 
 	if len(g) == 0 {
@@ -350,6 +361,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	cont.depPods.UpdatePodNoCallback(pod)
 	cont.netPolPods.UpdatePodNoCallback(pod)
 	cont.netPolIngressPods.UpdatePodNoCallback(pod)
+	cont.netPolEgressPods.UpdatePodNoCallback(pod)
 	cont.queuePodUpdate(pod)
 }
 
@@ -368,6 +380,8 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 			cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
 		shouldqueue =
 			cont.netPolIngressPods.UpdatePodNoCallback(newpod) || shouldqueue
+		shouldqueue =
+			cont.netPolEgressPods.UpdatePodNoCallback(newpod) || shouldqueue
 	}
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
 		newpod.ObjectMeta.Annotations) {
@@ -395,6 +409,7 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.depPods.DeletePod(pod)
 	cont.netPolPods.DeletePod(pod)
 	cont.netPolIngressPods.DeletePod(pod)
+	cont.netPolEgressPods.DeletePod(pod)
 
 	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)

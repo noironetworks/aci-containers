@@ -227,6 +227,42 @@ func TestAddRange(t *testing.T) {
 	}
 }
 
+type addSubnetTest struct {
+	input    []string
+	freeList []IpRange
+	desc     string
+}
+
+var addSubnetTests = []addSubnetTest{
+	{[]string{}, []IpRange{}, "empty"},
+	{
+		[]string{"192.168.0.0/16"},
+		[]IpRange{
+			{net.IP{192, 168, 0, 0}, net.IP{192, 168, 255, 255}},
+		},
+		"simple",
+	},
+	{
+		[]string{"192.168.0.0/17"},
+		[]IpRange{
+			{net.IP{192, 168, 0, 0}, net.IP{192, 168, 127, 255}},
+		},
+		"nonbyte",
+	},
+}
+
+func TestAddSubnet(t *testing.T) {
+	for i, st := range addSubnetTests {
+		ipa := New()
+		for _, sub := range st.input {
+			_, net, _ := net.ParseCIDR(sub)
+			ipa.AddSubnet(net)
+		}
+		assert.Equal(t, st.freeList, ipa.FreeList,
+			fmt.Sprintf("AddSubnet %d: %s", i, st.desc))
+	}
+}
+
 type removeRangeTest struct {
 	add      []IpRange
 	remove   []IpRange
@@ -453,11 +489,63 @@ var removeRangeTests = []removeRangeTest{
 func TestRemoveRange(t *testing.T) {
 	for i, rt := range removeRangeTests {
 		ipa := NewFromRanges(rt.add)
+		changed := false
 		for _, r := range rt.remove {
-			ipa.RemoveRange(r.Start, r.End)
+			changed = ipa.RemoveRange(r.Start, r.End) || changed
 		}
 		assert.Equal(t, rt.freeList, ipa.FreeList,
 			fmt.Sprintf("RemoveRange %d: %s", i, rt.desc))
+		assert.Equal(t, rt.changed, changed,
+			fmt.Sprintf("RemoveRange %d changed: %s", i, rt.desc))
+	}
+}
+
+type removeSubnetTest struct {
+	add      []string
+	remove   []string
+	freeList []IpRange
+	changed  bool
+	desc     string
+}
+
+var removeSubnetTests = []removeSubnetTest{
+	{
+		[]string{"192.168.0.0/16"},
+		[]string{"192.168.5.0/24", "192.168.10.0/25"},
+		[]IpRange{
+			{net.IP{192, 168, 0, 0}, net.IP{192, 168, 4, 255}},
+			{net.IP{192, 168, 6, 0}, net.IP{192, 168, 9, 255}},
+			{net.IP{192, 168, 10, 128}, net.IP{192, 168, 255, 255}},
+		},
+		true,
+		"remove",
+	},
+	{
+		[]string{"192.168.0.0/16"},
+		[]string{"192.0.0.0/8"},
+		[]IpRange{},
+		true,
+		"overlap",
+	},
+}
+
+func TestRemoveSubnet(t *testing.T) {
+	for i, st := range removeSubnetTests {
+		ipa := New()
+		for _, sub := range st.add {
+			_, net, _ := net.ParseCIDR(sub)
+			ipa.AddSubnet(net)
+		}
+		changed := false
+		for _, sub := range st.remove {
+			_, net, _ := net.ParseCIDR(sub)
+			changed = ipa.RemoveSubnet(net) || changed
+		}
+
+		assert.Equal(t, st.freeList, ipa.FreeList,
+			fmt.Sprintf("RemoveSubnet %d: %s", i, st.desc))
+		assert.Equal(t, st.changed, changed,
+			fmt.Sprintf("RemoveSubnet %d changed: %s", i, st.desc))
 	}
 }
 
