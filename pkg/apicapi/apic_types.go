@@ -751,3 +751,39 @@ func NewVmmInjectedNs(vendor string, domain string, controller string,
 			vendor, domain, controller, name)
 	return ret
 }
+
+func NewVmmInjectedOrg(vendor, domain, controller, name string) ApicObject {
+	ret := newApicObject("vmmInjectedOrg")
+	ret["vmmInjectedOrg"].Attributes["name"] = name
+	ret["vmmInjectedOrg"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]",
+			vendor, domain, controller, name)
+	return ret
+}
+
+func NewVmmInjectedOrgUnit(vendor, domain, controller, org, name string) ApicObject {
+	ret := newApicObject("vmmInjectedOrgUnit")
+	ret["vmmInjectedOrgUnit"].Attributes["name"] = name
+	ret["vmmInjectedOrgUnit"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]",
+			vendor, domain, controller, org, name)
+	return ret
+}
+
+func NewVmmInjectedOrgUnitContGrp(vendor, domain, controller, org, unit, name string) ApicObject {
+	ret := newApicObject("vmmInjectedContGrp")
+	ret["vmmInjectedContGrp"].Attributes["name"] = name
+	ret["vmmInjectedContGrp"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]/grp-[%s]",
+			vendor, domain, controller, org, unit, name)
+	return ret
+}
+
+func NewVmmInjectedOrgUnitDepl(vendor, domain, controller, org, unit, name string) ApicObject {
+	ret := newApicObject("vmmInjectedDepl")
+	ret["vmmInjectedDepl"].Attributes["name"] = name
+	ret["vmmInjectedDepl"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]/depl-[%s]",
+			vendor, domain, controller, org, unit, name)
+	return ret
+}

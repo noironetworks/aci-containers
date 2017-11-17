@@ -15,6 +15,7 @@
 package cf_etcd
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -80,6 +81,24 @@ type EpInfo struct {
 	Epg                 string        `json:"epg"`
 	SecurityGroups      []GroupInfo   `json:"sg"`
 	TaskName            string        `json:"task_name"`
+}
+
+func (ep *EpInfo) EpName(ctId string) string {
+	if ep.AppName != "" {
+		if ep.InstanceIndex == INST_IDX_TASK {
+			if ep.TaskName != "" {
+				return ep.AppName + " (task " + ep.TaskName + ")"
+			} else {
+				return ep.AppName + " (task)"
+			}
+		} else if ep.InstanceIndex < 0 {
+			return ep.AppName + " (staging)"
+		} else {
+			return fmt.Sprintf("%s (%d)", ep.AppName, ep.InstanceIndex)
+		}
+	} else {
+		return ctId
+	}
 }
 
 type AppInfo struct {

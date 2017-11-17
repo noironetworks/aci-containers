@@ -99,3 +99,20 @@ func TestCfEtcdWatcherCancel(t *testing.T) {
 	tu.WaitFor(t, "Waiting for Run() to end", 1000*time.Millisecond,
 		func(bool) (bool, error) { return runEnded, nil })
 }
+
+func TestCfEtcdEpName(t *testing.T) {
+	ep := &EpInfo{AppName: "app", InstanceIndex: 1}
+	assert.Equal(t, "app (1)", ep.EpName("c"))
+
+	ep.InstanceIndex = INST_IDX_STAGING
+	assert.Equal(t, "app (staging)", ep.EpName("c"))
+
+	ep.InstanceIndex = INST_IDX_TASK
+	assert.Equal(t, "app (task)", ep.EpName("c"))
+
+	ep.TaskName = "errand"
+	assert.Equal(t, "app (task errand)", ep.EpName("c"))
+
+	ep.AppName = ""
+	assert.Equal(t, "c", ep.EpName("c"))
+}

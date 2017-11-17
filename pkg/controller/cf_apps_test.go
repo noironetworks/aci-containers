@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"code.cloudfoundry.org/bbs/models"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
@@ -35,6 +37,9 @@ func TestCfSpaceFetchQueueHandler(t *testing.T) {
 	cc.On("GetSpaceByGuid", "space-2").Return(sp, nil)
 	cc.On("GetSpaceIsolationSegment", "space-2").Return("", nil).Once()
 	cc.On("GetOrgDefaultIsolationSegment", "org-1").Return("iso-org-1", nil)
+
+	org := cfclient.Org{Guid: "org-1", Name: "ORG1-NAME"}
+	cc.On("GetOrgByGuid", "org-1").Return(org, nil)
 
 	is_space_2 := &cfclient.IsolationSegment{GUID: "iso-space-2", Name: "space-private"}
 	is_org_1 := &cfclient.IsolationSegment{GUID: "iso-org-1", Name: "org-private"}
@@ -53,6 +58,7 @@ func TestCfSpaceFetchQueueHandler(t *testing.T) {
 	delete(env.spaceIdx, "space-2")
 	env.spaceFetchQueueHandler("space-2")
 	exp_sp2 := &SpaceInfo{SpaceId: "space-2", OrgId: "org-1",
+		SpaceName:             "SPACE2",
 		RunningSecurityGroups: []string{"runsg", "ASG_R1"},
 		StagingSecurityGroups: []string{"stagesg", "ASG_S1"},
 		IsolationSegment:      "iso-org-1"}
@@ -68,6 +74,8 @@ func TestCfSpaceFetchQueueHandler(t *testing.T) {
 	waitForGet(t, env.asgUpdateQ, 500*time.Millisecond, "ASG_R1")
 	waitForGet(t, env.asgUpdateQ, 500*time.Millisecond, "stagesg")
 	waitForGet(t, env.asgUpdateQ, 500*time.Millisecond, "ASG_S1")
+	waitForGet(t, env.spaceChangesQ, 500*time.Millisecond, "space-2")
+	waitForGet(t, env.orgChangesQ, 500*time.Millisecond, "org-1")
 
 	cc.On("GetSpaceIsolationSegment", "space-2").Return("iso-space-2", nil)
 	exp_sp2.IsolationSegment = "iso-space-2"
@@ -319,4 +327,49 @@ func TestCfNetworkPolicyPoller(t *testing.T) {
 	assert.Nil(t, env.netpolIdx["app-100"])
 	assert.Nil(t, env.cont.apicConn.GetDesiredState("np:app-100"))
 	waitForGetList(t, env.containerUpdateQ, 500*time.Millisecond, []interface{}{"c-5", "c-6"})
+}
+
+func TestCfBbsCellPoller(t *testing.T) {
+	env := testCfEnvironment(t)
+	bbs := env.fakeBbsClient()
+	cp := NewCfBbsCellPoller(env)
+	cp_poll_func := cp.Poller()
+	cp_handle_func := cp.Handler()
+
+	c1 := &models.CellPresence{CellId: "cell-1",
+		RepAddress: "http://10.10.0.12:1800"}
+	c2 := &models.CellPresence{CellId: "cell-2",
+		RepAddress: "http://10.10.0.13:1800"}
+	c3 := &models.CellPresence{CellId: "cell-3",
+		RepAddress: "http://10.10.0.14:1800"}
+	bbs.CellsReturns([]*models.CellPresence{c1, c2}, nil)
+
+	store1, hash1, _ := cp_poll_func()
+	assert.Equal(t, c1, store1["cell-1"])
+	assert.Equal(t, c2, store1["cell-2"])
+
+	bbs.CellsReturns([]*models.CellPresence{c2, c3}, nil)
+	store2, hash2, _ := cp_poll_func()
+	assert.NotEqual(t, hash1, hash2)
+	assert.Nil(t, store2["cell-1"])
+	assert.Equal(t, c2, store2["cell-2"])
+	assert.Equal(t, c3, store2["cell-3"])
+
+	exp_inj_node_cell1 := apicapi.NewVmmInjectedHost("CloudFoundry",
+		"cf-dom", "cf-ctrl", "diego-cell-cell-1")
+	exp_inj_node_cell1.SetAttr("mgmtIp", "10.10.0.12")
+	exp_inj_node_cell2 := apicapi.NewVmmInjectedHost("CloudFoundry",
+		"cf-dom", "cf-ctrl", "diego-cell-cell-2")
+	exp_inj_node_cell2.SetAttr("mgmtIp", "10.10.0.13")
+
+	cp_handle_func(map[string]interface{}{"cell-1": c1, "cell-2": c2}, nil)
+	env.checkApicDesiredState(t, "inj_node:cell-1", exp_inj_node_cell1)
+	env.checkApicDesiredState(t, "inj_node:cell-2", exp_inj_node_cell2)
+
+	c1.RepAddress = "http://10.10.0.11:1800"
+	exp_inj_node_cell1.SetAttr("mgmtIp", "10.10.0.11")
+	cp_handle_func(map[string]interface{}{"cell-1": c1},
+		map[string]interface{}{"cell-2": c2})
+	env.checkApicDesiredState(t, "inj_node:cell-1", exp_inj_node_cell1)
+	env.checkApicDesiredState(t, "inj_node:cell-2", nil)
 }

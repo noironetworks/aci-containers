@@ -77,21 +77,7 @@ func (env *CfEnvironment) cfAppContainerChanged(ctId *string, ep *etcd.EpInfo) {
 	}
 
 	epAttributes := make(map[string]string)
-	if ep.AppName != "" {
-		if ep.InstanceIndex == etcd.INST_IDX_TASK {
-			if ep.TaskName != "" {
-				epAttributes["vm-name"] = ep.AppName + " (task " + ep.TaskName + ")"
-			} else {
-				epAttributes["vm-name"] = ep.AppName + " (task)"
-			}
-		} else if ep.InstanceIndex < 0 {
-			epAttributes["vm-name"] = ep.AppName + " (staging)"
-		} else {
-			epAttributes["vm-name"] = fmt.Sprintf("%s (%d)", ep.AppName, ep.InstanceIndex)
-		}
-	} else {
-		epAttributes["vm-name"] = *ctId
-	}
+	epAttributes["vm-name"] = ep.EpName(*ctId)
 	epAttributes["app-id"] = ep.AppId
 	epAttributes["space-id"] = ep.SpaceId
 	epAttributes["org-id"] = ep.OrgId

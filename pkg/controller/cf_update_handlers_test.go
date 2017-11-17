@@ -21,6 +21,7 @@ import (
 	"code.cloudfoundry.org/bbs/models"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 )
 
@@ -30,10 +31,20 @@ func TestCfContainerUpdateDelete(t *testing.T) {
 	env.handleContainerUpdate("c-1")
 	assert.Equal(t, getExpectedEpInfo(), env.GetEpInfo("cell-1", "c-1"))
 
+	exp_inj_cont := apicapi.NewVmmInjectedOrgUnitContGrp(
+		"CloudFoundry", "cf-dom", "cf-ctrl", "org-1", "space-1", "c-1")
+	exp_inj_cont.SetAttr("deploymentName", "app-1")
+	// TODO Uncomment when ACI supports 'descr'
+	//exp_inj_cont.SetAttr("descr", "app-1-name (0)")
+	exp_inj_cont.SetAttr("hostName", "diego-cell-cell-1")
+	exp_inj_cont.SetAttr("computeNodeName", "diego-cell-cell-1")
+	env.checkApicDesiredState(t, "inj_contgrp:c-1", exp_inj_cont)
+
 	cinfo := env.contIdx["c-1"]
 	delete(env.contIdx, "c-1")
 	env.handleContainerDelete(cinfo)
 	assert.Nil(t, env.GetEpInfo("cell-1", "c-1"))
+	env.checkApicDesiredState(t, "inj_contgrp:c-1", nil)
 }
 
 func TestCfContainerUpdateStaging(t *testing.T) {
@@ -150,11 +161,17 @@ func TestCfAppUpdateDelete(t *testing.T) {
 		IpAddress: "1.2.3.9", AppId: "app-1", InstanceIndex: -2}
 	env.appIdx["app-1"].ContainerIps["c-5"] = "1.2.3.8"
 	env.appIdx["app-1"].ContainerIps["c-6"] = "1.2.3.9"
+	env.appIdx["app-1"].Instances = 4
 
 	exp_app := getExpectedAppInfo()
+	exp_inj_depl := apicapi.NewVmmInjectedOrgUnitDepl(
+		"CloudFoundry", "cf-dom", "cf-ctrl", "org-1", "space-1", "app-1")
+	exp_inj_depl.SetAttr("nameAlias", "app-1-name")
+	exp_inj_depl.SetAttr("replicas", "4")
 
 	env.handleAppUpdate("app-1")
 	assert.Equal(t, exp_app, env.GetAppInfo("app-1"))
+	env.checkApicDesiredState(t, "inj_depl:app-1", exp_inj_depl)
 	assert.NotNil(t, env.cont.apicConn.GetDesiredState("app_ext_ip:app-1"))
 	assert.NotNil(t, env.cont.apicConn.GetDesiredState("app-port:app-1"))
 	assert.NotNil(t, env.cont.apicConn.GetDesiredState("np:app-101"))
@@ -164,6 +181,7 @@ func TestCfAppUpdateDelete(t *testing.T) {
 	delete(env.appIdx, "app-1")
 	env.handleAppDelete(ainfo)
 	assert.Nil(t, env.GetAppInfo("app-1"))
+	env.checkApicDesiredState(t, "inj_depl:app-1", nil)
 	assert.Nil(t, env.cont.apicConn.GetDesiredState("app_ext_ip:app-1"))
 	assert.Nil(t, env.cont.apicConn.GetDesiredState("app-port:app-1"))
 }
@@ -196,6 +214,33 @@ func TestCfCleanupEpgAnnotation(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, val)
 	})
+}
+
+func TestCfSpaceUpdateDelete(t *testing.T) {
+	env := testCfEnvironment(t)
+
+	env.spaceIdx["space-1"].SpaceName = "SPACE1"
+	env.processSpaceChanges("space-1")
+	exp_inj_orgunit := apicapi.NewVmmInjectedOrgUnit(
+		"CloudFoundry", "cf-dom", "cf-ctrl", "org-1", "space-1")
+	exp_inj_orgunit.SetAttr("nameAlias", "SPACE1")
+	env.checkApicDesiredState(t, "inj_orgunit:space-1", exp_inj_orgunit)
+
+	env.processSpaceChanges(env.spaceIdx["space-1"])
+	env.checkApicDesiredState(t, "inj_orgunit:space-1", nil)
+}
+
+func TestCfOrgUpdateDelete(t *testing.T) {
+	env := testCfEnvironment(t)
+
+	env.processOrgChanges("org-1")
+	exp_inj_org := apicapi.NewVmmInjectedOrg(
+		"CloudFoundry", "cf-dom", "cf-ctrl", "org-1")
+	exp_inj_org.SetAttr("nameAlias", "ORG1")
+	env.checkApicDesiredState(t, "inj_org:org-1", exp_inj_org)
+
+	env.processOrgChanges(env.orgIdx["org-1"])
+	env.checkApicDesiredState(t, "inj_org:org-1", nil)
 }
 
 func TestCfAsgUpdateDelete(t *testing.T) {
