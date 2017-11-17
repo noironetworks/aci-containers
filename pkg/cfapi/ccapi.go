@@ -25,6 +25,8 @@ import (
 type CcClient interface {
 	GetSpaceByGuid(spaceGUID string) (cfclient.Space, error)
 
+	GetOrgByGuid(guid string) (cfclient.Org, error)
+
 	ListSecGroupsBySpace(spaceGuid string, staging bool) ([]cfclient.SecGroup, error)
 
 	GetIsolationSegmentByGUID(guid string) (*cfclient.IsolationSegment, error)

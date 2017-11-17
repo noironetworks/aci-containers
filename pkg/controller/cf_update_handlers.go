@@ -84,9 +84,15 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 			}
 		}
 	}
+	ep := etcd.EpInfo{AppId: cinfo.AppId,
+		AppName:       appInfo.AppName,
+		InstanceIndex: cinfo.InstanceIndex,
+		IpAddress:     cinfo.IpAddress,
+		EpgTenant:     epgTenant,
+		Epg:           epg,
+		TaskName:      cinfo.TaskName}
 	env.log.Debug(fmt.Sprintf("Handling container update: %+v", cinfo))
 	if cinfo.CellId != "" {
-
 		env.cont.indexMutex.Lock()
 		env.LoadCellNetworkInfo(cinfo.CellId)
 		newCellSvc := env.LoadCellServiceInfo(cinfo.CellId)
@@ -98,13 +104,6 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 		}
 
 		ctKey := etcd.CELL_KEY_BASE + "/" + cinfo.CellId + "/containers/" + cinfo.ContainerId
-		ep := etcd.EpInfo{AppId: cinfo.AppId,
-			AppName:       appInfo.AppName,
-			InstanceIndex: cinfo.InstanceIndex,
-			IpAddress:     cinfo.IpAddress,
-			EpgTenant:     epgTenant,
-			Epg:           epg,
-			TaskName:      cinfo.TaskName}
 		if spaceInfo != nil {
 			ep.SpaceId = spaceInfo.SpaceId
 			ep.OrgId = spaceInfo.OrgId
@@ -156,6 +155,22 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 			}
 		}
 	}
+	if spaceInfo != nil {
+		conf := env.cont.config
+		injContGrp := apicapi.NewVmmInjectedOrgUnitContGrp(conf.AciVmmDomainType,
+			conf.AciVmmDomain, conf.AciVmmController, spaceInfo.OrgId,
+			spaceInfo.SpaceId, cinfo.ContainerId)
+		injContGrp.SetAttr("deploymentName", cinfo.AppId)
+		// TODO Uncomment when ACI supports 'descr'
+		//injContGrp.SetAttr("descr", ep.EpName(cinfo.ContainerId))
+		if cinfo.CellId != "" {
+			node := "diego-cell-" + cinfo.CellId
+			injContGrp.SetAttr("hostName", node)
+			injContGrp.SetAttr("computeNodeName", node)
+		}
+		env.cont.apicConn.WriteApicObjects("inj_contgrp:"+cinfo.ContainerId,
+			apicapi.ApicSlice{injContGrp})
+	}
 	return retry
 }
 
@@ -175,6 +190,7 @@ func (env *CfEnvironment) handleContainerDeleteLocked(cinfo *ContainerInfo) bool
 			retry = true
 		}
 	}
+	env.cont.apicConn.ClearApicObjects("inj_contgrp:" + cinfo.ContainerId)
 	return retry
 }
 
@@ -184,6 +200,7 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 	if !ok || ainfo == nil {
 		return false
 	}
+	spi := env.spaceIdx[ainfo.SpaceId]
 	env.log.Debug(fmt.Sprintf("Handling app update: %+v", ainfo))
 
 	ai := etcd.AppInfo{}
@@ -265,6 +282,17 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 	for _, d := range dstPolIds {
 		hpp := env.createHppForNetPol(&d)
 		env.cont.apicConn.WriteApicObjects("np:"+d, hpp)
+	}
+
+	if spi != nil {
+		conf := env.cont.config
+		injDepl := apicapi.NewVmmInjectedOrgUnitDepl(conf.AciVmmDomainType,
+			conf.AciVmmDomain, conf.AciVmmController, spi.OrgId,
+			spi.SpaceId, ainfo.AppId)
+		injDepl.SetAttr("nameAlias", ainfo.AppName)
+		injDepl.SetAttr("replicas", fmt.Sprintf("%d", ainfo.Instances))
+		env.cont.apicConn.WriteApicObjects("inj_depl:"+ainfo.AppId,
+			apicapi.ApicSlice{injDepl})
 	}
 	return retry
 }
@@ -361,6 +389,7 @@ func (env *CfEnvironment) handleAppDeleteLocked(appId string, ainfo *AppInfo) bo
 	env.releaseAppExtIp(appId)
 	env.cont.apicConn.ClearApicObjects("app_ext_ip:" + appId)
 	env.cont.apicConn.ClearApicObjects("app-port:" + appId)
+	env.cont.apicConn.ClearApicObjects("inj_depl:" + appId)
 	return retry
 }
 
@@ -386,6 +415,34 @@ func (env *CfEnvironment) scheduleAppContainersUpdate(appId string) {
 	env.scheduleAppContainersUpdateLocked(appId)
 }
 
+func (env *CfEnvironment) processSpaceChanges(obj interface{}) bool {
+	switch obj := obj.(type) {
+	case string:
+		return env.handleSpaceUpdate(obj)
+	case *SpaceInfo:
+		return env.handleSpaceDelete(obj)
+	}
+	return false
+}
+
+func (env *CfEnvironment) handleSpaceUpdate(spaceId string) bool {
+	env.indexLock.Lock()
+	defer env.indexLock.Unlock()
+
+	retry := false
+	spi := env.spaceIdx[spaceId]
+	if spi == nil {
+		return retry
+	}
+	conf := env.cont.config
+	injSpace := apicapi.NewVmmInjectedOrgUnit(conf.AciVmmDomainType,
+		conf.AciVmmDomain, conf.AciVmmController, spi.OrgId, spi.SpaceId)
+	injSpace.SetAttr("nameAlias", spi.SpaceName)
+	env.cont.apicConn.WriteApicObjects("inj_orgunit:"+spi.SpaceId,
+		apicapi.ApicSlice{injSpace})
+	return retry
+}
+
 func (env *CfEnvironment) handleSpaceDelete(sinfo *SpaceInfo) bool {
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
@@ -395,6 +452,7 @@ func (env *CfEnvironment) handleSpaceDelete(sinfo *SpaceInfo) bool {
 func (env *CfEnvironment) handleSpaceDeleteLocked(spaceId string, sinfo *SpaceInfo) bool {
 	retry := false
 	env.cleanupEpgAnnotation(spaceId, CF_OBJ_SPACE)
+	env.cont.apicConn.ClearApicObjects("inj_orgunit:" + spaceId)
 	return retry
 }
 
@@ -412,12 +470,40 @@ func (env *CfEnvironment) scheduleSpaceContainersUpdate(spaceId string) {
 	env.scheduleSpaceContainersUpdateLocked(spaceId)
 }
 
+func (env *CfEnvironment) processOrgChanges(obj interface{}) bool {
+	switch obj := obj.(type) {
+	case string:
+		return env.handleOrgUpdate(obj)
+	case *OrgInfo:
+		return env.handleOrgDelete(obj)
+	}
+	return false
+}
+
 func (env *CfEnvironment) scheduleOrgContainersUpdateLocked(orgId string) {
 	for id, s := range env.spaceIdx {
 		if s != nil && s.OrgId == orgId {
 			env.scheduleSpaceContainersUpdateLocked(id)
 		}
 	}
+}
+
+func (env *CfEnvironment) handleOrgUpdate(orgId string) bool {
+	env.indexLock.Lock()
+	defer env.indexLock.Unlock()
+
+	retry := false
+	oinfo := env.orgIdx[orgId]
+	if oinfo == nil {
+		return retry
+	}
+	conf := env.cont.config
+	injOrg := apicapi.NewVmmInjectedOrg(conf.AciVmmDomainType,
+		conf.AciVmmDomain, conf.AciVmmController, oinfo.OrgId)
+	injOrg.SetAttr("nameAlias", oinfo.OrgName)
+	env.cont.apicConn.WriteApicObjects("inj_org:"+oinfo.OrgId,
+		apicapi.ApicSlice{injOrg})
+	return retry
 }
 
 func (env *CfEnvironment) handleOrgDelete(oinfo *OrgInfo) bool {
@@ -429,6 +515,7 @@ func (env *CfEnvironment) handleOrgDelete(oinfo *OrgInfo) bool {
 func (env *CfEnvironment) handleOrgDeleteLocked(orgId string, oinfo *OrgInfo) bool {
 	retry := false
 	env.cleanupEpgAnnotation(orgId, CF_OBJ_ORG)
+	env.cont.apicConn.ClearApicObjects("inj_org:" + orgId)
 	return retry
 }
 

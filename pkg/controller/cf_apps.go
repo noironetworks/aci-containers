@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ type AppInfo struct {
 	AppId        string
 	SpaceId      string
 	AppName      string
+	Instances    int32
 	ContainerIps map[string]string
 	VipV4        string
 	VipV6        string
@@ -68,6 +70,7 @@ func NewAppInfo(appId string) *AppInfo {
 
 type SpaceInfo struct {
 	SpaceId               string
+	SpaceName             string
 	OrgId                 string
 	RunningSecurityGroups []string
 	StagingSecurityGroups []string
@@ -105,7 +108,7 @@ func (env *CfEnvironment) constructAppInfo(app *AppAndSpace) *AppInfo {
 	return appInfo
 }
 
-func (env *CfEnvironment) mergeAppInfo(nw *AppInfo) bool {
+func (env *CfEnvironment) mergeAppInfo(nw *AppInfo, updateInstances bool) bool {
 	old := env.appIdx[nw.AppId]
 	if old == nil {
 		env.appIdx[nw.AppId] = nw
@@ -122,6 +125,9 @@ func (env *CfEnvironment) mergeAppInfo(nw *AppInfo) bool {
 		if !ok {
 			nw.ContainerIps[k] = v
 		}
+	}
+	if !updateInstances {
+		nw.Instances = old.Instances
 	}
 	if !reflect.DeepEqual(old, nw) {
 		env.appIdx[nw.AppId] = nw
@@ -189,7 +195,8 @@ func (env *CfEnvironment) fetchSpaceInfo(spaceId *string) (*SpaceInfo, []*cfclie
 		env.log.Error("Error fetching info for space "+*spaceId+": ", err)
 		return nil, nil, err
 	}
-	spi := SpaceInfo{SpaceId: sp.Guid, OrgId: sp.OrganizationGuid}
+	spi := SpaceInfo{SpaceId: sp.Guid, OrgId: sp.OrganizationGuid,
+		SpaceName: sp.Name}
 
 	// fetch isolation segment info
 	isoseg, err := env.ccClient.GetSpaceIsolationSegment(sp.Guid)
@@ -244,13 +251,27 @@ func (env *CfEnvironment) spaceFetchQueueHandler(spaceId interface{}) bool {
 			return true
 		}
 	}
+	org, err := env.ccClient.GetOrgByGuid(spi.OrgId)
+	if err != nil {
+		env.log.Error("Error fetching org info for "+spi.OrgId+": ", err)
+		return true
+	}
+	oinfo := &OrgInfo{OrgId: org.Guid, OrgName: org.Name}
+
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
 
+	// update org
+	oldorg := env.orgIdx[oinfo.OrgId]
+	if oldorg == nil || !reflect.DeepEqual(oldorg, oinfo) {
+		env.orgIdx[oinfo.OrgId] = oinfo
+		env.orgChangesQ.Add(oinfo.OrgId)
+	}
 	// update space
 	oldspace := env.spaceIdx[spi.SpaceId]
 	if oldspace == nil || !reflect.DeepEqual(oldspace, spi) {
 		env.spaceIdx[spi.SpaceId] = spi
+		env.spaceChangesQ.Add(spi.SpaceId)
 		env.log.Debug("Updating containers in space ", spi.SpaceId)
 		env.scheduleSpaceContainersUpdateLocked(spi.SpaceId)
 	}
@@ -759,4 +780,51 @@ func (env *CfEnvironment) ManageAppExtIp(current []ExtIpAlloc, requestedStatic [
 		}
 	}
 	return requestedStatic, nil
+}
+
+func NewCfBbsCellPoller(env *CfEnvironment) *CfPoller {
+
+	pollFunc := func() (map[string]interface{}, interface{}, error) {
+		allCells, err := env.bbsClient.Cells(env.cfLogger)
+		if err != nil {
+			return nil, nil, err
+		}
+		var newRespHashIf interface{}
+		newRespHash, err := hashJsonSerializable(allCells)
+		if err != nil {
+			env.log.Warning("Failed to hash cells response: ", err)
+			newRespHashIf = nil
+		} else {
+			newRespHashIf = &newRespHash
+		}
+		result := make(map[string]interface{})
+		for _, cp := range allCells {
+			result[cp.CellId] = cp
+		}
+		return result, newRespHashIf, nil
+	}
+
+	handleFunc := func(updates map[string]interface{}, deletes map[string]interface{}) {
+		for k, v := range updates {
+			cell := v.(*models.CellPresence)
+			env.log.Debug(fmt.Sprintf("Add/update cell %s: %+v", k, cell))
+			conf := env.cont.config
+			injNode := apicapi.NewVmmInjectedHost(conf.AciVmmDomainType,
+				conf.AciVmmDomain, conf.AciVmmController, "diego-cell-"+k)
+			url, err := url.Parse(cell.RepAddress)
+			if err == nil {
+				hp := strings.Split(url.Host, ":")
+				injNode.SetAttr("mgmtIp", hp[0])
+			}
+			env.cont.apicConn.WriteApicObjects("inj_node:"+k,
+				apicapi.ApicSlice{injNode})
+		}
+		for k, _ := range deletes {
+			env.log.Debug("Delete cell ", k)
+			env.cont.apicConn.ClearApicObjects("inj_node:" + k)
+		}
+	}
+	pollInterval := time.Duration(env.cfconfig.CleanupPollingInterval) * time.Second
+	errDelay := 10 * time.Second
+	return NewCfPoller("BBS-cell", pollInterval, errDelay, pollFunc, handleFunc, env.log)
 }

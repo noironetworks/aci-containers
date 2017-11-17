@@ -36,6 +36,11 @@ func (c *FakeCcClient) GetSpaceByGuid(spaceGUID string) (cfclient.Space, error) 
 	return res.Get(0).(cfclient.Space), res.Error(1)
 }
 
+func (c *FakeCcClient) GetOrgByGuid(guid string) (cfclient.Org, error) {
+	res := c.Called(guid)
+	return res.Get(0).(cfclient.Org), res.Error(1)
+}
+
 func (c *FakeCcClient) ListSecGroupsBySpace(spaceGuid string, staging bool) ([]cfclient.SecGroup, error) {
 	res := c.Called(spaceGuid, staging)
 	return res.Get(0).([]cfclient.SecGroup), res.Error(1)

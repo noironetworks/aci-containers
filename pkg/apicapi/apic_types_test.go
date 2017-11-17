@@ -165,4 +165,17 @@ func TestTypes(t *testing.T) {
 		NewVmmInjectedHost("kube", "domain", "cont", "name").GetDn())
 	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/ns-[name]",
 		NewVmmInjectedNs("kube", "domain", "cont", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/org-[name]",
+		NewVmmInjectedOrg("kube", "domain", "cont", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/"+
+		"org-[org]/unit-[name]",
+		NewVmmInjectedOrgUnit("kube", "domain", "cont", "org", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/"+
+		"org-[org]/unit-[unit]/depl-[name]",
+		NewVmmInjectedOrgUnitDepl("kube", "domain", "cont",
+			"org", "unit", "name").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/"+
+		"org-[org]/unit-[unit]/grp-[name]",
+		NewVmmInjectedOrgUnitContGrp("kube", "domain", "cont",
+			"org", "unit", "name").GetDn())
 }

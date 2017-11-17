@@ -68,12 +68,12 @@ type CfEnvironment struct {
 	isoSegIdx map[string]*IsoSegInfo
 
 	spaceFetchQ      workqueue.RateLimitingInterface
-	spaceDeleteQ     workqueue.RateLimitingInterface
+	spaceChangesQ    workqueue.RateLimitingInterface
 	appUpdateQ       workqueue.RateLimitingInterface
 	appDeleteQ       workqueue.RateLimitingInterface
 	containerUpdateQ workqueue.RateLimitingInterface
 	containerDeleteQ workqueue.RateLimitingInterface
-	orgDeleteQ       workqueue.RateLimitingInterface
+	orgChangesQ      workqueue.RateLimitingInterface
 	asgUpdateQ       workqueue.RateLimitingInterface
 	asgDeleteQ       workqueue.RateLimitingInterface
 
@@ -171,7 +171,7 @@ func NewCfEnvironment(config *ControllerConfig, log *logrus.Logger) (*CfEnvironm
 		cfconfig.ApiPathPrefix = "/networking-aci"
 	}
 	if cfconfig.CleanupPollingInterval <= 0 {
-		cfconfig.CleanupPollingInterval = 30
+		cfconfig.CleanupPollingInterval = 10
 	}
 
 	return &CfEnvironment{cfconfig: cfconfig, indexLock: &sync.Mutex{}, appVips: newNetIps(), log: log},
@@ -197,7 +197,7 @@ func (env *CfEnvironment) Init(cont *AciController) error {
 	lagerLevel := lager.INFO
 	switch env.log.Level {
 	case logrus.DebugLevel:
-		lagerLevel = lager.DEBUG
+		lagerLevel = lager.INFO // Some CF clients can be very chatty
 	case logrus.InfoLevel:
 		lagerLevel = lager.INFO
 	case logrus.WarnLevel:
@@ -285,12 +285,12 @@ func (env *CfEnvironment) initIndexes() {
 	env.isoSegIdx = make(map[string]*IsoSegInfo)
 
 	env.spaceFetchQ = createQueue("fetch-space")
-	env.spaceDeleteQ = createQueue("delete-space")
+	env.spaceChangesQ = createQueue("delete-space")
 	env.appUpdateQ = createQueue("update-app")
 	env.appDeleteQ = createQueue("delete-app")
 	env.containerUpdateQ = createQueue("update-container")
 	env.containerDeleteQ = createQueue("delete-container")
-	env.orgDeleteQ = createQueue("delete-org")
+	env.orgChangesQ = createQueue("delete-org")
 	env.asgUpdateQ = createQueue("update-asg")
 	env.asgDeleteQ = createQueue("delete-asg")
 }
@@ -343,9 +343,7 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go bbsTasks.Run(stopCh)
 
 	go env.processQueue(env.spaceFetchQ, env.spaceFetchQueueHandler, stopCh)
-	go env.processQueue(env.spaceDeleteQ,
-		func(id interface{}) bool { return env.handleSpaceDelete(id.(*SpaceInfo)) },
-		stopCh)
+	go env.processQueue(env.spaceChangesQ, env.processSpaceChanges, stopCh)
 	go env.processQueue(env.appUpdateQ,
 		func(id interface{}) bool { return env.handleAppUpdate(id.(string)) },
 		stopCh)
@@ -360,9 +358,7 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			return env.handleContainerDelete(id.(*ContainerInfo))
 		},
 		stopCh)
-	go env.processQueue(env.orgDeleteQ,
-		func(id interface{}) bool { return env.handleOrgDelete(id.(*OrgInfo)) },
-		stopCh)
+	go env.processQueue(env.orgChangesQ, env.processOrgChanges, stopCh)
 	go env.processQueue(env.asgUpdateQ,
 		func(id interface{}) bool { return env.handleAsgUpdate(id.(string)) },
 		stopCh)
@@ -377,7 +373,9 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 
 	netPolPoller := NewNetworkPolicyPoller(env)
 	go netPolPoller.Run(true, stopCh)
-	cache.WaitForCacheSync(stopCh, netPolPoller.Synced)
+	cellPoller := NewCfBbsCellPoller(env)
+	go cellPoller.Run(true, stopCh)
+	cache.WaitForCacheSync(stopCh, netPolPoller.Synced, cellPoller.Synced)
 
 	// Start the etcd watcher after intial-sync of containers
 	etcd_cont_w := NewCfEtcdContainersWatcher(env)
@@ -385,9 +383,14 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cache.WaitForCacheSync(stopCh, etcd_cont_w.Synced)
 
 	// start cleanup pollers
-	go NewAppCleanupPoller(env).Run(false, stopCh)
-	go NewSpaceCleanupPoller(env).Run(false, stopCh)
-	go NewOrgCleanupPoller(env).Run(false, stopCh)
+	app_poller := NewAppCloudControllerPoller(env)
+	space_poller := NewSpaceCloudControllerPoller(env)
+	org_poller := NewOrgCloudControllerPoller(env)
+	go app_poller.Run(true, stopCh)
+	go space_poller.Run(true, stopCh)
+	go org_poller.Run(true, stopCh)
+	cache.WaitForCacheSync(stopCh, app_poller.Synced, space_poller.Synced,
+		org_poller.Synced)
 	go NewAsgCleanupPoller(env).Run(false, stopCh)
 
 	env.log.Debug("Cleaning up stale etcd entries")

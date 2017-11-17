@@ -144,18 +144,19 @@ func (env *CfEnvironment) processBbsTask(task *models.Task) {
 		CellId:        task.CellId,
 		InstanceIndex: instIdx,
 		TaskName:      as.TaskName}
-	appInfo.ContainerIps[cinfo.ContainerId] = cinfo.IpAddress
 
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
 
-	if env.mergeAppInfo(appInfo) {
-		env.log.Debug("BBS Task - Queuing update for app ", appInfo.AppId)
-		env.scheduleAppAndSpaceUpdate(appInfo)
-	}
 	if env.mergeContainerInfo(cinfo) {
 		env.log.Debug("BBS Task - Queuing update for container ", cinfo.ContainerId)
 		env.containerUpdateQ.Add(cinfo.ContainerId)
+	}
+	// cinfo.IpAddress may have been updated because of mergeContainerInfo()
+	appInfo.ContainerIps[cinfo.ContainerId] = cinfo.IpAddress
+	if env.mergeAppInfo(appInfo, false) {
+		env.log.Debug("BBS Task - Queuing update for app ", appInfo.AppId)
+		env.scheduleAppAndSpaceUpdate(appInfo)
 	}
 }
 
@@ -168,6 +169,7 @@ func (env *CfEnvironment) processBbsDesiredLrp(dlrp *models.DesiredLRP,
 	}
 	dlrp2app[dlrp.GetProcessGuid()] = as.AppId
 	appInfo := env.constructAppInfo(as)
+	appInfo.Instances = dlrp.Instances
 
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
@@ -190,7 +192,7 @@ func (env *CfEnvironment) processBbsDesiredLrp(dlrp *models.DesiredLRP,
 	}
 	delete(pending, dlrp.GetProcessGuid())
 
-	if env.mergeAppInfo(appInfo) {
+	if env.mergeAppInfo(appInfo, true) {
 		env.log.Debug("BBS DesiredLRP - Queuing update for app ", appInfo.AppId)
 		env.scheduleAppAndSpaceUpdate(appInfo)
 	}
@@ -204,7 +206,8 @@ func (env *CfEnvironment) processBbsActualLrp(alrp *models.ActualLRPGroup,
 	dlrp2app DesiredLrp2App, pending PendingActualLrp) {
 
 	inst := alrp.Instance
-	if inst == nil {
+	if inst == nil || inst.GetProcessGuid() == "" ||
+		inst.GetInstanceGuid() == "" {
 		return
 	}
 	appId := dlrp2app[inst.GetProcessGuid()]

@@ -60,6 +60,9 @@ func testCfEnvironmentNoMigration(t *testing.T) *CfEnvironment {
 	cont.config.DefaultEg.PolicySpace = "cf"
 	cont.config.AciPolicyTenant = "cf"
 	cont.config.AciPrefix = "cf"
+	cont.config.AciVmmDomainType = "CloudFoundry"
+	cont.config.AciVmmDomain = "cf-dom"
+	cont.config.AciVmmController = "cf-ctrl"
 	cont.configuredPodNetworkIps.V4.AddRange(net.ParseIP("10.10.0.0"), net.ParseIP("10.10.255.255"))
 	cont.configuredPodNetworkIps.V6.AddRange(net.ParseIP("::fe00"), net.ParseIP("::feff"))
 	cont.nodeServiceIps.V4.AddRange(net.ParseIP("1.0.0.1"), net.ParseIP("1.0.0.24"))
@@ -165,9 +168,11 @@ func (e *CfEnvironment) setupIndexes() {
 		ContainerIps: map[string]string{"c-4": "1.2.3.7"},
 	}
 	e.spaceIdx["space-1"] = &SpaceInfo{SpaceId: "space-1", OrgId: "org-1",
+		SpaceName:             "SPACE1",
 		RunningSecurityGroups: []string{"ASG_R1", "ASG_PUB"},
 		StagingSecurityGroups: []string{"ASG_S1", "ASG_PUB"}}
-	e.spaceIdx["space-2"] = &SpaceInfo{SpaceId: "space-2", OrgId: "org-1"}
+	e.spaceIdx["space-2"] = &SpaceInfo{SpaceId: "space-2", OrgId: "org-1",
+		SpaceName: "SPACE2"}
 
 	e.orgIdx["org-1"] = &OrgInfo{OrgId: "org-1", OrgName: "ORG1"}
 
@@ -248,6 +253,35 @@ func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
 		return &app
 	}
 	return nil
+}
+
+func (e *CfEnvironment) checkApicDesiredState(t *testing.T, key string,
+	expected apic.ApicObject) {
+	actual := e.cont.apicConn.GetDesiredState(key)
+	if expected == nil {
+		assert.Nil(t, actual)
+	} else {
+		assert.Equal(t, 1, len(actual))
+		// remove 'tagIinst' children
+		for _, body := range actual[0] {
+			newChildren := apic.ApicSlice{}
+			for _, c := range body.Children {
+				tag := false
+				for class, _ := range c {
+					if class == "tagInst" {
+						tag = true
+					}
+					break
+				}
+				if tag == false {
+					newChildren = append(newChildren, c)
+				}
+			}
+			body.Children = newChildren
+			break
+		}
+		assert.Equal(t, expected.String(), actual[0].String())
+	}
 }
 
 func txn(db *sql.DB, f func(txn *sql.Tx)) {
