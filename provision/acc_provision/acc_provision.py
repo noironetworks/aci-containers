@@ -14,6 +14,7 @@ import struct
 import sys
 import yaml
 import uuid
+import copy
 
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
@@ -69,6 +70,19 @@ VERSIONS = {
 }
 
 FLAVORS = {
+    "kubernetes-1.8": {
+        "desc": "Kubernetes 1.8",
+        "default_version": "1.8",
+    },
+    "kubernetes-1.7": {
+        "desc": "Kubernetes 1.7",
+        "default_version": "1.7",
+        "config": {
+            "kube_config": {
+                "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
+            }
+        }
+    },
     "kubernetes-1.6": {
         "desc": "Kubernetes 1.6",
         "default_version": "1.6",
@@ -79,10 +93,6 @@ FLAVORS = {
                 "use_netpol_apigroup": "extensions",
             },
         }
-    },
-    "kubernetes-1.7": {
-        "desc": "Kubernetes 1.7",
-        "default_version": "1.7",
     },
     "openshift-3.6": {
         "desc": "Red Hat OpenShift Container Platform 3.6",
@@ -135,7 +145,7 @@ def deep_merge(user, default):
                 user[k] = v
             else:
                 user[k] = deep_merge(user[k], v)
-    return user
+    return copy.deepcopy(user)
 
 
 def config_default():
