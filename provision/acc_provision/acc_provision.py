@@ -614,8 +614,8 @@ def provision(args, apic_file, no_random):
     prov_apic = None
     if args.apic:
         prov_apic = True
-        if args.delete:
-            prov_apic = False
+    if args.delete:
+        prov_apic = False
 
     generate_cert_data = True
     if args.delete:
