@@ -15,6 +15,7 @@ import sys
 import yaml
 import uuid
 import copy
+import os.path
 
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
@@ -107,6 +108,7 @@ FLAVORS = {
                 "use_rbac_api": "v1",
                 "use_netpol_apigroup": "extensions",
                 "use_netpol_annotation": True,
+                "kubectl": "oc",
             },
             "aci_config": {
                 "vmm_domain": {
@@ -188,6 +190,7 @@ def config_default():
             "use_netpol_apigroup": "networking.k8s.io",
             "use_netpol_annotation": False,
             "image_pull_policy": "Always",
+            "kubectl": "kubectl",
         },
         "registry": {
             "image_prefix": "noiro",
@@ -503,16 +506,39 @@ def generate_kube_yaml(config, output):
     env.filters['yaml_quote'] = yaml_quote
     template = env.get_template('aci-containers.yaml')
 
-    info("Using configuration label aci-containers-config-version=" +
-         str(config["registry"]["configuration_version"]))
+    kube_objects = [
+        "configmap", "secret","serviceaccount",
+        "daemonset","deployment","clusterrolebinding",
+        "clusterrole"
+    ]
+    if config["kube_config"].get("use_openshift_security_context_constraints",
+                                 False):
+        kube_objects.append("securitycontextconstraints")
 
-    if output:
+    if output and output != "/dev/null":
+        outname = output
+        applyname = output
         if output == "-":
-            info("Writing kubernetes infrastructure YAML to \"STDOUT\"")
-            template.stream(config=config).dump(sys.stdout)
-        elif output != "/dev/null":
-            info("Writing kubernetes infrastructure YAML to \"%s\"" % output)
-            template.stream(config=config).dump(output)
+            outname = "<stdout>"
+            applyname = "<filename>"
+            output = sys.stdout
+        else:
+            applyname = os.path.basename(output)
+
+        info("Using configuration label aci-containers-config-version=" +
+            str(config["registry"]["configuration_version"]))
+        info("Writing kubernetes infrastructure YAML to %s" % outname)
+        template.stream(config=config).dump(output)
+        info("Apply infrastructure YAML using:")
+        info("  %s apply -f %s" %
+             (config["kube_config"]["kubectl"], applyname))
+        info("  %s -n kube-system delete %s -l "
+             " 'aci-containers-config-version,"
+             "aci-containers-config-version notin (%s)'" %
+             (config["kube_config"]["kubectl"],
+              ",".join(kube_objects),
+              str(config["registry"]["configuration_version"])))
+
     return config
 
 
@@ -531,8 +557,10 @@ def generate_apic_config(config, prov_apic, apic_file):
     if prov_apic is not None:
         apic = get_apic(config)
         if prov_apic is True:
+            info("Provisioning configuration in APIC")
             apic.provision(apic_config, sync_login)
         if prov_apic is False:
+            info("Unprovisioning configuration in APIC")
             system_id = config["aci_config"]["system_id"]
             tenant = config["aci_config"]["vrf"]["tenant"]
             apic.unprovision(apic_config, system_id, tenant)
@@ -614,8 +642,8 @@ def provision(args, apic_file, no_random):
     prov_apic = None
     if args.apic:
         prov_apic = True
-        if args.delete:
-            prov_apic = False
+    if args.delete:
+        prov_apic = False
 
     generate_cert_data = True
     if args.delete:
