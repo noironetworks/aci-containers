@@ -229,18 +229,18 @@ func TestServiceSync(t *testing.T) {
 	agent.run()
 
 	for i, st := range serviceTests {
-		service := service(st.uuid, st.namespace, st.name,
-			st.clusterIp, st.externalIp, st.ports)
-		endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
-		agent.fakeServiceSource.Add(service)
-		agent.fakeEndpointsSource.Add(endpoints)
-
 		if i%2 == 0 {
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
 				[]byte("random gibberish"), 0644)
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
+
+		service := service(st.uuid, st.namespace, st.name,
+			st.clusterIp, st.externalIp, st.ports)
+		endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+		agent.fakeServiceSource.Add(service)
+		agent.fakeEndpointsSource.Add(endpoints)
 		agent.doTestService(t, tempdir, &st, "create")
 	}
 
