@@ -175,6 +175,12 @@ func TestPodSync(t *testing.T) {
 	agent.run()
 
 	for i, pt := range podTests {
+		if i%2 == 0 {
+			ioutil.WriteFile(filepath.Join(tempdir,
+				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
+				[]byte("random gibberish"), 0644)
+		}
+
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
@@ -182,12 +188,6 @@ func TestPodSync(t *testing.T) {
 				cnimd.Id.ContId: cnimd,
 			}
 		agent.fakePodSource.Add(pod)
-
-		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir,
-				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
-				[]byte("random gibberish"), 0644)
-		}
 		agent.doTestPod(t, tempdir, &pt, "create")
 	}
 
