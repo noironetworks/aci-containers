@@ -176,13 +176,14 @@ class Apic(object):
         tags_path = "/api/node/mo/uni/tn-%s.json" % (tenant,)
         tags_path += "?query-target=subtree&target-subtree-class=tagInst"
         tags_list = self.get_path(tags_path, multi=True)
-        for tag_mo in tags_list:
-            tag_name = tag_mo["tagInst"]["attributes"]["name"]
-            if self.valid_tagged_resource(tag_name, system_id, tenant):
-                tags[tag_name] = True
-                dbg("Deleting tag: %s" % tag_name)
-            else:
-                dbg("Ignoring tag: %s" % tag_name)
+        if tags_list is not None:
+            for tag_mo in tags_list:
+                tag_name = tag_mo["tagInst"]["attributes"]["name"]
+                if self.valid_tagged_resource(tag_name, system_id, tenant):
+                    tags[tag_name] = True
+                    dbg("Deleting tag: %s" % tag_name)
+                else:
+                    dbg("Ignoring tag: %s" % tag_name)
 
         mos = {}
         for tag in tags.keys():
