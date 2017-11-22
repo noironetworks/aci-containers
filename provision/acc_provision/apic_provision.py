@@ -4,8 +4,9 @@ import json
 import sys
 
 import requests
+import urllib3
 
-requests.packages.urllib3.disable_warnings()
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 apic_debug = False
 
 
