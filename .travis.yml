@@ -6,4 +6,6 @@ install:
   - go get -v -u github.com/golang/dep/cmd/dep
   - export PATH=$PATH:$GOPATH/bin
 script:
-  - make vendor goinstall check
+  - make vendor
+  - make goinstall
+  - make check
