@@ -22,7 +22,7 @@ from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-DEFAULT_FLAVOR = "kubernetes-1.7"
+DEFAULT_FLAVOR = "kubernetes-1.8"
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -59,6 +59,13 @@ VERSIONS = {
         "aci_containers_host_version": "1.7",
         "opflex_agent_version": "1.7",
         "aci_containers_controller_version": "1.7",
+        "openvswitch_version": "1.0",
+    },
+    "1.8": {
+        "cnideploy_version": "1.8r0",
+        "aci_containers_host_version": "1.8r0",
+        "opflex_agent_version": "1.8r0",
+        "aci_containers_controller_version": "1.8r0",
         "openvswitch_version": "1.0",
     },
     "latest": {
