@@ -33,51 +33,19 @@ VERSION_FIELDS = [
 ]
 
 VERSIONS = {
-    "1.0": {
-        "cnideploy_version": "1.0",
-        "aci_containers_host_version": "1.0",
-        "opflex_agent_version": "1.0",
-        "aci_containers_controller_version": "1.0",
-        "openvswitch_version": "1.0",
-    },
-    "1.1": {
-        "cnideploy_version": "1.1r0",
-        "aci_containers_host_version": "1.1r0",
-        "opflex_agent_version": "1.1r2",
-        "aci_containers_controller_version": "1.1r0",
-        "openvswitch_version": "1.0",
-    },
     "1.6": {
-        "cnideploy_version": "1.6r0",
-        "aci_containers_host_version": "1.6r0",
-        "opflex_agent_version": "1.6r0",
-        "aci_containers_controller_version": "1.6r0",
-        "openvswitch_version": "1.0",
+        "cnideploy_version": "1.6r15",
+        "aci_containers_host_version": "1.6r15",
+        "aci_containers_controller_version": "1.6r15",
+        "opflex_agent_version": "1.6r16",
+        "openvswitch_version": "1.6r12",
     },
-    "1.7": {
-        "cnideploy_version": "1.7",
-        "aci_containers_host_version": "1.7",
-        "opflex_agent_version": "1.7",
-        "aci_containers_controller_version": "1.7",
-        "openvswitch_version": "1.0",
-    },
-    "latest": {
-        "cnideploy_version": "latest",
-        "aci_containers_host_version": "latest",
-        "opflex_agent_version": "latest",
-        "aci_containers_controller_version": "latest",
-        "openvswitch_version": "latest",
-    }
 }
 
 FLAVORS = {
     "kubernetes-1.6": {
         "desc": "Kubernetes 1.6",
         "default_version": "1.6",
-    },
-    "kubernetes-1.7": {
-        "desc": "Kubernetes 1.7",
-        "default_version": "1.7",
     },
     "openshift-3.6": {
         "desc": "Red Hat OpenShift Container Platform 3.6",
