@@ -33,48 +33,27 @@ VERSION_FIELDS = [
 ]
 
 VERSIONS = {
-    "1.0": {
-        "cnideploy_version": "1.0",
-        "aci_containers_host_version": "1.0",
-        "opflex_agent_version": "1.0",
-        "aci_containers_controller_version": "1.0",
-        "openvswitch_version": "1.0",
-    },
-    "1.1": {
-        "cnideploy_version": "1.1r0",
-        "aci_containers_host_version": "1.1r0",
-        "opflex_agent_version": "1.1r2",
-        "aci_containers_controller_version": "1.1r0",
-        "openvswitch_version": "1.0",
-    },
     "1.6": {
-        "cnideploy_version": "1.6r0",
-        "aci_containers_host_version": "1.6r0",
-        "opflex_agent_version": "1.6r0",
-        "aci_containers_controller_version": "1.6r0",
-        "openvswitch_version": "1.0",
+        "cnideploy_version": "1.6r15",
+        "aci_containers_host_version": "1.6r15",
+        "aci_containers_controller_version": "1.6r15",
+        "opflex_agent_version": "1.6r16",
+        "openvswitch_version": "1.6r12",
     },
     "1.7": {
-        "cnideploy_version": "1.7",
-        "aci_containers_host_version": "1.7",
-        "opflex_agent_version": "1.7",
-        "aci_containers_controller_version": "1.7",
-        "openvswitch_version": "1.0",
+        "cnideploy_version": "1.7r86",
+        "aci_containers_host_version": "1.7r86",
+        "aci_containers_controller_version": "1.7r86",
+        "opflex_agent_version": "1.7r56",
+        "openvswitch_version": "1.7r24",
     },
     "1.8": {
         "cnideploy_version": "1.8r0",
         "aci_containers_host_version": "1.8r0",
-        "opflex_agent_version": "1.8r0",
         "aci_containers_controller_version": "1.8r0",
-        "openvswitch_version": "1.0",
+        "opflex_agent_version": "1.8r0",
+        "openvswitch_version": "1.7r24",
     },
-    "latest": {
-        "cnideploy_version": "latest",
-        "aci_containers_host_version": "latest",
-        "opflex_agent_version": "latest",
-        "aci_containers_controller_version": "latest",
-        "openvswitch_version": "latest",
-    }
 }
 
 FLAVORS = {
@@ -97,7 +76,7 @@ FLAVORS = {
         "config": {
             "kube_config": {
                 "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
-                "use_netpol_annotation": False,
+                "use_netpol_annotation": True,
                 "use_netpol_apigroup": "extensions",
             },
         }
