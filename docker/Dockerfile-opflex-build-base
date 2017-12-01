@@ -1,15 +1,13 @@
-FROM alpine:3.6
+FROM alpine:3.7
 COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
-    libtool pkgconfig autoconf automake cmake doxygen file py-six linux-headers \
-    libuv-dev boost-dev openssl-dev git libnetfilter_conntrack-dev
+    libtool pkgconfig autoconf automake cmake doxygen file py-six \
+    linux-headers libuv-dev boost-dev openssl-dev git \
+    libnetfilter_conntrack-dev rapidjson-dev
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
 ARG make_args=-j4
-RUN git clone https://github.com/miloyip/rapidjson.git --branch v1.1.0 --depth 1 \
-  && cd rapidjson \
-  && cmake . && make install
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && cd ovs \
   && patch -p1 < /ovs-musl.patch \
