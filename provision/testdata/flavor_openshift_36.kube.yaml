@@ -269,6 +269,10 @@ metadata:
 spec:
   updateStrategy:
     type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-host
+      network-plugin: aci-containers
   template:
     metadata:
       labels:
@@ -405,6 +409,10 @@ metadata:
 spec:
   updateStrategy:
     type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-openvswitch
+      network-plugin: aci-containers
   template:
     metadata:
       labels:
@@ -474,20 +482,22 @@ metadata:
   labels:
     aci-containers-config-version: "dummy"
     network-plugin: aci-containers
-    k8s-app: aci-containers-controller
     name: aci-containers-controller
 spec:
   replicas: 1
   strategy:
     type: Recreate
+  selector:
+    matchLabels:
+      name: aci-containers-controller
+      network-plugin: aci-containers
   template:
     metadata:
       name: aci-containers-controller
       namespace: kube-system
       labels:
-        network-plugin: aci-containers
-        k8s-app: aci-containers-controller
         name: aci-containers-controller
+        network-plugin: aci-containers
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:

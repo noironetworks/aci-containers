@@ -23,8 +23,8 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/extensions/v1beta1"
 	v1net "k8s.io/api/networking/v1"
 	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -249,7 +249,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 			continue
 		}
 		if exists && deploymentobj != nil {
-			deployment := deploymentobj.(*v1beta1.Deployment)
+			deployment := deploymentobj.(*appsv1beta2.Deployment)
 
 			if og, ok := deployment.ObjectMeta.Annotations[metadata.EgAnnotation]; ok && og != "" {
 				egval = &og
