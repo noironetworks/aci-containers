@@ -1,11 +1,19 @@
-language: go
-sudo: false
-go:
-  - 1.9
-install:
-  - go get -v -u github.com/golang/dep/cmd/dep
-  - export PATH=$PATH:$GOPATH/bin
-script:
-  - make vendor
-  - make goinstall
-  - make check
+matrix:
+  include:
+    - language: go
+      sudo: false
+      go: 1.9
+      install:
+        - go get -v -u github.com/golang/dep/cmd/dep
+        - export PATH=$PATH:$GOPATH/bin
+        - make vendor
+      script:
+        - make goinstall
+        - make check
+    - language: python
+      python: 2.7
+      install:
+        - pip install flake8
+        - python provision/setup.py install
+      script:
+        - make -C provision test

@@ -13,7 +13,7 @@ def in_testdir(f):
         os.chdir("testdata")
         try:
             ret = f(*args, **kwds)
-        except:
+        except Exception:
             raise
         finally:
             os.chdir("..")
