@@ -168,7 +168,7 @@ class Apic(object):
                 try:
                     int(tagid, base=16)
                     ret = True
-                except:
+                except ValueError:
                     ret = False
         return ret
 

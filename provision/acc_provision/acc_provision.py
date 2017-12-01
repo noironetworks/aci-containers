@@ -16,6 +16,7 @@ import yaml
 import uuid
 import copy
 import os.path
+import functools
 
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
@@ -345,7 +346,7 @@ def config_adjust(args, config, prov_apic, no_random):
 
 def config_validate(config):
     required = lambda x: x
-    get = lambda t: reduce(lambda x, y: x and x.get(y), t, config)
+    get = lambda t: functools.reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
         # ACI config
@@ -493,8 +494,8 @@ def generate_kube_yaml(config, output):
     template = env.get_template('aci-containers.yaml')
 
     kube_objects = [
-        "configmap", "secret","serviceaccount",
-        "daemonset","deployment","clusterrolebinding",
+        "configmap", "secret", "serviceaccount",
+        "daemonset", "deployment", "clusterrolebinding",
         "clusterrole"
     ]
     if config["kube_config"].get("use_openshift_security_context_constraints",
@@ -512,7 +513,7 @@ def generate_kube_yaml(config, output):
             applyname = os.path.basename(output)
 
         info("Using configuration label aci-containers-config-version=" +
-            str(config["registry"]["configuration_version"]))
+             str(config["registry"]["configuration_version"]))
         info("Writing kubernetes infrastructure YAML to %s" % outname)
         template.stream(config=config).dump(output)
         info("Apply infrastructure YAML using:")
