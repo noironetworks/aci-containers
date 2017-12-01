@@ -1,4 +1,4 @@
-FROM alpine:3.7
+FROM alpine:3.6
 COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
     libtool pkgconfig autoconf automake cmake doxygen file py-six \

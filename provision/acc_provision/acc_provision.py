@@ -61,6 +61,11 @@ FLAVORS = {
     "kubernetes-1.8": {
         "desc": "Kubernetes 1.8",
         "default_version": "1.8",
+        "config": {
+            "kube_config": {
+                "use_apps_apigroup": "extensions",
+            }
+        }
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
@@ -68,6 +73,8 @@ FLAVORS = {
         "config": {
             "kube_config": {
                 "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
+                "use_apps_api": "extensions/v1beta1",
+                "use_apps_apigroup": "extensions",
             }
         }
     },
@@ -77,6 +84,8 @@ FLAVORS = {
         "config": {
             "kube_config": {
                 "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
+                "use_apps_api": "extensions/v1beta1",
+                "use_apps_apigroup": "extensions",
                 "use_netpol_annotation": True,
                 "use_netpol_apigroup": "extensions",
             },
@@ -93,6 +102,8 @@ FLAVORS = {
                 "use_cnideploy_initcontainer": True,
                 "allow_kube_api_default_epg": True,
                 "use_rbac_api": "v1",
+                "use_apps_api": "extensions/v1beta1",
+                "use_apps_apigroup": "extensions",
                 "use_netpol_apigroup": "extensions",
                 "use_netpol_annotation": True,
                 "kubectl": "oc",
@@ -174,6 +185,8 @@ def config_default():
         "kube_config": {
             "controller": "1.1.1.1",
             "use_rbac_api": "rbac.authorization.k8s.io/v1",
+            "use_apps_api": "apps/v1beta2",
+            "use_apps_apigroup": "apps",
             "use_netpol_apigroup": "networking.k8s.io",
             "use_netpol_annotation": False,
             "image_pull_policy": "Always",

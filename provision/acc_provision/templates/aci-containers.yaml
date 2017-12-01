@@ -127,7 +127,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "extensions"
+  - "{{ config.kube_config.use_apps_apigroup }}"
   resources:
   - deployments
   - replicasets
@@ -230,7 +230,7 @@ volumes:
 priority: 100
 ---
 {% endif %}
-apiVersion: extensions/v1beta1
+apiVersion: {{ config.kube_config.use_apps_api }}
 kind: DaemonSet
 metadata:
   name: aci-containers-host
@@ -241,6 +241,10 @@ metadata:
 spec:
   updateStrategy:
     type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-host
+      network-plugin: aci-containers
   template:
     metadata:
       labels:
@@ -380,7 +384,7 @@ spec:
               - key: opflex-agent-config
                 path: local.conf
 ---
-apiVersion: extensions/v1beta1
+apiVersion: {{ config.kube_config.use_apps_api }}
 kind: DaemonSet
 metadata:
   name: aci-containers-openvswitch
@@ -391,6 +395,10 @@ metadata:
 spec:
   updateStrategy:
     type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-openvswitch
+      network-plugin: aci-containers
   template:
     metadata:
       labels:
@@ -458,7 +466,7 @@ spec:
           hostPath:
             path: /lib/modules
 ---
-apiVersion: extensions/v1beta1
+apiVersion: {{ config.kube_config.use_apps_api }}
 kind: Deployment
 metadata:
   name: aci-containers-controller
@@ -466,20 +474,22 @@ metadata:
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
-    k8s-app: aci-containers-controller
     name: aci-containers-controller
 spec:
   replicas: 1
   strategy:
     type: Recreate
+  selector:
+    matchLabels:
+      name: aci-containers-controller
+      network-plugin: aci-containers
   template:
     metadata:
       name: aci-containers-controller
       namespace: kube-system
       labels:
-        network-plugin: aci-containers
-        k8s-app: aci-containers-controller
         name: aci-containers-controller
+        network-plugin: aci-containers
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:

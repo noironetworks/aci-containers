@@ -23,8 +23,8 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -39,14 +39,14 @@ func (cont *AciController) initDeploymentInformerFromClient(
 
 	cont.initDeploymentInformerBase(
 		cache.NewListWatchFromClient(
-			kubeClient.ExtensionsV1beta1().RESTClient(), "deployments",
+			kubeClient.AppsV1beta2().RESTClient(), "deployments",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initDeploymentInformerBase(listWatch *cache.ListWatch) {
 	cont.deploymentIndexer, cont.deploymentInformer = cache.NewIndexerInformer(
 		listWatch,
-		&v1beta1.Deployment{}, 0,
+		&appsv1beta2.Deployment{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.deploymentAdded(obj)
@@ -67,7 +67,7 @@ func (cont *AciController) initDepPodIndex() {
 		cont.podIndexer, cont.namespaceIndexer, cont.deploymentIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			dep := obj.(*v1beta1.Deployment)
+			dep := obj.(*appsv1beta2.Deployment)
 			return index.PodSelectorFromNsAndSelector(dep.ObjectMeta.Namespace,
 				dep.Spec.Selector)
 		},
@@ -80,14 +80,14 @@ func (cont *AciController) initDepPodIndex() {
 	})
 }
 
-func deploymentLogger(log *logrus.Logger, dep *v1beta1.Deployment) *logrus.Entry {
+func deploymentLogger(log *logrus.Logger, dep *appsv1beta2.Deployment) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": dep.ObjectMeta.Namespace,
 		"name":      dep.ObjectMeta.Name,
 	})
 }
 
-func (cont *AciController) writeApicDepl(dep *v1beta1.Deployment) {
+func (cont *AciController) writeApicDepl(dep *appsv1beta2.Deployment) {
 	depkey, err :=
 		cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
@@ -110,15 +110,15 @@ func (cont *AciController) writeApicDepl(dep *v1beta1.Deployment) {
 }
 
 func (cont *AciController) deploymentAdded(obj interface{}) {
-	cont.writeApicDepl(obj.(*v1beta1.Deployment))
+	cont.writeApicDepl(obj.(*appsv1beta2.Deployment))
 	cont.depPods.UpdateSelectorObj(obj)
 }
 
 func (cont *AciController) deploymentChanged(oldobj interface{},
 	newobj interface{}) {
 
-	olddep := oldobj.(*v1beta1.Deployment)
-	newdep := newobj.(*v1beta1.Deployment)
+	olddep := oldobj.(*appsv1beta2.Deployment)
+	newdep := newobj.(*appsv1beta2.Deployment)
 
 	cont.writeApicDepl(newdep)
 
@@ -146,7 +146,7 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 }
 
 func (cont *AciController) deploymentDeleted(obj interface{}) {
-	dep := obj.(*v1beta1.Deployment)
+	dep := obj.(*appsv1beta2.Deployment)
 	depkey, err :=
 		cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
