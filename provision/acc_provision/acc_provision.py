@@ -169,6 +169,9 @@ def config_default():
                     "start": "225.20.1.1",
                     "end": "225.20.255.255",
                 },
+                "nested_inside": {
+                    "type": "none",
+                },
             },
             "client_cert": False,
             "client_ssl": True,
@@ -358,46 +361,74 @@ def config_adjust(args, config, prov_apic, no_random):
 
 
 def config_validate(config):
-    required = lambda x: x
+    def Raise(exception):
+        raise exception
+    required = lambda x: True if x else Raise(Exception("Missing option"))
+    lower_in = lambda y: (
+        lambda x: (
+            (True if str(x).lower() in y
+             else Raise(Exception("Invalid value: %s; "
+                                  "Expected one of: {%s}" %
+                                  (x, ','.join(y)))))))
     get = lambda t: functools.reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
         # ACI config
-        "system_id": (get(("aci_config", "system_id")), required),
-        "apic_host": (get(("aci_config", "apic_hosts")), required),
-        "aep": (get(("aci_config", "aep")), required),
-        "vrf-name": (get(("aci_config", "vrf", "name")), required),
-        "vrf-tenant": (get(("aci_config", "vrf", "tenant")), required),
-        "l3out-name": (get(("aci_config", "l3out", "name")), required),
-        "l3out-external-network":
+        "aci_config/system_id": (get(("aci_config", "system_id")), required),
+        "aci_config/apic_host": (get(("aci_config", "apic_hosts")), required),
+        "aci_config/aep": (get(("aci_config", "aep")), required),
+        "aci_config/vrf/name": (get(("aci_config", "vrf", "name")), required),
+        "aci_config/vrf/tenant": (get(("aci_config", "vrf", "tenant")),
+                                  required),
+        "aci_config/l3out/name": (get(("aci_config", "l3out", "name")),
+                                  required),
+        "aci_config/l3out/external-networks":
             (get(("aci_config", "l3out", "external_networks")), required),
 
         # Network Config
-        "infra_vlan": (get(("net_config", "infra_vlan")), required),
-        "kubeapi_vlan": (get(("net_config", "kubeapi_vlan")), required),
-        "service_vlan": (get(("net_config", "service_vlan")), required),
-        "node_subnet": (get(("net_config", "node_subnet")), required),
-        "pod_subnet": (get(("net_config", "pod_subnet")), required),
-        "extern_dynamic": (get(("net_config", "extern_dynamic")), required),
-        "extern_static": (get(("net_config", "extern_static")), required),
-        "node_svc_subnet": (get(("net_config", "node_svc_subnet")), required),
+        "net_config/infra_vlan": (get(("net_config", "infra_vlan")),
+                                  required),
+        "net_config/kubeapi_vlan": (get(("net_config", "kubeapi_vlan")),
+                                    required),
+        "net_config/service_vlan": (get(("net_config", "service_vlan")),
+                                    required),
+        "net_config/node_subnet": (get(("net_config", "node_subnet")),
+                                   required),
+        "net_config/pod_subnet": (get(("net_config", "pod_subnet")),
+                                  required),
+        "net_config/extern_dynamic": (get(("net_config", "extern_dynamic")),
+                                      required),
+        "net_config/extern_static": (get(("net_config", "extern_static")),
+                                     required),
+        "net_config/node_svc_subnet": (get(("net_config", "node_svc_subnet")),
+                                       required),
     }
     # Versions
     for field in VERSION_FIELDS:
         checks[field] = (get(("registry", field)), required)
 
     if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":
-        checks["vmm_vlanpool_start"] = \
-            (get(("aci_config", "vmm_domain", "vlan_range", "start")), required)
-        checks["vmm_vlanpool_end"] = \
-            (get(("aci_config", "vmm_domain", "vlan_range", "end")), required)
+        checks["aci_config/vmm_domain/vlan_range/start"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "start")),
+             required)
+        checks["aci_config/vmm_domain/vlan_range/end"] = \
+            (get(("aci_config", "vmm_domain", "vlan_range", "end")),
+             required)
+
+    if get(("aci_config", "vmm_domain", "nested_inside", "type")) != "none":
+        checks["aci_config/vmm_domain/nested_inside/type"] = \
+            (get(("aci_config", "vmm_domain", "nested_inside", "type")),
+             lower_in({"vmware"}))
+        checks["aci_config/vmm_domain/nested_inside/name"] = \
+            (get(("aci_config", "vmm_domain", "nested_inside", "name")),
+             required)
 
     if get(("provision", "prov_apic")) is not None:
         checks.update({
             # auth for API access
-            "apic_username":
+            "aci_config/apic_login/username":
                 (get(("aci_config", "apic_login", "username")), required),
-            "apic_password":
+            "aci_config/apic_login/password":
                 (get(("aci_config", "apic_login", "password")), required),
         })
 
@@ -408,8 +439,8 @@ def config_validate(config):
             if not validator(value):
                 raise Exception(k)
         except Exception as e:
-            err("Required configuration not present or not correct: '%s'"
-                % e.message)
+            err("Invalid configuration for %s: %s"
+                % (k, e.message))
             ret = False
     return ret
 
