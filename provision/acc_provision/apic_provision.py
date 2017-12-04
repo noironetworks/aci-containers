@@ -227,6 +227,7 @@ class ApicKubeConfig(object):
         update(data, self.mcast_pool())
         update(data, self.phys_dom())
         update(data, self.kube_dom())
+        update(data, self.nested_dom())
         update(data, self.associate_aep())
         update(data, self.opflex_cert())
 
@@ -414,6 +415,59 @@ class ApicKubeConfig(object):
                 }
             }
             data["vmmDomP"]["children"].append(vlan_pool_data)
+        return path, data
+
+    def nested_dom(self):
+        nvmm_type = (self.config["aci_config"]["vmm_domain"]
+                     ["nested_inside"].get("type", "none"))
+        if str(nvmm_type).lower() == "vmware":
+            nvmm_type = "VMware"
+        else:
+            return None
+
+        system_id = self.config["aci_config"]["system_id"]
+        nvmm_name = (self.config["aci_config"]["vmm_domain"]
+                     ["nested_inside"]["name"])
+        infra_vlan = self.config["net_config"]["infra_vlan"]
+        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+        service_vlan = self.config["net_config"]["service_vlan"]
+
+        path = ("/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" %
+                (nvmm_type, nvmm_name, system_id))
+        data = {
+            "vmmUsrCustomAggr": {
+                "attributes": {
+                    "name": system_id,
+                    "promMode": "Enabled",
+                },
+                "children": [
+                    {
+                        "fvnsEncapBlk": {
+                            "attributes": {
+                                "from": "vlan-%d" % infra_vlan,
+                                "to": "vlan-%d" % infra_vlan,
+                            }
+                        }
+                    },
+                    {
+                        "fvnsEncapBlk": {
+                            "attributes": {
+                                "from": "vlan-%d" % kubeapi_vlan,
+                                "to": "vlan-%d" % kubeapi_vlan,
+                            }
+                        }
+                    },
+                    {
+                        "fvnsEncapBlk": {
+                            "attributes": {
+                                "from": "vlan-%d" % service_vlan,
+                                "to": "vlan-%d" % service_vlan,
+                            }
+                        }
+                    },
+                ]
+            }
+        }
         return path, data
 
     def associate_aep(self):
