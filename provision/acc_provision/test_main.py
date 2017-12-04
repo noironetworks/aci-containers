@@ -40,6 +40,15 @@ def test_vlan_case():
 
 
 @in_testdir
+def test_nested():
+    run_provision(
+        "nested.inp.yaml",
+        "nested.kube.yaml",
+        "nested.apic.txt"
+    )
+
+
+@in_testdir
 def test_with_comments():
     run_provision(
         "with_comments.inp.yaml",
