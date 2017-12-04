@@ -29,6 +29,14 @@ def yesno(flag):
     return "no"
 
 
+def aci_obj(klass, **kwargs):
+    children = kwargs.pop('_children', None)
+    data = {klass: {'attributes': kwargs}}
+    if children:
+        data[klass]['children'] = children
+    return data
+
+
 class Apic(object):
     def __init__(self, addr, username, password,
                  ssl=True, verify=False, debug=False):
@@ -207,6 +215,18 @@ class Apic(object):
 class ApicKubeConfig(object):
     def __init__(self, config):
         self.config = config
+        self.use_kubeapi_vlan = True
+        self.tenant_generator = 'kube_tn'
+        self.associate_aep_to_nested_inside_domain = False
+
+    def get_nested_domain_type(self):
+        inside = self.config["aci_config"]["vmm_domain"].get("nested_inside")
+        if not inside:
+            return None
+        t = inside.get("type")
+        if t and t.lower() == "vmware":
+            return "VMware"
+        return t
 
     @staticmethod
     def save_config(config, outfilep):
@@ -233,7 +253,7 @@ class ApicKubeConfig(object):
         update(data, self.opflex_cert())
 
         update(data, self.common_tn())
-        update(data, self.kube_tn())
+        update(data, getattr(self, self.tenant_generator)())
         for l3out_instp in self.config["aci_config"]["l3out"]["external_networks"]:
             update(data, self.l3out_contract(l3out_instp))
 
@@ -243,7 +263,6 @@ class ApicKubeConfig(object):
 
     def pdom_pool(self):
         pool_name = self.config["aci_config"]["physical_domain"]["vlan_pool"]
-        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
 
         path = "/api/mo/uni/infra/vlanns-[%s]-static.json" % pool_name
@@ -258,23 +277,27 @@ class ApicKubeConfig(object):
                         "fvnsEncapBlk": {
                             "attributes": {
                                 "allocMode": "static",
-                                "from": "vlan-%s" % kubeapi_vlan,
-                                "to": "vlan-%s" % kubeapi_vlan
-                            }
-                        }
-                    },
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
-                                "allocMode": "static",
                                 "from": "vlan-%s" % service_vlan,
                                 "to": "vlan-%s" % service_vlan
                             }
-                        }
-                    }
+                        },
+                    },
                 ]
             }
         }
+        if self.use_kubeapi_vlan:
+            kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+            data["fvnsVlanInstP"]["children"].insert(
+                0,
+                {
+                    "fvnsEncapBlk": {
+                        "attributes": {
+                            "allocMode": "static",
+                            "from": "vlan-%s" % kubeapi_vlan,
+                            "to": "vlan-%s" % kubeapi_vlan
+                        }
+                    }
+                })
         return path, data
 
     def vdom_pool(self):
@@ -419,21 +442,15 @@ class ApicKubeConfig(object):
         return path, data
 
     def nested_dom(self):
-        if self.config["aci_config"]["vmm_domain"].get("nested_inside") is None:
-            return None
-        nvmm_type = (self.config["aci_config"]["vmm_domain"]
-                     ["nested_inside"].get("type", "none"))
-        if str(nvmm_type).lower() == "vmware":
-            nvmm_type = "VMware"
-        else:
-            return None
+        nvmm_type = self.get_nested_domain_type()
+        if nvmm_type != "VMware":
+            return
 
         system_id = self.config["aci_config"]["system_id"]
         nvmm_name = (self.config["aci_config"]["vmm_domain"]
                      ["nested_inside"]["name"])
         encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
-        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
 
         path = ("/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" %
@@ -456,14 +473,6 @@ class ApicKubeConfig(object):
                     {
                         "fvnsEncapBlk": {
                             "attributes": {
-                                "from": "vlan-%d" % kubeapi_vlan,
-                                "to": "vlan-%d" % kubeapi_vlan,
-                            }
-                        }
-                    },
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
                                 "from": "vlan-%d" % service_vlan,
                                 "to": "vlan-%d" % service_vlan,
                             }
@@ -472,6 +481,17 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+        if self.use_kubeapi_vlan:
+            kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+            data["vmmUsrCustomAggr"]["children"].append(
+                {
+                    "fvnsEncapBlk": {
+                        "attributes": {
+                            "from": "vlan-%d" % kubeapi_vlan,
+                            "to": "vlan-%d" % kubeapi_vlan,
+                        }
+                    }
+                })
         if encap_type == "vlan":
             vlan_range = self.config["aci_config"]["vmm_domain"]["vlan_range"]
             data["vmmUsrCustomAggr"]["children"].append({
@@ -490,7 +510,6 @@ class ApicKubeConfig(object):
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
-        kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
 
         path = "/api/mo/uni/infra.json"
@@ -539,32 +558,52 @@ class ApicKubeConfig(object):
                             ]
                         }
                     },
-                    {
-                        "infraGeneric": {
-                            "attributes": {
-                                "name": "default",
-                            },
-                            "children": [
-                                {
-                                    "infraRsFuncToEpg": {
-                                        "attributes": {
-                                            "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-nodes" % (tn_name,),
-                                            "encap": "vlan-%s" % (kubeapi_vlan,),
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
                 ]
             }
         }
+        if self.use_kubeapi_vlan:
+            kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
+            data["infraAttEntityP"]["children"].append(
+                {
+                    "infraGeneric": {
+                        "attributes": {
+                            "name": "default",
+                        },
+                        "children": [
+                            {
+                                "infraRsFuncToEpg": {
+                                    "attributes": {
+                                        "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-nodes" % (tn_name,),
+                                        "encap": "vlan-%s" % (kubeapi_vlan,),
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                })
 
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
         rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
         rsfun = base + '/gen-default.json'
-        return path, data, rsvmm, rsphy, rsfun
+
+        if self.associate_aep_to_nested_inside_domain:
+            nvmm_name = (
+                self.config["aci_config"]["vmm_domain"]["nested_inside"]["name"])
+            nvmm_type = self.get_nested_domain_type()
+            data["infraAttEntityP"]["children"].append(
+                {
+                    "infraRsDomP": {
+                        "attributes": {
+                            "tDn": "uni/vmmp-%s/dom-%s" % (nvmm_type, nvmm_name)
+                        }
+                    }
+                })
+            rsnvmm = (base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' %
+                      (nvmm_type, nvmm_name))
+            return path, data, rsvmm, rsnvmm, rsphy, rsfun
+        else:
+            return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
         client_cert = self.config["aci_config"]["client_cert"]
@@ -1263,6 +1302,119 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+        return path, data
+
+    def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],
+            vmm_domains=[]):
+        children = []
+        if bd_name:
+            children.append(aci_obj('fvRsBd', tnFvBDName=bd_name))
+        for c in consumes:
+            children.append(aci_obj('fvRsCons', tnVzBrCPName=c))
+        for p in provides:
+            children.append(aci_obj('fvRsProv', tnVzBrCPName=p))
+        for (d, e) in phy_domains:
+            children.append(aci_obj('fvRsDomAtt', encap="vlan-%s" % e,
+                                    tDn="uni/phys-%s" % d))
+        for (t, n) in vmm_domains:
+            children.append(aci_obj('fvRsDomAtt',
+                                    tDn="uni/vmmp-%s/dom-%s" % (t, n)))
+        return aci_obj('fvAEPg', name=name, _children=children)
+
+    def bd(self, name, vrf_name, subnets=[], l3outs=[]):
+        children = []
+        for sn in subnets:
+            children.append(aci_obj('fvSubnet', ip=sn, scope="public"))
+        if vrf_name:
+            children.append(aci_obj('fvRsCtx', tnFvCtxName=vrf_name))
+        for l in l3outs:
+            children.append(aci_obj('fvRsBDToOut', tnL3extOutName=l))
+        return aci_obj('fvBD', name=name, _children=children)
+
+    def filter(self, name, entries=[]):
+        children = []
+        for e in entries:
+            children.append(aci_obj('vzEntry', **e))
+        return aci_obj('vzFilter', name=name, _children=children)
+
+    def contract(self, name, subjects=[]):
+        children = []
+        for s in subjects:
+            filts = []
+            for f in s.get('filters', []):
+                filts.append(aci_obj('vzRsSubjFiltAtt', tnVzFilterName=f))
+            subj = aci_obj('vzSubj', name=s['name'],
+                           consMatchT="AtleastOne",
+                           provMatchT="AtleastOne",
+                           _children=filts)
+            children.append(subj)
+        return aci_obj('vzBrCP', name=name, _children=children)
+
+    def cloudfoundry_tn(self):
+        system_id = self.config["aci_config"]["system_id"]
+        tn_name = self.config["aci_config"]["cluster_tenant"]
+        vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
+        cf_vrf = self.config["aci_config"]["vrf"]["name"]
+        cf_l3out = self.config["aci_config"]["l3out"]["name"]
+        node_subnet = self.config["net_config"]["node_subnet"]
+        pod_subnet = self.config["net_config"]["pod_subnet"]
+        vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
+        nvmm_name = (
+            self.config["aci_config"]["vmm_domain"]["nested_inside"]["name"])
+        nvmm_type = self.get_nested_domain_type()
+        ap_name = (self.config["cf_config"]["default_endpoint_group"]
+                   ["app_profile"])
+        app_epg_name = (
+            self.config["cf_config"]["default_endpoint_group"]["group"])
+
+        app_default_epg = self.epg(app_epg_name,
+                                   "cf-app-bd",
+                                   provides=["gorouter"],
+                                   consumes=["dns",
+                                             "%s-l3out-allow-all" % system_id],
+                                   vmm_domains=[(vmm_type, vmm_name)])
+        node_epg = self.epg(
+            self.config["cf_config"]["node_epg"],
+            "cf-node-bd",
+            provides=["dns"],
+            consumes=["gorouter", "%s-l3out-allow-all" % system_id],
+            vmm_domains=[(nvmm_type, nvmm_name)])
+        ap = aci_obj('fvAp',
+                     name=ap_name,
+                     _children=[node_epg, app_default_epg])
+
+        app_bd = self.bd('cf-app-bd', cf_vrf,
+                         subnets=[pod_subnet],
+                         l3outs=[cf_l3out])
+
+        node_bd = self.bd('cf-node-bd', cf_vrf,
+                          subnets=[node_subnet],
+                          l3outs=[cf_l3out])
+
+        tcp_all_filter = self.filter(
+            'tcp-all',
+            entries=[dict(name='tcp', etherT='ip', prot='tcp')])
+        dns_filter = self.filter(
+            'dns',
+            entries=[dict(name='udp', etherT='ip', prot='udp',
+                          dFromPort='dns', dToPort='dns'),
+                     dict(name='tcp', etherT='ip', prot='tcp',
+                          dFromPort='dns', dToPort='dns')])
+
+        gorouter_contract = self.contract(
+            'gorouter',
+            subjects=[dict(name='gorouter-subj', filters=['tcp-all'])])
+        dns_contract = self.contract(
+            'dns',
+            subjects=[dict(name='dns-subj', filters=['dns'])])
+
+        path = "/api/mo/uni/tn-%s.json" % tn_name
+        data = aci_obj('fvTenant',
+                       name=tn_name,
+                       dn="uni/tn-%s" % tn_name,
+                       _children=[ap, node_bd, app_bd,
+                                  tcp_all_filter, dns_filter,
+                                  gorouter_contract, dns_contract])
         return path, data
 
 

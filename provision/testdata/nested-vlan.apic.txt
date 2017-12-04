@@ -142,16 +142,16 @@
             {
                 "fvnsEncapBlk": {
                     "attributes": {
-                        "from": "vlan-4001", 
-                        "to": "vlan-4001"
+                        "from": "vlan-4003", 
+                        "to": "vlan-4003"
                     }
                 }
             }, 
             {
                 "fvnsEncapBlk": {
                     "attributes": {
-                        "from": "vlan-4003", 
-                        "to": "vlan-4003"
+                        "from": "vlan-4001", 
+                        "to": "vlan-4001"
                     }
                 }
             }, 

@@ -86,6 +86,16 @@ def test_flavor_openshift_36():
 
 
 @in_testdir
+def test_flavor_cloudfoundry_10():
+    run_provision(
+        "flavor_cf_10.inp.yaml",
+        "flavor_cf_10.cf.yaml",
+        "flavor_cf_10.apic.txt",
+        overrides={"flavor": "cloudfoundry-1.0"}
+    )
+
+
+@in_testdir
 def test_sample():
     tmpout = os.tempnam(".", "tmp-stdout-")
     with open(tmpout, "w") as tmpoutfd:
