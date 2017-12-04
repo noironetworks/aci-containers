@@ -57,6 +57,31 @@ VERSIONS = {
     },
 }
 
+# Known Flavor options:
+# - template_generator: Function that generates the output config
+#       file. Default: generate_kube_yaml.
+# - version_fields: List of config options that must be specified for
+#       the specific version of deployment. Default: VERSION_FIELDS.
+# - apic: Dict that is used for configuring ApicKubeConfig
+#       Known sub-options:
+#       - use_kubeapi_vlan: Whether kubeapi_vlan should be used. Default: True.
+#       - tenant_generator: Name of the function to generate tenant objects.
+#             Default: kube_tn.
+#       - associate_aep_to_nested_inside_domain: Whether AEP should be attached
+#             to nested_inside domain. Default: False.
+KubeFlavorOptions = {}
+
+CfFlavorOptions = {
+    'apic': {
+        'use_kubeapi_vlan': False,
+        'tenant_generator': 'cloudfoundry_tn',
+        'associate_aep_to_nested_inside_domain': True,
+    },
+    'version_fields': [],
+}
+
+DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
+
 FLAVORS = {
     "kubernetes-1.8": {
         "desc": "Kubernetes 1.8",
@@ -115,6 +140,18 @@ FLAVORS = {
             },
         },
     },
+    "cloudfoundry-1.0": {
+        "desc": "CloudFoundry cf-deployment 1.x",
+        "default_version": "latest",
+        "config": {
+            "aci_config": {
+                "vmm_domain": {
+                    "type": "CloudFoundry",
+                },
+            },
+        },
+        "options": CfFlavorOptions,
+    }
 }
 
 
@@ -136,6 +173,21 @@ def json_indent(s):
 
 def yaml_quote(s):
     return "'%s'" % str(s).replace("'", "''")
+
+
+def yaml_indent(s, **kwargs):
+    return yaml.dump(s, **kwargs)
+
+
+def yaml_list_dict(l):
+    out = "\n"
+    for d in l:
+        keys = sorted(d.keys())
+        prefix = "  - "
+        for k in keys:
+            out += "%s%s: %s\n" % (prefix, k, d[k])
+            prefix = "    "
+    return out
 
 
 def deep_merge(user, default):
@@ -258,6 +310,7 @@ def cidr_split(cidr):
 def config_adjust(args, config, prov_apic, no_random):
     system_id = config["aci_config"]["system_id"]
     infra_vlan = config["net_config"]["infra_vlan"]
+    node_subnet = config["net_config"]["node_subnet"]
     pod_subnet = config["net_config"]["pod_subnet"]
     extern_dynamic = config["net_config"]["extern_dynamic"]
     extern_static = config["net_config"]["extern_static"]
@@ -351,14 +404,58 @@ def config_adjust(args, config, prov_apic, no_random):
                 node_svc_subnet,
             ],
         },
+        "cf_config": {
+            "default_endpoint_group": {
+                "tenant": tenant,
+                "app_profile": "cloudfoundry",
+                "group": "cf-app-default",
+            },
+            "node_subnet_cidr": "%s/%s" % cidr_split(node_subnet)[3:],
+            "node_epg": "cf-node",
+            "app_ip_pool": [
+                {
+                    "start": cidr_split(pod_subnet)[0],
+                    "end": cidr_split(pod_subnet)[1],
+                }
+            ],
+            "app_subnet": "%s/%s" % cidr_split(pod_subnet)[2::2],
+            "dynamic_ext_ip_pool": [
+                {
+                    "start": cidr_split(extern_dynamic)[0],
+                    "end": cidr_split(extern_dynamic)[1],
+                },
+            ],
+            "static_ext_ip_pool": [
+                {
+                    "start": cidr_split(extern_static)[0],
+                    "end": cidr_split(extern_static)[1],
+                },
+            ],
+            "node_service_ip_pool": [
+                {
+                    "start": cidr_split(node_svc_subnet)[0],
+                    "end": cidr_split(node_svc_subnet)[1],
+                },
+            ],
+            "node_service_gw_subnets": [
+                node_svc_subnet,
+            ],
+            "api_port": 9900,
+        },
         "registry": {
             "configuration_version": token,
         }
     }
+    adj_config["cf_config"]["node_network"] = (
+        "%s|%s|%s" % (
+            tenant,
+            adj_config['cf_config']['default_endpoint_group']['app_profile'],
+            adj_config['cf_config']['node_epg']))
+
     return adj_config
 
 
-def config_validate(config):
+def config_validate(flavor_opts, config):
     def Raise(exception):
         raise exception
     required = lambda x: True if x else Raise(Exception("Missing option"))
@@ -381,13 +478,11 @@ def config_validate(config):
         "aci_config/l3out/name": (get(("aci_config", "l3out", "name")),
                                   required),
         "aci_config/l3out/external-networks":
-            (get(("aci_config", "l3out", "external_networks")), required),
+        (get(("aci_config", "l3out", "external_networks")), required),
 
         # Network Config
         "net_config/infra_vlan": (get(("net_config", "infra_vlan")),
                                   required),
-        "net_config/kubeapi_vlan": (get(("net_config", "kubeapi_vlan")),
-                                    required),
         "net_config/service_vlan": (get(("net_config", "service_vlan")),
                                     required),
         "net_config/node_subnet": (get(("net_config", "node_subnet")),
@@ -401,9 +496,20 @@ def config_validate(config):
         "net_config/node_svc_subnet": (get(("net_config", "node_svc_subnet")),
                                        required),
     }
+
+    if flavor_opts.get("apic", {}).get("use_kubeapi_vlan", True):
+        checks["net_config/kubeapi_vlan"] = (
+            get(("net_config", "kubeapi_vlan")), required)
+
     # Versions
-    for field in VERSION_FIELDS:
+    for field in flavor_opts.get('version_fields', VERSION_FIELDS):
         checks[field] = (get(("registry", field)), required)
+
+    if flavor_opts.get("apic", {}).get("associate_aep_to_nested_inside_domain",
+                                       False):
+        checks["aci_config/vmm_domain/nested_inside/type"] = (
+            get(("aci_config", "vmm_domain", "nested_inside", "type")),
+            required)
 
     if get(("aci_config", "vmm_domain", "encap_type")) == "vlan":
         checks["aci_config/vmm_domain/vlan_range/start"] = \
@@ -425,9 +531,9 @@ def config_validate(config):
         checks.update({
             # auth for API access
             "aci_config/apic_login/username":
-                (get(("aci_config", "apic_login", "username")), required),
+            (get(("aci_config", "apic_login", "username")), required),
             "aci_config/apic_login/password":
-                (get(("aci_config", "apic_login", "password")), required),
+            (get(("aci_config", "apic_login", "password")), required),
         })
 
     ret = True
@@ -524,7 +630,7 @@ def generate_cert(username, cert_file, key_file):
     return key_data, cert_data
 
 
-def generate_kube_yaml(config, output):
+def get_jinja_template(file):
     env = Environment(
         loader=PackageLoader('acc_provision', 'templates'),
         trim_blocks=True,
@@ -532,8 +638,15 @@ def generate_kube_yaml(config, output):
     )
     env.filters['base64enc'] = base64.b64encode
     env.filters['json'] = json_indent
+    env.filters['yaml'] = yaml_indent
     env.filters['yaml_quote'] = yaml_quote
-    template = env.get_template('aci-containers.yaml')
+    env.filters['yaml_list_dict'] = yaml_list_dict
+    template = env.get_template(file)
+    return template
+
+
+def generate_kube_yaml(config, output):
+    template = get_jinja_template('aci-containers.yaml')
 
     kube_objects = [
         "configmap", "secret", "serviceaccount",
@@ -571,8 +684,64 @@ def generate_kube_yaml(config, output):
     return config
 
 
-def generate_apic_config(config, prov_apic, apic_file):
-    apic_config = ApicKubeConfig(config).get_config()
+def generate_cf_yaml(config, output):
+    template = get_jinja_template('aci-cf-containers.yaml')
+
+    if output and output != "/dev/null":
+        outname = output
+        applyname = output
+        if output == "-":
+            outname = "<stdout>"
+            applyname = "<filename>"
+            output = sys.stdout
+        else:
+            applyname = os.path.basename(output)
+
+        info("Writing deployment vars for ACI add-ons to %s" % outname)
+        template.stream(config=config).dump(output)
+        pg = ("%s/%s" %
+              (config['aci_config']['vmm_domain']['nested_inside']['name'],
+               config['cf_config']['node_network']))
+        node_subnet = config["net_config"]["node_subnet"]
+        node_subnet_cidr = "%s/%s" % cidr_split(node_subnet)[3:]
+        node_subnet_gw = cidr_split(node_subnet)[2]
+        info("Steps to deploy ACI add-ons:")
+        # TODO Merge steps 1 & 2 into a single cloud-config update
+        info("1. Manually update your cloud config to use vCenter Portgroup " +
+             "'" + pg + "' in 'cloud_properties' of subnet " +
+             node_subnet_cidr + " in the network named " +
+             "'default'. E.g." + '''
+
+networks:
+- name: default
+  type: manual
+  subnets:
+  - range: %s
+    gateway: %s
+    [...]
+    cloud_properties:
+      name: %s
+''' % (node_subnet_cidr, node_subnet_gw, pg))
+        info("2. Update cloud config using:")
+        info("  bosh update-cloud-config <your current cloud config file> " +
+             "-o <aci-containers-release>/manifest-generation/" +
+             "cloud_config_ops.yml -l %s" % applyname)
+        info("3. Deploy ACI add-ons using:")
+        info("  bosh deploy <your current arguments> -o " +
+             "<aci-containers-release>/manifest-generation/" +
+             "cf_ops.yml -l %s" % applyname)
+
+    return config
+
+
+CfFlavorOptions['template_generator'] = generate_cf_yaml
+
+
+def generate_apic_config(flavor_opts, config, prov_apic, apic_file):
+    configurator = ApicKubeConfig(config)
+    for k, v in flavor_opts.get("apic", {}).iteritems():
+        setattr(configurator, k, v)
+    apic_config = configurator.get_config()
     if apic_file:
         if apic_file == "-":
             info("Writing apic configuration to \"STDOUT\"")
@@ -717,6 +886,10 @@ def provision(args, apic_file, no_random):
                     "version": FLAVORS[flavor]["default_version"]
                 }
             })
+    else:
+        err("Unknown flavor %s" % flavor)
+        return False
+    flavor_opts = FLAVORS[flavor].get("options", DEFAULT_FLAVOR_OPTIONS)
 
     deep_merge(config, config_default())
 
@@ -727,7 +900,7 @@ def provision(args, apic_file, no_random):
     deep_merge(config, config_discover(config, prov_apic))
 
     # Validate config
-    if not config_validate(config):
+    if not config_validate(flavor_opts, config):
         err("Please fix configuration and retry.")
         return False
 
@@ -750,8 +923,9 @@ def provision(args, apic_file, no_random):
     config["aci_config"]["sync_login"]["cert_data"] = cert_data
 
     # generate output files; and program apic if needed
-    generate_apic_config(config, prov_apic, apic_file)
-    generate_kube_yaml(config, output_file)
+    generate_apic_config(flavor_opts, config, prov_apic, apic_file)
+    gen = flavor_opts.get("template_generator", generate_kube_yaml)
+    gen(config, output_file)
     return True
 
 
