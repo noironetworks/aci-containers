@@ -13,7 +13,7 @@ aci_config:
 
       # nested_inside:            # Include if nested inside a VMM
       #   type: vmware            # Specify the VMM vendor
-      #   domain: myvmware        # Specify the name of the VMM domain
+      #   name: myvmware        # Specify the name of the VMM domain
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.
