@@ -10,10 +10,9 @@ aci_config:
     mcast_range:                # Every opflex VMM must use a distinct range
       start: 225.20.1.1
       end: 225.20.255.255
-
-      # nested_inside:            # Include if nested inside a VMM
-      #   type: vmware            # Specify the VMM vendor
-      #   name: myvmware        # Specify the name of the VMM domain
+    nested_inside:              # Include if nested inside a VMM
+    # type: vmware              # Specify the VMM vendor (supported: vmware)
+    # name: myvmware            # Specify the name of the VMM domain
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.

@@ -169,9 +169,7 @@ def config_default():
                     "start": "225.20.1.1",
                     "end": "225.20.255.255",
                 },
-                "nested_inside": {
-                    "type": "none",
-                },
+                "nested_inside": {},
             },
             "client_cert": False,
             "client_ssl": True,
@@ -415,7 +413,7 @@ def config_validate(config):
             (get(("aci_config", "vmm_domain", "vlan_range", "end")),
              required)
 
-    if get(("aci_config", "vmm_domain", "nested_inside", "type")) != "none":
+    if get(("aci_config", "vmm_domain", "nested_inside", "type")):
         checks["aci_config/vmm_domain/nested_inside/type"] = \
             (get(("aci_config", "vmm_domain", "nested_inside", "type")),
              lower_in({"vmware"}))
