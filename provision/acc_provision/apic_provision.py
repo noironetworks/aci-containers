@@ -585,7 +585,6 @@ class ApicKubeConfig(object):
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
         rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
-        rsfun = base + '/gen-default.json'
 
         if self.associate_aep_to_nested_inside_domain:
             nvmm_name = (
@@ -601,8 +600,10 @@ class ApicKubeConfig(object):
                 })
             rsnvmm = (base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' %
                       (nvmm_type, nvmm_name))
-            return path, data, rsvmm, rsnvmm, rsphy, rsfun
+            return path, data, rsvmm, rsnvmm, rsphy
         else:
+            rsfun = (base + '/gen-default/rsfuncToEpg-'
+                     '[uni/tn-%s/ap-kubernetes/epg-kube-nodes].json' % (tn_name))
             return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
