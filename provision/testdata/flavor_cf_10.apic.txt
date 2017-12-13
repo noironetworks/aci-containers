@@ -176,8 +176,6 @@ None
 None
 /api/mo/uni/infra/attentp-cf-aep/rsdomP-[uni/phys-mycf0-pdom].json
 None
-/api/mo/uni/infra/attentp-cf-aep/gen-default.json
-None
 /api/mo/uni/infra.json
 {
     "infraSetPol": {
