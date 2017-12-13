@@ -563,7 +563,7 @@ class ApicKubeConfig(object):
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
         rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
-        rsfun = base + '/gen-default.json'
+        rsfun = base + '/gen-default/rsfuncToEpg-[uni/tn-%s/ap-kubernetes/epg-kube-nodes].json' % (tn_name)
         return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
