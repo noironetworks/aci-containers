@@ -19,11 +19,11 @@ aci_config:
   vmm_domain:
     encap_type: vxlan
     mcast_range:
-        start: 225.2.1.1
-        end: 225.2.255.255
+      start: 225.2.1.1
+      end: 225.2.255.255
     nested_inside:
-        type: vmware
-        name: myvmware
+      type: vmware
+      name: myvmware
 
 net_config:
   node_subnet: 10.1.0.1/16
