@@ -40,11 +40,20 @@ def test_vlan_case():
 
 
 @in_testdir
-def test_nested():
+def test_nested_vlan():
     run_provision(
-        "nested.inp.yaml",
-        "nested.kube.yaml",
-        "nested.apic.txt"
+        "nested-vlan.inp.yaml",
+        "nested-vlan.kube.yaml",
+        "nested-vlan.apic.txt"
+    )
+
+
+@in_testdir
+def test_nested_vxlan():
+    run_provision(
+        "nested-vxlan.inp.yaml",
+        "nested-vxlan.kube.yaml",
+        "nested-vxlan.apic.txt"
     )
 
 

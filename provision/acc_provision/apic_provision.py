@@ -418,6 +418,8 @@ class ApicKubeConfig(object):
         return path, data
 
     def nested_dom(self):
+        if self.config["aci_config"]["vmm_domain"].get("nested_inside") is None:
+            return None
         nvmm_type = (self.config["aci_config"]["vmm_domain"]
                      ["nested_inside"].get("type", "none"))
         if str(nvmm_type).lower() == "vmware":
@@ -428,6 +430,7 @@ class ApicKubeConfig(object):
         system_id = self.config["aci_config"]["system_id"]
         nvmm_name = (self.config["aci_config"]["vmm_domain"]
                      ["nested_inside"]["name"])
+        encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
         kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
@@ -468,6 +471,16 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+        if encap_type == "vlan":
+            vlan_range = self.config["aci_config"]["vmm_domain"]["vlan_range"]
+            data["vmmUsrCustomAggr"]["children"].append({
+                "fvnsEncapBlk": {
+                    "attributes": {
+                        "from": "vlan-%d" % vlan_range["start"],
+                        "to": "vlan-%d" % vlan_range["end"],
+                    }
+                },
+            })
         return path, data
 
     def associate_aep(self):
