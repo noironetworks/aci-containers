@@ -226,7 +226,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/hashicorp/hcl"
-  packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
+  packages = [".","hcl/ast","hcl/parser","hcl/printer","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
   revision = "42e33e2d55a0ff1d6263f738896ea8c13571a8d0"
 
 [[projects]]
@@ -362,10 +362,10 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/spf13/viper"
   packages = ["."]
-  revision = "25b30aa063fc18e48662b86996252eabdcf2f0c7"
-  version = "v1.0.0"
+  revision = "1a0c4a370c3e8286b835467d2dfcdaf636c3538b"
 
 [[projects]]
   branch = "master"
@@ -482,10 +482,10 @@
   revision = "9d38e20d609d27e00d4ec18f7b9db67105a2bde0"
 
 [[projects]]
-  branch = "master"
+  branch = "release-1.8"
   name = "k8s.io/apiserver"
   packages = ["pkg/authentication/authenticator","pkg/authentication/serviceaccount","pkg/authentication/user","pkg/features","pkg/util/feature"]
-  revision = "c1e53d745d0fe45bf7d5d44697e6eface25fceca"
+  revision = "f5fd0005b06697e897cbeb10c97b7cb5f5b85232"
 
 [[projects]]
   branch = "release-5.0"
@@ -508,6 +508,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "62c044bbc013d6199786ec6d948fe4299a4e2fe626d71a90157264730b509465"
+  inputs-digest = "df5269c97752ec9b4c145b2b54189e21c35018864cfc098de28b4fe86eafdffa"
   solver-name = "gps-cdcl"
   solver-version = 1

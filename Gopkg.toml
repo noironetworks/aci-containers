@@ -39,6 +39,7 @@
 
 [[constraint]]
   name = "github.com/juju/ratelimit"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/natefinch/pie"
@@ -46,12 +47,15 @@
 
 [[constraint]]
   name = "github.com/socketplane/libovsdb"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/spf13/cobra"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/spf13/viper"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
@@ -59,9 +63,11 @@
 
 [[constraint]]
   name = "github.com/tatsushid/go-fastping"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/vishvananda/netlink"
+  branch = "master"
 
 [[constraint]]
   name = "k8s.io/api"
