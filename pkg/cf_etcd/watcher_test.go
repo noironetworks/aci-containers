@@ -52,6 +52,7 @@ func TestCfEtcdWatcher(t *testing.T) {
 	}()
 	tu.WaitFor(t, "Waiting to sync", 500*time.Millisecond,
 		func(bool) (bool, error) { return watcher.Synced(), nil })
+	assert.Nil(t, watcher.Error())
 	assert.Contains(t, updates, "set|/a")
 	assert.Contains(t, updates, "set|/a/b")
 	assert.Contains(t, updates, "set|/a/b/c")

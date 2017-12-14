@@ -29,6 +29,7 @@ type CfEtcdWatcher struct {
 	key           string
 	etcdKeysApi   etcdclient.KeysAPI
 	synced        bool
+	err           error
 	log           *logrus.Logger
 	delayOnErr    time.Duration
 
@@ -70,12 +71,16 @@ func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
 			keyerr, ok := err.(etcdclient.Error)
 			if ok && keyerr.Code == etcdclient.ErrorCodeKeyNotFound {
 				w.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", w.key))
+				w.err = nil
 			} else {
 				w.log.Error("Error fetching etcd subtree: ", err)
 				time.Sleep(w.delayOnErr)          // TODO exponential backoff
+				w.synced = true  // to unblock waiters
+				w.err = err
 				continue
 			}
 		} else {
+			w.err = nil
 			FlattenNodes(resp.Node, &nodes)
 		}
 		act := "set"
@@ -101,6 +106,10 @@ func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
 
 func (w *CfEtcdWatcher) Synced() bool {
 	return w.synced
+}
+
+func (w *CfEtcdWatcher) Error() error {
+	return w.err
 }
 
 func (w *CfEtcdWatcher) NodeHandler() HandleNodeFunc {
