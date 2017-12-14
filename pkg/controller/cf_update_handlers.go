@@ -244,7 +244,9 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 		env.cont.apicConn.ClearApicObjects("app_ext_ip:" + appId)
 	}
 
-	if len(addPorts) > 0 && (len(ai.ExternalIp) > 0 || len(env.goRouterIps) > 0) {
+	if len(addPorts) > 0 && (len(ai.ExternalIp) > 0 ||
+		len(env.goRouterIps) > 0 ||
+		len(env.tcpRouterIps) > 0) {
 		appHppName := env.cont.aciNameForKey("hpp", "app-port:"+appId)
 		hpp := apicapi.NewHostprotPol(env.cont.config.AciPolicyTenant, appHppName)
 
@@ -259,6 +261,10 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 			appPort.SetAttr("protocol", "tcp")
 			if len(ai.ExternalIp) == 0 {
 				for _, ip := range env.goRouterIps {
+					remote := apicapi.NewHostprotRemoteIp(appPort.GetDn(), ip)
+					appPort.AddChild(remote)
+				}
+				for _, ip := range env.tcpRouterIps {
 					remote := apicapi.NewHostprotRemoteIp(appPort.GetDn(), ip)
 					appPort.AddChild(remote)
 				}
