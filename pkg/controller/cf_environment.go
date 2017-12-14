@@ -79,8 +79,9 @@ type CfEnvironment struct {
 
 	appVips *netIps
 
-	goRouterIps []string
-	sshProxyIps []string
+	goRouterIps  []string
+	tcpRouterIps []string
+	sshProxyIps  []string
 
 	log *logrus.Logger
 }
@@ -119,10 +120,11 @@ type CfConfig struct {
 
 	ApiPathPrefix string `json:"api_path_prefix"`
 
-	GoRouterAddress string
-	SshProxyAddress string
-	AppPort         uint32 `json:"app_port"`
-	SshPort         uint32 `json:"ssh_port"`
+	GoRouterAddress  string
+	TcpRouterAddress string
+	SshProxyAddress  string
+	AppPort          uint32 `json:"app_port"`
+	SshPort          uint32 `json:"ssh_port"`
 
 	DefaultAppProfile string `json:"default_app_profile"`
 
@@ -155,6 +157,7 @@ func NewCfEnvironment(config *ControllerConfig, log *logrus.Logger) (*CfEnvironm
 	}
 	cfconfig.GoRouterAddress = "gorouter.service.cf.internal"
 	cfconfig.SshProxyAddress = "ssh-proxy.service.cf.internal"
+	cfconfig.TcpRouterAddress = "tcp-router.service.cf.internal"
 	if cfconfig.VmmPolicy == "" {
 		cfconfig.VmmPolicy = "CloudFoundry"
 	}
@@ -512,6 +515,7 @@ func (env *CfEnvironment) initStaticHpp() {
 func (env *CfEnvironment) CheckCfComponentsIps() bool {
 	// fetch go-router IPs
 	gorouter := env.cfconfig.GoRouterAddress
+	tcprouter := env.cfconfig.TcpRouterAddress
 	sshproxy := env.cfconfig.SshProxyAddress
 	resolv := net.Resolver{PreferGo: true}
 	rtrIps, err_rtr := resolv.LookupHost(context.Background(), gorouter)
@@ -520,6 +524,15 @@ func (env *CfEnvironment) CheckCfComponentsIps() bool {
 			"Failed to resolve gorouter DNS name "+gorouter+": ", err_rtr)
 	} else {
 		sort.Strings(rtrIps)
+	}
+	tcpRtrIps, err_tcp_rtr := resolv.LookupHost(context.Background(),
+		tcprouter)
+	if err_tcp_rtr != nil {
+		env.log.Warn(
+			"Failed to resolve TCP router DNS name "+tcprouter+": ",
+			err_tcp_rtr)
+	} else {
+		sort.Strings(tcpRtrIps)
 	}
 	sshPxyIps, err_pxy := resolv.LookupHost(context.Background(), sshproxy)
 	if err_pxy != nil {
@@ -535,6 +548,11 @@ func (env *CfEnvironment) CheckCfComponentsIps() bool {
 		env.goRouterIps = rtrIps
 		updated = true
 		env.log.Info("Updated gorouters: ", env.goRouterIps)
+	}
+	if err_tcp_rtr == nil && !reflect.DeepEqual(env.tcpRouterIps, tcpRtrIps) {
+		env.tcpRouterIps = tcpRtrIps
+		updated = true
+		env.log.Info("Updated TCP routers: ", env.tcpRouterIps)
 	}
 	if err_pxy == nil && !reflect.DeepEqual(env.sshProxyIps, sshPxyIps) {
 		env.sshProxyIps = sshPxyIps
@@ -553,19 +571,24 @@ func (env *CfEnvironment) UpdateHppForCfComponents() {
 	cfcompName := cont.aciNameForKey("hpp", "cf-components")
 	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, cfcompName)
 
-	// Default app port and SSH port - ingress (+reply) allowed from GoRouter & SSH-proxy
+	// Default app port and SSH port - ingress (+reply) allowed from
+	// GoRouter, TCP-router & SSH-proxy
 	appSubj := apicapi.NewHostprotSubj(hpp.GetDn(), "app-ingress")
 	appDn := appSubj.GetDn()
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
 
-	if len(env.goRouterIps) > 0 {
+	if len(env.goRouterIps) > 0 || len(env.tcpRouterIps) > 0 {
 		appPort := apicapi.NewHostprotRule(appDn, "app-port")
 		appPort.SetAttr("direction", "ingress")
 		appPort.SetAttr("ethertype", "ipv4") // TODO separate out v6
 		appPort.SetAttr("toPort", fmt.Sprintf("%d", env.cfconfig.AppPort))
 		appPort.SetAttr("protocol", "tcp")
 		for _, ip := range env.goRouterIps {
+			remote := apicapi.NewHostprotRemoteIp(appPort.GetDn(), ip)
+			appPort.AddChild(remote)
+		}
+		for _, ip := range env.tcpRouterIps {
 			remote := apicapi.NewHostprotRemoteIp(appPort.GetDn(), ip)
 			appPort.AddChild(remote)
 		}

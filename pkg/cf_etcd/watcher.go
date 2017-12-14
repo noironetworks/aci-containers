@@ -74,9 +74,9 @@ func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
 				w.err = nil
 			} else {
 				w.log.Error("Error fetching etcd subtree: ", err)
-				time.Sleep(w.delayOnErr)          // TODO exponential backoff
 				w.synced = true  // to unblock waiters
 				w.err = err
+				time.Sleep(w.delayOnErr)          // TODO exponential backoff
 				continue
 			}
 		} else {

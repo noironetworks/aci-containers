@@ -142,6 +142,7 @@ func TestCfInitStaticAciObjects(t *testing.T) {
 func TestCfUpdateHppForCfComponents(t *testing.T) {
 	env := testCfEnvironment(t)
 	env.cfconfig.GoRouterAddress = "96.97.98.99"
+	env.cfconfig.TcpRouterAddress = "75.57.55.77"
 	env.cfconfig.SshProxyAddress = "86.87.88.89"
 	env.contIdx["c-1"].Ports = append(env.contIdx["c-1"].Ports,
 		&models.PortMapping{ContainerPort: 7777, HostPort: 32},
