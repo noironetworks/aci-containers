@@ -1,0 +1,8 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: aci-containers
+Source: https://github.com/noironetworks/aci-containers
+
+Files: *
+Copyright: Copyright 2017 Cisco Systems, Inc.
+License: Eclipse Public License v1.0
+

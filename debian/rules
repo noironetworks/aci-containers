@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+SRCDIR=src/github.com/noironetworks/aci-containers
+
+%:
+	dh $@ --parallel
+
+override_dh_auto_build:
+	echo "CURDIR $(CURDIR)"
+	GOPATH=$(CURDIR) go get -v -u github.com/golang/dep/cmd/dep
+	GOPATH=$(CURDIR) PATH=$(PATH):$(CURDIR)/bin $(MAKE) -C ${SRCDIR} all
+
+override_dh_auto_install:
+	mkdir -p $(CURDIR)/debian/tmp/usr/bin
+	cp ${SRCDIR}/dist/* $(CURDIR)/debian/tmp/usr/bin/
+

@@ -1,0 +1,5 @@
+aci-containers (@PACKAGE_VERSION@-@BUILD_NUMBER@) unstable; urgency=low
+
+  * Initial release as Debian package
+
+ -- Amit Bose <bose@noironetworks.com>  Sun, 17 Dec 2017 09:31:53 -0700
