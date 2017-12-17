@@ -1,0 +1,29 @@
+Source: aci-containers 
+Priority: optional
+Section: net
+Maintainer: Amit Bose <amitbose@gmail.com>
+Build-Depends:
+ debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+Homepage: https://github.com/noironetworks/aci-containers 
+
+Package: aci-containers-controller
+Architecture: any
+Depends:
+ ${shlibs:Depends}, ${misc:Depends}
+Description: Controller for ACI containers support
+ Controller for ACI containers support
+
+Package: aci-containers-host-agent
+Architecture: any
+Depends:
+ ${shlibs:Depends}, ${misc:Depends}
+Description: Host-agent for ACI containers support
+ Host-agent for ACI containers support
+
+Package: opflex-agent-cni
+Architecture: any
+Depends:
+ ${shlibs:Depends}, ${misc:Depends}
+Description: CNI plugin for ACI containers support
+ CNI plugin for ACI containers support
