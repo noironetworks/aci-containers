@@ -46,7 +46,7 @@
 [[projects]]
   branch = "master"
   name = "code.cloudfoundry.org/locket"
-  packages = [".","lock","models"]
+  packages = [".","lock","models","models/modelsfakes"]
   revision = "5564bbcef36f7a84717060eb80847315240cedad"
 
 [[projects]]
@@ -501,6 +501,13 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/yl2chen/cidranger"
+  packages = [".","net"]
+  revision = "8c56974d0513150f1d1022d8ecaa8eee52b1f9c5"
+  source = "github.com/readams/cidranger"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "9419663f5a44be8b34ca85f08abc5fe1be11f8a3"
@@ -604,6 +611,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0a58e5524ba94f2c5952e27f3cfc7c7d9ca6f4239f371e7f56d5315ed287828f"
+  inputs-digest = "789c7bcac4d69830083e2174d112a6ce4af5bf8546715785d5311e2f76478679"
   solver-name = "gps-cdcl"
   solver-version = 1

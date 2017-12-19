@@ -111,7 +111,6 @@ func (cont *AciController) mergeNetPolSg(podkey string, pod *v1.Pod,
 	for _, npkey := range cont.netPolPods.GetObjForPod(podkey) {
 		g = addGroup(gset, g, cont.config.AciPolicyTenant,
 			cont.aciNameForKey("np", npkey))
-		cont.log.Info(cont.getNetPolPolicyTypes(npkey))
 		for _, t := range cont.getNetPolPolicyTypes(npkey) {
 			ptypeset[t] = true
 		}

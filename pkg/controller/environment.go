@@ -18,10 +18,11 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/yl2chen/cidranger"
 
-	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
+	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -39,13 +40,13 @@ type Environment interface {
 }
 
 type K8sEnvironment struct {
-	kubeClient        *kubernetes.Clientset
-	cont              *AciController
+	kubeClient *kubernetes.Clientset
+	cont       *AciController
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
 	log.WithFields(logrus.Fields{
-		"kubeconfig":  config.KubeConfig,
+		"kubeconfig": config.KubeConfig,
 	}).Info("Setting up Kubernetes environment")
 
 	log.Debug("Initializing kubernetes client")
@@ -119,6 +120,9 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
+	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
+	cont.targetPortIndex = make(map[string]*portIndexEntry)
+	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
 	return nil
 }
 

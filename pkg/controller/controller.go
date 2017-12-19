@@ -27,6 +27,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/juju/ratelimit"
+	"github.com/yl2chen/cidranger"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -84,10 +85,20 @@ type AciController struct {
 	staticServiceIps        *netIps
 	nodeServiceIps          *netIps
 
-	depPods           *index.PodSelectorIndex
-	netPolPods        *index.PodSelectorIndex
+	// index of pods matched by deployments
+	depPods *index.PodSelectorIndex
+	// index of pods matched by network policies
+	netPolPods *index.PodSelectorIndex
+	// index of pods matched by network policy ingress rules
 	netPolIngressPods *index.PodSelectorIndex
-	netPolEgressPods  *index.PodSelectorIndex
+	// index of pods matched by network policy egress rules
+	netPolEgressPods *index.PodSelectorIndex
+	// index of IP addresses contained in endpoints objects
+	endpointsIpIndex cidranger.Ranger
+	// index of service target ports
+	targetPortIndex map[string]*portIndexEntry
+	// index of ip blocks referenced by network policy egress rules
+	netPolSubnetIndex cidranger.Ranger
 
 	apicConn *apicapi.ApicConnection
 
@@ -115,6 +126,26 @@ type serviceMeta struct {
 	requestedIp      net.IP
 	ingressIps       []net.IP
 	staticIngressIps []net.IP
+}
+
+type ipIndexEntry struct {
+	ipNet net.IPNet
+	keys  map[string]bool
+}
+
+type targetPort struct {
+	proto v1.Protocol
+	port  int
+}
+
+type portIndexEntry struct {
+	port              targetPort
+	serviceKeys       map[string]bool
+	networkPolicyKeys map[string]bool
+}
+
+func (e *ipIndexEntry) Network() net.IPNet {
+	return e.ipNet
 }
 
 func newNodePodNetMeta() *nodePodNetMeta {

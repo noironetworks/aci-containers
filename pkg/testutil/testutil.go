@@ -45,6 +45,15 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 	return nil
 }
 
+// Wait for the given condition to become true
+func WaitForComp(t *testing.T, desc string, timeout time.Duration,
+	cond assert.Comparison) error {
+	return WaitFor(t, desc, 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return cond(), nil
+		})
+}
+
 // isNil checks if a specified object is nil or not, without Failing.
 func isNil(object interface{}) bool {
 	if object == nil {

@@ -216,7 +216,6 @@ func TestPodNetworkPolicy(t *testing.T) {
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-egress\"}]",
 		"combine")
 
-	cont.log.Info("BEGIN")
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
 		&metav1.LabelSelector{}, nil, nil, allPolicyTypes))
 	waitForGroupAnnot(t, cont, "",
@@ -225,7 +224,6 @@ func TestPodNetworkPolicy(t *testing.T) {
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_node_test-node\"},"+
 			"{\"policy-space\":\"kubernetes\",\"name\":\"kube_np_static-discovery\"}]",
 		"all-policy-types")
-	cont.log.Info("END")
 
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",
 		&metav1.LabelSelector{}, nil, nil,

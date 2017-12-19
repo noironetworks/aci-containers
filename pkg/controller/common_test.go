@@ -15,6 +15,8 @@
 package controller
 
 import (
+	"strconv"
+
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +24,7 @@ import (
 	framework "k8s.io/client-go/tools/cache/testing"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/yl2chen/cidranger"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -128,6 +131,9 @@ func testController() *testAciController {
 
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
+	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
+	cont.targetPortIndex = make(map[string]*portIndexEntry)
+	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
 
 	return cont
 }
@@ -245,19 +251,33 @@ func service(namespace string, name string, lbIP string) *v1.Service {
 	}
 }
 
-func endpoints(namespace string, name string, nodes []string) *v1.Endpoints {
-	var addrs []v1.EndpointAddress
-	for _, n := range nodes {
+// nodes ands addrs must have same length if present, but are
+// optional.
+func endpoints(namespace string, name string,
+	nodes []string, addrs []string, ports []v1.EndpointPort) *v1.Endpoints {
+	var eaddrs []v1.EndpointAddress
+	if len(nodes) == 0 {
+		for i := 0; i < len(addrs); i++ {
+			nodes = append(nodes, "node"+strconv.Itoa(i))
+		}
+	}
+	for i, n := range nodes {
 		ncopy := string(n)
-		addrs = append(addrs, v1.EndpointAddress{
-			IP:       "addr",
+		ip := "42.42.42.42"
+		if addrs != nil {
+			ip = string(addrs[i])
+		}
+		eaddrs = append(eaddrs, v1.EndpointAddress{
+			IP:       ip,
 			NodeName: &ncopy,
 		})
 	}
+
 	return &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{
 			{
-				Addresses: addrs,
+				Addresses: eaddrs,
+				Ports:     ports,
 			},
 		},
 		ObjectMeta: metav1.ObjectMeta{

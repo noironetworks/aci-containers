@@ -227,7 +227,8 @@ func TestServiceGraph(t *testing.T) {
 	s1Dcc := apicDevCtx(name, "common", graphName,
 		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn())
 
-	endpoints1 := endpoints("testns", "service1", []string{"node1", "node2"})
+	endpoints1 := endpoints("testns", "service1",
+		[]string{"node1", "node2"}, nil, nil)
 	service1 := service("testns", "service1", "10.4.2.2")
 	service1.Spec.Ports = []v1.ServicePort{
 		{
@@ -384,5 +385,64 @@ func TestServiceGraph(t *testing.T) {
 		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.stop()
+
+}
+
+func TestEndpointsIpIndex(t *testing.T) {
+	eps1 := endpoints("ns1", "name1", nil, []string{"1.1.1.1", "1.1.1.2"}, nil)
+
+	cont := testController()
+	cont.fakeEndpointsSource.Add(eps1)
+	cont.run()
+
+	tu.WaitForComp(t, "add", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
+			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
+			return (c1 && c2)
+		})
+
+	eps1 = endpoints("ns1", "name1", nil, []string{"1.1.1.1"}, nil)
+	cont.log.Info("updating")
+	cont.fakeEndpointsSource.Add(eps1)
+
+	tu.WaitForComp(t, "update", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
+			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
+			return (c1 && !c2)
+		})
+
+	cont.log.Info("adding new")
+	eps2 := endpoints("ns1", "name2", nil, []string{"1.1.1.1", "1.1.1.3"}, nil)
+	cont.fakeEndpointsSource.Add(eps2)
+
+	tu.WaitForComp(t, "new", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
+			return c1
+		})
+
+	cont.log.Info("ipv6")
+	eps3 := endpoints("ns1", "name2", nil, []string{"2001::1"}, nil)
+	cont.fakeEndpointsSource.Add(eps3)
+
+	tu.WaitForComp(t, "ipv6", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("2001::1"))
+			return c1
+		})
+
+	cont.log.Info("deleting")
+	cont.fakeEndpointsSource.Delete(eps1)
+	cont.fakeEndpointsSource.Delete(eps2)
+
+	tu.WaitForComp(t, "delete", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
+			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
+			c3, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
+			return (!c1 && !c2 && !c3)
+		})
 
 }
