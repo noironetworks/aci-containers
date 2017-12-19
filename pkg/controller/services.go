@@ -48,13 +48,13 @@ func (cont *AciController) initEndpointsInformerBase(listWatch *cache.ListWatch)
 		listWatch, &v1.Endpoints{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				cont.endpointsChanged(obj)
+				cont.endpointsAdded(obj)
 			},
-			UpdateFunc: func(_ interface{}, obj interface{}) {
-				cont.endpointsChanged(obj)
+			UpdateFunc: func(old interface{}, new interface{}) {
+				cont.endpointsUpdated(old, new)
 			},
 			DeleteFunc: func(obj interface{}) {
-				cont.endpointsChanged(obj)
+				cont.endpointsDeleted(obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -75,10 +75,10 @@ func (cont *AciController) initServiceInformerBase(listWatch *cache.ListWatch) {
 		listWatch, &v1.Service{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				cont.serviceChanged(obj)
+				cont.serviceAdded(obj)
 			},
-			UpdateFunc: func(_ interface{}, obj interface{}) {
-				cont.serviceChanged(obj)
+			UpdateFunc: func(old interface{}, new interface{}) {
+				cont.serviceUpdated(old, new)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.serviceDeleted(obj)
@@ -96,13 +96,56 @@ func serviceLogger(log *logrus.Logger, as *v1.Service) *logrus.Entry {
 	})
 }
 
-func (cont *AciController) endpointsChanged(obj interface{}) {
-	servicekey, err := cache.MetaNamespaceKeyFunc(obj.(*v1.Endpoints))
-	if err != nil {
-		cont.log.Error("Could not create service key: ", err)
-		return
+func (cont *AciController) queueIPNetPolUpdates(ips map[string]bool) {
+	for ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			continue
+		}
+		entries, err := cont.netPolSubnetIndex.ContainingNetworks(ip)
+		if err != nil {
+			cont.log.Error("Corrupted network policy IP index")
+			return
+		}
+		for _, entry := range entries {
+			for npkey := range entry.(*ipIndexEntry).keys {
+				cont.queueNetPolUpdateByKey(npkey)
+			}
+		}
 	}
-	cont.queueServiceUpdateByKey(servicekey)
+}
+
+func (cont *AciController) queuePortNetPolUpdates(ports map[string]targetPort) {
+	for portkey := range ports {
+		entry, _ := cont.targetPortIndex[portkey]
+		if entry == nil {
+			continue
+		}
+		for npkey := range entry.networkPolicyKeys {
+			cont.queueNetPolUpdateByKey(npkey)
+		}
+	}
+}
+
+func (cont *AciController) queueNetPolForEpAddrs(addrs []v1.EndpointAddress) {
+	for _, addr := range addrs {
+		if addr.TargetRef == nil || addr.TargetRef.Kind != "Pod" ||
+			addr.TargetRef.Namespace == "" || addr.TargetRef.Name == "" {
+			continue
+		}
+		podkey := addr.TargetRef.Namespace + "/" + addr.TargetRef.Name
+		npkeys := cont.netPolEgressPods.GetObjForPod(podkey)
+		for _, npkey := range npkeys {
+			cont.queueNetPolUpdateByKey(npkey)
+		}
+	}
+}
+
+func (cont *AciController) queueEndpointsNetPolUpdates(endpoints *v1.Endpoints) {
+	for _, subset := range endpoints.Subsets {
+		cont.queueNetPolForEpAddrs(subset.Addresses)
+		cont.queueNetPolForEpAddrs(subset.NotReadyAddresses)
+	}
 }
 
 func (cont *AciController) returnServiceIps(ips []net.IP) {
@@ -616,17 +659,6 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 	}
 }
 
-func (cont *AciController) serviceChanged(obj interface{}) {
-	cont.queueServiceUpdate(obj.(*v1.Service))
-}
-
-func (cont *AciController) serviceFullSync() {
-	cache.ListAll(cont.serviceIndexer, labels.Everything(),
-		func(sobj interface{}) {
-			cont.queueServiceUpdate(sobj.(*v1.Service))
-		})
-}
-
 func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	endpointsobj, _, err := cont.endpointsIndexer.GetByKey(key)
 	if err != nil {
@@ -757,6 +789,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		ipv4, err := cont.serviceIps.AllocateIp(true)
 		if err != nil {
 			logger.Error("No IP addresses available for service")
+			cont.indexMutex.Unlock()
 			return true
 		} else {
 			meta.ingressIps = []net.IP{ipv4}
@@ -829,6 +862,145 @@ func (cont *AciController) clearLbService(servicekey string) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("svc", servicekey))
 }
 
+func getEndpointsIps(endpoints *v1.Endpoints) map[string]bool {
+	ips := make(map[string]bool)
+	for _, subset := range endpoints.Subsets {
+		for _, addr := range subset.Addresses {
+			ips[addr.IP] = true
+		}
+		for _, addr := range subset.NotReadyAddresses {
+			ips[addr.IP] = true
+		}
+	}
+	return ips
+}
+
+func servicePortKey(p *v1.ServicePort) string {
+	return portProto(&p.Protocol) + "-num-" + strconv.Itoa(int(p.Port))
+}
+
+func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
+	ports := make(map[string]targetPort)
+	for _, port := range service.Spec.Ports {
+		portNum := port.TargetPort.IntValue()
+		if portNum <= 0 {
+			portNum = int(port.Port)
+		}
+		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(int(portNum))
+		ports[key] = targetPort{
+			proto: port.Protocol,
+			port:  portNum,
+		}
+	}
+	return ports
+}
+
+func (cont *AciController) endpointsAdded(obj interface{}) {
+	endpoints := obj.(*v1.Endpoints)
+	servicekey, err := cache.MetaNamespaceKeyFunc(obj.(*v1.Endpoints))
+	if err != nil {
+		cont.log.Error("Could not create service key: ", err)
+		return
+	}
+
+	ips := getEndpointsIps(endpoints)
+	cont.indexMutex.Lock()
+	cont.updateIpIndex(cont.endpointsIpIndex, nil, ips, servicekey)
+	cont.queueIPNetPolUpdates(ips)
+	cont.indexMutex.Unlock()
+
+	cont.queueEndpointsNetPolUpdates(endpoints)
+
+	cont.queueServiceUpdateByKey(servicekey)
+}
+
+func (cont *AciController) endpointsDeleted(obj interface{}) {
+	endpoints := obj.(*v1.Endpoints)
+	servicekey, err := cache.MetaNamespaceKeyFunc(endpoints)
+	if err != nil {
+		cont.log.Error("Could not create service key: ", err)
+		return
+	}
+
+	ips := getEndpointsIps(endpoints)
+	cont.indexMutex.Lock()
+	cont.updateIpIndex(cont.endpointsIpIndex, ips, nil, servicekey)
+	cont.queueIPNetPolUpdates(ips)
+	cont.indexMutex.Unlock()
+
+	cont.queueEndpointsNetPolUpdates(endpoints)
+
+	cont.queueServiceUpdateByKey(servicekey)
+}
+
+func (cont *AciController) endpointsUpdated(old interface{}, new interface{}) {
+	oldendpoints := old.(*v1.Endpoints)
+	newendpoints := new.(*v1.Endpoints)
+	servicekey, err := cache.MetaNamespaceKeyFunc(newendpoints)
+	if err != nil {
+		cont.log.Error("Could not create service key: ", err)
+		return
+	}
+
+	oldIps := getEndpointsIps(oldendpoints)
+	newIps := getEndpointsIps(newendpoints)
+	if !reflect.DeepEqual(oldIps, newIps) {
+		cont.indexMutex.Lock()
+		cont.queueIPNetPolUpdates(oldIps)
+		cont.updateIpIndex(cont.endpointsIpIndex, oldIps, newIps, servicekey)
+		cont.queueIPNetPolUpdates(newIps)
+		cont.indexMutex.Unlock()
+	}
+
+	if !reflect.DeepEqual(oldendpoints.Subsets, newendpoints.Subsets) {
+		cont.queueEndpointsNetPolUpdates(oldendpoints)
+		cont.queueEndpointsNetPolUpdates(newendpoints)
+	}
+
+	cont.queueServiceUpdateByKey(servicekey)
+}
+
+func (cont *AciController) serviceAdded(obj interface{}) {
+	service := obj.(*v1.Service)
+	servicekey, err := cache.MetaNamespaceKeyFunc(service)
+	if err != nil {
+		serviceLogger(cont.log, service).
+			Error("Could not create service key: ", err)
+		return
+	}
+
+	ports := getServiceTargetPorts(service)
+	cont.indexMutex.Lock()
+	cont.queuePortNetPolUpdates(ports)
+	cont.updateTargetPortIndex(true, servicekey, nil, ports)
+	cont.indexMutex.Unlock()
+
+	cont.queueServiceUpdateByKey(servicekey)
+}
+
+func (cont *AciController) serviceUpdated(old interface{}, new interface{}) {
+	oldservice := old.(*v1.Service)
+	newservice := new.(*v1.Service)
+	servicekey, err := cache.MetaNamespaceKeyFunc(newservice)
+	if err != nil {
+		serviceLogger(cont.log, newservice).
+			Error("Could not create service key: ", err)
+		return
+	}
+
+	oldPorts := getServiceTargetPorts(oldservice)
+	newPorts := getServiceTargetPorts(newservice)
+	if !reflect.DeepEqual(oldPorts, newPorts) {
+		cont.indexMutex.Lock()
+		cont.queuePortNetPolUpdates(oldPorts)
+		cont.updateTargetPortIndex(true, servicekey, oldPorts, newPorts)
+		cont.queuePortNetPolUpdates(newPorts)
+		cont.indexMutex.Unlock()
+	}
+
+	cont.queueServiceUpdateByKey(servicekey)
+}
+
 func (cont *AciController) serviceDeleted(obj interface{}) {
 	service := obj.(*v1.Service)
 	servicekey, err := cache.MetaNamespaceKeyFunc(service)
@@ -840,4 +1012,17 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 	cont.clearLbService(servicekey)
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service-vmm",
 		servicekey))
+
+	ports := getServiceTargetPorts(service)
+	cont.indexMutex.Lock()
+	cont.updateTargetPortIndex(true, servicekey, ports, nil)
+	cont.queuePortNetPolUpdates(ports)
+	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) serviceFullSync() {
+	cache.ListAll(cont.serviceIndexer, labels.Everything(),
+		func(sobj interface{}) {
+			cont.queueServiceUpdate(sobj.(*v1.Service))
+		})
 }
