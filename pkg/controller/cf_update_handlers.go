@@ -552,7 +552,8 @@ func splitIntoRanges(input *string) []Range {
 	return ranges
 }
 
-func convertAsgRule(rule *cfclient.SecGroupRule, parentDn *string, baseName *string) apicapi.ApicSlice {
+func (env *CfEnvironment) convertAsgRule(rule *cfclient.SecGroupRule,
+	parentDn *string, baseName *string) apicapi.ApicSlice {
 	var remotes []*net.IPNet
 	if rule.Destination == "" {
 		remotes = append(remotes, &net.IPNet{IP: net.IPv4(0, 0, 0, 0), Mask: net.IPv4Mask(0, 0, 0, 0)})
@@ -580,8 +581,11 @@ func convertAsgRule(rule *cfclient.SecGroupRule, parentDn *string, baseName *str
 	proto := "unspecified"
 	if rule.Protocol == "tcp" || rule.Protocol == "udp" || rule.Protocol == "icmp" {
 		proto = rule.Protocol
+	} else {
+		env.log.Debug(fmt.Sprintf("Unsupported protocol in rule %v", *rule))
+		return apicapi.ApicSlice{}
 	}
-	// TODO convert ICMP type and ICMP code, and possibly Log
+	// TODO convert Log
 
 	var hprs apicapi.ApicSlice
 	for pi, port := range ports {
@@ -589,6 +593,10 @@ func convertAsgRule(rule *cfclient.SecGroupRule, parentDn *string, baseName *str
 		hpr.SetAttr("direction", "egress")
 		hpr.SetAttr("ethertype", "ipv4") // TODO use dst address
 		hpr.SetAttr("protocol", proto)
+		if proto == "icmp" {
+			hpr.SetAttr("icmpType", fmt.Sprintf("%d", rule.Type))
+			hpr.SetAttr("icmpCode", fmt.Sprintf("%d", rule.Code))
+		}
 		hpr.SetAttr("fromPort", port.start)
 		hpr.SetAttr("toPort", port.end)
 		for _, r := range remotes {
@@ -620,7 +628,7 @@ func (env *CfEnvironment) handleAsgUpdate(asgId string) bool {
 	subjDn := egressSubj.GetDn()
 	for ri, rule := range sginfo.Rules {
 		baseName := fmt.Sprintf("rule%d", ri)
-		for _, hpr := range convertAsgRule(&rule, &subjDn, &baseName) {
+		for _, hpr := range env.convertAsgRule(&rule, &subjDn, &baseName) {
 			egressSubj.AddChild(hpr)
 		}
 	}

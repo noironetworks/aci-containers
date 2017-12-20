@@ -249,9 +249,12 @@ func TestCfAsgUpdateDelete(t *testing.T) {
 	env.handleAsgUpdate("ASG_R1")
 	env.handleAsgUpdate("ASG_S1")
 	env.handleAsgUpdate("ASG_PUB")
-	assert.NotNil(t, env.cont.apicConn.GetDesiredState("asg:ASG_R1"))
-	assert.NotNil(t, env.cont.apicConn.GetDesiredState("asg:ASG_S1"))
-	assert.NotNil(t, env.cont.apicConn.GetDesiredState("asg:ASG_PUB"))
+
+	exp_asgs := getExpectedApicHppForAsg()
+
+	env.checkApicDesiredState(t, "asg:ASG_R1", exp_asgs["ASG_R1"])
+	env.checkApicDesiredState(t, "asg:ASG_S1", exp_asgs["ASG_S1"])
+	env.checkApicDesiredState(t, "asg:ASG_PUB", exp_asgs["ASG_PUB"])
 
 	pub_info := env.asgIdx["ASG_PUB"]
 	r1_info := env.asgIdx["ASG_R1"]
@@ -262,7 +265,7 @@ func TestCfAsgUpdateDelete(t *testing.T) {
 	env.handleAsgDelete(r1_info)
 	env.handleAsgDelete(s1_info)
 	env.handleAsgDelete(pub_info)
-	assert.Nil(t, env.cont.apicConn.GetDesiredState("asg:ASG_R1"))
-	assert.Nil(t, env.cont.apicConn.GetDesiredState("asg:ASG_S1"))
-	assert.Nil(t, env.cont.apicConn.GetDesiredState("asg:ASG_PUB"))
+	env.checkApicDesiredState(t, "asg:ASG_R1", nil)
+	env.checkApicDesiredState(t, "asg:ASG_S1", nil)
+	env.checkApicDesiredState(t, "asg:ASG_PUB", nil)
 }
