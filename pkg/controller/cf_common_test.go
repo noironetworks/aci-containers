@@ -196,11 +196,13 @@ func (e *CfEnvironment) setupIndexes() {
 			cfclient.SecGroupRule{Protocol: "tcp", Ports: "1000, 1200, 5000"}}}
 	e.asgIdx["ASG_R1"] = &cfclient.SecGroup{Guid: "ASG_R1",
 		Rules: []cfclient.SecGroupRule{
-			cfclient.SecGroupRule{Protocol: "udp", Destination: "101.101.101.101", Log: true}}}
+			cfclient.SecGroupRule{Protocol: "udp",
+				Destination: "101.101.101.101", Log: true}}}
 	e.asgIdx["ASG_S1"] = &cfclient.SecGroup{Guid: "ASG_S1",
 		Rules: []cfclient.SecGroupRule{
 			cfclient.SecGroupRule{Protocol: "icmp", Destination: "201.201.202.202",
-				Code: 10, Type: 12}}}
+				Code: 10, Type: 12},
+			cfclient.SecGroupRule{Protocol: "arp"}}}
 
 	cont := e.cont
 	for i := 0; i < 4; i++ {
@@ -255,6 +257,28 @@ func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
 	return nil
 }
 
+func strip_tag(obj apic.ApicObject) {
+	// remove 'tagInst' children recursively
+	for _, body := range obj {
+		newChildren := apic.ApicSlice{}
+		for _, c := range body.Children {
+			tag := false
+			for class, _ := range c {
+				if class == "tagInst" {
+					tag = true
+				}
+				break
+			}
+			if tag == false {
+				strip_tag(c)
+				newChildren = append(newChildren, c)
+			}
+		}
+		body.Children = newChildren
+		break
+	}
+}
+
 func (e *CfEnvironment) checkApicDesiredState(t *testing.T, key string,
 	expected apic.ApicObject) {
 	actual := e.cont.apicConn.GetDesiredState(key)
@@ -262,24 +286,7 @@ func (e *CfEnvironment) checkApicDesiredState(t *testing.T, key string,
 		assert.Nil(t, actual)
 	} else {
 		assert.Equal(t, 1, len(actual))
-		// remove 'tagIinst' children
-		for _, body := range actual[0] {
-			newChildren := apic.ApicSlice{}
-			for _, c := range body.Children {
-				tag := false
-				for class, _ := range c {
-					if class == "tagInst" {
-						tag = true
-					}
-					break
-				}
-				if tag == false {
-					newChildren = append(newChildren, c)
-				}
-			}
-			body.Children = newChildren
-			break
-		}
+		strip_tag(actual[0])
 		assert.Equal(t, expected.String(), actual[0].String())
 	}
 }
@@ -354,4 +361,127 @@ func getExpectedAppInfo() *etcd.AppInfo {
 		ExternalIp:   []string{"150.150.0.3", "aaaa::bbbb"},
 	}
 	return app
+}
+
+func getExpectedApicHppForAsg() (m map[string]apic.ApicObject) {
+	m = make(map[string]apic.ApicObject)
+
+	exp_hpp_pub := apic.NewHostprotPol("cf", "cf_asg_ASG_PUB")
+	m["ASG_PUB"] = exp_hpp_pub
+	{
+		exp_hpp_pub.SetAttr("nameAlias", "asg_")
+		exp_hpp_pub_subj := apic.NewHostprotSubj(exp_hpp_pub.GetDn(), "egress")
+		exp_hpp_pub.AddChild(exp_hpp_pub_subj)
+		rule0_remotes := []string{"100.100.100.1/32", "100.100.100.2/31",
+			"100.100.100.4/30", "100.100.100.8/32", "100.100.200.0/24"}
+		{
+			exp_hpp_pub_rule0_0 := apic.NewHostprotRule(exp_hpp_pub_subj.GetDn(),
+				"rule0_0")
+			exp_hpp_pub_subj.AddChild(exp_hpp_pub_rule0_0)
+			exp_hpp_pub_rule0_0.SetAttr("direction", "egress")
+			exp_hpp_pub_rule0_0.SetAttr("ethertype", "ipv4")
+			exp_hpp_pub_rule0_0.SetAttr("protocol", "tcp")
+			exp_hpp_pub_rule0_0.SetAttr("fromPort", "50")
+			exp_hpp_pub_rule0_0.SetAttr("toPort", "50")
+			for _, h := range rule0_remotes {
+				exp_hpp_pub_rule0_0.AddChild(
+					apic.NewHostprotRemoteIp(exp_hpp_pub_rule0_0.GetDn(), h))
+			}
+		}
+		{
+			exp_hpp_pub_rule0_1 := apic.NewHostprotRule(exp_hpp_pub_subj.GetDn(),
+				"rule0_1")
+			exp_hpp_pub_subj.AddChild(exp_hpp_pub_rule0_1)
+			exp_hpp_pub_rule0_1.SetAttr("direction", "egress")
+			exp_hpp_pub_rule0_1.SetAttr("ethertype", "ipv4")
+			exp_hpp_pub_rule0_1.SetAttr("protocol", "tcp")
+			exp_hpp_pub_rule0_1.SetAttr("fromPort", "100")
+			exp_hpp_pub_rule0_1.SetAttr("toPort", "200")
+			for _, h := range rule0_remotes {
+				exp_hpp_pub_rule0_1.AddChild(
+					apic.NewHostprotRemoteIp(exp_hpp_pub_rule0_1.GetDn(), h))
+			}
+		}
+		{
+			exp_hpp_pub_rule1_0 := apic.NewHostprotRule(exp_hpp_pub_subj.GetDn(),
+				"rule1_0")
+			exp_hpp_pub_subj.AddChild(exp_hpp_pub_rule1_0)
+			exp_hpp_pub_rule1_0.SetAttr("direction", "egress")
+			exp_hpp_pub_rule1_0.SetAttr("ethertype", "ipv4")
+			exp_hpp_pub_rule1_0.SetAttr("protocol", "tcp")
+			exp_hpp_pub_rule1_0.SetAttr("fromPort", "1000")
+			exp_hpp_pub_rule1_0.SetAttr("toPort", "1000")
+			exp_hpp_pub_rule1_0.AddChild(
+				apic.NewHostprotRemoteIp(exp_hpp_pub_rule1_0.GetDn(),
+					"0.0.0.0/0"))
+		}
+		{
+			exp_hpp_pub_rule1_1 := apic.NewHostprotRule(exp_hpp_pub_subj.GetDn(),
+				"rule1_1")
+			exp_hpp_pub_subj.AddChild(exp_hpp_pub_rule1_1)
+			exp_hpp_pub_rule1_1.SetAttr("direction", "egress")
+			exp_hpp_pub_rule1_1.SetAttr("ethertype", "ipv4")
+			exp_hpp_pub_rule1_1.SetAttr("protocol", "tcp")
+			exp_hpp_pub_rule1_1.SetAttr("fromPort", "1200")
+			exp_hpp_pub_rule1_1.SetAttr("toPort", "1200")
+			exp_hpp_pub_rule1_1.AddChild(
+				apic.NewHostprotRemoteIp(exp_hpp_pub_rule1_1.GetDn(),
+					"0.0.0.0/0"))
+		}
+		{
+			exp_hpp_pub_rule1_2 := apic.NewHostprotRule(exp_hpp_pub_subj.GetDn(),
+				"rule1_2")
+			exp_hpp_pub_subj.AddChild(exp_hpp_pub_rule1_2)
+			exp_hpp_pub_rule1_2.SetAttr("direction", "egress")
+			exp_hpp_pub_rule1_2.SetAttr("ethertype", "ipv4")
+			exp_hpp_pub_rule1_2.SetAttr("protocol", "tcp")
+			exp_hpp_pub_rule1_2.SetAttr("fromPort", "5000")
+			exp_hpp_pub_rule1_2.SetAttr("toPort", "5000")
+			exp_hpp_pub_rule1_2.AddChild(
+				apic.NewHostprotRemoteIp(exp_hpp_pub_rule1_2.GetDn(),
+					"0.0.0.0/0"))
+		}
+	}
+
+	exp_hpp_r1 := apic.NewHostprotPol("cf", "cf_asg_ASG_R1")
+	m["ASG_R1"] = exp_hpp_r1
+	{
+		exp_hpp_r1.SetAttr("nameAlias", "asg_")
+		exp_hpp_r1_subj := apic.NewHostprotSubj(exp_hpp_r1.GetDn(), "egress")
+		exp_hpp_r1.AddChild(exp_hpp_r1_subj)
+		exp_hpp_r1_rule0 := apic.NewHostprotRule(exp_hpp_r1_subj.GetDn(),
+			"rule0_0")
+		exp_hpp_r1_subj.AddChild(exp_hpp_r1_rule0)
+		exp_hpp_r1_rule0.SetAttr("direction", "egress")
+		exp_hpp_r1_rule0.SetAttr("ethertype", "ipv4")
+		exp_hpp_r1_rule0.SetAttr("protocol", "udp")
+		exp_hpp_r1_rule0.SetAttr("fromPort", "unspecified")
+		exp_hpp_r1_rule0.SetAttr("toPort", "unspecified")
+		exp_hpp_r1_rule0.AddChild(
+			apic.NewHostprotRemoteIp(exp_hpp_r1_rule0.GetDn(),
+				"101.101.101.101/32"))
+	}
+
+	exp_hpp_s1 := apic.NewHostprotPol("cf", "cf_asg_ASG_S1")
+	m["ASG_S1"] = exp_hpp_s1
+	{
+		exp_hpp_s1.SetAttr("nameAlias", "asg_")
+		exp_hpp_s1_subj := apic.NewHostprotSubj(exp_hpp_s1.GetDn(), "egress")
+		exp_hpp_s1.AddChild(exp_hpp_s1_subj)
+		exp_hpp_s1_rule0 := apic.NewHostprotRule(exp_hpp_s1_subj.GetDn(),
+			"rule0_0")
+		exp_hpp_s1_subj.AddChild(exp_hpp_s1_rule0)
+		exp_hpp_s1_rule0.SetAttr("direction", "egress")
+		exp_hpp_s1_rule0.SetAttr("ethertype", "ipv4")
+		exp_hpp_s1_rule0.SetAttr("protocol", "icmp")
+		exp_hpp_s1_rule0.SetAttr("fromPort", "unspecified")
+		exp_hpp_s1_rule0.SetAttr("toPort", "unspecified")
+		exp_hpp_s1_rule0.SetAttr("icmpType", "12")
+		exp_hpp_s1_rule0.SetAttr("icmpCode", "10")
+		exp_hpp_s1_rule0.AddChild(
+			apic.NewHostprotRemoteIp(exp_hpp_s1_rule0.GetDn(),
+				"201.201.202.202/32"))
+	}
+
+	return
 }
