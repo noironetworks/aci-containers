@@ -516,8 +516,8 @@ def generate_kube_yaml(config, output):
     template = env.get_template('aci-containers.yaml')
 
     kube_objects = [
-        "configmap", "secret","serviceaccount",
-        "daemonset","deployment","clusterrolebinding",
+        "configmap", "secret", "serviceaccount",
+        "daemonset", "deployment", "clusterrolebinding",
         "clusterrole"
     ]
     if config["kube_config"].get("use_openshift_security_context_constraints",
@@ -535,7 +535,7 @@ def generate_kube_yaml(config, output):
             applyname = os.path.basename(output)
 
         info("Using configuration label aci-containers-config-version=" +
-            str(config["registry"]["configuration_version"]))
+             str(config["registry"]["configuration_version"]))
         info("Writing kubernetes infrastructure YAML to %s" % outname)
         template.stream(config=config).dump(output)
         info("Apply infrastructure YAML using:")
