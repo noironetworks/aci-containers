@@ -8,15 +8,14 @@ import json
 import pkg_resources
 import pkgutil
 import random
-import socket
 import string
-import struct
 import sys
 import yaml
 import uuid
 import copy
 import os.path
 import functools
+import ipaddress
 
 from OpenSSL import crypto
 from apic_provision import Apic, ApicKubeConfig
@@ -296,15 +295,14 @@ def config_discover(config, prov_apic):
 
 
 def cidr_split(cidr):
-    ip2int = lambda a: struct.unpack("!I", socket.inet_aton(a))[0]
-    int2ip = lambda a: socket.inet_ntoa(struct.pack("!I", a))
     rtr, mask = cidr.split('/')
-    maskbits = int('1' * (32 - int(mask)), 2)
-    rtri = ip2int(rtr)
-    starti = rtri + 1
-    endi = (rtri | maskbits) - 1
-    subi = (rtri & (0xffffffff ^ maskbits))
-    return int2ip(starti), int2ip(endi), rtr, int2ip(subi), mask
+    ip = ipaddress.ip_address(unicode(rtr))
+    if ip.version == 4:
+        n = ipaddress.IPv4Network(unicode(cidr), strict=False)
+    else:
+        n = ipaddress.IPv6Network(unicode(cidr), strict=False)
+    first, last = n[2], n[-2]
+    return str(first), str(last), str(n[1]), str(n.network_address), mask
 
 
 def config_adjust(args, config, prov_apic, no_random):
