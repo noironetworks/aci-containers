@@ -237,11 +237,11 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 		}
 		if serviceEp.Ipv4 != nil {
 			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
-				serviceEp.Ipv4.String(), serviceEp.Mac))
+				serviceEp.Ipv4.String(), serviceEp.Mac).SetAttr("descr", node))
 		}
 		if serviceEp.Ipv6 != nil {
 			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
-				serviceEp.Ipv6.String(), serviceEp.Mac))
+				serviceEp.Ipv6.String(), serviceEp.Mac).SetAttr("descr", node))
 		}
 	}
 	return rp, rpDn

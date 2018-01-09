@@ -238,7 +238,7 @@ func (o ApicObject) SetTag(tag string) {
 	o.AddChild(NewTagInst(o.GetDn(), tag))
 }
 
-func (o ApicObject) SetAttr(name string, value interface{}) {
+func (o ApicObject) SetAttr(name string, value interface{}) ApicObject {
 	for _, body := range o {
 		if body.Attributes == nil {
 			body.Attributes = make(map[string]interface{})
@@ -246,6 +246,7 @@ func (o ApicObject) SetAttr(name string, value interface{}) {
 		body.Attributes[name] = value
 		break
 	}
+	return o
 }
 
 func (o ApicObject) GetAttr(name string) interface{} {
