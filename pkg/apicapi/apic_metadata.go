@@ -364,8 +364,9 @@ var metadata = map[string]*apicMeta{
 	},
 	"vnsRedirectDest": {
 		attributes: map[string]interface{}{
-			"ip":  "",
-			"mac": "",
+			"ip":    "",
+			"mac":   "",
+			"descr": "",
 		},
 		normalizer: redirectDestNormalizer,
 	},
