@@ -156,7 +156,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "extensions"
+  - "apps"
   resources:
   - deployments
   - replicasets
