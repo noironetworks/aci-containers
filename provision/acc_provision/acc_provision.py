@@ -85,11 +85,6 @@ FLAVORS = {
     "kubernetes-1.8": {
         "desc": "Kubernetes 1.8",
         "default_version": "1.8",
-        "config": {
-            "kube_config": {
-                "use_apps_apigroup": "extensions",
-            }
-        }
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
