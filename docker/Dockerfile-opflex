@@ -3,5 +3,6 @@ RUN apk upgrade --no-cache && apk add --no-cache musl libstdc++ libuv \
   boost-program_options boost-system boost-date_time boost-filesystem \
   boost-iostreams libnetfilter_conntrack libssl1.0 libcrypto1.0 ca-certificates \
   && update-ca-certificates
-COPY bin/agent_ovs bin/gbp_inspect bin/mcast_daemon bin/launch-opflexagent.sh bin/launch-mcastdaemon.sh /usr/local/bin/
+COPY bin/* /usr/local/bin/
+COPY lib/* /usr/local/lib/
 CMD ["/usr/local/bin/launch-opflexagent.sh"]

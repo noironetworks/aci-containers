@@ -11,7 +11,7 @@ ARG make_args=-j4
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && cd ovs \
   && patch -p1 < /ovs-musl.patch \
-  && ./boot.sh && ./configure --disable-ssl --disable-libcapng \
+  && ./boot.sh && ./configure --disable-ssl --disable-libcapng --enable-shared \
   && make $make_args && make install \
   && ROOT=/usr/local \
   && mkdir -p $ROOT/include/openvswitch/openvswitch \

@@ -5,7 +5,7 @@ set -x
 
 PREFIX=/usr/local
 VARDIR=${PREFIX}/var
-OPFLEXAGENT=${PREFIX}/bin/agent_ovs
+OPFLEXAGENT=${PREFIX}/bin/opflex_agent
 OPFLEXAGENT_CONF_PATH=/usr/local/etc/opflex-agent-ovs
 OPFLEXAGENT_DISABLED_CONF=${OPFLEXAGENT_CONF_PATH}/opflex-agent.conf
 OPFLEXAGENT_BASE_CONF=${OPFLEXAGENT_CONF_PATH}/base-conf.d
