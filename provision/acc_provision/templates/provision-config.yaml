@@ -10,7 +10,7 @@ aci_config:
     mcast_range:                # Every opflex VMM must use a distinct range
       start: 225.20.1.1
       end: 225.20.255.255
-    nested_inside:              # Include if nested inside a VMM
+    nested_inside:              # Include if nested inside a VMM; required for CloudFoundry
     # type: vmware              # Specify the VMM vendor (supported: vmware)
     # name: myvmware            # Specify the name of the VMM domain
 
@@ -30,11 +30,12 @@ aci_config:
 #
 net_config:
   node_subnet: 10.1.0.1/16      # Subnet to use for nodes
-  pod_subnet: 10.2.0.1/16       # Subnet to use for Kubernetes Pods
+  pod_subnet: 10.2.0.1/16       # Subnet to use for Kubernetes Pods/CloudFoundry containers
+# vip_subnet: 10.3.0.1/16       # Subnet to use for virtual IPs (CloudFoundry only)
   extern_dynamic: 10.3.0.1/24   # Subnet to use for dynamic external IPs
   extern_static: 10.4.0.1/24    # Subnet to use for static external IPs
   node_svc_subnet: 10.5.0.1/24  # Subnet to use for service graph
-  kubeapi_vlan: 4001            # The VLAN used by the physdom for nodes
+  kubeapi_vlan: 4001            # The VLAN used by the physdom for nodes (Kubernetes only)
   service_vlan: 4003            # The VLAN used by LoadBalancer services
   infra_vlan: 4093              # The VLAN used by ACI infra
 
