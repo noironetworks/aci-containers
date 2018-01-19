@@ -21,6 +21,8 @@ apic_service_phys_domain: {{config.aci_config.physical_domain.domain}}
 apic_service_encap: {{ ("vlan-" ~ config.net_config.service_vlan) }}
 network_subnet: {{config.cf_config.app_subnet}}
 network_ip_pool: {{config.cf_config.app_ip_pool|yaml_list_dict}}
+network_app_vip_pool: {{config.cf_config.app_vip_pool|yaml_list_dict}}
+network_app_vip_subnet: {{config.cf_config.app_vip_subnet}}
 network_app_dynamic_ext_ip_pool: {{config.cf_config.dynamic_ext_ip_pool|yaml_list_dict}}
 network_app_static_ext_ip_pool: {{config.cf_config.static_ext_ip_pool|yaml_list_dict}}
 network_node_service_ip_pool: {{config.cf_config.node_service_ip_pool|yaml_list_dict}}

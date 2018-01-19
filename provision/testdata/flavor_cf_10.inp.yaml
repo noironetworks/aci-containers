@@ -28,6 +28,7 @@ aci_config:
 net_config:
   node_subnet: 10.1.0.1/16
   pod_subnet: 10.2.0.1/16
+  vip_subnet: 10.3.0.1/16
   extern_dynamic: 150.3.0.1/24
   extern_static: 150.4.0.1/24
   node_svc_subnet: 10.5.0.1/24

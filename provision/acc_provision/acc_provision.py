@@ -61,6 +61,8 @@ VERSIONS = {
 #       file. Default: generate_kube_yaml.
 # - version_fields: List of config options that must be specified for
 #       the specific version of deployment. Default: VERSION_FIELDS.
+# - vip_pool_required: Whether virtual IP pool needs to be specified.
+#       Default: False.
 # - apic: Dict that is used for configuring ApicKubeConfig
 #       Known sub-options:
 #       - use_kubeapi_vlan: Whether kubeapi_vlan should be used. Default: True.
@@ -77,6 +79,7 @@ CfFlavorOptions = {
         'associate_aep_to_nested_inside_domain': True,
     },
     'version_fields': [],
+    'vip_pool_required': True,
 }
 
 DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
@@ -439,6 +442,17 @@ def config_adjust(args, config, prov_apic, no_random):
             "configuration_version": token,
         }
     }
+    if config["net_config"].get("vip_subnet"):
+        vip_subnet = cidr_split(config["net_config"]["vip_subnet"])
+        adj_config["cf_config"]["app_vip_pool"] = [
+            {
+                "start": vip_subnet[0],
+                "end": vip_subnet[1],
+            }
+        ]
+        adj_config["cf_config"]["app_vip_subnet"] = [
+            "%s/%s" % vip_subnet[2::2]]
+
     adj_config["cf_config"]["node_network"] = (
         "%s|%s|%s" % (
             tenant,
@@ -528,6 +542,10 @@ def config_validate(flavor_opts, config):
             "aci_config/apic_login/password":
             (get(("aci_config", "apic_login", "password")), required),
         })
+
+    if flavor_opts.get('vip_pool_required', False):
+        checks["net_config/vip_subnet"] = (
+            get(("net_config", "vip_subnet")), required)
 
     ret = True
     for k in sorted(checks.keys()):

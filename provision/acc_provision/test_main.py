@@ -136,6 +136,21 @@ def test_devnull_errors():
 
 
 @in_testdir
+def test_flavor_cf_devnull_errors():
+    tmperr = os.tempnam(".", "tmp-stderr-")
+    with open(tmperr, "w") as tmperrfd:
+        origout = sys.stdout
+        sys.stderr = tmperrfd
+        try:
+            args = get_args(flavor="cloudfoundry-1.0")
+            acc_provision.main(args, no_random=True)
+        finally:
+            sys.stderr = origout
+    assert filecmp.cmp(tmperr, "flavor_cf_devnull.stderr.txt")
+    os.remove(tmperr)
+
+
+@in_testdir
 def test_helpmsg():
     tmpout = os.tempnam(".", "tmp-stdout-")
     with open(tmpout, "w") as tmpoutfd:
