@@ -352,29 +352,45 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 	cont.recomputePodNetAnnotation(podnet)
 }
 
-// must have index lock
-func (cont *AciController) checkNodePodNet(nodename string) {
+func (cont *AciController) allocateIpChunk(podnet *nodePodNetMeta, v4 bool) bool {
+	var podnetipam, ipa *ipam.IpAlloc
 	changed := false
-	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
-		podnetipam := ipam.NewFromRanges(podnet.podNetIps.V4)
-		size := podnetipam.GetSize()
-		if int64(len(podnet.nodePods)) >
-			size-int64(cont.config.PodIpPoolChunkSize)/2 {
-			// we have half a chunk left or less; allocate a new chunk
-			r, err := cont.podNetworkIps.V4.
-				GetIpChunk(int64(cont.config.PodIpPoolChunkSize))
-			if err != nil {
-				cont.log.Error("Could not allocate IPv4 address chunk: ", err)
-			} else {
-				podnetipam.AddRanges(r)
+	if (v4) {
+		podnetipam = ipam.NewFromRanges(podnet.podNetIps.V4)
+		ipa = cont.podNetworkIps.V4
+	} else {
+		podnetipam = ipam.NewFromRanges(podnet.podNetIps.V6)
+		ipa = cont.podNetworkIps.V6
+	}
+	size := podnetipam.GetSize()
+	if int64(len(podnet.nodePods)) >
+		size-int64(cont.config.PodIpPoolChunkSize)/2 {
+		// we have half a chunk left or less; allocate a new chunk
+		r, err := ipa.GetIpChunk(int64(cont.config.PodIpPoolChunkSize))
+		if err != nil {
+			cont.log.Error("Could not allocate address chunk: ", err)
+		} else {
+			podnetipam.AddRanges(r)
+			if (v4) {
 				podnet.podNetIps.V4 = podnetipam.FreeList
-				cont.recomputePodNetAnnotation(podnet)
-				changed = true
+			} else {
+				podnet.podNetIps.V6 = podnetipam.FreeList
 			}
+			cont.recomputePodNetAnnotation(podnet)
+			changed = true
 		}
 	}
+	return changed
+}
 
-	if changed {
+// must have index lock
+func (cont *AciController) checkNodePodNet(nodename string) {
+	v4changed, v6changed := false, false
+	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
+		v4changed = cont.allocateIpChunk(podnet, true)
+		v6changed = cont.allocateIpChunk(podnet, false)
+	}
+	if v4changed || v6changed  {
 		go cont.env.NodePodNetworkChanged(nodename)
 	}
 
