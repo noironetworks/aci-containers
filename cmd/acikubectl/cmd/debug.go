@@ -176,8 +176,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			})
 		}
 	}
-
-	outfile, err := os.Create(output)
+	output, outfile, err := getOutfile(output)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -216,6 +215,19 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		fmt.Fprintln(os.Stderr, "Wrote report (with errors) to", output)
 	} else {
 		fmt.Fprintln(os.Stderr, "Finished writing report to", output)
+	}
+}
+
+
+func getOutfile(output string) (string, *os.File, error)  {
+	if output == "-" {
+		return "standard output", os.Stdout, nil
+	} else {
+	        outfile, err := os.Create(output)
+		if err != nil {
+			return output, nil, err
+		}
+		return output, outfile, nil
 	}
 }
 
