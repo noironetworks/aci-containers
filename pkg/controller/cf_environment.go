@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -30,7 +31,11 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/bbs"
+	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/locket"
+	"code.cloudfoundry.org/locket/lock"
+	locketmodels "code.cloudfoundry.org/locket/models"
 
 	"github.com/Sirupsen/logrus"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
@@ -57,6 +62,7 @@ type CfEnvironment struct {
 	cfAuthClient cfapi.CfAuthClient
 	cfLogger     lager.Logger
 	db           *sql.DB
+	locketClient locketmodels.LocketClient
 
 	indexLock sync.Locker
 	contIdx   map[string]*ContainerInfo
@@ -118,6 +124,12 @@ type CfConfig struct {
 	DbType string `json:"db_type"`
 	DbDsn  string `json:"db_dsn"`
 
+	LocketAddress        string `json:"locket_address"`
+	LocketCACertFile     string `json:"locket_ca_cert_file"`
+	LocketClientCertFile string `json:"locket_client_cert_file"`
+	LocketClientKeyFile  string `json:"locket_client_key_file"`
+
+	Uuid          string `json:"uuid"`
 	ApiPathPrefix string `json:"api_path_prefix"`
 
 	GoRouterAddress  string
@@ -300,6 +312,17 @@ func (env *CfEnvironment) initIndexes() {
 
 func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	var err error
+
+	err = env.waitToBecomeMaster(stopCh,
+		0,
+		func() {
+			env.log.Error("No longer controller master, exiting ...")
+			os.Exit(1)
+		})
+	if err != nil {
+		env.log.Error("Error while waiting to become controller master: ", err)
+		return err
+	}
 
 	// test DB connectivity
 	if err = env.db.Ping(); err != nil {
@@ -746,4 +769,74 @@ func (env *CfEnvironment) processQueue(queue workqueue.RateLimitingInterface,
 	}, time.Second, stopCh)
 	<-stopCh
 	queue.ShutDown()
+}
+
+func (env *CfEnvironment) waitToBecomeMaster(stopCh <-chan struct{}, retryInterval time.Duration,
+	onDemote func()) error {
+	if retryInterval == 0 {
+		retryInterval = locket.SQLRetryInterval
+	}
+	for env.locketClient == nil {
+		cfg := locket.ClientLocketConfig{
+			LocketAddress:        env.cfconfig.LocketAddress,
+			LocketCACertFile:     env.cfconfig.LocketCACertFile,
+			LocketClientCertFile: env.cfconfig.LocketClientCertFile,
+			LocketClientKeyFile:  env.cfconfig.LocketClientKeyFile,
+		}
+		c, err := locket.NewClient(env.cfLogger, cfg)
+		if err != nil {
+			env.log.Info("Failed to create locket client: ", err)
+			time.Sleep(10 * time.Second)
+		} else {
+			env.locketClient = c
+		}
+	}
+
+	lockRes := &locketmodels.Resource{
+		Key:      "/aci/controller/master",
+		Owner:    env.cfconfig.Uuid,
+		TypeCode: locketmodels.LOCK,
+	}
+	runner := lock.NewLockRunner(
+		env.cfLogger,
+		env.locketClient,
+		lockRes,
+		locket.DefaultSessionTTLInSeconds,
+		clock.NewClock(),
+		retryInterval)
+
+	readyChan := make(chan struct{})
+	isReady := false
+	sigChan := make(chan os.Signal)
+
+	// start locket runner
+	var ret error = nil
+	go func() {
+		ret = runner.Run(sigChan, readyChan)
+		if !isReady {
+			// unblock waitToBecomeMaster if it is still waiting
+			close(readyChan)
+		}
+		if ret != nil {
+			env.log.Info("Locket runner exited with error: ", ret)
+			onDemote()
+		}
+	}()
+
+	// monitor stop channel
+	stopping := false
+	go func() {
+		<-stopCh
+		stopping = true
+		env.log.Info("Received stop, signaling locket runner")
+		sigChan <- os.Interrupt
+	}()
+
+	<-readyChan
+	isReady = true
+	if ret == nil && !stopping {
+		env.log.Info("Master lock acquired")
+	}
+
+	return ret
 }

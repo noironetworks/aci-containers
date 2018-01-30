@@ -16,11 +16,14 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
 	"code.cloudfoundry.org/bbs/models"
+	locketmodels "code.cloudfoundry.org/locket/models"
+	locketfakes "code.cloudfoundry.org/locket/models/modelsfakes"
 	etcdclient "github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
@@ -28,6 +31,8 @@ import (
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
 func TestCfLoadCellNetworkInfo(t *testing.T) {
@@ -169,4 +174,88 @@ func TestCfNodeServiceChanged(t *testing.T) {
 	env := testCfEnvironment(t)
 	env.NodeServiceChanged("diego-cell-cell-1")
 	waitForGetList(t, env.appUpdateQ, 500*time.Millisecond, []interface{}{"app-1", "app-2", "app-3"})
+}
+
+func TestCfHaMaster(t *testing.T) {
+	env := testCfEnvironment(t)
+	fakeLocket := locketfakes.FakeLocketClient{}
+	env.locketClient = &fakeLocket
+	retry := 50 * time.Millisecond
+
+	lockLost := false
+	lostFunc := func() {
+		lockLost = true
+	}
+
+	fakeLocket.LockReturnsOnCall(0, &locketmodels.LockResponse{}, nil)
+	fakeLocket.LockReturnsOnCall(1, &locketmodels.LockResponse{}, nil)
+	fakeLocket.LockReturns(&locketmodels.LockResponse{},
+		fmt.Errorf("Lock not available"))
+
+	// become master
+	assert.Nil(t, env.waitToBecomeMaster(make(chan struct{}), retry, lostFunc))
+
+	// stay master
+	tu.WaitFor(t, "HA master lock renew", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return (fakeLocket.LockCallCount() == 2), nil
+		})
+	assert.False(t, lockLost)
+
+	// become slave
+	tu.WaitFor(t, "HA master lock lost", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return lockLost, nil
+		})
+	assert.Equal(t, 3, fakeLocket.LockCallCount())
+}
+
+func TestCfHaSlaveToMaster(t *testing.T) {
+	env := testCfEnvironment(t)
+	fakeLocket := locketfakes.FakeLocketClient{}
+	env.locketClient = &fakeLocket
+	retry := 50 * time.Millisecond
+
+	fakeLocket.LockReturnsOnCall(0, &locketmodels.LockResponse{},
+		fmt.Errorf("Lock not available"))
+	fakeLocket.LockReturnsOnCall(1, &locketmodels.LockResponse{},
+		fmt.Errorf("Lock not available"))
+	fakeLocket.LockReturns(&locketmodels.LockResponse{}, nil)
+
+	assert.Nil(t,
+		env.waitToBecomeMaster(make(chan struct{}), retry, func() {}))
+	assert.Equal(t, 3, fakeLocket.LockCallCount())
+}
+
+func TestCfHaStop(t *testing.T) {
+	env := testCfEnvironment(t)
+	fakeLocket := locketfakes.FakeLocketClient{}
+	env.locketClient = &fakeLocket
+	retry := 50 * time.Millisecond
+
+	fakeLocket.LockReturns(&locketmodels.LockResponse{},
+		fmt.Errorf("Lock not available"))
+
+	stopCh := make(chan struct{})
+	lockLost := false
+	lostFunc := func() {
+		lockLost = true
+	}
+
+	ret := fmt.Errorf("dummy")
+	go func() {
+		ret = env.waitToBecomeMaster(stopCh, retry, lostFunc)
+	}()
+
+	tu.WaitFor(t, "HA stop - setup", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return (fakeLocket.LockCallCount() == 2), nil
+		})
+	close(stopCh)
+	tu.WaitFor(t, "HA stop - exited", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return (ret == nil), nil
+		})
+	assert.Equal(t, 1, fakeLocket.ReleaseCallCount())
+	assert.False(t, lockLost)
 }

@@ -26,6 +26,7 @@ import (
 	"code.cloudfoundry.org/bbs/events/eventfakes"
 	"code.cloudfoundry.org/bbs/fake_bbs"
 	"code.cloudfoundry.org/bbs/models"
+	"code.cloudfoundry.org/lager"
 	"github.com/Sirupsen/logrus"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
 	_ "github.com/mattn/go-sqlite3"
@@ -91,6 +92,7 @@ func testCfEnvironmentNoMigration(t *testing.T) *CfEnvironment {
 	env.cfAuthClient = &cfapi_fakes.FakeCfAuthClient{}
 	env.bbsClient = new(fake_bbs.FakeClient)
 	env.netpolClient = &cfapi_fakes.FakePolicyClient{}
+	env.cfLogger = lager.NewLogger("CfEnv")
 
 	env.etcdKeysApi = etcd_f.NewFakeEtcdKeysApi(log)
 	env.initIndexes()

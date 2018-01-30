@@ -15,9 +15,39 @@
 
 [[projects]]
   branch = "master"
+  name = "code.cloudfoundry.org/clock"
+  packages = ["."]
+  revision = "e9dc86bbf0e5bbe6bf7ff5a6f71e048959b61f71"
+
+[[projects]]
+  branch = "master"
+  name = "code.cloudfoundry.org/consuladapter"
+  packages = ["."]
+  revision = "c6d9ccbe0f83c7f3052e8304918f1107d321a39a"
+
+[[projects]]
+  branch = "master"
+  name = "code.cloudfoundry.org/diego-logging-client"
+  packages = ["."]
+  revision = "a28e621b55fc2d63cc4184e50d99fb09d9d683a7"
+
+[[projects]]
+  name = "code.cloudfoundry.org/go-loggregator"
+  packages = [".","rpc/loggregator_v2","v1"]
+  revision = "041998b54f880b3e5460fcc4e7d4d77742dc3d86"
+  version = "v6.0.0"
+
+[[projects]]
+  branch = "master"
   name = "code.cloudfoundry.org/lager"
   packages = ["."]
   revision = "0bfa98e49e7a976af91e918d47978f07c00b081f"
+
+[[projects]]
+  branch = "master"
+  name = "code.cloudfoundry.org/locket"
+  packages = [".","lock","models"]
+  revision = "5564bbcef36f7a84717060eb80847315240cedad"
 
 [[projects]]
   name = "github.com/PuerkitoBio/purell"
@@ -60,6 +90,24 @@
   name = "github.com/cloudfoundry-community/go-cfclient"
   packages = ["."]
   revision = "8f0d96bb9f0ac0af44d6cf8fab9b36c4b50a5610"
+
+[[projects]]
+  name = "github.com/cloudfoundry/dropsonde"
+  packages = [".","emitter","envelope_sender","envelopes","factories","instrumented_handler","instrumented_round_tripper","log_sender","logs","metric_sender","metricbatcher","metrics","runtime_stats"]
+  revision = "fe07f64fd1fd25f3c920e9183edd71de6895f1d8"
+  version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/cloudfoundry/gosteno"
+  packages = [".","syslog"]
+  revision = "0c8581caea35ac903728230e447792e2365dcc34"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/cloudfoundry/sonde-go"
+  packages = ["events"]
+  revision = "b33733203bb48d7c56de7cb639d77f78b0449d19"
 
 [[projects]]
   name = "github.com/containernetworking/cni"
@@ -218,6 +266,24 @@
   revision = "c1f8028e62adb3d518b823a2f8e6a95c38bdd3aa"
 
 [[projects]]
+  name = "github.com/hashicorp/consul"
+  packages = ["api"]
+  revision = "48f3dd5642374d079f5a64359023fb8318eb81cc"
+  version = "v1.0.3"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/go-cleanhttp"
+  packages = ["."]
+  revision = "d5fe4b57a186c716b0e00b8c301cbd9b4182694d"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/go-rootcerts"
+  packages = ["."]
+  revision = "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
+
+[[projects]]
   branch = "master"
   name = "github.com/hashicorp/golang-lru"
   packages = [".","simplelru"]
@@ -228,6 +294,12 @@
   name = "github.com/hashicorp/hcl"
   packages = [".","hcl/ast","hcl/parser","hcl/printer","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
   revision = "42e33e2d55a0ff1d6263f738896ea8c13571a8d0"
+
+[[projects]]
+  name = "github.com/hashicorp/serf"
+  packages = ["coordinate"]
+  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
+  version = "v0.8.1"
 
 [[projects]]
   branch = "master"
@@ -268,7 +340,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/mailru/easyjson"
-  packages = ["buffer","jlexer","jwriter"]
+  packages = [".","buffer","jlexer","jwriter"]
   revision = "2a92e673c9a6302dd05c3a691ae1f24aef46457d"
 
 [[projects]]
@@ -276,6 +348,12 @@
   packages = ["."]
   revision = "5160b48509cf5c877bc22c11c373f8c7738cdb38"
   version = "v1.3.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
 
 [[projects]]
   branch = "master"
@@ -288,6 +366,12 @@
   packages = ["."]
   revision = "9a0d7201400759b777f38c0c2d7b0be4e3e8b5c9"
   version = "v1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/nu7hatch/gouuid"
+  packages = ["."]
+  revision = "179d4d0c4d8d407a32af483c2354df1d2c91e6c3"
 
 [[projects]]
   name = "github.com/opencontainers/go-digest"
@@ -424,7 +508,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["bpf","context","context/ctxhttp","http2","http2/hpack","icmp","idna","internal/iana","internal/socket","ipv4","ipv6","lex/httplex"]
+  packages = ["bpf","context","context/ctxhttp","http2","http2/hpack","icmp","idna","internal/iana","internal/socket","internal/timeseries","ipv4","ipv6","lex/httplex","trace"]
   revision = "a04bdaca5b32abe1c069418fb7088ae607de5bd0"
 
 [[projects]]
@@ -450,6 +534,18 @@
   packages = ["internal","internal/base","internal/datastore","internal/log","internal/remote_api","internal/urlfetch","urlfetch"]
   revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "4eb30f4778eed4c258ba66527a0d4f9ec8a36c45"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [".","balancer","balancer/base","balancer/roundrobin","codes","connectivity","credentials","encoding","grpclb/grpc_lb_v1/messages","grpclog","internal","keepalive","metadata","naming","peer","resolver","resolver/dns","resolver/passthrough","stats","status","tap","transport"]
+  revision = "6b51017f791ae1cfbec89c52efdf444b13b550ef"
+  version = "v1.9.2"
 
 [[projects]]
   name = "gopkg.in/inf.v0"
@@ -508,6 +604,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "df5269c97752ec9b4c145b2b54189e21c35018864cfc098de28b4fe86eafdffa"
+  inputs-digest = "0a58e5524ba94f2c5952e27f3cfc7c7d9ca6f4239f371e7f56d5315ed287828f"
   solver-name = "gps-cdcl"
   solver-version = 1
