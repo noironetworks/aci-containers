@@ -112,7 +112,7 @@ func TestCfHandleEtcdCellServiceNode(t *testing.T) {
 	tu.WaitFor(t, "Ext-IP service ep created", 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			return env.agent.opflexServices["a1-external"] != nil, nil
-	})
+		})
 
 	op = "delete"
 	node.Key = "/aci/cells/cell1"
@@ -123,5 +123,5 @@ func TestCfHandleEtcdCellServiceNode(t *testing.T) {
 		func(last bool) (bool, error) {
 			svc := env.agent.opflexServices["a1-external"]
 			return (svc != nil && svc.ServiceMac == "" && svc.InterfaceIp == ""), nil
-	})
+		})
 }

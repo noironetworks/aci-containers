@@ -46,9 +46,9 @@ func testCfEnvironment(t *testing.T) *CfEnvironment {
 	agent := NewHostAgent(
 		&HostAgentConfig{
 			HostAgentNodeConfig: HostAgentNodeConfig{UplinkIface: "eth1"},
-			AciVrfTenant: "common",
-			AciVrf: "cf",
-			ServiceVlan: 4001},
+			AciVrfTenant:        "common",
+			AciVrf:              "cf",
+			ServiceVlan:         4001},
 		&env,
 		log)
 	agent.serviceEp.Mac = "de:ad:be:ef:00:00"
@@ -85,7 +85,7 @@ func (e *CfEnvironment) GetContainerMetadata(ctId string) map[string]*md.Contain
 	return nil
 }
 
-type fakeIpTables struct{
+type fakeIpTables struct {
 	rules map[string]struct{}
 }
 
@@ -113,8 +113,8 @@ func (ipt *fakeIpTables) Delete(table, chain string, rulespec ...string) error {
 }
 
 func (ipt *fakeIpTables) ClearChain(table, chain string) error {
-	for k, _ := range ipt.rules {
-		if strings.HasPrefix(k, table + "|" + chain + "|") {
+	for k := range ipt.rules {
+		if strings.HasPrefix(k, table+"|"+chain+"|") {
 			delete(ipt.rules, k)
 		}
 	}
@@ -137,20 +137,20 @@ func (l *fakeNetlinkLink) Type() string {
 
 func getTestEpInfo() *etcd.EpInfo {
 	ep := &etcd.EpInfo{
-		AppId: "a1",
-		AppName: "a1-name",
-		SpaceId: "sp1",
-		OrgId: "org1",
-		IpAddress: "10.255.0.45",
+		AppId:         "a1",
+		AppName:       "a1-name",
+		SpaceId:       "sp1",
+		OrgId:         "org1",
+		IpAddress:     "10.255.0.45",
 		InstanceIndex: 1,
 		PortMapping: []etcd.PortMap{
-			etcd.PortMap{ContainerPort: 8080, HostPort: 60010},
-			etcd.PortMap{ContainerPort: 2222, HostPort: 60011}},
+			{ContainerPort: 8080, HostPort: 60010},
+			{ContainerPort: 2222, HostPort: 60011}},
 		EpgTenant: "cf",
-		Epg: "epg1",
+		Epg:       "epg1",
 		SecurityGroups: []etcd.GroupInfo{
-			etcd.GroupInfo{Tenant: "c", Group: "sg1"},
-			etcd.GroupInfo{Tenant: "d", Group: "sg2"}},
+			{Tenant: "c", Group: "sg1"},
+			{Tenant: "d", Group: "sg2"}},
 	}
 	return ep
 }
@@ -160,11 +160,11 @@ func getTestEpMetadata() map[string]*md.ContainerMetadata {
 	meta["one"] = &md.ContainerMetadata{
 		Id: md.ContainerId{Namespace: "_cf_", Pod: "one", ContId: "one"},
 		Ifaces: []*md.ContainerIfaceMd{
-			&md.ContainerIfaceMd{
+			{
 				HostVethName: "veth1",
-				Mac: "1:2:3:4:5:6",
+				Mac:          "1:2:3:4:5:6",
 				IPs: []md.ContainerIfaceIP{
-					md.ContainerIfaceIP{
+					{
 						Address: net.IPNet{
 							IP: net.ParseIP("10.255.0.45")}}}}}}
 	return meta
@@ -178,11 +178,11 @@ func getExpectedOpflexEp() *opflexEndpoint {
 		AccessIface:       "veth1",
 		AccessUplinkIface: "pa-veth1",
 		IfaceName:         "pi-veth1",
-		SecurityGroup:     []md.OpflexGroup{
-			md.OpflexGroup{PolicySpace: "c", Name: "sg1"},
-			md.OpflexGroup{PolicySpace: "d", Name: "sg2"}},
-		EgPolicySpace:     "cf",
-		EndpointGroup:     "epg1",
+		SecurityGroup: []md.OpflexGroup{
+			{PolicySpace: "c", Name: "sg1"},
+			{PolicySpace: "d", Name: "sg2"}},
+		EgPolicySpace: "cf",
+		EndpointGroup: "epg1",
 	}
 	attrs := make(map[string]string)
 	attrs["app-id"] = "a1"
@@ -197,19 +197,19 @@ func getExpectedOpflexEp() *opflexEndpoint {
 
 func getExpectedOpflexServiceForLegacyNet(env *CfEnvironment) *opflexService {
 	expected_svc := &opflexService{
-		Uuid: "cf-net-cell1",
+		Uuid:              "cf-net-cell1",
 		DomainPolicySpace: "common",
-		DomainName: "cf",
-		ServiceMac: env.cfNetLink.(*fakeNetlinkLink).fakeMac,
-		InterfaceName: "cf-net-legacy"}
+		DomainName:        "cf",
+		ServiceMac:        env.cfNetLink.(*fakeNetlinkLink).fakeMac,
+		InterfaceName:     "cf-net-legacy"}
 	svc_map1 := opflexServiceMapping{
-		ServiceIp: "169.254.169.254",
+		ServiceIp:   "169.254.169.254",
 		ServicePort: 8080,
-		NextHopIps: make([]string, 0)}
+		NextHopIps:  make([]string, 0)}
 	svc_map2 := opflexServiceMapping{
-		ServiceIp: "169.254.169.254",
+		ServiceIp:   "169.254.169.254",
 		ServicePort: 2222,
-		NextHopIps: make([]string, 0)}
+		NextHopIps:  make([]string, 0)}
 	expected_svc.ServiceMappings = []opflexServiceMapping{svc_map1, svc_map2}
 	return expected_svc
 }
@@ -233,8 +233,8 @@ func checkOpflexService(t *testing.T, exp, actual *opflexService) {
 func getTestAppInfo() *etcd.AppInfo {
 	app := &etcd.AppInfo{
 		ContainerIps: []string{"10.255.0.10", "10.255.0.45"},
-		VirtualIp: []string{"10.254.0.5"},
-		ExternalIp: []string{"150.150.0.3"},
+		VirtualIp:    []string{"10.254.0.5"},
+		ExternalIp:   []string{"150.150.0.3"},
 	}
 	return app
 }
@@ -245,11 +245,11 @@ func getExpectedOpflexServiceForApp(appId string, external bool, vips, ips []str
 		uuid += "-external"
 	}
 	expected_svc := &opflexService{
-		Uuid: uuid,
+		Uuid:              uuid,
 		DomainPolicySpace: "common",
-		DomainName: "cf",
-		ServiceMode: "loadbalancer",
-		ServiceMappings: make([]opflexServiceMapping, 0),
+		DomainName:        "cf",
+		ServiceMode:       "loadbalancer",
+		ServiceMappings:   make([]opflexServiceMapping, 0),
 	}
 	if external {
 		expected_svc.InterfaceName = "eth1"

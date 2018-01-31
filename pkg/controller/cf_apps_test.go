@@ -92,17 +92,17 @@ func TestCfManageAppExtIp(t *testing.T) {
 	env.cont.staticServiceIps.V6.RemoveIp(net.ParseIP("::2f01"))
 	env.cont.staticServiceIps.V6.RemoveIp(net.ParseIP("::2f02"))
 
-	curr := []ExtIpAlloc{ExtIpAlloc{"1.2.3.2", false, ""},
-		ExtIpAlloc{"1.2.3.3", false, ""},
-		ExtIpAlloc{"::2f01", false, ""},
-		ExtIpAlloc{"::2f02", false, ""},
+	curr := []ExtIpAlloc{{"1.2.3.2", false, ""},
+		{"1.2.3.3", false, ""},
+		{"::2f01", false, ""},
+		{"::2f02", false, ""},
 	}
 
 	// allocate static
-	req := []ExtIpAlloc{ExtIpAlloc{"1.2.3.3", false, ""},
-		ExtIpAlloc{"1.2.3.4", false, ""},
-		ExtIpAlloc{"::2f02", false, ""},
-		ExtIpAlloc{"::2f03", false, ""},
+	req := []ExtIpAlloc{{"1.2.3.3", false, ""},
+		{"1.2.3.4", false, ""},
+		{"::2f02", false, ""},
+		{"::2f03", false, ""},
 	}
 	res, err := env.ManageAppExtIp(curr, req, false)
 	assert.Nil(t, err)
@@ -115,14 +115,14 @@ func TestCfManageAppExtIp(t *testing.T) {
 	env.cont.staticServiceIps.V6.RemoveIp(net.ParseIP("::2f05"))
 	v4copy := ipam.NewFromRanges(env.cont.staticServiceIps.V4.FreeList)
 	v6copy := ipam.NewFromRanges(env.cont.staticServiceIps.V6.FreeList)
-	req = []ExtIpAlloc{ExtIpAlloc{"1.2.3.5", false, ""}, ExtIpAlloc{"1.2.3.6", false, ""}}
+	req = []ExtIpAlloc{{"1.2.3.5", false, ""}, {"1.2.3.6", false, ""}}
 	res1, err := env.ManageAppExtIp(res, req, false)
 	assert.NotNil(t, err)
 	assert.Nil(t, res1)
 	assert.Equal(t, v4copy, env.cont.staticServiceIps.V4)
 	assert.Equal(t, v6copy, env.cont.staticServiceIps.V6)
 
-	req = []ExtIpAlloc{ExtIpAlloc{"::2f04", false, ""}, ExtIpAlloc{"::2f05", false, ""}}
+	req = []ExtIpAlloc{{"::2f04", false, ""}, {"::2f05", false, ""}}
 	res1, err = env.ManageAppExtIp(res, req, false)
 	assert.NotNil(t, err)
 	assert.Nil(t, res1)
@@ -130,7 +130,7 @@ func TestCfManageAppExtIp(t *testing.T) {
 	assert.Equal(t, v6copy, env.cont.staticServiceIps.V6)
 
 	// deallocate static
-	req = []ExtIpAlloc{ExtIpAlloc{"1.2.3.3", false, ""}, ExtIpAlloc{"::2f02", false, ""}}
+	req = []ExtIpAlloc{{"1.2.3.3", false, ""}, {"::2f02", false, ""}}
 	res1, err = env.ManageAppExtIp(res, req, false)
 	assert.Nil(t, err)
 	assert.Equal(t, req, res1)
@@ -285,17 +285,17 @@ func TestCfNetworkPolicyPoller(t *testing.T) {
 
 	store1, hash1, _ := npp_func()
 	exp_app_100 := map[string][]cfapi.Destination{
-		"app-1": []cfapi.Destination{
-			cfapi.Destination{ID: "app-1", Protocol: "tcp", Ports: cfapi.Ports{Start: 100, End: 200}},
-			cfapi.Destination{ID: "app-1", Protocol: "tcp", Ports: cfapi.Ports{Start: 10, End: 20}},
+		"app-1": {
+			{ID: "app-1", Protocol: "tcp", Ports: cfapi.Ports{Start: 100, End: 200}},
+			{ID: "app-1", Protocol: "tcp", Ports: cfapi.Ports{Start: 10, End: 20}},
 		},
-		"app-3": []cfapi.Destination{
-			cfapi.Destination{ID: "app-3", Protocol: "tcp", Ports: cfapi.Ports{Start: 30, End: 40}},
+		"app-3": {
+			{ID: "app-3", Protocol: "tcp", Ports: cfapi.Ports{Start: 30, End: 40}},
 		},
 	}
 	exp_app_200 := map[string][]cfapi.Destination{
-		"app-2": []cfapi.Destination{
-			cfapi.Destination{ID: "app-2", Protocol: "udp", Ports: cfapi.Ports{Start: 30, End: 40}},
+		"app-2": {
+			{ID: "app-2", Protocol: "udp", Ports: cfapi.Ports{Start: 30, End: 40}},
 		}}
 	assert.Equal(t, exp_app_100, store1["app-100"])
 	assert.Equal(t, exp_app_200, store1["app-200"])

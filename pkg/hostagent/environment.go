@@ -58,8 +58,8 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 	}
 
 	log.WithFields(logrus.Fields{
-		"kubeconfig":  config.KubeConfig,
-		"node-name":   config.NodeName,
+		"kubeconfig": config.KubeConfig,
+		"node-name":  config.NodeName,
 	}).Info("Setting up Kubernetes environment")
 
 	log.Debug("Initializing kubernetes client")

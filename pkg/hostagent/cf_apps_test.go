@@ -58,16 +58,16 @@ func TestCfContainerUpdate(t *testing.T) {
 	ep.Epg = "epg2"
 	ep.SecurityGroups = append(ep.SecurityGroups, etcd.GroupInfo{Tenant: "e", Group: "sg3"})
 	ep.PortMapping = []etcd.PortMap{
-		etcd.PortMap{ContainerPort: 8080, HostPort: 60010},
-		etcd.PortMap{ContainerPort: 9443, HostPort: 60012}}
+		{ContainerPort: 8080, HostPort: 60010},
+		{ContainerPort: 9443, HostPort: 60012}}
 	expected_ep.EndpointGroup = "epg2"
 	expected_ep.SecurityGroup = append(expected_ep.SecurityGroup,
 		md.OpflexGroup{PolicySpace: "e", Name: "sg3"})
 	expected_svc.ServiceMappings = append(expected_svc.ServiceMappings,
 		opflexServiceMapping{
-			ServiceIp: "169.254.169.254",
+			ServiceIp:   "169.254.169.254",
 			ServicePort: 9443,
-			NextHopIps: make([]string, 0)})
+			NextHopIps:  make([]string, 0)})
 	env.cfAppContainerChanged(&id, ep)
 	assert.Equal(t, expected_ep, env.agent.opflexEps["one"][0])
 	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
@@ -164,14 +164,14 @@ func TestCfAppUpdate(t *testing.T) {
 	// create
 	env.cfAppChanged(&id, app)
 	checkOpflexService(t, exp_vip_svc, env.agent.opflexServices[id])
-	checkOpflexService(t, exp_ext_svc, env.agent.opflexServices[id + "-external"])
+	checkOpflexService(t, exp_ext_svc, env.agent.opflexServices[id+"-external"])
 
 	// remove vip & ext-ip
 	app.VirtualIp = nil
 	app.ExternalIp = nil
 	env.cfAppIdChanged(&id)
 	_, vip_ok := env.agent.opflexServices[id]
-	_, ext_ok := env.agent.opflexServices[id + "-external"]
+	_, ext_ok := env.agent.opflexServices[id+"-external"]
 	assert.False(t, vip_ok)
 	assert.False(t, ext_ok)
 
@@ -184,12 +184,12 @@ func TestCfAppUpdate(t *testing.T) {
 	exp_ext_svc = getExpectedOpflexServiceForApp(id, true, app.ExternalIp, []string{"10.255.0.46"})
 	env.cfAppChanged(&id, app)
 	checkOpflexService(t, exp_vip_svc, env.agent.opflexServices[id])
-	checkOpflexService(t, exp_ext_svc, env.agent.opflexServices[id + "-external"])
+	checkOpflexService(t, exp_ext_svc, env.agent.opflexServices[id+"-external"])
 
 	// delete app
 	env.cfAppDeleted(&id, app)
 	_, vip_ok = env.agent.opflexServices[id]
-	_, ext_ok = env.agent.opflexServices[id + "-external"]
+	_, ext_ok = env.agent.opflexServices[id+"-external"]
 	assert.False(t, vip_ok)
 	assert.False(t, ext_ok)
 }

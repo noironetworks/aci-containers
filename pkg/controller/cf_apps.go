@@ -225,11 +225,11 @@ func (env *CfEnvironment) fetchSpaceInfo(spaceId *string) (*SpaceInfo, []*cfclie
 		return &spi, nil, err
 	}
 	var allsgs []*cfclient.SecGroup
-	for i, _ := range runsg {
+	for i := range runsg {
 		spi.RunningSecurityGroups = append(spi.RunningSecurityGroups, runsg[i].Guid)
 		allsgs = append(allsgs, &runsg[i])
 	}
-	for i, _ := range stagesg {
+	for i := range stagesg {
 		spi.StagingSecurityGroups = append(spi.StagingSecurityGroups, stagesg[i].Guid)
 		allsgs = append(allsgs, &stagesg[i])
 	}
@@ -382,7 +382,7 @@ func NewNetworkPolicyPoller(env *CfEnvironment) *CfPoller {
 			env.cont.apicConn.WriteApicObjects("np:"+k, hpp)
 			env.scheduleAppContainersUpdateLocked(k)
 		}
-		for k, _ := range deletes {
+		for k := range deletes {
 			env.log.Debug("Delete net pol ", k)
 			delete(env.netpolIdx, k)
 			env.cont.apicConn.ClearApicObjects("np:" + k)
@@ -667,7 +667,7 @@ func (env *CfEnvironment) ManageAppExtIp(current []ExtIpAlloc, requestedStatic [
 
 	currentDynamic := make([]*ExtIpAlloc, 0)
 	currentStatic := make(map[string]*ExtIpAlloc, 0)
-	for i, _ := range current {
+	for i := range current {
 		if current[i].Dynamic {
 			currentDynamic = append(currentDynamic, &current[i])
 		} else {
@@ -696,7 +696,7 @@ func (env *CfEnvironment) ManageAppExtIp(current []ExtIpAlloc, requestedStatic [
 	}()
 
 	// Allocate requested new static IPs
-	for i, _ := range requestedStatic {
+	for i := range requestedStatic {
 		ipa := &requestedStatic[i]
 		if _, ok := currentStatic[ipa.IP]; ok {
 			continue
@@ -728,7 +728,7 @@ func (env *CfEnvironment) ManageAppExtIp(current []ExtIpAlloc, requestedStatic [
 		}
 	}
 	// remove processed IPs from currentStatic
-	for i, _ := range requestedStatic {
+	for i := range requestedStatic {
 		delete(currentStatic, requestedStatic[i].IP)
 	}
 
@@ -819,7 +819,7 @@ func NewCfBbsCellPoller(env *CfEnvironment) *CfPoller {
 			env.cont.apicConn.WriteApicObjects("inj_node:"+k,
 				apicapi.ApicSlice{injNode})
 		}
-		for k, _ := range deletes {
+		for k := range deletes {
 			env.log.Debug("Delete cell ", k)
 			env.cont.apicConn.ClearApicObjects("inj_node:" + k)
 		}

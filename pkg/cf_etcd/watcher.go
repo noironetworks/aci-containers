@@ -18,28 +18,28 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/net/context"
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/Sirupsen/logrus"
+	etcdclient "github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 )
 
 type HandleNodeFunc func(*string, *etcdclient.Node) error
 
 type CfEtcdWatcher struct {
-	key           string
-	etcdKeysApi   etcdclient.KeysAPI
-	synced        bool
-	err           error
-	log           *logrus.Logger
-	delayOnErr    time.Duration
+	key         string
+	etcdKeysApi etcdclient.KeysAPI
+	synced      bool
+	err         error
+	log         *logrus.Logger
+	delayOnErr  time.Duration
 
-	nodeHandler   func(*string, *etcdclient.Node) error
+	nodeHandler func(*string, *etcdclient.Node) error
 }
 
 func NewEtcdWatcher(kapi etcdclient.KeysAPI, key string,
-	f HandleNodeFunc, log *logrus.Logger) (*CfEtcdWatcher) {
-		return &CfEtcdWatcher{key: key, etcdKeysApi: kapi, synced: false,
-			log: log, delayOnErr: 10 * time.Second, nodeHandler: f}
+	f HandleNodeFunc, log *logrus.Logger) *CfEtcdWatcher {
+	return &CfEtcdWatcher{key: key, etcdKeysApi: kapi, synced: false,
+		log: log, delayOnErr: 10 * time.Second, nodeHandler: f}
 }
 
 func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
@@ -74,9 +74,9 @@ func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
 				w.err = nil
 			} else {
 				w.log.Error("Error fetching etcd subtree: ", err)
-				w.synced = true  // to unblock waiters
+				w.synced = true // to unblock waiters
 				w.err = err
-				time.Sleep(w.delayOnErr)          // TODO exponential backoff
+				time.Sleep(w.delayOnErr) // TODO exponential backoff
 				continue
 			}
 		} else {

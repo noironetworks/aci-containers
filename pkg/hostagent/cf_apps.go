@@ -54,7 +54,7 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 			var md_json []byte
 			md_json, err = json.Marshal(md[ctId].Ifaces)
 			if err == nil {
-				_, err = kapi.Set(context.Background(), key + "/metadata", string(md_json), nil)
+				_, err = kapi.Set(context.Background(), key+"/metadata", string(md_json), nil)
 			}
 		}
 	}
@@ -86,7 +86,7 @@ func (env *CfEnvironment) cfAppContainerChanged(ctId *string, ep *etcd.EpInfo) {
 	// Update iptables rules and container ports-set
 	cportset := make(map[uint32]struct{})
 	env.indexLock.Lock()
-	for p, _ := range env.cfNetContainerPorts {
+	for p := range env.cfNetContainerPorts {
 		cportset[p] = struct{}{}
 	}
 	// pre-routing DNAT rules
@@ -95,8 +95,8 @@ func (env *CfEnvironment) cfAppContainerChanged(ctId *string, ep *etcd.EpInfo) {
 	for _, pmap := range ep.PortMapping {
 		cport := fmt.Sprintf("%d", pmap.ContainerPort)
 		err := env.iptbl.AppendUnique("nat", NAT_POST_CHAIN, "-o", env.cfconfig.CfNetOvsPort, "-p", "tcp",
-									 "-m", "tcp", "--dport", cport, "-j", "SNAT", "--to-source",
-									 env.cfconfig.CfNetIntfAddress)
+			"-m", "tcp", "--dport", cport, "-j", "SNAT", "--to-source",
+			env.cfconfig.CfNetIntfAddress)
 		if err != nil {
 			env.log.Warning("Failed to add post-routing iptables rule: ", err)
 		}
@@ -126,9 +126,9 @@ func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portma
 	new_pm := make(map[uint32]uint32)
 	for _, ch := range portmap {
 		err := env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "-d", env.cfconfig.CellAddress, "-p", "tcp",
-									 "--dport", fmt.Sprintf("%d", ch.HostPort),
-									 "-j", "DNAT", "--to-destination",
-									 ep.IpAddress + ":" + fmt.Sprintf("%d", ch.ContainerPort))
+			"--dport", fmt.Sprintf("%d", ch.HostPort),
+			"-j", "DNAT", "--to-destination",
+			ep.IpAddress+":"+fmt.Sprintf("%d", ch.ContainerPort))
 		if err != nil {
 			env.log.Warning(fmt.Sprintf("Failed to add pre-routing iptables rule for %d: %v", *ctId, err))
 		}
@@ -137,8 +137,8 @@ func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portma
 	}
 	for hp, cp := range old_pm {
 		args := []string{"-d", env.cfconfig.CellAddress, "-p", "tcp", "--dport",
-						 fmt.Sprintf("%d", hp), "-j", "DNAT", "--to-destination",
-						 ep.IpAddress + ":" + fmt.Sprintf("%d", cp)}
+			fmt.Sprintf("%d", hp), "-j", "DNAT", "--to-destination",
+			ep.IpAddress + ":" + fmt.Sprintf("%d", cp)}
 		exist, _ := env.iptbl.Exists("nat", NAT_PRE_CHAIN, args...)
 		if !exist {
 			continue
@@ -169,14 +169,14 @@ func (env *CfEnvironment) updateLegacyCfNetService(portmap map[uint32]struct{}) 
 	// should be called with agent.indexMutex held
 	uuid := "cf-net-" + env.cfconfig.CellID
 	new_svc := opflexService{Uuid: uuid,
-							DomainPolicySpace: env.agent.config.AciVrfTenant,
-							DomainName: env.agent.config.AciVrf,
-							ServiceMac: env.cfNetLink.Attrs().HardwareAddr.String(),
-							InterfaceName: env.cfconfig.CfNetOvsPort}
-	for p, _ := range portmap {
+		DomainPolicySpace: env.agent.config.AciVrfTenant,
+		DomainName:        env.agent.config.AciVrf,
+		ServiceMac:        env.cfNetLink.Attrs().HardwareAddr.String(),
+		InterfaceName:     env.cfconfig.CfNetOvsPort}
+	for p := range portmap {
 		svc_map := opflexServiceMapping{ServiceIp: env.cfconfig.CfNetIntfAddress,
-									   ServicePort: uint16(p),
-									   NextHopIps: make([]string, 0)}
+			ServicePort: uint16(p),
+			NextHopIps:  make([]string, 0)}
 		new_svc.ServiceMappings = append(new_svc.ServiceMappings, svc_map)
 	}
 	exist, ok := env.agent.opflexServices[uuid]
@@ -259,7 +259,7 @@ func (env *CfEnvironment) updateCfAppServiceEp(appId *string, app *etcd.AppInfo,
 		if agent.serviceEp.Ipv4 != nil {
 			appas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		} else {
-			appas.InterfaceIp = agent.serviceEp.Ipv6.String()    // TODO dual stack?
+			appas.InterfaceIp = agent.serviceEp.Ipv6.String() // TODO dual stack?
 		}
 	}
 	ips := app.VirtualIp

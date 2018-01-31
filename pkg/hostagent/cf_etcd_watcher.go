@@ -31,7 +31,7 @@ func NewCfEtcdCellWatcher(env *CfEnvironment) *etcd.CfEtcdWatcher {
 	cellSvcKey := cellKey + "/service"
 	ctBaseKey := cellKey + "/containers/"
 
-	handleEtcdNode := func (action *string, node *etcdclient.Node) error {
+	handleEtcdNode := func(action *string, node *etcdclient.Node) error {
 		if node.Key == cellKey {
 			return env.handleEtcdCellNode(action, node)
 		} else if node.Key == cellNetKey {
@@ -50,8 +50,8 @@ func NewCfEtcdCellWatcher(env *CfEnvironment) *etcd.CfEtcdWatcher {
 func NewCfEtcdAppWatcher(env *CfEnvironment) *etcd.CfEtcdWatcher {
 	key := etcd.APP_KEY_BASE
 
-	handleEtcdNode := func (action *string, node *etcdclient.Node) error {
-		if strings.HasPrefix(node.Key, etcd.APP_KEY_BASE + "/") {
+	handleEtcdNode := func(action *string, node *etcdclient.Node) error {
+		if strings.HasPrefix(node.Key, etcd.APP_KEY_BASE+"/") {
 			return env.handleEtcdAppNode(action, node)
 		}
 		return nil
@@ -113,7 +113,7 @@ func (env *CfEnvironment) handleEtcdCellServiceNode(action *string, node *etcdcl
 		env.indexLock.Unlock()
 		// TODO Use a queue for updating all apps
 		go func() {
-			for id, _ := range apps {
+			for id := range apps {
 				env.cfAppIdChanged(&id)
 			}
 		}()
@@ -124,9 +124,9 @@ func (env *CfEnvironment) handleEtcdCellServiceNode(action *string, node *etcdcl
 func (env *CfEnvironment) handleEtcdContainerNode(action *string, node *etcdclient.Node) error {
 	epNode := strings.HasSuffix(node.Key, "/ep")
 	key_parts := strings.Split(node.Key, "/")
-	ctId := key_parts[len(key_parts) - 2]
+	ctId := key_parts[len(key_parts)-2]
 	if !epNode {
-		ctId = key_parts[len(key_parts) - 1]
+		ctId = key_parts[len(key_parts)-1]
 	}
 	deleted := etcd.IsDeleteAction(action)
 	if epNode && !deleted {
@@ -159,7 +159,7 @@ func (env *CfEnvironment) handleEtcdContainerNode(action *string, node *etcdclie
 
 func (env *CfEnvironment) handleEtcdAppNode(action *string, node *etcdclient.Node) error {
 	key_parts := strings.Split(node.Key, "/")
-	appId := key_parts[len(key_parts) - 1]
+	appId := key_parts[len(key_parts)-1]
 	deleted := etcd.IsDeleteAction(action)
 	if !deleted {
 		var app etcd.AppInfo

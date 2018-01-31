@@ -40,21 +40,21 @@ func TestCfHandleEtcdContainerNode(t *testing.T) {
 		AppId: "app-2"}
 
 	ifaces_c5 := []*md.ContainerIfaceMd{
-		&md.ContainerIfaceMd{
+		{
 			HostVethName: "veth1",
 			Mac:          "1:2:3:4:5:6",
 			IPs: []md.ContainerIfaceIP{
-				md.ContainerIfaceIP{
+				{
 					Address: net.IPNet{
 						IP: net.ParseIP("10.255.0.45")}}}}}
 	ifaces_c6 := []*md.ContainerIfaceMd{
-		&md.ContainerIfaceMd{HostVethName: "veth1", Mac: "1:2:3:4:5:8"}}
+		{HostVethName: "veth1", Mac: "1:2:3:4:5:8"}}
 	ifaces_c7 := []*md.ContainerIfaceMd{
-		&md.ContainerIfaceMd{
+		{
 			HostVethName: "veth1",
 			Mac:          "1:2:3:4:5:7",
 			IPs: []md.ContainerIfaceIP{
-				md.ContainerIfaceIP{
+				{
 					Address: net.IPNet{
 						IP: net.ParseIP("10.255.0.46")}}}}}
 
