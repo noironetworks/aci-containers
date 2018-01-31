@@ -218,12 +218,11 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	}
 }
 
-
-func getOutfile(output string) (string, *os.File, error)  {
+func getOutfile(output string) (string, *os.File, error) {
 	if output == "-" {
 		return "standard output", os.Stdout, nil
 	} else {
-	        outfile, err := os.Create(output)
+		outfile, err := os.Create(output)
 		if err != nil {
 			return output, nil, err
 		}

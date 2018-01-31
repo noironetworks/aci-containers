@@ -825,7 +825,7 @@ func TestReconcile(t *testing.T) {
 					},
 				})
 		}
-		for dn, _ := range test.expected {
+		for dn := range test.expected {
 			if _, ok := test.updateResp[dn]; ok {
 				continue
 			}

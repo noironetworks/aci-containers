@@ -252,7 +252,7 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 
 		appSubj := apicapi.NewHostprotSubj(hpp.GetDn(), "app-ingress")
 		appDn := appSubj.GetDn()
-		for p, _ := range addPorts {
+		for p := range addPorts {
 			ps := fmt.Sprintf("%d", p)
 			appPort := apicapi.NewHostprotRule(appDn, "app-port:"+ps)
 			appPort.SetAttr("direction", "ingress")
@@ -318,7 +318,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 	cont := env.cont
 	cont.indexMutex.Lock()
 	nodeMap := make(map[string]*metadata.ServiceEndpoint)
-	for cid, _ := range ainfo.ContainerIps {
+	for cid := range ainfo.ContainerIps {
 		if cinfo, _ := env.contIdx[cid]; cinfo != nil {
 			nodename := "diego-cell-" + cinfo.CellId
 			nodeMeta, ok := cont.nodeServiceMetaCache[nodename]
@@ -335,7 +335,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 	cont.indexMutex.Unlock()
 
 	var nodes []string
-	for node, _ := range nodeMap {
+	for node := range nodeMap {
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)
@@ -573,7 +573,7 @@ func (env *CfEnvironment) convertAsgRule(rule *cfclient.SecGroupRule,
 
 	var ports []Range
 	if rule.Ports == "" {
-		ports = []Range{Range{start: "unspecified", end: "unspecified"}}
+		ports = []Range{{start: "unspecified", end: "unspecified"}}
 	} else {
 		ports = splitIntoRanges(&rule.Ports)
 	}

@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/Sirupsen/logrus"
+	etcdclient "github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 
@@ -30,7 +30,7 @@ import (
 func TestCfEtcdWatcher(t *testing.T) {
 	updates := make(map[string]bool)
 	handler := func(action *string, node *etcdclient.Node) error {
-		updates[*action + "|" + node.Key] = true
+		updates[*action+"|"+node.Key] = true
 		return nil
 	}
 
@@ -60,19 +60,19 @@ func TestCfEtcdWatcher(t *testing.T) {
 
 	updates = make(map[string]bool)
 	kapi.FakeWatcher.Enqueue(&etcdclient.Response{
-		Node: &etcdclient.Node{Key: "/a/b/e", Value: "e"},
+		Node:   &etcdclient.Node{Key: "/a/b/e", Value: "e"},
 		Action: "set"})
 	tu.WaitFor(t, "Waiting for update - set new", 500*time.Millisecond,
 		func(bool) (bool, error) { return updates["set|/a/b/e"], nil })
 
 	kapi.FakeWatcher.Enqueue(&etcdclient.Response{
-		Node: &etcdclient.Node{Key: "/a/b/c", Value: "c1"},
+		Node:   &etcdclient.Node{Key: "/a/b/c", Value: "c1"},
 		Action: "set"})
 	tu.WaitFor(t, "Waiting for update - set existing", 500*time.Millisecond,
 		func(bool) (bool, error) { return updates["set|/a/b/c"], nil })
 
 	kapi.FakeWatcher.Enqueue(&etcdclient.Response{
-		Node: &etcdclient.Node{Key: "/a/b/d", Value: ""},
+		Node:   &etcdclient.Node{Key: "/a/b/d", Value: ""},
 		Action: "delete"})
 	tu.WaitFor(t, "Waiting for update - delete", 500*time.Millisecond,
 		func(bool) (bool, error) { return updates["delete|/a/b/d"], nil })

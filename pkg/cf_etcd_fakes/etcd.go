@@ -22,27 +22,26 @@ import (
 	"strings"
 	"time"
 
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/Sirupsen/logrus"
+	etcdclient "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 )
 
-
 type FakeEtcdKeysApi struct {
-	data         map[string]string
-	log          *logrus.Logger
-	FakeWatcher  *FakeEtcdWatcher
+	data        map[string]string
+	log         *logrus.Logger
+	FakeWatcher *FakeEtcdWatcher
 }
 
 type FakeEtcdWatcher struct {
-	blockFor    time.Duration
-	queue       chan *etcdclient.Response
+	blockFor time.Duration
+	queue    chan *etcdclient.Response
 }
 
 func NewFakeEtcdKeysApi(log *logrus.Logger) *FakeEtcdKeysApi {
 	return &FakeEtcdKeysApi{
-		data: make(map[string]string),
-		log: log,
+		data:        make(map[string]string),
+		log:         log,
 		FakeWatcher: NewFakeEtcdWatcher()}
 }
 
@@ -57,7 +56,7 @@ func (k *FakeEtcdKeysApi) Get(ctx context.Context, key string, opts *etcdclient.
 		parent := &etcdclient.Node{Key: key, Value: v}
 		if opts != nil && opts.Recursive {
 			for ik, iv := range k.data {
-				if strings.HasPrefix(ik, key + "/") {
+				if strings.HasPrefix(ik, key+"/") {
 					parent.Nodes = append(parent.Nodes, &etcdclient.Node{Key: ik, Value: iv})
 				}
 			}
@@ -75,7 +74,7 @@ func (k *FakeEtcdKeysApi) Set(ctx context.Context, key, value string, opts *etcd
 
 func (k *FakeEtcdKeysApi) Delete(ctx context.Context, key string, opts *etcdclient.DeleteOptions) (*etcdclient.Response, error) {
 	if opts != nil && opts.Recursive {
-		for ik, _ := range k.data {
+		for ik := range k.data {
 			if strings.HasPrefix(ik, key) {
 				delete(k.data, ik)
 			}

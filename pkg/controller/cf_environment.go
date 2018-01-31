@@ -635,7 +635,7 @@ func (env *CfEnvironment) UpdateHppForCfComponents() {
 		}
 	}
 
-	for a, _ := range apps {
+	for a := range apps {
 		env.appUpdateQ.Add(a)
 	}
 	hpp.AddChild(appSubj)
@@ -744,7 +744,7 @@ func (env *CfEnvironment) NodeServiceChanged(nodeName string) {
 		}
 	}
 
-	for id, _ := range apps {
+	for id := range apps {
 		env.appUpdateQ.Add(id)
 	}
 }

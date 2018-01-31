@@ -34,7 +34,7 @@ func NewEtcdClient(etcdUrl string, caCertFile string, clientCertFile string,
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			// values taken from http.DefaultTransport
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).Dial,
 		// value taken from http.DefaultTransport
@@ -42,8 +42,8 @@ func NewEtcdClient(etcdUrl string, caCertFile string, clientCertFile string,
 		TLSClientConfig:     tlsConfig,
 	}
 	cfg := client.Config{
-		Endpoints:               []string{etcdUrl},
-		Transport:               t,
+		Endpoints: []string{etcdUrl},
+		Transport: t,
 		// set timeout per request to fail fast when the target endpoint is unavailable
 		HeaderTimeoutPerRequest: time.Second,
 	}
@@ -51,36 +51,36 @@ func NewEtcdClient(etcdUrl string, caCertFile string, clientCertFile string,
 }
 
 const (
-	ACI_KEY_BASE = "/aci"
-	APP_KEY_BASE = "/aci/apps"
-	CELL_KEY_BASE = "/aci/cells"
-	CONTROLLER_KEY_BASE = "/aci/controller"
-	INST_IDX_STAGING int32 = -1
-	INST_IDX_TASK int32 = -2
+	ACI_KEY_BASE              = "/aci"
+	APP_KEY_BASE              = "/aci/apps"
+	CELL_KEY_BASE             = "/aci/cells"
+	CONTROLLER_KEY_BASE       = "/aci/controller"
+	INST_IDX_STAGING    int32 = -1
+	INST_IDX_TASK       int32 = -2
 )
 
 type GroupInfo struct {
-	Tenant          string        `json:"tenant"`
-	Group           string        `json:"group"`
+	Tenant string `json:"tenant"`
+	Group  string `json:"group"`
 }
 
 type PortMap struct {
-	ContainerPort   uint32         `json:"container_port"`
-	HostPort        uint32         `json:"host_port"`
+	ContainerPort uint32 `json:"container_port"`
+	HostPort      uint32 `json:"host_port"`
 }
 
 type EpInfo struct {
-	AppId               string        `json:"app_id"`
-	AppName             string        `json:"app_name"`
-	SpaceId             string        `json:"space_id"`
-	OrgId               string        `json:"org_id"`
-	IpAddress           string        `json:"ip_address"`
-	InstanceIndex       int32         `json:"instance_index"`
-	PortMapping         []PortMap     `json:"port_mapping"`
-	EpgTenant           string        `json:"epg_tenant"`
-	Epg                 string        `json:"epg"`
-	SecurityGroups      []GroupInfo   `json:"sg"`
-	TaskName            string        `json:"task_name"`
+	AppId          string      `json:"app_id"`
+	AppName        string      `json:"app_name"`
+	SpaceId        string      `json:"space_id"`
+	OrgId          string      `json:"org_id"`
+	IpAddress      string      `json:"ip_address"`
+	InstanceIndex  int32       `json:"instance_index"`
+	PortMapping    []PortMap   `json:"port_mapping"`
+	EpgTenant      string      `json:"epg_tenant"`
+	Epg            string      `json:"epg"`
+	SecurityGroups []GroupInfo `json:"sg"`
+	TaskName       string      `json:"task_name"`
 }
 
 func (ep *EpInfo) EpName(ctId string) string {
@@ -102,9 +102,9 @@ func (ep *EpInfo) EpName(ctId string) string {
 }
 
 type AppInfo struct {
-	ContainerIps        []string      `json:"container_ips"`
-	VirtualIp           []string      `json:"virtual_ip"`
-	ExternalIp          []string      `json:"external_ip"`
+	ContainerIps []string `json:"container_ips"`
+	VirtualIp    []string `json:"virtual_ip"`
+	ExternalIp   []string `json:"external_ip"`
 }
 
 func FlattenNodes(nd *client.Node, nodes *client.Nodes) {

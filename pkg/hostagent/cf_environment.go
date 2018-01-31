@@ -16,17 +16,17 @@ package hostagent
 
 import (
 	"encoding/json"
-	"fmt"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/Sirupsen/logrus"
 	etcdclient "github.com/coreos/etcd/client"
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/Sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"k8s.io/client-go/tools/cache"
 
@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	NAT_PRE_CHAIN = "aci-nat-pre"
+	NAT_PRE_CHAIN  = "aci-nat-pre"
 	NAT_POST_CHAIN = "aci-nat-post"
 )
 
@@ -49,34 +49,34 @@ type IPTables interface {
 }
 
 type CfEnvironment struct {
-	agent        *HostAgent
-	cfconfig     *CfConfig
-	etcdKeysApi  etcdclient.KeysAPI
+	agent       *HostAgent
+	cfconfig    *CfConfig
+	etcdKeysApi etcdclient.KeysAPI
 
-	indexLock    sync.Locker
-	epIdx        map[string]*etcd.EpInfo
-	appIdx       map[string]*etcd.AppInfo
+	indexLock sync.Locker
+	epIdx     map[string]*etcd.EpInfo
+	appIdx    map[string]*etcd.AppInfo
 
-	iptbl        IPTables
-	ctPortMap    map[string]map[uint32]uint32
-	cfNetv4      bool
-	cfNetLink    netlink.Link
-	cfNetContainerPorts    map[uint32]struct{}
+	iptbl               IPTables
+	ctPortMap           map[string]map[uint32]uint32
+	cfNetv4             bool
+	cfNetLink           netlink.Link
+	cfNetContainerPorts map[uint32]struct{}
 
-	log          *logrus.Logger
+	log *logrus.Logger
 }
 
 type CfConfig struct {
-	CellID                             string                `json:"cell_id,omitempty"`
-	CellAddress                        string                `json:"cell_address,omitempty"`
+	CellID      string `json:"cell_id,omitempty"`
+	CellAddress string `json:"cell_address,omitempty"`
 
-	EtcdUrl                            string                `json:"etcd_url,omitempty"`
-	EtcdCACertFile                     string                `json:"etcd_ca_cert_file"`
-	EtcdClientCertFile                 string                `json:"etcd_client_cert_file"`
-	EtcdClientKeyFile                  string                `json:"etcd_client_key_file"`
+	EtcdUrl            string `json:"etcd_url,omitempty"`
+	EtcdCACertFile     string `json:"etcd_ca_cert_file"`
+	EtcdClientCertFile string `json:"etcd_client_cert_file"`
+	EtcdClientKeyFile  string `json:"etcd_client_key_file"`
 
-	CfNetOvsPort                       string                `json:"cf_net_ovs_port"`
-	CfNetIntfAddress                   string                `json:"cf_net_interface_address"`
+	CfNetOvsPort     string `json:"cf_net_ovs_port"`
+	CfNetIntfAddress string `json:"cf_net_interface_address"`
 }
 
 func NewCfEnvironment(config *HostAgentConfig, log *logrus.Logger) (*CfEnvironment, error) {
@@ -98,8 +98,8 @@ func NewCfEnvironment(config *HostAgentConfig, log *logrus.Logger) (*CfEnvironme
 	}
 
 	log.WithFields(logrus.Fields{
-		"cfconfig":  config.CfConfig,
-		"cell-id":   cfconfig.CellID,
+		"cfconfig": config.CfConfig,
+		"cell-id":  cfconfig.CellID,
 	}).Info("Setting up CloudFoundry environment")
 
 	etcdClient, err := etcd.NewEtcdClient(cfconfig.EtcdUrl, cfconfig.EtcdCACertFile,
@@ -206,7 +206,7 @@ func (env *CfEnvironment) CheckPodExists(metadataKey *string) (bool, error) {
 	return (ep != nil), nil
 }
 
-func (env *CfEnvironment) getDefaultIpPool() (string) {
+func (env *CfEnvironment) getDefaultIpPool() string {
 	ipa4 := ipam.New()
 	ipa6 := ipam.New()
 

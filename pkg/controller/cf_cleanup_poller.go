@@ -62,7 +62,7 @@ func NewAppCloudControllerPoller(env *CfEnvironment) *CfPoller {
 			env.log.Debug(fmt.Sprintf("New app found by polling %v", ainfo))
 			env.appUpdateQ.Add(k)
 		}
-		for k, _ := range toDelete {
+		for k := range toDelete {
 			env.log.Debug("Delete app on cleanup ", k)
 			ainfo := env.appIdx[k]
 			delete(env.appIdx, k)
@@ -109,7 +109,7 @@ func NewSpaceCloudControllerPoller(env *CfEnvironment) *CfPoller {
 			env.log.Debug("New space found by polling ", k)
 			env.spaceChangesQ.Add(k)
 		}
-		for k, _ := range toDelete {
+		for k := range toDelete {
 			env.log.Debug("Delete space on cleanup ", k)
 			sinfo := env.spaceIdx[k]
 			delete(env.spaceIdx, k)
@@ -155,7 +155,7 @@ func NewOrgCloudControllerPoller(env *CfEnvironment) *CfPoller {
 			env.log.Debug("New org found by polling ", k)
 			env.orgChangesQ.Add(k)
 		}
-		for k, _ := range toDelete {
+		for k := range toDelete {
 			env.log.Debug("Delete org on cleanup ", k)
 			oinfo := env.orgIdx[k]
 			delete(env.orgIdx, k)
@@ -183,12 +183,12 @@ func NewAsgCleanupPoller(env *CfEnvironment) *CfPoller {
 		toDelete := make(map[string]struct{})
 		env.indexLock.Lock()
 		defer env.indexLock.Unlock()
-		for k, _ := range env.asgIdx {
+		for k := range env.asgIdx {
 			if _, ok := existAsgs[k]; !ok {
 				toDelete[k] = struct{}{}
 			}
 		}
-		for k, _ := range toDelete {
+		for k := range toDelete {
 			env.log.Debug("Delete ASG on cleanup ", k)
 			asgInfo := env.asgIdx[k]
 			delete(env.asgIdx, k)

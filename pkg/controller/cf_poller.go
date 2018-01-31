@@ -81,7 +81,7 @@ func (p *CfPoller) Run(immediate bool, stopCh <-chan struct{}) {
 			updated := make(map[string]interface{})
 			deleted := make(map[string]interface{})
 			to_delete := make(map[string]struct{})
-			for k, _ := range p.data {
+			for k := range p.data {
 				to_delete[k] = struct{}{}
 			}
 			for k, v := range pollRes {
@@ -92,7 +92,7 @@ func (p *CfPoller) Run(immediate bool, stopCh <-chan struct{}) {
 				p.data[k] = v
 				delete(to_delete, k)
 			}
-			for k, _ := range to_delete {
+			for k := range to_delete {
 				deleted[k] = p.data[k]
 				delete(p.data, k)
 			}

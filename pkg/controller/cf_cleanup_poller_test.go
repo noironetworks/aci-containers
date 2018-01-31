@@ -30,14 +30,14 @@ func TestCfAppCloudControllerPoller(t *testing.T) {
 	env.appIdx["app-52"] = NewAppInfo("app-52")
 
 	cc := env.fakeCcClient()
-	apps := []cfclient.App{cfclient.App{Guid: "app-1"},
-		cfclient.App{Guid: "app-51", Name: "51", SpaceURL: "/space-1",
+	apps := []cfclient.App{{Guid: "app-1"},
+		{Guid: "app-51", Name: "51", SpaceURL: "/space-1",
 			Instances: 1},
-		cfclient.App{Guid: "app-52", Name: "52", SpaceURL: "/space-20",
+		{Guid: "app-52", Name: "52", SpaceURL: "/space-20",
 			Instances: 2},
-		cfclient.App{Guid: "app-100", Name: "100", SpaceURL: "/space-2",
+		{Guid: "app-100", Name: "100", SpaceURL: "/space-2",
 			Instances: 3},
-		cfclient.App{Guid: "app-200", Name: "200", SpaceURL: "/space-20",
+		{Guid: "app-200", Name: "200", SpaceURL: "/space-20",
 			Instances: 4}}
 	cc.On("ListApps").Return(apps, nil)
 	to_del := []interface{}{env.appIdx["app-2"], env.appIdx["app-3"]}
@@ -78,10 +78,10 @@ func TestCfSpaceCloudControllerPoller(t *testing.T) {
 	env.spaceIdx["space-51"] = &SpaceInfo{SpaceId: "space-51"}
 
 	cc := env.fakeCcClient()
-	spaces := []cfclient.Space{cfclient.Space{Guid: "space-1"},
-		cfclient.Space{Guid: "space-51", Name: "SPACE51",
+	spaces := []cfclient.Space{{Guid: "space-1"},
+		{Guid: "space-51", Name: "SPACE51",
 			OrganizationGuid: "org-1"},
-		cfclient.Space{Guid: "space-20", Name: "SPACE20",
+		{Guid: "space-20", Name: "SPACE20",
 			OrganizationGuid: "org-2"}}
 	cc.On("ListSpaces").Return(spaces, nil)
 	changes := []interface{}{"space-20", "space-51", env.spaceIdx["space-2"]}
@@ -104,9 +104,9 @@ func TestCfOrgCloudControllerPoller(t *testing.T) {
 	env.orgIdx["org-51"] = &OrgInfo{OrgId: "org-51"}
 
 	cc := env.fakeCcClient()
-	orgs := []cfclient.Org{cfclient.Org{Guid: "org-1"},
-		cfclient.Org{Guid: "org-20", Name: "ORG20"},
-		cfclient.Org{Guid: "org-51", Name: "ORG51"}}
+	orgs := []cfclient.Org{{Guid: "org-1"},
+		{Guid: "org-20", Name: "ORG20"},
+		{Guid: "org-51", Name: "ORG51"}}
 	cc.On("ListOrgs").Return(orgs, nil)
 
 	env.orgIdx["org-2"] = &OrgInfo{OrgId: "org-2"}
@@ -128,7 +128,7 @@ func TestCfAsgCleanupPoller(t *testing.T) {
 	cp := NewAsgCleanupPoller(env)
 
 	cc := env.fakeCcClient()
-	asgs := []cfclient.SecGroup{cfclient.SecGroup{Guid: "ASG_PUB"}}
+	asgs := []cfclient.SecGroup{{Guid: "ASG_PUB"}}
 	cc.On("ListSecGroups").Return(asgs, nil)
 	to_del := []interface{}{env.asgIdx["ASG_S1"], env.asgIdx["ASG_S1"]}
 

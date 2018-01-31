@@ -170,8 +170,8 @@ func actualLrp(pguid, contId, cellId, ip string) *models.ActualLRPGroup {
 		ActualLRPNetInfo: models.ActualLRPNetInfo{
 			InstanceAddress: ip,
 			Ports: []*models.PortMapping{
-				&models.PortMapping{ContainerPort: 1001, HostPort: 22},
-				&models.PortMapping{ContainerPort: 1002, HostPort: 23}}}}
+				{ContainerPort: 1001, HostPort: 22},
+				{ContainerPort: 1002, HostPort: 23}}}}
 	return &models.ActualLRPGroup{Instance: alrp}
 }
 

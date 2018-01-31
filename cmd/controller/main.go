@@ -63,7 +63,7 @@ func main() {
 	log.Level = logLevel
 
 	log.WithFields(logrus.Fields{
-		"logLevel": logLevel,
+		"logLevel":        logLevel,
 		"vmm-domain-type": config.AciVmmDomainType,
 	}).Info("Starting")
 
@@ -71,7 +71,7 @@ func main() {
 	domType := strings.ToLower(config.AciVmmDomainType)
 	if domType == "kubernetes" || domType == "openshift" {
 		env, err = controller.NewK8sEnvironment(config, log)
-	} else if domType =="cloudfoundry" {
+	} else if domType == "cloudfoundry" {
 		env, err = controller.NewCfEnvironment(config, log)
 	} else {
 		err = errors.New("Unsupported ACI VMM domain type " + config.AciVmmDomainType)

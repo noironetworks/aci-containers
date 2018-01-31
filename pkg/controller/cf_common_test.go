@@ -71,8 +71,8 @@ func testCfEnvironmentNoMigration(t *testing.T) *CfEnvironment {
 	cont.staticServiceIps.V4.AddRange(net.ParseIP("1.2.3.1"), net.ParseIP("1.2.3.20"))
 	cont.staticServiceIps.V6.AddRange(net.ParseIP("::2f00"), net.ParseIP("::2fff"))
 	cont.serviceIps.LoadRanges([]ipam.IpRange{
-		ipam.IpRange{Start: net.ParseIP("1.2.4.1"), End: net.ParseIP("1.2.4.20")},
-		ipam.IpRange{Start: net.ParseIP("::2e00"), End: net.ParseIP("::2eff")}})
+		{Start: net.ParseIP("1.2.4.1"), End: net.ParseIP("1.2.4.20")},
+		{Start: net.ParseIP("::2e00"), End: net.ParseIP("::2eff")}})
 	env.appVips.V4.AddRange(net.ParseIP("10.250.4.1"), net.ParseIP("10.250.4.20"))
 	env.appVips.V6.AddRange(net.ParseIP("aa::2e00"), net.ParseIP("aa::2eff"))
 	cont.apicConn = fakeApicConnection(t, log)
@@ -149,8 +149,8 @@ func (e *CfEnvironment) setBbsFakeEventSource(ch chan models.Event) {
 func (e *CfEnvironment) setupIndexes() {
 	e.contIdx["c-1"] = &ContainerInfo{ContainerId: "c-1", CellId: "cell-1", IpAddress: "1.2.3.4", AppId: "app-1"}
 	e.contIdx["c-1"].Ports = []*models.PortMapping{
-		&models.PortMapping{ContainerPort: 8080, HostPort: 22},
-		&models.PortMapping{ContainerPort: 2222, HostPort: 23}}
+		{ContainerPort: 8080, HostPort: 22},
+		{ContainerPort: 2222, HostPort: 23}}
 	e.contIdx["c-2"] = &ContainerInfo{ContainerId: "c-2", CellId: "cell-1", IpAddress: "1.2.3.5", AppId: "app-1"}
 	e.contIdx["c-3"] = &ContainerInfo{ContainerId: "c-3", CellId: "cell-1", IpAddress: "1.2.3.6", AppId: "app-2"}
 	e.contIdx["c-4"] = &ContainerInfo{ContainerId: "c-4", CellId: "cell-1", IpAddress: "1.2.3.7", AppId: "app-3"}
@@ -180,31 +180,31 @@ func (e *CfEnvironment) setupIndexes() {
 
 	e.netpolIdx["app-1"] = nil
 	e.netpolIdx["app-101"] = map[string][]cfapi.Destination{
-		"app-1": []cfapi.Destination{
-			cfapi.Destination{Protocol: "tcp", Ports: cfapi.Ports{Start: 10, End: 20}}},
+		"app-1": {
+			{Protocol: "tcp", Ports: cfapi.Ports{Start: 10, End: 20}}},
 		"app-2": nil}
 	e.netpolIdx["app-102"] = map[string][]cfapi.Destination{
-		"app-1": []cfapi.Destination{
-			cfapi.Destination{Protocol: "udp", Ports: cfapi.Ports{Start: 20, End: 30}}},
+		"app-1": {
+			{Protocol: "udp", Ports: cfapi.Ports{Start: 20, End: 30}}},
 		"app-2": nil}
 
 	e.isoSegIdx["is1"] = &IsoSegInfo{Id: "is1", Name: "isolate1"}
 
 	e.asgIdx["ASG_PUB"] = &cfclient.SecGroup{Guid: "ASG_PUB",
 		Rules: []cfclient.SecGroupRule{
-			cfclient.SecGroupRule{Protocol: "tcp",
+			{Protocol: "tcp",
 				Ports:       "50,100-200",
 				Destination: "100.100.100.1-100.100.100.8, 100.100.200.0/24"},
-			cfclient.SecGroupRule{Protocol: "tcp", Ports: "1000, 1200, 5000"}}}
+			{Protocol: "tcp", Ports: "1000, 1200, 5000"}}}
 	e.asgIdx["ASG_R1"] = &cfclient.SecGroup{Guid: "ASG_R1",
 		Rules: []cfclient.SecGroupRule{
-			cfclient.SecGroupRule{Protocol: "udp",
+			{Protocol: "udp",
 				Destination: "101.101.101.101", Log: true}}}
 	e.asgIdx["ASG_S1"] = &cfclient.SecGroup{Guid: "ASG_S1",
 		Rules: []cfclient.SecGroupRule{
-			cfclient.SecGroupRule{Protocol: "icmp", Destination: "201.201.202.202",
+			{Protocol: "icmp", Destination: "201.201.202.202",
 				Code: 10, Type: 12},
-			cfclient.SecGroupRule{Protocol: "arp"}}}
+			{Protocol: "arp"}}}
 
 	cont := e.cont
 	for i := 0; i < 4; i++ {
@@ -265,7 +265,7 @@ func strip_tag(obj apic.ApicObject) {
 		newChildren := apic.ApicSlice{}
 		for _, c := range body.Children {
 			tag := false
-			for class, _ := range c {
+			for class := range c {
 				if class == "tagInst" {
 					tag = true
 				}
@@ -322,7 +322,7 @@ func waitForGetList(t *testing.T, q wq.RateLimitingInterface, timeout time.Durat
 	case <-time.After(timeout):
 		assert.False(t, true, fmt.Sprintf("WaitForGet timed-out for items: %+v", items))
 	case <-ch:
-		for i, _ := range items {
+		for i := range items {
 			assert.Contains(t, objs, items[i])
 		}
 	}
@@ -341,17 +341,17 @@ func getExpectedEpInfo() *etcd.EpInfo {
 		IpAddress:     "1.2.3.4",
 		InstanceIndex: 0,
 		PortMapping: []etcd.PortMap{
-			etcd.PortMap{ContainerPort: 8080, HostPort: 22},
-			etcd.PortMap{ContainerPort: 2222, HostPort: 23}},
+			{ContainerPort: 8080, HostPort: 22},
+			{ContainerPort: 2222, HostPort: 23}},
 		EpgTenant: "cf",
 		Epg:       "default|cf-app-default",
 		SecurityGroups: []etcd.GroupInfo{
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_hpp_static"},
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_hpp_cf-components"},
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_asg_ASG_R1"},
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_asg_ASG_PUB"},
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_np_app-1"},
-			etcd.GroupInfo{Tenant: "cf", Group: "cf_hpp_app-ext-ip"}},
+			{Tenant: "cf", Group: "cf_hpp_static"},
+			{Tenant: "cf", Group: "cf_hpp_cf-components"},
+			{Tenant: "cf", Group: "cf_asg_ASG_R1"},
+			{Tenant: "cf", Group: "cf_asg_ASG_PUB"},
+			{Tenant: "cf", Group: "cf_np_app-1"},
+			{Tenant: "cf", Group: "cf_hpp_app-ext-ip"}},
 	}
 	return ep
 }
