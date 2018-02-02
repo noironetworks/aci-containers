@@ -46,16 +46,10 @@ all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync
 
-PESKY_ETCD_FILE=vendor/github.com/coreos/etcd/client/keys.generated.go
-
 vendor-rebuild: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
-	# remove once etcd > 3.2.9 is released
-	rm -f ${PESKY_ETCD_FILE}
 vendor: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
-	# remove once etcd > 3.2.9 is released
-	rm -f ${PESKY_ETCD_FILE}
 
 clean-dist:
 	rm -rf dist
@@ -90,7 +84,10 @@ dist: ${METADATA_SRC} \
 	mkdir -p ${GOSRC_PATH}
 	cp --parents -r $^ ${GOSRC_PATH}/
 	mv ${GOSRC_PATH}/debian ${PACKAGE_DIR}/
-	sed -e "s/@PACKAGE_VERSION@/${VERSION}/" -e "s/@BUILD_NUMBER@/${BUILD_NUMBER}/" ${PACKAGE_DIR}/debian/changelog.in > ${PACKAGE_DIR}/debian/changelog
+	sed -e "s/@PACKAGE_VERSION@/${VERSION}/" \
+		-e "s/@BUILD_NUMBER@/${BUILD_NUMBER}/" \
+		${PACKAGE_DIR}/debian/changelog.in \
+		> ${PACKAGE_DIR}/debian/changelog
 	tar cvzf ${DIST_FILE} ${PACKAGE_DIR}
 	rm -rf ${PACKAGE_DIR}
 
