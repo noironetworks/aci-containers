@@ -199,7 +199,9 @@ func (e *CfEnvironment) setupIndexes() {
 	e.asgIdx["ASG_R1"] = &cfclient.SecGroup{Guid: "ASG_R1",
 		Rules: []cfclient.SecGroupRule{
 			{Protocol: "udp",
-				Destination: "101.101.101.101", Log: true}}}
+				Destination: "101.101.101.101", Log: true},
+			{Protocol: "all",
+				Destination: "201.201.201.201"}}}
 	e.asgIdx["ASG_S1"] = &cfclient.SecGroup{Guid: "ASG_S1",
 		Rules: []cfclient.SecGroupRule{
 			{Protocol: "icmp", Destination: "201.201.202.202",
@@ -462,6 +464,17 @@ func getExpectedApicHppForAsg() (m map[string]apic.ApicObject) {
 		exp_hpp_r1_rule0.AddChild(
 			apic.NewHostprotRemoteIp(exp_hpp_r1_rule0.GetDn(),
 				"101.101.101.101/32"))
+		exp_hpp_r1_rule1 := apic.NewHostprotRule(exp_hpp_r1_subj.GetDn(),
+			"rule1_0")
+		exp_hpp_r1_subj.AddChild(exp_hpp_r1_rule1)
+		exp_hpp_r1_rule1.SetAttr("direction", "egress")
+		exp_hpp_r1_rule1.SetAttr("ethertype", "ipv4")
+		exp_hpp_r1_rule1.SetAttr("protocol", "unspecified")
+		exp_hpp_r1_rule1.SetAttr("fromPort", "unspecified")
+		exp_hpp_r1_rule1.SetAttr("toPort", "unspecified")
+		exp_hpp_r1_rule1.AddChild(
+			apic.NewHostprotRemoteIp(exp_hpp_r1_rule1.GetDn(),
+				"201.201.201.201/32"))
 	}
 
 	exp_hpp_s1 := apic.NewHostprotPol("cf", "cf_asg_ASG_S1")
