@@ -581,7 +581,7 @@ func (env *CfEnvironment) convertAsgRule(rule *cfclient.SecGroupRule,
 	proto := "unspecified"
 	if rule.Protocol == "tcp" || rule.Protocol == "udp" || rule.Protocol == "icmp" {
 		proto = rule.Protocol
-	} else {
+	} else if rule.Protocol != "all" {
 		env.log.Debug(fmt.Sprintf("Unsupported protocol in rule %v", *rule))
 		return apicapi.ApicSlice{}
 	}
