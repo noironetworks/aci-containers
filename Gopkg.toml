@@ -124,7 +124,6 @@
 [[constraint]]
   name = "github.com/yl2chen/cidranger"
   branch = "master"
-  source = "github.com/readams/cidranger"
 
 [[override]]
   name = "github.com/cenkalti/hub"
