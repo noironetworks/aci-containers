@@ -617,7 +617,6 @@
     "net"
   ]
   revision = "bc6ed10625c9236bbd0fb7cfe567abfddda54d1f"
-  source = "github.com/readams/cidranger"
 
 [[projects]]
   branch = "master"
@@ -947,6 +946,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "789c7bcac4d69830083e2174d112a6ce4af5bf8546715785d5311e2f76478679"
+  inputs-digest = "a0bdb468be3e7eff97610a022671eedf9021787b8d0d8701233b04e8581354a6"
   solver-name = "gps-cdcl"
   solver-version = 1
