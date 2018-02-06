@@ -967,7 +967,7 @@ def main(args=None, apic_file=None, no_random=False):
         return
     if args.flavor is not None and args.flavor not in FLAVORS:
         err("Invalid configuration flavor: " + args.flavor)
-        return
+        sys.exit(1)
 
     if args.debug:
         provision(args, apic_file, no_random)
@@ -978,6 +978,7 @@ def main(args=None, apic_file=None, no_random=False):
             pass
         except Exception as e:
             err("%s: %s" % (e.__class__.__name__, e))
+            sys.exit(1)
 
 
 if __name__ == "__main__":
