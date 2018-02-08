@@ -279,7 +279,7 @@ def config_discover(config, prov_apic):
             "infra_vlan": None,
         }
     }
-    if apic:
+    if apic is not None:
         infra_vlan = apic.get_infravlan()
         ret["net_config"]["infra_vlan"] = infra_vlan
         orig_infra_vlan = config["net_config"].get("infra_vlan")
@@ -465,6 +465,7 @@ def config_adjust(args, config, prov_apic, no_random):
 def config_validate(flavor_opts, config):
     def Raise(exception):
         raise exception
+
     required = lambda x: True if x else Raise(Exception("Missing option"))
     lower_in = lambda y: (
         lambda x: (
@@ -560,10 +561,12 @@ def config_validate(flavor_opts, config):
     return ret
 
 
-def config_advise(config, prov_apic):
+def config_validate_preexisting(config, prov_apic):
     try:
         if prov_apic is not None:
             apic = get_apic(config)
+            if apic is None:
+                return False
 
             aep_name = config["aci_config"]["aep"]
             aep = apic.get_aep(aep_name)
@@ -583,7 +586,7 @@ def config_advise(config, prov_apic):
                      (vrf_tenant, l3out_name))
 
     except Exception as e:
-        warn("Error in validating existence of AEP: '%s'" % e.message)
+        warn("Error in validating resources on APIC: '%s'" % e.message)
     return True
 
 
@@ -765,14 +768,15 @@ def generate_apic_config(flavor_opts, config, prov_apic, apic_file):
     sync_login = config["aci_config"]["sync_login"]["username"]
     if prov_apic is not None:
         apic = get_apic(config)
-        if prov_apic is True:
-            info("Provisioning configuration in APIC")
-            apic.provision(apic_config, sync_login)
-        if prov_apic is False:
-            info("Unprovisioning configuration in APIC")
-            system_id = config["aci_config"]["system_id"]
-            tenant = config["aci_config"]["vrf"]["tenant"]
-            apic.unprovision(apic_config, system_id, tenant)
+        if apic is not None:
+            if prov_apic is True:
+                info("Provisioning configuration in APIC")
+                apic.provision(apic_config, sync_login)
+            if prov_apic is False:
+                info("Unprovisioning configuration in APIC")
+                system_id = config["aci_config"]["system_id"]
+                tenant = config["aci_config"]["vrf"]["tenant"]
+                apic.unprovision(apic_config, system_id, tenant)
     return apic_config
 
 
@@ -782,6 +786,8 @@ def get_apic(config):
     apic_password = config["aci_config"]["apic_login"]["password"]
     debug = config["provision"]["debug_apic"]
     apic = Apic(apic_host, apic_username, apic_password, debug=debug)
+    if apic.cookies is None:
+        return None
     return apic
 
 
@@ -848,6 +854,7 @@ def parse_args():
 def provision(args, apic_file, no_random):
     config_file = args.config
     output_file = args.output
+
     prov_apic = None
     if args.apic:
         prov_apic = True
@@ -910,6 +917,13 @@ def provision(args, apic_file, no_random):
 
     deep_merge(config, config_discover(config, prov_apic))
 
+    # Validate APIC access
+    if prov_apic is not None:
+        apic = get_apic(config)
+        if apic is None:
+            err("Not able to login to the APIC, please check username or password")
+            return False
+
     # Validate config
     if not config_validate(flavor_opts, config):
         err("Please fix configuration and retry.")
@@ -920,7 +934,8 @@ def provision(args, apic_file, no_random):
     deep_merge(config, adj_config)
 
     # Advisory checks, including apic checks, ignore failures
-    if not config_advise(config, prov_apic):
+    if not config_validate_preexisting(config, prov_apic):
+        # Ignore failures, this check is just advisory for now
         pass
 
     # generate key and cert if needed
