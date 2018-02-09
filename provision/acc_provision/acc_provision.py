@@ -292,6 +292,15 @@ def config_discover(config, prov_apic):
     return ret
 
 
+def config_set_dst(pod_cidr):
+    rtr, mask = pod_cidr.split('/')
+    ip = ipaddress.ip_address(unicode(rtr))
+    if ip.version == 4:
+        return "0.0.0.0/0"
+    else:
+        return "::/0"
+
+
 def cidr_split(cidr):
     rtr, mask = cidr.split('/')
     ip = ipaddress.ip_address(unicode(rtr))
@@ -372,7 +381,7 @@ def config_adjust(args, config, prov_apic, no_random):
                     "gateway": cidr_split(pod_subnet)[2],
                     "routes": [
                         {
-                            "dst": "0.0.0.0/0",
+                            "dst": config_set_dst(pod_subnet),
                             "gw": cidr_split(pod_subnet)[2],
                         }
                     ],
