@@ -707,8 +707,13 @@ class ApicKubeConfig(object):
             return None
 
         cert = None
-        with open(certfile, "r") as cfile:
-            cert = cfile.read()
+        try:
+            with open(certfile, "r") as cfile:
+                cert = cfile.read()
+        except IOError:
+            # Ignore error in reading file, it will be logged if/when used
+            pass
+
         path = "/api/node/mo/uni/userext/user-%s.json" % name
         data = {
             "aaaUser": {
@@ -727,6 +732,8 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+        if cert is None:
+            data = None
         return path, data
 
     def kube_tn(self):
