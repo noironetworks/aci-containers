@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"fmt"
 	"net"
 	"sort"
 	"testing"
@@ -148,7 +149,7 @@ func TestServiceGraph(t *testing.T) {
 		cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
 		cont.config.AciVmmDomain = "kube-domain"
 		cont.config.AciVmmController = "kube-controller"
-
+		cont.config.AciServiceMonitorInterval = 10
 		return cont
 	}
 
@@ -175,13 +176,18 @@ func TestServiceGraph(t *testing.T) {
 
 	name := "kube_svc_testns_service1"
 	nameS2 := "kube_svc_testns_service2"
+	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
+		name)
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
 		for node := range nmap {
 			nodes = append(nodes, node)
 		}
 		sort.Strings(nodes)
-		dc, _ := apicRedirectPol(name, "common", nodes, nmap)
+		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
+			"common", "kube_monPol_kubernetes-service")
+		dc, _ := apicRedirectPol(name, "common", nodes,
+			nmap, monPolDn, healthGroup.GetDn())
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{
@@ -306,16 +312,18 @@ func TestServiceGraph(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect,
-			extNet, contract, rsCons, filter, s1Dcc}, "kube", name),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup,
+			twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
 		nameS2: nil,
 	}
 
 	expectedOneNode := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeRedirect,
-			extNet, contract, rsCons, filter, s1Dcc}, "kube", name),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup,
+			oneNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
 		nameS2: nil,
 	}
 

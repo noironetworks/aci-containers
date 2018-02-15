@@ -168,10 +168,23 @@ func returnIps(pool *netIps, ips []net.IP) {
 	}
 }
 
+func (cont *AciController) staticMonPolName() string {
+	return cont.aciNameForKey("monPol", cont.env.ServiceBd())
+}
+
+func (cont *AciController) staticMonPolDn() string {
+	if cont.config.AciServiceMonitorInterval > 0 {
+		return fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
+			cont.config.AciVrfTenant, cont.staticMonPolName())
+	}
+	return ""
+}
+
 func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
+	var serviceObjs apicapi.ApicSlice
+
 	// Service bridge domain
 	bdName := cont.aciNameForKey("bd", cont.env.ServiceBd())
-
 	bd := apicapi.NewFvBD(cont.config.AciVrfTenant, bdName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
@@ -186,8 +199,18 @@ func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 		sn := apicapi.NewFvSubnet(bdn, cidr)
 		bd.AddChild(sn)
 	}
+	serviceObjs = append(serviceObjs, bd)
 
-	return apicapi.ApicSlice{bd}
+	// Service IP SLA monitoring policy
+	if cont.config.AciServiceMonitorInterval > 0 {
+		monPol := apicapi.NewFvIPSLAMonitoringPol(cont.config.AciVrfTenant,
+			cont.staticMonPolName())
+		monPol.SetAttr("slaFrequency",
+			strconv.Itoa(cont.config.AciServiceMonitorInterval))
+		serviceObjs = append(serviceObjs, monPol)
+	}
+
+	return serviceObjs
 }
 
 func (cont *AciController) initStaticServiceObjs() {
@@ -226,9 +249,22 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	return "", false
 }
 
+func apicRedirectDst(rpDn string, ip string, mac string,
+	descr string, healthGroupDn string) apicapi.ApicObject {
+	dst := apicapi.NewVnsRedirectDest(rpDn, ip, mac).SetAttr("descr", descr)
+	if healthGroupDn != "" {
+		dst.AddChild(apicapi.NewVnsRsRedirectHealthGroup(dst.GetDn(),
+			healthGroupDn))
+	}
+	return dst
+}
+
 func apicRedirectPol(name string, tenantName string, nodes []string,
-	nodeMap map[string]*metadata.ServiceEndpoint) (apicapi.ApicObject, string) {
+	nodeMap map[string]*metadata.ServiceEndpoint,
+	monPolDn string, healthGroupDn string) (apicapi.ApicObject, string) {
+
 	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
+	rp.SetAttr("thresholdDownAction", "deny")
 	rpDn := rp.GetDn()
 	for _, node := range nodes {
 		serviceEp, ok := nodeMap[node]
@@ -236,12 +272,15 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 			continue
 		}
 		if serviceEp.Ipv4 != nil {
-			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
-				serviceEp.Ipv4.String(), serviceEp.Mac).SetAttr("descr", node))
+			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv4.String(),
+				serviceEp.Mac, node, healthGroupDn))
 		}
 		if serviceEp.Ipv6 != nil {
-			rp.AddChild(apicapi.NewVnsRedirectDest(rpDn,
-				serviceEp.Ipv6.String(), serviceEp.Mac).SetAttr("descr", node))
+			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
+				serviceEp.Mac, node, healthGroupDn))
+		}
+		if monPolDn != "" {
+			rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
 		}
 	}
 	return rp, rpDn
@@ -355,8 +394,18 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// and IP address of each of the service endpoints for
 		// each node that hosts a pod for this service.  The
 		// example below shows the case of two nodes.
+		var healthGroupDn string
+		if cont.config.AciServiceMonitorInterval > 0 {
+			healthGroup :=
+				apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
+					name)
+			healthGroupDn = healthGroup.GetDn()
+			serviceObjs = append(serviceObjs, healthGroup)
+		}
+
 		rp, rpDn :=
-			apicRedirectPol(name, cont.config.AciVrfTenant, nodes, nodeMap)
+			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+				nodeMap, cont.staticMonPolDn(), healthGroupDn)
 		serviceObjs = append(serviceObjs, rp)
 
 		// 2. Service graph contract and external network

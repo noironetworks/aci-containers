@@ -533,6 +533,38 @@ func NewVnsRedirectDest(parentDn string, ip string, mac string) ApicObject {
 	return ret
 }
 
+func NewFvIPSLAMonitoringPol(tenantName string, name string) ApicObject {
+	ret := newApicObject("fvIPSLAMonitoringPol")
+	ret["fvIPSLAMonitoringPol"].Attributes["name"] = name
+	ret["fvIPSLAMonitoringPol"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s", tenantName, name)
+	return ret
+}
+
+func NewVnsRsIPSLAMonitoringPol(parentDn string, tDn string) ApicObject {
+	ret := newApicObject("vnsRsIPSLAMonitoringPol")
+	ret["vnsRsIPSLAMonitoringPol"].Attributes["tDn"] = tDn
+	ret["vnsRsIPSLAMonitoringPol"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsIPSLAMonitoringPol", parentDn)
+	return ret
+}
+
+func NewVnsRedirectHealthGroup(tenantName string, name string) ApicObject {
+	ret := newApicObject("vnsRedirectHealthGroup")
+	ret["vnsRedirectHealthGroup"].Attributes["name"] = name
+	ret["vnsRedirectHealthGroup"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/svcCont/redirectHealthGroup-%s", tenantName, name)
+	return ret
+}
+
+func NewVnsRsRedirectHealthGroup(parentDn string, tDn string) ApicObject {
+	ret := newApicObject("vnsRsRedirectHealthGroup")
+	ret["vnsRsRedirectHealthGroup"].Attributes["tDn"] = tDn
+	ret["vnsRsRedirectHealthGroup"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsRedirectHealthGroup", parentDn)
+	return ret
+}
+
 func NewVnsLDevCtx(tenantName string, ctrctNameOrLbl string,
 	graphNameOrLbl string, nodeNameOrLbl string) ApicObject {
 	ret := newApicObject("vnsLDevCtx")

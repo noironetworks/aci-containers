@@ -117,6 +117,14 @@ func TestTypes(t *testing.T) {
 		NewVnsSvcRedirectPol("common", "redir").GetDn())
 	assert.Equal(t, "fake/dn/RedirectDest_ip-[1.1.1.1]",
 		NewVnsRedirectDest("fake/dn", "1.1.1.1", "1:2:3:4:5:6").GetDn())
+	assert.Equal(t, "uni/tn-common/ipslaMonitoringPol-polName",
+		NewFvIPSLAMonitoringPol("common", "polName").GetDn())
+	assert.Equal(t, "fake/dn/rsIPSLAMonitoringPol",
+		NewVnsRsIPSLAMonitoringPol("fake/dn", "/fake/dn2").GetDn())
+	assert.Equal(t, "uni/tn-common/svcCont/redirectHealthGroup-groupName",
+		NewVnsRedirectHealthGroup("common", "groupName").GetDn())
+	assert.Equal(t, "fake/dn/rsRedirectHealthGroup",
+		NewVnsRsRedirectHealthGroup("fake/dn", "/fake/dn2").GetDn())
 	assert.Equal(t, "uni/tn-common/ldevCtx-c-contract-g-graph-n-node",
 		NewVnsLDevCtx("common", "contract", "graph", "node").GetDn())
 	assert.Equal(t, "fake/dn/rsLDevCtxToLDev",

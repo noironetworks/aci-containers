@@ -356,7 +356,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		[]string{"hostprotPol"})
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
 		[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
-			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol"})
+			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
+			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
 	cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
 		cont.config.AciVrfTenant, cont.config.AciL3Out),
 		[]string{"fvRsCons"})
