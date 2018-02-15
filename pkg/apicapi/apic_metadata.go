@@ -356,7 +356,8 @@ var metadata = map[string]*apicMeta{
 	},
 	"vnsSvcRedirectPol": {
 		attributes: map[string]interface{}{
-			"name": "",
+			"name":                "",
+			"thresholdDownAction": "permit",
 		},
 		children: []string{
 			"vnsRedirectDest",
@@ -369,6 +370,28 @@ var metadata = map[string]*apicMeta{
 			"descr": "",
 		},
 		normalizer: redirectDestNormalizer,
+	},
+	"fvIPSLAMonitoringPol": {
+		attributes: map[string]interface{}{
+			"name":         "",
+			"slaType":      "icmp",
+			"slaFrequency": "60",
+		},
+	},
+	"vnsRsIPSLAMonitoringPol": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+	},
+	"vnsRedirectHealthGroup": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+	},
+	"vnsRsRedirectHealthGroup": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
 	},
 	"vnsLDevCtx": {
 		attributes: map[string]interface{}{

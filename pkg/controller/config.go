@@ -93,6 +93,11 @@ type ControllerConfig struct {
 	// Encap used for service device clusters
 	AciServiceEncap string `json:"aci-service-encap,omitempty"`
 
+	// Time in seconds between service node ICMP probes for more
+	// quickly removing failed nodes from service pools
+	// 0 (default) means don't monitor
+	AciServiceMonitorInterval int `json:"aci-service-monitor-interval,omitempty"`
+
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
 
