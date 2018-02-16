@@ -5,6 +5,7 @@ import sys
 
 import requests
 import urllib3
+import ipaddress
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 apic_debug = False
@@ -776,6 +777,15 @@ class ApicKubeConfig(object):
             data = None
         return path, data
 
+    def isV6(self):
+        pod_cidr = self.config["net_config"]["pod_subnet"]
+        rtr, mask = pod_cidr.split('/')
+        ip = ipaddress.ip_address(unicode(rtr))
+        if ip.version == 4:
+            return False
+        else:
+            return True
+
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
@@ -788,6 +798,7 @@ class ApicKubeConfig(object):
         pod_subnet = self.config["net_config"]["pod_subnet"]
         kade = self.config["kube_config"].get("allow_kube_api_default_epg")
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
+        v6subnet = self.isV6()
 
         kube_default_children = [
             {
@@ -1057,11 +1068,20 @@ class ApicKubeConfig(object):
                                     "vzEntry": {
                                         "attributes": {
                                             "name": "icmp",
-                                            "etherT": "ip",
+                                            "etherT": "ipv4",
                                             "prot": "icmp"
                                         }
                                     }
-                                }
+                                },
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "icmp6",
+                                            "etherT": "ipv6",
+                                            "prot": "icmpv6"
+                                        }
+                                    }
+                                },
                             ]
                         }
                     },
@@ -1310,6 +1330,33 @@ class ApicKubeConfig(object):
                 ]
             }
         }
+
+        if v6subnet is True:
+            for tenantdict in data["fvTenant"]["children"]:
+                for k, v in tenantdict.items():
+                    if k == "fvBD":
+                        for bddict in tenantdict["fvBD"]["children"]:
+                            for k1, v1 in bddict.items():
+                                if k1 == "fvSubnet":
+                                    for k2, v2 in bddict["fvSubnet"].items():
+                                        v2.update({'ctrl': 'nd'})
+                                    bddict["fvSubnet"].setdefault('children', []).append({
+                                        "fvRsNdPfxPol": {
+                                            "attributes": {
+                                                "tnNdPfxPolName": "kube-nd-ra-policy"
+                                            }
+                                        }
+                                    })
+            data["fvTenant"]["children"].append({
+                "ndPfxPol": {
+                    "attributes": {
+                        "ctrl": "on-link,router-address",
+                        "lifetime": "2592000",
+                        "name": "kube-nd-ra-policy",
+                        "prefLifetime": "604800"
+                    }
+                }
+            })
         return path, data
 
     def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],

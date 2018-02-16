@@ -435,9 +435,19 @@ None
                         {
                             "fvSubnet": {
                                 "attributes": {
+                                    "ctrl": "nd", 
                                     "ip": "1:1:1:1::1/64", 
                                     "scope": "public"
-                                }
+                                }, 
+                                "children": [
+                                    {
+                                        "fvRsNdPfxPol": {
+                                            "attributes": {
+                                                "tnNdPfxPolName": "kube-nd-ra-policy"
+                                            }
+                                        }
+                                    }
+                                ]
                             }
                         }, 
                         {
@@ -466,8 +476,18 @@ None
                         {
                             "fvSubnet": {
                                 "attributes": {
+                                    "ctrl": "nd", 
                                     "ip": "1:2:1:1::1/64"
-                                }
+                                }, 
+                                "children": [
+                                    {
+                                        "fvRsNdPfxPol": {
+                                            "attributes": {
+                                                "tnNdPfxPolName": "kube-nd-ra-policy"
+                                            }
+                                        }
+                                    }
+                                ]
                             }
                         }, 
                         {
@@ -489,9 +509,18 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "etherT": "ip", 
+                                    "etherT": "ipv4", 
                                     "name": "icmp", 
                                     "prot": "icmp"
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "etherT": "ipv6", 
+                                    "name": "icmp6", 
+                                    "prot": "icmpv6"
                                 }
                             }
                         }
@@ -738,6 +767,16 @@ None
                             }
                         }
                     ]
+                }
+            }, 
+            {
+                "ndPfxPol": {
+                    "attributes": {
+                        "ctrl": "on-link,router-address", 
+                        "lifetime": "2592000", 
+                        "name": "kube-nd-ra-policy", 
+                        "prefLifetime": "604800"
+                    }
                 }
             }
         ]

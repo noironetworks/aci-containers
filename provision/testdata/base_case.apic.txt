@@ -489,9 +489,18 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "etherT": "ip", 
+                                    "etherT": "ipv4", 
                                     "name": "icmp", 
                                     "prot": "icmp"
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "etherT": "ipv6", 
+                                    "name": "icmp6", 
+                                    "prot": "icmpv6"
                                 }
                             }
                         }
