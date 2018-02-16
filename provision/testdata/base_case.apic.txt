@@ -435,9 +435,19 @@ None
                         {
                             "fvSubnet": {
                                 "attributes": {
+                                    "ctrl": "nd", 
                                     "ip": "10.1.0.1/16", 
                                     "scope": "public"
-                                }
+                                }, 
+                                "children": [
+                                    {
+                                        "fvRsNdPfxPol": {
+                                            "attributes": {
+                                                "tnNdPfxPolName": "kube-nd-kube"
+                                            }
+                                        }
+                                    }
+                                ]
                             }
                         }, 
                         {
@@ -455,6 +465,14 @@ None
                             }
                         }
                     ]
+                }, 
+                "ndPfxPol": {
+                    "attributes": {
+                        "ctrl": "on-link,router-address", 
+                        "lifetime": "2592000", 
+                        "name": "kube-nd-kube", 
+                        "prefLifetime": "604800"
+                    }
                 }
             }, 
             {
@@ -489,9 +507,18 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "etherT": "ip", 
+                                    "etherT": "ipv4", 
                                     "name": "icmp", 
                                     "prot": "icmp"
+                                }
+                            }
+                        }, 
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "etherT": "ipv6", 
+                                    "name": "icmp6", 
+                                    "prot": "icmpv6"
                                 }
                             }
                         }
