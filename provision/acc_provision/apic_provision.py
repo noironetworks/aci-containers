@@ -1002,9 +1002,19 @@ class ApicKubeConfig(object):
                                 {
                                     "fvSubnet": {
                                         "attributes": {
+                                            "ctrl": "nd",
                                             "ip": node_subnet,
                                             "scope": "public"
-                                        }
+                                        },
+                                        "children": [
+                                            {
+                                                "fvRsNdPfxPol": {
+                                                    "attributes": {
+                                                        "tnNdPfxPolName":"kube-nd-%s" % system_id
+                                                    }
+                                                }
+                                            }
+                                        ]
                                     }
                                 },
                                 {
@@ -1022,6 +1032,14 @@ class ApicKubeConfig(object):
                                     }
                                 }
                             ]
+                        },
+                        "ndPfxPol": {
+                            "attributes": {
+                                "ctrl":"on-link,router-address",
+                                "lifetime":"2592000",
+                                "name":"kube-nd-%s" % system_id,
+                                "prefLifetime":"604800"
+                            }
                         }
                     },
                     {
@@ -1057,11 +1075,20 @@ class ApicKubeConfig(object):
                                     "vzEntry": {
                                         "attributes": {
                                             "name": "icmp",
-                                            "etherT": "ip",
+                                            "etherT": "ipv4",
                                             "prot": "icmp"
                                         }
                                     }
-                                }
+                                },
+                                {
+                                    "vzEntry": {
+                                        "attributes": {
+                                            "name": "icmp6",
+                                            "etherT": "ipv6",
+                                            "prot": "icmpv6"
+                                        }
+                                    }
+                                },
                             ]
                         }
                     },
