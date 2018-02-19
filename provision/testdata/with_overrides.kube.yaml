@@ -23,6 +23,7 @@ data:
         "require-netpol-annot": false,
         "aci-service-phys-dom": "kubernetes-control",
         "aci-service-encap": "vlan-4003",
+        "aci-service-monitor-interval": 15,
         "aci-vrf-tenant": "common",
         "aci-l3out": "l3out",
         "aci-ext-networks": [
