@@ -231,6 +231,7 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
+            "service_monitor_interval": 15,
         },
         "kube_config": {
             "controller": "1.1.1.1",

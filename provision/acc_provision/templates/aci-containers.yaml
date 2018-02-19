@@ -21,6 +21,7 @@ data:
         "require-netpol-annot": {{config.kube_config.use_netpol_annotation|json}},
         "aci-service-phys-dom": {{config.aci_config.physical_domain.domain|json}},
         "aci-service-encap": {{ ("vlan-" ~ config.net_config.service_vlan)|json }},
+        "aci-service-monitor-interval": {{ config.net_config.service_monitor_interval|json }},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
         "aci-l3out": {{config.aci_config.l3out.name|json}},
         "aci-ext-networks": {{ config.aci_config.l3out.external_networks|json|indent(width=8) }},
