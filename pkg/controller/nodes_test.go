@@ -153,6 +153,28 @@ func waitForPodNetAnnot(t *testing.T, cont *testAciController,
 		})
 }
 
+func TestPodNetV6Annotation(t *testing.T) {
+	cont := testController()
+	cont.config.PodIpPoolChunkSize = 2
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("1:1:1:1::2"), End: net.ParseIP("1:1:1:1::12")},
+	}
+	cont.AciController.initIpam()
+	cont.run()
+
+	{
+		cont.nodeUpdates = nil
+		cont.fakeNodeSource.Add(node("node1"))
+		waitForPodNetAnnot(t, cont, &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{Start: net.ParseIP("1:1:1:1::2"), End: net.ParseIP("1:1:1:1::3")},
+			},
+		}, "simple")
+	}
+
+	cont.stop()
+}
+
 func TestPodNetAnnotation(t *testing.T) {
 	cont := testController()
 	cont.config.PodIpPoolChunkSize = 2

@@ -168,7 +168,8 @@
     "pkg/ip",
     "pkg/ipam",
     "pkg/ns",
-    "pkg/utils/hwaddr"
+    "pkg/utils/hwaddr",
+    "pkg/utils/sysctl"
   ]
   revision = "7480240de9749f9a0a5c8614b17f1f03e0c06ab9"
   version = "v0.6.0"
@@ -946,6 +947,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a0bdb468be3e7eff97610a022671eedf9021787b8d0d8701233b04e8581354a6"
+  inputs-digest = "c39d6bb9b204292d35d975c427cfc27bffa4bac6afa5b5799d15ab1d1624f77a"
   solver-name = "gps-cdcl"
   solver-version = 1
