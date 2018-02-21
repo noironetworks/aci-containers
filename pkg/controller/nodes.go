@@ -356,18 +356,34 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 func (cont *AciController) checkNodePodNet(nodename string) {
 	changed := false
 	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
-		podnetipam := ipam.NewFromRanges(podnet.podNetIps.V4)
-		size := podnetipam.GetSize()
+		podnetv4ipam := ipam.NewFromRanges(podnet.podNetIps.V4)
+		podnetv6ipam := ipam.NewFromRanges(podnet.podNetIps.V6)
+		v4size := podnetv4ipam.GetSize()
+		v6size := podnetv6ipam.GetSize()
+		cont.log.Info("The v4 and v6 size is: ", v4size, v6size)
 		if int64(len(podnet.nodePods)) >
-			size-int64(cont.config.PodIpPoolChunkSize)/2 {
+			v4size-int64(cont.config.PodIpPoolChunkSize)/2 {
 			// we have half a chunk left or less; allocate a new chunk
 			r, err := cont.podNetworkIps.V4.
 				GetIpChunk(int64(cont.config.PodIpPoolChunkSize))
 			if err != nil {
 				cont.log.Error("Could not allocate IPv4 address chunk: ", err)
 			} else {
-				podnetipam.AddRanges(r)
-				podnet.podNetIps.V4 = podnetipam.FreeList
+				podnetv4ipam.AddRanges(r)
+				podnet.podNetIps.V4 = podnetv4ipam.FreeList
+				cont.recomputePodNetAnnotation(podnet)
+				changed = true
+			}
+		}
+		if int64(len(podnet.nodePods)) >
+			v6size-int64(cont.config.PodIpPoolChunkSize)/2 {
+			r, err := cont.podNetworkIps.V6.
+				GetIpChunk(int64(cont.config.PodIpPoolChunkSize))
+			if err != nil {
+				cont.log.Error("Could not allocate IPv6 address chunk: ", err)
+			} else {
+				podnetv6ipam.AddRanges(r)
+				podnet.podNetIps.V6 = podnetv6ipam.FreeList
 				cont.recomputePodNetAnnotation(podnet)
 				changed = true
 			}
