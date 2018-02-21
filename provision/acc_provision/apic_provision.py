@@ -48,6 +48,7 @@ class Apic(object):
         self.username = username
         self.password = password
         self.cookies = None
+        self.errors = 0
         self.verify = verify
         self.debug = debug
         self.login()
@@ -100,6 +101,7 @@ class Apic(object):
                 else:
                     ret = respj["imdata"][0]
         except Exception as e:
+            self.errors += 1
             err("Error in getting %s: %s: " % (path, str(e)))
         return ret
 
@@ -147,6 +149,7 @@ class Apic(object):
                     dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
+                self.errors += 1
                 err("Error in provisioning %s: %s" % (path, str(e)))
 
     def unprovision(self, data, system_id, tenant):
@@ -163,6 +166,7 @@ class Apic(object):
                     dbg("%s: %s" % (path, resp.text))
             except Exception as e:
                 # log it, otherwise ignore it
+                self.errors += 1
                 err("Error in un-provisioning %s: %s" % (path, str(e)))
 
         # Finally clean any stray resources in common
