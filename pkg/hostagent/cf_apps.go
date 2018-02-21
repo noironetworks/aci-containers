@@ -125,12 +125,14 @@ func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portma
 	old_pm := env.ctPortMap[*ctId]
 	new_pm := make(map[uint32]uint32)
 	for _, ch := range portmap {
-		err := env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "-d", env.cfconfig.CellAddress, "-p", "tcp",
+		err := env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "-d",
+			env.cfconfig.CellAddress, "-p", "tcp",
 			"--dport", fmt.Sprintf("%d", ch.HostPort),
 			"-j", "DNAT", "--to-destination",
 			ep.IpAddress+":"+fmt.Sprintf("%d", ch.ContainerPort))
 		if err != nil {
-			env.log.Warning(fmt.Sprintf("Failed to add pre-routing iptables rule for %d: %v", *ctId, err))
+			env.log.Warning(fmt.Sprintf("Failed to add pre-routing "+
+				"iptables rule for %s: %v", *ctId, err))
 		}
 		new_pm[ch.HostPort] = ch.ContainerPort
 		delete(old_pm, ch.HostPort)
@@ -145,7 +147,8 @@ func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portma
 		}
 		err := env.iptbl.Delete("nat", NAT_PRE_CHAIN, args...)
 		if err != nil {
-			env.log.Warning(fmt.Sprintf("Failed to delete pre-routing iptables rule for %d: %v", *ctId, err))
+			env.log.Warning(fmt.Sprintf("Failed to delete pre-routing "+
+				"iptables rule for %s: %v", *ctId, err))
 		}
 	}
 	env.ctPortMap[*ctId] = new_pm
