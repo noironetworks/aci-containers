@@ -110,9 +110,30 @@ def test_devnull_errors():
         try:
             args = get_args()
             acc_provision.main(args, no_random=True)
+        except SystemExit:
+            # expected to exit with errors
+            pass
         finally:
             sys.stderr = origout
     assert filecmp.cmp(tmperr, "devnull.stderr.txt")
+    os.remove(tmperr)
+
+
+@in_testdir
+def test_flavor_cf_devnull_errors():
+    tmperr = os.tempnam(".", "tmp-stderr-")
+    with open(tmperr, "w") as tmperrfd:
+        origout = sys.stdout
+        sys.stderr = tmperrfd
+        try:
+            args = get_args(flavor="cloudfoundry-1.0")
+            acc_provision.main(args, no_random=True)
+        except SystemExit:
+            # expected to exit with errors
+            pass
+        finally:
+            sys.stderr = origout
+    assert filecmp.cmp(tmperr, "flavor_cf_devnull.stderr.txt")
     os.remove(tmperr)
 
 
