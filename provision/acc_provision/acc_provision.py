@@ -569,6 +569,7 @@ def generate_apic_config(config, prov_apic, apic_file):
             with open(apic_file, 'w') as outfile:
                 ApicKubeConfig.save_config(apic_config, outfile)
 
+    ret = True
     sync_login = config["aci_config"]["sync_login"]["username"]
     if prov_apic is not None:
         apic = get_apic(config)
@@ -581,7 +582,8 @@ def generate_apic_config(config, prov_apic, apic_file):
                 system_id = config["aci_config"]["system_id"]
                 tenant = config["aci_config"]["vrf"]["tenant"]
                 apic.unprovision(apic_config, system_id, tenant)
-    return apic_config
+        ret = False if apic.errors > 0 else True
+    return ret
 
 
 def get_apic(config):
@@ -749,9 +751,10 @@ def provision(args, apic_file, no_random):
     config["aci_config"]["sync_login"]["cert_data"] = cert_data
 
     # generate output files; and program apic if needed
-    generate_apic_config(config, prov_apic, apic_file)
-    generate_kube_yaml(config, output_file)
-    return True
+    ret = generate_apic_config(flavor_opts, config, prov_apic, apic_file)
+    gen = flavor_opts.get("template_generator", generate_kube_yaml)
+    gen(config, output_file)
+    return ret
 
 
 def main(args=None, apic_file=None, no_random=False):
@@ -768,15 +771,20 @@ def main(args=None, apic_file=None, no_random=False):
         err("Invalid configuration flavor: " + args.flavor)
         return
 
+    success = True
     if args.debug:
-        provision(args, apic_file, no_random)
+        success = provision(args, apic_file, no_random)
     else:
         try:
-            provision(args, apic_file, no_random)
+            success = provision(args, apic_file, no_random)
         except KeyboardInterrupt:
             pass
         except Exception as e:
+            success = False
             err("%s: %s" % (e.__class__.__name__, e))
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
