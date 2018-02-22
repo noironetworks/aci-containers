@@ -183,6 +183,7 @@ def get_args(**overrides):
         "username": "admin",
         "password": "",
         "sample": False,
+        "timeout": None,
         "debug": False,
         "list_flavors": False,
         "flavor": None,

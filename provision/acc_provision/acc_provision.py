@@ -596,7 +596,7 @@ def config_validate_preexisting(config, prov_apic):
                      (vrf_tenant, l3out_name))
 
     except Exception as e:
-        warn("Error in validating resources on APIC: '%s'" % e.message)
+        warn("Unable to validate resources on APIC: '%s'" % e.message)
     return True
 
 
@@ -796,8 +796,11 @@ def get_apic(config):
     apic_host = config["aci_config"]["apic_hosts"][0]
     apic_username = config["aci_config"]["apic_login"]["username"]
     apic_password = config["aci_config"]["apic_login"]["password"]
+    timeout = config["aci_config"]["apic_login"]["timeout"]
     debug = config["provision"]["debug_apic"]
-    apic = Apic(apic_host, apic_username, apic_password, debug=debug)
+    apic = Apic(
+        apic_host, apic_username, apic_password,
+        timeout=timeout, debug=debug)
     if apic.cookies is None:
         return None
     return apic
@@ -852,6 +855,9 @@ def parse_args():
         '-p', '--password', default=None, metavar='pass',
         help='apic-admin password to use for APIC API access')
     parser.add_argument(
+        '-w', '--timeout', default=None, metavar='timeout',
+        help='wait/timeout to use for APIC API access')
+    parser.add_argument(
         '--list-flavors', action='store_true', default=False,
         help='list available configuration flavors')
     parser.add_argument(
@@ -872,6 +878,15 @@ def provision(args, apic_file, no_random):
         prov_apic = True
     if args.delete:
         prov_apic = False
+
+    timeout = None
+    if args.timeout:
+        try:
+            if int(args.timeout) >= 0:
+                timeout = args.timeout
+        except ValueError:
+            # ignore that timeout value
+            warn("Invalid timeout value ignored: '%s'" % timeout)
 
     generate_cert_data = True
     if args.delete:
@@ -898,6 +913,7 @@ def provision(args, apic_file, no_random):
         config["aci_config"]["apic_login"]["username"] = args.username
     if args.password:
         config["aci_config"]["apic_login"]["password"] = args.password
+    config["aci_config"]["apic_login"]["timeout"] = timeout
 
     # Create config
     user_config = config_user(config_file)
