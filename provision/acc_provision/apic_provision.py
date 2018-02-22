@@ -7,6 +7,7 @@ import requests
 
 requests.packages.urllib3.disable_warnings()
 apic_debug = False
+apic_default_timeout = (15, 90)
 
 
 def err(msg):
@@ -30,7 +31,7 @@ def yesno(flag):
 
 class Apic(object):
     def __init__(self, addr, username, password,
-                 ssl=True, verify=False, debug=False):
+                 ssl=True, verify=False, timeout=None, debug=False):
         global apic_debug
         apic_debug = debug
         self.addr = addr
@@ -40,6 +41,7 @@ class Apic(object):
         self.cookies = None
         self.errors = 0
         self.verify = verify
+        self.timeout = timeout if timeout else apic_default_timeout
         self.debug = debug
         self.login()
 
@@ -50,14 +52,17 @@ class Apic(object):
 
     def get(self, path, data=None):
         args = dict(data=data, cookies=self.cookies, verify=self.verify)
+        args.update(timeout=self.timeout)
         return requests.get(self.url(path), **args)
 
     def post(self, path, data):
         args = dict(data=data, cookies=self.cookies, verify=self.verify)
+        args.update(timeout=self.timeout)
         return requests.post(self.url(path), **args)
 
     def delete(self, path, data=None):
         args = dict(data=data, cookies=self.cookies, verify=self.verify)
+        args.update(timeout=self.timeout)
         return requests.delete(self.url(path), **args)
 
     def login(self):

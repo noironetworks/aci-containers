@@ -1,6 +1,6 @@
 usage: acc_provision.py [-h] [-v] [--debug] [--sample] [-c file] [-o file]
-                        [-a] [-d] [-u name] [-p pass] [--list-flavors]
-                        [-f flavor] [-t token]
+                        [-a] [-d] [-u name] [-p pass] [-w timeout]
+                        [--list-flavors] [-f flavor] [-t token]
 
 Provision an ACI/Kubernetes installation
 
@@ -15,6 +15,8 @@ optional arguments:
   -d, --delete          delete the APIC resources that would have been created
   -u, --username name   apic-admin username to use for APIC API access
   -p, --password pass   apic-admin password to use for APIC API access
+  -w timeout, --timeout timeout
+                        wait/timeout to use for APIC API access
   --list-flavors        list available configuration flavors
   -f flavor, --flavor flavor
                         set configuration flavor. Example: openshift-3.6
