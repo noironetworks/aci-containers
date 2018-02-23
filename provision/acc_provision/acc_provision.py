@@ -788,7 +788,7 @@ def generate_apic_config(flavor_opts, config, prov_apic, apic_file):
                 system_id = config["aci_config"]["system_id"]
                 tenant = config["aci_config"]["vrf"]["tenant"]
                 apic.unprovision(apic_config, system_id, tenant)
-        ret = False if apic.errors > 0 else True
+            ret = False if apic.errors > 0 else True
     return ret
 
 
