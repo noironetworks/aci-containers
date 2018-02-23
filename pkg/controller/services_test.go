@@ -55,6 +55,66 @@ func waitForSStatus(t *testing.T, cont *testAciController,
 		})
 }
 
+func TestServiceIpV6(t *testing.T) {
+	cont := testController()
+	cont.config.ServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("2001::1"), End: net.ParseIP("2001::64")},
+	}
+	cont.config.StaticServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("2002::1"), End: net.ParseIP("2002::64")},
+	}
+	cont.AciController.initIpam()
+	cont.run()
+
+	{
+		cont.serviceUpdates = nil
+		cont.fakeServiceSource.Add(service("testv6", "service1", ""))
+		waitForSStatus(t, cont, []string{"2001::1"}, "testv6")
+	}
+	{
+		cont.serviceUpdates = nil
+		cont.fakeServiceSource.Add(service("testns", "service2", "2002::1"))
+		waitForSStatus(t, cont, []string{"2002::1"}, "static")
+	}
+	{
+		cont.serviceUpdates = nil
+		cont.fakeServiceSource.Add(service("testns", "service4", ""))
+		waitForSStatus(t, cont, []string{"2001::2"}, "next ip from pool")
+	}
+	{
+		cont.serviceUpdates = nil
+		s := service("testns", "service5", "")
+		s.Status.LoadBalancer.Ingress =
+			[]v1.LoadBalancerIngress{{IP: "2001::32"}}
+		cont.handleServiceUpdate(s)
+		assert.Nil(t, cont.serviceUpdates, "existing")
+		assert.False(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[0], net.ParseIP("2001::32")),
+			"existing pool check")
+	}
+	{
+		cont.serviceUpdates = nil
+		s := service("testns", "service6", "2002::3")
+		s.Status.LoadBalancer.Ingress =
+			[]v1.LoadBalancerIngress{{IP: "2002::3"}}
+		cont.handleServiceUpdate(s)
+		assert.Nil(t, cont.serviceUpdates, "static existing")
+	}
+	{
+		cont.serviceUpdates = nil
+		cont.serviceDeleted(service("testns", "service2", "2002::1"))
+		assert.True(t, ipam.HasIp(cont.staticServiceIps.V6, net.ParseIP("2002::1")),
+			"delete static return")
+	}
+	{
+		cont.serviceUpdates = nil
+		cont.serviceDeleted(service("testns", "service5", ""))
+		assert.True(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[1], net.ParseIP("2001::32")),
+			"delete pool return")
+	}
+
+
+	cont.stop()
+}
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{

@@ -835,13 +835,20 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	}
 
 	if len(meta.ingressIps) == 0 && len(meta.staticIngressIps) == 0 {
-		ipv4, err := cont.serviceIps.AllocateIp(true)
-		if err != nil {
+		meta.ingressIps = []net.IP{}
+
+		ipv4, _ := cont.serviceIps.AllocateIp(true)
+		if ipv4 != nil {
+			meta.ingressIps = append(meta.ingressIps, ipv4)
+		}
+		ipv6, _ := cont.serviceIps.AllocateIp(false)
+		if ipv6 != nil {
+			meta.ingressIps = append(meta.ingressIps, ipv6)
+		}
+		if ipv4 == nil && ipv6 == nil {
 			logger.Error("No IP addresses available for service")
 			cont.indexMutex.Unlock()
 			return true
-		} else {
-			meta.ingressIps = []net.IP{ipv4}
 		}
 	}
 	cont.indexMutex.Unlock()
