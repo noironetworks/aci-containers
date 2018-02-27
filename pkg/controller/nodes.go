@@ -387,8 +387,12 @@ func (cont *AciController) allocateIpChunk(podnet *nodePodNetMeta, v4 bool) bool
 func (cont *AciController) checkNodePodNet(nodename string) {
 	v4changed, v6changed := false, false
 	if podnet, ok := cont.nodePodNetCache[nodename]; ok {
-		v4changed = cont.allocateIpChunk(podnet, true)
-		v6changed = cont.allocateIpChunk(podnet, false)
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			v4changed = cont.allocateIpChunk(podnet, true)
+		}
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			v6changed = cont.allocateIpChunk(podnet, false)
+		}
 	}
 	if v4changed || v6changed  {
 		go cont.env.NodePodNetworkChanged(nodename)
