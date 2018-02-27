@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import base64
 import json
+import os
 import pkg_resources
 import pkgutil
 import random
@@ -911,8 +912,12 @@ def provision(args, apic_file, no_random):
     }
     if args.username:
         config["aci_config"]["apic_login"]["username"] = args.username
-    if args.password:
-        config["aci_config"]["apic_login"]["password"] = args.password
+
+    try:
+        config["aci_config"]["apic_login"]["password"] = os.environ['ACC_PROVISION_PASS']
+    except KeyError:
+        if args.password:
+            config["aci_config"]["apic_login"]["password"] = args.password
     config["aci_config"]["apic_login"]["timeout"] = timeout
 
     # Create config
