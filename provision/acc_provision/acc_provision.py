@@ -913,11 +913,8 @@ def provision(args, apic_file, no_random):
     if args.username:
         config["aci_config"]["apic_login"]["username"] = args.username
 
-    try:
-        config["aci_config"]["apic_login"]["password"] = os.environ['ACC_PROVISION_PASS']
-    except KeyError:
-        if args.password:
-            config["aci_config"]["apic_login"]["password"] = args.password
+    config["aci_config"]["apic_login"]["password"] = \
+        args.password if args.password else os.environ.get('ACC_PROVISION_PASS')
     config["aci_config"]["apic_login"]["timeout"] = timeout
 
     # Create config
