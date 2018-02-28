@@ -87,7 +87,6 @@ type CfEnvironment struct {
 
 	goRouterIps  []string
 	tcpRouterIps []string
-	sshProxyIps  []string
 
 	log *logrus.Logger
 }
@@ -134,7 +133,6 @@ type CfConfig struct {
 
 	GoRouterAddress  string
 	TcpRouterAddress string
-	SshProxyAddress  string
 	AppPort          uint32 `json:"app_port"`
 	SshPort          uint32 `json:"ssh_port"`
 
@@ -168,7 +166,6 @@ func NewCfEnvironment(config *ControllerConfig, log *logrus.Logger) (*CfEnvironm
 		return nil, err
 	}
 	cfconfig.GoRouterAddress = "gorouter.service.cf.internal"
-	cfconfig.SshProxyAddress = "ssh-proxy.service.cf.internal"
 	cfconfig.TcpRouterAddress = "tcp-router.service.cf.internal"
 	if cfconfig.VmmPolicy == "" {
 		cfconfig.VmmPolicy = "CloudFoundry"
@@ -539,7 +536,6 @@ func (env *CfEnvironment) CheckCfComponentsIps() bool {
 	// fetch go-router IPs
 	gorouter := env.cfconfig.GoRouterAddress
 	tcprouter := env.cfconfig.TcpRouterAddress
-	sshproxy := env.cfconfig.SshProxyAddress
 	resolv := net.Resolver{PreferGo: true}
 	rtrIps, err_rtr := resolv.LookupHost(context.Background(), gorouter)
 	if err_rtr != nil {
@@ -557,13 +553,6 @@ func (env *CfEnvironment) CheckCfComponentsIps() bool {
 	} else {
 		sort.Strings(tcpRtrIps)
 	}
-	sshPxyIps, err_pxy := resolv.LookupHost(context.Background(), sshproxy)
-	if err_pxy != nil {
-		env.log.Warn(
-			"Failed to resolve SSH-proxy DNS name "+sshproxy+": ", err_pxy)
-	} else {
-		sort.Strings(sshPxyIps)
-	}
 	updated := false
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
@@ -576,11 +565,6 @@ func (env *CfEnvironment) CheckCfComponentsIps() bool {
 		env.tcpRouterIps = tcpRtrIps
 		updated = true
 		env.log.Info("Updated TCP routers: ", env.tcpRouterIps)
-	}
-	if err_pxy == nil && !reflect.DeepEqual(env.sshProxyIps, sshPxyIps) {
-		env.sshProxyIps = sshPxyIps
-		updated = true
-		env.log.Info("Updated SSH-proxys: ", env.sshProxyIps)
 	}
 	return updated
 }
@@ -617,11 +601,10 @@ func (env *CfEnvironment) UpdateHppForCfComponents() {
 		}
 		appSubj.AddChild(appPort)
 	}
-	if len(env.sshProxyIps) > 0 && env.cfconfig.CfNetIntfAddress != "" {
-		appSsh := apicapi.NewHostprotRule(appDn, "app-ssh")
+	if env.cfconfig.CfNetIntfAddress != "" {
+		appSsh := apicapi.NewHostprotRule(appDn, "app-legacy-net")
 		appSsh.SetAttr("direction", "ingress")
 		appSsh.SetAttr("ethertype", "ipv4") // TODO separate out v6
-		appSsh.SetAttr("toPort", fmt.Sprintf("%d", env.cfconfig.SshPort))
 		appSsh.SetAttr("protocol", "tcp")
 		remote := apicapi.NewHostprotRemoteIp(appSsh.GetDn(), env.cfconfig.CfNetIntfAddress)
 		appSsh.AddChild(remote)
