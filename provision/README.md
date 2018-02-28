@@ -22,6 +22,6 @@ optional arguments:
   -u , --username   APIC admin username to use for APIC API access
   -p , --password   APIC admin password to use for APIC API access
   -v, --verbose     Enable debug
-  
-Passw
+
+Password can also be set via the ACC_PROVISION_PASS environment variable.
 ```
