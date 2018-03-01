@@ -38,14 +38,14 @@ VERSIONS = {
         "cnideploy_version": "1.6r15",
         "aci_containers_host_version": "1.6r15",
         "aci_containers_controller_version": "1.6r15",
-        "opflex_agent_version": "1.6r17",
+        "opflex_agent_version": "1.6r22",
         "openvswitch_version": "1.6r12",
     },
     "1.7": {
         "cnideploy_version": "1.7r86",
         "aci_containers_host_version": "1.7r86",
         "aci_containers_controller_version": "1.7r86",
-        "opflex_agent_version": "1.7r60",
+        "opflex_agent_version": "1.7r70",
         "openvswitch_version": "1.7r24",
     },
     "1.8": {
@@ -88,6 +88,10 @@ DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
 FLAVORS = {
     "kubernetes-1.8": {
         "desc": "Kubernetes 1.8",
+        "default_version": "1.8",
+    },
+    "kubernetes-1.9": {
+        "desc": "Kubernetes 1.9",
         "default_version": "1.8",
     },
     "kubernetes-1.7": {
