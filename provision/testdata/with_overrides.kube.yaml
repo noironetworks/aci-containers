@@ -293,7 +293,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.8r0
+          image: noiro/aci-containers-host:1.7r86
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -326,7 +326,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.8r0
+          image: noiro/opflex:1.7r68
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -345,7 +345,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.8r0
+          image: noiro/opflex:1.7r68
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -497,7 +497,7 @@ spec:
         - key: CriticalAddonsOnly
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.8r0
+          image: noiro/aci-containers-controller:1.7r86
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume

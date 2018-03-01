@@ -23,7 +23,7 @@ from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-DEFAULT_FLAVOR = "kubernetes-1.8"
+DEFAULT_FLAVOR = "kubernetes-1.9"
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -38,21 +38,14 @@ VERSIONS = {
         "cnideploy_version": "1.6r15",
         "aci_containers_host_version": "1.6r15",
         "aci_containers_controller_version": "1.6r15",
-        "opflex_agent_version": "1.6r17",
+        "opflex_agent_version": "1.6r20",
         "openvswitch_version": "1.6r12",
     },
     "1.7": {
         "cnideploy_version": "1.7r86",
         "aci_containers_host_version": "1.7r86",
         "aci_containers_controller_version": "1.7r86",
-        "opflex_agent_version": "1.7r60",
-        "openvswitch_version": "1.7r24",
-    },
-    "1.8": {
-        "cnideploy_version": "1.8r0",
-        "aci_containers_host_version": "1.8r0",
-        "aci_containers_controller_version": "1.8r0",
-        "opflex_agent_version": "1.8r0",
+        "opflex_agent_version": "1.7r68",
         "openvswitch_version": "1.7r24",
     },
 }
@@ -86,9 +79,13 @@ CfFlavorOptions = {
 DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
 
 FLAVORS = {
+    "kubernetes-1.9": {
+        "desc": "Kubernetes 1.9",
+        "default_version": "1.7",
+    },
     "kubernetes-1.8": {
         "desc": "Kubernetes 1.8",
-        "default_version": "1.8",
+        "default_version": "1.7",
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
