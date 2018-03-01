@@ -83,6 +83,28 @@ func TestCfContainerUpdateIsolationSegment(t *testing.T) {
 	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 }
 
+func TestCfContainerUpdateSharedIsolationSegment(t *testing.T) {
+	env := testCfEnvironment(t)
+
+	// "shared" isolation segment is ignored for EPG placement
+	env.spaceIdx["space-1"].IsolationSegment = "933b4c58" +
+		"-120b-499a-b85d-4b6fc9e2903b"
+	exp_ep := getExpectedEpInfo()
+
+	env.handleContainerUpdate("c-1")
+	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
+
+	// EPG annotations are honored for "shared" IS
+	ea_db := EpgAnnotationDb{}
+	txn(env.db, func(txn *sql.Tx) {
+		err := ea_db.UpdateAnnotation(txn, "app-1", CF_OBJ_APP, "epg-app")
+		assert.Nil(t, err)
+	})
+	exp_ep.Epg = "auto|epg-app"
+	env.handleContainerUpdate("c-1")
+	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
+}
+
 func TestCfContainerUpdateEpgAnnotation(t *testing.T) {
 	env := testCfEnvironment(t)
 	ea_db := EpgAnnotationDb{}

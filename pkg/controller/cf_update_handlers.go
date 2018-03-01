@@ -31,6 +31,8 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
+const CF_SHARED_ISOLATION_SEGMENT_GUID = "933b4c58-120b-499a-b85d-4b6fc9e2903b"
+
 func (env *CfEnvironment) handleContainerUpdate(contId string) bool {
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
@@ -63,8 +65,15 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 			} else {
 				sg = &spaceInfo.RunningSecurityGroups
 			}
-			if is := env.isoSegIdx[spaceInfo.IsolationSegment]; is != nil && is.Name != "" {
-				epg = env.cfconfig.DefaultAppProfile + "|" + is.Name
+			var isname = ""
+			if spaceInfo.IsolationSegment != CF_SHARED_ISOLATION_SEGMENT_GUID {
+				is := env.isoSegIdx[spaceInfo.IsolationSegment]
+				if is != nil && is.Name != "" {
+					isname = is.Name
+				}
+			}
+			if isname != "" {
+				epg = env.cfconfig.DefaultAppProfile + "|" + isname
 			} else {
 				epg_ann_db := EpgAnnotationDb{}
 				txn, _ := env.db.Begin()
