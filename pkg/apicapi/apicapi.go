@@ -211,7 +211,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		keyHashes:          make(map[string]string),
 		containerDns:       make(map[string]bool),
 		cachedState:        make(map[string]ApicSlice),
-		cacheDnSubIds:      make(map[string][]string),
+		cacheDnSubIds:      make(map[string]map[string]bool),
 		pendingSubDnUpdate: make(map[string]pendingChange),
 	}
 	return conn, nil
@@ -245,7 +245,7 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						subIds: subIds,
 					}
 					if conn.deltaQueue != nil {
-						conn.deltaQueue.AddRateLimited(dn)
+						conn.deltaQueue.Add(dn)
 					}
 					conn.indexMutex.Unlock()
 				}
@@ -359,10 +359,13 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
+type fullSync struct{}
+
 func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	done := make(chan struct{})
 	restart := make(chan struct{})
 	queueStop := make(chan struct{})
+	syncHook := make(chan fullSync, 1)
 	conn.restartCh = restart
 
 	go func() {
@@ -388,7 +391,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	conn.indexMutex.Lock()
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
-	conn.cacheDnSubIds = make(map[string][]string)
+	conn.cacheDnSubIds = make(map[string]map[string]bool)
 	conn.pendingSubDnUpdate = make(map[string]pendingChange)
 	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.NewMaxOfRateLimiter(
@@ -412,10 +415,12 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}
 	if !hasErr {
 		conn.checkDeletes(oldState)
-		if conn.FullSyncHook != nil {
-			conn.FullSyncHook()
-		}
-		conn.fullSync()
+		go func() {
+			if conn.FullSyncHook != nil {
+				conn.FullSyncHook()
+			}
+			syncHook <- fullSync{}
+		}()
 	}
 
 	refreshTicker := time.NewTicker(conn.RefreshInterval)
@@ -447,6 +452,8 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 loop:
 	for {
 		select {
+		case <-syncHook:
+			conn.fullSync()
 		case <-refreshTicker.C:
 			conn.refresh()
 		case <-restart:
@@ -627,6 +634,11 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		return
 	}
 	for _, obj := range apicresp.Imdata {
+		//conn.log.WithFields(logrus.Fields{
+		//	"dn":  obj.GetDn(),
+		//	"obj": obj,
+		//}).Debug("Object updated on APIC")
+
 		prepareApicCache("", obj)
 
 		handled := false
@@ -652,7 +664,11 @@ func (conn *ApicConnection) queueDn(dn string) {
 }
 
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
-	conn.log.Debug("Posting update for ", dn)
+	conn.log.WithFields(logrus.Fields{
+		"dn": dn,
+		//"obj": obj,
+	}).Debug("Posting update")
+
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	raw, err := json.Marshal(obj)
@@ -735,6 +751,7 @@ func computeRespClasses(targetClasses []string) []string {
 		respClasses = append(respClasses, class)
 	}
 	respClasses = append(respClasses, "tagInst")
+	respClasses = append(respClasses, "tagAnnotation")
 	return respClasses
 }
 
@@ -846,7 +863,12 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			continue
 		}
 		conn.indexMutex.Lock()
-		conn.cacheDnSubIds[dn] = append(conn.cacheDnSubIds[dn], subId)
+		subIds, found := conn.cacheDnSubIds[dn]
+		if !found {
+			subIds = make(map[string]bool)
+			conn.cacheDnSubIds[dn] = subIds
+		}
+		subIds[subId] = true
 		conn.indexMutex.Unlock()
 
 		if sub.updateHook != nil && sub.updateHook(obj) {

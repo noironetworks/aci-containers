@@ -279,9 +279,9 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
 				serviceEp.Mac, node, healthGroupDn))
 		}
-		if monPolDn != "" {
-			rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
-		}
+	}
+	if monPolDn != "" {
+		rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
 	}
 	return rp, rpDn
 }

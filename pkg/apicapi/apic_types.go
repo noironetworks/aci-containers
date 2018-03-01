@@ -86,6 +86,7 @@ type ApicConnection struct {
 	ReconnectInterval time.Duration
 	RefreshInterval   time.Duration
 	RetryInterval     time.Duration
+	UseAPICInstTag    bool // use old-style APIC tags rather than annotations
 	FullSyncHook      func()
 
 	dialer        *websocket.Dialer
@@ -106,7 +107,7 @@ type ApicConnection struct {
 	keyHashes          map[string]string
 	containerDns       map[string]bool
 	cachedState        map[string]ApicSlice
-	cacheDnSubIds      map[string][]string
+	cacheDnSubIds      map[string]map[string]bool
 	pendingSubDnUpdate map[string]pendingChange
 
 	deltaQueue workqueue.RateLimitingInterface
@@ -190,21 +191,37 @@ func (o ApicObject) BuildDn(parentDn string) string {
 	return ""
 }
 
+const aciContainersAnnotKey = "aci-containers-controller-tag"
+const aciContainersOwnerAnnotation = "orchestrator:aci-containers-controller"
+
 func (o ApicObject) GetTag() string {
 	for _, body := range o {
 		for _, c := range body.Children {
 			for class, cbody := range c {
-				if class != "tagInst" {
-					continue
-				}
-				if cbody.Attributes == nil {
+				if class == "tagInst" {
+					if cbody.Attributes == nil {
+						return ""
+					}
+					switch t := cbody.Attributes["name"].(type) {
+					case string:
+						return t
+					}
 					return ""
+				} else if class == "tagAnnotation" {
+					if cbody.Attributes == nil {
+						continue
+					}
+					switch k := cbody.Attributes["key"].(type) {
+					case string:
+						if k == aciContainersAnnotKey {
+							switch t := cbody.Attributes["value"].(type) {
+							case string:
+								return t
+							}
+							return ""
+						}
+					}
 				}
-				switch t := cbody.Attributes["name"].(type) {
-				case string:
-					return t
-				}
-				return ""
 			}
 		}
 		break
@@ -212,22 +229,36 @@ func (o ApicObject) GetTag() string {
 	return ""
 }
 
-func (o ApicObject) SetTag(tag string) {
+func (o ApicObject) SetTag(tag string, useAPICInstTag bool) {
 	for _, body := range o {
-		for j, c := range body.Children {
-			for class, cbody := range c {
-				if class != "tagInst" {
-					continue
-				}
-				if cbody.Attributes != nil {
-					switch t := cbody.Attributes["name"].(type) {
-					case string:
-						if t == tag {
-							return
+		for j := len(body.Children) - 1; j >= 0; j-- {
+			isTag := false
+			for class, cbody := range body.Children[j] {
+				if class == "tagAnnotation" {
+					isTag = true
+					if !useAPICInstTag && cbody.Attributes != nil {
+						switch k := cbody.Attributes["key"].(type) {
+						case string:
+							if k == aciContainersAnnotKey {
+								cbody.Attributes["value"] = tag
+								return
+							}
+						}
+					}
+				} else if class == "tagInst" {
+					isTag = true
+					if useAPICInstTag && cbody.Attributes != nil {
+						switch t := cbody.Attributes["name"].(type) {
+						case string:
+							if t == tag {
+								return
+							}
 						}
 					}
 				}
+			}
 
+			if isTag {
 				body.Children =
 					append(body.Children[:j], body.Children[j+1:]...)
 			}
@@ -235,7 +266,12 @@ func (o ApicObject) SetTag(tag string) {
 		break
 	}
 
-	o.AddChild(NewTagInst(o.GetDn(), tag))
+	if useAPICInstTag {
+		o.AddChild(NewTagInst(o.GetDn(), tag))
+	} else {
+		o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
+			SetAttr("value", tag))
+	}
 }
 
 func (o ApicObject) SetAttr(name string, value interface{}) ApicObject {
@@ -300,6 +336,31 @@ func EmptyApicObject(class string, dn string) ApicObject {
 	}
 }
 
+func (s ApicSlice) Copy() ApicSlice {
+	var result ApicSlice
+	for _, o := range s {
+		result = append(result, o.Copy())
+	}
+	return result
+}
+
+func (o ApicObject) Copy() ApicObject {
+	res := make(ApicObject)
+	for class, body := range o {
+		attrs := make(map[string]interface{})
+		for k, v := range body.Attributes {
+			attrs[k] = v
+		}
+
+		res[class] = &ApicObjectBody{
+			Attributes: attrs,
+			Children:   body.Children.Copy(),
+		}
+	}
+
+	return res
+}
+
 func NewFvBD(tenantName string, name string) ApicObject {
 	ret := newApicObject("fvBD")
 	ret["fvBD"].Attributes["name"] = name
@@ -337,6 +398,14 @@ func NewTagInst(parentDn string, name string) ApicObject {
 	ret["tagInst"].Attributes["name"] = name
 	ret["tagInst"].Attributes["dn"] =
 		fmt.Sprintf("%s/tag-%s", parentDn, name)
+	return ret
+}
+
+func NewTagAnnotation(parentDn string, key string) ApicObject {
+	ret := newApicObject("tagAnnotation")
+	ret["tagAnnotation"].Attributes["key"] = key
+	ret["tagAnnotation"].Attributes["dn"] =
+		fmt.Sprintf("%s/annotationKey-%s", parentDn, key)
 	return ret
 }
 
