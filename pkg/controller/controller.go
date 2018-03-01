@@ -320,13 +320,14 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		panic(err)
 	}
+	cont.apicConn.UseAPICInstTag = cont.config.ApicUseInstTag
+
+	cont.initStaticObjs()
 
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	cont.initStaticObjs()
 
 	cont.apicConn.FullSyncHook = func() {
 		// put a channel into each work queue and wait on it to
@@ -344,7 +345,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		for _, q := range qs {
 			c := make(chan struct{})
 			chans = append(chans, c)
-			q.AddRateLimited(c)
+			q.Add(c)
 		}
 		for _, c := range chans {
 			<-c
@@ -362,11 +363,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.AciVrfTenant, cont.config.AciL3Out),
 		[]string{"fvRsCons"})
 	vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
-		cont.env.VmmPolicy(), cont.config.AciVmmDomain, cont.config.AciVmmController)
+		cont.env.VmmPolicy(), cont.config.AciVmmDomain,
+		cont.config.AciVmmController)
 	cont.apicConn.AddSubscriptionDn(vmmDn,
 		[]string{"vmmInjectedHost", "vmmInjectedNs",
 			"vmmInjectedContGrp", "vmmInjectedDepl",
-			"vmmInjectedSvc", "vmmInjectedReplSet"})
+			"vmmInjectedSvc", "vmmInjectedReplSet",
+			"vmmInjectedOrg", "vmmInjectedOrgUnit"})
 
 	cont.apicConn.AddSubscriptionClass("opflexODev",
 		[]string{"opflexODev"},

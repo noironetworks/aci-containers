@@ -179,6 +179,11 @@ var metadata = map[string]*apicMeta{
 			"name": "",
 		},
 	},
+	"tagAnnotation": {
+		attributes: map[string]interface{}{
+			"key": "",
+		},
+	},
 	"hostprotPol": {
 		attributes: map[string]interface{}{
 			"name": "",

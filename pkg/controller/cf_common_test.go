@@ -262,13 +262,16 @@ func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
 }
 
 func strip_tag(obj apic.ApicObject) {
-	// remove 'tagInst' children recursively
+	// remove 'tagInst'/'tagAnnotation' children recursively
 	for _, body := range obj {
 		newChildren := apic.ApicSlice{}
+		if body.Attributes != nil {
+			delete(body.Attributes, "annotation")
+		}
 		for _, c := range body.Children {
 			tag := false
 			for class := range c {
-				if class == "tagInst" {
+				if class == "tagInst" || class == "tagAnnotation" {
 					tag = true
 				}
 				break

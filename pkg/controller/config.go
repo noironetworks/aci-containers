@@ -70,6 +70,9 @@ type ControllerConfig struct {
 	// enable secure TLS server verifification
 	ApicCertPath string `json:"apic-cert-path,omitempty"`
 
+	// use old-style APIC tags rather than annotations, for pre-Fraser
+	ApicUseInstTag bool `json:"apic-use-inst-tag,omitempty"`
+
 	// The type of the ACI VMM domain: either "kubernetes",
 	// "openshift" or "cloudfoundry"
 	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
