@@ -737,9 +737,8 @@ def provision(args, apic_file, no_random):
     config["aci_config"]["sync_login"]["cert_data"] = cert_data
 
     # generate output files; and program apic if needed
-    ret = generate_apic_config(flavor_opts, config, prov_apic, apic_file)
-    gen = flavor_opts.get("template_generator", generate_kube_yaml)
-    gen(config, output_file)
+    ret = generate_apic_config(config, prov_apic, apic_file)
+    generate_kube_yaml(config, output_file)
     return ret
 
 
