@@ -284,7 +284,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.7r68
+          image: noiro/opflex:1.7r69
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -302,7 +302,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.7r68
+          image: noiro/opflex:1.7r69
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
