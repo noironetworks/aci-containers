@@ -38,14 +38,14 @@ VERSIONS = {
         "cnideploy_version": "1.6r15",
         "aci_containers_host_version": "1.6r15",
         "aci_containers_controller_version": "1.6r15",
-        "opflex_agent_version": "1.6r20",
+        "opflex_agent_version": "1.6r21",
         "openvswitch_version": "1.6r12",
     },
     "1.7": {
         "cnideploy_version": "1.7r86",
         "aci_containers_host_version": "1.7r86",
         "aci_containers_controller_version": "1.7r86",
-        "opflex_agent_version": "1.7r68",
+        "opflex_agent_version": "1.7r69",
         "openvswitch_version": "1.7r24",
     },
 }
