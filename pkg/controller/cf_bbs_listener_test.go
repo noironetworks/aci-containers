@@ -312,6 +312,46 @@ func TestCfBbsLrpListener(t *testing.T) {
 	waitForGet(t, env.appUpdateQ, TO500, "a1")
 	waitForGet(t, env.containerDeleteQ, TO500, exp_a1_lrp1)
 
+	// Test Actual Evacuating LRP delete
+	a3_alrp1_evac_delete := &models.ActualLRPRemovedEvent{
+		ActualLrpGroup: &models.ActualLRPGroup{
+			Instance:   nil,
+			Evacuating: a3_alrp1.Instance}}
+	ch <- a3_alrp1_evac_delete
+
+	delete(exp_a3.ContainerIps, "c-a-3")
+	tu.WaitFor(t, "BBS LRP evacuating delete - app", TO500,
+		func(last bool) (bool, error) {
+			return tu.WaitEqual(t, last, exp_a3, env.appIdx["a3"]), nil
+		})
+	tu.WaitFor(t, "BBS LRP evacuating delete - container", TO500,
+		func(last bool) (bool, error) {
+			return tu.WaitNil(t, last, env.contIdx["c-a-3"]), nil
+		})
+	waitForGet(t, env.appUpdateQ, TO500, "a3")
+	waitForGet(t, env.containerDeleteQ, TO500, exp_a3_lrp1)
+
+	// Test Actual LRP crash
+	a3_alrp2_crash := &models.ActualLRPCrashedEvent{
+		ActualLRPKey:         a3_alrp2.Instance.ActualLRPKey,
+		ActualLRPInstanceKey: a3_alrp2.Instance.ActualLRPInstanceKey,
+		CrashCount:           2,
+		CrashReason:          "APP/PROC/WEB: Exited with status 1",
+		Since:                1520446179284696972}
+	ch <- a3_alrp2_crash
+
+	delete(exp_a3.ContainerIps, "c-a-4")
+	tu.WaitFor(t, "BBS LRP crash - app", TO500,
+		func(last bool) (bool, error) {
+			return tu.WaitEqual(t, last, exp_a3, env.appIdx["a3"]), nil
+		})
+	tu.WaitFor(t, "BBS LRP crash - container", TO500,
+		func(last bool) (bool, error) {
+			return tu.WaitNil(t, last, env.contIdx["c-a-4"]), nil
+		})
+	waitForGet(t, env.appUpdateQ, TO500, "a3")
+	waitForGet(t, env.containerDeleteQ, TO500, exp_a3_lrp2)
+
 	// Test Desired LRP change
 	a1_dlrp = desiredLrp("a1-v1", "a1", "sp1", "a-new-app")
 	a1_dlrp.Instances = 5
