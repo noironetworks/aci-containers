@@ -43,8 +43,7 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 	if !ok {
 		_, err = kapi.Delete(context.Background(), key, &etcdclient.DeleteOptions{Recursive: true})
 		if err != nil {
-			keyerr, ok := err.(etcdclient.Error)
-			if ok && keyerr.Code == etcdclient.ErrorCodeKeyNotFound {
+			if etcd.IsKeyNotFoundError(err) {
 				env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", key))
 				err = nil
 			}

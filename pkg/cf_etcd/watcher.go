@@ -68,8 +68,7 @@ func (w *CfEtcdWatcher) Run(stopCh <-chan struct{}) {
 		resp, err := kapi.Get(ctx, w.key,
 			&etcdclient.GetOptions{Recursive: true})
 		if err != nil {
-			keyerr, ok := err.(etcdclient.Error)
-			if ok && keyerr.Code == etcdclient.ErrorCodeKeyNotFound {
+			if IsKeyNotFoundError(err) {
 				w.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", w.key))
 				w.err = nil
 			} else {
