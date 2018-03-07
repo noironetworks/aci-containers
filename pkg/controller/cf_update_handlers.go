@@ -196,7 +196,7 @@ func (env *CfEnvironment) handleContainerDeleteLocked(cinfo *ContainerInfo) bool
 		_, err := kapi.Delete(context.Background(), ctKey, &etcdclient.DeleteOptions{Recursive: true})
 		if err != nil {
 			env.log.Error("Error deleting container node: ", err)
-			retry = true
+			retry = !etcd.IsKeyNotFoundError(err)
 		}
 	}
 	env.cont.apicConn.ClearApicObjects("inj_contgrp:" + cinfo.ContainerId)
@@ -406,7 +406,7 @@ func (env *CfEnvironment) handleAppDeleteLocked(appId string, ainfo *AppInfo) bo
 	_, err := kapi.Delete(context.Background(), appKey, &etcdclient.DeleteOptions{Recursive: true})
 	if err != nil {
 		env.log.Error("Error deleting app etcd node: ", err)
-		retry = true
+		retry = !etcd.IsKeyNotFoundError(err)
 	}
 
 	env.cleanupEpgAnnotation(appId, CF_OBJ_APP)

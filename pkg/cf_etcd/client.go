@@ -121,3 +121,8 @@ func FlattenNodes(nd *client.Node, nodes *client.Nodes) {
 func IsDeleteAction(action *string) bool {
 	return (*action == "delete" || *action == "compareAndDelete" || *action == "expire")
 }
+
+func IsKeyNotFoundError(err error) bool {
+	keyerr, ok := err.(client.Error)
+	return ok && keyerr.Code == client.ErrorCodeKeyNotFound
+}

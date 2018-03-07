@@ -634,8 +634,7 @@ func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
 	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/network"
 	resp, err := kapi.Get(context.Background(), cellKey, nil)
 	if err != nil {
-		keyerr, ok := err.(etcdclient.Error)
-		if ok && keyerr.Code == etcdclient.ErrorCodeKeyNotFound {
+		if etcd.IsKeyNotFoundError(err) {
 			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
 		} else {
 			env.log.Error("Unable to fetch etcd cell network info: ", err)
@@ -658,8 +657,7 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
 	resp, err := kapi.Get(context.Background(), cellKey, nil)
 	if err != nil {
-		keyerr, ok := err.(etcdclient.Error)
-		if ok && keyerr.Code == etcdclient.ErrorCodeKeyNotFound {
+		if etcd.IsKeyNotFoundError(err) {
 			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
 		} else {
 			env.log.Error("Unable to fetch etcd cell service info: ", err)
