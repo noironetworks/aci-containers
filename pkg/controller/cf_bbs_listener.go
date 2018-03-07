@@ -267,9 +267,12 @@ func (env *CfEnvironment) processContainerDelete(ctId string) {
 	}
 
 	if cinfo != nil {
+		env.log.Debug("BBS LRP/Task - Queuing delete for container ",
+			cinfo.ContainerId)
 		env.containerDeleteQ.Add(cinfo)
 	}
 	if appInfo != nil {
+		env.log.Debug("BBS LRP/Task - Queuing update for app ", appInfo.AppId)
 		env.appUpdateQ.Add(appInfo.AppId)
 	}
 }
@@ -390,8 +393,15 @@ func NewCfBbsLrpListener(env *CfEnvironment) *CfBbsEventListener {
 			env.processBbsActualLrp(ev.After, dlrp2app, pending)
 		case *models.ActualLRPRemovedEvent:
 			if ev.ActualLrpGroup.Instance != nil {
-				env.processContainerDelete(ev.ActualLrpGroup.Instance.GetInstanceGuid())
+				env.processContainerDelete(
+					ev.ActualLrpGroup.Instance.GetInstanceGuid())
 			}
+			if ev.ActualLrpGroup.Evacuating != nil {
+				env.processContainerDelete(
+					ev.ActualLrpGroup.Evacuating.GetInstanceGuid())
+			}
+		case *models.ActualLRPCrashedEvent:
+			env.processContainerDelete(ev.GetInstanceGuid())
 		}
 		return nil
 	}
