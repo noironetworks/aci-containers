@@ -653,11 +653,12 @@ class ApicKubeConfig(object):
 
     def l3out_contract(self, l3out_instp):
         system_id = self.config["aci_config"]["system_id"]
+        vrf_tenant = self.config["aci_config"]["vrf"]["tenant"]
         l3out = self.config["aci_config"]["l3out"]["name"]
         l3out_rsprov_name = "%s-l3out-allow-all" % system_id
 
-        pathc = (l3out, l3out_instp)
-        path = "/api/mo/uni/tn-common/out-%s/instP-%s.json" % pathc
+        pathc = (vrf_tenant, l3out, l3out_instp)
+        path = "/api/mo/uni/tn-%s/out-%s/instP-%s.json" % pathc
         data = {
             "fvRsProv": {
                 "attributes": {
@@ -667,8 +668,8 @@ class ApicKubeConfig(object):
             }
         }
 
-        rsprovc = (l3out, l3out_instp, l3out_rsprov_name)
-        rsprov = "/api/mo/uni/tn-common/out-%s/instP-%s/rsprov-%s.json" % rsprovc
+        rsprovc = (vrf_tenant, l3out, l3out_instp, l3out_rsprov_name)
+        rsprov = "/api/mo/uni/tn-%s/out-%s/instP-%s/rsprov-%s.json" % rsprovc
         return path, data, rsprov
 
     def kube_user(self):

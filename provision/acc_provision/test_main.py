@@ -76,6 +76,15 @@ def test_with_overrides():
 
 
 @in_testdir
+def test_with_tenant_l3out():
+    run_provision(
+        "with_tenant_l3out.inp.yaml",
+        "with_tenant_l3out.kube.yaml",
+        "with_tenant_l3out.apic.txt"
+    )
+
+
+@in_testdir
 def test_flavor_openshift_36():
     run_provision(
         "base_case.inp.yaml",
