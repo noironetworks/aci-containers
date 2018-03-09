@@ -102,6 +102,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
 				}).Error("IP address not set for OpFlex link")
+				return
 			}
 
 			conf = &HostAgentNodeConfig{}
