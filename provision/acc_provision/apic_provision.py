@@ -1387,7 +1387,6 @@ class ApicKubeConfig(object):
                     if child['fvBD']['attributes']['name'] == 'kube-node-bd':
                         child['fvBD']["children"].append(attr)
                         break
-                        
         return path, data
 
     def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],
