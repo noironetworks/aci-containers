@@ -1370,22 +1370,24 @@ class ApicKubeConfig(object):
 
         # If dhcp_relay_label is present, attach the label to the kube-node-bd
         if "dhcp_relay_label" in self.config["aci_config"]:
-            # lookup kube-node-bd data
             dbg("Handle DHCP Relay Label")
             children = data['fvTenant']['children']
-            for child in children:
-                if ('fvBD' in child and
-                    child['fvBD']['attributes']['name'] == 'kube-node-bd'):
-                    attr = {
-                        "dhcpLbl": {
-                            "attributes": {
-                                "name": self.config["aci_config"]["dhcp_relay_label"],
-                                "owner": "infra"
-                            }
-                        }
+            dhcp_relay_label = self.config["aci_config"]["dhcp_relay_label"]
+            attr = {
+                "dhcpLbl": {
+                    "attributes": {
+                        "name": dhcp_relay_label,
+                        "owner": "infra"
                     }
-                    child['fvBD']["children"].append(attr)
-
+                }
+            }
+            # lookup kube-node-bd data
+            for child in children:
+                if 'fvBD' in child:
+                    if child['fvBD']['attributes']['name'] == 'kube-node-bd':
+                        child['fvBD']["children"].append(attr)
+                        break
+                        
         return path, data
 
     def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],
