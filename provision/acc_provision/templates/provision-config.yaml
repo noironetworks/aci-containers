@@ -2,21 +2,29 @@
 # Configuration for ACI Fabric
 #
 aci_config:
-  system_id: mykube             # Every opflex cluster must have a distict ID
+  system_id: mykube              # Every opflex cluster must have a distict ID
   apic_hosts:                   # List of APIC hosts to connect for APIC API
   - 10.1.1.101
-  vmm_domain:                   # Kubernetes container domain configuration
+  vmm_domain:                   # Kubernetes VMM domain configuration
     encap_type: vxlan           # Encap mode: vxlan or vlan
+#    encap_type: vlan           # Encap mode: vxlan or vlan
+#    vlan_range:
+#      start: 200
+#      end: 209
     mcast_range:                # Every opflex VMM must use a distinct range
-      start: 225.20.1.1
-      end: 225.20.255.255
-    nested_inside:              # Include if nested inside a VMM; required for CloudFoundry
-    # type: vmware              # Specify the VMM vendor (supported: vmware)
-    # name: myvmware            # Specify the name of the VMM domain
+      start: 225.21.1.1
+      end: 225.21.255.255
+    nested_inside:
+    #  type: vmware
+    #  name: myvmware
+  cloudfoundry:                 # CloudFoundry specific config parameters
+    custom_epg: ["cf-group1", "cf-group2"]
+    isolated_segment: True
+    isolated_subnet: 10.6.0.1/16 # Must be provided if isolated_segment:True
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.
-  aep: kube-cluster             # The AEP for ports/VPCs used by this cluster
+  aep: kube-cluster           # The AEP for ports/VPCs used by this cluster
   vrf:                          # This VRF used to create all kubernetes EPs
     name: mykube-vrf
     tenant: common              # This can be system-id or common
@@ -31,7 +39,7 @@ aci_config:
 net_config:
   node_subnet: 10.1.0.1/16      # Subnet to use for nodes
   pod_subnet: 10.2.0.1/16       # Subnet to use for Kubernetes Pods/CloudFoundry containers
-# vip_subnet: 10.3.0.1/16       # Subnet to use for virtual IPs (CloudFoundry only)
+  #vip_subnet: 10.3.0.1/16       # Subnet to use for virtual IPs (CloudFoundry only)
   extern_dynamic: 10.3.0.1/24   # Subnet to use for dynamic external IPs
   extern_static: 10.4.0.1/24    # Subnet to use for static external IPs
   node_svc_subnet: 10.5.0.1/24  # Subnet to use for service graph
