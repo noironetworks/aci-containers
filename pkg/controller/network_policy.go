@@ -586,8 +586,14 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	}
 
 	if len(ports) == 0 {
-		buildNetPolSubjRule(subj, ruleName, direction,
-			"ipv4", "", "", remoteSubnets)
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv4", "", "", remoteSubnets)
+		}
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv6", "", "", remoteSubnets)
+		}
 	} else {
 		for j, p := range ports {
 			proto := portProto(p.Protocol)
@@ -606,9 +612,14 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 					continue
 				}
 			}
-
-			buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+			if !cont.configuredPodNetworkIps.V4.Empty() {
+				buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
 				"ipv4", proto, port, remoteSubnets)
+			}
+			if !cont.configuredPodNetworkIps.V6.Empty() {
+				buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+					"ipv6", proto, port, remoteSubnets)
+			}
 		}
 	}
 }
