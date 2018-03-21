@@ -614,7 +614,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 			}
 			if !cont.configuredPodNetworkIps.V4.Empty() {
 				buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
-				"ipv4", proto, port, remoteSubnets)
+					"ipv4", proto, port, remoteSubnets)
 			}
 			if !cont.configuredPodNetworkIps.V6.Empty() {
 				buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
