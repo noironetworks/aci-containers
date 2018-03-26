@@ -14,16 +14,17 @@ SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 CFAPI_SRC=$(wildcard pkg/cfapi/*.go)
 CF_ETCD_SRC=$(wildcard pkg/cf_etcd/*.go)
 CF_ETCD_FAKES_SRC=$(wildcard pkg/cf_etcd_fakes/*.go)
+KEYVALUESVC_SRC=$(wildcard pkg/cf_remotekeyvalue/*.go)
 DEBIAN_FILES=$(wildcard debian/*)
 GOPKG_FILES=$(wildcard Gopkg.*)
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC} \
-	${CF_ETCD_SRC} vendor
+	${CF_ETCD_SRC} ${KEYVALUESVC_SRC} vendor
 AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC} vendor
 CONTROLLER_DEPS= \
 	${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} \
 	${APICAPI_SRC} ${CONTROLLER_SRC} ${CF_ETCD_SRC} \
-	${CFAPI_SRC} vendor
+	${CFAPI_SRC} ${KEYVALUESVC_SRC} vendor
 ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC} vendor
 OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC} vendor
 SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC} vendor
@@ -79,6 +80,7 @@ dist: ${METADATA_SRC} \
 	${CF_ETCD_SRC} \
 	${CF_ETCD_FAKES_SRC} \
 	${CFAPI_SRC} \
+	${KEYVALUESVC_SRC} \
 	${DEBIAN_FILES} ${GOPKG_FILES} Makefile
 	- rm -rf ${PACKAGE_DIR}
 	mkdir -p ${GOSRC_PATH}
@@ -140,7 +142,7 @@ container-cnideploy:
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
 
-check: check-ipam check-index check-apicapi check-controller check-hostagent check-cf_etcd
+check: check-ipam check-index check-apicapi check-controller check-hostagent check-cf_etcd check-keyvalueservice
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
@@ -153,6 +155,8 @@ check-controller:
 	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
 check-cf_etcd:
 	${TEST_CMD} ${BASE}/pkg/cf_etcd ${TEST_ARGS}
+check-keyvalueservice:
+	${TEST_CMD} ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 
 DEB_PKG_DIR=build-deb-pkg
 dsc: dist
