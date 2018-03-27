@@ -59,7 +59,7 @@
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "1.1.4"
+  version = "1.2.1"
 
 [[constraint]]
   name = "github.com/tatsushid/go-fastping"
@@ -71,19 +71,19 @@
 
 [[constraint]]
   name = "k8s.io/api"
-  branch = "release-1.8"
+  branch = "release-1.10"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.8"
+  branch = "release-1.10"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  branch = "release-5.0"
+  branch = "release-6.0"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  branch = "release-1.8"
+  branch = "release-1.10"
 
 [[constraint]]
   name = "code.cloudfoundry.org/bbs"
@@ -103,7 +103,7 @@
 
 [[constraint]]
   name = "github.com/coreos/go-iptables"
-  version = "0.2.0"
+  version = "0.3.0"
 
 [[constraint]]
   name = "github.com/go-sql-driver/mysql"
@@ -111,7 +111,7 @@
 
 [[constraint]]
   name = "github.com/mattn/go-sqlite3"
-  version = "1.2.0"
+  version = "1.6.0"
 
 [[constraint]]
   name = "code.cloudfoundry.org/clock"

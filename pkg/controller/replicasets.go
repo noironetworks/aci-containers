@@ -20,7 +20,7 @@ package controller
 import (
 	"github.com/Sirupsen/logrus"
 
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -34,13 +34,13 @@ func (cont *AciController) initReplicaSetInformerFromClient(
 
 	cont.initReplicaSetInformerBase(
 		cache.NewListWatchFromClient(
-			kubeClient.AppsV1beta2().RESTClient(), "replicasets",
+			kubeClient.AppsV1().RESTClient(), "replicasets",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initReplicaSetInformerBase(listWatch *cache.ListWatch) {
 	cont.replicaSetIndexer, cont.replicaSetInformer = cache.NewIndexerInformer(
-		listWatch, &appsv1beta2.ReplicaSet{}, 0,
+		listWatch, &appsv1.ReplicaSet{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.replicaSetAdded(obj)
@@ -56,14 +56,14 @@ func (cont *AciController) initReplicaSetInformerBase(listWatch *cache.ListWatch
 	)
 }
 
-func replicaSetLogger(log *logrus.Logger, rs *appsv1beta2.ReplicaSet) *logrus.Entry {
+func replicaSetLogger(log *logrus.Logger, rs *appsv1.ReplicaSet) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": rs.ObjectMeta.Namespace,
 		"name":      rs.ObjectMeta.Name,
 	})
 }
 
-func (cont *AciController) writeApicRs(rs *appsv1beta2.ReplicaSet) {
+func (cont *AciController) writeApicRs(rs *appsv1.ReplicaSet) {
 	rskey, err :=
 		cache.MetaNamespaceKeyFunc(rs)
 	if err != nil {
@@ -87,18 +87,18 @@ func (cont *AciController) writeApicRs(rs *appsv1beta2.ReplicaSet) {
 }
 
 func (cont *AciController) replicaSetAdded(obj interface{}) {
-	cont.writeApicRs(obj.(*appsv1beta2.ReplicaSet))
+	cont.writeApicRs(obj.(*appsv1.ReplicaSet))
 }
 
 func (cont *AciController) replicaSetChanged(oldobj interface{},
 	newobj interface{}) {
-	newrs := newobj.(*appsv1beta2.ReplicaSet)
+	newrs := newobj.(*appsv1.ReplicaSet)
 
 	cont.writeApicRs(newrs)
 }
 
 func (cont *AciController) replicaSetDeleted(obj interface{}) {
-	rs := obj.(*appsv1beta2.ReplicaSet)
+	rs := obj.(*appsv1.ReplicaSet)
 	rskey, err :=
 		cache.MetaNamespaceKeyFunc(rs)
 	if err != nil {

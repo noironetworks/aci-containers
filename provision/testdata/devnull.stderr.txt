@@ -1,4 +1,4 @@
-INFO: Using configuration flavor kubernetes-1.8
+INFO: Using configuration flavor kubernetes-1.10
 ERR:  Invalid configuration for aci_config/aep: Missing option
 ERR:  Invalid configuration for aci_config/apic_host: Missing option
 ERR:  Invalid configuration for aci_config/l3out/external-networks: Missing option
