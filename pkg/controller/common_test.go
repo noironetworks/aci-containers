@@ -17,7 +17,7 @@ package controller
 import (
 	"strconv"
 
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -216,9 +216,9 @@ func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod 
 	return pod
 }
 
-func deployment(namespace string, name string, egAnnot string, sgAnnot string) *appsv1beta2.Deployment {
-	return &appsv1beta2.Deployment{
-		Spec: appsv1beta2.DeploymentSpec{
+func deployment(namespace string, name string, egAnnot string, sgAnnot string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app":  "sample-app",

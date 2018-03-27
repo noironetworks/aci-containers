@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
+
 	"os"
 	"reflect"
 	"sort"
@@ -238,26 +238,17 @@ func (env *CfEnvironment) Init(cont *AciController) error {
 		"cfconfig": cont.config.CfConfig,
 	}).Info("Setting up CloudFoundry environment")
 
-	bbsURL, err := url.Parse(env.cfconfig.BBSAddress)
+	env.bbsClient, err = bbs.NewClient(
+		env.cfconfig.BBSAddress,
+		env.cfconfig.BBSCACertFile,
+		env.cfconfig.BBSClientCertFile,
+		env.cfconfig.BBSClientKeyFile,
+		env.cfconfig.BBSClientSessionCacheSize,
+		env.cfconfig.BBSMaxIdleConnsPerHost,
+	)
 	if err != nil {
-		env.log.Error("Invalid BBS URL: ", err)
+		env.log.Error("Failed to configure secure BBS client: ", err)
 		return err
-	}
-	if bbsURL.Scheme != "https" {
-		env.bbsClient = bbs.NewClient(env.cfconfig.BBSAddress)
-	} else {
-		env.bbsClient, err = bbs.NewSecureClient(
-			env.cfconfig.BBSAddress,
-			env.cfconfig.BBSCACertFile,
-			env.cfconfig.BBSClientCertFile,
-			env.cfconfig.BBSClientKeyFile,
-			env.cfconfig.BBSClientSessionCacheSize,
-			env.cfconfig.BBSMaxIdleConnsPerHost,
-		)
-		if err != nil {
-			env.log.Error("Failed to configure secure BBS client: ", err)
-			return err
-		}
 	}
 
 	etcdClient, err := etcd.NewEtcdClient(env.cfconfig.EtcdUrl, env.cfconfig.EtcdCACertFile,
