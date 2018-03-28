@@ -205,6 +205,9 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			outbound := apicapi.NewHostprotRule(ingressSubj.GetDn(),
 				"allow-all-reflexive")
 			outbound.SetAttr("direction", "ingress")
+			if !cont.configuredPodNetworkIps.V6.Empty() {
+				outbound.SetAttr("ethertype", "ipv6")
+			}
 			outbound.SetAttr("ethertype", "ipv4")
 			ingressSubj.AddChild(outbound)
 		}
@@ -220,6 +223,9 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
 				"allow-all-reflexive")
 			outbound.SetAttr("direction", "egress")
+			if !cont.configuredPodNetworkIps.V6.Empty() {
+				outbound.SetAttr("ethertype", "ipv6")
+			}
 			outbound.SetAttr("ethertype", "ipv4")
 			egressSubj.AddChild(outbound)
 		}
@@ -251,12 +257,20 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			icmpin.SetAttr("direction", "ingress")
 			icmpin.SetAttr("ethertype", "ipv4")
 			icmpin.SetAttr("protocol", "icmp")
+			if !cont.configuredPodNetworkIps.V6.Empty() {
+				icmpin.SetAttr("protocol", "icmpv6")
+				icmpin.SetAttr("ethertype", "ipv6")
+			}
 			icmpin.SetAttr("connTrack", "normal")
 			discSubj.AddChild(icmpin)
 		}
 		{
 			icmpout := apicapi.NewHostprotRule(discDn, "icmp-egress")
 			icmpout.SetAttr("direction", "egress")
+			if !cont.configuredPodNetworkIps.V6.Empty() {
+				icmpout.SetAttr("protocol", "icmpv6")
+				icmpout.SetAttr("ethertype", "ipv6")
+			}
 			icmpout.SetAttr("ethertype", "ipv4")
 			icmpout.SetAttr("protocol", "icmp")
 			icmpout.SetAttr("connTrack", "normal")
