@@ -58,7 +58,7 @@ clean-vendor:
 clean: clean-dist clean-vendor
 
 PACKAGE = aci-containers
-VERSION_BASE ?= 1.8.0
+VERSION_BASE ?= 1.9.0
 VERSION_SUFFIX ?=
 VERSION = ${VERSION_BASE}${VERSION_SUFFIX}
 BUILD_NUMBER ?= 0
