@@ -502,6 +502,8 @@ spec:
       {% endif %}
       tolerations:
         - key: CriticalAddonsOnly
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-controller
           image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.aci_containers_controller_version }}
