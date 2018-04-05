@@ -111,21 +111,34 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 		})
 }
 
-func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) error {
-	_, err := net.ParseMAC(ep.Mac)
-	if err != nil {
-		var mac net.HardwareAddr
-		mac = make([]byte, 6)
-		_, err := rand.Read(mac)
-		if err != nil {
-			return err
-		}
+func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpoint, ep *metadata.ServiceEndpoint, deviceMac string) error {
 
-		mac[0] = (mac[0] & 254) | 2
-		ep.Mac = mac.String()
+	_, err := net.ParseMAC(deviceMac)
+	if err == nil {
+		ep.Mac = deviceMac
+	} else {
+		_, err := net.ParseMAC(existing.Mac)
+		if err == nil {
+			ep.Mac = existing.Mac
+		} else {
+			var mac net.HardwareAddr
+			mac = make([]byte, 6)
+			_, err := rand.Read(mac)
+			if err != nil {
+				return err
+			}
+
+			mac[0] = (mac[0] & 254) | 2
+			ep.Mac = mac.String()
+		}
 	}
 
-	if ep.Ipv4 == nil || !cont.nodeServiceIps.V4.RemoveIp(ep.Ipv4) {
+	if ep.Ipv4 == nil && existing.Ipv4 != nil &&
+		cont.nodeServiceIps.V4.RemoveIp(existing.Ipv4) {
+		ep.Ipv4 = existing.Ipv4
+	}
+
+	if ep.Ipv4 == nil {
 		ipv4, err := cont.nodeServiceIps.V4.GetIp()
 		if err == nil {
 			ep.Ipv4 = ipv4
@@ -133,7 +146,13 @@ func (cont *AciController) createServiceEndpoint(ep *metadata.ServiceEndpoint) e
 			ep.Ipv4 = nil
 		}
 	}
-	if ep.Ipv6 == nil || !cont.nodeServiceIps.V6.RemoveIp(ep.Ipv6) {
+
+	if ep.Ipv6 == nil && existing.Ipv6 != nil &&
+		cont.nodeServiceIps.V6.RemoveIp(existing.Ipv6) {
+		ep.Ipv6 = existing.Ipv6
+	}
+
+	if ep.Ipv6 == nil {
 		ipv6, err := cont.nodeServiceIps.V6.GetIp()
 		if err == nil {
 			ep.Ipv6 = ipv6
@@ -166,6 +185,17 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
 }
 
+func (cont *AciController) nodeChangedByName(nodeName string) {
+	node, exists, err := cont.nodeIndexer.GetByKey(nodeName)
+	if err != nil {
+		cont.log.Error("Could not lookup node: ", err)
+		return
+	}
+	if exists && node != nil {
+		cont.nodeChanged(node)
+	}
+}
+
 func (cont *AciController) nodeChanged(obj interface{}) {
 	cont.indexMutex.Lock()
 
@@ -173,24 +203,26 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	logger := cont.log.WithFields(logrus.Fields{
 		"Node": node.ObjectMeta.Name,
 	})
+	logger.Info("Changed")
 
 	nodeUpdated := false
 	if node.ObjectMeta.Annotations == nil {
 		node.ObjectMeta.Annotations = make(map[string]string)
 	}
+
+	nodeMeta, metaok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]
 	epval, epok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
+	deviceMac, hasDevice := cont.deviceMacForNode(node.ObjectMeta.Name)
 
-	if existing, ok := cont.nodeServiceMetaCache[node.ObjectMeta.Name]; ok {
-		if !epok || existing.serviceEpAnnotation != epval {
-			node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-				existing.serviceEpAnnotation
-			nodeUpdated = true
+	if cont.nodeSyncEnabled && hasDevice {
+		if !metaok {
+			nodeMeta = &nodeServiceMeta{}
+			cont.nodeServiceMetaCache[node.ObjectMeta.Name] = nodeMeta
 		}
-	} else if cont.nodeSyncEnabled {
-		nodeMeta := &nodeServiceMeta{}
 
+		existing := &metadata.ServiceEndpoint{}
 		if epok {
-			err := json.Unmarshal([]byte(epval), &nodeMeta.serviceEp)
+			err := json.Unmarshal([]byte(epval), existing)
 			if err != nil {
 				logger.WithFields(logrus.Fields{
 					"epval": epval,
@@ -199,18 +231,17 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			}
 		}
 
-		cont.createServiceEndpoint(&nodeMeta.serviceEp)
+		cont.createServiceEndpoint(existing, &nodeMeta.serviceEp, deviceMac)
 		raw, err := json.Marshal(&nodeMeta.serviceEp)
 		if err != nil {
 			logger.Error("Could not create node service endpoint annotation", err)
 		} else {
-			nodeMeta.serviceEpAnnotation = string(raw)
-			if !epok || nodeMeta.serviceEpAnnotation != epval {
+			serviceEpAnnotation := string(raw)
+			if !epok || serviceEpAnnotation != epval {
 				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-					nodeMeta.serviceEpAnnotation
+					serviceEpAnnotation
 				nodeUpdated = true
 			}
-			cont.nodeServiceMetaCache[node.ObjectMeta.Name] = nodeMeta
 			cont.updateServicesForNode(node.ObjectMeta.Name)
 		}
 	}
@@ -355,7 +386,7 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 func (cont *AciController) allocateIpChunk(podnet *nodePodNetMeta, v4 bool) bool {
 	var podnetipam, ipa *ipam.IpAlloc
 	changed := false
-	if (v4) {
+	if v4 {
 		podnetipam = ipam.NewFromRanges(podnet.podNetIps.V4)
 		ipa = cont.podNetworkIps.V4
 	} else {
@@ -371,7 +402,7 @@ func (cont *AciController) allocateIpChunk(podnet *nodePodNetMeta, v4 bool) bool
 			cont.log.Error("Could not allocate address chunk: ", err)
 		} else {
 			podnetipam.AddRanges(r)
-			if (v4) {
+			if v4 {
 				podnet.podNetIps.V4 = podnetipam.FreeList
 			} else {
 				podnet.podNetIps.V6 = podnetipam.FreeList
@@ -394,7 +425,7 @@ func (cont *AciController) checkNodePodNet(nodename string) {
 			v6changed = cont.allocateIpChunk(podnet, false)
 		}
 	}
-	if v4changed || v6changed  {
+	if v4changed || v6changed {
 		go cont.env.NodePodNetworkChanged(nodename)
 	}
 

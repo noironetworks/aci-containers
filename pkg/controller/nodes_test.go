@@ -31,7 +31,9 @@ import (
 	//"github.com/stretchr/testify/assert"
 )
 
-func waitForSEpAnnot(t *testing.T, cont *testAciController, ipv4 net.IP, ipv6 net.IP, desc string) {
+func waitForSEpAnnot(t *testing.T, cont *testAciController,
+	ipv4 net.IP, ipv6 net.IP, mac *string, desc string) {
+
 	tu.WaitFor(t, desc, 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			if !tu.WaitCondition(t, last, func() bool {
@@ -50,9 +52,24 @@ func waitForSEpAnnot(t *testing.T, cont *testAciController, ipv4 net.IP, ipv6 ne
 			}
 			_, err = net.ParseMAC(ep.Mac)
 			return tu.WaitNil(t, last, err, desc, "hardware addr parse", err) &&
+				(mac == nil ||
+					tu.WaitEqual(t, last, *mac, ep.Mac, desc, "mac")) &&
 				tu.WaitEqual(t, last, ipv4, ep.Ipv4, desc, "ipv4") &&
 				tu.WaitEqual(t, last, ipv6, ep.Ipv6, desc, "ipv6"), nil
 		})
+}
+
+var odevMac = "aa:bb:cc:dd:ee:ff"
+
+func setupODev(cont *testAciController, nodeName string, hasMac bool) {
+	oDev := apicapi.EmptyApicObject("opflexODev", nodeName)
+	oDev.SetAttr("hostName", nodeName)
+	if hasMac {
+		oDev.SetAttr("mac", odevMac)
+	}
+	oDev.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	cont.opflexDeviceChanged(oDev)
 }
 
 func TestServiceEpAnnotationV4(t *testing.T) {
@@ -63,16 +80,24 @@ func TestServiceEpAnnotationV4(t *testing.T) {
 	cont.AciController.initIpam()
 	cont.run()
 
+	setupODev(cont, "node1", true)
+	setupODev(cont, "node2", true)
+	setupODev(cont, "node3", false)
+
 	cont.fakeNodeSource.Add(node("node1"))
-	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.2"), nil, "simple")
+	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.2"), nil, &odevMac, "simple")
 
 	cont.nodeUpdates = nil
 	cont.fakeNodeSource.Add(node("node2"))
-	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.3"), nil, "second")
+	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.3"), nil, &odevMac, "second")
 
 	cont.nodeUpdates = nil
 	cont.fakeNodeSource.Add(node("node3"))
-	waitForSEpAnnot(t, cont, nil, nil, "noneleft")
+	waitForSEpAnnot(t, cont, nil, nil, nil, "noneleft")
+
+	cont.nodeUpdates = nil
+	setupODev(cont, "node3", true)
+	waitForSEpAnnot(t, cont, nil, nil, &odevMac, "odev update add mac")
 
 	cont.stop()
 }
@@ -85,16 +110,22 @@ func TestServiceEpAnnotationV6(t *testing.T) {
 	cont.AciController.initIpam()
 	cont.run()
 
+	setupODev(cont, "node1", false)
+	setupODev(cont, "node2", true)
+	setupODev(cont, "node3", true)
+
 	cont.fakeNodeSource.Add(node("node1"))
-	waitForSEpAnnot(t, cont, nil, net.ParseIP("fd43:85d7:bcf2:9ad2::2"), "simple")
+	waitForSEpAnnot(t, cont, nil, net.ParseIP("fd43:85d7:bcf2:9ad2::2"),
+		nil, "simple")
 
 	cont.nodeUpdates = nil
 	cont.fakeNodeSource.Add(node("node2"))
-	waitForSEpAnnot(t, cont, nil, net.ParseIP("fd43:85d7:bcf2:9ad2::3"), "second")
+	waitForSEpAnnot(t, cont, nil, net.ParseIP("fd43:85d7:bcf2:9ad2::3"),
+		&odevMac, "second")
 
 	cont.nodeUpdates = nil
 	cont.fakeNodeSource.Add(node("node3"))
-	waitForSEpAnnot(t, cont, nil, nil, "noneleft")
+	waitForSEpAnnot(t, cont, nil, nil, &odevMac, "noneleft")
 
 	cont.stop()
 }
@@ -108,6 +139,10 @@ func TestServiceEpAnnotationExisting(t *testing.T) {
 	cont.AciController.initIpam()
 	cont.run()
 
+	setupODev(cont, "node1", false)
+	setupODev(cont, "node2", true)
+	setupODev(cont, "node3", false)
+
 	ep := &metadata.ServiceEndpoint{
 		Ipv4: net.ParseIP("10.1.1.1"),
 		Ipv6: net.ParseIP("fd43:85d7:bcf2:9ad2::1"),
@@ -117,7 +152,7 @@ func TestServiceEpAnnotationExisting(t *testing.T) {
 	n.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] = string(raw)
 	cont.fakeNodeSource.Add(n)
 	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.2"),
-		net.ParseIP("fd43:85d7:bcf2:9ad2::2"), "out of range")
+		net.ParseIP("fd43:85d7:bcf2:9ad2::2"), nil, "out of range")
 
 	cont.nodeUpdates = nil
 	n = node("node2")
@@ -127,7 +162,17 @@ func TestServiceEpAnnotationExisting(t *testing.T) {
 	n.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] = string(raw)
 	cont.fakeNodeSource.Add(n)
 	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.4"),
-		net.ParseIP("fd43:85d7:bcf2:9ad2::3"), "in range")
+		net.ParseIP("fd43:85d7:bcf2:9ad2::3"), &odevMac, "in range")
+
+	cont.nodeUpdates = nil
+	n = node("node3")
+	ep.Mac = "00:0c:29:92:fe:d0"
+	ep.Ipv4 = net.ParseIP("10.1.1.5")
+	raw, _ = json.Marshal(ep)
+	n.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] = string(raw)
+	cont.fakeNodeSource.Add(n)
+	waitForSEpAnnot(t, cont, net.ParseIP("10.1.1.3"),
+		net.ParseIP("fd43:85d7:bcf2:9ad2::4"), &ep.Mac, "out of range no odev")
 
 	cont.stop()
 }
@@ -183,6 +228,7 @@ func TestPodNetAnnotation(t *testing.T) {
 	}
 	cont.AciController.initIpam()
 	cont.run()
+	setupODev(cont, "node2", true)
 
 	{
 		cont.nodeUpdates = nil

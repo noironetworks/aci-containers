@@ -131,18 +131,12 @@ func (env *K8sEnvironment) InitStaticAciObjects() {
 	env.cont.initStaticServiceObjs()
 }
 
-func (env *K8sEnvironment) NodePodNetworkChanged(nodename string) {
-	node, exists, err := env.cont.nodeIndexer.GetByKey(nodename)
-	if err != nil {
-		env.cont.log.Error("Could not lookup node: ", err)
-		return
-	}
-	if exists && node != nil {
-		env.cont.nodeChanged(node)
-	}
+func (env *K8sEnvironment) NodePodNetworkChanged(nodeName string) {
+	env.cont.nodeChangedByName(nodeName)
 }
 
 func (env *K8sEnvironment) NodeServiceChanged(nodeName string) {
+	env.cont.nodeChangedByName(nodeName)
 	env.cont.updateServicesForNode(nodeName)
 }
 
