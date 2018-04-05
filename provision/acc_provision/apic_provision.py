@@ -463,13 +463,17 @@ class ApicKubeConfig(object):
         infra_vlan = self.config["net_config"]["infra_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
 
+        promMode = "Disabled"
+        if encap_type == "vlan":
+            promMode = "Enabled"
+
         path = ("/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" %
                 (nvmm_type, nvmm_name, system_id))
         data = {
             "vmmUsrCustomAggr": {
                 "attributes": {
                     "name": system_id,
-                    "promMode": "Enabled",
+                    "promMode": promMode,
                 },
                 "children": [
                     {
