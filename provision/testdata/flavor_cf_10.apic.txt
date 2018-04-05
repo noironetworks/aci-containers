@@ -92,7 +92,7 @@
     "vmmUsrCustomAggr": {
         "attributes": {
             "name": "mycf0", 
-            "promMode": "Enabled"
+            "promMode": "Disabled"
         }, 
         "children": [
             {

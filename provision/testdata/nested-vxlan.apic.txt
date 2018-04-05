@@ -101,7 +101,7 @@
     "vmmUsrCustomAggr": {
         "attributes": {
             "name": "kube", 
-            "promMode": "Enabled"
+            "promMode": "Disabled"
         }, 
         "children": [
             {
