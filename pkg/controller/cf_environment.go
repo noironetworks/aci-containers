@@ -49,6 +49,7 @@ import (
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 type CfEnvironment struct {
@@ -644,9 +645,12 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 		return false
 	}
 	nodeMeta := &nodeServiceMeta{}
+	existing := &metadata.ServiceEndpoint{}
 	kapi := env.etcdKeysApi
 	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
 	resp, err := kapi.Get(context.Background(), cellKey, nil)
+	// XXX TODO wait for deviceMac to be set:
+	// deviceMac, hasDevice := cont.deviceMacForNode(node.ObjectMeta.Name)
 	if err != nil {
 		if etcd.IsKeyNotFoundError(err) {
 			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
@@ -655,12 +659,12 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 			return false
 		}
 	} else {
-		err = json.Unmarshal([]byte(resp.Node.Value), &nodeMeta.serviceEp)
+		err = json.Unmarshal([]byte(resp.Node.Value), &existing)
 		if err != nil {
 			env.log.Warn("Could not parse cell service info: ", err)
 		}
 	}
-	err = env.cont.createServiceEndpoint(&nodeMeta.serviceEp)
+	err = env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp, "")
 	if err != nil {
 		env.log.Error("Couldn't create service EP info for cell: ", err)
 		return false

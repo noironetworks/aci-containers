@@ -112,8 +112,7 @@ type AciController struct {
 }
 
 type nodeServiceMeta struct {
-	serviceEp           metadata.ServiceEndpoint
-	serviceEpAnnotation string
+	serviceEp metadata.ServiceEndpoint
 }
 
 type nodePodNetMeta struct {
