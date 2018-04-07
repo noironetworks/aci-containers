@@ -796,6 +796,12 @@ class ApicKubeConfig(object):
         else:
             return True
 
+    def get_BD_dict(self, data, idx=0):
+        return filter(lambda dd: "fvBD" in dd, data["fvTenant"]["children"])[idx]
+
+    def get_subnet_dict(self, data, idx=0):
+        return filter(lambda cc: "fvSubnet" in cc, self.get_BD_dict(data, idx)["fvBD"]["children"])[0]
+
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
@@ -1342,21 +1348,16 @@ class ApicKubeConfig(object):
         }
 
         if v6subnet is True:
-            for tenantdict in data["fvTenant"]["children"]:
-                for k, v in tenantdict.items():
-                    if k == "fvBD":
-                        for bddict in tenantdict["fvBD"]["children"]:
-                            for k1, v1 in bddict.items():
-                                if k1 == "fvSubnet":
-                                    for k2, v2 in bddict["fvSubnet"].items():
-                                        v2.update({'ctrl': 'nd'})
-                                    bddict["fvSubnet"].setdefault('children', []).append({
-                                        "fvRsNdPfxPol": {
-                                            "attributes": {
-                                                "tnNdPfxPolName": "kube-nd-ra-policy"
-                                            }
-                                        }
-                                    })
+            ipv6_nd_policy_rs = {
+                "fvRsNdPfxPol": {
+                    "attributes": {
+                        "tnNdPfxPolName": "kube-nd-ra-policy"
+                    }
+                }
+            }
+            for i in range(2):
+                self.get_subnet_dict(data, i)["fvSubnet"]["attributes"].update({'ctrl': 'nd'})
+                self.get_subnet_dict(data, i)["fvSubnet"].setdefault('children', []).append(ipv6_nd_policy_rs)
             data["fvTenant"]["children"].append({
                 "ndPfxPol": {
                     "attributes": {
