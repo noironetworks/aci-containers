@@ -2,7 +2,7 @@
 # Configuration for ACI Fabric
 #
 aci_config:
-  system_id: mykube              # Every opflex cluster must have a distict ID
+  system_id: mykube             # Every opflex cluster must have a distict ID
   apic_hosts:                   # List of APIC hosts to connect for APIC API
   - 10.1.1.101
   vmm_domain:                   # Kubernetes VMM domain configuration
@@ -17,10 +17,14 @@ aci_config:
     nested_inside:
     #  type: vmware
     #  name: myvmware
-  cloudfoundry:                 # CloudFoundry specific config parameters
-    custom_epg: ["cf-group1", "cf-group2"]
-    isolated_segment: True
-    isolated_subnet: 10.6.0.1/16 # Must be provided if isolated_segment:True
+  # Below config params are "needed only" for "Cloudfoundry"
+  #cloudfoundry:
+  #  custom_epg: ["cf-group1", "cf-group2"]   # non-default epgs user can create in APIC
+  #  isolated_segments:          # Each isolated segment, must have pair of name & subnet
+  #    - name: iso1
+  #      subnet: 10.6.0.1/24
+  #    - name: iso2
+  #      subnet: 10.7.0.1/24
 
   # The following resources must already exist on the APIC,
   # they are used, but not created by the provisioning tool.

@@ -23,7 +23,7 @@ from apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-DEFAULT_FLAVOR = "kubernetes-1.8"
+DEFAULT_FLAVOR = "kubernetes-1.10"
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -38,21 +38,21 @@ VERSIONS = {
         "cnideploy_version": "1.6r15",
         "aci_containers_host_version": "1.6r15",
         "aci_containers_controller_version": "1.6r15",
-        "opflex_agent_version": "1.6r17",
+        "opflex_agent_version": "1.6r22",
         "openvswitch_version": "1.6r12",
     },
     "1.7": {
         "cnideploy_version": "1.7r86",
         "aci_containers_host_version": "1.7r86",
         "aci_containers_controller_version": "1.7r86",
-        "opflex_agent_version": "1.7r60",
+        "opflex_agent_version": "1.7r70",
         "openvswitch_version": "1.7r24",
     },
-    "1.8": {
-        "cnideploy_version": "1.8r0",
-        "aci_containers_host_version": "1.8r0",
-        "aci_containers_controller_version": "1.8r0",
-        "opflex_agent_version": "1.8r0",
+    "1.9": {
+        "cnideploy_version": "1.9rXXX",
+        "aci_containers_host_version": "1.9rXXX",
+        "aci_containers_controller_version": "1.8rXXX",
+        "opflex_agent_version": "1.9rYYY",
         "openvswitch_version": "1.7r24",
     },
 }
@@ -86,9 +86,13 @@ CfFlavorOptions = {
 DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
 
 FLAVORS = {
-    "kubernetes-1.8": {
-        "desc": "Kubernetes 1.8",
-        "default_version": "1.8",
+    "kubernetes-1.10": {
+        "desc": "Kubernetes 1.10",
+        "default_version": "1.9",
+    },
+    "kubernetes-1.9": {
+        "desc": "Kubernetes 1.9",
+        "default_version": "1.9",
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
@@ -113,6 +117,25 @@ FLAVORS = {
                 "use_netpol_apigroup": "extensions",
             },
         }
+    },
+    "openshift-3.9": {
+        "desc": "Red Hat OpenShift Container Platform 3.9",
+        "default_version": "1.9",
+        "config": {
+            "kube_config": {
+                "use_external_service_ip_allocator": True,
+                "use_privileged_containers": True,
+                "use_openshift_security_context_constraints": True,
+                "use_cnideploy_initcontainer": True,
+                "allow_kube_api_default_epg": True,
+                "kubectl": "oc",
+            },
+            "aci_config": {
+                "vmm_domain": {
+                    "type": "OpenShift",
+                },
+            },
+        },
     },
     "openshift-3.6": {
         "desc": "Red Hat OpenShift Container Platform 3.6",
@@ -237,7 +260,7 @@ def config_default():
         "kube_config": {
             "controller": "1.1.1.1",
             "use_rbac_api": "rbac.authorization.k8s.io/v1",
-            "use_apps_api": "apps/v1beta2",
+            "use_apps_api": "apps/v1",
             "use_apps_apigroup": "apps",
             "use_netpol_apigroup": "networking.k8s.io",
             "use_netpol_annotation": False,
@@ -537,6 +560,13 @@ def config_validate(flavor_opts, config):
         checks["aci_config/vmm_domain/vlan_range/end"] = \
             (get(("aci_config", "vmm_domain", "vlan_range", "end")),
              required)
+
+    iso_segs = get(("aci_config", "cloudfoundry", "isolated_segments"))
+    if iso_segs:
+        for i in range(len(iso_segs)):
+            for k in iso_segs[i].keys():
+                checks["aci_config/cloudfoundry/isolated_segments/%s%d" % (k, i)] = \
+                    (iso_segs[i].get(k), required)
 
     if get(("aci_config", "vmm_domain", "nested_inside", "type")):
         checks["aci_config/vmm_domain/nested_inside/type"] = \
