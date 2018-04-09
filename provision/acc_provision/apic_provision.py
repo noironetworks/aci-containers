@@ -796,12 +796,6 @@ class ApicKubeConfig(object):
         else:
             return True
 
-    def get_BD_dict(self, data, idx=0):
-        return filter(lambda dd: "fvBD" in dd, data["fvTenant"]["children"])[idx]
-
-    def get_subnet_dict(self, data, idx=0):
-        return filter(lambda cc: "fvSubnet" in cc, self.get_BD_dict(data, idx)["fvBD"]["children"])[0]
-
     def kube_tn(self):
         system_id = self.config["aci_config"]["system_id"]
         tn_name = self.config["aci_config"]["cluster_tenant"]
@@ -869,6 +863,30 @@ class ApicKubeConfig(object):
                     }
                 }
             })
+
+        node_subnet_obj = {
+            "attributes": {
+                "ip": node_subnet,
+                "scope": "public",
+            }
+        }
+        pod_subnet_obj = {
+            "attributes": {
+                "ip": pod_subnet,
+            }
+        }
+        if v6subnet:
+            ipv6_nd_policy_rs = [{
+                "fvRsNdPfxPol": {
+                    "attributes": {
+                        "tnNdPfxPolName": "kube-nd-ra-policy"
+                    }
+                }
+            }]
+            node_subnet_obj['attributes']['ctrl'] = 'nd'
+            node_subnet_obj["children"] = ipv6_nd_policy_rs
+            pod_subnet_obj['attributes']['ctrl'] = 'nd'
+            pod_subnet_obj["children"] = ipv6_nd_policy_rs
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = {
@@ -1027,12 +1045,7 @@ class ApicKubeConfig(object):
                             },
                             "children": [
                                 {
-                                    "fvSubnet": {
-                                        "attributes": {
-                                            "ip": node_subnet,
-                                            "scope": "public"
-                                        }
-                                    }
+                                    "fvSubnet": node_subnet_obj,
                                 },
                                 {
                                     "fvRsCtx": {
@@ -1058,11 +1071,7 @@ class ApicKubeConfig(object):
                             },
                             "children": [
                                 {
-                                    "fvSubnet": {
-                                        "attributes": {
-                                            "ip": pod_subnet
-                                        }
-                                    }
+                                    "fvSubnet": pod_subnet_obj,
                                 },
                                 {
                                     "fvRsCtx": {
@@ -1348,16 +1357,6 @@ class ApicKubeConfig(object):
         }
 
         if v6subnet is True:
-            ipv6_nd_policy_rs = {
-                "fvRsNdPfxPol": {
-                    "attributes": {
-                        "tnNdPfxPolName": "kube-nd-ra-policy"
-                    }
-                }
-            }
-            for i in range(2):
-                self.get_subnet_dict(data, i)["fvSubnet"]["attributes"].update({'ctrl': 'nd'})
-                self.get_subnet_dict(data, i)["fvSubnet"].setdefault('children', []).append(ipv6_nd_policy_rs)
             data["fvTenant"]["children"].append({
                 "ndPfxPol": {
                     "attributes": {
