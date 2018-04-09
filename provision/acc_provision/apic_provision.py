@@ -593,7 +593,8 @@ class ApicKubeConfig(object):
                 })
 
         base = '/api/mo/uni/infra/attentp-%s' % aep_name
-        rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
+        rsvmm = base + \
+            '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
         rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
 
         if self.associate_aep_to_nested_inside_domain:
@@ -1441,7 +1442,7 @@ class ApicKubeConfig(object):
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         cf_vrf = self.config["aci_config"]["vrf"]["name"]
         cf_l3out = self.config["aci_config"]["l3out"]["name"]
-        node_subnet = self.config["net_config"]["node_subnet"]
+        node_subnet = [self.config["net_config"]["node_subnet"]]
         pod_subnet = self.config["net_config"]["pod_subnet"]
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         nvmm_name = (
@@ -1451,6 +1452,45 @@ class ApicKubeConfig(object):
                    ["app_profile"])
         app_epg_name = (
             self.config["cf_config"]["default_endpoint_group"]["group"])
+        custom_epg_name = (
+            self.config["aci_config"]["cloudfoundry"]["custom_epg"])
+        isolated_segments = (
+            self.config["aci_config"]["cloudfoundry"]["isolated_segments"])
+        children_epg_objs, children_apic_objects = [], []
+
+        if isolated_segments:
+            iso_app_epgs = []
+            for iso_seg in isolated_segments:
+                iso_seg_name = iso_seg["name"]
+                iso_seg_subnet = iso_seg["subnet"]
+                node_subnet.append(iso_seg_subnet)
+
+                iso_gorouter_contract = self.contract(
+                    "is-gorouter-%s" % iso_seg_name,
+                    subjects=[dict(name="iso-gorouter-subj",
+                                   filters=["tcp-all"])])
+                children_apic_objects.append(iso_gorouter_contract)
+
+                isolated_app_epg = self.epg(
+                    "%s" % iso_seg_name,
+                    "cf-app-bd",
+                    provides=["iso-gorouter-%s" % iso_seg_name],
+                    consumes=["dns", "%s-l3out-allow-all" % system_id],
+                    vmm_domains=[(vmm_type, vmm_name)])
+                if isolated_app_epg:
+                    iso_app_epgs.append(isolated_app_epg)
+
+            isolated_node_epg = self.epg(
+                "cf-node-isolated",
+                "cf-node-bd",
+                provides=["is-node-all"],
+                consumes=["is-node-all", "is-gorouter",
+                          "%s-l3out-allow-all" % system_id],
+                vmm_domains=[(nvmm_type, nvmm_name)])
+
+            if isolated_node_epg and iso_app_epgs:
+                children_epg_objs.extend((isolated_node_epg,
+                                          iso_app_epgs))
 
         app_default_epg = self.epg(app_epg_name,
                                    "cf-app-bd",
@@ -1461,19 +1501,31 @@ class ApicKubeConfig(object):
         node_epg = self.epg(
             self.config["cf_config"]["node_epg"],
             "cf-node-bd",
-            provides=["dns"],
-            consumes=["gorouter", "%s-l3out-allow-all" % system_id],
+            provides=["dns", "is-node-all"],
+            consumes=["is-node-all", "gorouter",
+                      "%s-l3out-allow-all" % system_id],
             vmm_domains=[(nvmm_type, nvmm_name)])
+        children_epg_objs.extend((node_epg, app_default_epg))
+        if custom_epg_name:
+            custom_epg = []
+            for name in custom_epg_name:
+                custom_epg.append(self.epg(name,
+                                           "cf-app-bd",
+                                           provides=["gorouter"],
+                                           consumes=["dns",
+                                                     "%s-l3out-allow-all" % system_id],
+                                           vmm_domains=[(vmm_type, vmm_name)]))
+            children_epg_objs.extend(custom_epg)
         ap = aci_obj('fvAp',
                      name=ap_name,
-                     _children=[node_epg, app_default_epg])
+                     _children=children_epg_objs)
 
         app_bd = self.bd('cf-app-bd', cf_vrf,
                          subnets=[pod_subnet],
                          l3outs=[cf_l3out])
 
         node_bd = self.bd('cf-node-bd', cf_vrf,
-                          subnets=[node_subnet],
+                          subnets=node_subnet,
                           l3outs=[cf_l3out])
 
         tcp_all_filter = self.filter(
@@ -1485,6 +1537,9 @@ class ApicKubeConfig(object):
                           dFromPort='dns', dToPort='dns'),
                      dict(name='tcp', etherT='ip', prot='tcp',
                           dFromPort='dns', dToPort='dns')])
+        is_node_all_filter = self.filter(
+            'is-node-all',
+            entries=[dict(name='is-node-all')])
 
         gorouter_contract = self.contract(
             'gorouter',
@@ -1492,14 +1547,22 @@ class ApicKubeConfig(object):
         dns_contract = self.contract(
             'dns',
             subjects=[dict(name='dns-subj', filters=['dns'])])
+        is_node_all_contract = self.contract(
+            'is-node-all',
+            subjects=[dict(name='is-node-all-subj', filters=['is-node-all'])])
+
+        children_apic_objects.extend((
+            ap, node_bd, app_bd,
+            tcp_all_filter, dns_filter, is_node_all_filter,
+            gorouter_contract, dns_contract, is_node_all_contract
+        ))
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = aci_obj('fvTenant',
                        name=tn_name,
                        dn="uni/tn-%s" % tn_name,
-                       _children=[ap, node_bd, app_bd,
-                                  tcp_all_filter, dns_filter,
-                                  gorouter_contract, dns_contract])
+                       _children=children_apic_objects
+                       )
         return path, data
 
 
