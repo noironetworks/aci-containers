@@ -29,12 +29,13 @@ func TestCfCniDeviceOps(t *testing.T) {
 	mdKey := "_cf_/one"
 	ep := getTestEpInfo()
 	env.epIdx["one"] = ep
-	meta := getTestEpMetadata()
+	meta := getTestEpMetadata("one")
 	env.agent.epMetadata[mdKey] = meta
 
 	env.CniDeviceChanged(&mdKey, &id)
 
 	assert.Equal(t, meta, env.GetContainerMetadata("one"))
+	assert.Equal(t, meta, env.GetKvContainerMetadata("one"))
 	_, ok := env.agent.opflexEps["one"]
 	assert.True(t, ok)
 
@@ -43,6 +44,7 @@ func TestCfCniDeviceOps(t *testing.T) {
 	env.CniDeviceDeleted(&mdKey, &id)
 
 	assert.Nil(t, env.GetContainerMetadata("one"))
+	assert.Nil(t, env.GetKvContainerMetadata("one"))
 	_, ok = env.agent.opflexEps["one"]
 	assert.False(t, ok)
 
@@ -71,3 +73,25 @@ func TestCfSetupIpTables(t *testing.T) {
 	exist, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN, "foo3 bar3")
 	assert.False(t, exist)
 }
+
+func TestCfPublishCniMetadata(t *testing.T) {
+	env := testCfEnvironment(t)
+
+	md_one := getTestEpMetadata("one")
+	md_two := getTestEpMetadata("two")
+	md_three := getTestEpMetadata("three")
+
+	env.agent.epMetadata["_cf_/one"] = md_one
+	env.agent.epMetadata["_cf_/two"] = md_two
+	env.agent.epMetadata["_cf_/three"] = md_three
+
+	assert.Empty(t, env.GetKvContainerMetadata("one"))
+	assert.Empty(t, env.GetKvContainerMetadata("two"))
+	assert.Empty(t, env.GetKvContainerMetadata("three"))
+
+	env.publishCniMetadata()
+	assert.Equal(t, md_one, env.GetKvContainerMetadata("one"))
+	assert.Equal(t, md_two, env.GetKvContainerMetadata("two"))
+	assert.Equal(t, md_three, env.GetKvContainerMetadata("three"))
+}
+

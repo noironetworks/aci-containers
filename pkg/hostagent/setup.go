@@ -352,6 +352,11 @@ func (agent *HostAgent) cleanupSetup() {
 	agent.log.Info("Checking for stale container setup")
 
 	agent.indexMutex.Lock()
+	if !agent.syncEnabled {
+		agent.indexMutex.Unlock()
+		agent.log.Info("Sync not enabled, skipping stale container setup")
+		return
+	}
 	mdcopy := agent.epMetadata
 	agent.indexMutex.Unlock()
 

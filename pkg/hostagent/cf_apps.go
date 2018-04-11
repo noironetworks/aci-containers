@@ -34,17 +34,19 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 	}
 
 	env.agent.indexMutex.Lock()
-	md, ok := env.agent.epMetadata[*metadataKey]
+	md, mdok := env.agent.epMetadata[*metadataKey]
 	env.agent.indexMutex.Unlock()
 
 	kapi := env.etcdKeysApi
 	key := etcd.CONTROLLER_KEY_BASE + "/containers/" + ctId
 	var err error
-	if !ok {
-		_, err = kapi.Delete(context.Background(), key, &etcdclient.DeleteOptions{Recursive: true})
+	if !mdok {
+		_, err = kapi.Delete(context.Background(), key,
+			 &etcdclient.DeleteOptions{Recursive: true})
 		if err != nil {
 			if etcd.IsKeyNotFoundError(err) {
-				env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", key))
+				env.log.Info(
+					fmt.Sprintf("Etcd subtree %s doesn't exist yet", key))
 				err = nil
 			}
 		}
@@ -53,12 +55,19 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 			var md_json []byte
 			md_json, err = json.Marshal(md[ctId].Ifaces)
 			if err == nil {
-				_, err = kapi.Set(context.Background(), key+"/metadata", string(md_json), nil)
+				_, err = kapi.Set(context.Background(),
+					key+"/metadata", string(md_json), nil)
 			}
 		}
 	}
 	if err != nil {
 		env.log.Error("Failed to update container metadata in etcd: ", err)
+	}
+
+	if !mdok || md[ctId] == nil {
+		env.kvmgr.Delete("container", ctId)
+	} else {
+		env.kvmgr.Set("container", ctId, md[ctId].Ifaces)
 	}
 }
 

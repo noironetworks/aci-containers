@@ -30,7 +30,7 @@ func TestCfContainerUpdate(t *testing.T) {
 	id := "one"
 	ep := getTestEpInfo()
 	env.epIdx[id] = ep
-	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata()
+	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	expected_ep := getExpectedOpflexEp()
 	expected_svc := getExpectedOpflexServiceForLegacyNet(env)
 
@@ -109,7 +109,7 @@ func TestCfStagingContainerUpdate(t *testing.T) {
 	ep := getTestEpInfo()
 	ep.InstanceIndex = etcd.INST_IDX_STAGING
 	env.epIdx[id] = ep
-	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata()
+	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	expected_ep := getExpectedOpflexEp()
 	expected_ep.Attributes["vm-name"] = "a1-name (staging)"
 
@@ -133,7 +133,7 @@ func TestCfTaskContainerUpdate(t *testing.T) {
 	ep.InstanceIndex = etcd.INST_IDX_TASK
 	ep.TaskName = "errand"
 	env.epIdx[id] = ep
-	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata()
+	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	expected_ep := getExpectedOpflexEp()
 	expected_ep.Attributes["vm-name"] = "a1-name (task errand)"
 
