@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -52,6 +53,7 @@ type CfEnvironment struct {
 	agent       *HostAgent
 	cfconfig    *CfConfig
 	etcdKeysApi etcdclient.KeysAPI
+	kvmgr       *rkv.KvManager
 
 	indexLock sync.Locker
 	epIdx     map[string]*etcd.EpInfo
@@ -63,7 +65,8 @@ type CfEnvironment struct {
 	cfNetLink           netlink.Link
 	cfNetContainerPorts map[uint32]struct{}
 
-	log *logrus.Logger
+	appsSynced, cellSynced bool
+	log                    *logrus.Logger
 }
 
 type CfConfig struct {
@@ -74,6 +77,12 @@ type CfConfig struct {
 	EtcdCACertFile     string `json:"etcd_ca_cert_file"`
 	EtcdClientCertFile string `json:"etcd_client_cert_file"`
 	EtcdClientKeyFile  string `json:"etcd_client_key_file"`
+
+	ControllerAddress string `json:"controller_address,omitempty"`
+
+	ControllerCACertFile     string `json:"controller_ca_cert_file"`
+	ControllerClientCertFile string `json:"controller_client_cert_file"`
+	ControllerClientKeyFile  string `json:"controller_client_key_file"`
 
 	CfNetOvsPort     string `json:"cf_net_ovs_port"`
 	CfNetIntfAddress string `json:"cf_net_interface_address"`
@@ -135,36 +144,48 @@ func (env *CfEnvironment) Init(agent *HostAgent) error {
 	} else {
 		env.iptbl, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
 	}
+	env.kvmgr = rkv.NewKvManager()
 	return err
 }
 
-func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
+func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) (
+	syncEnabled bool, err error) {
 	env.agent.log.Debug("Discovering node configuration")
 	env.agent.updateOpflexConfig()
 	go env.agent.runTickers(stopCh)
 
-	err := env.setupInterfaceForLegacyCfNet()
+	err = env.setupInterfaceForLegacyCfNet()
 	if err != nil {
 		env.log.Error("Error setting up interface for legacy CF networking: ", err)
-		return err
+		return
 	}
 	err = env.setupIpTablesForLegacyCfNet()
 	if err != nil {
 		env.log.Error("Error setting up IPTables for legacy CF networking: ", err)
-		return err
+		return
 	}
-	etcd_cell_w := NewCfEtcdCellWatcher(env)
-	etcd_app_w := NewCfEtcdAppWatcher(env)
-	go etcd_cell_w.Run(stopCh)
-	go etcd_app_w.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, etcd_cell_w.Synced, etcd_app_w.Synced)
+
+	if env.cfconfig.ControllerAddress != "" {
+		go env.kvmgr.ServeWatch(stopCh)
+		kv_client := NewCfKvClient(env)
+		go kv_client.Watcher().Watch(stopCh)
+		go kv_client.Run(stopCh)
+		env.publishCniMetadata()
+	} else {
+		etcd_cell_w := NewCfEtcdCellWatcher(env)
+		etcd_app_w := NewCfEtcdAppWatcher(env)
+		go etcd_cell_w.Run(stopCh)
+		go etcd_app_w.Run(stopCh)
+		cache.WaitForCacheSync(stopCh, etcd_cell_w.Synced, etcd_app_w.Synced)
+		syncEnabled = true
+	}
 
 	if env.agent.podNetAnnotation == "" {
 		env.log.Info("Cell network info node not found in etcd, using default pool")
 		defIpPool := env.getDefaultIpPool()
 		env.agent.updateIpamAnnotation(defIpPool)
 	}
-	return nil
+	return
 }
 
 func (env *CfEnvironment) CniDeviceChanged(metadataKey *string, id *md.ContainerId) {
@@ -189,6 +210,18 @@ func (env *CfEnvironment) CniDeviceChanged(metadataKey *string, id *md.Container
 func (env *CfEnvironment) CniDeviceDeleted(metadataKey *string, id *md.ContainerId) {
 	env.updateContainerMetadata(metadataKey)
 	env.cfAppContainerDeleted(&id.Pod, nil)
+}
+
+func (env *CfEnvironment) publishCniMetadata() {
+	env.agent.indexMutex.Lock()
+	for _, md := range env.agent.epMetadata {
+		for ctId, meta := range md {
+			if meta != nil {
+				env.kvmgr.Set("container", ctId, meta.Ifaces)
+			}
+		}
+	}
+	env.agent.indexMutex.Unlock()
 }
 
 func extractContainerIdFromMetadataKey(metadataKey *string) string {

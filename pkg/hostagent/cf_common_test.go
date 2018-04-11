@@ -28,6 +28,7 @@ import (
 
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -61,6 +62,7 @@ func testCfEnvironment(t *testing.T) *CfEnvironment {
 	env.iptbl = &fakeIpTables{rules: make(map[string]struct{})}
 	env.cfNetLink = &fakeNetlinkLink{fakeMac: "cc:ff:00:55:ee:dd"}
 	env.etcdKeysApi = etcd_f.NewFakeEtcdKeysApi(log)
+	env.kvmgr = rkv.NewKvManager()
 	return &env
 }
 
@@ -81,6 +83,16 @@ func (e *CfEnvironment) GetContainerMetadata(ctId string) map[string]*md.Contain
 		res := make(map[string]*md.ContainerMetadata)
 		res[ctId] = &meta
 		return res
+	}
+	return nil
+}
+
+func (e *CfEnvironment) GetKvContainerMetadata(ctId string) map[string]*md.ContainerMetadata {
+	if v, err := e.kvmgr.Get("container", ctId); err == nil {
+		ifs := v.Value.([]*md.ContainerIfaceMd)
+		return map[string]*md.ContainerMetadata{ctId: &md.ContainerMetadata{
+			Id: md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId},
+			Ifaces: ifs}}
 	}
 	return nil
 }
@@ -155,10 +167,10 @@ func getTestEpInfo() *etcd.EpInfo {
 	return ep
 }
 
-func getTestEpMetadata() map[string]*md.ContainerMetadata {
+func getTestEpMetadata(ctId string) map[string]*md.ContainerMetadata {
 	meta := make(map[string]*md.ContainerMetadata)
-	meta["one"] = &md.ContainerMetadata{
-		Id: md.ContainerId{Namespace: "_cf_", Pod: "one", ContId: "one"},
+	meta[ctId] = &md.ContainerMetadata{
+		Id: md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId},
 		Ifaces: []*md.ContainerIfaceMd{
 			{
 				HostVethName: "veth1",

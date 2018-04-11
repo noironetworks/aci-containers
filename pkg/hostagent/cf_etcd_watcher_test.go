@@ -33,7 +33,7 @@ func TestCfHandleEtcdContainerNode(t *testing.T) {
 	handler := NewCfEtcdCellWatcher(env).NodeHandler()
 	op := "create"
 
-	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata()
+	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	ep := getTestEpInfo()
 	ep_str, _ := json.Marshal(ep)
 	node := &etcdclient.Node{Key: "/aci/cells/cell1/containers/one/ep", Value: string(ep_str)}

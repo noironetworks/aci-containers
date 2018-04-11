@@ -30,7 +30,7 @@ import (
 
 type Environment interface {
 	Init(agent *HostAgent) error
-	PrepareRun(stopCh <-chan struct{}) error
+	PrepareRun(stopCh <-chan struct{}) (bool, error)
 
 	CniDeviceChanged(metadataKey *string, id *md.ContainerId)
 	CniDeviceDeleted(metadataKey *string, id *md.ContainerId)
@@ -99,7 +99,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	return nil
 }
 
-func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
+func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.log.Debug("Discovering node configuration")
 	env.agent.updateOpflexConfig()
 	go env.agent.runTickers(stopCh)
@@ -121,7 +121,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		env.agent.podInformer.HasSynced, env.agent.endpointsInformer.HasSynced,
 		env.agent.serviceInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
-	return nil
+	return true, nil
 }
 
 func (env *K8sEnvironment) CniDeviceChanged(metadataKey *string, id *md.ContainerId) {
