@@ -149,8 +149,24 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
+func (agent *HostAgent) EnableSync() (changed bool) {
+	changed = false
+	agent.indexMutex.Lock()
+	if agent.syncEnabled == false {
+		agent.syncEnabled = true
+		changed = true
+	}
+	agent.indexMutex.Unlock()
+	if changed {
+		agent.log.Info("Enabling OpFlex endpoint and service sync")
+		agent.scheduleSyncServices()
+		agent.scheduleSyncEps()
+	}
+	return
+}
+
 func (agent *HostAgent) Run(stopCh <-chan struct{}) {
-	err := agent.env.PrepareRun(stopCh)
+	syncEnabled, err := agent.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -162,13 +178,9 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		agent.config.OpFlexServiceDir == "" {
 		agent.log.Warn("OpFlex endpoint and service directories not set")
 	} else {
-		agent.log.Info("Enabling OpFlex endpoint and service sync")
-		agent.indexMutex.Lock()
-		agent.syncEnabled = true
-		agent.indexMutex.Unlock()
-
-		agent.scheduleSyncServices()
-		agent.scheduleSyncEps()
+		if syncEnabled {
+			agent.EnableSync()
+		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
 
