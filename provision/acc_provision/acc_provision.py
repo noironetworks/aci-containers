@@ -86,6 +86,7 @@ CfFlavorOptions = {
 DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
 
 FLAVORS = {
+    # Upstream Kubernetes
     "kubernetes-1.10": {
         "desc": "Kubernetes 1.10",
         "default_version": "1.9",
@@ -93,6 +94,16 @@ FLAVORS = {
     "kubernetes-1.9": {
         "desc": "Kubernetes 1.9",
         "default_version": "1.9",
+    },
+    "kubernetes-1.8": {
+        "desc": "Kubernetes 1.8",
+        "default_version": "1.7",
+        "config": {
+            "kube_config": {
+                "use_apps_api": "apps/v1beta2",
+                "use_apps_apigroup": "apps",
+            }
+        }
     },
     "kubernetes-1.7": {
         "desc": "Kubernetes 1.7",
@@ -118,6 +129,7 @@ FLAVORS = {
             },
         }
     },
+    # Red Hat OpenShift Container Platform
     "openshift-3.9": {
         "desc": "Red Hat OpenShift Container Platform 3.9",
         "default_version": "1.9",
@@ -161,9 +173,23 @@ FLAVORS = {
             },
         },
     },
+    # Docker Universal Control Plane (UCP)
+    "docker-ucp-3.0": {
+        "desc": "Docker Universal Control Plane (UCP) 3.0",
+        "default_version": "1.7",
+        "config": {
+            "kube_config": {
+                "use_apps_api": "apps/v1beta2",
+                "use_apps_apigroup": "apps",
+                "use_cluster_role": False,
+                "use_cnideploy_initcontainer": True,
+            }
+        }
+    },
+    # CloudFoundry
     "cloudfoundry-1.0": {
         "desc": "CloudFoundry cf-deployment 1.x",
-        "default_version": "latest",
+        "default_version": "1.9",
         "config": {
             "aci_config": {
                 "vmm_domain": {
@@ -264,6 +290,7 @@ def config_default():
             "use_apps_apigroup": "apps",
             "use_netpol_apigroup": "networking.k8s.io",
             "use_netpol_annotation": False,
+            "use_cluster_role": True,
             "image_pull_policy": "Always",
             "kubectl": "kubectl",
         },
@@ -698,12 +725,13 @@ def generate_kube_yaml(config, output):
 
     kube_objects = [
         "configmap", "secret", "serviceaccount",
-        "daemonset", "deployment", "clusterrolebinding",
-        "clusterrole"
+        "daemonset", "deployment",
     ]
     if config["kube_config"].get("use_openshift_security_context_constraints",
                                  False):
         kube_objects.append("securitycontextconstraints")
+    if config["kube_config"].get("use_cluster_role", False):
+        kube_objects.extend(["clusterrolebinding", "clusterrole"])
 
     if output and output != "/dev/null":
         outname = output
