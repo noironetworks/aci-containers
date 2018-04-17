@@ -99,6 +99,7 @@ metadata:
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
+{% if config.kube_config.use_cluster_role %}
 apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRole
 metadata:
@@ -195,6 +196,7 @@ subjects:
   name: aci-containers-host-agent
   namespace: kube-system
 ---
+{% endif %}
 {% if config.kube_config.use_openshift_security_context_constraints %}
 kind: SecurityContextConstraints
 apiVersion: v1
