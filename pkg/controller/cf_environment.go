@@ -659,7 +659,7 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 			return false
 		}
 	} else {
-		err = json.Unmarshal([]byte(resp.Node.Value), &existing)
+		err = json.Unmarshal([]byte(resp.Node.Value), existing)
 		if err != nil {
 			env.log.Warn("Could not parse cell service info: ", err)
 		}
