@@ -203,7 +203,6 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	logger := cont.log.WithFields(logrus.Fields{
 		"Node": node.ObjectMeta.Name,
 	})
-	logger.Info("Changed")
 
 	nodeUpdated := false
 	if node.ObjectMeta.Annotations == nil {

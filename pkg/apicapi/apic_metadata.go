@@ -366,6 +366,7 @@ var metadata = map[string]*apicMeta{
 		},
 		children: []string{
 			"vnsRedirectDest",
+			"vnsRsIPSLAMonitoringPol",
 		},
 	},
 	"vnsRedirectDest": {
@@ -375,6 +376,9 @@ var metadata = map[string]*apicMeta{
 			"descr": "",
 		},
 		normalizer: redirectDestNormalizer,
+		children: []string{
+			"vnsRsRedirectHealthGroup",
+		},
 	},
 	"fvIPSLAMonitoringPol": {
 		attributes: map[string]interface{}{
