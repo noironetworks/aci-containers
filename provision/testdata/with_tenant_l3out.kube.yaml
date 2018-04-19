@@ -15,6 +15,7 @@ data:
         ],
         "apic-username": "kube",
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
+        "apic-use-inst-tag": true,
         "aci-prefix": "kube",
         "aci-vmm-type": "Kubernetes",
         "aci-vmm-domain": "kube",
@@ -23,7 +24,7 @@ data:
         "require-netpol-annot": false,
         "aci-service-phys-dom": "kube-pdom",
         "aci-service-encap": "vlan-4003",
-        "aci-service-monitor-interval": 15,
+        "aci-service-monitor-interval": 0,
         "aci-vrf-tenant": "kube",
         "aci-l3out": "l3out",
         "aci-ext-networks": [
