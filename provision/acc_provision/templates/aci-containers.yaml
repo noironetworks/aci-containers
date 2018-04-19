@@ -13,6 +13,7 @@ data:
         "apic-hosts": {{config.aci_config.apic_hosts|json|indent(width=8)}},
         "apic-username": {{config.aci_config.sync_login.username|json}},
         "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
+        "apic-use-inst-tag": {{config.aci_config.use_inst_tag|json}},
         "aci-prefix": {{config.aci_config.system_id|json}},
         "aci-vmm-type": {{config.aci_config.vmm_domain.type|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},

@@ -246,6 +246,7 @@ def config_default():
             },
             "client_cert": False,
             "client_ssl": True,
+            "use_inst_tag": True,
         },
         "net_config": {
             "node_subnet": None,
@@ -255,7 +256,7 @@ def config_default():
             "node_svc_subnet": None,
             "kubeapi_vlan": None,
             "service_vlan": None,
-            "service_monitor_interval": 15,
+            "service_monitor_interval": 0,
         },
         "kube_config": {
             "controller": "1.1.1.1",
