@@ -1,0 +1,6 @@
+FROM golang:1.10.1-alpine3.7
+RUN apk --update --no-cache add make git
+ADD . /go/src/github.com/noironetworks/aci-containers
+RUN go get -v -u github.com/golang/dep/cmd/dep
+WORKDIR /go/src/github.com/noironetworks/aci-containers/
+RUN make vendor dist/acikubectl 
