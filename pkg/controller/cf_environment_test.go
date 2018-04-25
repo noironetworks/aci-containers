@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -66,7 +67,7 @@ func TestCfLoadCellNetworkInfo(t *testing.T) {
 	assert.Equal(t, nodeMeta.podNetIpsAnnotation, r.podNetIpsAnnotation)
 }
 
-func TestCfLoadCellServiceInfo(t *testing.T) {
+func TestCfSetCellServiceInfo(t *testing.T) {
 	env := testCfEnvironment(t)
 	k := env.fakeEtcdKeysApi()
 	cellId := "cell-1"
@@ -75,37 +76,52 @@ func TestCfLoadCellServiceInfo(t *testing.T) {
 	ctx := context.Background()
 
 	// cleanup initial state
+	delete(env.cont.nodeOpflexDevice, nodename)
 	delete(env.cont.nodeServiceMetaCache, nodename)
 
-	env.LoadCellServiceInfo(cellId)
+	// no opflex device MAC
+	env.SetCellServiceInfo(nodename, cellId)
 	r, ok := env.cont.nodeServiceMetaCache[nodename]
+	assert.False(t, ok)
+	v, _ := k.Get(ctx, key, nil)
+	assert.Nil(t, v)
+
+	// set opflex device MAC
+	odev := apicapi.EmptyApicObject("opflexODev", "/dev/"+nodename)
+	odev.SetAttr("mac", "aa:bb:cc:dd:ee:ff")
+	env.cont.nodeOpflexDevice[nodename] = apicapi.ApicSlice{odev}
+
+	env.SetCellServiceInfo(nodename, cellId)
+	r, ok = env.cont.nodeServiceMetaCache[nodename]
 	assert.True(t, ok)
-	assert.NotEqual(t, "", r.serviceEp.Mac)
+	assert.Equal(t, "aa:bb:cc:dd:ee:ff", r.serviceEp.Mac)
 	assert.NotNil(t, r.serviceEp.Ipv4)
 	assert.NotNil(t, r.serviceEp.Ipv6)
 
 	svcEpStr, _ := json.Marshal(r.serviceEp)
-	v, _ := k.Get(ctx, key, nil)
+	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
 
+	// stale info in etcd
 	delete(env.cont.nodeServiceMetaCache, nodename)
-	svcEP := metadata.ServiceEndpoint{Mac: "aa:bb:cc:dd:ee:ff",
+	svcEP := metadata.ServiceEndpoint{Mac: "de:ad:00:dd:ee:ff",
 		Ipv4: net.ParseIP("1.0.0.10"),
 		Ipv6: net.ParseIP("a1::1a"),
 	}
 	svcEpStr, _ = json.Marshal(&svcEP)
 	k.Set(ctx, key, string(svcEpStr), nil)
-	env.LoadCellServiceInfo(cellId)
+	env.SetCellServiceInfo(nodename, cellId)
 	r, ok = env.cont.nodeServiceMetaCache[nodename]
 	assert.True(t, ok)
 	assert.Equal(t, "aa:bb:cc:dd:ee:ff", r.serviceEp.Mac)
 	assert.Equal(t, net.ParseIP("1.0.0.10"), r.serviceEp.Ipv4)
 	assert.Equal(t, net.ParseIP("a1::1a"), r.serviceEp.Ipv6)
+	svcEpStr, _ = json.Marshal(r.serviceEp)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
 
 	k.Delete(ctx, key, nil)
-	env.LoadCellServiceInfo(cellId)
+	env.SetCellServiceInfo(nodename, cellId)
 	r, ok = env.cont.nodeServiceMetaCache[nodename]
 	assert.True(t, ok)
 	assert.Equal(t, "aa:bb:cc:dd:ee:ff", r.serviceEp.Mac)
@@ -171,7 +187,14 @@ func TestCfNodePodNetworkChanged(t *testing.T) {
 
 func TestCfNodeServiceChanged(t *testing.T) {
 	env := testCfEnvironment(t)
-	env.NodeServiceChanged("diego-cell-cell-1")
+	nodename := "diego-cell-cell-1"
+	odev := apicapi.EmptyApicObject("opflexODev", "/dev/"+nodename)
+	odev.SetAttr("mac", "aa:bb:cc:dd:ee:00")
+	env.cont.nodeOpflexDevice[nodename] = apicapi.ApicSlice{odev}
+
+	env.NodeServiceChanged(nodename)
+	assert.Equal(t, "aa:bb:cc:dd:ee:00",
+		env.cont.nodeServiceMetaCache[nodename].serviceEp.Mac)
 	waitForGetList(t, env.appUpdateQ, 500*time.Millisecond, []interface{}{"app-1", "app-2", "app-3"})
 }
 

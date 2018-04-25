@@ -639,24 +639,33 @@ func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
 }
 
 // must be called with cont.indexMutex locked
-func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
-	nodeName := "diego-cell-" + cellId
-	if _, ok := env.cont.nodeServiceMetaCache[nodeName]; ok {
-		return false
+func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
+
+	// check if cell has opflex device mac
+	env.cont.indexMutex.Lock()
+	defer env.cont.indexMutex.Unlock()
+	deviceMac, hasDevice := env.cont.deviceMacForNode(nodeName)
+	if !hasDevice {
+		env.log.Debug("Opflex Device MAC not available for cell ", nodeName)
+		return
 	}
+	currMeta := env.cont.nodeServiceMetaCache[nodeName]
+	if currMeta != nil && currMeta.serviceEp.Mac == deviceMac {
+		// MAC unchanged, skip updates
+		return
+	}
+
 	nodeMeta := &nodeServiceMeta{}
 	existing := &metadata.ServiceEndpoint{}
 	kapi := env.etcdKeysApi
 	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
 	resp, err := kapi.Get(context.Background(), cellKey, nil)
-	// XXX TODO wait for deviceMac to be set:
-	// deviceMac, hasDevice := cont.deviceMacForNode(node.ObjectMeta.Name)
 	if err != nil {
 		if etcd.IsKeyNotFoundError(err) {
 			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
 		} else {
 			env.log.Error("Unable to fetch etcd cell service info: ", err)
-			return false
+			return
 		}
 	} else {
 		err = json.Unmarshal([]byte(resp.Node.Value), existing)
@@ -664,10 +673,11 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 			env.log.Warn("Could not parse cell service info: ", err)
 		}
 	}
-	err = env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp, "")
+	err = env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp,
+		deviceMac)
 	if err != nil {
 		env.log.Error("Couldn't create service EP info for cell: ", err)
-		return false
+		return
 	}
 	raw, err := json.Marshal(&nodeMeta.serviceEp)
 	if err != nil {
@@ -682,7 +692,7 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 	}
 	if err == nil {
 		env.cont.nodeServiceMetaCache[nodeName] = nodeMeta
-		return true
+		return
 	} else {
 		if nodeMeta.serviceEp.Ipv4 != nil {
 			env.cont.nodeServiceIps.V4.AddIp(nodeMeta.serviceEp.Ipv4)
@@ -691,7 +701,7 @@ func (env *CfEnvironment) LoadCellServiceInfo(cellId string) bool {
 			env.cont.nodeServiceIps.V6.AddIp(nodeMeta.serviceEp.Ipv6)
 		}
 	}
-	return false
+	return
 }
 
 // must be called with cont.indexMutex locked
@@ -711,6 +721,7 @@ func (env *CfEnvironment) NodePodNetworkChanged(nodename string) {
 
 func (env *CfEnvironment) NodeServiceChanged(nodeName string) {
 	cellId := strings.TrimPrefix(nodeName, "diego-cell-")
+	env.SetCellServiceInfo(nodeName, cellId)
 	env.indexLock.Lock()
 	defer env.indexLock.Unlock()
 	apps := make(map[string]struct{})
