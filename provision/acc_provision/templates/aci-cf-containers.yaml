@@ -9,6 +9,7 @@ apic_vmm_policy: {{config.aci_config.vmm_domain.type}}
 apic_vmm_domain: {{config.aci_config.vmm_domain.domain}}
 apic_vmm_controller: {{config.aci_config.vmm_domain.controller}}
 apic_encap_type: {{config.node_config.encap_type}}
+apic_infra_vlan: {{config.net_config.infra_vlan}}
 apic_name_prefix: {{config.aci_config.system_id}}
 apic_app_profile: {{config.cf_config.default_endpoint_group.app_profile}}
 apic_policy_tenant: {{config.cf_config.default_endpoint_group.tenant}}
