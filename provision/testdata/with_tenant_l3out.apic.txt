@@ -177,18 +177,18 @@ None
         }
     }
 }
-/api/mo/uni/tn-common.json
+/api/mo/uni/tn-kube.json
 {
     "fvTenant": {
         "attributes": {
-            "dn": "uni/tn-common", 
-            "name": "common"
+            "dn": "uni/tn-kube", 
+            "name": "kube"
         }, 
         "children": [
             {
                 "vzFilter": {
                     "attributes": {
-                        "name": "allow-all-filter"
+                        "name": "kube-allow-all-filter"
                     }, 
                     "children": [
                         {
@@ -218,7 +218,7 @@ None
                                     {
                                         "vzRsSubjFiltAtt": {
                                             "attributes": {
-                                                "tnVzFilterName": "allow-all-filter"
+                                                "tnVzFilterName": "kube-allow-all-filter"
                                             }
                                         }
                                     }
@@ -231,7 +231,9 @@ None
         ]
     }
 }
-/api/mo/uni/tn-common/brc-kube-l3out-allow-all.json
+/api/mo/uni/tn-kube/flt-kube-allow-all-filter.json
+None
+/api/mo/uni/tn-kube/brc-kube-l3out-allow-all.json
 None
 /api/mo/uni/tn-kube.json
 {
