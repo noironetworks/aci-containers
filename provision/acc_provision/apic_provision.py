@@ -158,14 +158,20 @@ class Apic(object):
                 err("Error in provisioning %s: %s" % (path, str(e)))
 
     def unprovision(self, data, system_id, tenant):
+        shared_resources = [
+            "/api/mo/uni/infra.json",
+            "/api/mo/uni/tn-common.json",
+        ]
+
+        vrf_tenant = self.config["aci_config"]["vrf"]["tenant"]
+        if vrf_tenant not in ["common", system_id]:
+            shared_resources.append("/api/mo/uni/tn-%s.json" % vrf_tenant)
+
         for path, config in data:
             try:
                 if path.split("/")[-1].startswith("instP-"):
                     continue
-                if path not in [
-                        "/api/mo/uni/infra.json",
-                        "/api/mo/uni/tn-common.json",
-                ]:
+                if path not in shared_resources:
                     resp = self.delete(path)
                     self.check_resp(resp)
                     dbg("%s: %s" % (path, resp.text))
@@ -262,7 +268,7 @@ class ApicKubeConfig(object):
         update(data, self.associate_aep())
         update(data, self.opflex_cert())
 
-        update(data, self.common_tn())
+        update(data, self.l3out_tn())
         update(data, getattr(self, self.tenant_generator)())
         for l3out_instp in self.config["aci_config"]["l3out"]["external_networks"]:
             update(data, self.l3out_contract(l3out_instp))
@@ -635,21 +641,22 @@ class ApicKubeConfig(object):
         }
         return path, data
 
-    def common_tn(self):
+    def l3out_tn(self):
         system_id = self.config["aci_config"]["system_id"]
+        vrf_tenant = self.config["aci_config"]["vrf"]["tenant"]
 
-        path = "/api/mo/uni/tn-common.json"
+        path = "/api/mo/uni/tn-%s.json" % vrf_tenant
         data = {
             "fvTenant": {
                 "attributes": {
-                    "name": "common",
-                    "dn": "uni/tn-common",
+                    "name": "%s" % vrf_tenant,
+                    "dn": "uni/tn-%s" % vrf_tenant,
                 },
                 "children": [
                     {
                         "vzFilter": {
                             "attributes": {
-                                "name": "allow-all-filter"
+                                "name": "%s-allow-all-filter" % system_id
                             },
                             "children": [
                                 {
@@ -679,7 +686,7 @@ class ApicKubeConfig(object):
                                             {
                                                 "vzRsSubjFiltAtt": {
                                                     "attributes": {
-                                                        "tnVzFilterName": "allow-all-filter"
+                                                        "tnVzFilterName": "%s-allow-all-filter" % system_id
                                                     }
                                                 }
                                             }
@@ -693,8 +700,9 @@ class ApicKubeConfig(object):
             }
         }
 
-        brc = '/api/mo/uni/tn-common/brc-%s-l3out-allow-all.json' % system_id
-        return path, data, brc
+        flt = '/api/mo/uni/tn-%s/flt-%s-allow-all-filter.json' % (vrf_tenant, system_id)
+        brc = '/api/mo/uni/tn-%s/brc-%s-l3out-allow-all.json' % (vrf_tenant, system_id)
+        return path, data, flt, brc
 
     def l3out_contract(self, l3out_instp):
         system_id = self.config["aci_config"]["system_id"]

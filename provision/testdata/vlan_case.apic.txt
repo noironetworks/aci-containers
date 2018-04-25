@@ -215,7 +215,7 @@ None
             {
                 "vzFilter": {
                     "attributes": {
-                        "name": "allow-all-filter"
+                        "name": "kube-allow-all-filter"
                     }, 
                     "children": [
                         {
@@ -245,7 +245,7 @@ None
                                     {
                                         "vzRsSubjFiltAtt": {
                                             "attributes": {
-                                                "tnVzFilterName": "allow-all-filter"
+                                                "tnVzFilterName": "kube-allow-all-filter"
                                             }
                                         }
                                     }
@@ -258,6 +258,8 @@ None
         ]
     }
 }
+/api/mo/uni/tn-common/flt-kube-allow-all-filter.json
+None
 /api/mo/uni/tn-common/brc-kube-l3out-allow-all.json
 None
 /api/mo/uni/tn-kube.json
