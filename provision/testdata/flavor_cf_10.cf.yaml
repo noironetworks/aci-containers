@@ -26,6 +26,7 @@ apic_vmm_policy: CloudFoundry
 apic_vmm_domain: mycf0
 apic_vmm_controller: mycf0
 apic_encap_type: vxlan
+apic_infra_vlan: 4093
 apic_name_prefix: mycf0
 apic_app_profile: cloudfoundry
 apic_policy_tenant: mycf0
