@@ -104,13 +104,8 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 	if cinfo.CellId != "" {
 		env.cont.indexMutex.Lock()
 		env.LoadCellNetworkInfo(cinfo.CellId)
-		newCellSvc := env.LoadCellServiceInfo(cinfo.CellId)
 		env.cont.addPodToNode(cinfo.CellId, contId)
 		env.cont.indexMutex.Unlock()
-		if newCellSvc {
-			env.log.Info("Updating device-cluster for new cell ", cinfo.CellId)
-			env.cont.updateDeviceCluster()
-		}
 
 		ctKey := etcd.CELL_KEY_BASE + "/" + cinfo.CellId + "/containers/" + cinfo.ContainerId
 		if spaceInfo != nil {
