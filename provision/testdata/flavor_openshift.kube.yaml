@@ -1,8 +1,18 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: aci-containers-system
+  labels:
+    aci-containers-config-version: "dummy"
+    network-plugin: aci-containers
+  annotations:
+    openshift.io/node-selector: ''
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: aci-containers-config
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
     network-plugin: aci-containers
@@ -21,7 +31,7 @@ data:
         "aci-vmm-domain": "kube",
         "aci-vmm-controller": "kube",
         "aci-policy-tenant": "kube",
-        "require-netpol-annot": true,
+        "require-netpol-annot": false,
         "aci-service-phys-dom": "kube-pdom",
         "aci-service-encap": "vlan-4003",
         "aci-service-monitor-interval": 0,
@@ -36,7 +46,7 @@ data:
             "name": "kubernetes|kube-default"
         },
         "namespace-default-endpoint-group": {
-            "kube-system": {
+            "aci-containers-system": {
                 "policy-space": "kube",
                 "name": "kubernetes|kube-system"
             }
@@ -107,7 +117,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aci-user-cert
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
 data:
@@ -118,7 +128,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
 ---
@@ -126,11 +136,11 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
 ---
-apiVersion: v1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -151,7 +161,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "extensions"
+  - "networking.k8s.io"
   resources:
   - networkpolicies
   verbs:
@@ -159,7 +169,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "extensions"
+  - "apps"
   resources:
   - deployments
   - replicasets
@@ -176,7 +186,7 @@ rules:
   verbs:
   - update
 ---
-apiVersion: v1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -196,7 +206,7 @@ rules:
   - watch
   - get
 ---
-apiVersion: v1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:controller
@@ -209,9 +219,9 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: aci-containers-system
 ---
-apiVersion: v1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: aci-containers:host-agent
@@ -224,7 +234,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: aci-containers-host-agent
-  namespace: kube-system
+  namespace: aci-containers-system
 ---
 kind: SecurityContextConstraints
 apiVersion: v1
@@ -233,8 +243,8 @@ metadata:
   labels:
     aci-containers-config-version: "dummy"
 users:
-  - system:serviceaccount:kube-system:aci-containers-controller
-  - system:serviceaccount:kube-system:aci-containers-host-agent
+  - system:serviceaccount:aci-containers-system:aci-containers-controller
+  - system:serviceaccount:aci-containers-system:aci-containers-host-agent
 allowHostDirVolumePlugin: true
 allowHostIPC: true
 allowHostNetwork: true
@@ -260,11 +270,11 @@ volumes:
 - '*'
 priority: 100
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: aci-containers-host
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
     network-plugin: aci-containers
@@ -293,7 +303,7 @@ spec:
           key: node-role.kubernetes.io/master
       initContainers:
         - name: cnideploy
-          image: noiro/cnideploy:1.6r15
+          image: noiro/cnideploy:1.9rXXX
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -305,7 +315,7 @@ spec:
               mountPath: /mnt/cni-bin
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.6r15
+          image: noiro/aci-containers-host:1.9rXXX
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -338,7 +348,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.6r22
+          image: noiro/opflex:1.9rYYY
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -357,7 +367,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.6r22
+          image: noiro/opflex:1.9rYYY
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -400,11 +410,11 @@ spec:
               - key: opflex-agent-config
                 path: local.conf
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: aci-containers-openvswitch
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
     network-plugin: aci-containers
@@ -433,7 +443,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-openvswitch
-          image: noiro/openvswitch:1.6r12
+          image: noiro/openvswitch:1.7r24
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -476,11 +486,11 @@ spec:
           hostPath:
             path: /lib/modules
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: aci-containers-system
   labels:
     aci-containers-config-version: "dummy"
     network-plugin: aci-containers
@@ -496,7 +506,7 @@ spec:
   template:
     metadata:
       name: aci-containers-controller
-      namespace: kube-system
+      namespace: aci-containers-system
       labels:
         name: aci-containers-controller
         network-plugin: aci-containers
@@ -511,7 +521,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.6r15
+          image: noiro/aci-containers-controller:1.8rXXX
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume
