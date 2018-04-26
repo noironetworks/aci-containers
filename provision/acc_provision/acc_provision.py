@@ -141,6 +141,7 @@ FLAVORS = {
                 "use_cnideploy_initcontainer": True,
                 "allow_kube_api_default_epg": True,
                 "kubectl": "oc",
+                "system_namespace": "aci-containers-system",
             },
             "aci_config": {
                 "vmm_domain": {
@@ -165,6 +166,7 @@ FLAVORS = {
                 "use_netpol_apigroup": "extensions",
                 "use_netpol_annotation": True,
                 "kubectl": "oc",
+                "system_namespace": "aci-containers-system",
             },
             "aci_config": {
                 "vmm_domain": {
@@ -294,6 +296,7 @@ def config_default():
             "use_cluster_role": True,
             "image_pull_policy": "Always",
             "kubectl": "kubectl",
+            "system_namespace": "kube-system",
         },
         "registry": {
             "image_prefix": "noiro",
@@ -374,6 +377,7 @@ def config_adjust(args, config, prov_apic, no_random):
     extern_static = config["net_config"]["extern_static"]
     node_svc_subnet = config["net_config"]["node_svc_subnet"]
     encap_type = config["aci_config"]["vmm_domain"]["encap_type"]
+    system_namespace = config["kube_config"]["system_namespace"]
     tenant = system_id
     token = str(uuid.uuid4())
     if args.version_token:
@@ -416,7 +420,7 @@ def config_adjust(args, config, prov_apic, no_random):
                 "group": "kube-default",
             },
             "namespace_default_endpoint_group": {
-                "kube-system": {
+                system_namespace: {
                     "tenant": tenant,
                     "app_profile": "kubernetes",
                     "group": "kube-system",
@@ -751,10 +755,11 @@ def generate_kube_yaml(config, output):
         info("Apply infrastructure YAML using:")
         info("  %s apply -f %s" %
              (config["kube_config"]["kubectl"], applyname))
-        info("  %s -n kube-system delete %s -l "
+        info("  %s -n %s delete %s -l "
              " 'aci-containers-config-version,"
              "aci-containers-config-version notin (%s)'" %
              (config["kube_config"]["kubectl"],
+              config["kube_config"]["system_namespace"],
               ",".join(kube_objects),
               str(config["registry"]["configuration_version"])))
 

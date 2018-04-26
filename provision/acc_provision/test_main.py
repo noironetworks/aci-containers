@@ -94,12 +94,12 @@ def test_with_tenant_l3out():
 
 
 @in_testdir
-def test_flavor_openshift_36():
+def test_flavor_openshift_39():
     run_provision(
         "base_case.inp.yaml",
-        "flavor_openshift_36.kube.yaml",
-        "flavor_openshift_36.apic.txt",
-        overrides={"flavor": "openshift-3.6"}
+        "flavor_openshift.kube.yaml",
+        "flavor_openshift.apic.txt",
+        overrides={"flavor": "openshift-3.9"}
     )
 
 

@@ -1,8 +1,20 @@
+{% if config.kube_config.system_namespace != "kube-system" %}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ config.kube_config.system_namespace }}
+  labels:
+    aci-containers-config-version: "{{ config.registry.configuration_version }}"
+    network-plugin: aci-containers
+  annotations:
+    openshift.io/node-selector: ''
+---
+{% endif %}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: aci-containers-config
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
@@ -77,7 +89,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aci-user-cert
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 data:
@@ -88,7 +100,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
@@ -96,7 +108,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: aci-containers-host-agent
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 ---
@@ -180,7 +192,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
 ---
 apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRoleBinding
@@ -195,7 +207,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: aci-containers-host-agent
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
 ---
 {% endif %}
 {% if config.kube_config.use_openshift_security_context_constraints %}
@@ -206,8 +218,8 @@ metadata:
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
 users:
-  - system:serviceaccount:kube-system:aci-containers-controller
-  - system:serviceaccount:kube-system:aci-containers-host-agent
+  - system:serviceaccount:{{ config.kube_config.system_namespace }}:aci-containers-controller
+  - system:serviceaccount:{{ config.kube_config.system_namespace }}:aci-containers-host-agent
 allowHostDirVolumePlugin: true
 allowHostIPC: true
 allowHostNetwork: true
@@ -238,7 +250,7 @@ apiVersion: {{ config.kube_config.use_apps_api }}
 kind: DaemonSet
 metadata:
   name: aci-containers-host
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
@@ -392,7 +404,7 @@ apiVersion: {{ config.kube_config.use_apps_api }}
 kind: DaemonSet
 metadata:
   name: aci-containers-openvswitch
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
@@ -474,7 +486,7 @@ apiVersion: {{ config.kube_config.use_apps_api }}
 kind: Deployment
 metadata:
   name: aci-containers-controller
-  namespace: kube-system
+  namespace: {{ config.kube_config.system_namespace }}
   labels:
     aci-containers-config-version: "{{ config.registry.configuration_version }}"
     network-plugin: aci-containers
@@ -490,7 +502,7 @@ spec:
   template:
     metadata:
       name: aci-containers-controller
-      namespace: kube-system
+      namespace: {{ config.kube_config.system_namespace }}
       labels:
         name: aci-containers-controller
         network-plugin: aci-containers
