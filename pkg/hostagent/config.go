@@ -84,6 +84,12 @@ type HostAgentConfig struct {
 	// Directory for writing OpFlex service metadata
 	OpFlexServiceDir string `json:"opflex-service-dir,omitempty"`
 
+	// OpFlex agent's flow-ID cache directory
+	OpFlexFlowIdCacheDir string `json:"opflex-flowid-cache-dir,omitempty"`
+
+	// Multicast groups file used by OpFlex agent
+	OpFlexMcastFile string `json:"opflex-mcast-file,omitempty"`
+
 	// Location of the OVS DB socket
 	OvsDbSock string `json:"ovs-db-sock,omitempty"`
 
@@ -150,6 +156,12 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.OpFlexConfigPath, "opflex-config-path", "/usr/local/etc/opflex-agent-ovs/base-conf.d", "Directory for writing Opflex configuration")
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
+	flag.StringVar(&config.OpFlexFlowIdCacheDir, "opflex-flowid-cache-dir",
+		"/usr/local/var/lib/opflex-agent-ovs/ids/",
+		"OpFlex agent's flow-ID cache directory")
+	flag.StringVar(&config.OpFlexMcastFile, "opflex-mcast-file",
+		"/usr/local/var/lib/opflex-agent-ovs/mcast/opflex-groups.json",
+		"Multicast groups file used by OpFlex agent")
 
 	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
 	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")

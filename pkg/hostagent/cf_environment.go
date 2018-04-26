@@ -139,6 +139,10 @@ func (env *CfEnvironment) Init(agent *HostAgent) error {
 }
 
 func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
+	env.agent.log.Debug("Discovering node configuration")
+	env.agent.updateOpflexConfig()
+	go env.agent.runTickers(stopCh)
+
 	err := env.setupInterfaceForLegacyCfNet()
 	if err != nil {
 		env.log.Error("Error setting up interface for legacy CF networking: ", err)
