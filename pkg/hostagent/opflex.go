@@ -128,10 +128,10 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
         ]
     } ,
     "endpoint-sources": {
-        "filesystem": ["/usr/local/var/lib/opflex-agent-ovs/endpoints"]
+        "filesystem": ["{{.OpFlexEndpointDir | js}}"]
     },
     "service-sources": {
-        "filesystem": ["/usr/local/var/lib/opflex-agent-ovs/services"]
+        "filesystem": ["{{.OpFlexServiceDir | js}}"]
     }
 }
 `)
@@ -139,8 +139,8 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
 var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
     "renderers": {
         "stitched-mode": {
-            "int-bridge-name": "br-int",
-            "access-bridge-name": "br-access",
+            "int-bridge-name": "{{.IntBridgeName | js}}",
+            "access-bridge-name": "{{.AccessBridgeName | js}}",
             "encap": {
                 "vxlan" : {
                     "encap-iface": "vxlan0",
@@ -149,7 +149,9 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
                     "remote-ip": "{{.VxlanAnycastIp | js}}",
                     "remote-port": 8472
                 }
-            }
+            },
+            "flowid-cache-dir": "{{.OpFlexFlowIdCacheDir | js}}",
+            "mcast-group-file": "{{.OpFlexMcastFile | js}}"
         }
     }
 }
@@ -158,13 +160,15 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
 var opflexConfigVlan = initTempl("opflex-config-vlan", `{
     "renderers": {
         "stitched-mode": {
-            "int-bridge-name": "br-int",
-            "access-bridge-name": "br-access",
+            "int-bridge-name": "{{.IntBridgeName | js}}",
+            "access-bridge-name": "{{.AccessBridgeName | js}}",
             "encap": {
                 "vlan" : {
                     "encap-iface": "{{.UplinkIface | js}}"
                 }
-            }
+            },
+            "flowid-cache-dir": "{{.OpFlexFlowIdCacheDir | js}}",
+            "mcast-group-file": "{{.OpFlexMcastFile | js}}"
         }
     }
 }
@@ -219,6 +223,9 @@ func (agent *HostAgent) updateOpflexConfig() {
 	if !reflect.DeepEqual(*newNodeConfig, agent.config.HostAgentNodeConfig) ||
 		!agent.opflexConfigWritten {
 
+		// reset opflexConfigWritten flag when node-config differs
+		agent.opflexConfigWritten = false
+
 		agent.config.HostAgentNodeConfig = *newNodeConfig
 		agent.log.WithFields(logrus.Fields{
 			"uplink-iface":     newNodeConfig.UplinkIface,
@@ -226,8 +233,11 @@ func (agent *HostAgent) updateOpflexConfig() {
 			"vxlan-anycast-ip": newNodeConfig.VxlanAnycastIp,
 			"opflex-peer-ip":   newNodeConfig.OpflexPeerIp,
 		}).Info("Discovered node configuration")
-		agent.writeOpflexConfig()
-		agent.opflexConfigWritten = true
+		if err := agent.writeOpflexConfig(); err == nil {
+			agent.opflexConfigWritten = true
+		} else {
+			agent.log.Error("Failed to write OpFlex agent config: ", err)
+		}
 	}
 	agent.indexMutex.Unlock()
 
