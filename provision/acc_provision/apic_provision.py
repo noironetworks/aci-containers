@@ -157,13 +157,12 @@ class Apic(object):
                 self.errors += 1
                 err("Error in provisioning %s: %s" % (path, str(e)))
 
-    def unprovision(self, data, system_id, tenant):
+    def unprovision(self, data, system_id, tenant, vrf_tenant):
         shared_resources = [
             "/api/mo/uni/infra.json",
             "/api/mo/uni/tn-common.json",
         ]
 
-        vrf_tenant = self.config["aci_config"]["vrf"]["tenant"]
         if vrf_tenant not in ["common", system_id]:
             shared_resources.append("/api/mo/uni/tn-%s.json" % vrf_tenant)
 
