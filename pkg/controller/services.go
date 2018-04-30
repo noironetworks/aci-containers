@@ -737,7 +737,9 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		aobj.SetAttr("lbIp", ingress.IP)
 		break
 	}
-	aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
+	if service.Spec.ClusterIP != "" {
+		aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
+	}
 	var t string
 	switch service.Spec.Type {
 	case v1.ServiceTypeClusterIP:
@@ -749,7 +751,9 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	case v1.ServiceTypeExternalName:
 		t = "externalName"
 	}
-	aobj.SetAttr("type", t)
+	if t != "" {
+		aobj.SetAttr("type", t)
+	}
 	for _, port := range service.Spec.Ports {
 		var proto string
 		if port.Protocol == v1.ProtocolUDP {

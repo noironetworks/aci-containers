@@ -26,6 +26,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/spf13/cobra"
 )
@@ -69,22 +70,23 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		return
+	}
+
+	systemNamespace, err := findSystemNamespace(kubeClient)
+	if err != nil {
+		fmt.Fprintln(os.Stderr,
+			"Could not find aci-containers system namespace:", err)
+		return
+	}
+
 	cmds := []reportCmdElem{
 		{
 			name: "cluster-report/logs/controller/acc.log",
-			args: accLogCmdArgs(),
+			args: accLogCmdArgs(systemNamespace),
 		},
-	}
-
-	kubeClient, err := initClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not initialize kubernetes client:")
-		fmt.Fprintln(os.Stderr, err)
-		if kubeconfig == "" {
-			fmt.Fprintln(os.Stderr,
-				"You may need to specify a kubeconfig file with --kubeconfig.")
-		}
-		return
 	}
 
 	nodes, err :=
@@ -163,7 +165,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			key := node.Name + ";" + nodeItem.selector
 			podName, cached := nodePodMap[key]
 			if !cached {
-				podName, err = podForNode(node.Name, nodeItem.selector)
+				podName, err = podForNode(kubeClient, systemNamespace,
+					node.Name, nodeItem.selector)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					continue
@@ -172,7 +175,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 
 			cmds = append(cmds, reportCmdElem{
 				name: fmt.Sprintf(nodeItem.path, node.Name),
-				args: nodeItem.argFunc(podName, nodeItem.cont, nodeItem.args),
+				args: nodeItem.argFunc(systemNamespace, podName,
+					nodeItem.cont, nodeItem.args),
 			})
 		}
 	}
@@ -251,17 +255,29 @@ func outputCmd(cmd *cobra.Command, cmdArgs []string) {
 	}
 }
 
-func accLogCmdArgs() []string {
-	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+func accLogCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
 }
 
 func accLog(cmd *cobra.Command, args []string) {
-	outputCmd(logCmd, accLogCmdArgs())
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		return
+	}
+
+	systemNamespace, err := findSystemNamespace(kubeClient)
+	if err != nil {
+		fmt.Fprintln(os.Stderr,
+			"Could not find aci-containers system namespace:", err)
+		return
+	}
+
+	outputCmd(logCmd, accLogCmdArgs(systemNamespace))
 }
 
-type nodeCmdArgFunc func(string, string, []string) []string
+type nodeCmdArgFunc func(string, string, string, []string) []string
 
 func nodeCmd(cmd *cobra.Command, args []string, selector string,
 	containerName string, argFunc nodeCmdArgFunc) {
@@ -276,33 +292,56 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 		return
 	}
 
-	podName, err := podForNode(node, selector)
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		return
+	}
+
+	systemNamespace, err := findSystemNamespace(kubeClient)
+	if err != nil {
+		fmt.Fprintln(os.Stderr,
+			"Could not find aci-containers system namespace:", err)
+		return
+	}
+
+	podName, err := podForNode(kubeClient, systemNamespace, node, selector)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 
-	outputCmd(logCmd, argFunc(podName, containerName, args))
+	outputCmd(logCmd, argFunc(systemNamespace, podName, containerName, args))
 }
 
-func nodeLogCmdArgs(podName string, containerName string,
-	args []string) []string {
+func nodeLogCmdArgs(systemNamespace string, podName string,
+	containerName string, args []string) []string {
 
-	return []string{"-n", "kube-system", "logs", "--limit-bytes=10048576",
+	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		podName, "-c", containerName}
 }
 
-func podForNode(node string, selector string) (string, error) {
-	kubeClient, err := initClient()
+func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
+	opts := metav1.ListOptions{
+		LabelSelector: namespaceSelector,
+	}
+	namespaces, err :=
+		kubeClient.CoreV1().Namespaces().List(opts)
 	if err != nil {
 		return "", err
 	}
+	for _, namespace := range namespaces.Items {
+		return namespace.Name, nil
+	}
+	return "kube-system", nil
+}
 
+func podForNode(kubeClient kubernetes.Interface,
+	systemNamespace string, node string, selector string) (string, error) {
 	opts := metav1.ListOptions{
 		LabelSelector: selector,
 	}
 	pods, err :=
-		kubeClient.CoreV1().Pods("kube-system").List(opts)
+		kubeClient.CoreV1().Pods(systemNamespace).List(opts)
 	if err != nil {
 		return "", err
 	}
@@ -314,6 +353,7 @@ func podForNode(node string, selector string) (string, error) {
 	return "", errors.New("Could not find pod on node: " + node)
 }
 
+const namespaceSelector = "network-plugin=aci-containers"
 const opflexAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
 const hostAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
 const openvswitchSelector = "network-plugin=aci-containers,name=aci-containers-openvswitch"
@@ -333,9 +373,9 @@ func openvswitchLog(cmd *cobra.Command, args []string) {
 		"aci-containers-openvswitch", nodeLogCmdArgs)
 }
 
-func inspectArgs(podName string, containerName string,
-	args []string) []string {
-	return append([]string{"-n", "kube-system", "exec",
+func inspectArgs(systemNamespace string, podName string,
+	containerName string, args []string) []string {
+	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--", "gbp_inspect"}, args...)
 }
 
@@ -343,9 +383,9 @@ func inspect(cmd *cobra.Command, args []string) {
 	nodeCmd(cmdCmd, args, opflexAgentSelector, "opflex-agent", inspectArgs)
 }
 
-func ovsVsCtlArgs(podName string, containerName string,
+func ovsVsCtlArgs(systemNamespace string, podName string, containerName string,
 	args []string) []string {
-	return append([]string{"-n", "kube-system", "exec",
+	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--", "ovs-vsctl"}, args...)
 }
 
@@ -354,9 +394,9 @@ func ovsVsCtl(cmd *cobra.Command, args []string) {
 		"aci-containers-openvswitch", ovsVsCtlArgs)
 }
 
-func ovsOfCtlArgs(podName string, containerName string,
+func ovsOfCtlArgs(systemNamespace string, podName string, containerName string,
 	args []string) []string {
-	return append([]string{"-n", "kube-system", "exec",
+	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--",
 		"ovs-ofctl", "-OOpenFlow13"}, args...)
 }
@@ -366,9 +406,9 @@ func ovsOfCtl(cmd *cobra.Command, args []string) {
 		"aci-containers-openvswitch", ovsOfCtlArgs)
 }
 
-func otherNodeArgs(podName string, containerName string,
-	args []string) []string {
-	return append([]string{"-n", "kube-system", "exec",
+func otherNodeArgs(systemNamespace string, podName string,
+	containerName string, args []string) []string {
+	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--"}, args...)
 }
 
