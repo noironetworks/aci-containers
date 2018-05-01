@@ -622,20 +622,35 @@ func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
 	if _, ok := env.cont.nodePodNetCache[cellId]; ok {
 		return
 	}
-	kapi := env.etcdKeysApi
-	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/network"
-	resp, err := kapi.Get(context.Background(), cellKey, nil)
+	nodePodNet := newNodePodNetMeta()
+
+	txn, _ := env.db.Begin()
+	podnetdb := CellPodNetDb{}
+	netips, err := podnetdb.Get(txn, cellId)
 	if err != nil {
-		if etcd.IsKeyNotFoundError(err) {
-			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
-		} else {
-			env.log.Error("Unable to fetch etcd cell network info: ", err)
-		}
+		env.log.WithField("cellId", cellId).Error(
+			"Unable to fetch cell pod network info from DB: ", err)
 		return
 	}
-	nodePodNet := newNodePodNetMeta()
+	txn.Commit()
+	if netips == nil {
+		return
+	}
+	nodePodNet.podNetIps = *netips
+	env.cont.recomputePodNetAnnotation(nodePodNet)
+	env.log.WithField("cellId", cellId).Info(
+		"Read pod net from DB: ", nodePodNet.podNetIpsAnnotation)
 	env.cont.nodePodNetCache[cellId] = nodePodNet
-	env.cont.mergePodNet(nodePodNet, resp.Node.Value, logrus.NewEntry(env.log))
+
+	// write to etcd for host-agent to read
+	cellKey := etcd.CELL_KEY_BASE + "/" + cellId
+	kapi := env.etcdKeysApi
+	_, err = kapi.Set(context.Background(), cellKey+"/network",
+		nodePodNet.podNetIpsAnnotation, nil)
+	if err != nil {
+		env.log.WithField("cellId", cellId).Error(
+			"Error setting etcd net info for cell: ", err)
+	}
 }
 
 // must be called with cont.indexMutex locked
@@ -657,48 +672,57 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 
 	nodeMeta := &nodeServiceMeta{}
 	existing := &metadata.ServiceEndpoint{}
-	kapi := env.etcdKeysApi
-	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
-	resp, err := kapi.Get(context.Background(), cellKey, nil)
-	if err != nil {
-		if etcd.IsKeyNotFoundError(err) {
-			env.log.Info(fmt.Sprintf("Etcd subtree %s doesn't exist yet", cellKey))
-		} else {
-			env.log.Error("Unable to fetch etcd cell service info: ", err)
+	svcepdb := CellServiceEpDb{}
+	if currMeta == nil {
+		txn, _ := env.db.Begin()
+		svcep, err := svcepdb.Get(txn, cellId)
+		txn.Commit()
+		if err != nil {
+			env.log.WithField("cellId", cellId).Error(
+				"Unable to fetch cell service EP from DB: ", err)
 			return
 		}
-	} else {
-		err = json.Unmarshal([]byte(resp.Node.Value), existing)
-		if err != nil {
-			env.log.Warn("Could not parse cell service info: ", err)
+		if svcep != nil {
+			existing = svcep
+			env.log.WithField("cellId", cellId).Info(
+				"Read service EP from DB: ", *existing)
 		}
+	} else {
+		existing = &currMeta.serviceEp
 	}
-	err = env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp,
+	err := env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp,
 		deviceMac)
 	if err != nil {
 		env.log.Error("Couldn't create service EP info for cell: ", err)
 		return
 	}
+	updated := !reflect.DeepEqual(existing, &nodeMeta.serviceEp)
+	if updated {
+		txn, _ := env.db.Begin()
+		if err := svcepdb.Set(txn, cellId, &nodeMeta.serviceEp); err != nil {
+			env.log.WithField("cellId", cellId).Error(
+				"Failed to write cell service EP to DB: ", err)
+		} else {
+			env.log.WithField("cellId", cellId).Info(
+				"Updated service EP in DB to: ", nodeMeta.serviceEp)
+		}
+		txn.Commit()
+	}
+	env.cont.nodeServiceMetaCache[nodeName] = nodeMeta
+
+	// write to etcd for host-agent to read
+	kapi := env.etcdKeysApi
+	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
 	raw, err := json.Marshal(&nodeMeta.serviceEp)
 	if err != nil {
 		env.log.Error("Could not marshal cell service info: ", err)
 	} else {
 		_, err = kapi.Set(context.Background(), cellKey, string(raw), nil)
+		logger := env.log.WithField("cellId", cellId)
 		if err != nil {
-			env.log.Error("Error setting etcd service info for cell: ", err)
+			logger.Error("Unable to set service-EP in etcd: ", err)
 		} else {
-			env.log.Debug(fmt.Sprintf("Wrote to etcd %s = %s", cellKey, string(raw)))
-		}
-	}
-	if err == nil {
-		env.cont.nodeServiceMetaCache[nodeName] = nodeMeta
-		return
-	} else {
-		if nodeMeta.serviceEp.Ipv4 != nil {
-			env.cont.nodeServiceIps.V4.AddIp(nodeMeta.serviceEp.Ipv4)
-		}
-		if nodeMeta.serviceEp.Ipv6 != nil {
-			env.cont.nodeServiceIps.V6.AddIp(nodeMeta.serviceEp.Ipv6)
+			env.log.Debug("Wrote service-EP to etcd: ", string(raw))
 		}
 	}
 	return
@@ -710,9 +734,21 @@ func (env *CfEnvironment) NodePodNetworkChanged(nodename string) {
 	podnet, ok := env.cont.nodePodNetCache[nodename]
 	env.cont.indexMutex.Unlock()
 	if ok {
+		txn, _ := env.db.Begin()
+		podnetdb := CellPodNetDb{}
+		if err := podnetdb.Set(txn, nodename, &podnet.podNetIps); err != nil {
+			env.log.WithField("cellId", nodename).Error(
+				"Failed to write cell pod network info to DB: ", err)
+		} else {
+			env.log.WithField("cellId", nodename).Info(
+				"Wrote pod net to DB: ", podnet.podNetIpsAnnotation)
+		}
+		txn.Commit()
+
 		cellKey := etcd.CELL_KEY_BASE + "/" + nodename
 		kapi := env.etcdKeysApi
-		_, err := kapi.Set(context.Background(), cellKey+"/network", podnet.podNetIpsAnnotation, nil)
+		_, err := kapi.Set(context.Background(), cellKey+"/network",
+			podnet.podNetIpsAnnotation, nil)
 		if err != nil {
 			env.log.Error("Error setting etcd net info for cell: ", err)
 		}
