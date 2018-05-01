@@ -287,13 +287,39 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	if node == "" {
-		fmt.Fprintln(os.Stderr, "Node not specified (use --node)")
+	allNodes, err := cmd.PersistentFlags().GetBool("all-nodes")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	if !allNodes && node == "" {
+		fmt.Fprintln(os.Stderr,
+			"Node not specified (use --node or --all-nodes)")
 		return
 	}
 
 	kubeClient := initClientPrintError()
 	if kubeClient == nil {
+		return
+	}
+
+	nodes := make(map[string]bool)
+	if node != "" {
+		nodes[node] = true
+	}
+
+	if allNodes {
+		nodeObjs, err :=
+			kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
+		}
+		for _, no := range nodeObjs.Items {
+			nodes[no.Name] = true
+		}
+	}
+	if len(nodes) == 0 {
+		fmt.Fprintln(os.Stderr, "No nodes on which to run command")
 		return
 	}
 
@@ -304,13 +330,19 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 		return
 	}
 
-	podName, err := podForNode(kubeClient, systemNamespace, node, selector)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
+	for n, _ := range nodes {
+		podName, err := podForNode(kubeClient, systemNamespace, n, selector)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		if allNodes {
+			fmt.Fprintln(os.Stdout, "Running command on node", n)
+		}
 
-	outputCmd(logCmd, argFunc(systemNamespace, podName, containerName, args))
+		outputCmd(logCmd, argFunc(systemNamespace, podName,
+			containerName, args))
+	}
 }
 
 func nodeLogCmdArgs(systemNamespace string, podName string,
@@ -473,10 +505,11 @@ var cmdCmd = &cobra.Command{
 }
 
 var inspectCmd = &cobra.Command{
-	Use:     "gbp-inspect",
-	Short:   "Run the GBP inspect tool for a node",
-	Example: `acikubectl debug cmd -n node1 gbp-inspect -- -rq DmtreeRoot`,
-	Run:     inspect,
+	Use:   "gbp-inspect",
+	Short: "Run the GBP inspect tool for a node",
+	Example: `acikubectl debug cmd -n node1 gbp-inspect -- -rq DmtreeRoot
+acikubectl debug cmd --all-nodes gbp-inspect -- -q GbpEpGroup`,
+	Run: inspect,
 }
 
 var ovsVsCtlCmd = &cobra.Command{
@@ -512,6 +545,8 @@ func init() {
 
 	cmdCmd.PersistentFlags().StringP("node", "n", "",
 		"Run command on the specified node")
+	cmdCmd.PersistentFlags().Bool("all-nodes", false,
+		"Run command on all nodes")
 	cmdCmd.AddCommand(inspectCmd)
 	cmdCmd.AddCommand(ovsVsCtlCmd)
 	cmdCmd.AddCommand(ovsOfCtlCmd)
