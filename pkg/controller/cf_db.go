@@ -51,14 +51,37 @@ func getV0Migration(db *sql.DB, txn *sql.Tx) *migration {
 	return &m
 }
 
+func getV1Migration(db *sql.DB, txn *sql.Tx) *migration {
+	m := migration{version: "1",
+		statements: []string{
+			`CREATE TABLE IF NOT EXISTS aci_cell_pod_networks (
+					guid VARCHAR(255) NOT NULL,
+					start VARCHAR(64),
+					end VARCHAR(64),
+					PRIMARY KEY (guid, start, end)
+					);`,
+			`CREATE TABLE IF NOT EXISTS aci_cell_service_ep (
+					guid VARCHAR(255) NOT NULL,
+					mac VARCHAR(24),
+					ip_v4 VARCHAR(16),
+					ip_v6 VARCHAR(64),
+					PRIMARY KEY (guid)
+					);`,
+		},
+	}
+	return &m
+}
+
 func (env *CfEnvironment) RunDbMigration() error {
 	txn, err := env.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	var stmts []migration
-	stmts = append(stmts, *getV0Migration(env.db, txn))
+	var stmts []*migration
+	stmts = append(stmts,
+		getV0Migration(env.db, txn),
+		getV1Migration(env.db, txn))
 
 	// TODO inspect the current version in the DB
 	for _, m := range stmts {

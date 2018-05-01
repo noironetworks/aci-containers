@@ -78,6 +78,45 @@ func TestCfDbMigration(t *testing.T) {
 		assert.Equal(t, "pool", cts[3].Name())
 		assert.Equal(t, "VARCHAR(255)", cts[3].DatabaseTypeName())
 	}
+
+	{
+		rows, err := env.db.Query(
+			"SELECT guid, start, end from aci_cell_pod_networks")
+		cts, err := rows.ColumnTypes()
+		rows.Close()
+		assert.Nil(t, err)
+
+		assert.Equal(t, 3, len(cts))
+		assert.Equal(t, "guid", cts[0].Name())
+		assert.Equal(t, "VARCHAR(255)", cts[0].DatabaseTypeName())
+
+		assert.Equal(t, "start", cts[1].Name())
+		assert.Equal(t, "VARCHAR(64)", cts[1].DatabaseTypeName())
+
+		assert.Equal(t, "end", cts[2].Name())
+		assert.Equal(t, "VARCHAR(64)", cts[2].DatabaseTypeName())
+	}
+
+	{
+		rows, err := env.db.Query(
+			"SELECT guid, mac, ip_v4, ip_v6 from aci_cell_service_ep")
+		cts, err := rows.ColumnTypes()
+		rows.Close()
+		assert.Nil(t, err)
+
+		assert.Equal(t, 4, len(cts))
+		assert.Equal(t, "guid", cts[0].Name())
+		assert.Equal(t, "VARCHAR(255)", cts[0].DatabaseTypeName())
+
+		assert.Equal(t, "mac", cts[1].Name())
+		assert.Equal(t, "VARCHAR(24)", cts[1].DatabaseTypeName())
+
+		assert.Equal(t, "ip_v4", cts[2].Name())
+		assert.Equal(t, "VARCHAR(16)", cts[2].DatabaseTypeName())
+
+		assert.Equal(t, "ip_v6", cts[3].Name())
+		assert.Equal(t, "VARCHAR(64)", cts[3].DatabaseTypeName())
+	}
 }
 
 func TestCfDbMigrationIdempotent(t *testing.T) {

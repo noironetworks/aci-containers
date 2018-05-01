@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -46,25 +47,30 @@ func TestCfLoadCellNetworkInfo(t *testing.T) {
 	env.LoadCellNetworkInfo(cellId)
 	_, ok := env.cont.nodePodNetCache[cellId]
 	assert.False(t, ok)
+	v, _ := k.Get(ctx, key, nil)
+	assert.Nil(t, v)
 
 	nodeMeta := newNodePodNetMeta()
 	nodeMeta.podNetIps.V4 = append(nodeMeta.podNetIps.V4,
-		ipam.IpRange{Start: net.ParseIP("10.10.0.1"), End: net.ParseIP("10.10.0.24")})
+		ipam.IpRange{Start: net.ParseIP("10.10.0.1"),
+			End: net.ParseIP("10.10.0.24")})
 	nodeMeta.podNetIps.V6 = append(nodeMeta.podNetIps.V6,
-		ipam.IpRange{Start: net.ParseIP("::fe80"), End: net.ParseIP("::fe90")})
+		ipam.IpRange{Start: net.ParseIP("::fe80"),
+			End: net.ParseIP("::fe90")})
 	env.cont.recomputePodNetAnnotation(nodeMeta)
 
-	k.Set(ctx, key, nodeMeta.podNetIpsAnnotation, nil)
+	txn(env.db, func(txn *sql.Tx) {
+		podnetdb := CellPodNetDb{}
+		err := podnetdb.Set(txn, cellId, &nodeMeta.podNetIps)
+		assert.Nil(t, err)
+	})
 	env.LoadCellNetworkInfo(cellId)
 	r, ok := env.cont.nodePodNetCache[cellId]
 	assert.True(t, ok)
+	assert.Equal(t, nodeMeta.podNetIps, r.podNetIps)
 	assert.Equal(t, nodeMeta.podNetIpsAnnotation, r.podNetIpsAnnotation)
-
-	k.Delete(ctx, key, nil)
-	env.LoadCellNetworkInfo(cellId)
-	r, ok = env.cont.nodePodNetCache[cellId]
-	assert.True(t, ok)
-	assert.Equal(t, nodeMeta.podNetIpsAnnotation, r.podNetIpsAnnotation)
+	v, _ = k.Get(ctx, key, nil)
+	assert.Equal(t, nodeMeta.podNetIpsAnnotation, v.Node.Value)
 }
 
 func TestCfSetCellServiceInfo(t *testing.T) {
@@ -72,6 +78,7 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 	k := env.fakeEtcdKeysApi()
 	cellId := "cell-1"
 	nodename := "diego-cell-" + cellId
+	svcepdb := CellServiceEpDb{}
 	key := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
 	ctx := context.Background()
 
@@ -83,6 +90,11 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 	env.SetCellServiceInfo(nodename, cellId)
 	r, ok := env.cont.nodeServiceMetaCache[nodename]
 	assert.False(t, ok)
+	txn(env.db, func(txn *sql.Tx) {
+		ep, err := svcepdb.Get(txn, cellId)
+		assert.Nil(t, err)
+		assert.Nil(t, ep)
+	})
 	v, _ := k.Get(ctx, key, nil)
 	assert.Nil(t, v)
 
@@ -98,35 +110,40 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 	assert.NotNil(t, r.serviceEp.Ipv4)
 	assert.NotNil(t, r.serviceEp.Ipv6)
 
+	txn(env.db, func(txn *sql.Tx) {
+		ep, err := svcepdb.Get(txn, cellId)
+		assert.Nil(t, err)
+		assert.Equal(t, r.serviceEp, *ep)
+	})
 	svcEpStr, _ := json.Marshal(r.serviceEp)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
 
-	// stale info in etcd
+	// outdated info in DB
 	delete(env.cont.nodeServiceMetaCache, nodename)
 	svcEP := metadata.ServiceEndpoint{Mac: "de:ad:00:dd:ee:ff",
 		Ipv4: net.ParseIP("1.0.0.10"),
 		Ipv6: net.ParseIP("a1::1a"),
 	}
-	svcEpStr, _ = json.Marshal(&svcEP)
-	k.Set(ctx, key, string(svcEpStr), nil)
+	txn(env.db, func(txn *sql.Tx) {
+		err := svcepdb.Set(txn, cellId, &svcEP)
+		assert.Nil(t, err)
+	})
+
 	env.SetCellServiceInfo(nodename, cellId)
 	r, ok = env.cont.nodeServiceMetaCache[nodename]
 	assert.True(t, ok)
 	assert.Equal(t, "aa:bb:cc:dd:ee:ff", r.serviceEp.Mac)
 	assert.Equal(t, net.ParseIP("1.0.0.10"), r.serviceEp.Ipv4)
 	assert.Equal(t, net.ParseIP("a1::1a"), r.serviceEp.Ipv6)
+	txn(env.db, func(txn *sql.Tx) {
+		ep, err := svcepdb.Get(txn, cellId)
+		assert.Nil(t, err)
+		assert.Equal(t, r.serviceEp, *ep)
+	})
 	svcEpStr, _ = json.Marshal(r.serviceEp)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
-
-	k.Delete(ctx, key, nil)
-	env.SetCellServiceInfo(nodename, cellId)
-	r, ok = env.cont.nodeServiceMetaCache[nodename]
-	assert.True(t, ok)
-	assert.Equal(t, "aa:bb:cc:dd:ee:ff", r.serviceEp.Mac)
-	assert.Equal(t, net.ParseIP("1.0.0.10"), r.serviceEp.Ipv4)
-	assert.Equal(t, net.ParseIP("a1::1a"), r.serviceEp.Ipv6)
 }
 
 func TestCfEtcdStaleCleanup(t *testing.T) {
@@ -178,11 +195,25 @@ func TestCfUpdateHppForCfComponents(t *testing.T) {
 
 func TestCfNodePodNetworkChanged(t *testing.T) {
 	env := testCfEnvironment(t)
-	env.cont.nodePodNetCache["cell-10"] = &nodePodNetMeta{podNetIpsAnnotation: "some-annotation"}
+
+	nodeMeta := newNodePodNetMeta()
+	nodeMeta.podNetIps.V4 = append(nodeMeta.podNetIps.V4,
+		ipam.IpRange{Start: net.ParseIP("10.10.0.1"), End: net.ParseIP("10.10.0.24")})
+	nodeMeta.podNetIps.V6 = append(nodeMeta.podNetIps.V6,
+		ipam.IpRange{Start: net.ParseIP("::fe80"), End: net.ParseIP("::fe90")})
+	env.cont.recomputePodNetAnnotation(nodeMeta)
+	env.cont.nodePodNetCache["cell-10"] = nodeMeta
 
 	env.NodePodNetworkChanged("cell-10")
 	v, _ := env.fakeEtcdKeysApi().Get(context.Background(), "/aci/cells/cell-10/network", nil)
-	assert.Equal(t, "some-annotation", v.Node.Value)
+	assert.Equal(t, nodeMeta.podNetIpsAnnotation, v.Node.Value)
+
+	txn(env.db, func(txn *sql.Tx) {
+		netdb := CellPodNetDb{}
+		podnet, err := netdb.Get(txn, "cell-10")
+		assert.Nil(t, err)
+		assert.Equal(t, nodeMeta.podNetIps, *podnet)
+	})
 }
 
 func TestCfNodeServiceChanged(t *testing.T) {
