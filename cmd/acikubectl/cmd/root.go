@@ -29,6 +29,7 @@ import (
 )
 
 var kubeconfig string
+var context string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -63,6 +64,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&kubeconfig,
 		"kubeconfig", defaultkubeconfig,
 		"Path to the kubeconfig file to use for CLI requests.")
+	RootCmd.PersistentFlags().StringVar(&context,
+		"context", "",
+		"Kubernetes context to use for CLI requests.")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -74,9 +78,16 @@ func initClient() (kubernetes.Interface, error) {
 	var restconfig *restclient.Config
 	var err error
 
+	// the context is only useful with a kubeconfig
 	if kubeconfig != "" {
 		// use kubeconfig file from command line
-		restconfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		restconfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{
+				ExplicitPath: kubeconfig,
+			},
+			&clientcmd.ConfigOverrides{
+				CurrentContext: context,
+			}).ClientConfig()
 		if err != nil {
 			return nil, err
 		}

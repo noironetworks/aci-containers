@@ -32,7 +32,7 @@ import (
 )
 
 func execKubectl(args []string, out io.Writer) error {
-	baseargs := []string{"--kubeconfig", kubeconfig}
+	baseargs := []string{"--kubeconfig", kubeconfig, "--context", context}
 	cmd := exec.Command("kubectl", append(baseargs, args...)...)
 
 	cmd.Stdout = out
