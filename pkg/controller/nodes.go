@@ -114,7 +114,7 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpoint, ep *metadata.ServiceEndpoint, deviceMac string) error {
 
 	_, err := net.ParseMAC(deviceMac)
-	if err == nil {
+	if err == nil && deviceMac != "00:00:00:00:00:00" {
 		ep.Mac = deviceMac
 	} else {
 		_, err := net.ParseMAC(existing.Mac)

@@ -252,10 +252,7 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 // must have index lock
 func (cont *AciController) deviceMacForNode(name string) (string, bool) {
 	for _, device := range cont.nodeOpflexDevice[name] {
-		mac := device.GetAttrStr("mac")
-		if mac != "00:00:00:00:00:00" {
-			return mac, true
-		}
+		return device.GetAttrStr("mac"), true
 	}
 	return "", false
 }
