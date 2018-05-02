@@ -742,7 +742,9 @@ func doComputeRespClasses(targetClasses []string,
 
 }
 
-func computeRespClasses(targetClasses []string) []string {
+func computeRespClasses(targetClasses []string,
+	useAPICInstTag bool) []string {
+
 	visited := make(map[string]bool)
 	doComputeRespClasses(targetClasses, visited)
 
@@ -751,7 +753,9 @@ func computeRespClasses(targetClasses []string) []string {
 		respClasses = append(respClasses, class)
 	}
 	respClasses = append(respClasses, "tagInst")
-	respClasses = append(respClasses, "tagAnnotation")
+	if !useAPICInstTag {
+		respClasses = append(respClasses, "tagAnnotation")
+	}
 	return respClasses
 }
 
@@ -762,7 +766,7 @@ func (conn *ApicConnection) AddSubscriptionClass(class string,
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubClass,
 		targetClasses: targetClasses,
-		respClasses:   computeRespClasses(targetClasses),
+		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
 		targetFilter:  targetFilter,
 	}
 	conn.indexMutex.Unlock()
@@ -775,7 +779,7 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	conn.subscriptions.subs[dn] = &subscription{
 		kind:          apicSubDn,
 		targetClasses: targetClasses,
-		respClasses:   computeRespClasses(targetClasses),
+		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
 	}
 	conn.indexMutex.Unlock()
 }
