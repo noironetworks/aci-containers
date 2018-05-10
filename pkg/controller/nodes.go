@@ -66,7 +66,7 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 }
 
 func apicNodeNetPol(name string, tenantName string,
-	nodeIps []string) apicapi.ApicObject {
+	nodeIps map[string]bool) apicapi.ApicObject {
 
 	hpp := apicapi.NewHostprotPol(tenantName, name)
 	hppDn := hpp.GetDn()
@@ -83,7 +83,7 @@ func apicNodeNetPol(name string, tenantName string,
 		inbound.SetAttr("ethertype", "ipv4")
 		inbound.SetAttr("connTrack", "normal")
 
-		for _, ip := range nodeIps {
+		for ip, _ := range nodeIps {
 			outbound.AddChild(apicapi.NewHostprotRemoteIp(outbound.GetDn(), ip))
 			inbound.AddChild(apicapi.NewHostprotRemoteIp(inbound.GetDn(), ip))
 		}
@@ -96,11 +96,11 @@ func apicNodeNetPol(name string, tenantName string,
 }
 
 func (cont *AciController) createNetPolForNode(node *v1.Node) {
-	var nodeIps []string
+	nodeIps := make(map[string]bool)
 	for _, a := range node.Status.Addresses {
 		if a.Address != "" &&
 			(a.Type == "InternalIP" || a.Type == "ExternalIP") {
-			nodeIps = append(nodeIps, a.Address)
+			nodeIps[a.Address] = true
 		}
 	}
 
