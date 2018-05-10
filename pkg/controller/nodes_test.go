@@ -299,7 +299,7 @@ func TestNodeNetPol(t *testing.T) {
 	cont.run()
 
 	key := cont.aciNameForKey("node", "node1")
-	sg := apicNodeNetPol(key, "test-tenant", []string{"1.1.1.1"})
+	sg := apicNodeNetPol(key, "test-tenant", map[string]bool{"1.1.1.1": true})
 
 	tu.WaitFor(t, "node-net-pol", 500*time.Millisecond,
 		func(last bool) (bool, error) {
