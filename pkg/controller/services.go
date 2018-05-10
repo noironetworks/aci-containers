@@ -737,7 +737,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		aobj.SetAttr("lbIp", ingress.IP)
 		break
 	}
-	if service.Spec.ClusterIP != "" {
+	if service.Spec.ClusterIP != "" && service.Spec.ClusterIP != "None" {
 		aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
 	}
 	var t string
