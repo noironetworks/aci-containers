@@ -294,6 +294,7 @@ func (env *CfEnvironment) spaceFetchQueueHandler(spaceId interface{}) bool {
 }
 
 func (env *CfEnvironment) cleanupEtcdContainers() error {
+	// TODO Remove when we don't use etcd anymore for container/app info
 	kapi := env.etcdKeysApi
 	cellKey := etcd.ACI_KEY_BASE
 	resp, err := kapi.Get(context.Background(), cellKey, &etcdclient.GetOptions{Recursive: true})

@@ -47,6 +47,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -64,6 +65,7 @@ type CfEnvironment struct {
 	cfLogger     lager.Logger
 	db           *sql.DB
 	locketClient locketmodels.LocketClient
+	kvmgr        *rkv.KvManager
 
 	indexLock sync.Locker
 	contIdx   map[string]*ContainerInfo
@@ -128,6 +130,12 @@ type CfConfig struct {
 	LocketCACertFile     string `json:"locket_ca_cert_file"`
 	LocketClientCertFile string `json:"locket_client_cert_file"`
 	LocketClientKeyFile  string `json:"locket_client_key_file"`
+
+	KeyValuePort uint32 `json:"key_value_port"`
+
+	ControllerCACertFile     string `json:"controller_ca_cert_file"`
+	ControllerServerCertFile string `json:"controller_server_cert_file"`
+	ControllerServerKeyFile  string `json:"controller_server_key_file"`
 
 	Uuid          string `json:"uuid"`
 	ApiPathPrefix string `json:"api_path_prefix"`
@@ -252,6 +260,7 @@ func (env *CfEnvironment) Init(cont *AciController) error {
 		return err
 	}
 
+	env.kvmgr = rkv.NewKvManager()
 	etcdClient, err := etcd.NewEtcdClient(env.cfconfig.EtcdUrl, env.cfconfig.EtcdCACertFile,
 		env.cfconfig.EtcdClientCertFile, env.cfconfig.EtcdClientKeyFile)
 	if err != nil {
@@ -351,6 +360,11 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	env.LoadAppExtIps()
 	env.LoadAppVips()
 	env.LoadEpgAnnotations()
+
+	go env.kvmgr.ServeWatch(stopCh)
+	kvserver := NewCfKvServer(env)
+	go kvserver.Watcher().Watch(stopCh)
+	go kvserver.Run(stopCh)
 
 	bbsLrp := NewCfBbsLrpListener(env)
 	bbsTasks := NewCfBbsTaskListener(env)
@@ -619,6 +633,7 @@ func (env *CfEnvironment) UpdateHppForCfComponents() {
 
 // must be called with cont.indexMutex locked
 func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
+	// TODO Load from DB instead of etcd
 	if _, ok := env.cont.nodePodNetCache[cellId]; ok {
 		return
 	}
@@ -651,6 +666,7 @@ func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
 		env.log.WithField("cellId", cellId).Error(
 			"Error setting etcd net info for cell: ", err)
 	}
+	env.kvmgr.Set("cell/"+cellId, "network", nodePodNet.podNetIpsAnnotation)
 }
 
 // must be called with cont.indexMutex locked
@@ -670,6 +686,7 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 		return
 	}
 
+	// TODO Use DB for load-store below instead of etcd
 	nodeMeta := &nodeServiceMeta{}
 	existing := &metadata.ServiceEndpoint{}
 	svcepdb := CellServiceEpDb{}
@@ -709,6 +726,7 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 		txn.Commit()
 	}
 	env.cont.nodeServiceMetaCache[nodeName] = nodeMeta
+	env.kvmgr.Set("cell/"+cellId, "service", &nodeMeta.serviceEp)
 
 	// write to etcd for host-agent to read
 	kapi := env.etcdKeysApi
@@ -752,6 +770,7 @@ func (env *CfEnvironment) NodePodNetworkChanged(nodename string) {
 		if err != nil {
 			env.log.Error("Error setting etcd net info for cell: ", err)
 		}
+		env.kvmgr.Set("cell/"+nodename, "network", podnet.podNetIpsAnnotation)
 	}
 }
 
