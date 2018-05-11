@@ -158,6 +158,7 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 				env.log.Debug(fmt.Sprintf("Wrote to etcd %s = %s", ctKey+"/ep", string(ep_json)))
 			}
 		}
+		env.kvmgr.Set("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId, &ep)
 	}
 	if spaceInfo != nil {
 		conf := env.cont.config
@@ -193,6 +194,7 @@ func (env *CfEnvironment) handleContainerDeleteLocked(cinfo *ContainerInfo) bool
 			env.log.Error("Error deleting container node: ", err)
 			retry = !etcd.IsKeyNotFoundError(err)
 		}
+		env.kvmgr.Delete("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId)
 	}
 	env.cont.apicConn.ClearApicObjects("inj_contgrp:" + cinfo.ContainerId)
 	return retry
@@ -241,6 +243,7 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 			retry = true
 		}
 	}
+	env.kvmgr.Set("apps", appId, &ai)
 	if len(ai.ExternalIp) > 0 {
 		sgobjs := env.createAppServiceGraph(appId, ai.ExternalIp)
 		env.cont.apicConn.WriteApicObjects("app_ext_ip:"+appId, sgobjs)
@@ -403,6 +406,7 @@ func (env *CfEnvironment) handleAppDeleteLocked(appId string, ainfo *AppInfo) bo
 		env.log.Error("Error deleting app etcd node: ", err)
 		retry = !etcd.IsKeyNotFoundError(err)
 	}
+	env.kvmgr.Delete("apps", appId)
 
 	env.cleanupEpgAnnotation(appId, CF_OBJ_APP)
 	env.releaseAppVip(appId)
