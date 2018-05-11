@@ -71,6 +71,9 @@ func TestCfLoadCellNetworkInfo(t *testing.T) {
 	assert.Equal(t, nodeMeta.podNetIpsAnnotation, r.podNetIpsAnnotation)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, nodeMeta.podNetIpsAnnotation, v.Node.Value)
+	item, _ := env.kvmgr.Get("cell/cell-1", "network")
+	assert.NotNil(t, item.Value)
+	assert.Equal(t, r.podNetIpsAnnotation, item.Value.(string))
 }
 
 func TestCfSetCellServiceInfo(t *testing.T) {
@@ -118,6 +121,9 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 	svcEpStr, _ := json.Marshal(r.serviceEp)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
+	item, _ := env.kvmgr.Get("cell/cell-1", "service")
+	assert.NotNil(t, item.Value)
+	assert.Equal(t, r.serviceEp, *(item.Value.(*metadata.ServiceEndpoint)))
 
 	// outdated info in DB
 	delete(env.cont.nodeServiceMetaCache, nodename)
@@ -144,6 +150,9 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 	svcEpStr, _ = json.Marshal(r.serviceEp)
 	v, _ = k.Get(ctx, key, nil)
 	assert.Equal(t, string(svcEpStr), v.Node.Value)
+	item, _ = env.kvmgr.Get("cell/cell-1", "service")
+	assert.NotNil(t, item.Value)
+	assert.Equal(t, r.serviceEp, *(item.Value.(*metadata.ServiceEndpoint)))
 }
 
 func TestCfEtcdStaleCleanup(t *testing.T) {
@@ -214,6 +223,9 @@ func TestCfNodePodNetworkChanged(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, nodeMeta.podNetIps, *podnet)
 	})
+	item, _ := env.kvmgr.Get("cell/cell-10", "network")
+	assert.NotNil(t, item.Value)
+	assert.Equal(t, nodeMeta.podNetIpsAnnotation, item.Value.(string))
 }
 
 func TestCfNodeServiceChanged(t *testing.T) {

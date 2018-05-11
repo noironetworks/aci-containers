@@ -37,6 +37,7 @@ import (
 	apic "github.com/noironetworks/aci-containers/pkg/apicapi"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/cfapi/cfapi_fakes"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
@@ -95,6 +96,7 @@ func testCfEnvironmentNoMigration(t *testing.T) *CfEnvironment {
 	env.cfLogger = lager.NewLogger("CfEnv")
 
 	env.etcdKeysApi = etcd_f.NewFakeEtcdKeysApi(log)
+	env.kvmgr = rkv.NewKvManager()
 	env.initIndexes()
 	env.setupIndexes()
 	env.setupCcClientFakes()
@@ -257,6 +259,22 @@ func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
 			panic(er.Error())
 		}
 		return &app
+	}
+	return nil
+}
+
+func (e *CfEnvironment) GetKvEpInfo(cell, cont string) *etcd.EpInfo {
+	v, err := e.kvmgr.Get("cell/" + cell, "ct/" + cont)
+	if err == nil {
+		return v.Value.(*etcd.EpInfo)
+	}
+	return nil
+}
+
+func (e *CfEnvironment) GetKvAppInfo(appId string) *etcd.AppInfo {
+	v, err := e.kvmgr.Get("apps", appId)
+	if err == nil {
+		return v.Value.(*etcd.AppInfo)
 	}
 	return nil
 }
