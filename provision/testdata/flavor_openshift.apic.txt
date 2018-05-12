@@ -430,6 +430,122 @@ None
                                     }
                                 ]
                             }
+                        }, 
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "group1"
+                                }, 
+                                "children": [
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-OpenShift/dom-kube"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }, 
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "group2"
+                                }, 
+                                "children": [
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-OpenShift/dom-kube"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }, 
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
                         }
                     ]
                 }

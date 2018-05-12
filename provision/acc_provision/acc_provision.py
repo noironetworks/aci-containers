@@ -614,6 +614,16 @@ def config_validate(flavor_opts, config):
         checks["net_config/vip_subnet"] = (
             get(("net_config", "vip_subnet")), required)
 
+    iso_seg_check = (
+        lambda x: True
+        if all(('name' in iso and 'subnet' in iso) for iso in x)
+        else Raise(
+            Exception("'name' and 'subnet' required for "
+                      "each isolation segment")))
+    iso_seg = get(("aci_config", "isolation_segments"))
+    if iso_seg:
+        checks["aci_config/isolation_segments"] = (iso_seg, iso_seg_check)
+
     ret = True
     for k in sorted(checks.keys()):
         value, validator = checks[k]

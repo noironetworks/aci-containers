@@ -24,6 +24,14 @@ aci_config:
     nested_inside:
         type: VMware
         name: myvmware
+  custom_epgs:
+     - group1
+     - group2
+  isolation_segments:
+     - name: is1
+       subnet: 10.50.0.1/24
+     - name: is2
+       subnet: 10.50.1.1/24
 
 net_config:
   node_subnet: 10.1.0.1/16

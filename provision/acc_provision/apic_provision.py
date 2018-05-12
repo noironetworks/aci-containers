@@ -1398,6 +1398,17 @@ class ApicKubeConfig(object):
                     if child['fvBD']['attributes']['name'] == 'kube-node-bd':
                         child['fvBD']["children"].append(attr)
                         break
+
+        for epg in self.config["aci_config"].get("custom_epgs", []):
+            data["fvTenant"]["children"][0]["fvAp"]["children"].append(
+                {
+                    "fvAEPg": {
+                        "attributes": {
+                            "name": epg
+                        },
+                        "children": kube_default_children
+                    }
+                })
         return path, data
 
     def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],
@@ -1452,7 +1463,7 @@ class ApicKubeConfig(object):
         vmm_name = self.config["aci_config"]["vmm_domain"]["domain"]
         cf_vrf = self.config["aci_config"]["vrf"]["name"]
         cf_l3out = self.config["aci_config"]["l3out"]["name"]
-        node_subnet = self.config["net_config"]["node_subnet"]
+        node_subnet = [self.config["net_config"]["node_subnet"]]
         pod_subnet = self.config["net_config"]["pod_subnet"]
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         nvmm_name = (
@@ -1463,28 +1474,66 @@ class ApicKubeConfig(object):
         app_epg_name = (
             self.config["cf_config"]["default_endpoint_group"]["group"])
 
-        app_default_epg = self.epg(app_epg_name,
-                                   "cf-app-bd",
-                                   provides=["gorouter"],
-                                   consumes=["dns",
-                                             "%s-l3out-allow-all" % system_id],
-                                   vmm_domains=[(vmm_type, vmm_name)])
-        node_epg = self.epg(
+        gorouter_contracts = []
+        app_epgs = [self.epg(app_epg_name,
+                             "cf-app-bd",
+                             provides=["gorouter"],
+                             consumes=["dns",
+                                       "%s-l3out-allow-all" % system_id],
+                             vmm_domains=[(vmm_type, vmm_name)])]
+        node_epgs = [self.epg(
             self.config["cf_config"]["node_epg"],
             "cf-node-bd",
-            provides=["dns"],
-            consumes=["gorouter", "%s-l3out-allow-all" % system_id],
-            vmm_domains=[(nvmm_type, nvmm_name)])
+            provides=["dns", "is-node"],
+            consumes=["gorouter", "is-node",
+                      "%s-l3out-allow-all" % system_id],
+            vmm_domains=[(nvmm_type, nvmm_name)])]
+
+        for iso_seg in self.config["aci_config"].get("isolation_segments", []):
+            is_name = iso_seg['name']
+            node_subnet.append(iso_seg['subnet'])
+            node_epgs.append(
+                self.epg(
+                    "%s-%s" % (self.config["cf_config"]["node_epg"], is_name),
+                    "cf-node-bd",
+                    provides=["is-node"],
+                    consumes=["gorouter-%s" % is_name,
+                              "is-node",
+                              "%s-l3out-allow-all" % system_id],
+                    vmm_domains=[(nvmm_type, nvmm_name)]))
+            app_epgs.append(
+                self.epg(
+                    is_name,
+                    "cf-app-bd",
+                    provides=["gorouter-%s" % is_name],
+                    consumes=["dns",
+                              "%s-l3out-allow-all" % system_id],
+                    vmm_domains=[(vmm_type, vmm_name)]))
+            gorouter_contracts.append(
+                self.contract(
+                    'gorouter-%s' % is_name,
+                    subjects=[dict(name='gorouter-subj',
+                                   filters=['tcp-all'])]))
+
+        for epg in self.config["aci_config"].get("custom_epgs", []):
+            app_epgs.append(self.epg(
+                epg,
+                "cf-app-bd",
+                provides=["gorouter"],
+                consumes=["dns",
+                          "%s-l3out-allow-all" % system_id],
+                vmm_domains=[(vmm_type, vmm_name)]))
+
         ap = aci_obj('fvAp',
                      name=ap_name,
-                     _children=[node_epg, app_default_epg])
+                     _children=node_epgs + app_epgs)
 
         app_bd = self.bd('cf-app-bd', cf_vrf,
                          subnets=[pod_subnet],
                          l3outs=[cf_l3out])
 
         node_bd = self.bd('cf-node-bd', cf_vrf,
-                          subnets=[node_subnet],
+                          subnets=node_subnet,
                           l3outs=[cf_l3out])
 
         tcp_all_filter = self.filter(
@@ -1496,13 +1545,19 @@ class ApicKubeConfig(object):
                           dFromPort='dns', dToPort='dns'),
                      dict(name='tcp', etherT='ip', prot='tcp',
                           dFromPort='dns', dToPort='dns')])
+        is_all_filter = self.filter('isolation-segment-all',
+                                    entries=[dict(name='0')])
 
-        gorouter_contract = self.contract(
+        gorouter_contracts.append(self.contract(
             'gorouter',
-            subjects=[dict(name='gorouter-subj', filters=['tcp-all'])])
+            subjects=[dict(name='gorouter-subj', filters=['tcp-all'])]))
         dns_contract = self.contract(
             'dns',
             subjects=[dict(name='dns-subj', filters=['dns'])])
+        is_node_contract = self.contract(
+            'is-node',
+            subjects=[dict(name='is-node-subj',
+                           filters=['isolation-segment-all'])])
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = aci_obj('fvTenant',
@@ -1510,7 +1565,8 @@ class ApicKubeConfig(object):
                        dn="uni/tn-%s" % tn_name,
                        _children=[ap, node_bd, app_bd,
                                   tcp_all_filter, dns_filter,
-                                  gorouter_contract, dns_contract])
+                                  is_all_filter, is_node_contract,
+                                  dns_contract] + gorouter_contracts)
         return path, data
 
 

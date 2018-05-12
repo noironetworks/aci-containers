@@ -26,6 +26,14 @@ aci_config:
     name: mykube_l3out          # Used to provision external IPs
     external_networks:
     - mykube_extepg             # Used for external contracts
+  #custom_epgs:                 # List of additional endpoint-group names
+  #  - custom_group1            # to configure for use with annotations
+  #  - custom_group2
+  #isolation_segments:          # List of names of isolation segments
+  #  - name: iso-seg-1          # and the subnets to use (CloudFoundry only)
+  #    subnet: 10.11.0.1/24
+  #  - name: iso-seg-2
+  #    subnet: 10.11.1.1/24
 
 #
 # Networks used by ACI containers
