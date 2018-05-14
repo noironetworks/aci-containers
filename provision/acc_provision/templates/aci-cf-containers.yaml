@@ -29,4 +29,5 @@ network_app_static_ext_ip_pool: {{config.cf_config.static_ext_ip_pool|yaml_list_
 network_node_service_ip_pool: {{config.cf_config.node_service_ip_pool|yaml_list_dict}}
 network_node_service_subnets: {{config.cf_config.node_service_gw_subnets}}
 networking_aci_api_port: {{config.cf_config.api_port}}
+key_value_port: {{config.cf_config.key_value_port}}
 
