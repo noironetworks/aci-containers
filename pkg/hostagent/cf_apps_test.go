@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -56,8 +56,9 @@ func TestCfContainerUpdate(t *testing.T) {
 
 	// update
 	ep.Epg = "epg2"
-	ep.SecurityGroups = append(ep.SecurityGroups, etcd.GroupInfo{Tenant: "e", Group: "sg3"})
-	ep.PortMapping = []etcd.PortMap{
+	ep.SecurityGroups = append(ep.SecurityGroups,
+		cf_common.GroupInfo{Tenant: "e", Group: "sg3"})
+	ep.PortMapping = []cf_common.PortMap{
 		{ContainerPort: 8080, HostPort: 60010},
 		{ContainerPort: 9443, HostPort: 60012}}
 	expected_ep.EndpointGroup = "epg2"
@@ -107,7 +108,7 @@ func TestCfStagingContainerUpdate(t *testing.T) {
 
 	id := "one"
 	ep := getTestEpInfo()
-	ep.InstanceIndex = etcd.INST_IDX_STAGING
+	ep.InstanceIndex = cf_common.INST_IDX_STAGING
 	env.epIdx[id] = ep
 	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	expected_ep := getExpectedOpflexEp()
@@ -130,7 +131,7 @@ func TestCfTaskContainerUpdate(t *testing.T) {
 
 	id := "one"
 	ep := getTestEpInfo()
-	ep.InstanceIndex = etcd.INST_IDX_TASK
+	ep.InstanceIndex = cf_common.INST_IDX_TASK
 	ep.TaskName = "errand"
 	env.epIdx[id] = ep
 	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")

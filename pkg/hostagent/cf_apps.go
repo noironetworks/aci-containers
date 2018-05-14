@@ -23,6 +23,7 @@ import (
 	etcdclient "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -71,7 +72,8 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 	}
 }
 
-func (env *CfEnvironment) cfAppContainerChanged(ctId *string, ep *etcd.EpInfo) {
+func (env *CfEnvironment) cfAppContainerChanged(ctId *string,
+	ep *cf_common.EpInfo) {
 	if ep == nil {
 		return
 	}
@@ -125,7 +127,8 @@ func (env *CfEnvironment) cfAppContainerChanged(ctId *string, ep *etcd.EpInfo) {
 }
 
 // must be called with env.indexLock
-func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portmap []etcd.PortMap) {
+func (env *CfEnvironment) updatePreNatRule(ctId *string,
+	ep *cf_common.EpInfo, portmap []cf_common.PortMap) {
 	ctIp := net.ParseIP(ep.IpAddress)
 	if ctIp == nil || (env.cfNetv4 && ctIp.To4() == nil) {
 		return
@@ -162,7 +165,8 @@ func (env *CfEnvironment) updatePreNatRule(ctId *string, ep *etcd.EpInfo, portma
 	env.ctPortMap[*ctId] = new_pm
 }
 
-func (env *CfEnvironment) cfAppContainerDeleted(ctId *string, ep *etcd.EpInfo) {
+func (env *CfEnvironment) cfAppContainerDeleted(ctId *string,
+	ep *cf_common.EpInfo) {
 	env.agent.indexMutex.Lock()
 	env.agent.epDeleted(ctId)
 	env.agent.indexMutex.Unlock()
@@ -199,7 +203,8 @@ func (env *CfEnvironment) updateLegacyCfNetService(portmap map[uint32]struct{}) 
 	return nil
 }
 
-func (env *CfEnvironment) cfAppDeleted(appId *string, app *etcd.AppInfo) {
+func (env *CfEnvironment) cfAppDeleted(appId *string,
+	app *cf_common.AppInfo) {
 	env.agent.indexMutex.Lock()
 	defer env.agent.indexMutex.Unlock()
 	uuid := *appId
@@ -243,12 +248,14 @@ func (env *CfEnvironment) cfAppIdChanged(appId *string) {
 	}
 }
 
-func (env *CfEnvironment) cfAppChanged(appId *string, app *etcd.AppInfo) {
+func (env *CfEnvironment) cfAppChanged(appId *string,
+	app *cf_common.AppInfo) {
 	env.updateCfAppServiceEp(appId, app, false)
 	env.updateCfAppServiceEp(appId, app, true)
 }
 
-func (env *CfEnvironment) updateCfAppServiceEp(appId *string, app *etcd.AppInfo, external bool) {
+func (env *CfEnvironment) updateCfAppServiceEp(appId *string,
+	app *cf_common.AppInfo, external bool) {
 	agent := env.agent
 	uuid := *appId
 	if external {

@@ -24,7 +24,7 @@ import (
 	"code.cloudfoundry.org/cfhttp"
 	"github.com/Sirupsen/logrus"
 
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -91,7 +91,7 @@ func (h *appKvHandler) All(items []rkv.KvItem) {
 	}
 
 	h.env.indexLock.Lock()
-	tonotify := make(map[string]*etcd.AppInfo)
+	tonotify := make(map[string]*cf_common.AppInfo)
 	for app, info := range h.env.appIdx {
 		if _, ok := ids[app]; !ok {
 			tonotify[app] = info
@@ -118,7 +118,7 @@ func (h *appKvHandler) do(item *rkv.KvItem, ids idSet, del bool) {
 		if m, ok := item.Value.(map[string]interface{}); !ok {
 			l.Error("Unexpected value type: ", item.Value)
 		} else {
-			app := &etcd.AppInfo{}
+			app := &cf_common.AppInfo{}
 			if err := rkv.MapToStruct(m, app); err != nil {
 				l.WithField("value", item.Value).Error("Decode error: ", err)
 			} else {
@@ -160,7 +160,7 @@ func (h *cellKvHandler) All(items []rkv.KvItem) {
 	}
 
 	h.env.indexLock.Lock()
-	tonotify := make(map[string]*etcd.EpInfo)
+	tonotify := make(map[string]*cf_common.EpInfo)
 	for ctId, info := range h.env.epIdx {
 		if _, ok := ids[ctId]; !ok {
 			tonotify[ctId] = info
@@ -276,7 +276,7 @@ func (h *cellKvHandler) doContainer(item *rkv.KvItem, ids idSet, del bool) {
 		if m, ok := item.Value.(map[string]interface{}); !ok {
 			l.Error("Unexpected value type: ", item.Value)
 		} else {
-			ep := &etcd.EpInfo{}
+			ep := &cf_common.EpInfo{}
 			if err := rkv.MapToStruct(m, ep); err != nil {
 				l.WithField("value", item.Value).Error("Decode error: ", err)
 			} else {

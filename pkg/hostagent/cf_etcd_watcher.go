@@ -21,6 +21,7 @@ import (
 
 	etcdclient "github.com/coreos/etcd/client"
 
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -130,7 +131,7 @@ func (env *CfEnvironment) handleEtcdContainerNode(action *string, node *etcdclie
 	}
 	deleted := etcd.IsDeleteAction(action)
 	if epNode && !deleted {
-		var ep etcd.EpInfo
+		var ep cf_common.EpInfo
 		err := json.Unmarshal([]byte(node.Value), &ep)
 		if err != nil {
 			env.log.Error("Error deserializing container node value: ", err)
@@ -162,7 +163,7 @@ func (env *CfEnvironment) handleEtcdAppNode(action *string, node *etcdclient.Nod
 	appId := key_parts[len(key_parts)-1]
 	deleted := etcd.IsDeleteAction(action)
 	if !deleted {
-		var app etcd.AppInfo
+		var app cf_common.AppInfo
 		err := json.Unmarshal([]byte(node.Value), &app)
 		if err != nil {
 			env.log.Error("Error deserializing app node value: ", err)

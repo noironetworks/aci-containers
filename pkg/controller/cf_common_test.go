@@ -35,6 +35,7 @@ import (
 	wq "k8s.io/client-go/util/workqueue"
 
 	apic "github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
@@ -235,11 +236,11 @@ func (e *CfEnvironment) setupCcClientFakes() {
 	cc.On("GetAppSpace", "app-3").Return("space-2", nil)
 }
 
-func (e *CfEnvironment) GetEpInfo(cell, cont string) *etcd.EpInfo {
+func (e *CfEnvironment) GetEpInfo(cell, cont string) *cf_common.EpInfo {
 	key := etcd.CELL_KEY_BASE + "/" + cell + "/containers/" + cont + "/ep"
 	resp, err := e.etcdKeysApi.Get(context.Background(), key, nil)
 	if err == nil {
-		var ep etcd.EpInfo
+		var ep cf_common.EpInfo
 		er := json.Unmarshal([]byte(resp.Node.Value), &ep)
 		if er != nil {
 			panic(er.Error())
@@ -249,11 +250,11 @@ func (e *CfEnvironment) GetEpInfo(cell, cont string) *etcd.EpInfo {
 	return nil
 }
 
-func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
+func (e *CfEnvironment) GetAppInfo(appId string) *cf_common.AppInfo {
 	key := etcd.APP_KEY_BASE + "/" + appId
 	resp, err := e.etcdKeysApi.Get(context.Background(), key, nil)
 	if err == nil {
-		var app etcd.AppInfo
+		var app cf_common.AppInfo
 		er := json.Unmarshal([]byte(resp.Node.Value), &app)
 		if er != nil {
 			panic(er.Error())
@@ -263,18 +264,18 @@ func (e *CfEnvironment) GetAppInfo(appId string) *etcd.AppInfo {
 	return nil
 }
 
-func (e *CfEnvironment) GetKvEpInfo(cell, cont string) *etcd.EpInfo {
+func (e *CfEnvironment) GetKvEpInfo(cell, cont string) *cf_common.EpInfo {
 	v, err := e.kvmgr.Get("cell/" + cell, "ct/" + cont)
 	if err == nil {
-		return v.Value.(*etcd.EpInfo)
+		return v.Value.(*cf_common.EpInfo)
 	}
 	return nil
 }
 
-func (e *CfEnvironment) GetKvAppInfo(appId string) *etcd.AppInfo {
+func (e *CfEnvironment) GetKvAppInfo(appId string) *cf_common.AppInfo {
 	v, err := e.kvmgr.Get("apps", appId)
 	if err == nil {
-		return v.Value.(*etcd.AppInfo)
+		return v.Value.(*cf_common.AppInfo)
 	}
 	return nil
 }
@@ -355,20 +356,20 @@ func waitForGet(t *testing.T, q wq.RateLimitingInterface, timeout time.Duration,
 	waitForGetList(t, q, timeout, []interface{}{item})
 }
 
-func getExpectedEpInfo() *etcd.EpInfo {
-	ep := &etcd.EpInfo{
+func getExpectedEpInfo() *cf_common.EpInfo {
+	ep := &cf_common.EpInfo{
 		AppId:         "app-1",
 		AppName:       "app-1-name",
 		SpaceId:       "space-1",
 		OrgId:         "org-1",
 		IpAddress:     "1.2.3.4",
 		InstanceIndex: 0,
-		PortMapping: []etcd.PortMap{
+		PortMapping: []cf_common.PortMap{
 			{ContainerPort: 8080, HostPort: 22},
 			{ContainerPort: 2222, HostPort: 23}},
 		EpgTenant: "cf",
 		Epg:       "default|cf-app-default",
-		SecurityGroups: []etcd.GroupInfo{
+		SecurityGroups: []cf_common.GroupInfo{
 			{Tenant: "cf", Group: "cf_hpp_static"},
 			{Tenant: "cf", Group: "cf_hpp_cf-components"},
 			{Tenant: "cf", Group: "cf_asg_ASG_R1"},
@@ -379,8 +380,8 @@ func getExpectedEpInfo() *etcd.EpInfo {
 	return ep
 }
 
-func getExpectedAppInfo() *etcd.AppInfo {
-	app := &etcd.AppInfo{
+func getExpectedAppInfo() *cf_common.AppInfo {
+	app := &cf_common.AppInfo{
 		ContainerIps: []string{"1.2.3.4", "1.2.3.5"},
 		VirtualIp:    []string{"10.250.4.1", "aa::2e00"},
 		ExternalIp:   []string{"150.150.0.3", "aaaa::bbbb"},
