@@ -503,6 +503,7 @@ def config_adjust(args, config, prov_apic, no_random):
                 node_svc_subnet,
             ],
             "api_port": 9900,
+            "key_value_port": 9902,
         },
         "registry": {
             "configuration_version": token,
