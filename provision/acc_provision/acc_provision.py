@@ -49,9 +49,9 @@ VERSIONS = {
         "openvswitch_version": "1.7r24",
     },
     "1.9": {
-        "cnideploy_version": "1.9r28",
-        "aci_containers_host_version": "1.9r28",
-        "aci_containers_controller_version": "1.9r28",
+        "cnideploy_version": "1.9r30",
+        "aci_containers_host_version": "1.9r30",
+        "aci_containers_controller_version": "1.9r30",
         "opflex_agent_version": "1.9r35",
         "openvswitch_version": "1.7r24",
     },
