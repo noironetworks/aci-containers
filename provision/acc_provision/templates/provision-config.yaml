@@ -15,6 +15,14 @@ aci_config:
                                 #   supported for Kubernetes
     # type: vmware              # Specify the VMM vendor (supported: vmware)
     # name: myvmware            # Specify the name of the VMM domain
+  # Below config params are "needed only" for "Cloudfoundry"
+  #cloudfoundry:
+  #  custom_epg: ["cf-group1", "cf-group2"]   # non-default epgs user can create in APIC
+  #  isolated_segments:          # Each isolated segment, must have pair of name & subnet
+  #    - name: iso1
+  #      subnet: 10.6.0.1/24
+  #    - name: iso2
+  #      subnet: 10.7.0.1/24
 
   # The following resources must already exist on the APIC.
   # They are used, but not created, by the provisioning tool.

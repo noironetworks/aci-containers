@@ -594,6 +594,13 @@ def config_validate(flavor_opts, config):
             (get(("aci_config", "vmm_domain", "vlan_range", "end")),
              required)
 
+    iso_segs = get(("aci_config", "cloudfoundry", "isolated_segments"))
+    if iso_segs:
+        for i in range(len(iso_segs)):
+            for k in iso_segs[i].keys():
+                checks["aci_config/cloudfoundry/isolated_segments/%s%d" % (k, i)] = \
+                    (iso_segs[i].get(k), required)
+
     if get(("aci_config", "vmm_domain", "nested_inside", "type")):
         checks["aci_config/vmm_domain/nested_inside/type"] = \
             (get(("aci_config", "vmm_domain", "nested_inside", "type")),
