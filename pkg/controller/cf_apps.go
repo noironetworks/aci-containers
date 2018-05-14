@@ -31,6 +31,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 )
@@ -46,7 +47,7 @@ type ContainerInfo struct {
 }
 
 func (a *ContainerInfo) IsStaging() bool {
-	return a.InstanceIndex == etcd.INST_IDX_STAGING
+	return a.InstanceIndex == cf_common.INST_IDX_STAGING
 }
 
 func (a *ContainerInfo) IsApp() bool {
