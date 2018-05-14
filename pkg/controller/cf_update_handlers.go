@@ -26,6 +26,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -93,7 +94,7 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 			}
 		}
 	}
-	ep := etcd.EpInfo{AppId: cinfo.AppId,
+	ep := cf_common.EpInfo{AppId: cinfo.AppId,
 		AppName:       appInfo.AppName,
 		InstanceIndex: cinfo.InstanceIndex,
 		IpAddress:     cinfo.IpAddress,
@@ -114,35 +115,40 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 		}
 		for _, pm := range cinfo.Ports {
 			ep.PortMapping = append(ep.PortMapping,
-				etcd.PortMap{ContainerPort: pm.ContainerPort, HostPort: pm.HostPort})
+				cf_common.PortMap{ContainerPort: pm.ContainerPort,
+					HostPort: pm.HostPort})
 		}
 		ep.SecurityGroups = append(ep.SecurityGroups,
-			etcd.GroupInfo{Group: env.cont.aciNameForKey("hpp", "static"),
+			cf_common.GroupInfo{Group: env.cont.aciNameForKey("hpp", "static"),
 				Tenant: env.cont.config.AciPolicyTenant})
 		ep.SecurityGroups = append(ep.SecurityGroups,
-			etcd.GroupInfo{Group: env.cont.aciNameForKey("hpp", "cf-components"),
+			cf_common.GroupInfo{
+				Group: env.cont.aciNameForKey("hpp", "cf-components"),
 				Tenant: env.cont.config.AciPolicyTenant})
 		if sg != nil {
 			for _, s := range *sg {
 				ep.SecurityGroups = append(ep.SecurityGroups,
-					etcd.GroupInfo{Group: env.cont.aciNameForKey("asg", s),
+					cf_common.GroupInfo{Group: env.cont.aciNameForKey("asg", s),
 						Tenant: env.cont.config.AciPolicyTenant})
 			}
 		}
 		_, ok := env.netpolIdx[cinfo.AppId]
 		if ok {
 			ep.SecurityGroups = append(ep.SecurityGroups,
-				etcd.GroupInfo{Group: env.cont.aciNameForKey("np", cinfo.AppId),
+				cf_common.GroupInfo{
+					Group: env.cont.aciNameForKey("np", cinfo.AppId),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
 		if len(appInfo.ExternalIp) > 0 {
 			ep.SecurityGroups = append(ep.SecurityGroups,
-				etcd.GroupInfo{Group: env.cont.aciNameForKey("hpp", "app-ext-ip"),
+				cf_common.GroupInfo{
+					Group: env.cont.aciNameForKey("hpp", "app-ext-ip"),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
 		if len(env.GetAdditionalPorts(cinfo)) > 0 {
 			ep.SecurityGroups = append(ep.SecurityGroups,
-				etcd.GroupInfo{Group: env.cont.aciNameForKey("hpp", "app-port:"+cinfo.AppId),
+				cf_common.GroupInfo{
+					Group: env.cont.aciNameForKey("hpp", "app-port:"+cinfo.AppId),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
 		ep_json, err := json.Marshal(ep)
@@ -209,7 +215,7 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 	spi := env.spaceIdx[ainfo.SpaceId]
 	env.log.Debug(fmt.Sprintf("Handling app update: %+v", ainfo))
 
-	ai := etcd.AppInfo{}
+	ai := cf_common.AppInfo{}
 	if ainfo.VipV4 != "" {
 		ai.VirtualIp = append(ai.VirtualIp, ainfo.VipV4)
 	}

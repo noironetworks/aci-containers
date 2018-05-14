@@ -30,6 +30,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
@@ -56,8 +57,8 @@ type CfEnvironment struct {
 	kvmgr       *rkv.KvManager
 
 	indexLock sync.Locker
-	epIdx     map[string]*etcd.EpInfo
-	appIdx    map[string]*etcd.AppInfo
+	epIdx     map[string]*cf_common.EpInfo
+	appIdx    map[string]*cf_common.AppInfo
 
 	iptbl               IPTables
 	ctPortMap           map[string]map[uint32]uint32
@@ -125,8 +126,8 @@ func NewCfEnvironment(config *HostAgentConfig, log *logrus.Logger) (*CfEnvironme
 
 func (env *CfEnvironment) Init(agent *HostAgent) error {
 	env.agent = agent
-	env.epIdx = make(map[string]*etcd.EpInfo)
-	env.appIdx = make(map[string]*etcd.AppInfo)
+	env.epIdx = make(map[string]*cf_common.EpInfo)
+	env.appIdx = make(map[string]*cf_common.AppInfo)
 	env.ctPortMap = make(map[string]map[uint32]uint32)
 	env.cfNetContainerPorts = make(map[uint32]struct{})
 	if env.cfconfig.CfNetOvsPort != "" {

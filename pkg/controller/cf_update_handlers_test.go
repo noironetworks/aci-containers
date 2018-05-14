@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 )
 
 func TestCfContainerUpdateDelete(t *testing.T) {
@@ -169,10 +169,10 @@ func TestCfContainerUpdateAdditionalPorts(t *testing.T) {
 		&models.PortMapping{ContainerPort: 8888, HostPort: 33})
 	exp_ep := getExpectedEpInfo()
 	exp_ep.PortMapping = append(exp_ep.PortMapping,
-		etcd.PortMap{ContainerPort: 7777, HostPort: 32},
-		etcd.PortMap{ContainerPort: 8888, HostPort: 33})
+		cf_common.PortMap{ContainerPort: 7777, HostPort: 32},
+		cf_common.PortMap{ContainerPort: 8888, HostPort: 33})
 	exp_ep.SecurityGroups = append(exp_ep.SecurityGroups,
-		etcd.GroupInfo{Tenant: "cf", Group: "cf_hpp_app-port:app-1"})
+		cf_common.GroupInfo{Tenant: "cf", Group: "cf_hpp_app-port:app-1"})
 
 	env.handleContainerUpdate("c-1")
 	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))

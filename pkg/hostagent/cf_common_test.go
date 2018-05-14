@@ -26,6 +26,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
@@ -35,8 +36,8 @@ import (
 func testCfEnvironment(t *testing.T) *CfEnvironment {
 	env := CfEnvironment{cfNetContainerPorts: make(map[uint32]struct{}),
 		indexLock: &sync.Mutex{}}
-	env.epIdx = make(map[string]*etcd.EpInfo)
-	env.appIdx = make(map[string]*etcd.AppInfo)
+	env.epIdx = make(map[string]*cf_common.EpInfo)
+	env.appIdx = make(map[string]*cf_common.AppInfo)
 	env.ctPortMap = make(map[string]map[uint32]uint32)
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
@@ -147,20 +148,20 @@ func (l *fakeNetlinkLink) Type() string {
 	return "fake"
 }
 
-func getTestEpInfo() *etcd.EpInfo {
-	ep := &etcd.EpInfo{
+func getTestEpInfo() *cf_common.EpInfo {
+	ep := &cf_common.EpInfo{
 		AppId:         "a1",
 		AppName:       "a1-name",
 		SpaceId:       "sp1",
 		OrgId:         "org1",
 		IpAddress:     "10.255.0.45",
 		InstanceIndex: 1,
-		PortMapping: []etcd.PortMap{
+		PortMapping: []cf_common.PortMap{
 			{ContainerPort: 8080, HostPort: 60010},
 			{ContainerPort: 2222, HostPort: 60011}},
 		EpgTenant: "cf",
 		Epg:       "epg1",
-		SecurityGroups: []etcd.GroupInfo{
+		SecurityGroups: []cf_common.GroupInfo{
 			{Tenant: "c", Group: "sg1"},
 			{Tenant: "d", Group: "sg2"}},
 	}
@@ -242,8 +243,8 @@ func checkOpflexService(t *testing.T, exp, actual *opflexService) {
 	actual.ServiceMappings = actual_map
 }
 
-func getTestAppInfo() *etcd.AppInfo {
-	app := &etcd.AppInfo{
+func getTestAppInfo() *cf_common.AppInfo {
+	app := &cf_common.AppInfo{
 		ContainerIps: []string{"10.255.0.10", "10.255.0.45"},
 		VirtualIp:    []string{"10.254.0.5"},
 		ExternalIp:   []string{"150.150.0.3"},

@@ -25,7 +25,7 @@ import (
 	"code.cloudfoundry.org/bbs/models"
 	"github.com/Sirupsen/logrus"
 
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 )
 
 type AppAndSpace struct {
@@ -134,9 +134,9 @@ func (env *CfEnvironment) processBbsTask(task *models.Task) {
 	if as == nil {
 		return
 	}
-	instIdx := etcd.INST_IDX_STAGING
+	instIdx := cf_common.INST_IDX_STAGING
 	if task.Domain == "cf-tasks" {
-		instIdx = etcd.INST_IDX_TASK
+		instIdx = cf_common.INST_IDX_TASK
 	}
 	appInfo := env.constructAppInfo(as)
 	cinfo := &ContainerInfo{ContainerId: task.TaskGuid,
