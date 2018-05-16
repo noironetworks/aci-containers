@@ -15,19 +15,15 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
 	"strings"
 
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
-	etcdclient "github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -108,7 +104,6 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 		env.cont.addPodToNode(cinfo.CellId, contId)
 		env.cont.indexMutex.Unlock()
 
-		ctKey := etcd.CELL_KEY_BASE + "/" + cinfo.CellId + "/containers/" + cinfo.ContainerId
 		if spaceInfo != nil {
 			ep.SpaceId = spaceInfo.SpaceId
 			ep.OrgId = spaceInfo.OrgId
@@ -151,19 +146,6 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 					Group: env.cont.aciNameForKey("hpp", "app-port:"+cinfo.AppId),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
-		ep_json, err := json.Marshal(ep)
-		if err != nil {
-			env.log.Error("Unable to serialize EP info: ", err)
-		} else {
-			kapi := env.etcdKeysApi
-			_, err = kapi.Set(context.Background(), ctKey+"/ep", string(ep_json), nil)
-			if err != nil {
-				env.log.Error("Error setting container info: ", err)
-				retry = true
-			} else {
-				env.log.Debug(fmt.Sprintf("Wrote to etcd %s = %s", ctKey+"/ep", string(ep_json)))
-			}
-		}
 		env.kvmgr.Set("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId, &ep)
 	}
 	if spaceInfo != nil {
@@ -193,13 +175,6 @@ func (env *CfEnvironment) handleContainerDeleteLocked(cinfo *ContainerInfo) bool
 		env.cont.removePodFromNode(cinfo.CellId, cinfo.ContainerId)
 		env.cont.indexMutex.Unlock()
 
-		kapi := env.etcdKeysApi
-		ctKey := etcd.CELL_KEY_BASE + "/" + cinfo.CellId + "/containers/" + cinfo.ContainerId
-		_, err := kapi.Delete(context.Background(), ctKey, &etcdclient.DeleteOptions{Recursive: true})
-		if err != nil {
-			env.log.Error("Error deleting container node: ", err)
-			retry = !etcd.IsKeyNotFoundError(err)
-		}
 		env.kvmgr.Delete("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId)
 	}
 	env.cont.apicConn.ClearApicObjects("inj_contgrp:" + cinfo.ContainerId)
@@ -236,18 +211,6 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 	sort.Strings(ai.ContainerIps) // mainly done for unit-tests
 	for _, eip := range ainfo.ExternalIp {
 		ai.ExternalIp = append(ai.ExternalIp, eip)
-	}
-	app_json, err := json.Marshal(ai)
-	if err != nil {
-		env.log.Error("Unable to serialize App info: ", err)
-	} else {
-		kapi := env.etcdKeysApi
-		appKey := etcd.APP_KEY_BASE + "/" + appId
-		_, err = kapi.Set(context.Background(), appKey, string(app_json), nil)
-		if err != nil {
-			env.log.Error("Error setting app info: ", err)
-			retry = true
-		}
 	}
 	env.kvmgr.Set("apps", appId, &ai)
 	if len(ai.ExternalIp) > 0 {
@@ -405,13 +368,6 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 
 func (env *CfEnvironment) handleAppDeleteLocked(appId string, ainfo *AppInfo) bool {
 	retry := false
-	kapi := env.etcdKeysApi
-	appKey := etcd.APP_KEY_BASE + "/" + appId
-	_, err := kapi.Delete(context.Background(), appKey, &etcdclient.DeleteOptions{Recursive: true})
-	if err != nil {
-		env.log.Error("Error deleting app etcd node: ", err)
-		retry = !etcd.IsKeyNotFoundError(err)
-	}
 	env.kvmgr.Delete("apps", appId)
 
 	env.cleanupEpgAnnotation(appId, CF_OBJ_APP)

@@ -15,16 +15,11 @@
 package hostagent
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
 
-	etcdclient "github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
-
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -37,33 +32,6 @@ func (env *CfEnvironment) updateContainerMetadata(metadataKey *string) {
 	env.agent.indexMutex.Lock()
 	md, mdok := env.agent.epMetadata[*metadataKey]
 	env.agent.indexMutex.Unlock()
-
-	kapi := env.etcdKeysApi
-	key := etcd.CONTROLLER_KEY_BASE + "/containers/" + ctId
-	var err error
-	if !mdok {
-		_, err = kapi.Delete(context.Background(), key,
-			 &etcdclient.DeleteOptions{Recursive: true})
-		if err != nil {
-			if etcd.IsKeyNotFoundError(err) {
-				env.log.Info(
-					fmt.Sprintf("Etcd subtree %s doesn't exist yet", key))
-				err = nil
-			}
-		}
-	} else {
-		if md[ctId] != nil && md[ctId].Ifaces != nil {
-			var md_json []byte
-			md_json, err = json.Marshal(md[ctId].Ifaces)
-			if err == nil {
-				_, err = kapi.Set(context.Background(),
-					key+"/metadata", string(md_json), nil)
-			}
-		}
-	}
-	if err != nil {
-		env.log.Error("Failed to update container metadata in etcd: ", err)
-	}
 
 	if !mdok || md[ctId] == nil {
 		env.kvmgr.Delete("container", ctId)

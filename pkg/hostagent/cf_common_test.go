@@ -15,7 +15,6 @@
 package hostagent
 
 import (
-	"encoding/json"
 	"net"
 	"strings"
 	"sync"
@@ -24,11 +23,8 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
-	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -62,30 +58,8 @@ func testCfEnvironment(t *testing.T) *CfEnvironment {
 		CfNetOvsPort: "cf-net-legacy", CfNetIntfAddress: "169.254.169.254"}
 	env.iptbl = &fakeIpTables{rules: make(map[string]struct{})}
 	env.cfNetLink = &fakeNetlinkLink{fakeMac: "cc:ff:00:55:ee:dd"}
-	env.etcdKeysApi = etcd_f.NewFakeEtcdKeysApi(log)
 	env.kvmgr = rkv.NewKvManager()
 	return &env
-}
-
-func (e *CfEnvironment) fakeEtcdKeysApi() *etcd_f.FakeEtcdKeysApi {
-	return e.etcdKeysApi.(*etcd_f.FakeEtcdKeysApi)
-}
-
-func (e *CfEnvironment) GetContainerMetadata(ctId string) map[string]*md.ContainerMetadata {
-	key := etcd.CONTROLLER_KEY_BASE + "/containers/" + ctId + "/metadata"
-	resp, err := e.etcdKeysApi.Get(context.Background(), key, nil)
-	if err == nil {
-		meta := md.ContainerMetadata{
-			Id: md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId}}
-		er := json.Unmarshal([]byte(resp.Node.Value), &meta.Ifaces)
-		if er != nil {
-			panic(er.Error())
-		}
-		res := make(map[string]*md.ContainerMetadata)
-		res[ctId] = &meta
-		return res
-	}
-	return nil
 }
 
 func (e *CfEnvironment) GetKvContainerMetadata(ctId string) map[string]*md.ContainerMetadata {

@@ -16,7 +16,6 @@ package controller
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -25,12 +24,9 @@ import (
 	"code.cloudfoundry.org/bbs/models"
 	locketmodels "code.cloudfoundry.org/locket/models"
 	locketfakes "code.cloudfoundry.org/locket/models/modelsfakes"
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 
@@ -39,16 +35,11 @@ import (
 
 func TestCfLoadCellNetworkInfo(t *testing.T) {
 	env := testCfEnvironment(t)
-	k := env.fakeEtcdKeysApi()
 	cellId := "cell-1"
-	key := etcd.CELL_KEY_BASE + "/" + cellId + "/network"
-	ctx := context.Background()
 
 	env.LoadCellNetworkInfo(cellId)
 	_, ok := env.cont.nodePodNetCache[cellId]
 	assert.False(t, ok)
-	v, _ := k.Get(ctx, key, nil)
-	assert.Nil(t, v)
 
 	nodeMeta := newNodePodNetMeta()
 	nodeMeta.podNetIps.V4 = append(nodeMeta.podNetIps.V4,
@@ -69,8 +60,6 @@ func TestCfLoadCellNetworkInfo(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, nodeMeta.podNetIps, r.podNetIps)
 	assert.Equal(t, nodeMeta.podNetIpsAnnotation, r.podNetIpsAnnotation)
-	v, _ = k.Get(ctx, key, nil)
-	assert.Equal(t, nodeMeta.podNetIpsAnnotation, v.Node.Value)
 	item, _ := env.kvmgr.Get("cell/cell-1", "network")
 	assert.NotNil(t, item.Value)
 	assert.Equal(t, r.podNetIpsAnnotation, item.Value.(string))
@@ -78,12 +67,9 @@ func TestCfLoadCellNetworkInfo(t *testing.T) {
 
 func TestCfSetCellServiceInfo(t *testing.T) {
 	env := testCfEnvironment(t)
-	k := env.fakeEtcdKeysApi()
 	cellId := "cell-1"
 	nodename := "diego-cell-" + cellId
 	svcepdb := CellServiceEpDb{}
-	key := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
-	ctx := context.Background()
 
 	// cleanup initial state
 	delete(env.cont.nodeOpflexDevice, nodename)
@@ -98,8 +84,6 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Nil(t, ep)
 	})
-	v, _ := k.Get(ctx, key, nil)
-	assert.Nil(t, v)
 
 	// set opflex device MAC
 	odev := apicapi.EmptyApicObject("opflexODev", "/dev/"+nodename)
@@ -118,9 +102,6 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, r.serviceEp, *ep)
 	})
-	svcEpStr, _ := json.Marshal(r.serviceEp)
-	v, _ = k.Get(ctx, key, nil)
-	assert.Equal(t, string(svcEpStr), v.Node.Value)
 	item, _ := env.kvmgr.Get("cell/cell-1", "service")
 	assert.NotNil(t, item.Value)
 	assert.Equal(t, r.serviceEp, *(item.Value.(*metadata.ServiceEndpoint)))
@@ -147,34 +128,9 @@ func TestCfSetCellServiceInfo(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, r.serviceEp, *ep)
 	})
-	svcEpStr, _ = json.Marshal(r.serviceEp)
-	v, _ = k.Get(ctx, key, nil)
-	assert.Equal(t, string(svcEpStr), v.Node.Value)
 	item, _ = env.kvmgr.Get("cell/cell-1", "service")
 	assert.NotNil(t, item.Value)
 	assert.Equal(t, r.serviceEp, *(item.Value.(*metadata.ServiceEndpoint)))
-}
-
-func TestCfEtcdStaleCleanup(t *testing.T) {
-	env := testCfEnvironment(t)
-	k := env.fakeEtcdKeysApi()
-	ctx := context.Background()
-
-	k.Set(ctx, "/aci", "", nil)
-	keys := []string{"/aci/cells/cell-1/containers/c-stale",
-		"/aci/cells/cell-10/containers/c-1",
-		"/aci/apps/app-stale"}
-	for _, ky := range keys {
-		k.Set(ctx, ky, "", nil)
-	}
-
-	env.cleanupEtcdContainers()
-	err := etcdclient.Error{Code: etcdclient.ErrorCodeKeyNotFound}
-	for _, ky := range keys {
-		resp, e := k.Get(ctx, ky, nil)
-		assert.Nil(t, resp)
-		assert.Equal(t, err, e)
-	}
 }
 
 func TestCfInitStaticAciObjects(t *testing.T) {
@@ -214,8 +170,6 @@ func TestCfNodePodNetworkChanged(t *testing.T) {
 	env.cont.nodePodNetCache["cell-10"] = nodeMeta
 
 	env.NodePodNetworkChanged("cell-10")
-	v, _ := env.fakeEtcdKeysApi().Get(context.Background(), "/aci/cells/cell-10/network", nil)
-	assert.Equal(t, nodeMeta.podNetIpsAnnotation, v.Node.Value)
 
 	txn(env.db, func(txn *sql.Tx) {
 		netdb := CellPodNetDb{}

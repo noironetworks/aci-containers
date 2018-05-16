@@ -25,13 +25,10 @@ import (
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -53,7 +50,6 @@ type IPTables interface {
 type CfEnvironment struct {
 	agent       *HostAgent
 	cfconfig    *CfConfig
-	etcdKeysApi etcdclient.KeysAPI
 	kvmgr       *rkv.KvManager
 
 	indexLock sync.Locker
@@ -73,11 +69,6 @@ type CfEnvironment struct {
 type CfConfig struct {
 	CellID      string `json:"cell_id,omitempty"`
 	CellAddress string `json:"cell_address,omitempty"`
-
-	EtcdUrl            string `json:"etcd_url,omitempty"`
-	EtcdCACertFile     string `json:"etcd_ca_cert_file"`
-	EtcdClientCertFile string `json:"etcd_client_cert_file"`
-	EtcdClientKeyFile  string `json:"etcd_client_key_file"`
 
 	ControllerAddress string `json:"controller_address,omitempty"`
 
@@ -112,16 +103,8 @@ func NewCfEnvironment(config *HostAgentConfig, log *logrus.Logger) (*CfEnvironme
 		"cell-id":  cfconfig.CellID,
 	}).Info("Setting up CloudFoundry environment")
 
-	etcdClient, err := etcd.NewEtcdClient(cfconfig.EtcdUrl, cfconfig.EtcdCACertFile,
-		cfconfig.EtcdClientCertFile, cfconfig.EtcdClientKeyFile)
-	if err != nil {
-		log.Error("Failed to create Etcd client: ", err)
-		return nil, err
-	}
-	etcdKeysApi := etcdclient.NewKeysAPI(etcdClient)
-
-	return &CfEnvironment{etcdKeysApi: etcdKeysApi, log: log,
-		cfconfig: cfconfig, indexLock: &sync.Mutex{}}, nil
+	return &CfEnvironment{log: log, cfconfig: cfconfig,
+		indexLock: &sync.Mutex{}}, nil
 }
 
 func (env *CfEnvironment) Init(agent *HostAgent) error {
@@ -166,23 +149,14 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) (
 		return
 	}
 
-	if env.cfconfig.ControllerAddress != "" {
-		go env.kvmgr.ServeWatch(stopCh)
-		kv_client := NewCfKvClient(env)
-		go kv_client.Watcher().Watch(stopCh)
-		go kv_client.Run(stopCh)
-		env.publishCniMetadata()
-	} else {
-		etcd_cell_w := NewCfEtcdCellWatcher(env)
-		etcd_app_w := NewCfEtcdAppWatcher(env)
-		go etcd_cell_w.Run(stopCh)
-		go etcd_app_w.Run(stopCh)
-		cache.WaitForCacheSync(stopCh, etcd_cell_w.Synced, etcd_app_w.Synced)
-		syncEnabled = true
-	}
+	go env.kvmgr.ServeWatch(stopCh)
+	kv_client := NewCfKvClient(env)
+	go kv_client.Watcher().Watch(stopCh)
+	go kv_client.Run(stopCh)
+	env.publishCniMetadata()
 
 	if env.agent.podNetAnnotation == "" {
-		env.log.Info("Cell network info node not found in etcd, using default pool")
+		env.log.Info("Cell network info node not found, using default pool")
 		defIpPool := env.getDefaultIpPool()
 		env.agent.updateIpamAnnotation(defIpPool)
 	}

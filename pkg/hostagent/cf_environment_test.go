@@ -34,7 +34,6 @@ func TestCfCniDeviceOps(t *testing.T) {
 
 	env.CniDeviceChanged(&mdKey, &id)
 
-	assert.Equal(t, meta, env.GetContainerMetadata("one"))
 	assert.Equal(t, meta, env.GetKvContainerMetadata("one"))
 	_, ok := env.agent.opflexEps["one"]
 	assert.True(t, ok)
@@ -43,7 +42,6 @@ func TestCfCniDeviceOps(t *testing.T) {
 	delete(env.epIdx, "one")
 	env.CniDeviceDeleted(&mdKey, &id)
 
-	assert.Nil(t, env.GetContainerMetadata("one"))
 	assert.Nil(t, env.GetKvContainerMetadata("one"))
 	_, ok = env.agent.opflexEps["one"]
 	assert.False(t, ok)
