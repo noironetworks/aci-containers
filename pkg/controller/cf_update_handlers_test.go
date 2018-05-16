@@ -29,7 +29,6 @@ func TestCfContainerUpdateDelete(t *testing.T) {
 	env := testCfEnvironment(t)
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, getExpectedEpInfo(), env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, getExpectedEpInfo(), env.GetKvEpInfo("cell-1", "c-1"))
 
 	exp_inj_cont := apicapi.NewVmmInjectedOrgUnitContGrp(
@@ -44,7 +43,6 @@ func TestCfContainerUpdateDelete(t *testing.T) {
 	cinfo := env.contIdx["c-1"]
 	delete(env.contIdx, "c-1")
 	env.handleContainerDelete(cinfo)
-	assert.Nil(t, env.GetEpInfo("cell-1", "c-1"))
 	assert.Nil(t, env.GetKvEpInfo("cell-1", "c-1"))
 	env.checkApicDesiredState(t, "inj_contgrp:c-1", nil)
 }
@@ -58,7 +56,6 @@ func TestCfContainerUpdateStaging(t *testing.T) {
 	exp_ep.SecurityGroups[2].Group = "cf_asg_ASG_S1"
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 }
 
@@ -72,7 +69,6 @@ func TestCfContainerUpdateTask(t *testing.T) {
 	exp_ep.TaskName = "task 123"
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 }
 
@@ -84,7 +80,6 @@ func TestCfContainerUpdateIsolationSegment(t *testing.T) {
 	exp_ep.Epg = "auto|isolate1"
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 }
 
@@ -97,7 +92,6 @@ func TestCfContainerUpdateSharedIsolationSegment(t *testing.T) {
 	exp_ep := getExpectedEpInfo()
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 
 	// EPG annotations are honored for "shared" IS
@@ -108,7 +102,6 @@ func TestCfContainerUpdateSharedIsolationSegment(t *testing.T) {
 	})
 	exp_ep.Epg = "auto|epg-app"
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 }
 
@@ -129,7 +122,6 @@ func TestCfContainerUpdateEpgAnnotation(t *testing.T) {
 		})
 		exp_ep.Epg = app_prof + "epg-org"
 		env.handleContainerUpdate("c-1")
-		assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 		assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 
 		// add space annotation
@@ -139,7 +131,6 @@ func TestCfContainerUpdateEpgAnnotation(t *testing.T) {
 		})
 		exp_ep.Epg = app_prof + "epg-space"
 		env.handleContainerUpdate("c-1")
-		assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 		assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 
 		// add app annotation
@@ -149,7 +140,6 @@ func TestCfContainerUpdateEpgAnnotation(t *testing.T) {
 		})
 		exp_ep.Epg = app_prof + "epg-app"
 		env.handleContainerUpdate("c-1")
-		assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 		assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 
 		// cleanup for next loop
@@ -175,7 +165,6 @@ func TestCfContainerUpdateAdditionalPorts(t *testing.T) {
 		cf_common.GroupInfo{Tenant: "cf", Group: "cf_hpp_app-port:app-1"})
 
 	env.handleContainerUpdate("c-1")
-	assert.Equal(t, exp_ep, env.GetEpInfo("cell-1", "c-1"))
 	assert.Equal(t, exp_ep, env.GetKvEpInfo("cell-1", "c-1"))
 }
 
@@ -203,7 +192,6 @@ func TestCfAppUpdateDelete(t *testing.T) {
 	exp_inj_depl.SetAttr("replicas", "4")
 
 	env.handleAppUpdate("app-1")
-	assert.Equal(t, exp_app, env.GetAppInfo("app-1"))
 	assert.Equal(t, exp_app, env.GetKvAppInfo("app-1"))
 	env.checkApicDesiredState(t, "inj_depl:app-1", exp_inj_depl)
 	assert.NotNil(t, env.cont.apicConn.GetDesiredState("app_ext_ip:app-1"))
@@ -214,7 +202,6 @@ func TestCfAppUpdateDelete(t *testing.T) {
 	ainfo := env.appIdx["app-1"]
 	delete(env.appIdx, "app-1")
 	env.handleAppDelete(ainfo)
-	assert.Nil(t, env.GetAppInfo("app-1"))
 	assert.Nil(t, env.GetKvAppInfo("app-1"))
 	env.checkApicDesiredState(t, "inj_depl:app-1", nil)
 	assert.Nil(t, env.cont.apicConn.GetDesiredState("app_ext_ip:app-1"))

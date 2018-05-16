@@ -27,12 +27,9 @@ import (
 	"code.cloudfoundry.org/bbs/models"
 
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
-	etcdclient "github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 )
 
@@ -292,51 +289,6 @@ func (env *CfEnvironment) spaceFetchQueueHandler(spaceId interface{}) bool {
 		// TODO: Check if name has changed, and if so update all containers in the isolation segment
 	}
 	return false
-}
-
-func (env *CfEnvironment) cleanupEtcdContainers() error {
-	// TODO Remove when we don't use etcd anymore for container/app info
-	kapi := env.etcdKeysApi
-	cellKey := etcd.ACI_KEY_BASE
-	resp, err := kapi.Get(context.Background(), cellKey, &etcdclient.GetOptions{Recursive: true})
-	if err != nil {
-		env.log.Error("Unable to fetch etcd container nodes: ", err)
-		return err
-	}
-	var nodes etcdclient.Nodes
-	etcd.FlattenNodes(resp.Node, &nodes)
-
-	env.indexLock.Lock()
-	defer env.indexLock.Unlock()
-
-	for _, n := range nodes {
-		key_parts := strings.Split(n.Key, "/")
-		if len(key_parts) == 6 && key_parts[4] == "containers" {
-			// process keys of the form /aci/cells/<cell-id>/containers/<container-id>
-			cell_id := key_parts[3]
-			cont_id := key_parts[5]
-			c := env.contIdx[cont_id]
-			if c == nil || c.CellId != cell_id {
-				env.log.Info(fmt.Sprintf("Deleting stale container %s on cell %s", cont_id, cell_id))
-				_, err := kapi.Delete(context.Background(), n.Key, &etcdclient.DeleteOptions{Recursive: true})
-				if err != nil {
-					env.log.Error("Error deleting container node: ", err)
-				}
-			}
-		} else if len(key_parts) == 4 && key_parts[2] == "apps" {
-			// process keys of the form /aci/apps/<app-id>
-			appId := key_parts[3]
-			app := env.appIdx[appId]
-			if app == nil {
-				env.log.Info(fmt.Sprintf("Deleting stale app %s", appId))
-				_, err := kapi.Delete(context.Background(), n.Key, &etcdclient.DeleteOptions{Recursive: true})
-				if err != nil {
-					env.log.Error("Error deleting app node: ", err)
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func NewNetworkPolicyPoller(env *CfEnvironment) *CfPoller {
