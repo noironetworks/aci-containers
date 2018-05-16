@@ -39,14 +39,12 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
-	etcdclient "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
@@ -59,7 +57,6 @@ type CfEnvironment struct {
 
 	bbsClient    bbs.Client
 	ccClient     cfapi.CcClient
-	etcdKeysApi  etcdclient.KeysAPI
 	netpolClient cfapi.PolicyClient
 	cfAuthClient cfapi.CfAuthClient
 	cfLogger     lager.Logger
@@ -106,11 +103,6 @@ type CfConfig struct {
 	CCApiUrl      string `json:"cc_api_url,omitempty"`
 	CCApiUsername string `json:"cc_api_username,omitempty"`
 	CCApiPassword string `json:"cc_api_password,omitempty"`
-
-	EtcdUrl            string `json:"etcd_url,omitempty"`
-	EtcdCACertFile     string `json:"etcd_ca_cert_file"`
-	EtcdClientCertFile string `json:"etcd_client_cert_file"`
-	EtcdClientKeyFile  string `json:"etcd_client_key_file"`
 
 	UaaUrl          string `json:"uaa_url,omitempty"`
 	UaaCACertFile   string `json:"uaa_ca_cert_file"`
@@ -261,13 +253,6 @@ func (env *CfEnvironment) Init(cont *AciController) error {
 	}
 
 	env.kvmgr = rkv.NewKvManager()
-	etcdClient, err := etcd.NewEtcdClient(env.cfconfig.EtcdUrl, env.cfconfig.EtcdCACertFile,
-		env.cfconfig.EtcdClientCertFile, env.cfconfig.EtcdClientKeyFile)
-	if err != nil {
-		env.log.Error("Failed to create Etcd client: ", err)
-		return err
-	}
-	env.etcdKeysApi = etcdclient.NewKeysAPI(etcdClient)
 
 	env.netpolClient, err = cfapi.NewNetPolClient(env.cfconfig.NetPolApiUrl,
 		env.cfconfig.NetPolCACertFile,
@@ -406,11 +391,6 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cellPoller.Run(true, stopCh)
 	cache.WaitForCacheSync(stopCh, netPolPoller.Synced, cellPoller.Synced)
 
-	// Start the etcd watcher after intial-sync of containers
-	etcd_cont_w := NewCfEtcdContainersWatcher(env)
-	go etcd_cont_w.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, etcd_cont_w.Synced)
-
 	// start cleanup pollers
 	app_poller := NewAppCloudControllerPoller(env)
 	space_poller := NewSpaceCloudControllerPoller(env)
@@ -422,11 +402,6 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		org_poller.Synced)
 	go NewAsgCleanupPoller(env).Run(false, stopCh)
 
-	env.log.Debug("Cleaning up stale etcd entries")
-	err = env.cleanupEtcdContainers()
-	if err != nil {
-		env.log.Warning("Error cleaning up stale etcd container nodes: ", err)
-	}
 	return nil
 }
 
@@ -633,7 +608,6 @@ func (env *CfEnvironment) UpdateHppForCfComponents() {
 
 // must be called with cont.indexMutex locked
 func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
-	// TODO Load from DB instead of etcd
 	if _, ok := env.cont.nodePodNetCache[cellId]; ok {
 		return
 	}
@@ -657,15 +631,6 @@ func (env *CfEnvironment) LoadCellNetworkInfo(cellId string) {
 		"Read pod net from DB: ", nodePodNet.podNetIpsAnnotation)
 	env.cont.nodePodNetCache[cellId] = nodePodNet
 
-	// write to etcd for host-agent to read
-	cellKey := etcd.CELL_KEY_BASE + "/" + cellId
-	kapi := env.etcdKeysApi
-	_, err = kapi.Set(context.Background(), cellKey+"/network",
-		nodePodNet.podNetIpsAnnotation, nil)
-	if err != nil {
-		env.log.WithField("cellId", cellId).Error(
-			"Error setting etcd net info for cell: ", err)
-	}
 	env.kvmgr.Set("cell/"+cellId, "network", nodePodNet.podNetIpsAnnotation)
 }
 
@@ -686,7 +651,6 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 		return
 	}
 
-	// TODO Use DB for load-store below instead of etcd
 	nodeMeta := &nodeServiceMeta{}
 	existing := &metadata.ServiceEndpoint{}
 	svcepdb := CellServiceEpDb{}
@@ -728,21 +692,6 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 	env.cont.nodeServiceMetaCache[nodeName] = nodeMeta
 	env.kvmgr.Set("cell/"+cellId, "service", &nodeMeta.serviceEp)
 
-	// write to etcd for host-agent to read
-	kapi := env.etcdKeysApi
-	cellKey := etcd.CELL_KEY_BASE + "/" + cellId + "/service"
-	raw, err := json.Marshal(&nodeMeta.serviceEp)
-	if err != nil {
-		env.log.Error("Could not marshal cell service info: ", err)
-	} else {
-		_, err = kapi.Set(context.Background(), cellKey, string(raw), nil)
-		logger := env.log.WithField("cellId", cellId)
-		if err != nil {
-			logger.Error("Unable to set service-EP in etcd: ", err)
-		} else {
-			env.log.Debug("Wrote service-EP to etcd: ", string(raw))
-		}
-	}
 	return
 }
 
@@ -763,13 +712,6 @@ func (env *CfEnvironment) NodePodNetworkChanged(nodename string) {
 		}
 		txn.Commit()
 
-		cellKey := etcd.CELL_KEY_BASE + "/" + nodename
-		kapi := env.etcdKeysApi
-		_, err := kapi.Set(context.Background(), cellKey+"/network",
-			podnet.podNetIpsAnnotation, nil)
-		if err != nil {
-			env.log.Error("Error setting etcd net info for cell: ", err)
-		}
 		env.kvmgr.Set("cell/"+nodename, "network", podnet.podNetIpsAnnotation)
 	}
 }

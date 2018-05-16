@@ -16,7 +16,6 @@ package controller
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -31,13 +30,10 @@ import (
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 	wq "k8s.io/client-go/util/workqueue"
 
 	apic "github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	etcd "github.com/noironetworks/aci-containers/pkg/cf_etcd"
-	etcd_f "github.com/noironetworks/aci-containers/pkg/cf_etcd_fakes"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/cfapi/cfapi_fakes"
@@ -96,7 +92,6 @@ func testCfEnvironmentNoMigration(t *testing.T) *CfEnvironment {
 	env.netpolClient = &cfapi_fakes.FakePolicyClient{}
 	env.cfLogger = lager.NewLogger("CfEnv")
 
-	env.etcdKeysApi = etcd_f.NewFakeEtcdKeysApi(log)
 	env.kvmgr = rkv.NewKvManager()
 	env.initIndexes()
 	env.setupIndexes()
@@ -121,10 +116,6 @@ func (e *CfEnvironment) fakeCfAuthClient() *cfapi_fakes.FakeCfAuthClient {
 
 func (e *CfEnvironment) fakePolicyClient() *cfapi_fakes.FakePolicyClient {
 	return e.netpolClient.(*cfapi_fakes.FakePolicyClient)
-}
-
-func (e *CfEnvironment) fakeEtcdKeysApi() *etcd_f.FakeEtcdKeysApi {
-	return e.etcdKeysApi.(*etcd_f.FakeEtcdKeysApi)
 }
 
 func (e *CfEnvironment) fakeBbsClient() *fake_bbs.FakeClient {
@@ -234,34 +225,6 @@ func (e *CfEnvironment) setupCcClientFakes() {
 	cc.On("GetAppSpace", "app-1").Return("space-1", nil)
 	cc.On("GetAppSpace", "app-2").Return("space-1", nil)
 	cc.On("GetAppSpace", "app-3").Return("space-2", nil)
-}
-
-func (e *CfEnvironment) GetEpInfo(cell, cont string) *cf_common.EpInfo {
-	key := etcd.CELL_KEY_BASE + "/" + cell + "/containers/" + cont + "/ep"
-	resp, err := e.etcdKeysApi.Get(context.Background(), key, nil)
-	if err == nil {
-		var ep cf_common.EpInfo
-		er := json.Unmarshal([]byte(resp.Node.Value), &ep)
-		if er != nil {
-			panic(er.Error())
-		}
-		return &ep
-	}
-	return nil
-}
-
-func (e *CfEnvironment) GetAppInfo(appId string) *cf_common.AppInfo {
-	key := etcd.APP_KEY_BASE + "/" + appId
-	resp, err := e.etcdKeysApi.Get(context.Background(), key, nil)
-	if err == nil {
-		var app cf_common.AppInfo
-		er := json.Unmarshal([]byte(resp.Node.Value), &app)
-		if er != nil {
-			panic(er.Error())
-		}
-		return &app
-	}
-	return nil
 }
 
 func (e *CfEnvironment) GetKvEpInfo(cell, cont string) *cf_common.EpInfo {
