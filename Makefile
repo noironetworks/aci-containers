@@ -14,7 +14,7 @@ SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 CFAPI_SRC=$(wildcard pkg/cfapi/*.go)
 CF_ETCD_SRC=$(wildcard pkg/cf_etcd/*.go)
 CF_ETCD_FAKES_SRC=$(wildcard pkg/cf_etcd_fakes/*.go)
-KEYVALUESVC_SRC=$(wildcard pkg/cf_remotekeyvalue/*.go)
+KEYVALUESVC_SRC=$(wildcard pkg/keyvalueservice/*.go)
 DEBIAN_FILES=$(wildcard debian/*)
 GOPKG_FILES=$(wildcard Gopkg.*)
 
