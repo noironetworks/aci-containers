@@ -306,7 +306,7 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 		hppDiscovery.AddChild(discSubj)
 	}
 
-	return apicapi.ApicSlice{hppEgress, hppDiscovery}
+	return apicapi.ApicSlice{hppIngress, hppEgress, hppDiscovery}
 }
 
 func (cont *AciController) initStaticNetPolObjs() {
