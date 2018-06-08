@@ -251,8 +251,15 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 
 // must have index lock
 func (cont *AciController) deviceMacForNode(name string) (string, bool) {
-	for _, device := range cont.nodeOpflexDevice[name] {
-		return device.GetAttrStr("mac"), true
+	sz := len(cont.nodeOpflexDevice[name])
+	if sz > 0 {
+		// When the opflex-device for a node changes, for example when the
+		// node is recreated, we end up with both the old and the new
+		// device objects till the old object ages out on APIC. The
+		// new object is at end of the devices list (see
+		// opflexDeviceChanged), so we return the MAC address of the
+		// last opflex-device.
+		return cont.nodeOpflexDevice[name][sz-1].GetAttrStr("mac"), true
 	}
 	return "", false
 }
