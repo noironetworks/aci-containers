@@ -94,10 +94,6 @@
   branch = "master"
 
 [[constraint]]
-  name = "github.com/coreos/etcd"
-  version = "3.2.9"
-
-[[constraint]]
   name = "code.cloudfoundry.org/cfhttp"
   branch = "master"
 
