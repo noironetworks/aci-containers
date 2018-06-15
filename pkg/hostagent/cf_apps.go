@@ -15,7 +15,6 @@
 package hostagent
 
 import (
-	"fmt"
 	"net"
 	"reflect"
 
@@ -61,76 +60,10 @@ func (env *CfEnvironment) cfAppContainerChanged(ctId *string,
 	epAttributes["org-id"] = ep.OrgId
 	epAttributes["container-id"] = *ctId
 
-	// Update iptables rules and container ports-set
-	cportset := make(map[uint32]struct{})
-	env.indexLock.Lock()
-	for p := range env.cfNetContainerPorts {
-		cportset[p] = struct{}{}
-	}
-	// pre-routing DNAT rules
-	env.updatePreNatRule(ctId, ep, ep.PortMapping)
-	// post-routing SNAT rules
-	for _, pmap := range ep.PortMapping {
-		cport := fmt.Sprintf("%d", pmap.ContainerPort)
-		err := env.iptbl.AppendUnique("nat", NAT_POST_CHAIN, "-o", env.cfconfig.CfNetOvsPort, "-p", "tcp",
-			"-m", "tcp", "--dport", cport, "-j", "SNAT", "--to-source",
-			env.cfconfig.CfNetIntfAddress)
-		if err != nil {
-			env.log.Warning("Failed to add post-routing iptables rule: ", err)
-		}
-		cportset[pmap.ContainerPort] = struct{}{}
-	}
-	cfnet_update := !reflect.DeepEqual(env.cfNetContainerPorts, cportset)
-	if cfnet_update {
-		env.cfNetContainerPorts = cportset
-	}
-	env.indexLock.Unlock()
-
 	env.agent.indexMutex.Lock()
 	env.agent.epChanged(ctId, &metaKey, epGroup, secGroup, epAttributes, nil)
-	if cfnet_update {
-		env.updateLegacyCfNetService(cportset)
-	}
 	env.agent.indexMutex.Unlock()
-}
-
-// must be called with env.indexLock
-func (env *CfEnvironment) updatePreNatRule(ctId *string,
-	ep *cf_common.EpInfo, portmap []cf_common.PortMap) {
-	ctIp := net.ParseIP(ep.IpAddress)
-	if ctIp == nil || (env.cfNetv4 && ctIp.To4() == nil) {
-		return
-	}
-	old_pm := env.ctPortMap[*ctId]
-	new_pm := make(map[uint32]uint32)
-	for _, ch := range portmap {
-		err := env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "-d",
-			env.cfconfig.CellAddress, "-p", "tcp",
-			"--dport", fmt.Sprintf("%d", ch.HostPort),
-			"-j", "DNAT", "--to-destination",
-			ep.IpAddress+":"+fmt.Sprintf("%d", ch.ContainerPort))
-		if err != nil {
-			env.log.Warning(fmt.Sprintf("Failed to add pre-routing "+
-				"iptables rule for %s: %v", *ctId, err))
-		}
-		new_pm[ch.HostPort] = ch.ContainerPort
-		delete(old_pm, ch.HostPort)
-	}
-	for hp, cp := range old_pm {
-		args := []string{"-d", env.cfconfig.CellAddress, "-p", "tcp", "--dport",
-			fmt.Sprintf("%d", hp), "-j", "DNAT", "--to-destination",
-			ep.IpAddress + ":" + fmt.Sprintf("%d", cp)}
-		exist, _ := env.iptbl.Exists("nat", NAT_PRE_CHAIN, args...)
-		if !exist {
-			continue
-		}
-		err := env.iptbl.Delete("nat", NAT_PRE_CHAIN, args...)
-		if err != nil {
-			env.log.Warning(fmt.Sprintf("Failed to delete pre-routing "+
-				"iptables rule for %s: %v", *ctId, err))
-		}
-	}
-	env.ctPortMap[*ctId] = new_pm
+	env.agent.ScheduleSync("iptables")
 }
 
 func (env *CfEnvironment) cfAppContainerDeleted(ctId *string,
@@ -138,18 +71,10 @@ func (env *CfEnvironment) cfAppContainerDeleted(ctId *string,
 	env.agent.indexMutex.Lock()
 	env.agent.epDeleted(ctId)
 	env.agent.indexMutex.Unlock()
-
-	if ep == nil {
-		return
-	}
-	env.indexLock.Lock()
-	defer env.indexLock.Unlock()
-	env.updatePreNatRule(ctId, ep, nil)
-	delete(env.ctPortMap, *ctId)
+	env.agent.ScheduleSync("iptables")
 }
 
 func (env *CfEnvironment) updateLegacyCfNetService(portmap map[uint32]struct{}) error {
-	// should be called with agent.indexMutex held
 	uuid := "cf-net-" + env.cfconfig.CellID
 	new_svc := opflexService{Uuid: uuid,
 		DomainPolicySpace: env.agent.config.AciVrfTenant,
@@ -162,6 +87,8 @@ func (env *CfEnvironment) updateLegacyCfNetService(portmap map[uint32]struct{}) 
 			NextHopIps:  make([]string, 0)}
 		new_svc.ServiceMappings = append(new_svc.ServiceMappings, svc_map)
 	}
+	env.agent.indexMutex.Lock()
+	defer env.agent.indexMutex.Unlock()
 	exist, ok := env.agent.opflexServices[uuid]
 	if !ok || !reflect.DeepEqual(*exist, new_svc) {
 		env.log.Debug("Updating CF legacy-networking service ", uuid)
