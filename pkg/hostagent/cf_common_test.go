@@ -16,11 +16,13 @@ package hostagent
 
 import (
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/coreos/go-iptables/iptables"
 	"github.com/stretchr/testify/assert"
 	"github.com/vishvananda/netlink"
 
@@ -29,12 +31,21 @@ import (
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
+var exitErr1 *exec.ExitError
+
+func init() {
+	c := exec.Command("sh", "-c", "exit 1")
+	e := c.Run()
+	switch e := e.(type) {
+	case *exec.ExitError:
+		exitErr1 = e
+	}
+}
+
 func testCfEnvironment(t *testing.T) *CfEnvironment {
-	env := CfEnvironment{cfNetContainerPorts: make(map[uint32]struct{}),
-		indexLock: &sync.Mutex{}}
+	env := CfEnvironment{indexLock: &sync.Mutex{}}
 	env.epIdx = make(map[string]*cf_common.EpInfo)
 	env.appIdx = make(map[string]*cf_common.AppInfo)
-	env.ctPortMap = make(map[string]map[uint32]uint32)
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.TextFormatter{
@@ -56,9 +67,10 @@ func testCfEnvironment(t *testing.T) *CfEnvironment {
 
 	env.cfconfig = &CfConfig{CellID: node, CellAddress: "10.10.0.5",
 		CfNetOvsPort: "cf-net-legacy", CfNetIntfAddress: "169.254.169.254"}
-	env.iptbl = &fakeIpTables{rules: make(map[string]struct{})}
+	env.iptbl = newFakeIpTables()
 	env.cfNetLink = &fakeNetlinkLink{fakeMac: "cc:ff:00:55:ee:dd"}
 	env.kvmgr = rkv.NewKvManager()
+	env.agent.syncProcessors["iptables"] = env.syncLegacyCfNet
 	return &env
 }
 
@@ -66,26 +78,78 @@ func (e *CfEnvironment) GetKvContainerMetadata(ctId string) map[string]*md.Conta
 	if v, err := e.kvmgr.Get("container", ctId); err == nil {
 		ifs := v.Value.([]*md.ContainerIfaceMd)
 		return map[string]*md.ContainerMetadata{ctId: &md.ContainerMetadata{
-			Id: md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId},
+			Id:     md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId},
 			Ifaces: ifs}}
 	}
 	return nil
 }
 
 type fakeIpTables struct {
-	rules map[string]struct{}
+	rules  map[string]struct{}
+	chains map[string]map[string]struct{}
+}
+
+func newFakeIpTables() *fakeIpTables {
+	t := &fakeIpTables{
+		rules:  make(map[string]struct{}),
+		chains: make(map[string]map[string]struct{})}
+	t.chains["nat"] = map[string]struct{}{
+		"PREROUTING":  struct{}{},
+		"POSTROUTING": struct{}{}}
+	return t
 }
 
 func (ipt *fakeIpTables) key(table, chain string, rulespec ...string) string {
 	return table + "|" + chain + "|" + strings.Join(rulespec, " ")
 }
 
+func (ipt *fakeIpTables) chainExists(table, chain string) error {
+	if c, ok := ipt.chains[table]; ok {
+		if _, ok := c[chain]; ok {
+			return nil
+		}
+	}
+	return &iptables.Error{ExitError: *exitErr1}
+}
+
+func (ipt *fakeIpTables) List(table, chain string) ([]string, error) {
+	if err := ipt.chainExists(table, chain); err != nil {
+		return nil, err
+	}
+	out := []string{"-N " + chain}
+	for k := range ipt.rules {
+		if strings.HasPrefix(k, table+"|"+chain+"|") {
+			r := "-A " + chain + " " + k[len(table)+len(chain)+2:]
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func (ipt *fakeIpTables) Append(table, chain string, spec ...string) error {
+	if err := ipt.chainExists(table, chain); err != nil {
+		return err
+	}
+	k := ipt.key(table, chain, spec...)
+	if _, ok := ipt.rules[k]; ok {
+		return &iptables.Error{ExitError: *exitErr1}
+	}
+	ipt.rules[k] = struct{}{}
+	return nil
+}
+
 func (ipt *fakeIpTables) Exists(table, chain string, rulespec ...string) (bool, error) {
+	if err := ipt.chainExists(table, chain); err != nil {
+		return false, err
+	}
 	_, ok := ipt.rules[ipt.key(table, chain, rulespec...)]
 	return ok, nil
 }
 
 func (ipt *fakeIpTables) AppendUnique(table, chain string, rulespec ...string) error {
+	if err := ipt.chainExists(table, chain); err != nil {
+		return err
+	}
 	k := ipt.key(table, chain, rulespec...)
 	_, ok := ipt.rules[k]
 	if !ok {
@@ -95,11 +159,23 @@ func (ipt *fakeIpTables) AppendUnique(table, chain string, rulespec ...string) e
 }
 
 func (ipt *fakeIpTables) Delete(table, chain string, rulespec ...string) error {
+	if err := ipt.chainExists(table, chain); err != nil {
+		return err
+	}
 	delete(ipt.rules, ipt.key(table, chain, rulespec...))
 	return nil
 }
 
+func (ipt *fakeIpTables) NewChain(table, chain string) error {
+	if err := ipt.chainExists(table, chain); err == nil {
+		return &iptables.Error{ExitError: *exitErr1}
+	}
+	ipt.chains[table][chain] = struct{}{}
+	return nil
+}
+
 func (ipt *fakeIpTables) ClearChain(table, chain string) error {
+	ipt.chains[table][chain] = struct{}{}
 	for k := range ipt.rules {
 		if strings.HasPrefix(k, table+"|"+chain+"|") {
 			delete(ipt.rules, k)

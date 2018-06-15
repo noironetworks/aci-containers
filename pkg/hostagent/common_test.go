@@ -23,7 +23,7 @@ import (
 const nodename = "test-node"
 
 type testHostAgent struct {
-	HostAgent
+	*HostAgent
 	stopCh chan struct{}
 
 	fakeNodeSource      *framework.FakeControllerSource
@@ -37,11 +37,11 @@ func testAgent() *testHostAgent {
 	log.Level = logrus.DebugLevel
 
 	agent := &testHostAgent{
-		HostAgent: *NewHostAgent(&HostAgentConfig{
+		HostAgent: NewHostAgent(&HostAgentConfig{
 			NodeName: nodename,
 		}, &K8sEnvironment{}, log),
 	}
-	agent.env.(*K8sEnvironment).agent = &agent.HostAgent
+	agent.env.(*K8sEnvironment).agent = agent.HostAgent
 
 	agent.fakeNodeSource = framework.NewFakeControllerSource()
 	agent.initNodeInformerBase(

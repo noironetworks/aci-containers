@@ -25,34 +25,17 @@ import (
 
 func TestCfContainerUpdate(t *testing.T) {
 	env := testCfEnvironment(t)
-	exists := false
 
 	id := "one"
 	ep := getTestEpInfo()
 	env.epIdx[id] = ep
 	env.agent.epMetadata["_cf_/one"] = getTestEpMetadata("one")
 	expected_ep := getExpectedOpflexEp()
-	expected_svc := getExpectedOpflexServiceForLegacyNet(env)
 
 	// create
 	env.cfAppContainerChanged(&id, ep)
 	// check opflex-EP
 	assert.Equal(t, expected_ep, env.agent.opflexEps["one"][0])
-	// check iptables rules for legacy networking
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60010 -j DNAT --to-destination 10.255.0.45:8080")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60011 -j DNAT --to-destination 10.255.0.45:2222")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN,
-		"-o cf-net-legacy -p tcp -m tcp --dport 8080 -j SNAT --to-source 169.254.169.254")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN,
-		"-o cf-net-legacy -p tcp -m tcp --dport 2222 -j SNAT --to-source 169.254.169.254")
-	assert.True(t, exists)
-	// check opflex service for legacy networking
-	checkOpflexService(t, expected_svc, env.agent.opflexServices["cf-net-cell1"])
 
 	// update
 	ep.Epg = "epg2"
@@ -64,29 +47,8 @@ func TestCfContainerUpdate(t *testing.T) {
 	expected_ep.EndpointGroup = "epg2"
 	expected_ep.SecurityGroup = append(expected_ep.SecurityGroup,
 		md.OpflexGroup{PolicySpace: "e", Name: "sg3"})
-	expected_svc.ServiceMappings = append(expected_svc.ServiceMappings,
-		opflexServiceMapping{
-			ServiceIp:   "169.254.169.254",
-			ServicePort: 9443,
-			NextHopIps:  make([]string, 0)})
 	env.cfAppContainerChanged(&id, ep)
 	assert.Equal(t, expected_ep, env.agent.opflexEps["one"][0])
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60010 -j DNAT --to-destination 10.255.0.45:8080")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60012 -j DNAT --to-destination 10.255.0.45:9443")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN,
-		"-o cf-net-legacy -p tcp -m tcp --dport 8080 -j SNAT --to-source 169.254.169.254")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN,
-		"-o cf-net-legacy -p tcp -m tcp --dport 9443 -j SNAT --to-source 169.254.169.254")
-	assert.True(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60011 -j DNAT --to-destination 10.255.0.45:2222")
-	assert.False(t, exists)
-	checkOpflexService(t, expected_svc, env.agent.opflexServices["cf-net-cell1"])
 
 	// delete
 	delete(env.epIdx, id)
@@ -94,13 +56,6 @@ func TestCfContainerUpdate(t *testing.T) {
 	env.cfAppContainerDeleted(&id, ep)
 	_, ok := env.agent.opflexEps["one"]
 	assert.False(t, ok)
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60010 -j DNAT --to-destination 10.255.0.45:8080")
-	assert.False(t, exists)
-	exists, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN,
-		"-d 10.10.0.5 -p tcp --dport 60012 -j DNAT --to-destination 10.255.0.45:9443")
-	assert.False(t, exists)
-	checkOpflexService(t, expected_svc, env.agent.opflexServices["cf-net-cell1"])
 }
 
 func TestCfStagingContainerUpdate(t *testing.T) {

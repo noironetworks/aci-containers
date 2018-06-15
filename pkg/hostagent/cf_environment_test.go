@@ -16,10 +16,13 @@ package hostagent
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
 func TestCfCniDeviceOps(t *testing.T) {
@@ -48,30 +51,6 @@ func TestCfCniDeviceOps(t *testing.T) {
 
 }
 
-func TestCfSetupIpTables(t *testing.T) {
-	env := testCfEnvironment(t)
-	env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "foo bar")
-	env.iptbl.AppendUnique("nat", NAT_PRE_CHAIN, "foo1 bar1")
-	env.iptbl.AppendUnique("nat", NAT_POST_CHAIN, "foo2 bar2")
-	env.iptbl.AppendUnique("nat", NAT_POST_CHAIN, "foo3 bar2")
-
-	env.setupIpTablesForLegacyCfNet()
-	exist := false
-
-	exist, _ = env.iptbl.Exists("nat", "PREROUTING", "-j", NAT_PRE_CHAIN)
-	assert.True(t, exist)
-	exist, _ = env.iptbl.Exists("nat", "POSTROUTING", "-j", NAT_POST_CHAIN)
-	assert.True(t, exist)
-	exist, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN, "foo bar")
-	assert.False(t, exist)
-	exist, _ = env.iptbl.Exists("nat", NAT_PRE_CHAIN, "foo1 bar1")
-	assert.False(t, exist)
-	exist, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN, "foo2 bar2")
-	assert.False(t, exist)
-	exist, _ = env.iptbl.Exists("nat", NAT_POST_CHAIN, "foo3 bar3")
-	assert.False(t, exist)
-}
-
 func TestCfPublishCniMetadata(t *testing.T) {
 	env := testCfEnvironment(t)
 
@@ -93,3 +72,90 @@ func TestCfPublishCniMetadata(t *testing.T) {
 	assert.Equal(t, md_three, env.GetKvContainerMetadata("three"))
 }
 
+func TestCfSyncLegacyCfNet(t *testing.T) {
+	env := testCfEnvironment(t)
+	env.agent.syncEnabled = true
+	delete(env.agent.syncProcessors, "services")
+	expected_svc := getExpectedOpflexServiceForLegacyNet(env)
+	expected_svc_mapping := expected_svc.ServiceMappings
+	exp_pre_rules := []string{"-N " + NAT_PRE_CHAIN}
+	exp_post_rules := []string{"-N " + NAT_POST_CHAIN}
+
+	syncAndWait := func() {
+		env.agent.ScheduleSync("iptables")
+		tu.WaitFor(t, "syncQ drained", 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				return env.agent.syncQueue.Len() == 0, nil
+			})
+	}
+	go env.agent.processSyncQueue(env.agent.syncQueue, nil)
+
+	// test - clean setup
+	expected_svc.ServiceMappings = nil
+	syncAndWait()
+	rules, _ := env.iptbl.List("nat", NAT_PRE_CHAIN)
+	assert.ElementsMatch(t, exp_pre_rules, rules)
+	rules, _ = env.iptbl.List("nat", NAT_POST_CHAIN)
+	assert.ElementsMatch(t, exp_post_rules, rules)
+	exist, _ := env.iptbl.Exists("nat", "PREROUTING", "-j", NAT_PRE_CHAIN)
+	assert.True(t, exist)
+	exist, _ = env.iptbl.Exists("nat", "POSTROUTING", "-j", NAT_POST_CHAIN)
+	assert.True(t, exist)
+	checkOpflexService(t, expected_svc,
+		env.agent.opflexServices["cf-net-cell1"])
+
+	// test - add an EP
+	ep := getTestEpInfo()
+	env.epIdx["one"] = ep
+	expected_svc.ServiceMappings = expected_svc_mapping
+	exp_pre_rules = append(exp_pre_rules,
+		"-A "+NAT_PRE_CHAIN+" -d 10.10.0.5/32 -p tcp -m tcp --dport "+
+			"60010 -j DNAT --to-destination 10.255.0.45:8080",
+		"-A "+NAT_PRE_CHAIN+" -d 10.10.0.5/32 -p tcp -m tcp --dport "+
+			"60011 -j DNAT --to-destination 10.255.0.45:2222")
+	exp_post_rules = append(exp_post_rules,
+		"-A "+NAT_POST_CHAIN+" -o cf-net-legacy -p tcp -m tcp --dport "+
+			"8080 -j SNAT --to-source 169.254.169.254",
+		"-A "+NAT_POST_CHAIN+" -o cf-net-legacy -p tcp -m tcp --dport "+
+			"2222 -j SNAT --to-source 169.254.169.254")
+	syncAndWait()
+	rules, _ = env.iptbl.List("nat", NAT_PRE_CHAIN)
+	assert.ElementsMatch(t, exp_pre_rules, rules)
+	rules, _ = env.iptbl.List("nat", NAT_POST_CHAIN)
+	assert.ElementsMatch(t, exp_post_rules, rules)
+	checkOpflexService(t, expected_svc,
+		env.agent.opflexServices["cf-net-cell1"])
+
+	// test - update EP portmapping
+	ep.PortMapping = []cf_common.PortMap{
+		{ContainerPort: 8080, HostPort: 60010},
+		{ContainerPort: 9443, HostPort: 60012}}
+	expected_svc.ServiceMappings[1] = opflexServiceMapping{
+		ServiceIp:   "169.254.169.254",
+		ServicePort: 9443,
+		NextHopIps:  make([]string, 0)}
+	exp_pre_rules[2] = "-A " + NAT_PRE_CHAIN + " -d 10.10.0.5/32 -p tcp " +
+		"-m tcp --dport 60012 -j DNAT --to-destination 10.255.0.45:9443"
+	exp_post_rules[2] = "-A " + NAT_POST_CHAIN + " -o cf-net-legacy -p tcp " +
+		"-m tcp --dport 9443 -j SNAT --to-source 169.254.169.254"
+	syncAndWait()
+	rules, _ = env.iptbl.List("nat", NAT_PRE_CHAIN)
+	assert.ElementsMatch(t, exp_pre_rules, rules)
+	rules, _ = env.iptbl.List("nat", NAT_POST_CHAIN)
+	assert.ElementsMatch(t, exp_post_rules, rules)
+	checkOpflexService(t, expected_svc,
+		env.agent.opflexServices["cf-net-cell1"])
+
+	// test - delete EP
+	delete(env.epIdx, "one")
+	exp_pre_rules = exp_pre_rules[:1]
+	exp_post_rules = exp_post_rules[:1]
+	expected_svc.ServiceMappings = nil
+	syncAndWait()
+	rules, _ = env.iptbl.List("nat", NAT_PRE_CHAIN)
+	assert.ElementsMatch(t, exp_pre_rules, rules)
+	rules, _ = env.iptbl.List("nat", NAT_POST_CHAIN)
+	assert.ElementsMatch(t, exp_post_rules, rules)
+	checkOpflexService(t, expected_svc,
+		env.agent.opflexServices["cf-net-cell1"])
+}

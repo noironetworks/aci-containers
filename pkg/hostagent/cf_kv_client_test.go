@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
