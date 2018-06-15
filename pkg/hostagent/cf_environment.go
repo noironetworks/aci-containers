@@ -29,8 +29,8 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -42,25 +42,26 @@ const (
 // wrapper over thirdparty implementation that can be overridden for unit-tests
 type IPTables interface {
 	Exists(table, chain string, rulespec ...string) (bool, error)
+	List(table, chain string) ([]string, error)
+	Append(table, chain string, rulespec ...string) error
 	AppendUnique(table, chain string, rulespec ...string) error
 	Delete(table, chain string, rulespec ...string) error
+	NewChain(table, chain string) error
 	ClearChain(table, chain string) error
 }
 
 type CfEnvironment struct {
-	agent       *HostAgent
-	cfconfig    *CfConfig
-	kvmgr       *rkv.KvManager
+	agent    *HostAgent
+	cfconfig *CfConfig
+	kvmgr    *rkv.KvManager
 
 	indexLock sync.Locker
 	epIdx     map[string]*cf_common.EpInfo
 	appIdx    map[string]*cf_common.AppInfo
 
-	iptbl               IPTables
-	ctPortMap           map[string]map[uint32]uint32
-	cfNetv4             bool
-	cfNetLink           netlink.Link
-	cfNetContainerPorts map[uint32]struct{}
+	iptbl     IPTables
+	cfNetv4   bool
+	cfNetLink netlink.Link
 
 	appsSynced, cellSynced bool
 	log                    *logrus.Logger
@@ -111,8 +112,6 @@ func (env *CfEnvironment) Init(agent *HostAgent) error {
 	env.agent = agent
 	env.epIdx = make(map[string]*cf_common.EpInfo)
 	env.appIdx = make(map[string]*cf_common.AppInfo)
-	env.ctPortMap = make(map[string]map[uint32]uint32)
-	env.cfNetContainerPorts = make(map[uint32]struct{})
 	if env.cfconfig.CfNetOvsPort != "" {
 		env.agent.ignoreOvsPorts[env.agent.config.IntBridgeName] = []string{env.cfconfig.CfNetOvsPort}
 	}
@@ -129,6 +128,7 @@ func (env *CfEnvironment) Init(agent *HostAgent) error {
 		env.iptbl, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
 	}
 	env.kvmgr = rkv.NewKvManager()
+	env.agent.syncProcessors["iptables"] = env.syncLegacyCfNet
 	return err
 }
 
@@ -141,11 +141,6 @@ func (env *CfEnvironment) PrepareRun(stopCh <-chan struct{}) (
 	err = env.setupInterfaceForLegacyCfNet()
 	if err != nil {
 		env.log.Error("Error setting up interface for legacy CF networking: ", err)
-		return
-	}
-	err = env.setupIpTablesForLegacyCfNet()
-	if err != nil {
-		env.log.Error("Error setting up IPTables for legacy CF networking: ", err)
 		return
 	}
 
@@ -307,21 +302,103 @@ func (env *CfEnvironment) setupInterfaceForLegacyCfNet() error {
 	return nil
 }
 
-func (env *CfEnvironment) setupIpTablesForLegacyCfNet() error {
-	// clear or create our iptables rule chains
-	if err := env.iptbl.ClearChain("nat", NAT_PRE_CHAIN); err != nil {
-		return err
+func (env *CfEnvironment) syncLegacyCfNet() bool {
+	if !env.agent.syncEnabled {
+		return false
 	}
-	if err := env.iptbl.ClearChain("nat", NAT_POST_CHAIN); err != nil {
-		return err
+	env.log.Debug("Syncing stuff for legacy CF networking ...")
+
+	const TABLE = "nat"
+	expRules := make(map[string]map[string]bool)
+	expRules[NAT_PRE_CHAIN] = make(map[string]bool)
+	expRules[NAT_POST_CHAIN] = make(map[string]bool)
+
+	// build expected rules
+	env.indexLock.Lock()
+	contPorts := make(map[uint32]struct{})
+	for _, ep := range env.epIdx {
+		for i, _ := range ep.PortMapping {
+			r := fmt.Sprintf(
+				"-d %s/32 -p tcp -m tcp --dport %d -j DNAT "+
+					"--to-destination %s:%d",
+				env.cfconfig.CellAddress, ep.PortMapping[i].HostPort,
+				ep.IpAddress, ep.PortMapping[i].ContainerPort)
+			contPorts[ep.PortMapping[i].ContainerPort] = struct{}{}
+			expRules[NAT_PRE_CHAIN][r] = false
+		}
 	}
-	// Link our chains from the pre/post-routing chains
-	if err := env.iptbl.AppendUnique("nat", "PREROUTING", "-j", NAT_PRE_CHAIN); err != nil {
-		return err
+	env.indexLock.Unlock()
+	for cp, _ := range contPorts {
+		r := fmt.Sprintf("-o %s -p tcp -m tcp --dport %d -j SNAT "+
+			"--to-source %s",
+			env.cfconfig.CfNetOvsPort, cp, env.cfconfig.CfNetIntfAddress)
+		expRules[NAT_POST_CHAIN][r] = false
 	}
-	if err := env.iptbl.AppendUnique("nat", "POSTROUTING", "-j", NAT_POST_CHAIN); err != nil {
-		return err
+	env.updateLegacyCfNetService(contPorts)
+
+	// get current rules
+	foundRules := make(map[string][]string)
+	chains := map[string]string{
+		NAT_PRE_CHAIN:  "PREROUTING",
+		NAT_POST_CHAIN: "POSTROUTING"}
+	for chain, parent := range chains {
+		rules, err := env.iptbl.List(TABLE, chain)
+		if err == nil {
+			foundRules[chain] = rules
+			continue
+		}
+		l := env.log.WithField("chain", chain)
+		if ipte, eok := err.(*iptables.Error); !eok || ipte.ExitStatus() != 1 {
+			l.Error("Failed to list nat ACI iptables rules: ", err)
+			return true
+		}
+		// chain doesn't exist, setup it up
+		l.Debug("Create nat ACI iptables chain")
+		if e := env.iptbl.NewChain(TABLE, chain); e != nil {
+			l.Error("Failed to create nat ACI iptables chain: ", e)
+			return true
+		}
+		if e := env.iptbl.AppendUnique(TABLE, parent, "-j", chain); e != nil {
+			l.Error("Failed to set jump rule for nat ACI iptables chain: ", e)
+			return true
+		}
 	}
 
-	return nil
+	retry := false
+	for chain, rules := range foundRules {
+		expChain, _ := expRules[chain]
+		prefix := fmt.Sprintf("-A %s ", chain)
+		for _, r := range rules {
+			if !strings.HasPrefix(r, prefix) {
+				continue
+			}
+			r = r[len(prefix):]
+			if _, ok := expChain[r]; !ok {
+				l := env.log.WithField("chain", chain).WithField("rule", r)
+				l.Debug("Deleting nat ACI iptables rule")
+				rspec := strings.Split(r, " ")
+				if e := env.iptbl.Delete(TABLE, chain, rspec...); e != nil {
+					l.Error("Delete iptables rule failed: ", e)
+					retry = true
+				}
+			} else {
+				expChain[r] = true
+			}
+		}
+	}
+	for chain, rules := range expRules {
+		for r, found := range rules {
+			if !found {
+				l := env.log.WithField("chain", chain).WithField("rule", r)
+				l.Debug("Appending nat ACI iptables rule")
+				rspec := strings.Split(r, " ")
+				if e := env.iptbl.Append(TABLE, chain, rspec...); e != nil {
+					l.Error("Append iptables rule failed: ", e)
+					retry = true
+				}
+			}
+		}
+	}
+	env.log.Debug("Sync complete for legacy CF networking")
+	return retry
 }

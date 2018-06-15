@@ -70,6 +70,7 @@ func (env *CfEnvironment) handleKvItems(ns string, items []rkv.KvItem) {
 	if env.appsSynced && env.cellSynced {
 		env.agent.EnableSync()
 		env.agent.cleanupSetup()
+		env.agent.ScheduleSync("iptables")
 	}
 }
 

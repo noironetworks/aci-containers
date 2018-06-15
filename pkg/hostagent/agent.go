@@ -52,6 +52,7 @@ type HostAgent struct {
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
+	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts map[string][]string
 
@@ -59,7 +60,7 @@ type HostAgent struct {
 }
 
 func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) *HostAgent {
-	return &HostAgent{
+	ha := &HostAgent{
 		log:            log,
 		config:         config,
 		env:            env,
@@ -77,6 +78,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(10)),
 			}, "sync"),
 	}
+	ha.syncProcessors = map[string]func() bool{
+		"eps":      ha.syncEps,
+		"services": ha.syncServices}
+	return ha
 }
 
 func (agent *HostAgent) Init() {
@@ -94,12 +99,16 @@ func (agent *HostAgent) Init() {
 	}
 }
 
+func (agent *HostAgent) ScheduleSync(syncType string) {
+	agent.syncQueue.AddRateLimited(syncType)
+}
+
 func (agent *HostAgent) scheduleSyncEps() {
-	agent.syncQueue.AddRateLimited("eps")
+	agent.ScheduleSync("eps")
 }
 
 func (agent *HostAgent) scheduleSyncServices() {
-	agent.syncQueue.AddRateLimited("services")
+	agent.ScheduleSync("services")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
@@ -129,11 +138,8 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 			var requeue bool
 			switch syncType := syncType.(type) {
 			case string:
-				switch syncType {
-				case "eps":
-					requeue = agent.syncEps()
-				case "services":
-					requeue = agent.syncServices()
+				if f, ok := agent.syncProcessors[syncType]; ok {
+					requeue = f()
 				}
 			}
 			if requeue {
