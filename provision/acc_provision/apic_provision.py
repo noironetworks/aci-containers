@@ -1,5 +1,6 @@
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
+import collections
 import json
 import sys
 
@@ -32,16 +33,26 @@ def yesno(flag):
 
 
 def aci_obj(klass, **kwargs):
-    children = kwargs.pop('_children', None)
-    data = {klass: {'attributes': kwargs}}
+    children = kwargs.pop("_children", None)
+    data = collections.OrderedDict(
+        [(klass, collections.OrderedDict([("attributes", kwargs)]))]
+    )
     if children:
-        data[klass]['children'] = children
+        data[klass]["children"] = children
     return data
 
 
 class Apic(object):
-    def __init__(self, addr, username, password,
-                 ssl=True, verify=False, timeout=None, debug=False):
+    def __init__(
+        self,
+        addr,
+        username,
+        password,
+        ssl=True,
+        verify=False,
+        timeout=None,
+        debug=False,
+    ):
         global apic_debug
         apic_debug = debug
         self.addr = addr
@@ -57,8 +68,8 @@ class Apic(object):
 
     def url(self, path):
         if self.ssl:
-            return 'https://%s%s' % (self.addr, path)
-        return 'http://%s%s' % (self.addr, path)
+            return "https://%s%s" % (self.addr, path)
+        return "http://%s%s" % (self.addr, path)
 
     def get(self, path, data=None):
         args = dict(data=data, cookies=self.cookies, verify=self.verify)
@@ -76,14 +87,16 @@ class Apic(object):
         return requests.delete(self.url(path), **args)
 
     def login(self):
-        data = '{"aaaUser":{"attributes":{"name": "%s", "pwd": "%s"}}}' % \
-            (self.username, self.password)
-        path = '/api/aaaLogin.json'
+        data = '{"aaaUser":{"attributes":{"name": "%s", "pwd": "%s"}}}' % (
+            self.username,
+            self.password,
+        )
+        path = "/api/aaaLogin.json"
         req = requests.post(self.url(path), data=data, verify=False)
         if req.status_code == 200:
             resp = json.loads(req.text)
             token = resp["imdata"][0]["aaaLogin"]["attributes"]["token"]
-            self.cookies = {'APIC-Cookie': token}
+            self.cookies = collections.OrderedDict([("APIC-Cookie", token)])
         return req
 
     def check_resp(self, resp):
@@ -112,8 +125,10 @@ class Apic(object):
 
     def get_infravlan(self):
         infra_vlan = None
-        path = '/api/node/mo/uni/infra/attentp-default/provacc' + \
-               '/rsfuncToEpg-[uni/tn-infra/ap-access/epg-default].json'
+        path = (
+            "/api/node/mo/uni/infra/attentp-default/provacc" +
+            "/rsfuncToEpg-[uni/tn-infra/ap-access/epg-default].json"
+        )
         data = self.get_path(path)
         if data:
             encap = data["infraRsFuncToEpg"]["attributes"]["encap"]
@@ -121,15 +136,15 @@ class Apic(object):
         return infra_vlan
 
     def get_aep(self, aep_name):
-        path = '/api/mo/uni/infra/attentp-%s.json' % aep_name
+        path = "/api/mo/uni/infra/attentp-%s.json" % aep_name
         return self.get_path(path)
 
     def get_vrf(self, tenant, name):
-        path = '/api/mo/uni/tn-%s/ctx-%s.json' % (tenant, name)
+        path = "/api/mo/uni/tn-%s/ctx-%s.json" % (tenant, name)
         return self.get_path(path)
 
     def get_l3out(self, tenant, name):
-        path = '/api/mo/uni/tn-%s/out-%s.json' % (tenant, name)
+        path = "/api/mo/uni/tn-%s/out-%s.json" % (tenant, name)
         return self.get_path(path)
 
     def get_user(self, name):
@@ -158,10 +173,7 @@ class Apic(object):
                 err("Error in provisioning %s: %s" % (path, str(e)))
 
     def unprovision(self, data, system_id, tenant, vrf_tenant):
-        shared_resources = [
-            "/api/mo/uni/infra.json",
-            "/api/mo/uni/tn-common.json",
-        ]
+        shared_resources = ["/api/mo/uni/infra.json", "/api/mo/uni/tn-common.json"]
 
         if vrf_tenant not in ["common", system_id]:
             shared_resources.append("/api/mo/uni/tn-%s.json" % vrf_tenant)
@@ -196,7 +208,7 @@ class Apic(object):
         return ret
 
     def clean_tagged_resources(self, system_id, tenant):
-        tags = {}
+        tags = collections.OrderedDict([])
         tags_path = "/api/node/mo/uni/tn-%s.json" % (tenant,)
         tags_path += "?query-target=subtree&target-subtree-class=tagInst"
         tags_list = self.get_path(tags_path, multi=True)
@@ -209,7 +221,7 @@ class Apic(object):
                 else:
                     dbg("Ignoring tag: %s" % tag_name)
 
-        mos = {}
+        mos = collections.OrderedDict([])
         for tag in tags.keys():
             dbg("Objcts selected for tag: %s" % tag)
             mo_path = "/api/tag/%s.json" % tag
@@ -231,7 +243,7 @@ class ApicKubeConfig(object):
     def __init__(self, config):
         self.config = config
         self.use_kubeapi_vlan = True
-        self.tenant_generator = 'kube_tn'
+        self.tenant_generator = "kube_tn"
         self.associate_aep_to_nested_inside_domain = False
 
     def get_nested_domain_type(self):
@@ -250,10 +262,24 @@ class ApicKubeConfig(object):
             print(data, file=outfilep)
 
     def get_config(self):
+        def assert_attributes_is_first_key(data):
+            """Check that attributes is the first key in the JSON."""
+            if isinstance(data, collections.Mapping) and "attributes" in data:
+                assert next(iter(data.keys())) == "attributes"
+                for item in data.items():
+                    assert_attributes_is_first_key(item)
+            elif isinstance(data, (list, tuple)):
+                for item in data:
+                    assert_attributes_is_first_key(item)
+
         def update(data, x):
             if x:
-                data.append(
-                    (x[0], json.dumps(x[1], sort_keys=True, indent=4)))
+                assert_attributes_is_first_key(x)
+                data.append((x[0], json.dumps(
+                    x[1],
+                    indent=4,
+                    sort_keys=True,
+                    separators=(",", ": "))))
                 for path in x[2:]:
                     data.append((path, None))
 
@@ -281,38 +307,86 @@ class ApicKubeConfig(object):
         service_vlan = self.config["net_config"]["service_vlan"]
 
         path = "/api/mo/uni/infra/vlanns-[%s]-static.json" % pool_name
-        data = {
-            "fvnsVlanInstP": {
-                "attributes": {
-                    "name": pool_name,
-                    "allocMode": "static"
-                },
-                "children": [
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
-                                "allocMode": "static",
-                                "from": "vlan-%s" % service_vlan,
-                                "to": "vlan-%s" % service_vlan
-                            }
-                        },
-                    },
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvnsVlanInstP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [("name", pool_name), ("allocMode", "static")]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvnsEncapBlk",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "allocMode",
+                                                                        "static",
+                                                                    ),
+                                                                    (
+                                                                        "from",
+                                                                        "vlan-%s"
+                                                                        % service_vlan,
+                                                                    ),
+                                                                    (
+                                                                        "to",
+                                                                        "vlan-%s"
+                                                                        % service_vlan,
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         if self.use_kubeapi_vlan:
             kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
             data["fvnsVlanInstP"]["children"].insert(
                 0,
-                {
-                    "fvnsEncapBlk": {
-                        "attributes": {
-                            "allocMode": "static",
-                            "from": "vlan-%s" % kubeapi_vlan,
-                            "to": "vlan-%s" % kubeapi_vlan
-                        }
-                    }
-                })
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvnsEncapBlk",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [
+                                                ("allocMode", "static"),
+                                                ("from", "vlan-%s" % kubeapi_vlan),
+                                                ("to", "vlan-%s" % kubeapi_vlan),
+                                            ]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                ),
+            )
         return path, data
 
     def vdom_pool(self):
@@ -324,25 +398,64 @@ class ApicKubeConfig(object):
             return None
 
         path = "/api/mo/uni/infra/vlanns-[%s]-dynamic.json" % vpool_name
-        data = {
-            "fvnsVlanInstP": {
-                "attributes": {
-                    "name": vpool_name,
-                    "allocMode": "dynamic"
-                },
-                "children": [
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
-                                "allocMode": "dynamic",
-                                "from": "vlan-%s" % vlan_range["start"],
-                                "to": "vlan-%s" % vlan_range["end"],
-                            }
-                        }
-                    },
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvnsVlanInstP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [("name", vpool_name), ("allocMode", "dynamic")]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvnsEncapBlk",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "allocMode",
+                                                                        "dynamic",
+                                                                    ),
+                                                                    (
+                                                                        "from",
+                                                                        "vlan-%s"
+                                                                        % vlan_range[
+                                                                            "start"
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        "to",
+                                                                        "vlan-%s"
+                                                                        % vlan_range[
+                                                                            "end"
+                                                                        ],
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         return path, data
 
     def mcast_pool(self):
@@ -351,24 +464,54 @@ class ApicKubeConfig(object):
         mcast_end = self.config["aci_config"]["vmm_domain"]["mcast_range"]["end"]
 
         path = "/api/mo/uni/infra/maddrns-%s.json" % mpool_name
-        data = {
-            "fvnsMcastAddrInstP": {
-                "attributes": {
-                    "name": mpool_name,
-                    "dn": "uni/infra/maddrns-%s" % mpool_name
-                },
-                "children": [
-                    {
-                        "fvnsMcastAddrBlk": {
-                            "attributes": {
-                                "from": mcast_start,
-                                "to": mcast_end
-                            }
-                        }
-                    }
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvnsMcastAddrInstP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        ("name", mpool_name),
+                                        ("dn", "uni/infra/maddrns-%s" % mpool_name),
+                                    ]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvnsMcastAddrBlk",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "from",
+                                                                        mcast_start,
+                                                                    ),
+                                                                    ("to", mcast_end),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         return path, data
 
     def phys_dom(self):
@@ -376,23 +519,54 @@ class ApicKubeConfig(object):
         pool_name = self.config["aci_config"]["physical_domain"]["vlan_pool"]
 
         path = "/api/mo/uni/phys-%s.json" % phys_name
-        data = {
-            "physDomP": {
-                "attributes": {
-                    "dn": "uni/phys-%s" % phys_name,
-                    "name": phys_name
-                },
-                "children": [
-                    {
-                        "infraRsVlanNs": {
-                            "attributes": {
-                                "tDn": "uni/infra/vlanns-[%s]-static" % pool_name
-                            },
-                        }
-                    }
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "physDomP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        ("dn", "uni/phys-%s" % phys_name),
+                                        ("name", phys_name),
+                                    ]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "infraRsVlanNs",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "tDn",
+                                                                        "uni/infra/vlanns-[%s]-static"
+                                                                        % pool_name,
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         return path, data
 
     def kube_dom(self):
@@ -414,45 +588,107 @@ class ApicKubeConfig(object):
             scope = "cloudfoundry"
 
         path = "/api/mo/uni/vmmp-%s/dom-%s.json" % (vmm_type, vmm_name)
-        data = {
-            "vmmDomP": {
-                "attributes": {
-                    "name": vmm_name,
-                    "mode": mode,
-                    "enfPref": "sw",
-                    "encapMode": encap_type,
-                    "prefEncapMode": encap_type,
-                    "mcastAddr": mcast_fabric,
-                },
-                "children": [
-                    {
-                        "vmmCtrlrP": {
-                            "attributes": {
-                                "name": vmm_name,
-                                "mode": mode,
-                                "scope": scope,
-                                "hostOrIp": kube_controller,
-                            },
-                        }
-                    },
-                    {
-                        "vmmRsDomMcastAddrNs": {
-                            "attributes": {
-                                "tDn": "uni/infra/maddrns-%s" % mpool_name
-                            }
-                        }
-                    }
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "vmmDomP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        ("name", vmm_name),
+                                        ("mode", mode),
+                                        ("enfPref", "sw"),
+                                        ("encapMode", encap_type),
+                                        ("prefEncapMode", encap_type),
+                                        ("mcastAddr", mcast_fabric),
+                                    ]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vmmCtrlrP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    ("name", vmm_name),
+                                                                    ("mode", mode),
+                                                                    ("scope", scope),
+                                                                    (
+                                                                        "hostOrIp",
+                                                                        kube_controller,
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vmmRsDomMcastAddrNs",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "tDn",
+                                                                        "uni/infra/maddrns-%s"
+                                                                        % mpool_name,
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         if encap_type == "vlan":
-            vlan_pool_data = {
-                "infraRsVlanNs": {
-                    "attributes": {
-                        "tDn": "uni/infra/vlanns-[%s]-dynamic" % vpool_name
-                    }
-                }
-            }
+            vlan_pool_data = collections.OrderedDict(
+                [
+                    (
+                        "infraRsVlanNs",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "tDn",
+                                                "uni/infra/vlanns-[%s]-dynamic"
+                                                % vpool_name,
+                                            )
+                                        ]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            )
             data["vmmDomP"]["children"].append(vlan_pool_data)
         return path, data
 
@@ -462,8 +698,7 @@ class ApicKubeConfig(object):
             return
 
         system_id = self.config["aci_config"]["system_id"]
-        nvmm_name = (self.config["aci_config"]["vmm_domain"]
-                     ["nested_inside"]["name"])
+        nvmm_name = self.config["aci_config"]["vmm_domain"]["nested_inside"]["name"]
         encap_type = self.config["aci_config"]["vmm_domain"]["encap_type"]
         infra_vlan = self.config["net_config"]["infra_vlan"]
         service_vlan = self.config["net_config"]["service_vlan"]
@@ -472,55 +707,140 @@ class ApicKubeConfig(object):
         if encap_type == "vlan":
             promMode = "Enabled"
 
-        path = ("/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" %
-                (nvmm_type, nvmm_name, system_id))
-        data = {
-            "vmmUsrCustomAggr": {
-                "attributes": {
-                    "name": system_id,
-                    "promMode": promMode,
-                },
-                "children": [
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
-                                "from": "vlan-%d" % infra_vlan,
-                                "to": "vlan-%d" % infra_vlan,
-                            }
-                        }
-                    },
-                    {
-                        "fvnsEncapBlk": {
-                            "attributes": {
-                                "from": "vlan-%d" % service_vlan,
-                                "to": "vlan-%d" % service_vlan,
-                            }
-                        }
-                    },
-                ]
-            }
-        }
+        path = "/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" % (
+            nvmm_type,
+            nvmm_name,
+            system_id,
+        )
+        data = collections.OrderedDict(
+            [
+                (
+                    "vmmUsrCustomAggr",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [("name", system_id), ("promMode", promMode)]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvnsEncapBlk",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "from",
+                                                                        "vlan-%d"
+                                                                        % infra_vlan,
+                                                                    ),
+                                                                    (
+                                                                        "to",
+                                                                        "vlan-%d"
+                                                                        % infra_vlan,
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvnsEncapBlk",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "from",
+                                                                        "vlan-%d"
+                                                                        % service_vlan,
+                                                                    ),
+                                                                    (
+                                                                        "to",
+                                                                        "vlan-%d"
+                                                                        % service_vlan,
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         if self.use_kubeapi_vlan:
             kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
             data["vmmUsrCustomAggr"]["children"].append(
-                {
-                    "fvnsEncapBlk": {
-                        "attributes": {
-                            "from": "vlan-%d" % kubeapi_vlan,
-                            "to": "vlan-%d" % kubeapi_vlan,
-                        }
-                    }
-                })
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvnsEncapBlk",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [
+                                                ("from", "vlan-%d" % kubeapi_vlan),
+                                                ("to", "vlan-%d" % kubeapi_vlan),
+                                            ]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
         if encap_type == "vlan":
             vlan_range = self.config["aci_config"]["vmm_domain"]["vlan_range"]
-            data["vmmUsrCustomAggr"]["children"].append({
-                "fvnsEncapBlk": {
-                    "attributes": {
-                        "from": "vlan-%d" % vlan_range["start"],
-                        "to": "vlan-%d" % vlan_range["end"],
-                    }
-                },
-            })
+            data["vmmUsrCustomAggr"]["children"].append(
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvnsEncapBlk",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [
+                                                (
+                                                    "from",
+                                                    "vlan-%d" % vlan_range["start"],
+                                                ),
+                                                ("to", "vlan-%d" % vlan_range["end"]),
+                                            ]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
         return path, data
 
     def associate_aep(self):
@@ -532,97 +852,248 @@ class ApicKubeConfig(object):
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
 
         path = "/api/mo/uni/infra.json"
-        data = {
-            "infraAttEntityP": {
-                "attributes": {
-                    "name": aep_name,
-                },
-                "children": [
-                    {
-                        "infraRsDomP": {
-                            "attributes": {
-                                "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
-                            }
-                        }
-                    },
-                    {
-                        "infraRsDomP": {
-                            "attributes": {
-                                "tDn": "uni/phys-%s" % phys_name
-                            }
-                        }
-                    },
-                    {
-                        "infraProvAcc": {
-                            "attributes": {
-                                "name": "provacc",
-                            },
-                            "children": [
-                                {
-                                    "infraRsFuncToEpg": {
-                                        "attributes": {
-                                            "encap": "vlan-%s" % str(infra_vlan),
-                                            "mode": "regular",
-                                            "tDn": "uni/tn-infra/ap-access/epg-default"
-                                        }
-                                    }
-                                },
-                                {
-                                    "dhcpInfraProvP": {
-                                        "attributes": {
-                                            "mode": "controller",
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "infraAttEntityP",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict([("name", aep_name)]),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "infraRsDomP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "tDn",
+                                                                        "uni/vmmp-%s/dom-%s"
+                                                                        % (
+                                                                            vmm_type,
+                                                                            vmm_name,
+                                                                        ),
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "infraRsDomP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "tDn",
+                                                                        "uni/phys-%s"
+                                                                        % phys_name,
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "infraProvAcc",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "provacc")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "infraRsFuncToEpg",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "encap",
+                                                                                                    "vlan-%s"
+                                                                                                    % str(
+                                                                                                        infra_vlan
+                                                                                                    ),
+                                                                                                ),
+                                                                                                (
+                                                                                                    "mode",
+                                                                                                    "regular",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tDn",
+                                                                                                    "uni/tn-infra/ap-access/epg-default",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "dhcpInfraProvP",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "mode",
+                                                                                                    "controller",
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         if self.use_kubeapi_vlan:
             kubeapi_vlan = self.config["net_config"]["kubeapi_vlan"]
             data["infraAttEntityP"]["children"].append(
-                {
-                    "infraGeneric": {
-                        "attributes": {
-                            "name": "default",
-                        },
-                        "children": [
-                            {
-                                "infraRsFuncToEpg": {
-                                    "attributes": {
-                                        "tDn": "uni/tn-%s/ap-kubernetes/epg-kube-nodes" % (tn_name,),
-                                        "encap": "vlan-%s" % (kubeapi_vlan,),
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                })
+                collections.OrderedDict(
+                    [
+                        (
+                            "infraGeneric",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict([("name", "default")]),
+                                    ),
+                                    (
+                                        "children",
+                                        [
+                                            collections.OrderedDict(
+                                                [
+                                                    (
+                                                        "infraRsFuncToEpg",
+                                                        collections.OrderedDict(
+                                                            [
+                                                                (
+                                                                    "attributes",
+                                                                    collections.OrderedDict(
+                                                                        [
+                                                                            (
+                                                                                "tDn",
+                                                                                "uni/tn-%s/ap-kubernetes/epg-kube-nodes"
+                                                                                % (
+                                                                                    tn_name,
+                                                                                ),
+                                                                            ),
+                                                                            (
+                                                                                "encap",
+                                                                                "vlan-%s"
+                                                                                % (
+                                                                                    kubeapi_vlan,
+                                                                                ),
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                )
+                                                            ]
+                                                        ),
+                                                    )
+                                                ]
+                                            )
+                                        ],
+                                    ),
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
 
-        base = '/api/mo/uni/infra/attentp-%s' % aep_name
-        rsvmm = base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' % (vmm_type, vmm_name)
-        rsphy = base + '/rsdomP-[uni/phys-%s].json' % phys_name
+        base = "/api/mo/uni/infra/attentp-%s" % aep_name
+        rsvmm = base + "/rsdomP-[uni/vmmp-%s/dom-%s].json" % (vmm_type, vmm_name)
+        rsphy = base + "/rsdomP-[uni/phys-%s].json" % phys_name
 
         if self.associate_aep_to_nested_inside_domain:
-            nvmm_name = (
-                self.config["aci_config"]["vmm_domain"]["nested_inside"]["name"])
+            nvmm_name = self.config["aci_config"]["vmm_domain"]["nested_inside"]["name"]
             nvmm_type = self.get_nested_domain_type()
             data["infraAttEntityP"]["children"].append(
-                {
-                    "infraRsDomP": {
-                        "attributes": {
-                            "tDn": "uni/vmmp-%s/dom-%s" % (nvmm_type, nvmm_name)
-                        }
-                    }
-                })
-            rsnvmm = (base + '/rsdomP-[uni/vmmp-%s/dom-%s].json' %
-                      (nvmm_type, nvmm_name))
+                collections.OrderedDict(
+                    [
+                        (
+                            "infraRsDomP",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [
+                                                (
+                                                    "tDn",
+                                                    "uni/vmmp-%s/dom-%s"
+                                                    % (nvmm_type, nvmm_name),
+                                                )
+                                            ]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
+            rsnvmm = base + "/rsdomP-[uni/vmmp-%s/dom-%s].json" % (nvmm_type, nvmm_name)
             return path, data, rsvmm, rsnvmm, rsphy
         else:
-            rsfun = (base + '/gen-default/rsfuncToEpg-'
-                     '[uni/tn-%s/ap-kubernetes/epg-kube-nodes].json' % (tn_name))
+            rsfun = (
+                base + "/gen-default/rsfuncToEpg-"
+                "[uni/tn-%s/ap-kubernetes/epg-kube-nodes].json" % (tn_name)
+            )
             return path, data, rsvmm, rsphy, rsfun
 
     def opflex_cert(self):
@@ -630,14 +1101,29 @@ class ApicKubeConfig(object):
         client_ssl = self.config["aci_config"]["client_ssl"]
 
         path = "/api/mo/uni/infra.json"
-        data = {
-            "infraSetPol": {
-                "attributes": {
-                    "opflexpAuthenticateClients": yesno(client_cert),
-                    "opflexpUseSsl": yesno(client_ssl),
-                },
-            },
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "infraSetPol",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        (
+                                            "opflexpAuthenticateClients",
+                                            yesno(client_cert),
+                                        ),
+                                        ("opflexpUseSsl", yesno(client_ssl)),
+                                    ]
+                                ),
+                            )
+                        ]
+                    ),
+                )
+            ]
+        )
         return path, data
 
     def l3out_tn(self):
@@ -645,62 +1131,170 @@ class ApicKubeConfig(object):
         vrf_tenant = self.config["aci_config"]["vrf"]["tenant"]
 
         path = "/api/mo/uni/tn-%s.json" % vrf_tenant
-        data = {
-            "fvTenant": {
-                "attributes": {
-                    "name": "%s" % vrf_tenant,
-                    "dn": "uni/tn-%s" % vrf_tenant,
-                },
-                "children": [
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "%s-allow-all-filter" % system_id
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "allow-all"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "%s-l3out-allow-all" % system_id
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "allow-all-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "%s-allow-all-filter" % system_id
-                                                    }
-                                                }
-                                            }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvTenant",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        ("name", "%s" % vrf_tenant),
+                                        ("dn", "uni/tn-%s" % vrf_tenant),
+                                    ]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "%s-allow-all-filter"
+                                                                        % system_id,
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "allow-all",
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
                                         ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                ]
-            }
-        }
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzBrCP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "%s-l3out-allow-all"
+                                                                        % system_id,
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzSubj",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "allow-all-subj",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "consMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "provMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzRsSubjFiltAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzFilterName",
+                                                                                                                                "%s-allow-all-filter"
+                                                                                                                                % system_id,
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            )
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
 
-        flt = '/api/mo/uni/tn-%s/flt-%s-allow-all-filter.json' % (vrf_tenant, system_id)
-        brc = '/api/mo/uni/tn-%s/brc-%s-l3out-allow-all.json' % (vrf_tenant, system_id)
+        flt = "/api/mo/uni/tn-%s/flt-%s-allow-all-filter.json" % (vrf_tenant, system_id)
+        brc = "/api/mo/uni/tn-%s/brc-%s-l3out-allow-all.json" % (vrf_tenant, system_id)
         return path, data, flt, brc
 
     def l3out_contract(self, l3out_instp):
@@ -711,14 +1305,26 @@ class ApicKubeConfig(object):
 
         pathc = (vrf_tenant, l3out, l3out_instp)
         path = "/api/mo/uni/tn-%s/out-%s/instP-%s.json" % pathc
-        data = {
-            "fvRsProv": {
-                "attributes": {
-                    "matchT": "AtleastOne",
-                    "tnVzBrCPName": l3out_rsprov_name
-                }
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvRsProv",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [
+                                        ("matchT", "AtleastOne"),
+                                        ("tnVzBrCPName", l3out_rsprov_name),
+                                    ]
+                                ),
+                            )
+                        ]
+                    ),
+                )
+            ]
+        )
 
         rsprovc = (vrf_tenant, l3out, l3out_instp, l3out_rsprov_name)
         rsprov = "/api/mo/uni/tn-%s/out-%s/instP-%s/rsprov-%s.json" % rsprovc
@@ -729,33 +1335,76 @@ class ApicKubeConfig(object):
         password = self.config["aci_config"]["sync_login"]["password"]
 
         path = "/api/node/mo/uni/userext/user-%s.json" % name
-        data = {
-            "aaaUser": {
-                "attributes": {
-                    "name": name,
-                    "accountStatus": "active",
-                },
-                "children": [
-                    {
-                        "aaaUserDomain": {
-                            "attributes": {
-                                "name": "all",
-                            },
-                            "children": [
-                                {
-                                    "aaaUserRole": {
-                                        "attributes": {
-                                            "name": "admin",
-                                            "privType": "writePriv",
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "aaaUser",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [("name", name), ("accountStatus", "active")]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "aaaUserDomain",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "all")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "aaaUserRole",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "admin",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "privType",
+                                                                                                    "writePriv",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
 
         if password is not None:
             data["aaaUser"]["attributes"]["pwd"] = password
@@ -777,31 +1426,54 @@ class ApicKubeConfig(object):
             pass
 
         path = "/api/node/mo/uni/userext/user-%s.json" % name
-        data = {
-            "aaaUser": {
-                "attributes": {
-                    "name": name,
-                },
-                "children": [
-                    {
-                        "aaaUserCert": {
-                            "attributes": {
-                                "name": "%s.crt" % name,
-                                "data": cert,
-                            }
-                        }
-                    }
-                ]
-            }
-        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "aaaUser",
+                    collections.OrderedDict(
+                        [
+                            ("attributes", collections.OrderedDict([("name", name)])),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "aaaUserCert",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "%s.crt" % name,
+                                                                    ),
+                                                                    ("data", cert),
+                                                                ]
+                                                            ),
+                                                        )
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    )
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
         if cert is None:
             data = None
         return path, data
 
     def isV6(self):
         pod_cidr = self.config["net_config"]["pod_subnet"]
-        rtr, mask = pod_cidr.split('/')
-        ip = ipaddress.ip_address(unicode(rtr))
+        rtr, mask = pod_cidr.split("/")
+        ip = ipaddress.ip_address(rtr)
         if ip.version == 4:
             return False
         else:
@@ -822,581 +1494,1678 @@ class ApicKubeConfig(object):
         v6subnet = self.isV6()
 
         kube_default_children = [
-            {
-                "fvRsDomAtt": {
-                    "attributes": {
-                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
-                    }
-                }
-            },
-            {
-                "fvRsCons": {
-                    "attributes": {
-                        "tnVzBrCPName": "dns"
-                    }
-                }
-            },
-            {
-                "fvRsCons": {
-                    "attributes": {
-                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
-                    }
-                }
-            },
-            {
-                "fvRsProv": {
-                    "attributes": {
-                        "tnVzBrCPName": "health-check"
-                    }
-                }
-            },
-            {
-                "fvRsCons": {
-                    "attributes": {
-                        "tnVzBrCPName": "icmp"
-                    }
-                }
-            },
-            {
-                "fvRsBd": {
-                    "attributes": {
-                        "tnFvBDName": "kube-pod-bd"
-                    }
-                }
-            }
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsDomAtt",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "tDn",
+                                                "uni/vmmp-%s/dom-%s"
+                                                % (vmm_type, vmm_name),
+                                            )
+                                        ]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsCons",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict([("tnVzBrCPName", "dns")]),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsCons",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "tnVzBrCPName",
+                                                "%s-l3out-allow-all" % system_id,
+                                            )
+                                        ]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsProv",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [("tnVzBrCPName", "health-check")]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsCons",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict([("tnVzBrCPName", "icmp")]),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            collections.OrderedDict(
+                [
+                    (
+                        "fvRsBd",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [("tnFvBDName", "kube-pod-bd")]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            ),
         ]
 
         if kade is True:
-            kube_default_children.append({
-                "fvRsCons": {
-                    "attributes": {
-                        "tnVzBrCPName": "kube-api"
-                    }
-                }
-            })
+            kube_default_children.append(
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvRsCons",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [("tnVzBrCPName", "kube-api")]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
 
-        node_subnet_obj = {
-            "attributes": {
-                "ip": node_subnet,
-                "scope": "public",
-            }
-        }
-        pod_subnet_obj = {
-            "attributes": {
-                "ip": pod_subnet,
-            }
-        }
+        node_subnet_obj = collections.OrderedDict(
+            [
+                (
+                    "attributes",
+                    collections.OrderedDict([("ip", node_subnet), ("scope", "public")]),
+                )
+            ]
+        )
+        pod_subnet_obj = collections.OrderedDict(
+            [("attributes", collections.OrderedDict([("ip", pod_subnet)]))]
+        )
         if v6subnet:
-            ipv6_nd_policy_rs = [{
-                "fvRsNdPfxPol": {
-                    "attributes": {
-                        "tnNdPfxPolName": "kube-nd-ra-policy"
-                    }
-                }
-            }]
-            node_subnet_obj['attributes']['ctrl'] = 'nd'
+            ipv6_nd_policy_rs = [
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvRsNdPfxPol",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [("tnNdPfxPolName", "kube-nd-ra-policy")]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            ]
+            node_subnet_obj["attributes"]["ctrl"] = "nd"
             node_subnet_obj["children"] = ipv6_nd_policy_rs
-            pod_subnet_obj['attributes']['ctrl'] = 'nd'
+            pod_subnet_obj["attributes"]["ctrl"] = "nd"
             pod_subnet_obj["children"] = ipv6_nd_policy_rs
 
         path = "/api/mo/uni/tn-%s.json" % tn_name
-        data = {
-            "fvTenant": {
-                "attributes": {
-                    "name": tn_name,
-                    "dn": "uni/tn-%s" % tn_name
-                },
-                "children": [
-                    {
-                        "fvAp": {
-                            "attributes": {
-                                "name": "kubernetes"
-                            },
-                            "children": [
-                                {
-                                    "fvAEPg": {
-                                        "attributes": {
-                                            "name": "kube-default"
-                                        },
-                                        "children": kube_default_children
-                                    }
-                                },
-                                {
-                                    "fvAEPg": {
-                                        "attributes": {
-                                            "name": "kube-system"
-                                        },
-                                        "children": [
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "dns"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "icmp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "health-check"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "icmp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "kube-api"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsDomAtt": {
-                                                    "attributes": {
-                                                        "tDn": "uni/vmmp-%s/dom-%s" % (vmm_type, vmm_name)
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsBd": {
-                                                    "attributes": {
-                                                        "tnFvBDName": "kube-pod-bd"
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                },
-                                {
-                                    "fvAEPg": {
-                                        "attributes": {
-                                            "name": "kube-nodes"
-                                        },
-                                        "children": [
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "dns"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "kube-api"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsProv": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "icmp"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "health-check"
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsCons": {
-                                                    "attributes": {
-                                                        "tnVzBrCPName": "%s-l3out-allow-all" % system_id
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsDomAtt": {
-                                                    "attributes": {
-                                                        "encap": "vlan-%s" % kubeapi_vlan,
-                                                        "tDn": "uni/phys-%s" % phys_name
-                                                    }
-                                                }
-                                            },
-                                            {
-                                                "fvRsBd": {
-                                                    "attributes": {
-                                                        "tnFvBDName": "kube-node-bd"
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                },
-                            ]
-                        }
-                    },
-                    {
-                        "fvBD": {
-                            "attributes": {
-                                "name": "kube-node-bd",
-                                "arpFlood": yesno(True)
-                            },
-                            "children": [
-                                {
-                                    "fvSubnet": node_subnet_obj,
-                                },
-                                {
-                                    "fvRsCtx": {
-                                        "attributes": {
-                                            "tnFvCtxName": kube_vrf
-                                        }
-                                    }
-                                },
-                                {
-                                    "fvRsBDToOut": {
-                                        "attributes": {
-                                            "tnL3extOutName": kube_l3out
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "fvBD": {
-                            "attributes": {
-                                "name": "kube-pod-bd"
-                            },
-                            "children": [
-                                {
-                                    "fvSubnet": pod_subnet_obj,
-                                },
-                                {
-                                    "fvRsCtx": {
-                                        "attributes": {
-                                            "tnFvCtxName": kube_vrf
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "icmp-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "icmp",
-                                            "etherT": "ipv4",
-                                            "prot": "icmp"
-                                        }
-                                    }
-                                },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "icmp6",
-                                            "etherT": "ipv6",
-                                            "prot": "icmpv6"
-                                        }
-                                    }
-                                },
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "health-check-filter-in"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "health-check",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "health-check-filter-out"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "health-check",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "stateful": "no",
-                                            "tcpRules": "est"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "dns-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "dns-udp",
-                                            "etherT": "ip",
-                                            "prot": "udp",
-                                            "dFromPort": "dns",
-                                            "dToPort": "dns"
-                                        }
-                                    }
-                                },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "dns-tcp",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "dFromPort": "dns",
-                                            "dToPort": "dns",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                },
-                            ]
-                        }
-                    },
-                    {
-                        "vzFilter": {
-                            "attributes": {
-                                "name": "kube-api-filter"
-                            },
-                            "children": [
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "kube-api",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "dFromPort": "6443",
-                                            "dToPort": "6443",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                },
-                                {
-                                    "vzEntry": {
-                                        "attributes": {
-                                            "name": "kube-api2",
-                                            "etherT": "ip",
-                                            "prot": "tcp",
-                                            "dFromPort": "8443",
-                                            "dToPort": "8443",
-                                            "stateful": "no",
-                                            "tcpRules": ""
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "kube-api"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "kube-api-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "kube-api-filter"
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "health-check"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "health-check-subj",
-                                            "revFltPorts": "yes",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzOutTerm": {
-                                                    "attributes": {
-                                                        "name": ""
-                                                    },
-                                                    "children": [
-                                                        {
-                                                            "vzRsFiltAtt": {
-                                                                "attributes": {
-                                                                    "tnVzFilterName": "health-check-filter-out"
-                                                                }
-                                                            }
-                                                        }
+        data = collections.OrderedDict(
+            [
+                (
+                    "fvTenant",
+                    collections.OrderedDict(
+                        [
+                            (
+                                "attributes",
+                                collections.OrderedDict(
+                                    [("name", tn_name), ("dn", "uni/tn-%s" % tn_name)]
+                                ),
+                            ),
+                            (
+                                "children",
+                                [
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvAp",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "kubernetes")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvAEPg",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-default",
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        kube_default_children,
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvAEPg",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-system",
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "dns",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "icmp",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "health-check",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsCons",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "icmp",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsCons",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "kube-api",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsCons",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "%s-l3out-allow-all"
+                                                                                                                                % system_id,
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsDomAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tDn",
+                                                                                                                                "uni/vmmp-%s/dom-%s"
+                                                                                                                                % (
+                                                                                                                                    vmm_type,
+                                                                                                                                    vmm_name,
+                                                                                                                                ),
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsBd",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnFvBDName",
+                                                                                                                                "kube-pod-bd",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvAEPg",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-nodes",
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "dns",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "kube-api",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsProv",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "icmp",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsCons",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "health-check",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsCons",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzBrCPName",
+                                                                                                                                "%s-l3out-allow-all"
+                                                                                                                                % system_id,
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsDomAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "encap",
+                                                                                                                                "vlan-%s"
+                                                                                                                                % kubeapi_vlan,
+                                                                                                                            ),
+                                                                                                                            (
+                                                                                                                                "tDn",
+                                                                                                                                "uni/phys-%s"
+                                                                                                                                % phys_name,
+                                                                                                                            ),
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "fvRsBd",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnFvBDName",
+                                                                                                                                "kube-node-bd",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
                                                     ]
-                                                }
-                                            },
-                                            {
-                                                "vzInTerm": {
-                                                    "attributes": {
-                                                        "name": ""
-                                                    },
-                                                    "children": [
-                                                        {
-                                                            "vzRsFiltAtt": {
-                                                                "attributes": {
-                                                                    "tnVzFilterName": "health-check-filter-in"
-                                                                }
-                                                            }
-                                                        }
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvBD",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "kube-node-bd",
+                                                                    ),
+                                                                    (
+                                                                        "arpFlood",
+                                                                        yesno(True),
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvSubnet",
+                                                                            node_subnet_obj,
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvRsCtx",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "tnFvCtxName",
+                                                                                                    kube_vrf,
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvRsBDToOut",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "tnL3extOutName",
+                                                                                                    kube_l3out,
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
                                                     ]
-                                                }
-                                            }
+                                                ),
+                                            )
                                         ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "dns"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "dns-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "dns-filter"
-                                                    }
-                                                }
-                                            }
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "fvBD",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "kube-pod-bd",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvSubnet",
+                                                                            pod_subnet_obj,
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvRsCtx",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "tnFvCtxName",
+                                                                                                    kube_vrf,
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
                                         ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "vzBrCP": {
-                            "attributes": {
-                                "name": "icmp"
-                            },
-                            "children": [
-                                {
-                                    "vzSubj": {
-                                        "attributes": {
-                                            "name": "icmp-subj",
-                                            "consMatchT": "AtleastOne",
-                                            "provMatchT": "AtleastOne"
-                                        },
-                                        "children": [
-                                            {
-                                                "vzRsSubjFiltAtt": {
-                                                    "attributes": {
-                                                        "tnVzFilterName": "icmp-filter"
-                                                    }
-                                                }
-                                            }
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "icmp-filter",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "icmp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ipv4",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "icmp",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "icmp6",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ipv6",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "icmpv6",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
                                         ]
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        }
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "health-check-filter-in",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "health-check",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "stateful",
+                                                                                                    "no",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tcpRules",
+                                                                                                    "",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "health-check-filter-out",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "health-check",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "stateful",
+                                                                                                    "no",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tcpRules",
+                                                                                                    "est",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "dns-filter")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "dns-udp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "udp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dFromPort",
+                                                                                                    "dns",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dToPort",
+                                                                                                    "dns",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "dns-tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dFromPort",
+                                                                                                    "dns",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dToPort",
+                                                                                                    "dns",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "stateful",
+                                                                                                    "no",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tcpRules",
+                                                                                                    "",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzFilter",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "kube-api-filter",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-api",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dFromPort",
+                                                                                                    "6443",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dToPort",
+                                                                                                    "6443",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "stateful",
+                                                                                                    "no",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tcpRules",
+                                                                                                    "",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzEntry",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-api2",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "etherT",
+                                                                                                    "ip",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "prot",
+                                                                                                    "tcp",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dFromPort",
+                                                                                                    "8443",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "dToPort",
+                                                                                                    "8443",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "stateful",
+                                                                                                    "no",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "tcpRules",
+                                                                                                    "",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzBrCP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "kube-api")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzSubj",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "kube-api-subj",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "consMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "provMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzRsSubjFiltAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzFilterName",
+                                                                                                                                "kube-api-filter",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            )
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzBrCP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [
+                                                                    (
+                                                                        "name",
+                                                                        "health-check",
+                                                                    )
+                                                                ]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzSubj",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "health-check-subj",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "revFltPorts",
+                                                                                                    "yes",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "consMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "provMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzOutTerm",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "name",
+                                                                                                                                "",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                (
+                                                                                                                    "children",
+                                                                                                                    [
+                                                                                                                        collections.OrderedDict(
+                                                                                                                            [
+                                                                                                                                (
+                                                                                                                                    "vzRsFiltAtt",
+                                                                                                                                    collections.OrderedDict(
+                                                                                                                                        [
+                                                                                                                                            (
+                                                                                                                                                "attributes",
+                                                                                                                                                collections.OrderedDict(
+                                                                                                                                                    [
+                                                                                                                                                        (
+                                                                                                                                                            "tnVzFilterName",
+                                                                                                                                                            "health-check-filter-out",
+                                                                                                                                                        )
+                                                                                                                                                    ]
+                                                                                                                                                ),
+                                                                                                                                            )
+                                                                                                                                        ]
+                                                                                                                                    ),
+                                                                                                                                )
+                                                                                                                            ]
+                                                                                                                        )
+                                                                                                                    ],
+                                                                                                                ),
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzInTerm",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "name",
+                                                                                                                                "",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                (
+                                                                                                                    "children",
+                                                                                                                    [
+                                                                                                                        collections.OrderedDict(
+                                                                                                                            [
+                                                                                                                                (
+                                                                                                                                    "vzRsFiltAtt",
+                                                                                                                                    collections.OrderedDict(
+                                                                                                                                        [
+                                                                                                                                            (
+                                                                                                                                                "attributes",
+                                                                                                                                                collections.OrderedDict(
+                                                                                                                                                    [
+                                                                                                                                                        (
+                                                                                                                                                            "tnVzFilterName",
+                                                                                                                                                            "health-check-filter-in",
+                                                                                                                                                        )
+                                                                                                                                                    ]
+                                                                                                                                                ),
+                                                                                                                                            )
+                                                                                                                                        ]
+                                                                                                                                    ),
+                                                                                                                                )
+                                                                                                                            ]
+                                                                                                                        )
+                                                                                                                    ],
+                                                                                                                ),
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzBrCP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "dns")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzSubj",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "dns-subj",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "consMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "provMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzRsSubjFiltAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzFilterName",
+                                                                                                                                "dns-filter",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            )
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                    collections.OrderedDict(
+                                        [
+                                            (
+                                                "vzBrCP",
+                                                collections.OrderedDict(
+                                                    [
+                                                        (
+                                                            "attributes",
+                                                            collections.OrderedDict(
+                                                                [("name", "icmp")]
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "children",
+                                                            [
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "vzSubj",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "name",
+                                                                                                    "icmp-subj",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "consMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                                (
+                                                                                                    "provMatchT",
+                                                                                                    "AtleastOne",
+                                                                                                ),
+                                                                                            ]
+                                                                                        ),
+                                                                                    ),
+                                                                                    (
+                                                                                        "children",
+                                                                                        [
+                                                                                            collections.OrderedDict(
+                                                                                                [
+                                                                                                    (
+                                                                                                        "vzRsSubjFiltAtt",
+                                                                                                        collections.OrderedDict(
+                                                                                                            [
+                                                                                                                (
+                                                                                                                    "attributes",
+                                                                                                                    collections.OrderedDict(
+                                                                                                                        [
+                                                                                                                            (
+                                                                                                                                "tnVzFilterName",
+                                                                                                                                "icmp-filter",
+                                                                                                                            )
+                                                                                                                        ]
+                                                                                                                    ),
+                                                                                                                )
+                                                                                                            ]
+                                                                                                        ),
+                                                                                                    )
+                                                                                                ]
+                                                                                            )
+                                                                                        ],
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                        )
+                                                                    ]
+                                                                )
+                                                            ],
+                                                        ),
+                                                    ]
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                ],
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
 
         if v6subnet is True:
-            data["fvTenant"]["children"].append({
-                "ndPfxPol": {
-                    "attributes": {
-                        "ctrl": "on-link,router-address",
-                        "lifetime": "2592000",
-                        "name": "kube-nd-ra-policy",
-                        "prefLifetime": "604800"
-                    }
-                }
-            })
+            data["fvTenant"]["children"].append(
+                collections.OrderedDict(
+                    [
+                        (
+                            "ndPfxPol",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [
+                                                ("ctrl", "on-link,router-address"),
+                                                ("lifetime", "2592000"),
+                                                ("name", "kube-nd-ra-policy"),
+                                                ("prefLifetime", "604800"),
+                                            ]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
 
         # If dhcp_relay_label is present, attach the label to the kube-node-bd
         if "dhcp_relay_label" in self.config["aci_config"]:
             dbg("Handle DHCP Relay Label")
-            children = data['fvTenant']['children']
+            children = data["fvTenant"]["children"]
             dhcp_relay_label = self.config["aci_config"]["dhcp_relay_label"]
-            attr = {
-                "dhcpLbl": {
-                    "attributes": {
-                        "name": dhcp_relay_label,
-                        "owner": "infra"
-                    }
-                }
-            }
+            attr = collections.OrderedDict(
+                [
+                    (
+                        "dhcpLbl",
+                        collections.OrderedDict(
+                            [
+                                (
+                                    "attributes",
+                                    collections.OrderedDict(
+                                        [("name", dhcp_relay_label), ("owner", "infra")]
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ]
+            )
             # lookup kube-node-bd data
             for child in children:
-                if 'fvBD' in child:
-                    if child['fvBD']['attributes']['name'] == 'kube-node-bd':
-                        child['fvBD']["children"].append(attr)
+                if "fvBD" in child:
+                    if child["fvBD"]["attributes"]["name"] == "kube-node-bd":
+                        child["fvBD"]["children"].append(attr)
                         break
 
         for epg in self.config["aci_config"].get("custom_epgs", []):
@@ -1411,51 +3180,55 @@ class ApicKubeConfig(object):
                 })
         return path, data
 
-    def epg(self, name, bd_name, provides=[], consumes=[], phy_domains=[],
-            vmm_domains=[]):
+    def epg(
+        self, name, bd_name, provides=[], consumes=[], phy_domains=[], vmm_domains=[]
+    ):
         children = []
         if bd_name:
-            children.append(aci_obj('fvRsBd', tnFvBDName=bd_name))
+            children.append(aci_obj("fvRsBd", tnFvBDName=bd_name))
         for c in consumes:
-            children.append(aci_obj('fvRsCons', tnVzBrCPName=c))
+            children.append(aci_obj("fvRsCons", tnVzBrCPName=c))
         for p in provides:
-            children.append(aci_obj('fvRsProv', tnVzBrCPName=p))
+            children.append(aci_obj("fvRsProv", tnVzBrCPName=p))
         for (d, e) in phy_domains:
-            children.append(aci_obj('fvRsDomAtt', encap="vlan-%s" % e,
-                                    tDn="uni/phys-%s" % d))
+            children.append(
+                aci_obj("fvRsDomAtt", encap="vlan-%s" % e, tDn="uni/phys-%s" % d)
+            )
         for (t, n) in vmm_domains:
-            children.append(aci_obj('fvRsDomAtt',
-                                    tDn="uni/vmmp-%s/dom-%s" % (t, n)))
-        return aci_obj('fvAEPg', name=name, _children=children)
+            children.append(aci_obj("fvRsDomAtt", tDn="uni/vmmp-%s/dom-%s" % (t, n)))
+        return aci_obj("fvAEPg", name=name, _children=children)
 
     def bd(self, name, vrf_name, subnets=[], l3outs=[]):
         children = []
         for sn in subnets:
-            children.append(aci_obj('fvSubnet', ip=sn, scope="public"))
+            children.append(aci_obj("fvSubnet", ip=sn, scope="public"))
         if vrf_name:
-            children.append(aci_obj('fvRsCtx', tnFvCtxName=vrf_name))
+            children.append(aci_obj("fvRsCtx", tnFvCtxName=vrf_name))
         for l in l3outs:
-            children.append(aci_obj('fvRsBDToOut', tnL3extOutName=l))
-        return aci_obj('fvBD', name=name, _children=children)
+            children.append(aci_obj("fvRsBDToOut", tnL3extOutName=l))
+        return aci_obj("fvBD", name=name, _children=children)
 
     def filter(self, name, entries=[]):
         children = []
         for e in entries:
-            children.append(aci_obj('vzEntry', **e))
-        return aci_obj('vzFilter', name=name, _children=children)
+            children.append(aci_obj("vzEntry", **e))
+        return aci_obj("vzFilter", name=name, _children=children)
 
     def contract(self, name, subjects=[]):
         children = []
         for s in subjects:
             filts = []
-            for f in s.get('filters', []):
-                filts.append(aci_obj('vzRsSubjFiltAtt', tnVzFilterName=f))
-            subj = aci_obj('vzSubj', name=s['name'],
-                           consMatchT="AtleastOne",
-                           provMatchT="AtleastOne",
-                           _children=filts)
+            for f in s.get("filters", []):
+                filts.append(aci_obj("vzRsSubjFiltAtt", tnVzFilterName=f))
+            subj = aci_obj(
+                "vzSubj",
+                name=s["name"],
+                consMatchT="AtleastOne",
+                provMatchT="AtleastOne",
+                _children=filts,
+            )
             children.append(subj)
-        return aci_obj('vzBrCP', name=name, _children=children)
+        return aci_obj("vzBrCP", name=name, _children=children)
 
     def cloudfoundry_tn(self):
         system_id = self.config["aci_config"]["system_id"]

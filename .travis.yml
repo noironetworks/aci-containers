@@ -17,3 +17,10 @@ matrix:
         - python provision/setup.py install
       script:
         - make -C provision test
+    - language: python
+      python: 3.6
+      install:
+        - pip install flake8        
+        - python provision/setup.py install
+      script:
+        - make -C provision test

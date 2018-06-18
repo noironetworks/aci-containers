@@ -1,25 +1,26 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import argparse
 import base64
+import copy
+import functools
+import ipaddress
 import json
 import os
-import pkg_resources
-import pkgutil
+import os.path
 import random
 import string
 import sys
-import yaml
 import uuid
-import copy
-import os.path
-import functools
-import ipaddress
+
+import pkg_resources
+import pkgutil
+import yaml
 
 from OpenSSL import crypto
-from apic_provision import Apic, ApicKubeConfig
+from .apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
@@ -217,7 +218,7 @@ def err(msg):
 
 
 def json_indent(s):
-    return json.dumps(s, indent=4)
+    return json.dumps(s, indent=4, separators=(',', ': '), sort_keys=True)
 
 
 def yaml_quote(s):
@@ -239,9 +240,13 @@ def yaml_list_dict(l):
     return out
 
 
+def list_unicode_strings(l):
+    return "['" + "', '".join(l) + "']"
+
+
 def deep_merge(user, default):
     if isinstance(user, dict) and isinstance(default, dict):
-        for k, v in default.iteritems():
+        for k, v in default.items():
             if k not in user:
                 user[k] = v
             else:
@@ -318,6 +323,15 @@ def config_user(config_file):
             config = yaml.load(sys.stdin)
         else:
             info("Loading configuration from \"%s\"" % config_file)
+
+            # This black magic forces pyyaml to load YAML strings as
+            # unicode rather than byte strings in Python 2, thus
+            # ensuring that the type of strings is consistent across
+            # versions.  From
+            # https://stackoverflow.com/a/2967461/3857947.
+            def construct_yaml_str(self, node):
+                return self.construct_scalar(node)
+            yaml.Loader.add_constructor(u'tag:yaml.org,2002:str', construct_yaml_str)
             with open(config_file, 'r') as file:
                 config = yaml.load(file)
     if config is None:
@@ -350,7 +364,7 @@ def config_discover(config, prov_apic):
 
 def config_set_dst(pod_cidr):
     rtr, mask = pod_cidr.split('/')
-    ip = ipaddress.ip_address(unicode(rtr))
+    ip = ipaddress.ip_address(rtr)
     if ip.version == 4:
         return "0.0.0.0/0"
     else:
@@ -359,11 +373,11 @@ def config_set_dst(pod_cidr):
 
 def cidr_split(cidr):
     rtr, mask = cidr.split('/')
-    ip = ipaddress.ip_address(unicode(rtr))
+    ip = ipaddress.ip_address(rtr)
     if ip.version == 4:
-        n = ipaddress.IPv4Network(unicode(cidr), strict=False)
+        n = ipaddress.IPv4Network(cidr, strict=False)
     else:
-        n = ipaddress.IPv6Network(unicode(cidr), strict=False)
+        n = ipaddress.IPv6Network(cidr, strict=False)
     first, last = n[2], n[-2]
     return str(first), str(last), str(n[1]), str(n.network_address), mask
 
@@ -632,8 +646,7 @@ def config_validate(flavor_opts, config):
             if not validator(value):
                 raise Exception(k)
         except Exception as e:
-            err("Invalid configuration for %s: %s"
-                % (k, e.message))
+            err("Invalid configuration for %s: %s" % (k, e))
             ret = False
     return ret
 
@@ -670,11 +683,12 @@ def config_validate_preexisting(config, prov_apic):
 def generate_sample(filep):
     data = pkgutil.get_data('acc_provision', 'templates/provision-config.yaml')
     filep.write(data)
+    filep.flush()
     return filep
 
 
 def generate_password(no_random):
-    chars = string.letters + string.digits + ("_-+=!" * 3)
+    chars = string.ascii_letters + string.digits + ("_-+=!" * 3)
     ret = ''.join(random.SystemRandom().sample(chars, 20))
     if no_random:
         ret = "NotRandom!"
@@ -705,9 +719,9 @@ def generate_cert(username, cert_file, key_file):
 
         cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
         key_data = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
-        with open(cert_file, "wt") as certp:
+        with open(cert_file, "wb") as certp:
             certp.write(cert_data)
-        with open(key_file, "wt") as keyp:
+        with open(key_file, "wb") as keyp:
             keyp.write(key_data)
     else:
         # Do not overwrite previously generated data if it exists
@@ -726,12 +740,14 @@ def get_jinja_template(file):
         loader=PackageLoader('acc_provision', 'templates'),
         trim_blocks=True,
         lstrip_blocks=True,
+        keep_trailing_newline=True
     )
-    env.filters['base64enc'] = base64.b64encode
+    env.filters['base64enc'] = lambda s: base64.b64encode(s.encode("ascii")).decode("ascii")
     env.filters['json'] = json_indent
     env.filters['yaml'] = yaml_indent
     env.filters['yaml_quote'] = yaml_quote
     env.filters['yaml_list_dict'] = yaml_list_dict
+    env.filters['list_unicode_strings'] = list_unicode_strings
     template = env.get_template(file)
     return template
 
@@ -773,7 +789,6 @@ def generate_kube_yaml(config, output):
               config["kube_config"]["system_namespace"],
               ",".join(kube_objects),
               str(config["registry"]["configuration_version"])))
-
     return config
 
 
@@ -832,7 +847,7 @@ CfFlavorOptions['template_generator'] = generate_cf_yaml
 
 def generate_apic_config(flavor_opts, config, prov_apic, apic_file):
     configurator = ApicKubeConfig(config)
-    for k, v in flavor_opts.get("apic", {}).iteritems():
+    for k, v in flavor_opts.get("apic", {}).items():
         setattr(configurator, k, v)
     apic_config = configurator.get_config()
     if apic_file:
