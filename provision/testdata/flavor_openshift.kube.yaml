@@ -53,27 +53,27 @@ data:
         },
         "service-ip-pool": [
             {
-                "start": "10.3.0.2", 
-                "end": "10.3.0.254"
+                "end": "10.3.0.254",
+                "start": "10.3.0.2"
             }
         ],
         "static-service-ip-pool": [
             {
-                "start": "10.4.0.2", 
-                "end": "10.4.0.254"
+                "end": "10.4.0.254",
+                "start": "10.4.0.2"
             }
         ],
         "allocate-service-ips": false,
         "pod-ip-pool": [
             {
-                "start": "10.2.0.2", 
-                "end": "10.2.255.254"
+                "end": "10.2.255.254",
+                "start": "10.2.0.2"
             }
         ],
         "node-service-ip-pool": [
             {
-                "start": "10.5.0.2", 
-                "end": "10.5.0.254"
+                "end": "10.5.0.254",
+                "start": "10.5.0.2"
             }
         ],
         "node-service-subnets": [
@@ -93,14 +93,14 @@ data:
         "aci-infra-vlan": 4093,
         "cni-netconfig": [
             {
+                "gateway": "10.2.0.1",
                 "routes": [
                     {
-                        "gw": "10.2.0.1", 
-                        "dst": "0.0.0.0/0"
+                        "dst": "0.0.0.0/0",
+                        "gw": "10.2.0.1"
                     }
-                ], 
-                "subnet": "10.2.0.0/16", 
-                "gateway": "10.2.0.1"
+                ],
+                "subnet": "10.2.0.0/16"
             }
         ]
     }

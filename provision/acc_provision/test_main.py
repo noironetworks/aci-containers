@@ -1,10 +1,13 @@
+from __future__ import print_function, unicode_literals
+
 import collections
 import filecmp
 import functools
 import os
 import sys
+import tempfile
 
-import acc_provision
+from . import acc_provision
 
 
 def in_testdir(f):
@@ -115,62 +118,58 @@ def test_flavor_cloudfoundry_10():
 
 @in_testdir
 def test_sample():
-    tmpout = os.tempnam(".", "tmp-stdout-")
-    with open(tmpout, "w") as tmpoutfd:
-        origout = sys.stdout
-        sys.stdout = tmpoutfd
+    with tempfile.NamedTemporaryFile("wb") as tmpout:
+        sys.stdout = tmpout
         try:
             args = get_args(sample=True)
             acc_provision.main(args, no_random=True)
         finally:
-            sys.stdout = origout
-    assert filecmp.cmp(tmpout, "../acc_provision/templates/provision-config.yaml")
-    run_provision(tmpout, "sample.kube.yaml", None)
-    os.remove(tmpout)
+            sys.stdout = sys.__stdout__
+        assert filecmp.cmp(tmpout.name, "../acc_provision/templates/provision-config.yaml", shallow=False)
+        run_provision(tmpout.name, "sample.kube.yaml", None)
 
 
 @in_testdir
 def test_devnull_errors():
-    tmperr = os.tempnam(".", "tmp-stderr-")
-    with open(tmperr, "w") as tmperrfd:
-        origout = sys.stdout
-        sys.stderr = tmperrfd
+    with tempfile.NamedTemporaryFile("w+") as tmperr:
+        sys.stderr = tmperr
         try:
             args = get_args()
-            acc_provision.main(args, no_random=True)
+            print(acc_provision.main(args, no_random=True))
         except SystemExit:
             # expected to exit with errors
             pass
         finally:
-            sys.stderr = origout
-    assert filecmp.cmp(tmperr, "devnull.stderr.txt")
-    os.remove(tmperr)
+            tmperr.flush()
+            sys.stderr = sys.__stderr__
+            tmperr.seek(0)
+        with open("devnull.stderr.txt", "r") as stderr:
+            assert tmperr.read() == stderr.read()
 
 
 @in_testdir
 def test_flavor_cf_devnull_errors():
-    tmperr = os.tempnam(".", "tmp-stderr-")
-    with open(tmperr, "w") as tmperrfd:
-        origout = sys.stdout
-        sys.stderr = tmperrfd
+    with tempfile.NamedTemporaryFile("w+") as tmperr:
+        sys.stderr = tmperr
         try:
             args = get_args(flavor="cloudfoundry-1.0")
-            acc_provision.main(args, no_random=True)
+            print(acc_provision.main(args, no_random=True))
         except SystemExit:
             # expected to exit with errors
             pass
         finally:
-            sys.stderr = origout
-    assert filecmp.cmp(tmperr, "flavor_cf_devnull.stderr.txt")
-    os.remove(tmperr)
+            tmperr.flush()
+            sys.stderr = sys.__stderr__
+            tmperr.seek(0)
+        with open("flavor_cf_devnull.stderr.txt", "r") as stderr:
+            assert tmperr.read() == stderr.read()
 
 
 @in_testdir
 def test_helpmsg():
-    tmpout = os.tempnam(".", "tmp-stdout-")
-    with open(tmpout, "w") as tmpoutfd:
+    with tempfile.NamedTemporaryFile("w") as tmpout:
         origout = sys.stdout
-        sys.stdout = tmpoutfd
+        sys.stdout = tmpout
         try:
             sys.argv = ["acc_provision.py", "--help"]
             acc_provision.main(no_random=True)
@@ -178,8 +177,8 @@ def test_helpmsg():
             pass
         finally:
             sys.stdout = origout
-    assert filecmp.cmp(tmpout, "help.stdout.txt")
-    os.remove(tmpout)
+        tmpout.flush()
+        assert filecmp.cmp(tmpout.name, "help.stdout.txt", shallow=False)
 
 
 def get_args(**overrides):
@@ -198,7 +197,7 @@ def get_args(**overrides):
         "flavor": None,
         "version_token": "dummy",
     }
-    argc = collections.namedtuple('argc', arg.keys())
+    argc = collections.namedtuple('argc', list(arg.keys()))
     args = argc(**arg)
     args = args._replace(**overrides)
     return args
@@ -207,18 +206,12 @@ def get_args(**overrides):
 def run_provision(inpfile, expectedkube=None, expectedapic=None,
                   overrides={}):
     # Exec main
-    args = get_args(
-        config=inpfile,
-        output=os.tempnam(".", "tmp-kube-"), **overrides)
-    apicfile = os.tempnam(".", "tmp-apic-")
-    acc_provision.main(args, apicfile, no_random=True)
-
-    # Verify generated configs
-    if expectedkube is not None:
-        assert filecmp.cmp(args.output, expectedkube)
-    if expectedapic is not None:
-        assert filecmp.cmp(apicfile, expectedapic)
-
-    # Cleanup
-    os.remove(args.output)
-    os.remove(apicfile)
+    with tempfile.NamedTemporaryFile("w+") as output, tempfile.NamedTemporaryFile("w+") as apicfile:
+        args = get_args(config=inpfile, output=output.name, **overrides)
+        acc_provision.main(args, apicfile.name, no_random=True)
+        if expectedkube is not None:
+            with open(expectedkube, "r") as expected:
+                assert output.read() == expected.read()
+        if expectedapic is not None:
+            with open(expectedapic, "r") as expected:
+                assert apicfile.read() == expected.read()

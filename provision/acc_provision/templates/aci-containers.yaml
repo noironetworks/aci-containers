@@ -44,7 +44,7 @@ data:
             "name": {{(config.kube_config.default_endpoint_group.app_profile ~ "|" ~ config.kube_config.default_endpoint_group.group)|json}}
         },
         "namespace-default-endpoint-group": {
-            {% for ns, val in config.kube_config.namespace_default_endpoint_group.iteritems() %}
+            {% for ns, val in config.kube_config.namespace_default_endpoint_group.items() %}
             "{{ns}}": {
                 "policy-space": {{val['tenant']|json}},
                 "name": {{(val['app_profile'] ~ "|" ~ val['group'])|json}}
@@ -542,4 +542,3 @@ spec:
             items:
               - key: controller-config
                 path: controller.conf
-
