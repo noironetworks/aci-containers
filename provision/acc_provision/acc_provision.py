@@ -540,15 +540,15 @@ def config_validate(flavor_opts, config):
              else Raise(Exception("Invalid value: %s; "
                                   "Expected one of: {%s}" %
                                   (x, ','.join(y)))))))
-    isname = lambda x: (1 < len(x[0]) < x[1]) and \
-        x[0][0].isalpha() and x[0].replace('_', '').isalnum() \
-        if x[0] else Raise(Exception("Missing option"))
+    isname = lambda x, l: (1 < len(x) < l) and \
+        x[0].isalpha() and x.replace('_', '').isalnum() \
+        if x else Raise(Exception("Missing option"))
     get = lambda t: functools.reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
         # ACI config
-        "aci_config/system_id": (get(("aci_config", "system_id")), required),
-        "aci_config/system_id/type": (((get(("aci_config", "system_id"))), 32), isname),
+        "aci_config/system_id": (get(("aci_config", "system_id")),
+                                 lambda x: required(x) and isname(x, 32)),
         "aci_config/apic_host": (get(("aci_config", "apic_hosts")), required),
         "aci_config/aep": (get(("aci_config", "aep")), required),
         "aci_config/vrf/name": (get(("aci_config", "vrf", "name")), required),

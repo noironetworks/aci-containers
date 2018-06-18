@@ -4,7 +4,6 @@ ERR:  Invalid configuration for aci_config/apic_host: Missing option
 ERR:  Invalid configuration for aci_config/l3out/external-networks: Missing option
 ERR:  Invalid configuration for aci_config/l3out/name: Missing option
 ERR:  Invalid configuration for aci_config/system_id: Missing option
-ERR:  Invalid configuration for aci_config/system_id/type: Missing option
 ERR:  Invalid configuration for aci_config/vmm_domain/nested_inside/type: Missing option
 ERR:  Invalid configuration for aci_config/vrf/name: Missing option
 ERR:  Invalid configuration for aci_config/vrf/tenant: Missing option
