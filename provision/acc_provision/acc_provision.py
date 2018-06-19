@@ -542,7 +542,7 @@ def config_validate(flavor_opts, config):
                                   (x, ','.join(y)))))))
     isname = lambda x, l: (1 < len(x) < l) and \
         x[0].isalpha() and x.replace('_', '').isalnum() \
-        if x else Raise(Exception("Missing option"))
+        if x else Raise(Exception("Invalid name"))
     get = lambda t: functools.reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
