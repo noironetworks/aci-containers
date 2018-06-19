@@ -5,14 +5,16 @@
 #export DH_VERBOSE=1
 
 SRCDIR=src/github.com/noironetworks/aci-containers
+DEPCACHEDIR=$(firstword $(subst :, ,$(GOPATH)))/dep-cache
 
 %:
 	dh $@ --parallel
 
 override_dh_auto_build:
-	echo "CURDIR $(CURDIR)"
-	GOPATH=$(CURDIR) go get -v -u github.com/golang/dep/cmd/dep
-	GOPATH=$(CURDIR) PATH=$(PATH):$(CURDIR)/bin $(MAKE) -C ${SRCDIR} all
+	echo "GOPATH $(GOPATH)"
+	go get -v -u github.com/golang/dep/cmd/dep
+	mkdir -p $(DEPCACHEDIR)
+	DEPCACHEDIR=$(DEPCACHEDIR) PATH=$(GOPATH)/bin:$(PATH) GOPATH=$(GOPATH):$(CURDIR) $(MAKE) -C ${SRCDIR} all
 
 override_dh_auto_install:
 	mkdir -p $(CURDIR)/debian/tmp/usr/bin

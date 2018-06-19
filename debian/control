@@ -3,7 +3,7 @@ Priority: optional
 Section: net
 Maintainer: Amit Bose <amitbose@gmail.com>
 Build-Depends:
- debhelper (>= 8.0.0)
+ debhelper (>= 8.0.0), git
 Standards-Version: 3.9.4
 Homepage: https://github.com/noironetworks/aci-containers 
 
