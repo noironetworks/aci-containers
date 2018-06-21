@@ -2,8 +2,8 @@
 {
     "fvnsVlanInstP": {
         "attributes": {
-            "allocMode": "static",
-            "name": "mycf0-pool"
+            "name": "mycf0-pool",
+            "allocMode": "static"
         },
         "children": [
             {
@@ -22,8 +22,8 @@
 {
     "fvnsMcastAddrInstP": {
         "attributes": {
-            "dn": "uni/infra/maddrns-mycf0-mpool",
-            "name": "mycf0-mpool"
+            "name": "mycf0-mpool",
+            "dn": "uni/infra/maddrns-mycf0-mpool"
         },
         "children": [
             {
@@ -59,21 +59,21 @@
 {
     "vmmDomP": {
         "attributes": {
-            "encapMode": "vxlan",
-            "enfPref": "sw",
-            "mcastAddr": "225.1.2.3",
-            "mode": "cf",
             "name": "mycf0",
-            "prefEncapMode": "vxlan"
+            "mode": "cf",
+            "enfPref": "sw",
+            "encapMode": "vxlan",
+            "prefEncapMode": "vxlan",
+            "mcastAddr": "225.1.2.3"
         },
         "children": [
             {
                 "vmmCtrlrP": {
                     "attributes": {
-                        "hostOrIp": "1.1.1.1",
-                        "mode": "cf",
                         "name": "mycf0",
-                        "scope": "cloudfoundry"
+                        "mode": "cf",
+                        "scope": "cloudfoundry",
+                        "hostOrIp": "1.1.1.1"
                     }
                 }
             },
@@ -189,8 +189,8 @@ None
 {
     "fvTenant": {
         "attributes": {
-            "dn": "uni/tn-common",
-            "name": "common"
+            "name": "common",
+            "dn": "uni/tn-common"
         },
         "children": [
             {
@@ -218,8 +218,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "allow-all-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -247,8 +247,8 @@ None
 {
     "fvTenant": {
         "attributes": {
-            "dn": "uni/tn-mycf0",
-            "name": "mycf0"
+            "name": "mycf0",
+            "dn": "uni/tn-mycf0"
         },
         "children": [
             {
@@ -273,21 +273,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter"
+                                                "tnVzBrCPNamc": "gorouter"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -331,21 +331,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter-is1"
+                                                "tnVzBrCPNamc": "gorouter-is1"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -382,21 +382,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter-is2"
+                                                "tnVzBrCPNamc": "gorouter-is2"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -433,14 +433,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -477,14 +477,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -521,14 +521,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -565,14 +565,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -609,14 +609,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -727,8 +727,8 @@ None
                         {
                             "vzEntry": {
                                 "attributes": {
-                                    "etherT": "ip",
                                     "name": "tcp",
+                                    "etherT": "ip",
                                     "prot": "tcp"
                                 }
                             }
@@ -736,37 +736,39 @@ None
                     ]
                 }
             },
-            {
-                "vzFilter": {
-                    "attributes": {
-                        "name": "dns"
-                    },
-                    "children": [
-                        {
-                            "vzEntry": {
-                                "attributes": {
-                                    "dFromPort": "dns",
-                                    "dToPort": "dns",
-                                    "etherT": "ip",
-                                    "name": "udp",
-                                    "prot": "udp"
-                                }
-                            }
+            [
+                {
+                    "vzFilter": {
+                        "attributes": {
+                            "name": "dns"
                         },
-                        {
-                            "vzEntry": {
-                                "attributes": {
-                                    "dFromPort": "dns",
-                                    "dToPort": "dns",
-                                    "etherT": "ip",
-                                    "name": "tcp",
-                                    "prot": "tcp"
+                        "children": [
+                            {
+                                "vzEntry": {
+                                    "attributes": {
+                                        "name": "udp",
+                                        "etherT": "ip",
+                                        "prot": "udp",
+                                        "dFromProt": "dns",
+                                        "dToPort": "dns"
+                                    }
+                                }
+                            },
+                            {
+                                "vzEntry": {
+                                    "attributes": {
+                                        "name": "tcp",
+                                        "etherT": "ip",
+                                        "prot": "tcp",
+                                        "dFromProt": "dns",
+                                        "dToPort": "dns"
+                                    }
                                 }
                             }
-                        }
-                    ]
+                        ]
+                    }
                 }
-            },
+            ],
             {
                 "vzFilter": {
                     "attributes": {
@@ -792,8 +794,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "is-node-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -819,8 +821,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "dns-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -846,8 +848,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "gorouter-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -873,8 +875,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "gorouter-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -900,8 +902,8 @@ None
                         {
                             "vzSubj": {
                                 "attributes": {
-                                    "consMatchT": "AtleastOne",
                                     "name": "gorouter-subj",
+                                    "consMatchT": "AtleastOne",
                                     "provMatchT": "AtleastOne"
                                 },
                                 "children": [
@@ -936,8 +938,8 @@ None
 {
     "aaaUser": {
         "attributes": {
-            "accountStatus": "active",
             "name": "mycf0",
+            "accountStatus": "active",
             "pwd": "NotRandom!"
         },
         "children": [
@@ -971,8 +973,8 @@ None
             {
                 "aaaUserCert": {
                     "attributes": {
-                        "data": "-----BEGIN CERTIFICATE-----\nMIIB6DCCAVECAgPoMA0GCSqGSIb3DQEBBQUAMDwxCzAJBgNVBAYTAlVTMRYwFAYD\nVQQKDA1DaXNjbyBTeXN0ZW1zMRUwEwYDVQQDDAxVc2VyIG1hbmRlZXAwHhcNMTcw\nNTE2MjEyOTMwWhcNMjcwNTE0MjEyOTMwWjA8MQswCQYDVQQGEwJVUzEWMBQGA1UE\nCgwNQ2lzY28gU3lzdGVtczEVMBMGA1UEAwwMVXNlciBtYW5kZWVwMIGfMA0GCSqG\nSIb3DQEBAQUAA4GNADCBiQKBgQDa/gPoDimwFVaybG9/mVm3J1V6P4HbsSE5L5tP\nZHohQp/lKf0hnar+gIfo5SXxe7r/hYAibQsQ/O6mMNKuQ3BlSyHHxeGVG/QfKyVi\ngSOsCX8bTHxblDWNuHIMEKSaqzFKgA8/zFvsK2XobEpxbMnsF0d/PHkexCow1noH\nScj3FwIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAHX+kLTe6LCABewmCTvMsjusHdpZ\nki01+nQ7KhnERbBm/tZ5scZE4ctIqch3ny1EITHNtYWKBN4CdUKcjvDW2h2vkHeg\nrtYbV+AaEsq0m4vGF9Emvt1cp9Y41IyMBZYqw8c/V1AtmRQcRTYQA8H3OFDchyB2\n0JHSDnBoS7ffSbBx\n-----END CERTIFICATE-----\n",
-                        "name": "mycf0.crt"
+                        "name": "mycf0.crt",
+                        "data": "-----BEGIN CERTIFICATE-----\nMIIB6DCCAVECAgPoMA0GCSqGSIb3DQEBBQUAMDwxCzAJBgNVBAYTAlVTMRYwFAYD\nVQQKDA1DaXNjbyBTeXN0ZW1zMRUwEwYDVQQDDAxVc2VyIG1hbmRlZXAwHhcNMTcw\nNTE2MjEyOTMwWhcNMjcwNTE0MjEyOTMwWjA8MQswCQYDVQQGEwJVUzEWMBQGA1UE\nCgwNQ2lzY28gU3lzdGVtczEVMBMGA1UEAwwMVXNlciBtYW5kZWVwMIGfMA0GCSqG\nSIb3DQEBAQUAA4GNADCBiQKBgQDa/gPoDimwFVaybG9/mVm3J1V6P4HbsSE5L5tP\nZHohQp/lKf0hnar+gIfo5SXxe7r/hYAibQsQ/O6mMNKuQ3BlSyHHxeGVG/QfKyVi\ngSOsCX8bTHxblDWNuHIMEKSaqzFKgA8/zFvsK2XobEpxbMnsF0d/PHkexCow1noH\nScj3FwIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAHX+kLTe6LCABewmCTvMsjusHdpZ\nki01+nQ7KhnERbBm/tZ5scZE4ctIqch3ny1EITHNtYWKBN4CdUKcjvDW2h2vkHeg\nrtYbV+AaEsq0m4vGF9Emvt1cp9Y41IyMBZYqw8c/V1AtmRQcRTYQA8H3OFDchyB2\n0JHSDnBoS7ffSbBx\n-----END CERTIFICATE-----\n"
                     }
                 }
             }

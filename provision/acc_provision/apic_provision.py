@@ -32,7 +32,8 @@ def yesno(flag):
     return "no"
 
 
-def aci_obj(klass, **kwargs):
+def aci_obj(klass, pair_list):
+    kwargs = collections.OrderedDict(pair_list)
     children = kwargs.pop("_children", None)
     data = collections.OrderedDict(
         [(klass, collections.OrderedDict([("attributes", kwargs)]))]
@@ -278,7 +279,6 @@ class ApicKubeConfig(object):
                 data.append((x[0], json.dumps(
                     x[1],
                     indent=4,
-                    sort_keys=True,
                     separators=(",", ": "))))
                 for path in x[2:]:
                     data.append((path, None))
@@ -3185,50 +3185,49 @@ class ApicKubeConfig(object):
     ):
         children = []
         if bd_name:
-            children.append(aci_obj("fvRsBd", tnFvBDName=bd_name))
+            children.append(aci_obj("fvRsBd", [('tnFvBDName', bd_name)]))
         for c in consumes:
-            children.append(aci_obj("fvRsCons", tnVzBrCPName=c))
+            children.append(aci_obj("fvRsCons", [('tnVzBrCPNamc', c)]))
         for p in provides:
-            children.append(aci_obj("fvRsProv", tnVzBrCPName=p))
+            children.append(aci_obj("fvRsProv", [('tnVzBrCPName', p)]))
         for (d, e) in phy_domains:
             children.append(
-                aci_obj("fvRsDomAtt", encap="vlan-%s" % e, tDn="uni/phys-%s" % d)
-            )
+                aci_obj("fvRsDomAtt", [('encap', "vlan-%s" % e), ('tDn', "uni/phys-%s" % d)]))
         for (t, n) in vmm_domains:
-            children.append(aci_obj("fvRsDomAtt", tDn="uni/vmmp-%s/dom-%s" % (t, n)))
-        return aci_obj("fvAEPg", name=name, _children=children)
+            children.append(aci_obj("fvRsDomAtt", [('tDn', "uni/vmmp-%s/dom-%s" % (t, n))]))
+        return aci_obj("fvAEPg", [('name', name), ('_children', children)])
 
     def bd(self, name, vrf_name, subnets=[], l3outs=[]):
         children = []
         for sn in subnets:
-            children.append(aci_obj("fvSubnet", ip=sn, scope="public"))
+            children.append(aci_obj("fvSubnet", [('ip', sn), ('scope', "public")]))
         if vrf_name:
-            children.append(aci_obj("fvRsCtx", tnFvCtxName=vrf_name))
+            children.append(aci_obj("fvRsCtx", [('tnFvCtxName', vrf_name)]))
         for l in l3outs:
-            children.append(aci_obj("fvRsBDToOut", tnL3extOutName=l))
-        return aci_obj("fvBD", name=name, _children=children)
+            children.append(aci_obj("fvRsBDToOut", [('tnL3extOutName', l)]))
+        return aci_obj("fvBD", [('name', name), ('_children', children)])
 
     def filter(self, name, entries=[]):
         children = []
         for e in entries:
-            children.append(aci_obj("vzEntry", **e))
-        return aci_obj("vzFilter", name=name, _children=children)
+            children.append(aci_obj("vzEntry", e))
+        return aci_obj("vzFilter", [('name', name), ('_children', children)])
 
     def contract(self, name, subjects=[]):
         children = []
         for s in subjects:
             filts = []
             for f in s.get("filters", []):
-                filts.append(aci_obj("vzRsSubjFiltAtt", tnVzFilterName=f))
+                filts.append(aci_obj("vzRsSubjFiltAtt", [('tnVzFilterName', f)]))
             subj = aci_obj(
                 "vzSubj",
-                name=s["name"],
-                consMatchT="AtleastOne",
-                provMatchT="AtleastOne",
-                _children=filts,
+                [('name', s["name"]),
+                 ('consMatchT', "AtleastOne"),
+                 ('provMatchT', "AtleastOne"),
+                 ('_children', filts)],
             )
             children.append(subj)
-        return aci_obj("vzBrCP", name=name, _children=children)
+        return aci_obj("vzBrCP", [('name', name), ('_children', children)])
 
     def cloudfoundry_tn(self):
         system_id = self.config["aci_config"]["system_id"]
@@ -3285,8 +3284,8 @@ class ApicKubeConfig(object):
             gorouter_contracts.append(
                 self.contract(
                     'gorouter-%s' % is_name,
-                    subjects=[dict(name='gorouter-subj',
-                                   filters=['tcp-all'])]))
+                    subjects=[collections.OrderedDict(name='gorouter-subj',
+                                                      filters=['tcp-all'])]))
 
         for epg in self.config["aci_config"].get("custom_epgs", []):
             app_epgs.append(self.epg(
@@ -3298,8 +3297,8 @@ class ApicKubeConfig(object):
                 vmm_domains=[(vmm_type, vmm_name)]))
 
         ap = aci_obj('fvAp',
-                     name=ap_name,
-                     _children=node_epgs + app_epgs)
+                     [('name', ap_name),
+                      ('_children', node_epgs + app_epgs)])
 
         app_bd = self.bd('cf-app-bd', cf_vrf,
                          subnets=[pod_subnet],
@@ -3309,37 +3308,55 @@ class ApicKubeConfig(object):
                           subnets=node_subnet,
                           l3outs=[cf_l3out])
 
-        tcp_all_filter = self.filter(
-            'tcp-all',
-            entries=[dict(name='tcp', etherT='ip', prot='tcp')])
-        dns_filter = self.filter(
-            'dns',
-            entries=[dict(name='udp', etherT='ip', prot='udp',
-                          dFromPort='dns', dToPort='dns'),
-                     dict(name='tcp', etherT='ip', prot='tcp',
-                          dFromPort='dns', dToPort='dns')])
-        is_all_filter = self.filter('isolation-segment-all',
-                                    entries=[dict(name='0')])
+        tcp_all_filter = self.filter('tcp-all', entries=[
+            collections.OrderedDict(
+                [('name', 'tcp'),
+                 ('etherT', 'ip'),
+                 ('prot', 'tcp')])])
+        dns_filter = self.filter('dns',
+                                 entries=[
+                                     collections.OrderedDict(
+                                         [('name', 'udp'),
+                                          ('etherT', 'ip'),
+                                          ('prot', 'udp'),
+                                          ('dFromProt', 'dns'),
+                                          ('dToPort', 'dns')]),
+                                     collections.OrderedDict(
+                                         [('name', 'tcp'),
+                                          ('etherT', 'ip'),
+                                          ('prot', 'tcp'),
+                                          ('dFromProt', 'dns'),
+                                          ('dToPort', 'dns')])]),
+        is_all_filter = self.filter(
+            'isolation-segment-all',
+            entries=[collections.OrderedDict(name='0')])
 
         gorouter_contracts.append(self.contract(
             'gorouter',
-            subjects=[dict(name='gorouter-subj', filters=['tcp-all'])]))
+            subjects=[
+                collections.OrderedDict([
+                    ('name', 'gorouter-subj'),
+                    ('filters', ['tcp-all'])])]))
         dns_contract = self.contract(
             'dns',
-            subjects=[dict(name='dns-subj', filters=['dns'])])
+            subjects=[
+                collections.OrderedDict([
+                    ('name', 'dns-subj'),
+                    ('filters', ['dns'])])])
         is_node_contract = self.contract(
             'is-node',
-            subjects=[dict(name='is-node-subj',
-                           filters=['isolation-segment-all'])])
-
+            subjects=[
+                collections.OrderedDict([
+                    ('name', 'is-node-subj'),
+                    ('filters', ['isolation-segment-all'])])])
         path = "/api/mo/uni/tn-%s.json" % tn_name
         data = aci_obj('fvTenant',
-                       name=tn_name,
-                       dn="uni/tn-%s" % tn_name,
-                       _children=[ap, node_bd, app_bd,
-                                  tcp_all_filter, dns_filter,
-                                  is_all_filter, is_node_contract,
-                                  dns_contract] + gorouter_contracts)
+                       [('name', tn_name),
+                        ('dn', "uni/tn-%s" % tn_name),
+                        ('_children', [ap, node_bd, app_bd,
+                                       tcp_all_filter, dns_filter,
+                                       is_all_filter, is_node_contract,
+                                       dns_contract] + gorouter_contracts)])
         return path, data
 
 
