@@ -4,6 +4,8 @@ import collections
 import filecmp
 import functools
 import os
+import shutil
+import ssl
 import sys
 import tempfile
 
@@ -192,7 +194,7 @@ def get_args(**overrides):
         "password": "",
         "sample": False,
         "timeout": None,
-        "debug": False,
+        "debug": True,
         "list_flavors": False,
         "flavor": None,
         "version_token": "dummy",
@@ -215,3 +217,29 @@ def run_provision(inpfile, expectedkube=None, expectedapic=None,
         if expectedapic is not None:
             with open(expectedapic, "r") as expected:
                 assert apicfile.read() == expected.read()
+
+
+@in_testdir
+def test_certificate_generation_kubernetes():
+    create_certificate("base_case.inp.yaml", "user.crt", output='temp.yaml')
+
+
+@in_testdir
+def test_certificate_generation_cloud_foundry():
+    create_certificate("flavor_cf_10.inp.yaml", "user.crt", output='temp.yaml', flavor="cloudfoundry-1.0")
+
+
+def create_certificate(input_file, cert_file, **overrides):
+    temp = tempfile.mkdtemp()
+    old_working_directory = os.getcwd()
+    shutil.copyfile(input_file, temp + '/' + input_file)
+    os.chdir(temp)
+    try:
+        args = get_args(config=input_file, **overrides)
+        acc_provision.main(args, no_random=True)
+        cert_data = ssl._ssl._test_decode_cert(os.path.join(temp, cert_file))
+        assert cert_data['serialNumber'] == '03E8'
+        assert cert_data['issuer'][0][0][1] == 'US'
+        assert cert_data['issuer'][1][0][1] == 'Cisco Systems'
+    finally:
+        os.chdir(old_working_directory)
