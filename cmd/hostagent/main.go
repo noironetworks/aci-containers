@@ -54,7 +54,7 @@ func main() {
 	}
 	log.Level = logLevel
 	if config.ChildMode {
-		hostagent.StartPlugin(log)
+		hostagent.StartPlugin(log, config)
 		return
 	}
 

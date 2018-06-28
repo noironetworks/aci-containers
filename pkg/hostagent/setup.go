@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"syscall"
 
 	"github.com/Sirupsen/logrus"
 	cnicur "github.com/containernetworking/cni/pkg/types/current"
@@ -30,9 +32,10 @@ import (
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
-func StartPlugin(log *logrus.Logger) {
+func StartPlugin(log *logrus.Logger, config *HostAgentConfig) {
 	p := pie.NewProvider()
-	if err := p.Register(&ClientRPC{}); err != nil {
+	svc := &ClientRPC{log: log, fsUid: config.ChildModeFsUid}
+	if err := p.Register(svc); err != nil {
 		log.Fatalf("failed to register Plugin: %s", err)
 		return
 	}
@@ -41,13 +44,18 @@ func StartPlugin(log *logrus.Logger) {
 	p.Serve()
 }
 
-func runPluginCmd(method string, args interface{}, reply interface{}) error {
+func runPluginCmd(method, fsuid string, args interface{},
+	reply interface{}) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
 
-	client, err := pie.StartProvider(os.Stderr, exe, "-child-mode")
+	prov_args := []string{"-child-mode"}
+	if fsuid != "" {
+		prov_args = append(prov_args, "-child-mode-fsuid", fsuid)
+	}
+	client, err := pie.StartProvider(os.Stderr, exe, prov_args...)
 	if err != nil {
 		return err
 	}
@@ -56,7 +64,24 @@ func runPluginCmd(method string, args interface{}, reply interface{}) error {
 	return client.Call(method, args, reply)
 }
 
-type ClientRPC struct{}
+func getSandboxUserId(log *logrus.Entry, sandbox string) (uid string) {
+	parts := strings.Split(sandbox, "/")
+	if len(parts) < 3 || parts[0] != "" || parts[1] != "proc" {
+		return
+	}
+	fi, err := os.Stat("/" + parts[1] + "/" + parts[2])
+	if err != nil {
+		log.WithField("sandbox", sandbox).Error("Failed to stat file: ", err)
+		return
+	}
+	uid = fmt.Sprintf("%d", fi.Sys().(*syscall.Stat_t).Uid)
+	return
+}
+
+type ClientRPC struct {
+	log   *logrus.Logger
+	fsUid int
+}
 
 type SetupVethArgs struct {
 	Sandbox string
@@ -69,15 +94,27 @@ type SetupVethResult struct {
 	Mac          string
 }
 
-func runSetupVeth(sandbox string, ifName string,
+func (c *ClientRPC) setupFsuid() {
+	if c.fsUid != 0 {
+		c.log.Info("[Child-mode] Switching FS uid to ", c.fsUid)
+		if err := syscall.Setfsuid(c.fsUid); err != nil {
+			c.log.WithField("fsuid", c.fsUid).Error(
+				"[Child-mode] Failed to change FS uid: ", err)
+		}
+	}
+}
+
+func runSetupVeth(log *logrus.Entry, sandbox string, ifName string,
 	mtu int) (string, string, error) {
 	result := &SetupVethResult{}
 	err := runPluginCmd("ClientRPC.SetupVeth",
+		getSandboxUserId(log, sandbox),
 		&SetupVethArgs{sandbox, ifName, mtu}, result)
 	return result.HostVethName, result.Mac, err
 }
 
-func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error {
+func (c *ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error {
+	c.setupFsuid()
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
@@ -109,14 +146,16 @@ type ClearVethArgs struct {
 	IfName  string
 }
 
-func runClearVeth(sandbox string, ifName string) error {
+func runClearVeth(log *logrus.Entry, sandbox string, ifName string) error {
 	ack := false
 	err := runPluginCmd("ClientRPC.ClearVeth",
+		getSandboxUserId(log, sandbox),
 		&ClearVethArgs{sandbox, ifName}, &ack)
 	return err
 }
 
-func (*ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
+func (c *ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
+	c.setupFsuid()
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
@@ -150,16 +189,18 @@ type SetupNetworkArgs struct {
 	Result  *cnicur.Result
 }
 
-func runSetupNetwork(sandbox string, ifName string,
+func runSetupNetwork(log *logrus.Entry, sandbox string, ifName string,
 	result *cnicur.Result) error {
 
 	ack := false
 	err := runPluginCmd("ClientRPC.SetupNetwork",
+		getSandboxUserId(log, sandbox),
 		&SetupNetworkArgs{sandbox, ifName, result}, &ack)
 	return err
 }
 
-func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
+func (c *ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
+	c.setupFsuid()
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
@@ -247,7 +288,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	for ifaceind, iface := range metadata.Ifaces {
 		var err error
 		iface.HostVethName, iface.Mac, err =
-			runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu)
+			runSetupVeth(logger, iface.Sandbox, iface.Name,
+				agent.config.InterfaceMtu)
 		if err != nil {
 			return nil, err
 		}
@@ -265,7 +307,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		agent.addToResult(iface, ifaceind, result)
 
 		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
-		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
+		err = runSetupNetwork(logger, iface.Sandbox, iface.Name, result)
 		if err != nil {
 			agent.deallocateIps(iface)
 			return nil, err
@@ -336,7 +378,7 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 
 	logger.Debug("Clearing container interface")
 	for _, iface := range metadata.Ifaces {
-		err = runClearVeth(iface.Sandbox, iface.Name)
+		err = runClearVeth(logger, iface.Sandbox, iface.Name)
 		if err != nil {
 			logger.Error("Could not clear Veth ports: ", err)
 		}
