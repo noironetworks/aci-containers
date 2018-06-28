@@ -719,7 +719,16 @@ def generate_cert(username, cert_file, key_file):
         cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
         cert.set_issuer(cert.get_subject())
         cert.set_pubkey(k)
-        cert.sign(k, b'sha1')
+        # Work around this bug:
+        # https://github.com/pyca/pyopenssl/issues/741
+
+        # This should be b'sha1' on both 2 and 3, but the bug requires
+        # passing a string on Python 3.
+        if sys.version_info[0] >= 3:
+            hash_algorithm = 'sha1'
+        else:
+            hash_algorithm = b'sha1'
+        cert.sign(k, hash_algorithm)
 
         cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
         key_data = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
@@ -732,9 +741,9 @@ def generate_cert(username, cert_file, key_file):
         info("Reusing existing certs for kubernetes controller")
         info("  Private key file: \"%s\"" % key_file)
         info("  Certificate file: \"%s\"" % cert_file)
-        with open(cert_file, "r") as certp:
+        with open(cert_file, "rb") as certp:
             cert_data = certp.read()
-        with open(key_file, "r") as keyp:
+        with open(key_file, "rb") as keyp:
             key_data = keyp.read()
     return key_data, cert_data
 
@@ -746,7 +755,8 @@ def get_jinja_template(file):
         lstrip_blocks=True,
         keep_trailing_newline=True
     )
-    env.filters['base64enc'] = lambda s: base64.b64encode(s.encode("ascii")).decode("ascii")
+    env.filters['base64enc'] = lambda s: base64.b64encode(s).decode("ascii")
+    env.filters['cf_secret'] = lambda s: yaml.safe_dump(s.decode("ascii"), default_style='|')
     env.filters['json'] = json_indent
     env.filters['yaml'] = yaml_indent
     env.filters['yaml_quote'] = yaml_quote

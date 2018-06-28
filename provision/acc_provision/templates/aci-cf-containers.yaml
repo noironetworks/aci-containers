@@ -4,7 +4,7 @@ apic_node_portgroup: {{config.cf_config.node_network}}
 apic_node_subnet: {{config.cf_config.node_subnet_cidr}}
 apic_hosts: {{config.aci_config.apic_hosts|list_unicode_strings}}
 apic_username: {{config.aci_config.sync_login.username}}
-apic_private_key: {{config.aci_config.sync_login.key_data|yaml(default_style='|')}}
+apic_private_key: {{config.aci_config.sync_login.key_data|cf_secret}}
 apic_vmm_policy: {{config.aci_config.vmm_domain.type}}
 apic_vmm_domain: {{config.aci_config.vmm_domain.domain}}
 apic_vmm_controller: {{config.aci_config.vmm_domain.controller}}
