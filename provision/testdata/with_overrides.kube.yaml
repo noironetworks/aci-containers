@@ -294,7 +294,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.9r30
+          image: noiro/aci-containers-host:1.9r32
           imagePullPolicy: Always
           securityContext:
             privileged: true
@@ -500,7 +500,7 @@ spec:
           key: node-role.kubernetes.io/master
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.9r30
+          image: noiro/aci-containers-controller:1.9r32
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume
