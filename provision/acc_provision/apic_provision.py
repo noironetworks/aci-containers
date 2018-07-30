@@ -2301,7 +2301,7 @@ class ApicKubeConfig(object):
                                                                                                     "ipv4",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "icmp",
                                                                                                 ),
                                                                                             ]
@@ -2331,7 +2331,7 @@ class ApicKubeConfig(object):
                                                                                                     "ipv6",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "icmpv6",
                                                                                                 ),
                                                                                             ]
@@ -2388,7 +2388,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "tcp",
                                                                                                 ),
                                                                                                 (
@@ -2453,7 +2453,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "tcp",
                                                                                                 ),
                                                                                                 (
@@ -2513,7 +2513,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "udp",
                                                                                                 ),
                                                                                                 (
@@ -2551,7 +2551,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "tcp",
                                                                                                 ),
                                                                                                 (
@@ -2624,7 +2624,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "tcp",
                                                                                                 ),
                                                                                                 (
@@ -2670,7 +2670,7 @@ class ApicKubeConfig(object):
                                                                                                     "ip",
                                                                                                 ),
                                                                                                 (
-                                                                                                    "prot",
+                                                                                                    "port",
                                                                                                     "tcp",
                                                                                                 ),
                                                                                                 (
@@ -3187,7 +3187,7 @@ class ApicKubeConfig(object):
         if bd_name:
             children.append(aci_obj("fvRsBd", [('tnFvBDName', bd_name)]))
         for c in consumes:
-            children.append(aci_obj("fvRsCons", [('tnVzBrCPNamc', c)]))
+            children.append(aci_obj("fvRsCons", [('tnVzBrCPName', c)]))
         for p in provides:
             children.append(aci_obj("fvRsProv", [('tnVzBrCPName', p)]))
         for (d, e) in phy_domains:
@@ -3312,20 +3312,20 @@ class ApicKubeConfig(object):
             collections.OrderedDict(
                 [('name', 'tcp'),
                  ('etherT', 'ip'),
-                 ('prot', 'tcp')])])
+                 ('port', 'tcp')])])
         dns_filter = self.filter('dns',
                                  entries=[
                                      collections.OrderedDict(
                                          [('name', 'udp'),
                                           ('etherT', 'ip'),
-                                          ('prot', 'udp'),
-                                          ('dFromProt', 'dns'),
+                                          ('port', 'udp'),
+                                          ('dFromPort', 'dns'),
                                           ('dToPort', 'dns')]),
                                      collections.OrderedDict(
                                          [('name', 'tcp'),
                                           ('etherT', 'ip'),
-                                          ('prot', 'tcp'),
-                                          ('dFromProt', 'dns'),
+                                          ('port', 'tcp'),
+                                          ('dFromPort', 'dns'),
                                           ('dToPort', 'dns')])]),
         is_all_filter = self.filter(
             'isolation-segment-all',
