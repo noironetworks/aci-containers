@@ -3187,7 +3187,7 @@ class ApicKubeConfig(object):
         if bd_name:
             children.append(aci_obj("fvRsBd", [('tnFvBDName', bd_name)]))
         for c in consumes:
-            children.append(aci_obj("fvRsCons", [('tnVzBrCPNamc', c)]))
+            children.append(aci_obj("fvRsCons", [('tnVzBrCPName', c)]))
         for p in provides:
             children.append(aci_obj("fvRsProv", [('tnVzBrCPName', p)]))
         for (d, e) in phy_domains:
@@ -3319,13 +3319,13 @@ class ApicKubeConfig(object):
                                          [('name', 'udp'),
                                           ('etherT', 'ip'),
                                           ('prot', 'udp'),
-                                          ('dFromProt', 'dns'),
+                                          ('dFromPort', 'dns'),
                                           ('dToPort', 'dns')]),
                                      collections.OrderedDict(
                                          [('name', 'tcp'),
                                           ('etherT', 'ip'),
                                           ('prot', 'tcp'),
-                                          ('dFromProt', 'dns'),
+                                          ('dFromPort', 'dns'),
                                           ('dToPort', 'dns')])]),
         is_all_filter = self.filter(
             'isolation-segment-all',
