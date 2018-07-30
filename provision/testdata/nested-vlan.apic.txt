@@ -563,7 +563,7 @@ None
                                 "attributes": {
                                     "name": "icmp",
                                     "etherT": "ipv4",
-                                    "port": "icmp"
+                                    "prot": "icmp"
                                 }
                             }
                         },
@@ -572,7 +572,7 @@ None
                                 "attributes": {
                                     "name": "icmp6",
                                     "etherT": "ipv6",
-                                    "port": "icmpv6"
+                                    "prot": "icmpv6"
                                 }
                             }
                         }
@@ -590,7 +590,7 @@ None
                                 "attributes": {
                                     "name": "health-check",
                                     "etherT": "ip",
-                                    "port": "tcp",
+                                    "prot": "tcp",
                                     "stateful": "no",
                                     "tcpRules": ""
                                 }
@@ -610,7 +610,7 @@ None
                                 "attributes": {
                                     "name": "health-check",
                                     "etherT": "ip",
-                                    "port": "tcp",
+                                    "prot": "tcp",
                                     "stateful": "no",
                                     "tcpRules": "est"
                                 }
@@ -630,7 +630,7 @@ None
                                 "attributes": {
                                     "name": "dns-udp",
                                     "etherT": "ip",
-                                    "port": "udp",
+                                    "prot": "udp",
                                     "dFromPort": "dns",
                                     "dToPort": "dns"
                                 }
@@ -641,7 +641,7 @@ None
                                 "attributes": {
                                     "name": "dns-tcp",
                                     "etherT": "ip",
-                                    "port": "tcp",
+                                    "prot": "tcp",
                                     "dFromPort": "dns",
                                     "dToPort": "dns",
                                     "stateful": "no",
@@ -663,7 +663,7 @@ None
                                 "attributes": {
                                     "name": "kube-api",
                                     "etherT": "ip",
-                                    "port": "tcp",
+                                    "prot": "tcp",
                                     "dFromPort": "6443",
                                     "dToPort": "6443",
                                     "stateful": "no",
@@ -676,7 +676,7 @@ None
                                 "attributes": {
                                     "name": "kube-api2",
                                     "etherT": "ip",
-                                    "port": "tcp",
+                                    "prot": "tcp",
                                     "dFromPort": "8443",
                                     "dToPort": "8443",
                                     "stateful": "no",
