@@ -273,21 +273,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter"
+                                                "tnVzBrCPNamc": "gorouter"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -331,21 +331,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter-is1"
+                                                "tnVzBrCPNamc": "gorouter-is1"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -382,21 +382,21 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "gorouter-is2"
+                                                "tnVzBrCPNamc": "gorouter-is2"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "is-node"
+                                                "tnVzBrCPNamc": "is-node"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -433,14 +433,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -477,14 +477,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -521,14 +521,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -565,14 +565,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -609,14 +609,14 @@ None
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "dns"
+                                                "tnVzBrCPNamc": "dns"
                                             }
                                         }
                                     },
                                     {
                                         "fvRsCons": {
                                             "attributes": {
-                                                "tnVzBrCPName": "mycf0-l3out-allow-all"
+                                                "tnVzBrCPNamc": "mycf0-l3out-allow-all"
                                             }
                                         }
                                     },
@@ -729,7 +729,7 @@ None
                                 "attributes": {
                                     "name": "tcp",
                                     "etherT": "ip",
-                                    "port": "tcp"
+                                    "prot": "tcp"
                                 }
                             }
                         }
@@ -748,8 +748,8 @@ None
                                     "attributes": {
                                         "name": "udp",
                                         "etherT": "ip",
-                                        "port": "udp",
-                                        "dFromPort": "dns",
+                                        "prot": "udp",
+                                        "dFromProt": "dns",
                                         "dToPort": "dns"
                                     }
                                 }
@@ -759,8 +759,8 @@ None
                                     "attributes": {
                                         "name": "tcp",
                                         "etherT": "ip",
-                                        "port": "tcp",
-                                        "dFromPort": "dns",
+                                        "prot": "tcp",
+                                        "dFromProt": "dns",
                                         "dToPort": "dns"
                                     }
                                 }
