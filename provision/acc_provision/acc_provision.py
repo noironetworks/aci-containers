@@ -554,9 +554,12 @@ def config_validate(flavor_opts, config):
              else Raise(Exception("Invalid value: %s; "
                                   "Expected one of: {%s}" %
                                   (x, ','.join(y)))))))
-    isname = lambda x, l: (1 < len(x) < l) and \
-        x[0].isalpha() and x.replace('_', '').isalnum() \
-        if x else Raise(Exception("Invalid name"))
+
+    def isname(x, l):
+        if re.match(r'^[a-zA-Z][a-zA-Z0-9_\-]{0,%d}$' % (l - 1), x) is None:
+            Raise(Exception("Invalid name"))
+        return True
+
     get = lambda t: functools.reduce(lambda x, y: x and x.get(y), t, config)
 
     checks = {
