@@ -590,6 +590,11 @@ def config_validate(flavor_opts, config):
                                        required),
     }
 
+    # Allow deletion of resources without isname check
+    if get(("provision", "prov_apic")) is False:
+        checks["aci_config/system_id"] = \
+            (get(("aci_config", "system_id")), required)
+
     if flavor_opts.get("apic", {}).get("use_kubeapi_vlan", True):
         checks["net_config/kubeapi_vlan"] = (
             get(("net_config", "kubeapi_vlan")), required)
