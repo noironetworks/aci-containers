@@ -10,6 +10,7 @@ import ipaddress
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 apic_debug = False
+apic_cookies = {}
 apic_default_timeout = (15, 90)
 
 
@@ -60,12 +61,16 @@ class Apic(object):
         self.ssl = ssl
         self.username = username
         self.password = password
-        self.cookies = None
+        self.cookies = apic_cookies.get((addr, username, ssl))
         self.errors = 0
         self.verify = verify
         self.timeout = timeout if timeout else apic_default_timeout
         self.debug = debug
-        self.login()
+
+        if self.cookies is None:
+            self.login()
+            if self.cookies is not None:
+                apic_cookies[(addr, username, ssl)] = self.cookies
 
     def url(self, path):
         if self.ssl:
