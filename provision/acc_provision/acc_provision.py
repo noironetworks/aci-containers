@@ -275,7 +275,9 @@ def config_default():
                     "start": "225.20.1.1",
                     "end": "225.20.255.255",
                 },
-                "nested_inside": {},
+                "nested_inside": {
+                    "portgroup": None,
+                },
             },
             "client_cert": False,
             "client_ssl": True,

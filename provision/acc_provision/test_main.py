@@ -72,6 +72,15 @@ def test_nested_vxlan():
 
 
 @in_testdir
+def test_nested_portgroup():
+    run_provision(
+        "nested-portgroup.inp.yaml",
+        "nested-portgroup.kube.yaml",
+        "nested-portgroup.apic.txt"
+    )
+
+
+@in_testdir
 def test_with_comments():
     run_provision(
         "with_comments.inp.yaml",
