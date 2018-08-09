@@ -712,6 +712,10 @@ class ApicKubeConfig(object):
         if encap_type == "vlan":
             promMode = "Enabled"
 
+        nvmm_portgroup = self.config["aci_config"]["vmm_domain"]["nested_inside"]["portgroup"]
+        if nvmm_portgroup is None:
+            nvmm_portgroup = system_id
+
         path = "/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" % (
             nvmm_type,
             nvmm_name,
@@ -726,7 +730,8 @@ class ApicKubeConfig(object):
                             (
                                 "attributes",
                                 collections.OrderedDict(
-                                    [("name", system_id), ("promMode", promMode)]
+                                    [("name", nvmm_portgroup),
+                                     ("promMode", promMode)]
                                 ),
                             ),
                             (
