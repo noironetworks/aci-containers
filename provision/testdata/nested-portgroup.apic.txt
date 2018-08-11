@@ -123,7 +123,7 @@
         ]
     }
 }
-/api/mo/uni/vmmp-VMware/dom-myvmware/usrcustomaggr-kube.json
+/api/mo/uni/vmmp-VMware/dom-myvmware/usrcustomaggr-kube-test.json
 {
     "vmmUsrCustomAggr": {
         "attributes": {
