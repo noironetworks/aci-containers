@@ -719,7 +719,7 @@ class ApicKubeConfig(object):
         path = "/api/mo/uni/vmmp-%s/dom-%s/usrcustomaggr-%s.json" % (
             nvmm_type,
             nvmm_name,
-            system_id,
+            nvmm_portgroup,
         )
         data = collections.OrderedDict(
             [
