@@ -275,7 +275,9 @@ def config_default():
                     "start": "225.20.1.1",
                     "end": "225.20.255.255",
                 },
-                "nested_inside": {},
+                "nested_inside": {
+                    "portgroup": None,
+                },
             },
             "client_cert": False,
             "client_ssl": True,
@@ -589,6 +591,11 @@ def config_validate(flavor_opts, config):
         "net_config/node_svc_subnet": (get(("net_config", "node_svc_subnet")),
                                        required),
     }
+
+    # Allow deletion of resources without isname check
+    if get(("provision", "prov_apic")) is False:
+        checks["aci_config/system_id"] = \
+            (get(("aci_config", "system_id")), required)
 
     if flavor_opts.get("apic", {}).get("use_kubeapi_vlan", True):
         checks["net_config/kubeapi_vlan"] = (
