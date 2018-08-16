@@ -51,8 +51,14 @@ func (conn *ApicConnection) apicBodyAttrCmp(class string,
 		}
 	}
 	if class != "tagAnnotation" && class != "tagInst" {
-		annotc, _ := bodyc.Attributes["annotation"]
-		annotd, _ := bodyd.Attributes["annotation"]
+		annotc, ok := bodyc.Attributes["annotation"]
+		if !ok {
+			annotc = ""
+		}
+		annotd, ok := bodyd.Attributes["annotation"]
+		if !ok {
+			annotd = ""
+		}
 		if annotc != annotd {
 			return false
 		}
