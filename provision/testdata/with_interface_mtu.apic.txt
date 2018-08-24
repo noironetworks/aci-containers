@@ -1,0 +1,916 @@
+/api/mo/uni/infra/vlanns-[kube-pool]-static.json
+{
+    "fvnsVlanInstP": {
+        "attributes": {
+            "name": "kube-pool",
+            "allocMode": "static"
+        },
+        "children": [
+            {
+                "fvnsEncapBlk": {
+                    "attributes": {
+                        "allocMode": "static",
+                        "from": "vlan-4001",
+                        "to": "vlan-4001"
+                    }
+                }
+            },
+            {
+                "fvnsEncapBlk": {
+                    "attributes": {
+                        "allocMode": "static",
+                        "from": "vlan-4003",
+                        "to": "vlan-4003"
+                    }
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/infra/maddrns-kube-mpool.json
+{
+    "fvnsMcastAddrInstP": {
+        "attributes": {
+            "name": "kube-mpool",
+            "dn": "uni/infra/maddrns-kube-mpool"
+        },
+        "children": [
+            {
+                "fvnsMcastAddrBlk": {
+                    "attributes": {
+                        "from": "225.2.1.1",
+                        "to": "225.2.255.255"
+                    }
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/phys-kube-pdom.json
+{
+    "physDomP": {
+        "attributes": {
+            "dn": "uni/phys-kube-pdom",
+            "name": "kube-pdom"
+        },
+        "children": [
+            {
+                "infraRsVlanNs": {
+                    "attributes": {
+                        "tDn": "uni/infra/vlanns-[kube-pool]-static"
+                    }
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/vmmp-Kubernetes/dom-kube.json
+{
+    "vmmDomP": {
+        "attributes": {
+            "name": "kube",
+            "mode": "k8s",
+            "enfPref": "sw",
+            "encapMode": "vxlan",
+            "prefEncapMode": "vxlan",
+            "mcastAddr": "225.1.2.3"
+        },
+        "children": [
+            {
+                "vmmCtrlrP": {
+                    "attributes": {
+                        "name": "kube",
+                        "mode": "k8s",
+                        "scope": "kubernetes",
+                        "hostOrIp": "1.1.1.1"
+                    }
+                }
+            },
+            {
+                "vmmRsDomMcastAddrNs": {
+                    "attributes": {
+                        "tDn": "uni/infra/maddrns-kube-mpool"
+                    }
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/infra.json
+{
+    "infraAttEntityP": {
+        "attributes": {
+            "name": "kube-aep"
+        },
+        "children": [
+            {
+                "infraRsDomP": {
+                    "attributes": {
+                        "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                    }
+                }
+            },
+            {
+                "infraRsDomP": {
+                    "attributes": {
+                        "tDn": "uni/phys-kube-pdom"
+                    }
+                }
+            },
+            {
+                "infraProvAcc": {
+                    "attributes": {
+                        "name": "provacc"
+                    },
+                    "children": [
+                        {
+                            "infraRsFuncToEpg": {
+                                "attributes": {
+                                    "encap": "vlan-4093",
+                                    "mode": "regular",
+                                    "tDn": "uni/tn-infra/ap-access/epg-default"
+                                }
+                            }
+                        },
+                        {
+                            "dhcpInfraProvP": {
+                                "attributes": {
+                                    "mode": "controller"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "infraGeneric": {
+                    "attributes": {
+                        "name": "default"
+                    },
+                    "children": [
+                        {
+                            "infraRsFuncToEpg": {
+                                "attributes": {
+                                    "tDn": "uni/tn-kube/ap-kubernetes/epg-kube-nodes",
+                                    "encap": "vlan-4001"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/vmmp-Kubernetes/dom-kube].json
+None
+/api/mo/uni/infra/attentp-kube-aep/rsdomP-[uni/phys-kube-pdom].json
+None
+/api/mo/uni/infra/attentp-kube-aep/gen-default/rsfuncToEpg-[uni/tn-kube/ap-kubernetes/epg-kube-nodes].json
+None
+/api/mo/uni/infra.json
+{
+    "infraSetPol": {
+        "attributes": {
+            "opflexpAuthenticateClients": "no",
+            "opflexpUseSsl": "yes"
+        }
+    }
+}
+/api/mo/uni/tn-common.json
+{
+    "fvTenant": {
+        "attributes": {
+            "name": "common",
+            "dn": "uni/tn-common"
+        },
+        "children": [
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "kube-allow-all-filter"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "allow-all"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzBrCP": {
+                    "attributes": {
+                        "name": "kube-l3out-allow-all"
+                    },
+                    "children": [
+                        {
+                            "vzSubj": {
+                                "attributes": {
+                                    "name": "allow-all-subj",
+                                    "consMatchT": "AtleastOne",
+                                    "provMatchT": "AtleastOne"
+                                },
+                                "children": [
+                                    {
+                                        "vzRsSubjFiltAtt": {
+                                            "attributes": {
+                                                "tnVzFilterName": "kube-allow-all-filter"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/tn-common/flt-kube-allow-all-filter.json
+None
+/api/mo/uni/tn-common/brc-kube-l3out-allow-all.json
+None
+/api/mo/uni/tn-kube.json
+{
+    "fvTenant": {
+        "attributes": {
+            "name": "kube",
+            "dn": "uni/tn-kube"
+        },
+        "children": [
+            {
+                "fvAp": {
+                    "attributes": {
+                        "name": "kubernetes"
+                    },
+                    "children": [
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "kube-default"
+                                },
+                                "children": [
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "kube-system"
+                                },
+                                "children": [
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "kube-nodes"
+                                },
+                                "children": [
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-api"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "encap": "vlan-4001",
+                                                "tDn": "uni/phys-kube-pdom"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-node-bd"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "group1"
+                                },
+                                "children": [
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "fvAEPg": {
+                                "attributes": {
+                                    "name": "group2"
+                                },
+                                "children": [
+                                    {
+                                        "fvRsDomAtt": {
+                                            "attributes": {
+                                                "tDn": "uni/vmmp-Kubernetes/dom-kube"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "dns"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "kube-l3out-allow-all"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsProv": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "health-check"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsCons": {
+                                            "attributes": {
+                                                "tnVzBrCPName": "icmp"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "fvRsBd": {
+                                            "attributes": {
+                                                "tnFvBDName": "kube-pod-bd"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "fvBD": {
+                    "attributes": {
+                        "name": "kube-node-bd",
+                        "arpFlood": "yes"
+                    },
+                    "children": [
+                        {
+                            "fvSubnet": {
+                                "attributes": {
+                                    "ip": "10.1.0.1/16",
+                                    "scope": "public"
+                                }
+                            }
+                        },
+                        {
+                            "fvRsCtx": {
+                                "attributes": {
+                                    "tnFvCtxName": "kube"
+                                }
+                            }
+                        },
+                        {
+                            "fvRsBDToOut": {
+                                "attributes": {
+                                    "tnL3extOutName": "l3out"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "fvBD": {
+                    "attributes": {
+                        "name": "kube-pod-bd"
+                    },
+                    "children": [
+                        {
+                            "fvSubnet": {
+                                "attributes": {
+                                    "ip": "10.2.0.1/16"
+                                }
+                            }
+                        },
+                        {
+                            "fvRsCtx": {
+                                "attributes": {
+                                    "tnFvCtxName": "kube"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "icmp-filter"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "icmp",
+                                    "etherT": "ipv4",
+                                    "prot": "icmp"
+                                }
+                            }
+                        },
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "icmp6",
+                                    "etherT": "ipv6",
+                                    "prot": "icmpv6"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "health-check-filter-in"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "health-check",
+                                    "etherT": "ip",
+                                    "prot": "tcp",
+                                    "stateful": "no",
+                                    "tcpRules": ""
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "health-check-filter-out"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "health-check",
+                                    "etherT": "ip",
+                                    "prot": "tcp",
+                                    "stateful": "no",
+                                    "tcpRules": "est"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "dns-filter"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "dns-udp",
+                                    "etherT": "ip",
+                                    "prot": "udp",
+                                    "dFromPort": "dns",
+                                    "dToPort": "dns"
+                                }
+                            }
+                        },
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "dns-tcp",
+                                    "etherT": "ip",
+                                    "prot": "tcp",
+                                    "dFromPort": "dns",
+                                    "dToPort": "dns",
+                                    "stateful": "no",
+                                    "tcpRules": ""
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzFilter": {
+                    "attributes": {
+                        "name": "kube-api-filter"
+                    },
+                    "children": [
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "kube-api",
+                                    "etherT": "ip",
+                                    "prot": "tcp",
+                                    "dFromPort": "6443",
+                                    "dToPort": "6443",
+                                    "stateful": "no",
+                                    "tcpRules": ""
+                                }
+                            }
+                        },
+                        {
+                            "vzEntry": {
+                                "attributes": {
+                                    "name": "kube-api2",
+                                    "etherT": "ip",
+                                    "prot": "tcp",
+                                    "dFromPort": "8443",
+                                    "dToPort": "8443",
+                                    "stateful": "no",
+                                    "tcpRules": ""
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzBrCP": {
+                    "attributes": {
+                        "name": "kube-api"
+                    },
+                    "children": [
+                        {
+                            "vzSubj": {
+                                "attributes": {
+                                    "name": "kube-api-subj",
+                                    "consMatchT": "AtleastOne",
+                                    "provMatchT": "AtleastOne"
+                                },
+                                "children": [
+                                    {
+                                        "vzRsSubjFiltAtt": {
+                                            "attributes": {
+                                                "tnVzFilterName": "kube-api-filter"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzBrCP": {
+                    "attributes": {
+                        "name": "health-check"
+                    },
+                    "children": [
+                        {
+                            "vzSubj": {
+                                "attributes": {
+                                    "name": "health-check-subj",
+                                    "revFltPorts": "yes",
+                                    "consMatchT": "AtleastOne",
+                                    "provMatchT": "AtleastOne"
+                                },
+                                "children": [
+                                    {
+                                        "vzOutTerm": {
+                                            "attributes": {
+                                                "name": ""
+                                            },
+                                            "children": [
+                                                {
+                                                    "vzRsFiltAtt": {
+                                                        "attributes": {
+                                                            "tnVzFilterName": "health-check-filter-out"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "vzInTerm": {
+                                            "attributes": {
+                                                "name": ""
+                                            },
+                                            "children": [
+                                                {
+                                                    "vzRsFiltAtt": {
+                                                        "attributes": {
+                                                            "tnVzFilterName": "health-check-filter-in"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzBrCP": {
+                    "attributes": {
+                        "name": "dns"
+                    },
+                    "children": [
+                        {
+                            "vzSubj": {
+                                "attributes": {
+                                    "name": "dns-subj",
+                                    "consMatchT": "AtleastOne",
+                                    "provMatchT": "AtleastOne"
+                                },
+                                "children": [
+                                    {
+                                        "vzRsSubjFiltAtt": {
+                                            "attributes": {
+                                                "tnVzFilterName": "dns-filter"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "vzBrCP": {
+                    "attributes": {
+                        "name": "icmp"
+                    },
+                    "children": [
+                        {
+                            "vzSubj": {
+                                "attributes": {
+                                    "name": "icmp-subj",
+                                    "consMatchT": "AtleastOne",
+                                    "provMatchT": "AtleastOne"
+                                },
+                                "children": [
+                                    {
+                                        "vzRsSubjFiltAtt": {
+                                            "attributes": {
+                                                "tnVzFilterName": "icmp-filter"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+/api/mo/uni/tn-common/out-l3out/instP-default.json
+{
+    "fvRsProv": {
+        "attributes": {
+            "matchT": "AtleastOne",
+            "tnVzBrCPName": "kube-l3out-allow-all"
+        }
+    }
+}
+/api/mo/uni/tn-common/out-l3out/instP-default/rsprov-kube-l3out-allow-all.json
+None
+/api/node/mo/uni/userext/user-kube.json
+{
+    "aaaUser": {
+        "attributes": {
+            "name": "kube",
+            "accountStatus": "active",
+            "pwd": "NotRandom!"
+        },
+        "children": [
+            {
+                "aaaUserDomain": {
+                    "attributes": {
+                        "name": "all"
+                    },
+                    "children": [
+                        {
+                            "aaaUserRole": {
+                                "attributes": {
+                                    "name": "admin",
+                                    "privType": "writePriv"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+/api/node/mo/uni/userext/user-kube.json
+{
+    "aaaUser": {
+        "attributes": {
+            "name": "kube"
+        },
+        "children": [
+            {
+                "aaaUserCert": {
+                    "attributes": {
+                        "name": "kube.crt",
+                        "data": "-----BEGIN CERTIFICATE-----\nMIIB6DCCAVECAgPoMA0GCSqGSIb3DQEBBQUAMDwxCzAJBgNVBAYTAlVTMRYwFAYD\nVQQKDA1DaXNjbyBTeXN0ZW1zMRUwEwYDVQQDDAxVc2VyIG1hbmRlZXAwHhcNMTcw\nNTE2MjEyOTMwWhcNMjcwNTE0MjEyOTMwWjA8MQswCQYDVQQGEwJVUzEWMBQGA1UE\nCgwNQ2lzY28gU3lzdGVtczEVMBMGA1UEAwwMVXNlciBtYW5kZWVwMIGfMA0GCSqG\nSIb3DQEBAQUAA4GNADCBiQKBgQDa/gPoDimwFVaybG9/mVm3J1V6P4HbsSE5L5tP\nZHohQp/lKf0hnar+gIfo5SXxe7r/hYAibQsQ/O6mMNKuQ3BlSyHHxeGVG/QfKyVi\ngSOsCX8bTHxblDWNuHIMEKSaqzFKgA8/zFvsK2XobEpxbMnsF0d/PHkexCow1noH\nScj3FwIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAHX+kLTe6LCABewmCTvMsjusHdpZ\nki01+nQ7KhnERbBm/tZ5scZE4ctIqch3ny1EITHNtYWKBN4CdUKcjvDW2h2vkHeg\nrtYbV+AaEsq0m4vGF9Emvt1cp9Y41IyMBZYqw8c/V1AtmRQcRTYQA8H3OFDchyB2\n0JHSDnBoS7ffSbBx\n-----END CERTIFICATE-----\n"
+                    }
+                }
+            }
+        ]
+    }
+}
