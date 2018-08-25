@@ -548,7 +548,7 @@ def config_adjust(args, config, prov_apic, no_random):
 
 def is_valid_mtu(xval):
     if xval is None:
-        # use default configured on thsi host
+        # use default configured on this host
         return True
 
     xmin = 1280   # for IPv6
