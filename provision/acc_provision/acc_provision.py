@@ -292,6 +292,7 @@ def config_default():
             "kubeapi_vlan": None,
             "service_vlan": None,
             "service_monitor_interval": 0,
+            "interface_mtu": None,
         },
         "kube_config": {
             "controller": "1.1.1.1",
@@ -545,6 +546,22 @@ def config_adjust(args, config, prov_apic, no_random):
     return adj_config
 
 
+def is_valid_mtu(xval):
+    if xval is None:
+        # use default configured on this host
+        return True
+
+    xmin = 1280   # for IPv6
+    xmax = 8900   # leave 100 byte header for VxLAN
+    try:
+        x = int(xval)
+        if xmin <= x <= xmax:
+            return True
+    except ValueError:
+        pass
+    raise(Exception("Must be integer between %d and %d" % (xmin, xmax)))
+
+
 def config_validate(flavor_opts, config):
     def Raise(exception):
         raise exception
@@ -590,6 +607,8 @@ def config_validate(flavor_opts, config):
                                      required),
         "net_config/node_svc_subnet": (get(("net_config", "node_svc_subnet")),
                                        required),
+        "net_config/interface_mtu": (get(("net_config", "interface_mtu")),
+                                     is_valid_mtu),
     }
 
     # Allow deletion of resources without isname check

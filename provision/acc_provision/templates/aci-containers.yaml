@@ -71,6 +71,9 @@ data:
         "service-vlan": {{ config.net_config.service_vlan|json }},
         "encap-type": {{ config.node_config.encap_type|json }},
         "aci-infra-vlan": {{ config.net_config.infra_vlan|json }},
+        {% if config.net_config.interface_mtu %}
+        "interface-mtu": {{ config.net_config.interface_mtu|json }},
+        {% endif %}
         "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
     }
   opflex-agent-config: |-
