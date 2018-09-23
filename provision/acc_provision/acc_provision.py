@@ -88,6 +88,10 @@ DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
 
 FLAVORS = {
     # Upstream Kubernetes
+    "kubernetes-1.12": {
+        "desc": "Kubernetes 1.12",
+        "default_version": "1.9",
+    },
     "kubernetes-1.11": {
         "desc": "Kubernetes 1.11",
         "default_version": "1.9",
