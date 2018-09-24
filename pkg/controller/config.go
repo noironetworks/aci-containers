@@ -165,7 +165,7 @@ func NewConfig() *ControllerConfig {
 		AciVmmDomainType:   "Kubernetes",
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
-		PodIpPoolChunkSize: 128,
+		PodIpPoolChunkSize: 32,
 		AllocateServiceIps: &t,
 	}
 }
