@@ -55,7 +55,10 @@ func main() {
 	if config.ApicPassword == "" {
 		config.ApicPassword = os.Getenv("APIC_PASSWORD")
 	}
-
+	//If the value not present then set it default, i.e refresh every 30 sec
+	if config.ApicRefreshTimer == 0 {
+		config.ApicRefreshTimer = 30
+	}
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
 		panic(err.Error())

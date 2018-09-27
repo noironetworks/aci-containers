@@ -177,7 +177,8 @@ func (server *testServer) testConn(key []byte) (*ApicConnection, error) {
 		Bytes: server.server.TLS.Certificates[0].Certificate[0],
 	})
 
-	n, err := New(log, []string{apic}, "admin", "noir0123", key, cert, "kube")
+	n, err := New(log, []string{apic}, "admin", "noir0123", key, cert, "kube",
+		60)
 	if err != nil {
 		return nil, err
 	}
