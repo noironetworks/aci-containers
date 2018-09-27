@@ -315,7 +315,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
-		privKey, apicCert, cont.config.AciPrefix)
+		privKey, apicCert, cont.config.AciPrefix,
+		cont.config.ApicRefreshTimer)
 	if err != nil {
 		panic(err)
 	}

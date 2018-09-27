@@ -62,6 +62,9 @@ type ControllerConfig struct {
 	// The password for connecting to APIC
 	ApicPassword string `json:"apic-password,omitempty"`
 
+	// The refresh timer when connected to APIC
+	ApicRefreshTimer int `json:"apic-refreshtime,omitempty"`
+
 	// A path for a PEM-encoded private key for client certificate
 	// authentication for APIC API
 	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
