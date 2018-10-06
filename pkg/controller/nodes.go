@@ -83,7 +83,7 @@ func apicNodeNetPol(name string, tenantName string,
 		inbound.SetAttr("ethertype", "ipv4")
 		inbound.SetAttr("connTrack", "normal")
 
-		for ip, _ := range nodeIps {
+		for ip := range nodeIps {
 			outbound.AddChild(apicapi.NewHostprotRemoteIp(outbound.GetDn(), ip))
 			inbound.AddChild(apicapi.NewHostprotRemoteIp(inbound.GetDn(), ip))
 		}
@@ -251,16 +251,11 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		cont.nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
 	}
 
-	netval, netok :=
-		node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
-	if netok {
-		if netval != nodePodNet.podNetIpsAnnotation {
-			cont.mergePodNet(nodePodNet, netval, logger)
-		}
-	}
+	netval := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if cont.nodeSyncEnabled {
 		cont.checkNodePodNet(node.ObjectMeta.Name)
 		if netval != nodePodNet.podNetIpsAnnotation {
+			logger.Debug("Overwriting existing pod network: ", netval)
 			node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] =
 				nodePodNet.podNetIpsAnnotation
 			nodeUpdated = true
