@@ -62,8 +62,20 @@ type ControllerConfig struct {
 	// The password for connecting to APIC
 	ApicPassword string `json:"apic-password,omitempty"`
 
-	// The refresh timer when connected to APIC
-	ApicRefreshTimer int `json:"apic-refreshtime,omitempty"`
+	// The number of seconds that APIC should wait before timing
+	// out a subscription on a websocket connection. If not
+	// explicitly set, then a default of 900 seconds will
+	// be sent in websocket subscriptions. If it is set to 0,
+	// then a timeout will not be sent in websocket
+	// subscriptions, and APIC will use it's default timeout
+	// of 80 seconds. If set to a non-zero value, then the
+	// timeout value will be provided when we subscribe to
+	// a URL on APIC. NOTE: the subscription timeout is not
+	// supported by APIC versions before 3.2(3), so this
+	// value must not be set when used with APIC versions
+	// older than that release.
+	// Also, note that this is a string.
+	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
 	// A path for a PEM-encoded private key for client certificate
 	// authentication for APIC API

@@ -811,10 +811,18 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		kind = "class"
 	}
 
+        refresh_interval := ""
+        if conn.RefreshInterval != 0 {
+                refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
+                        conn.RefreshInterval)
+        }
+
 	// properly encoding the URI query parameters breaks APIC
-	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&refresh-timeout=%s&%s",
-		kind, value, conn.RefreshInterval, strings.Join(args, "&"))
+	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
+		kind, value, refresh_interval, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	conn.log.Info("APIC connection URL: ", url)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
