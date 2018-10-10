@@ -161,7 +161,7 @@ func configureTls(cert []byte) (*tls.Config, error) {
 
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
-	prefix string) (*ApicConnection, error) {
+	prefix string, refresh int) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func New(log *logrus.Logger, apic []string, user string,
 
 	conn := &ApicConnection{
 		ReconnectInterval: time.Second,
-		RefreshInterval:   30 * time.Second,
+		RefreshInterval:   time.Duration(refresh) * time.Second,
 		signer:            signer,
 		dialer:            dialer,
 		log:               log,
@@ -811,10 +811,18 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		kind = "class"
 	}
 
+        refresh_interval := ""
+        if conn.RefreshInterval != 0 {
+                refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
+                        conn.RefreshInterval)
+        }
+
 	// properly encoding the URI query parameters breaks APIC
-	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s",
-		kind, value, strings.Join(args, "&"))
+	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
+		kind, value, refresh_interval, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	conn.log.Info("APIC connection URL: ", url)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)

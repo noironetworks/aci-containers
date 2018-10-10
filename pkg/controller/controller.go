@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -313,9 +314,19 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			panic(err)
 		}
 	}
+	// If not defined, default is 900
+	if cont.config.ApicRefreshTimer == "" {
+		cont.config.ApicRefreshTimer = "900"
+	}
+	refreshTimeout, err := strconv.Atoi(cont.config.ApicRefreshTimer)
+	if err != nil {
+		panic(err)
+	}
+	cont.log.Info("ApicRefreshTimer conf is set to: ", refreshTimeout)
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
-		privKey, apicCert, cont.config.AciPrefix)
+		privKey, apicCert, cont.config.AciPrefix,
+		refreshTimeout)
 	if err != nil {
 		panic(err)
 	}

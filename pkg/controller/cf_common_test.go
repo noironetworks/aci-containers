@@ -34,15 +34,15 @@ import (
 
 	apic "github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
-	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/cfapi/cfapi_fakes"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 func fakeApicConnection(t *testing.T, log *logrus.Logger) *apic.ApicConnection {
-	conn, _ := apic.New(log, []string{}, "admin", "", nil, nil, "test")
+	conn, _ := apic.New(log, []string{}, "admin", "", nil, nil, "test", 60)
 	assert.NotNil(t, conn)
 	return conn
 }
@@ -228,7 +228,7 @@ func (e *CfEnvironment) setupCcClientFakes() {
 }
 
 func (e *CfEnvironment) GetKvEpInfo(cell, cont string) *cf_common.EpInfo {
-	v, err := e.kvmgr.Get("cell/" + cell, "ct/" + cont)
+	v, err := e.kvmgr.Get("cell/"+cell, "ct/"+cont)
 	if err == nil {
 		return v.Value.(*cf_common.EpInfo)
 	}
