@@ -252,6 +252,38 @@ func TestPodNetAnnotation(t *testing.T) {
 		}, "newchunk")
 	}
 
+	{
+		cont.nodeUpdates = nil
+		node2 := node("node2")
+		ips := &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{Start: net.ParseIP("10.1.1.7"), End: net.ParseIP("10.1.1.9")},
+			},
+		}
+		raw, _ := json.Marshal(ips)
+		node2.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] = string(raw)
+		cont.fakeNodeSource.Add(node2)
+		waitForPodNetAnnot(t, cont, ips, "existing")
+	}
+
+	{
+		cont.nodeUpdates = nil
+		node3 := node("node3")
+		ips := &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{Start: net.ParseIP("10.1.1.10"), End: net.ParseIP("10.1.1.15")},
+			},
+		}
+		raw, _ := json.Marshal(ips)
+		node3.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] = string(raw)
+		cont.fakeNodeSource.Add(node3)
+		waitForPodNetAnnot(t, cont, &metadata.NetIps{
+			V4: []ipam.IpRange{
+				{Start: net.ParseIP("10.1.1.10"), End: net.ParseIP("10.1.1.13")},
+			},
+		}, "out of range intersection")
+	}
+
 	cont.stop()
 }
 
