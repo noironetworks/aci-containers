@@ -52,6 +52,7 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 		listWatch, &v1.Node{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				cont.syncPodNet(obj) // update cache
 				cont.nodeChanged(obj)
 			},
 			UpdateFunc: func(_ interface{}, obj interface{}) {
@@ -171,8 +172,33 @@ func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpo
 func (cont *AciController) nodeFullSync() {
 	cache.ListAll(cont.nodeIndexer, labels.Everything(),
 		func(nodeobj interface{}) {
+			cont.syncPodNet(nodeobj) // update the cache
 			cont.nodeChanged(nodeobj)
 		})
+}
+
+// syncPodNet syncs in the podnets from the node object's annotation
+func (cont *AciController) syncPodNet(obj interface{}) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	node := obj.(*v1.Node)
+	logger := cont.log.WithFields(logrus.Fields{
+		"Node": node.ObjectMeta.Name,
+	})
+
+	if node.ObjectMeta.Annotations == nil {
+		return // nothing to sync
+	}
+
+	netval, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
+	if !ok {
+		return // nothing to sync
+	}
+
+	nodePodNet := newNodePodNetMeta()
+	cont.mergePodNet(nodePodNet, netval, logger)
+	cont.nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
 }
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
@@ -352,9 +378,27 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 
 	{
 		v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
+		annSize := v4.GetSize()
 		v4.AddRanges(existing.V4)
+
+		// validate existing against configured range
 		v4 = v4.Intersect(cont.configuredPodNetworkIps.V4)
+		if v4.GetSize() != annSize {
+			logger.Warn("Existing annotation outside configured",
+				"range", existingAnnotation)
+		}
+
+		// mark the existing as allocated
+		prevSize := cont.podNetworkIps.V4.GetSize()
 		cont.podNetworkIps.V4.RemoveRanges(existing.V4)
+
+		// verify allocation was successful
+		newSize := cont.podNetworkIps.V4.GetSize()
+		if (newSize + annSize) != prevSize {
+			logger.Warn("Existing annotation failed allocation: ",
+				existingAnnotation)
+		}
+
 		if len(v4.FreeList) > 0 {
 			podnet.podNetIps.V4 = v4.FreeList
 		} else {
