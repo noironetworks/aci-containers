@@ -24,7 +24,9 @@ from .apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-DEFAULT_FLAVOR = "kubernetes-1.10"
+from . import flavors
+
+DEFAULT_FLAVOR = flavors.DEFAULT_FLAVOR
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -34,183 +36,13 @@ VERSION_FIELDS = [
     "openvswitch_version",
 ]
 
-VERSIONS = {
-    "1.6": {
-        "cnideploy_version": "1.6r15",
-        "aci_containers_host_version": "1.6r15",
-        "aci_containers_controller_version": "1.6r15",
-        "opflex_agent_version": "1.6r22",
-        "openvswitch_version": "1.6r12",
-    },
-    "1.7": {
-        "cnideploy_version": "1.7r86",
-        "aci_containers_host_version": "1.7r86",
-        "aci_containers_controller_version": "1.7r86",
-        "opflex_agent_version": "1.7r70",
-        "openvswitch_version": "1.7r24",
-    },
-    "1.9": {
-        "cnideploy_version": "1.9r32",
-        "aci_containers_host_version": "1.9r32",
-        "aci_containers_controller_version": "1.9r32",
-        "opflex_agent_version": "1.9r35",
-        "openvswitch_version": "1.7r24",
-    },
-}
+VERSIONS = flavors.VERSIONS
 
-# Known Flavor options:
-# - template_generator: Function that generates the output config
-#       file. Default: generate_kube_yaml.
-# - version_fields: List of config options that must be specified for
-#       the specific version of deployment. Default: VERSION_FIELDS.
-# - vip_pool_required: Whether virtual IP pool needs to be specified.
-#       Default: False.
-# - apic: Dict that is used for configuring ApicKubeConfig
-#       Known sub-options:
-#       - use_kubeapi_vlan: Whether kubeapi_vlan should be used. Default: True.
-#       - tenant_generator: Name of the function to generate tenant objects.
-#             Default: kube_tn.
-#       - associate_aep_to_nested_inside_domain: Whether AEP should be attached
-#             to nested_inside domain. Default: False.
-KubeFlavorOptions = {}
+DEFAULT_FLAVOR_OPTIONS = flavors.KubeFlavorOptions
 
-CfFlavorOptions = {
-    'apic': {
-        'use_kubeapi_vlan': False,
-        'tenant_generator': 'cloudfoundry_tn',
-        'associate_aep_to_nested_inside_domain': True,
-    },
-    'version_fields': [],
-    'vip_pool_required': True,
-}
+CfFlavorOptions = flavors.CfFlavorOptions
 
-DEFAULT_FLAVOR_OPTIONS = KubeFlavorOptions
-
-FLAVORS = {
-    # Upstream Kubernetes
-    "kubernetes-1.12": {
-        "desc": "Kubernetes 1.12",
-        "default_version": "1.9",
-    },
-    "kubernetes-1.11": {
-        "desc": "Kubernetes 1.11",
-        "default_version": "1.9",
-    },
-    "kubernetes-1.10": {
-        "desc": "Kubernetes 1.10",
-        "default_version": "1.9",
-    },
-    "kubernetes-1.9": {
-        "desc": "Kubernetes 1.9",
-        "default_version": "1.9",
-    },
-    "kubernetes-1.8": {
-        "desc": "Kubernetes 1.8",
-        "default_version": "1.7",
-        "config": {
-            "kube_config": {
-                "use_apps_api": "apps/v1beta2",
-                "use_apps_apigroup": "apps",
-            }
-        }
-    },
-    "kubernetes-1.7": {
-        "desc": "Kubernetes 1.7",
-        "default_version": "1.7",
-        "config": {
-            "kube_config": {
-                "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
-                "use_apps_api": "extensions/v1beta1",
-                "use_apps_apigroup": "extensions",
-            }
-        }
-    },
-    "kubernetes-1.6": {
-        "desc": "Kubernetes 1.6",
-        "default_version": "1.6",
-        "config": {
-            "kube_config": {
-                "use_rbac_api": "rbac.authorization.k8s.io/v1beta1",
-                "use_apps_api": "extensions/v1beta1",
-                "use_apps_apigroup": "extensions",
-                "use_netpol_annotation": True,
-                "use_netpol_apigroup": "extensions",
-            },
-        }
-    },
-    # Red Hat OpenShift Container Platform
-    "openshift-3.9": {
-        "desc": "Red Hat OpenShift Container Platform 3.9",
-        "default_version": "1.9",
-        "config": {
-            "kube_config": {
-                "use_external_service_ip_allocator": True,
-                "use_privileged_containers": True,
-                "use_openshift_security_context_constraints": True,
-                "use_cnideploy_initcontainer": True,
-                "allow_kube_api_default_epg": True,
-                "kubectl": "oc",
-                "system_namespace": "aci-containers-system",
-            },
-            "aci_config": {
-                "vmm_domain": {
-                    "type": "OpenShift",
-                },
-            },
-        },
-    },
-    "openshift-3.6": {
-        "desc": "Red Hat OpenShift Container Platform 3.6",
-        "default_version": "1.6",
-        "config": {
-            "kube_config": {
-                "use_external_service_ip_allocator": True,
-                "use_privileged_containers": True,
-                "use_openshift_security_context_constraints": True,
-                "use_cnideploy_initcontainer": True,
-                "allow_kube_api_default_epg": True,
-                "use_rbac_api": "v1",
-                "use_apps_api": "extensions/v1beta1",
-                "use_apps_apigroup": "extensions",
-                "use_netpol_apigroup": "extensions",
-                "use_netpol_annotation": True,
-                "kubectl": "oc",
-                "system_namespace": "aci-containers-system",
-            },
-            "aci_config": {
-                "vmm_domain": {
-                    "type": "OpenShift",
-                },
-            },
-        },
-    },
-    # Docker Universal Control Plane (UCP)
-    "docker-ucp-3.0": {
-        "desc": "Docker Universal Control Plane (UCP) 3.0",
-        "default_version": "1.7",
-        "config": {
-            "kube_config": {
-                "use_apps_api": "apps/v1beta2",
-                "use_apps_apigroup": "apps",
-                "use_cluster_role": False,
-                "use_cnideploy_initcontainer": True,
-            }
-        }
-    },
-    # CloudFoundry
-    "cloudfoundry-1.0": {
-        "desc": "CloudFoundry cf-deployment 1.x",
-        "default_version": "1.9",
-        "config": {
-            "aci_config": {
-                "vmm_domain": {
-                    "type": "CloudFoundry",
-                },
-            },
-        },
-        "options": CfFlavorOptions,
-    }
-}
+FLAVORS = flavors.FLAVORS
 
 
 def info(msg):
@@ -1124,8 +956,12 @@ def main(args=None, apic_file=None, no_random=False):
 
     if args.list_flavors:
         info("Available configuration flavors:")
-        for flavor in FLAVORS:
-            info(flavor + ":\t" + FLAVORS[flavor]["desc"])
+        for flavor in sorted(FLAVORS.iterkeys()):
+            if not FLAVORS[flavor]['hidden']:
+                desc = FLAVORS[flavor]["desc"]
+                if FLAVORS[flavor]["status"]:
+                    desc = desc + " [" + FLAVORS[flavor]["status"] + "]"
+                info(flavor + ":\t" + desc)
         return
     if args.flavor is not None and args.flavor not in FLAVORS:
         err("Invalid configuration flavor: " + args.flavor)
