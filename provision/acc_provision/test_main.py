@@ -108,6 +108,15 @@ def test_with_tenant_l3out():
 
 
 @in_testdir
+def test_with_interface_mtu():
+    run_provision(
+        "with_interface_mtu.inp.yaml",
+        "with_interface_mtu.kube.yaml",
+        "with_interface_mtu.apic.txt"
+    )
+
+
+@in_testdir
 def test_flavor_openshift_39():
     run_provision(
         "base_case.inp.yaml",
