@@ -51,6 +51,7 @@ net_config:
                                 #   (Kubernetes only)
   service_vlan: 4003            # The VLAN used by LoadBalancer services
   infra_vlan: 4093              # The VLAN used by ACI infra
+  #interface_mtu: 1600          # min = 1280 for ipv6, max = 8900 for VXLAN
 
 #
 # Configuration for container registry
