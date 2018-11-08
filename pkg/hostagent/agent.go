@@ -35,6 +35,7 @@ type HostAgent struct {
 	env    Environment
 
 	indexMutex sync.Mutex
+	ipamMutex  sync.Mutex
 
 	opflexEps      map[string][]*opflexEndpoint
 	opflexServices map[string]*opflexService

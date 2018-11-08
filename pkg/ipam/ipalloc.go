@@ -105,13 +105,20 @@ func (ipa *IpAlloc) fixRange(index int) {
 	if i < 0 {
 		i = 0
 	}
+
+	// iterate until we hit a disjoint range or the freelist compresses
+	// to a single item at the current index.
 	for i+1 < len(ipa.FreeList) &&
 		isAdjOrGreater(ipa.FreeList[i].End, ipa.FreeList[i+1].Start) {
 
 		if bytes.Compare(ipa.FreeList[i].End, ipa.FreeList[i+1].End) < 0 {
 			ipa.FreeList[i].End = ipa.FreeList[i+1].End
 		}
-		ipa.FreeList = append(ipa.FreeList[:i+1], ipa.FreeList[i+2:]...)
+		if len(ipa.FreeList) > i+1 {
+			ipa.FreeList = append(ipa.FreeList[:i+1], ipa.FreeList[i+2:]...)
+		} else {
+			ipa.FreeList = ipa.FreeList[:i+1]
+		}
 	}
 }
 
@@ -124,14 +131,33 @@ func (ipa *IpAlloc) AddRange(start net.IP, end net.IP) {
 		return
 	}
 	i := sort.Search(len(ipa.FreeList), func(i int) bool {
+		if i >= len(ipa.FreeList) || i < 0 {
+			return true
+		}
+
 		return bytes.Compare(ipa.FreeList[i].Start, start) >= 0
 	})
-	ipa.FreeList = append(ipa.FreeList, IpRange{})
-	copy(ipa.FreeList[i+1:], ipa.FreeList[i:])
-	ipa.FreeList[i].Start = start
-	ipa.FreeList[i].End = end
 
+	// add at the right spot and merge if necessary.
+	item := IpRange{Start: start, End: end}
+	i = ipa.addToFree(item, i)
 	ipa.fixRange(i)
+}
+
+func (ipa *IpAlloc) addToFree(item IpRange, pos int) int {
+	// it is surprisingly easy to mess this up as we could end up checking
+	// boundary after we change the slice length!
+	if pos >= len(ipa.FreeList) {
+		pos = len(ipa.FreeList)
+		ipa.FreeList = append(ipa.FreeList, item)
+	} else {
+		// create room and insert
+		ipa.FreeList = append(ipa.FreeList, item)
+		copy(ipa.FreeList[pos+1:], ipa.FreeList[pos:])
+		ipa.FreeList[pos] = item
+	}
+
+	return pos
 }
 
 // Add the ip address to the free list

@@ -49,7 +49,7 @@ type ContainerMetadata struct {
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
 	dir := filepath.Join(datadir, network)
-	if err := os.MkdirAll(dir, 0644); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	datafile := filepath.Join(dir, data.Id.ContId)

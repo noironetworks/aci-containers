@@ -57,3 +57,7 @@ func (c *Client) Resync() (bool, error) {
 	err := c.connection.Call("EpRPC.Resync", ResyncArgs{}, &result)
 	return result, err
 }
+
+func (c *Client) Close() {
+	c.connection.Close()
+}

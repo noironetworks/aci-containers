@@ -44,8 +44,24 @@ func StartPlugin(log *logrus.Logger, config *HostAgentConfig) {
 	p.Serve()
 }
 
-func runPluginCmd(method, fsuid string, args interface{},
+// Cloner encapsulate a binary cloner for executing in a different process
+// context
+type Cloner struct {
+	Stub bool
+}
+
+var PluginCloner Cloner
+
+// runPluginCmd runs the command from a cloned instance of the
+// executable in order to address name space binding needs
+func (c *Cloner) runPluginCmd(method, fsuid string, args interface{},
 	reply interface{}) error {
+
+	if c.Stub {
+		// if we are in stub mode, just return success
+		return nil
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -107,7 +123,7 @@ func (c *ClientRPC) setupFsuid() {
 func runSetupVeth(log *logrus.Entry, sandbox string, ifName string,
 	mtu int) (string, string, error) {
 	result := &SetupVethResult{}
-	err := runPluginCmd("ClientRPC.SetupVeth",
+	err := PluginCloner.runPluginCmd("ClientRPC.SetupVeth",
 		getSandboxUserId(log, sandbox),
 		&SetupVethArgs{sandbox, ifName, mtu}, result)
 	return result.HostVethName, result.Mac, err
@@ -148,7 +164,7 @@ type ClearVethArgs struct {
 
 func runClearVeth(log *logrus.Entry, sandbox string, ifName string) error {
 	ack := false
-	err := runPluginCmd("ClientRPC.ClearVeth",
+	err := PluginCloner.runPluginCmd("ClientRPC.ClearVeth",
 		getSandboxUserId(log, sandbox),
 		&ClearVethArgs{sandbox, ifName}, &ack)
 	return err
@@ -193,7 +209,7 @@ func runSetupNetwork(log *logrus.Entry, sandbox string, ifName string,
 	result *cnicur.Result) error {
 
 	ack := false
-	err := runPluginCmd("ClientRPC.SetupNetwork",
+	err := PluginCloner.runPluginCmd("ClientRPC.SetupNetwork",
 		getSandboxUserId(log, sandbox),
 		&SetupNetworkArgs{sandbox, ifName, result}, &ack)
 	return err
@@ -317,6 +333,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	err := md.RecordMetadata(agent.config.CniMetadataDir,
 		agent.config.CniNetwork, *metadata)
 	if err != nil {
+		logger.Debug("ERROR RecordMetadata")
 		return nil, err
 	}
 

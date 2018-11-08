@@ -16,8 +16,10 @@ package hostagent
 
 import (
 	"github.com/Sirupsen/logrus"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
+	"net"
 )
 
 const nodename = "test-node"
@@ -36,9 +38,13 @@ func testAgent() *testHostAgent {
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	agent := &testHostAgent{
 		HostAgent: NewHostAgent(&HostAgentConfig{
-			NodeName: nodename,
+			NodeName:       nodename,
+			EpRpcSock:      "/tmp/aci-containers-ep-rpc.sock",
+			CniMetadataDir: "/tmp/cnimeta",
+			NetConfig:      []cniNetConfig{ncf},
 		}, &K8sEnvironment{}, log),
 	}
 	agent.env.(*K8sEnvironment).agent = agent.HostAgent
