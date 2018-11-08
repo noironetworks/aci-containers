@@ -235,14 +235,15 @@ def config_adjust(args, config, prov_apic, no_random):
     node_svc_subnet = config["net_config"]["node_svc_subnet"]
     encap_type = config["aci_config"]["vmm_domain"]["encap_type"]
     system_namespace = config["kube_config"]["system_namespace"]
-    tenant = system_id
+    vrf_tenant = config["aci_config"]["vrf"]["tenant"]
+    vrf = config["aci_config"]["vrf"]["name"]
     token = str(uuid.uuid4())
     if args.version_token:
         token = args.version_token
 
     adj_config = {
         "aci_config": {
-            "cluster_tenant": tenant,
+            "cluster_tenant": system_id,
             "physical_domain": {
                 "domain": system_id + "-pdom",
                 "vlan_pool": system_id + "-pool",
@@ -272,13 +273,13 @@ def config_adjust(args, config, prov_apic, no_random):
         },
         "kube_config": {
             "default_endpoint_group": {
-                "tenant": tenant,
+                "tenant": system_id,
                 "app_profile": "kubernetes",
                 "group": "kube-default",
             },
             "namespace_default_endpoint_group": {
                 system_namespace: {
-                    "tenant": tenant,
+                    "tenant": system_id,
                     "app_profile": "kubernetes",
                     "group": "kube-system",
                 },
@@ -325,7 +326,7 @@ def config_adjust(args, config, prov_apic, no_random):
         },
         "cf_config": {
             "default_endpoint_group": {
-                "tenant": tenant,
+                "tenant": system_id,
                 "app_profile": "cloudfoundry",
                 "group": "cf-app-default",
             },
@@ -379,7 +380,7 @@ def config_adjust(args, config, prov_apic, no_random):
 
     adj_config["cf_config"]["node_network"] = (
         "%s|%s|%s" % (
-            tenant,
+            system_id,
             adj_config['cf_config']['default_endpoint_group']['app_profile'],
             adj_config['cf_config']['node_epg']))
 
@@ -426,7 +427,7 @@ def config_validate(flavor_opts, config):
         "aci_config/aep": (get(("aci_config", "aep")), required),
         "aci_config/vrf/name": (get(("aci_config", "vrf", "name")), required),
         "aci_config/vrf/tenant": (get(("aci_config", "vrf", "tenant")),
-                                  required),
+                                  lambda x: required(x) and x in ["common",get(("aci_config", "system_id"))]),
         "aci_config/l3out/name": (get(("aci_config", "l3out", "name")),
                                   required),
         "aci_config/l3out/external-networks":
@@ -521,33 +522,36 @@ def config_validate(flavor_opts, config):
     return ret
 
 
-def config_validate_preexisting(config, prov_apic):
+# If any of the preexistent ACI elements is not present, this returns False
+# Only if the intention is to create/validate,
+def config_validate_preexisting(config):
     try:
-        if prov_apic is not None:
-            apic = get_apic(config)
-            if apic is None:
-                return False
+        apic = get_apic(config)
+        if apic is None:
+            return False
 
-            aep_name = config["aci_config"]["aep"]
-            aep = apic.get_aep(aep_name)
-            if aep is None:
-                warn("AEP not defined in the APIC: %s" % aep_name)
-
-            vrf_tenant = config["aci_config"]["vrf"]["tenant"]
-            vrf_name = config["aci_config"]["vrf"]["name"]
-            l3out_name = config["aci_config"]["l3out"]["name"]
-            vrf = apic.get_vrf(vrf_tenant, vrf_name)
-            if vrf is None:
-                warn("VRF not defined in the APIC: %s/%s" %
+        aep_name = config["aci_config"]["aep"]
+        aep = apic.get_aep(aep_name)
+        if aep is None:
+            warn("AEP not defined in the APIC: %s" % aep_name)
+            return False
+        vrf_tenant = config["aci_config"]["vrf"]["tenant"]
+        vrf_name = config["aci_config"]["vrf"]["name"]
+        l3out_name = config["aci_config"]["l3out"]["name"]
+        vrf = apic.get_vrf(vrf_tenant, vrf_name)
+        if vrf is None:
+            warn("VRF not defined in the APIC: %s/%s" %
                      (vrf_tenant, vrf_name))
-            l3out = apic.get_l3out(vrf_tenant, l3out_name)
-            if l3out is None:
-                warn("L3out not defined in the APIC: %s/%s" %
-                     (vrf_tenant, l3out_name))
-
+            return False
+        l3out = apic.get_l3out(vrf_tenant, l3out_name)
+        if l3out is None:
+            warn("L3out not defined in the APIC: %s/%s" %
+                 (vrf_tenant, l3out_name))
+            return False
+        return True
     except Exception as e:
         warn("Unable to validate resources on APIC: '%s'" % e.message)
-    return True
+        return False
 
 
 def generate_sample(filep):
@@ -927,10 +931,10 @@ def provision(args, apic_file, no_random):
     adj_config = config_adjust(args, config, prov_apic, no_random)
     deep_merge(config, adj_config)
 
-    # Advisory checks, including apic checks, ignore failures
-    if not config_validate_preexisting(config, prov_apic):
-        # Ignore failures, this check is just advisory for now
-        pass
+    # Enforce the existance of ACI configuration, if provisioning
+    if prov_apic and not config_validate_preexisting(config ) :
+        err("Please ensure the pre-required configuration exists on ACI.")
+        return False
 
     # generate key and cert if needed
     username = config["aci_config"]["sync_login"]["username"]
