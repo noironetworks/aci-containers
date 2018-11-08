@@ -49,7 +49,7 @@ type ContainerMetadata struct {
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
 	dir := filepath.Join(datadir, network)
-	if err := os.MkdirAll(dir, 0644); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	datafile := filepath.Join(dir, data.Id.ContId)
@@ -77,6 +77,35 @@ func LoadMetadata(datadir string, network string,
 				(*mdMap)[podId] = make(map[string]*ContainerMetadata)
 			}
 			(*mdMap)[podId][metadata.Id.ContId] = metadata
+		}
+	}
+
+	return nil
+}
+
+func CheckMetadata(datadir string, network string) error {
+
+	ipMap := make(map[string]string)
+	dir := filepath.Join(datadir, network)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		metadata, err := GetMetadata(datadir, network, file.Name())
+		if err == nil {
+			podId := metadata.Id.Namespace + "/" + metadata.Id.Pod
+			for _, ifc := range metadata.Ifaces {
+				for _, ip := range ifc.IPs {
+					curr, ok := ipMap[ip.Address.String()]
+					if ok {
+						return fmt.Errorf("pod: %s alreay has IP: %s, clashes with pod: %s", curr, ip.Address.String(), podId)
+					}
+
+					ipMap[ip.Address.String()] = podId
+				}
+			}
 		}
 	}
 

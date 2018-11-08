@@ -123,6 +123,8 @@ func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
 func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	var result error
 	var err error
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
 
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
@@ -161,6 +163,8 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 }
 
 func (agent *HostAgent) deallocateIps(iface *metadata.ContainerIfaceMd) {
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
 	for _, ip := range iface.IPs {
 		if ip.Address.IP == nil {
 			continue
@@ -180,6 +184,9 @@ func (agent *HostAgent) deallocateMdIps(md *metadata.ContainerMetadata) {
 		// using external ipam
 		return
 	}
+
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
 	for _, iface := range md.Ifaces {
 		for _, ip := range iface.IPs {
 			if ip.Address.IP == nil {
