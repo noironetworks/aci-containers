@@ -235,8 +235,6 @@ def config_adjust(args, config, prov_apic, no_random):
     node_svc_subnet = config["net_config"]["node_svc_subnet"]
     encap_type = config["aci_config"]["vmm_domain"]["encap_type"]
     system_namespace = config["kube_config"]["system_namespace"]
-    vrf_tenant = config["aci_config"]["vrf"]["tenant"]
-    vrf = config["aci_config"]["vrf"]["name"]
     token = str(uuid.uuid4())
     if args.version_token:
         token = args.version_token
@@ -427,7 +425,8 @@ def config_validate(flavor_opts, config):
         "aci_config/aep": (get(("aci_config", "aep")), required),
         "aci_config/vrf/name": (get(("aci_config", "vrf", "name")), required),
         "aci_config/vrf/tenant": (get(("aci_config", "vrf", "tenant")),
-                                  lambda x: required(x) and x in ["common",get(("aci_config", "system_id"))]),
+                                  lambda x: required(x) and x in ["common",
+                                  get(("aci_config", "system_id"))]),
         "aci_config/l3out/name": (get(("aci_config", "l3out", "name")),
                                   required),
         "aci_config/l3out/external-networks":
@@ -541,7 +540,8 @@ def config_validate_preexisting(config):
         vrf = apic.get_vrf(vrf_tenant, vrf_name)
         if vrf is None:
             warn("VRF not defined in the APIC: %s/%s" %
-                     (vrf_tenant, vrf_name))
+                 (vrf_tenant, vrf_name)
+                 )
             return False
         l3out = apic.get_l3out(vrf_tenant, l3out_name)
         if l3out is None:
@@ -932,7 +932,7 @@ def provision(args, apic_file, no_random):
     deep_merge(config, adj_config)
 
     # Enforce the existance of ACI configuration, if provisioning
-    if prov_apic and not config_validate_preexisting(config ) :
+    if prov_apic and not config_validate_preexisting(config):
         err("Please ensure the pre-required configuration exists on ACI.")
         return False
 
