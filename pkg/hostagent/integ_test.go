@@ -110,6 +110,19 @@ func TestInteg(t *testing.T) {
 
 	}
 
+	ipCounter := func() int64 {
+		var total int64
+
+		ipaList := agent.podIps.GetV4IpCache()
+		for _, ipa := range ipaList {
+			total += ipa.GetSize()
+		}
+
+		return total
+	}
+
+	poolSize := ipCounter()
+	log.Infof("IP pool size is %v", poolSize)
 	for jx := 0; jx < 2000; jx++ {
 		log.Infof("=>Iteration %d<=", jx)
 		var wg sync.WaitGroup
@@ -132,9 +145,14 @@ func TestInteg(t *testing.T) {
 		wg.Wait()
 		log.Infof("Adds finished")
 
-		err := metadata.CheckMetadata("/tmp/cnimeta", "")
+		used, err := metadata.CheckMetadata("/tmp/cnimeta", "")
 		if err != nil {
 			t.Fatal(err)
+		}
+
+		// check for leaks
+		if used+ipCounter() != poolSize {
+			t.Fatalf("IP addr leak -- total: %v used: %v avail: %v", poolSize, used, ipCounter())
 		}
 
 		log.Infof("Starting deletes")
