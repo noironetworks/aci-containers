@@ -178,7 +178,9 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 
 	agent.log.Debug("Building IP address management database")
+	agent.indexMutex.Lock()
 	agent.rebuildIpam()
+	agent.indexMutex.Unlock()
 
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" {

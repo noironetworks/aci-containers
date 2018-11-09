@@ -83,6 +83,35 @@ func LoadMetadata(datadir string, network string,
 	return nil
 }
 
+func CheckMetadata(datadir string, network string) (int64, error) {
+
+	ipMap := make(map[string]string)
+	dir := filepath.Join(datadir, network)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, file := range files {
+		metadata, err := GetMetadata(datadir, network, file.Name())
+		if err == nil {
+			podId := metadata.Id.Namespace + "/" + metadata.Id.Pod
+			for _, ifc := range metadata.Ifaces {
+				for _, ip := range ifc.IPs {
+					curr, ok := ipMap[ip.Address.String()]
+					if ok {
+						return 0, fmt.Errorf("pod: %s alreay has IP: %s, clashes with pod: %s", curr, ip.Address.String(), podId)
+					}
+
+					ipMap[ip.Address.String()] = podId
+				}
+			}
+		}
+	}
+
+	return int64(len(ipMap)), nil
+}
+
 func GetMetadata(datadir string, network string, id string) (*ContainerMetadata, error) {
 	data := &ContainerMetadata{}
 

@@ -68,6 +68,8 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 		return
 	}
 
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
 	agent.podIps = ipam.NewIpCache()
 	if newRanges.V4 != nil {
 		agent.podIps.LoadRanges(newRanges.V4)
