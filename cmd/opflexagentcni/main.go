@@ -230,6 +230,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	defer eprpc.Close()
 
 	result, err = eprpc.Register(&metadata)
 	if err != nil {
@@ -274,6 +275,8 @@ func cmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	defer eprpc.Close()
+
 	_, err = eprpc.Unregister(cid)
 	if err != nil {
 		return err
