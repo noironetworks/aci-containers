@@ -378,12 +378,13 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 
 	{
 		v4 := ipam.NewFromRanges(podnet.podNetIps.V4)
-		annSize := v4.GetSize()
 		v4.AddRanges(existing.V4)
+		annSize := v4.GetSize()
 
 		// validate existing against configured range
 		v4 = v4.Intersect(cont.configuredPodNetworkIps.V4)
 		if v4.GetSize() != annSize {
+			logger.Warnf("intersect: %+v, config: %+v", v4, cont.configuredPodNetworkIps.V4)
 			logger.Warn("Existing annotation outside configured",
 				"range", existingAnnotation)
 		}
