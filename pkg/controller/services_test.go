@@ -16,18 +16,16 @@ package controller
 
 import (
 	"fmt"
-	"net"
-	"sort"
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"net"
+	"sort"
+	"testing"
+	"time"
 )
 
 func waitForSStatus(t *testing.T, cont *testAciController,
@@ -112,9 +110,9 @@ func TestServiceIpV6(t *testing.T) {
 			"delete pool return")
 	}
 
-
 	cont.stop()
 }
+
 func TestServiceIp(t *testing.T) {
 	cont := testController()
 	cont.config.ServiceIpPool = []ipam.IpRange{
@@ -185,33 +183,242 @@ func TestServiceIp(t *testing.T) {
 	cont.stop()
 }
 
+func TestContractScopeValues(t *testing.T) {
+	name := "testContract"
+	tenant := "testTenant"
+	graphName := "testGraph"
+
+	contract, err := apicContract(name, tenant, graphName, "global")
+	assert.Empty(t, err)
+	assert.Equal(t, contract.GetAttrStr("scope"), "global")
+
+	_, err = apicContract(name, tenant, graphName, "wrong-Name")
+	assert.NotNil(t, err)
+
+	contract, err = apicContract(name, tenant, graphName, "")
+	assert.Empty(t, err)
+	assert.Equal(t, contract.GetAttrStr("scope"), "context")
+
+	contract, err = apicContract(name, tenant, graphName, "GloBal")
+	assert.Empty(t, err)
+	assert.Equal(t, contract.GetAttrStr("scope"), "global")
+}
+
 type seMap map[string]*metadata.ServiceEndpoint
 
-func TestServiceGraph(t *testing.T) {
-	sgCont := func() *testAciController {
-		cont := testController()
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
-			{Start: net.ParseIP("10.6.1.1"), End: net.ParseIP("10.6.1.2")},
-		}
-		cont.config.ServiceIpPool = []ipam.IpRange{
-			{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
-		}
-		cont.config.StaticServiceIpPool = []ipam.IpRange{
-			{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
-		}
-		cont.AciController.initIpam()
-		cont.config.AciServicePhysDom = "service-physdom"
-		cont.config.AciServiceEncap = "vlan-4001"
-		cont.config.AciPolicyTenant = "test"
-		cont.config.AciVrfTenant = "common"
-		cont.config.AciL3Out = "l3out"
-		cont.config.AciExtNetworks = []string{"ext1"}
-		cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
-		cont.config.AciVmmDomain = "kube-domain"
-		cont.config.AciVmmController = "kube-controller"
-		cont.config.AciServiceMonitorInterval = 10
-		return cont
+func sgCont() *testAciController {
+	cont := testController()
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.6.1.1"), End: net.ParseIP("10.6.1.2")},
 	}
+	cont.config.ServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.4.1.1"), End: net.ParseIP("10.4.1.255")},
+	}
+	cont.config.StaticServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.4.2.1"), End: net.ParseIP("10.4.2.255")},
+	}
+	cont.AciController.initIpam()
+	cont.config.AciServicePhysDom = "service-physdom"
+	cont.config.AciServiceEncap = "vlan-4001"
+	cont.config.AciPolicyTenant = "test"
+	cont.config.AciVrfTenant = "common"
+	cont.config.AciL3Out = "l3out"
+	cont.config.AciExtNetworks = []string{"ext1"}
+	cont.config.NodeServiceSubnets = []string{"10.6.0.1/16"}
+	cont.config.AciVmmDomain = "kube-domain"
+	cont.config.AciVmmController = "kube-controller"
+	cont.config.AciServiceMonitorInterval = 10
+	return cont
+}
+
+func sgWait(t *testing.T, desc string, cont *testAciController, expected map[string]apicapi.ApicSlice) {
+	tu.WaitFor(t, desc, 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			cont.indexMutex.Lock()
+			defer cont.indexMutex.Unlock()
+
+			for key, slice := range expected {
+				ds := cont.apicConn.GetDesiredState(key)
+				if !tu.WaitEqual(t, last, slice, ds, desc, key) {
+					for i := range slice {
+						if last &&
+							assert.Equal(t, len(slice[i]), len(ds[i])) {
+							assert.Equal(t, slice[i], ds[i])
+						} else {
+							return false, nil
+						}
+					}
+				}
+			}
+			return true, nil
+		})
+	cont.log.Info("Finished waiting for ", desc)
+}
+
+func TestServiceAnnotation(t *testing.T) {
+	name := "kube_svc_testns_service1"
+	nameS2 := "kube_svc_testns_service2"
+	graphName := "kube_svc_global"
+	cluster := func(nmap map[string]string) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		dc, _ := apicDeviceCluster(graphName, "common", "service-physdom",
+			"vlan-4001", nodes, nmap)
+		return dc
+	}
+	twoNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/33]",
+		"node2": "topology/pod-1/paths-301/pathep-[eth1/34]",
+	})
+	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
+	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
+		name)
+
+	redirect := func(nmap seMap) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
+			"common", "kube_monPol_kubernetes-service")
+		dc, _ := apicRedirectPol(name, "common", nodes,
+			nmap, monPolDn, healthGroup.GetDn())
+		return dc
+	}
+	twoNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			Mac:  "8a:35:a1:a6:e4:60",
+			Ipv4: net.ParseIP("10.6.1.1"),
+		},
+		"node2": &metadata.ServiceEndpoint{
+			Mac:  "a2:7e:45:57:a0:d4",
+			Ipv4: net.ParseIP("10.6.1.2"),
+		},
+	})
+	oneNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			Mac:  "8a:35:a1:a6:e4:60",
+			Ipv4: net.ParseIP("10.6.1.1"),
+		},
+	})
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
+	filter := apicapi.NewVzFilter("common", name)
+	filterDn := filter.GetDn()
+	{
+		fe := apicapi.NewVzEntry(filterDn, "0")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "tcp")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
+		filter.AddChild(fe)
+	}
+	{
+		fe := apicapi.NewVzEntry(filterDn, "1")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "udp")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
+		filter.AddChild(fe)
+	}
+	s1Dcc := apicDevCtx(name, "common", graphName,
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn())
+	endpoints1 := endpoints("testns", "service1",
+		[]string{"node1", "node2"}, nil, nil)
+	service1 := service("testns", "service1", "10.4.2.2")
+	service1.Spec.Ports = []v1.ServicePort{
+		{
+			Name:     "tcp_80",
+			Protocol: "TCP",
+			Port:     80,
+		},
+		{
+			Name:     "udp_53",
+			Protocol: "UDP",
+			Port:     53,
+		},
+	}
+
+	service1.Spec.Type = v1.ServiceTypeLoadBalancer
+	service2 := service("testns", "service2", "")
+	service2.Spec.Type = ""
+
+	node1 := node("node1")
+	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
+	node2 := node("node2")
+	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
+
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/33]")
+
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice2.SetAttr("hostName", "node2")
+	opflexDevice2.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/34]")
+
+	cont := sgCont()
+	cont.fakeNodeSource.Add(node1)
+	cont.fakeNodeSource.Add(node2)
+	cont.fakeServiceSource.Add(service2)
+	cont.run()
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
+	cont.fakeEndpointsSource.Add(endpoints1)
+
+	//Function to check if an object is present in the apic connection at a specific key
+	sgPresentObject := func(t *testing.T, desc string, cont *testAciController,
+		key string, expected string, present bool) {
+
+		tu.WaitFor(t, desc, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				cont.indexMutex.Lock()
+				defer cont.indexMutex.Unlock()
+				var ok bool
+				ds := cont.apicConn.GetDesiredState(key)
+				for _, v := range ds {
+					if _, ok = v[expected]; ok {
+						break
+					}
+				}
+				if ok == present {
+					return true, nil
+				}
+				return false, nil
+			})
+		cont.log.Info("Finished waiting for ", desc)
+
+	}
+
+	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "tenn"
+	time.Sleep(2 * time.Second)
+	cont.fakeServiceSource.Add(service1)
+	sgPresentObject(t, "object absent check", cont, name, "vzBrCP", false)
+
+	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "global"
+	time.Sleep(2 * time.Second)
+	cont.fakeServiceSource.Modify(service1)
+	contract, _ := apicContract(name, "common", graphName, "global")
+	expected := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup, twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
+		nameS2: nil,
+	}
+	sgPresentObject(t, "object present check", cont, name, "vzBrCP", true)
+	sgWait(t, "valid scope check", cont, expected)
+	cont.stop()
+}
+
+func TestServiceGraph(t *testing.T) {
 
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
@@ -235,6 +442,7 @@ func TestServiceGraph(t *testing.T) {
 	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
 
 	name := "kube_svc_testns_service1"
+	conScope := "context"
 	nameS2 := "kube_svc_testns_service2"
 	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
 		name)
@@ -268,7 +476,7 @@ func TestServiceGraph(t *testing.T) {
 	})
 
 	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
-	contract := apicContract(name, "common", graphName)
+	contract, _ := apicContract(name, "common", graphName, conScope)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
 	filter := apicapi.NewVzFilter("common", name)
@@ -343,32 +551,6 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice1_alt.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/100]")
 
-	sgWait := func(t *testing.T, desc string, cont *testAciController,
-		expected map[string]apicapi.ApicSlice) {
-
-		tu.WaitFor(t, desc, 500*time.Millisecond,
-			func(last bool) (bool, error) {
-				cont.indexMutex.Lock()
-				defer cont.indexMutex.Unlock()
-
-				for key, slice := range expected {
-					ds := cont.apicConn.GetDesiredState(key)
-					if !tu.WaitEqual(t, last, slice, ds, desc, key) {
-						for i := range slice {
-							if last &&
-								assert.Equal(t, len(slice[i]), len(ds[i])) {
-								assert.Equal(t, slice[i], ds[i])
-							} else {
-								return false, nil
-							}
-						}
-					}
-				}
-				return true, nil
-			})
-		cont.log.Info("Finished waiting for ", desc)
-	}
-
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
@@ -403,7 +585,6 @@ func TestServiceGraph(t *testing.T) {
 	cont.opflexDeviceChanged(opflexDevice2)
 
 	sgWait(t, "non-lb", cont, expectedNoService)
-
 	cont.serviceUpdates = nil
 	cont.fakeEndpointsSource.Add(endpoints1)
 	cont.fakeServiceSource.Add(service1)

@@ -118,7 +118,7 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 				Tenant: env.cont.config.AciPolicyTenant})
 		ep.SecurityGroups = append(ep.SecurityGroups,
 			cf_common.GroupInfo{
-				Group: env.cont.aciNameForKey("hpp", "cf-components"),
+				Group:  env.cont.aciNameForKey("hpp", "cf-components"),
 				Tenant: env.cont.config.AciPolicyTenant})
 		if sg != nil {
 			for _, s := range *sg {
@@ -131,22 +131,22 @@ func (env *CfEnvironment) handleContainerUpdateLocked(contId string) bool {
 		if ok {
 			ep.SecurityGroups = append(ep.SecurityGroups,
 				cf_common.GroupInfo{
-					Group: env.cont.aciNameForKey("np", cinfo.AppId),
+					Group:  env.cont.aciNameForKey("np", cinfo.AppId),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
 		if len(appInfo.ExternalIp) > 0 {
 			ep.SecurityGroups = append(ep.SecurityGroups,
 				cf_common.GroupInfo{
-					Group: env.cont.aciNameForKey("hpp", "app-ext-ip"),
+					Group:  env.cont.aciNameForKey("hpp", "app-ext-ip"),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
 		if len(env.GetAdditionalPorts(cinfo)) > 0 {
 			ep.SecurityGroups = append(ep.SecurityGroups,
 				cf_common.GroupInfo{
-					Group: env.cont.aciNameForKey("hpp", "app-port:"+cinfo.AppId),
+					Group:  env.cont.aciNameForKey("hpp", "app-port:"+cinfo.AppId),
 					Tenant: env.cont.config.AciPolicyTenant})
 		}
-		env.kvmgr.Set("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId, &ep)
+		env.kvmgr.Set("cell/"+cinfo.CellId, "ct/"+cinfo.ContainerId, &ep)
 	}
 	if spaceInfo != nil {
 		conf := env.cont.config
@@ -175,7 +175,7 @@ func (env *CfEnvironment) handleContainerDeleteLocked(cinfo *ContainerInfo) bool
 		env.cont.removePodFromNode(cinfo.CellId, cinfo.ContainerId)
 		env.cont.indexMutex.Unlock()
 
-		env.kvmgr.Delete("cell/" + cinfo.CellId, "ct/" + cinfo.ContainerId)
+		env.kvmgr.Delete("cell/"+cinfo.CellId, "ct/"+cinfo.ContainerId)
 	}
 	env.cont.apicConn.ClearApicObjects("inj_contgrp:" + cinfo.ContainerId)
 	return retry
@@ -214,8 +214,10 @@ func (env *CfEnvironment) handleAppUpdateLocked(appId string) bool {
 	}
 	env.kvmgr.Set("apps", appId, &ai)
 	if len(ai.ExternalIp) > 0 {
-		sgobjs := env.createAppServiceGraph(appId, ai.ExternalIp)
-		env.cont.apicConn.WriteApicObjects("app_ext_ip:"+appId, sgobjs)
+		sgobjs, err := env.createAppServiceGraph(appId, ai.ExternalIp)
+		if err == nil {
+			env.cont.apicConn.WriteApicObjects("app_ext_ip:"+appId, sgobjs)
+		}
 	} else {
 		env.cont.apicConn.ClearApicObjects("app_ext_ip:" + appId)
 	}
@@ -286,10 +288,10 @@ func (env *CfEnvironment) handleAppUpdate(appId string) bool {
 }
 
 // must be called with indexLock locked
-func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) apicapi.ApicSlice {
+func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) (apicapi.ApicSlice, error) {
 	ainfo := env.appIdx[appId]
 	if ainfo == nil {
-		return nil
+		return nil, nil
 	}
 	cont := env.cont
 	cont.indexMutex.Lock()
@@ -317,6 +319,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 	sort.Strings(nodes)
 
 	name := cont.aciNameForKey("ext", appId)
+
 	graphName := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
 
@@ -341,8 +344,11 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 			apicExtNet(name, cont.config.AciVrfTenant,
 				cont.config.AciL3Out, extIps))
 
-		serviceObjs = append(serviceObjs,
-			apicContract(name, cont.config.AciVrfTenant, graphName))
+		contract, err := apicContract(name, cont.config.AciVrfTenant, graphName, DefaultServiceContractScope)
+		if err != nil {
+			return nil, err
+		}
+		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
@@ -363,7 +369,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) a
 			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
 				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn))
 	}
-	return serviceObjs
+	return serviceObjs, nil
 }
 
 func (env *CfEnvironment) handleAppDeleteLocked(appId string, ainfo *AppInfo) bool {

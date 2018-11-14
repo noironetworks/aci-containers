@@ -46,6 +46,9 @@ type NetIps struct {
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
+// Annotation to set service contract scope values. If unset or "", defaults to "context"(VRF). Other valid values: "context", "tenant", and "global"
+const ServiceContractScopeAnnotation = "opflex.cisco.com/ext_service_contract_scope"
+
 // List of IP address ranges for use by the pod network
 const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 
