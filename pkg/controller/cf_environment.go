@@ -45,9 +45,9 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/cfapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
