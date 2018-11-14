@@ -16,8 +16,8 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
-	//"sort"
 	"testing"
 	"time"
 
@@ -315,5 +315,71 @@ func TestNodeNetPol(t *testing.T) {
 			}
 			return true, nil
 		})
+	cont.stop()
+}
+
+func TestPodNetAnnotUpgrade(t *testing.T) {
+	cont := testController()
+	cont.config.PodIpPoolChunkSize = 32
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.16.1")},
+	}
+
+	cont.AciController.initIpam()
+	cont.run()
+	setupODev(cont, "node2", true)
+
+	nodeAdder := func(id int, ips *metadata.NetIps) {
+		nodeName := fmt.Sprintf("node%d", id)
+		n := node(nodeName)
+		raw, _ := json.Marshal(ips)
+		n.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation] = string(raw)
+		cont.fakeNodeSource.Add(n)
+	}
+	// add 3 nodes
+	ips1 := &metadata.NetIps{
+		V4: []ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.2.129")},
+		},
+	}
+	ips2 := &metadata.NetIps{
+		V4: []ipam.IpRange{
+			{Start: net.ParseIP("10.128.3.2"), End: net.ParseIP("10.128.3.129")},
+		},
+	}
+	ips3 := &metadata.NetIps{
+		V4: []ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.130"), End: net.ParseIP("10.128.2.162")},
+		},
+	}
+
+	nodeAdder(1, ips1)
+	nodeAdder(2, ips2)
+	nodeAdder(3, ips3)
+
+	podAdder := func(n, start, end int) {
+		nodeName := fmt.Sprintf("node%d", n)
+		for ix := start; ix < end; ix++ {
+			podName := fmt.Sprintf("testPod%d", ix)
+			cont.fakeNodeSource.Add(node(nodeName))
+			cont.fakePodSource.Add(podOnNode("testns", podName, nodeName))
+		}
+	}
+
+	time.Sleep(time.Second)
+
+	cont.nodeUpdates = nil
+	podId := 1
+	for total := 0; total < 120; total++ {
+		podAdder(1, podId, podId+total)
+		time.Sleep(2 * time.Millisecond)
+	}
+	ips4 := &metadata.NetIps{
+		V4: []ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.2.129")},
+			{Start: net.ParseIP("10.128.2.163"), End: net.ParseIP("10.128.2.194")},
+		},
+	}
+	waitForPodNetAnnot(t, cont, ips4, "node1 add")
 	cont.stop()
 }
