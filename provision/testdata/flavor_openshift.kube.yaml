@@ -298,9 +298,8 @@ spec:
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       initContainers:
         - name: cnideploy
           image: noiro/cnideploy:1.9r38
@@ -438,9 +437,8 @@ spec:
       hostIPC: true
       serviceAccountName: aci-containers-host-agent
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       containers:
         - name: aci-containers-openvswitch
           image: noiro/openvswitch:1.7r24
@@ -516,9 +514,8 @@ spec:
       hostNetwork: true
       serviceAccountName: aci-containers-controller
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       containers:
         - name: aci-containers-controller
           image: noiro/aci-containers-controller:1.9r38
