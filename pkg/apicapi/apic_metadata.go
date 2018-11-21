@@ -446,6 +446,7 @@ var metadata = map[string]*apicMeta{
 	"vzBrCP": {
 		attributes: map[string]interface{}{
 			"name": "",
+			"scope": "context",
 		},
 		children: []string{
 			"vzSubj",

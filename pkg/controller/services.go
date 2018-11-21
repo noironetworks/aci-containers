@@ -15,24 +15,27 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
-	"net"
-	"reflect"
-	"sort"
-	"strconv"
-
 	"github.com/Sirupsen/logrus"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"net"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
+
+// Default service contract scope value 
+const DefaultServiceContractScope = "context"
 
 func (cont *AciController) initEndpointsInformerFromClient(
 	kubeClient kubernetes.Interface) {
@@ -325,15 +328,38 @@ func apicExtNetCons(conName string, tenantName string,
 	return apicapi.NewFvRsCons(enDn, conName)
 }
 
+//Helper function to check if a string item exists in a slice
+func stringInSlice(str string, list []string) bool {
+	for _, v := range list {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+func validScope(scope string) bool {
+	validValues := []string{"", "context", "tenant", "global"}
+	return stringInSlice(scope, validValues)
+}
+
 func apicContract(conName string, tenantName string,
-	graphName string) apicapi.ApicObject {
+	graphName string, scopeName string) (apicapi.ApicObject, error) {
+	normScopeName := strings.ToLower(scopeName)
+	if !validScope(normScopeName) {
+		errString := "Invalid service contract scope value provided " + scopeName
+		return nil, errors.New(errString)
+	}
 	con := apicapi.NewVzBrCP(tenantName, conName)
+	if normScopeName != "" && normScopeName != "context" {
+		con.SetAttr("scope", normScopeName)
+	}
 	cs := apicapi.NewVzSubj(con.GetDn(), "loadbalancedservice")
 	csDn := cs.GetDn()
 	cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
 	cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
 	con.AddChild(cs)
-	return con
+	return con, nil
 }
 
 func apicDevCtx(name string, tenantName string,
@@ -359,13 +385,13 @@ func apicDevCtx(name string, tenantName string,
 }
 
 func (cont *AciController) updateServiceDeviceInstance(key string,
-	service *v1.Service) {
+	service *v1.Service) error {
 
 	endpointsobj, exists, err := cont.endpointsIndexer.GetByKey(key)
 	if err != nil {
 		cont.log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())
-		return
+		return err
 	}
 
 	cont.indexMutex.Lock()
@@ -397,11 +423,16 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		nodes = append(nodes, node)
 	}
 	sort.Strings(nodes)
-
 	name := cont.aciNameForKey("svc", key)
+	var conScope string
+	scopeVal, ok := service.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation]
+	if ok {
+		conScope = scopeVal
+	} else {
+		conScope = DefaultServiceContractScope
+	}
 	graphName := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
-
 	if len(nodes) > 0 {
 
 		// 1. Service redirect policy
@@ -438,8 +469,12 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 					cont.config.AciL3Out, ingresses))
 		}
 
-		serviceObjs = append(serviceObjs,
-			apicContract(name, cont.config.AciVrfTenant, graphName))
+		contract, err := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
+		if err != nil {
+			serviceLogger(cont.log, service).Error("Could not create contract: ", err)
+			return err
+		}
+		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
@@ -476,6 +511,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	}
 
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
+	return nil
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {
@@ -916,7 +952,10 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		cont.indexMutex.Lock()
 		if cont.serviceSyncEnabled {
 			cont.indexMutex.Unlock()
-			cont.updateServiceDeviceInstance(servicekey, service)
+			err = cont.updateServiceDeviceInstance(servicekey, service)
+			if err != nil {
+				return false
+			}
 		} else {
 			cont.indexMutex.Unlock()
 		}
@@ -925,7 +964,6 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	}
 
 	cont.writeApicSvc(servicekey, service)
-
 	return requeue
 }
 
