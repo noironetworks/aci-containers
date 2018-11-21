@@ -281,9 +281,8 @@ spec:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       {% if config.kube_config.use_cnideploy_initcontainer %}
       initContainers:
         - name: cnideploy
@@ -435,9 +434,8 @@ spec:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       containers:
         - name: aci-containers-openvswitch
           image: {{ config.registry.image_prefix }}/openvswitch:{{ config.registry.openvswitch_version }}
@@ -519,9 +517,8 @@ spec:
         - name: {{ config.registry.image_pull_secret|yaml_quote }}
       {% endif %}
       tolerations:
-        - key: CriticalAddonsOnly
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+        - operator: Exists
+          effect: NoSchedule
       containers:
         - name: aci-containers-controller
           image: {{ config.registry.image_prefix }}/aci-containers-controller:{{ config.registry.aci_containers_controller_version }}
