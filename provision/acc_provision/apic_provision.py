@@ -9,6 +9,11 @@ import urllib3
 import ipaddress
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+try:
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+except Exception:
+    pass
 apic_debug = False
 apic_cookies = {}
 apic_default_timeout = (15, 90)
