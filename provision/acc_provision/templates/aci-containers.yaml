@@ -57,6 +57,7 @@ data:
         "allocate-service-ips": false,
         {% endif %}
         "pod-ip-pool": {{ config.kube_config.pod_ip_pool|json|indent(width=8) }},
+        "pod-subnet-chunk-size": {{ config.net_config.pod_subnet_chunk_size|json }},
         "node-service-ip-pool": {{ config.kube_config.node_service_ip_pool|json|indent(width=8) }},
         "node-service-subnets": {{ config.kube_config.node_service_gw_subnets|json|indent(width=8) }}
     }

@@ -126,6 +126,7 @@ def config_default():
         "net_config": {
             "node_subnet": None,
             "pod_subnet": None,
+            "pod_subnet_chunk_size": 32,
             "extern_dynamic": None,
             "extern_static": None,
             "node_svc_subnet": None,
