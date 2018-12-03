@@ -323,6 +323,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 	cont.log.Info("ApicRefreshTimer conf is set to: ", refreshTimeout)
+
+	// If not defined, default to 32
+	if cont.config.PodIpPoolChunkSize == 0 {
+		cont.config.PodIpPoolChunkSize = 32
+	}
+	cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
+
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
