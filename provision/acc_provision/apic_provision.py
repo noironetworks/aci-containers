@@ -3187,7 +3187,6 @@ class ApicKubeConfig(object):
         if "tenant_alias" in self.config["aci_config"]:
             tenant = data["fvTenant"]
             tenant["attributes"]["nameAlias"] = self.config["aci_config"]["tenant_alias"]
-            print(tenant)
 
         for epg in self.config["aci_config"].get("custom_epgs", []):
             data["fvTenant"]["children"][0]["fvAp"]["children"].append(
