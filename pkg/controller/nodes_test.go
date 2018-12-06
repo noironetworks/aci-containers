@@ -320,7 +320,6 @@ func TestNodeNetPol(t *testing.T) {
 
 func TestPodNetAnnotUpgrade(t *testing.T) {
 	cont := testController()
-	cont.config.PodIpPoolChunkSize = 32
 	cont.config.PodIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.16.1")},
 	}

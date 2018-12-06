@@ -134,7 +134,7 @@ type ControllerConfig struct {
 	PodIpPool []ipam.IpRange `json:"pod-ip-pool,omitempty"`
 
 	// The number of IP addresses to allocate when a pod starts to run low
-	PodIpPoolChunkSize int `json:"pod-ip-pool-chunk-size,omitempty"`
+	PodIpPoolChunkSize int `json:"pod-subnet-chunk-size,omitempty"`
 
 	// Pod subnet CIDRs in the form <gateway-address>/<prefix-length> that
 	// cover all pod-ip-pools
@@ -180,7 +180,6 @@ func NewConfig() *ControllerConfig {
 		AciVmmDomainType:   "Kubernetes",
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
-		PodIpPoolChunkSize: 32,
 		AllocateServiceIps: &t,
 	}
 }
