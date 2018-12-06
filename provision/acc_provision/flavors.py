@@ -55,7 +55,7 @@ FLAVORS = {
     "kubernetes-1.12": {
         "desc": "Kubernetes 1.12",
         "default_version": "1.9",
-        "status": "Pre-release",
+        "status": None,
         "hidden": False,
     },
     "kubernetes-1.11": {
@@ -68,7 +68,7 @@ FLAVORS = {
         "desc": "Kubernetes 1.10",
         "default_version": "1.9",
         "status": None,
-        "hidden": False,
+        "hidden": True,
     },
     "kubernetes-1.9": {
         "desc": "Kubernetes 1.9",
@@ -192,7 +192,7 @@ FLAVORS = {
     "docker-ucp-3.0": {
         "desc": "Docker Universal Control Plane (UCP) 3.0",
         "default_version": "1.9",
-        "status": "Pre-release",
+        "status": "Experimental",
         "hidden": False,
     },
     # CloudFoundry
