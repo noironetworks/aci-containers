@@ -27,7 +27,8 @@ import (
 )
 
 type EpRPC struct {
-	agent *HostAgent
+	agent  *HostAgent
+	server *rpc.Server // our pvt instance of the server
 }
 
 func (agent *HostAgent) runEpRPC(stopCh <-chan struct{}) error {
@@ -35,7 +36,11 @@ func (agent *HostAgent) runEpRPC(stopCh <-chan struct{}) error {
 		return nil
 	}
 
-	rpc.Register(NewEpRPC(agent))
+	epRPC := NewEpRPC(agent)
+	err := epRPC.server.Register(epRPC)
+	if err != nil {
+		agent.log.Fatalf("epRPC.server.Register - %v", err)
+	}
 
 	os.Remove(agent.config.EpRpcSock)
 	l, err := net.Listen("unix", agent.config.EpRpcSock)
@@ -57,7 +62,7 @@ func (agent *HostAgent) runEpRPC(stopCh <-chan struct{}) error {
 		}
 	}
 
-	go rpc.Accept(l)
+	go epRPC.server.Accept(l)
 	go func() {
 		<-stopCh
 		l.Close()
@@ -66,7 +71,10 @@ func (agent *HostAgent) runEpRPC(stopCh <-chan struct{}) error {
 }
 
 func NewEpRPC(agent *HostAgent) *EpRPC {
-	return &EpRPC{agent: agent}
+	return &EpRPC{
+		agent:  agent,
+		server: rpc.NewServer(),
+	}
 }
 
 func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result) error {

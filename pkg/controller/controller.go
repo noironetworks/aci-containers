@@ -15,8 +15,6 @@
 package controller
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -39,6 +37,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
@@ -254,34 +253,7 @@ func (cont *AciController) globalStaticObjs() apicapi.ApicSlice {
 }
 
 func (cont *AciController) aciNameForKey(ktype string, key string) string {
-	name := cont.config.AciPrefix + "_" + ktype +
-		"_" + strings.Replace(key, "/", "_", -1)
-	if len(name) < 64 {
-		return name
-	}
-
-	hash := sha256.New()
-	if len(cont.config.AciPrefix)+len(ktype)+1 > 31 {
-		if len(cont.config.AciPrefix) > 31 {
-			hash.Write([]byte(cont.config.AciPrefix))
-			hash.Write([]byte("_"))
-		} else {
-			name = cont.config.AciPrefix
-		}
-
-		hash.Write([]byte(ktype))
-		hash.Write([]byte("_"))
-	} else {
-		name = cont.config.AciPrefix + "_" + ktype
-	}
-	hash.Write([]byte(key))
-
-	hashstr := hex.EncodeToString(hash.Sum(nil)[:16])
-	if len(cont.config.AciPrefix) > 31 {
-		return hashstr
-	} else {
-		return fmt.Sprintf("%s_%s", name, hashstr)
-	}
+	return util.AciNameForKey(cont.config.AciPrefix, ktype, key)
 }
 
 func (cont *AciController) initStaticObjs() {

@@ -67,6 +67,7 @@ data:
         "aci-vmm-type": {{config.aci_config.vmm_domain.type|json}},
         "aci-vmm-domain": {{config.aci_config.vmm_domain.domain|json}},
         "aci-vmm-controller": {{config.aci_config.vmm_domain.controller|json}},
+        "aci-prefix": {{config.aci_config.system_id|json}},
         "aci-vrf": {{config.aci_config.vrf.name|json}},
         "aci-vrf-tenant": {{config.aci_config.vrf.tenant|json}},
         "service-vlan": {{ config.net_config.service_vlan|json }},
@@ -75,7 +76,19 @@ data:
         {% if config.net_config.interface_mtu %}
         "interface-mtu": {{ config.net_config.interface_mtu|json }},
         {% endif %}
-        "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }}
+        "cni-netconfig": {{ config.kube_config.pod_network|json|indent(width=8) }},
+        "default-endpoint-group": {
+            "policy-space": {{config.kube_config.default_endpoint_group.tenant|json}},
+            "name": {{(config.kube_config.default_endpoint_group.app_profile ~ "|" ~ config.kube_config.default_endpoint_group.group)|json}}
+        },
+        "namespace-default-endpoint-group": {
+            {% for ns, val in config.kube_config.namespace_default_endpoint_group.items() %}
+            "{{ns}}": {
+                "policy-space": {{val['tenant']|json}},
+                "name": {{(val['app_profile'] ~ "|" ~ val['group'])|json}}
+            }
+            {% endfor %}
+        }
     }
   opflex-agent-config: |-
     {
