@@ -93,17 +93,24 @@ func (iplists *IpCache) LoadRanges(ipranges []IpRange) {
 	}
 }
 
-//Removes the IP from the respective IpCache
-func (iplists *IpCache) RemoveIp(ip net.IP) {
+// Removes the IP from the respective IpCache
+// Returns true if successful
+func (iplists *IpCache) RemoveIp(ip net.IP) bool {
 	if ip.To4() != nil {
 		for _, ipa := range iplists.cacheIpsV4 {
-			ipa.RemoveIp(ip)
+			if ipa.RemoveIp(ip) {
+				return true
+			}
 		}
 	} else if ip.To16() != nil {
 		for _, ipa := range iplists.cacheIpsV6 {
-			ipa.RemoveIp(ip)
+			if ipa.RemoveIp(ip) {
+				return true
+			}
 		}
 	}
+
+	return false
 }
 
 //Combines the 2 V4 lists into 1 list
