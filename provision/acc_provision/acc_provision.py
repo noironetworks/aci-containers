@@ -24,9 +24,6 @@ from .apic_provision import Apic, ApicKubeConfig
 from jinja2 import Environment, PackageLoader
 from os.path import exists
 
-from . import flavors
-
-DEFAULT_FLAVOR = flavors.DEFAULT_FLAVOR
 
 VERSION_FIELDS = [
     "cnideploy_version",
@@ -36,13 +33,16 @@ VERSION_FIELDS = [
     "openvswitch_version",
 ]
 
-VERSIONS = flavors.VERSIONS
-
-DEFAULT_FLAVOR_OPTIONS = flavors.KubeFlavorOptions
-
-CfFlavorOptions = flavors.CfFlavorOptions
-
-FLAVORS = flavors.FLAVORS
+with open("acc_provision/flavors.yaml", 'r') as stream:
+        try:
+                doc = yaml.load(stream)
+        except yaml.YAMLError as exc:
+                print(exc)
+        DEFAULT_FLAVOR = doc['default_flavor']
+        VERSIONS = doc['versions']
+        DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
+        CfFlavorOptions = doc['cfFlavorOptions']
+        FLAVORS = doc['flavors']
 
 
 def info(msg):
