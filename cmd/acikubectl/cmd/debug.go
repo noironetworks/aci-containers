@@ -23,7 +23,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
+	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -86,6 +88,41 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		{
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(systemNamespace),
+		},
+		{
+			name: "cluster-report/status/describe_nodes_status.log",
+			args: []string{"-n", systemNamespace, "describe", "nodes"},
+		},
+		{
+			name: "cluster-report/status/controller_deployment_status.log",
+			args: []string{"-n", systemNamespace, "describe", "deployment",
+				"aci-containers-controller"},
+		},
+		{
+			name: "cluster-report/status/host_daemonset_status.log",
+			args: []string{"-n", systemNamespace, "describe", "daemonset",
+				"aci-containers-host"},
+		},
+		{
+			name: "cluster-report/status/ovs_daemonset_status.log",
+			args: []string{"-n", systemNamespace, "describe", "daemonset",
+				"aci-containers-openvswitch"},
+		},
+		{
+			name: "cluster-report/status/pods_status.log",
+			args: []string{"get", "pods", "--all-namespaces", "--include-uninitialized"},
+		},
+		{
+			name: "cluster-report/status/services_status.log",
+			args: []string{"get", "services", "--all-namespaces", "--include-uninitialized"},
+		},
+		{
+			name: "cluster-report/status/cluster-info.log",
+			args: []string{"cluster-info"},
+		},
+		{
+			name: "cluster-report/status/cluster-dump.log",
+			args: []string{"cluster-info", "dump"},
 		},
 	}
 
@@ -190,36 +227,39 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	gzWriter := gzip.NewWriter(outfile)
 	tarWriter := tar.NewWriter(gzWriter)
 
-	now := time.Now()
-	hasErrors := false
+	var wg sync.WaitGroup
+	wg.Add(len(cmds))
+
+	// Execute kubectl commands
 	for _, cmd := range cmds {
-		buffer := new(bytes.Buffer)
+		go func(cmd reportCmdElem, tarWriter *tar.Writer){
+			buffer := new(bytes.Buffer)
+			now := time.Now()
+			defer wg.Done()
 
-		fmt.Fprintln(os.Stderr, "Running command: kubectl", cmd.args)
-		err = execKubectl(cmd.args, buffer)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			hasErrors = true
-			continue
-		}
+			fmt.Fprintln(os.Stderr, "Running command: kubectl", strings.Join(cmd.args, " "))
+			err := execKubectl(cmd.args, buffer)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				wg.Done()
+				return
+			}
 
-		tarWriter.WriteHeader(&tar.Header{
-			Name:    cmd.name,
-			Mode:    0644,
-			ModTime: now,
-			Size:    int64(buffer.Len()),
-		})
-		buffer.WriteTo(tarWriter)
+			tarWriter.WriteHeader(&tar.Header{
+				Name:    cmd.name,
+				Mode:    0644,
+				ModTime: now,
+				Size:    int64(buffer.Len()),
+			})
+			buffer.WriteTo(tarWriter)
+		}(cmd, tarWriter)
 	}
 
+	wg.Wait()
 	tarWriter.Close()
 	gzWriter.Close()
 
-	if hasErrors {
-		fmt.Fprintln(os.Stderr, "Wrote report (with errors) to", output)
-	} else {
-		fmt.Fprintln(os.Stderr, "Finished writing report to", output)
-	}
+	fmt.Fprintln(os.Stderr, "Finished writing report to", output)
 }
 
 func getOutfile(output string) (string, *os.File, error) {
