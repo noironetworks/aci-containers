@@ -1,4 +1,4 @@
-default_flavor: kubernetes-1.10
+default_flavor: kubernetes-1.12
 
 versions: 
   1.6: 

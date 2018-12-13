@@ -27,6 +27,15 @@ def in_testdir(f):
 
 
 @in_testdir
+def test_flavors_base_case():
+    run_provision(
+        "flavor_wrong_url.inp.yaml",
+        "base_case.kube.yaml",
+        "base_case.apic.txt"
+    )
+
+
+@in_testdir
 def test_base_case():
     run_provision(
         "base_case.inp.yaml",
