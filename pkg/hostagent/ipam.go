@@ -18,7 +18,6 @@ package hostagent
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 
@@ -37,15 +36,32 @@ func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 	return result
 }
 
-// must have index lock
-func (agent *HostAgent) rebuildIpam() {
+// builds the used IP info from metadata, at init.
+func (agent *HostAgent) buildUsedIPs() {
+	agent.usedIPs = make(map[string]bool)
 	for _, mds := range agent.epMetadata {
 		for _, md := range mds {
 			for _, iface := range md.Ifaces {
 				for _, ip := range iface.IPs {
-					agent.podIps.RemoveIp(ip.Address.IP)
+					agent.usedIPs[ip.Address.IP.String()] = true
 				}
 			}
+		}
+	}
+
+	agent.log.Infof("buildIPUsed: %v addresses found", len(agent.usedIPs))
+}
+
+// must have index lock
+func (agent *HostAgent) rebuildIpam() {
+	for ip := range agent.usedIPs {
+		ipAddr := net.ParseIP(ip)
+		if ipAddr != nil {
+			if !agent.podIps.RemoveIp(ipAddr) {
+				agent.log.Errorf("Unable to find used IP %s in range", ip)
+			}
+		} else {
+			agent.log.Warnf("Couldn't parse %v", ip)
 		}
 	}
 
@@ -104,20 +120,6 @@ func makeIFaceIp(nc *cniNetConfig, ip net.IP) metadata.ContainerIfaceIP {
 	}
 }
 
-func allocateIp(free []*ipam.IpAlloc) (net.IP, []*ipam.IpAlloc, error) {
-	if len(free) == 0 {
-		return nil, free, errors.New("No IP addresses are available")
-	}
-	ip, err := free[0].GetIp()
-	if err != nil {
-		return nil, free, err
-	}
-	if free[0].Empty() {
-		return ip, append(free[1:], ipam.New()), nil
-	}
-	return ip, free, nil
-}
-
 func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
 	free[len(free)-1].AddIp(ip)
 }
@@ -128,19 +130,30 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	agent.ipamMutex.Lock()
 	defer agent.ipamMutex.Unlock()
 
+	allocIP := func(isv4 bool, nc *cniNetConfig) {
+		var ip net.IP
+		ip, err = agent.podIps.AllocateIp(isv4)
+		if err != nil {
+			result =
+				fmt.Errorf("Could not allocate IPv4 address: %v", err)
+		} else {
+			_, found := agent.usedIPs[ip.String()]
+			if found {
+				agent.log.Errorf("Duplicate IP %v allocated", ip.String())
+			}
+			iface.IPs =
+				append(iface.IPs, makeIFaceIp(nc, ip))
+			agent.usedIPs[ip.String()] = true
+		}
+	}
+
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
 			var ip net.IP
 			if nc.Subnet.IP.To4() != nil {
-				ip, err = agent.podIps.AllocateIp(true)
-				if err != nil {
-					result =
-						fmt.Errorf("Could not allocate IPv4 address: %v", err)
-				} else {
-					iface.IPs =
-						append(iface.IPs, makeIFaceIp(&nc, ip))
-				}
+				allocIP(true, &nc)
 			} else if nc.Subnet.IP.To16() != nil {
+				allocIP(false, &nc)
 				ip, err = agent.podIps.AllocateIp(false)
 				if err != nil {
 					result =
@@ -154,7 +167,7 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	}
 
 	if result != nil {
-		agent.deallocateIps(iface)
+		agent.deallocateIpsLocked(iface)
 	} else {
 		agent.log.WithFields(logrus.Fields{
 			"IPs": iface.IPs,
@@ -164,17 +177,17 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 	return result
 }
 
-func (agent *HostAgent) deallocateIps(iface *metadata.ContainerIfaceMd) {
-	agent.ipamMutex.Lock()
-	defer agent.ipamMutex.Unlock()
+func (agent *HostAgent) deallocateIpsLocked(iface *metadata.ContainerIfaceMd) {
 	for _, ip := range iface.IPs {
 		if ip.Address.IP == nil {
 			continue
 		}
 		if ip.Address.IP.To4() != nil {
 			agent.podIps.DeallocateIp(ip.Address.IP)
+			delete(agent.usedIPs, ip.Address.IP.String())
 		} else if ip.Address.IP.To16() != nil {
 			agent.podIps.DeallocateIp(ip.Address.IP)
+			delete(agent.usedIPs, ip.Address.IP.String())
 		}
 	}
 
@@ -197,14 +210,14 @@ func (agent *HostAgent) deallocateMdIps(md *metadata.ContainerMetadata) {
 
 			if ip.Address.IP.To4() != nil {
 				agent.podIps.DeallocateIp(ip.Address.IP)
+				delete(agent.usedIPs, ip.Address.IP.String())
 			} else if ip.Address.IP.To16() != nil {
 				agent.podIps.DeallocateIp(ip.Address.IP)
+				delete(agent.usedIPs, ip.Address.IP.String())
 			}
 			agent.log.WithFields(logrus.Fields{
 				"ip": ip.Address.IP,
 			}).Debug("Returned IP to pool")
 		}
 	}
-
-	return
 }

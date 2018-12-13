@@ -49,6 +49,7 @@ type HostAgent struct {
 
 	podNetAnnotation string
 	podIps           *ipam.IpCache
+	usedIPs          map[string]bool
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -93,6 +94,7 @@ func (agent *HostAgent) Init() {
 		panic(err.Error())
 	}
 	agent.log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
+	agent.buildUsedIPs()
 
 	err = agent.env.Init(agent)
 	if err != nil {
@@ -177,11 +179,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		panic(err.Error())
 	}
-
-	agent.log.Debug("Building IP address management database")
-	agent.indexMutex.Lock()
-	agent.rebuildIpam()
-	agent.indexMutex.Unlock()
 
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" {
