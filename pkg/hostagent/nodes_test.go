@@ -144,6 +144,7 @@ func TestBuildIpam(t *testing.T) {
 			}
 			agent.epMetadata[podid][ep.Id.ContId] = &ep
 		}
+		agent.buildUsedIPs()
 		agent.indexMutex.Unlock()
 		agent.fakeNodeSource.Add(node(test.annotation))
 

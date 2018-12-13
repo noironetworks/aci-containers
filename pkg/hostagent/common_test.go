@@ -76,6 +76,7 @@ func testAgent() *testHostAgent {
 			ListFunc:  agent.fakeServiceSource.List,
 			WatchFunc: agent.fakeServiceSource.Watch,
 		})
+	agent.usedIPs = make(map[string]bool)
 
 	return agent
 }
