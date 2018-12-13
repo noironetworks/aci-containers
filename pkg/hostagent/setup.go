@@ -325,7 +325,9 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
 		err = runSetupNetwork(logger, iface.Sandbox, iface.Name, result)
 		if err != nil {
-			agent.deallocateIps(iface)
+			agent.ipamMutex.Lock()
+			agent.deallocateIpsLocked(iface)
+			agent.ipamMutex.Unlock()
 			return nil, err
 		}
 	}

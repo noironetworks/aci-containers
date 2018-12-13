@@ -47,15 +47,6 @@ type buildIpam struct {
 
 var buildIpams = []buildIpam{
 	{
-		"{\"V4\":[{\"start\":\"10.1.0.2\",\"end\":\"10.1.1.1\"}],\"V6\":null}",
-		[]metadata.ContainerMetadata{},
-		[]ipam.IpRange{
-			{Start: net.ParseIP("10.1.0.2"), End: net.ParseIP("10.1.1.1")},
-		},
-		[]ipam.IpRange{},
-		"simple v4",
-	},
-	{
 		"{\"V4\":[{\"start\":\"10.128.2.130\",\"end\":\"10.128.3.1\"},{\"start\":\"10.128.3.2\",\"end\":\"10.128.3.129\"},{\"start\":\"10.128.3.130\",\"end\":\"10.128.4.1\"},{\"start\":\"10.128.4.2\",\"end\":\"10.128.4.129\"},{\"start\":\"10.128.4.130\",\"end\":\"10.128.5.1\"},{\"start\":\"10.128.6.130\",\"end\":\"10.128.7.1\"},{\"start\":\"10.128.5.2\",\"end\":\"10.128.5.129\"},{\"start\":\"10.128.2.2\",\"end\":\"10.128.2.129\"},{\"start\":\"10.128.5.130\",\"end\":\"10.128.6.129\"},{\"start\":\"10.128.5.130\",\"end\":\"10.128.6.129\"},{\"start\":\"10.128.7.2\",\"end\":\"10.128.9.1\"},{\"start\":\"10.128.7.2\",\"end\":\"10.128.8.129\"} ],\"V6\":null}",
 		[]metadata.ContainerMetadata{},
 		[]ipam.IpRange{
@@ -64,9 +55,22 @@ var buildIpams = []buildIpam{
 		[]ipam.IpRange{},
 		"v4 with duplicates",
 	},
+	{
+		"{\"V4\":[{\"start\":\"10.128.2.130\",\"end\":\"10.128.3.1\"},{\"start\":\"10.128.3.2\",\"end\":\"10.128.3.129\"},{\"start\":\"10.128.3.130\",\"end\":\"10.128.4.1\"},{\"start\":\"10.128.4.2\",\"end\":\"10.128.4.129\"},{\"start\":\"10.128.4.130\",\"end\":\"10.128.5.1\"},{\"start\":\"10.128.6.130\",\"end\":\"10.128.7.1\"},{\"start\":\"10.128.5.2\",\"end\":\"10.128.5.129\"},{\"start\":\"10.128.2.2\",\"end\":\"10.128.2.129\"},{\"start\":\"10.128.5.130\",\"end\":\"10.128.6.129\"},{\"start\":\"10.128.5.130\",\"end\":\"10.128.6.129\"}],\"V6\":null}",
+		[]metadata.ContainerMetadata{},
+		[]ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.7.1")},
+		},
+		[]ipam.IpRange{},
+		"v4 with duplicates",
+	},
 }
 
 func TestInteg(t *testing.T) {
+	PluginCloner.Stub = true
+	agent := testAgent()
+
+	poolSizes := make([]int64, len(buildIpams))
 	node := func(podNetAnnotation string) *v1.Node {
 		return &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -78,11 +82,22 @@ func TestInteg(t *testing.T) {
 		}
 	}
 
-	PluginCloner.Stub = true
-	agent := testAgent()
+	ipCounter := func() int64 {
+		var total int64
+		agent.ipamMutex.Lock()
+		defer agent.ipamMutex.Unlock()
+
+		ipaList := agent.podIps.GetV4IpCache()
+		for _, ipa := range ipaList {
+			total += ipa.GetSize()
+		}
+
+		return total
+	}
+
 	agent.run()
 
-	for _, test := range buildIpams {
+	for ix,  test := range buildIpams {
 		agent.indexMutex.Lock()
 		agent.epMetadata =
 			make(map[string]map[string]*metadata.ContainerMetadata)
@@ -108,21 +123,30 @@ func TestInteg(t *testing.T) {
 						agent.podIps.CombineV4(), test.desc), nil
 			})
 
+		poolSizes[ix] = ipCounter()
+
 	}
 
-	ipCounter := func() int64 {
-		var total int64
+	// schedule annotation update in the background
+	stopCh := make(chan bool)
+	go func() {
+		var ix int
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-time.After(2*time.Millisecond):
+				agent.fakeNodeSource.Add(node(buildIpams[ix].annotation))
+			}
 
-		ipaList := agent.podIps.GetV4IpCache()
-		for _, ipa := range ipaList {
-			total += ipa.GetSize()
+			ix++
+			if ix > 1 {
+				ix = 0
+			}
 		}
+	} ()
 
-		return total
-	}
-
-	poolSize := ipCounter()
-	log.Infof("IP pool size is %v", poolSize)
+	log.Infof("IP pool size is %v", poolSizes)
 	for jx := 0; jx < 2000; jx++ {
 		log.Infof("=>Iteration %d<=", jx)
 		var wg sync.WaitGroup
@@ -151,8 +175,9 @@ func TestInteg(t *testing.T) {
 		}
 
 		// check for leaks
-		if used+ipCounter() != poolSize {
-			t.Fatalf("IP addr leak -- total: %v used: %v avail: %v", poolSize, used, ipCounter())
+		ipCount := used+ipCounter()
+		if ipCount != poolSizes[0] && ipCount != poolSizes[1] {
+			t.Fatalf("IP addr leak -- total: %v used: %v avail: %v", poolSizes, used, ipCounter())
 		}
 
 		log.Infof("Starting deletes")
@@ -175,6 +200,8 @@ func TestInteg(t *testing.T) {
 		log.Infof("Deletes done")
 
 	}
+
+	close(stopCh)
 	agent.stop()
 }
 
