@@ -120,10 +120,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/cluster-info.log",
 			args: []string{"cluster-info"},
 		},
-		{
-			name: "cluster-report/status/cluster-dump.log",
-			args: []string{"cluster-info", "dump"},
-		},
 	}
 
 	nodes, err :=
