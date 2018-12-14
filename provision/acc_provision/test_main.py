@@ -126,6 +126,15 @@ def test_with_interface_mtu():
 
 
 @in_testdir
+def test_pod_external_access():
+    run_provision(
+        "pod_ext_access.inp.yaml",
+        "pod_ext_access.kube.yaml",
+        "pod_ext_access.apic.txt"
+    )
+
+
+@in_testdir
 def test_flavor_openshift_39():
     run_provision(
         "base_case.inp.yaml",

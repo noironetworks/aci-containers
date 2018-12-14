@@ -1504,7 +1504,9 @@ class ApicKubeConfig(object):
         kube_l3out = self.config["aci_config"]["l3out"]["name"]
         node_subnet = self.config["net_config"]["node_subnet"]
         pod_subnet = self.config["net_config"]["pod_subnet"]
-        kade = self.config["kube_config"].get("allow_kube_api_default_epg")
+        kade = self.config["kube_config"].get("allow_kube_api_default_epg") or \
+            self.config["kube_config"].get("allow_pods_kube_api_access")
+        eade = self.config["kube_config"].get("allow_pods_external_access")
         vmm_type = self.config["aci_config"]["vmm_domain"]["type"]
         v6subnet = self.isV6()
 
@@ -1641,6 +1643,28 @@ class ApicKubeConfig(object):
                 )
             )
 
+        if eade is True:
+            kube_default_children.append(
+                collections.OrderedDict(
+                    [
+                        (
+                            "fvRsCons",
+                            collections.OrderedDict(
+                                [
+                                    (
+                                        "attributes",
+                                        collections.OrderedDict(
+                                            [("tnVzBrCPName",
+                                              "%s-l3out-allow-all" % system_id)]
+                                        ),
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                )
+            )
+
         node_subnet_obj = collections.OrderedDict(
             [
                 (
@@ -1649,9 +1673,13 @@ class ApicKubeConfig(object):
                 )
             ]
         )
+
         pod_subnet_obj = collections.OrderedDict(
             [("attributes", collections.OrderedDict([("ip", pod_subnet)]))]
         )
+        if eade is True:
+            pod_subnet_obj["attributes"]["scope"] = "public"
+
         if v6subnet:
             ipv6_nd_policy_rs = [
                 collections.OrderedDict(
@@ -2261,6 +2289,28 @@ class ApicKubeConfig(object):
                                                                                                 (
                                                                                                     "tnFvCtxName",
                                                                                                     kube_vrf,
+                                                                                                )
+                                                                                            ]
+                                                                                        ),
+                                                                                    )
+                                                                                ]
+                                                                            )
+                                                                        )
+                                                                    ]
+                                                                ),
+                                                                collections.OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "fvRsBDToOut",
+                                                                            collections.OrderedDict(
+                                                                                [
+                                                                                    (
+                                                                                        "attributes",
+                                                                                        collections.OrderedDict(
+                                                                                            [
+                                                                                                (
+                                                                                                    "tnL3extOutName",
+                                                                                                    kube_l3out,
                                                                                                 )
                                                                                             ]
                                                                                         ),
@@ -3127,6 +3177,9 @@ class ApicKubeConfig(object):
                 )
             ]
         )
+
+        if eade is not True:
+            del data["fvTenant"]["children"][2]["fvBD"]["children"][2]
 
         if v6subnet is True:
             data["fvTenant"]["children"].append(
