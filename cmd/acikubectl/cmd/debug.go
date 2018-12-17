@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -222,40 +221,38 @@ func clusterReport(cmd *cobra.Command, args []string) {
 
 	gzWriter := gzip.NewWriter(outfile)
 	tarWriter := tar.NewWriter(gzWriter)
-
-	var wg sync.WaitGroup
-	wg.Add(len(cmds))
+	now := time.Now()
+	hasErrors := false
 
 	// Execute kubectl commands
 	for _, cmd := range cmds {
-		go func(cmd reportCmdElem, tarWriter *tar.Writer){
-			buffer := new(bytes.Buffer)
-			now := time.Now()
-			defer wg.Done()
+		buffer := new(bytes.Buffer)
 
-			fmt.Fprintln(os.Stderr, "Running command: kubectl", strings.Join(cmd.args, " "))
-			err := execKubectl(cmd.args, buffer)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				wg.Done()
-				return
-			}
+		fmt.Fprintln(os.Stderr, "Running command: kubectl", strings.Join(cmd.args, " "))
+		err := execKubectl(cmd.args, buffer)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			hasErrors = true
+			continue
+		}
 
-			tarWriter.WriteHeader(&tar.Header{
-				Name:    cmd.name,
-				Mode:    0644,
-				ModTime: now,
-				Size:    int64(buffer.Len()),
-			})
-			buffer.WriteTo(tarWriter)
-		}(cmd, tarWriter)
+		tarWriter.WriteHeader(&tar.Header{
+			Name:    cmd.name,
+			Mode:    0644,
+			ModTime: now,
+			Size:    int64(buffer.Len()),
+		})
+		buffer.WriteTo(tarWriter)
 	}
 
-	wg.Wait()
 	tarWriter.Close()
 	gzWriter.Close()
 
-	fmt.Fprintln(os.Stderr, "Finished writing report to", output)
+	if hasErrors {
+		fmt.Fprintln(os.Stderr, "Wrote report (with errors) to", output)
+	} else {
+		fmt.Fprintln(os.Stderr, "Finished writing report to", output)
+	}
 }
 
 func getOutfile(output string) (string, *os.File, error) {
