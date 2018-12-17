@@ -1643,28 +1643,6 @@ class ApicKubeConfig(object):
                 )
             )
 
-        if eade is True:
-            kube_default_children.append(
-                collections.OrderedDict(
-                    [
-                        (
-                            "fvRsCons",
-                            collections.OrderedDict(
-                                [
-                                    (
-                                        "attributes",
-                                        collections.OrderedDict(
-                                            [("tnVzBrCPName",
-                                              "%s-l3out-allow-all" % system_id)]
-                                        ),
-                                    )
-                                ]
-                            ),
-                        )
-                    ]
-                )
-            )
-
         node_subnet_obj = collections.OrderedDict(
             [
                 (
