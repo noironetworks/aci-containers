@@ -303,13 +303,6 @@ None
                                                 "tnVzBrCPName": "kube-api"
                                             }
                                         }
-                                    },
-                                    {
-                                        "fvRsCons": {
-                                            "attributes": {
-                                                "tnVzBrCPName": "kube-l3out-allow-all"
-                                            }
-                                        }
                                     }
                                 ]
                             }
@@ -492,13 +485,6 @@ None
                                                 "tnVzBrCPName": "kube-api"
                                             }
                                         }
-                                    },
-                                    {
-                                        "fvRsCons": {
-                                            "attributes": {
-                                                "tnVzBrCPName": "kube-l3out-allow-all"
-                                            }
-                                        }
                                     }
                                 ]
                             }
@@ -555,13 +541,6 @@ None
                                         "fvRsCons": {
                                             "attributes": {
                                                 "tnVzBrCPName": "kube-api"
-                                            }
-                                        }
-                                    },
-                                    {
-                                        "fvRsCons": {
-                                            "attributes": {
-                                                "tnVzBrCPName": "kube-l3out-allow-all"
                                             }
                                         }
                                     }
