@@ -15,6 +15,8 @@
 package hostagent
 
 import (
+	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -68,7 +70,10 @@ type HostAgent struct {
 	ignoreOvsPorts map[string][]string
 
 	netNsFuncChan chan func()
+	vtepIP        string
 }
+
+var saveRegURL string
 
 func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) *HostAgent {
 	ha := &HostAgent{
@@ -90,12 +95,41 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(10)),
 			}, "sync"),
 	}
+
+	saveRegURL = config.RegistryURL
 	ha.syncProcessors = map[string]func() bool{
 		"eps":      ha.syncEps,
 		"services": ha.syncServices}
 	return ha
 }
 
+func getVtepIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, i := range ifaces {
+		// FIXME -- hardcoded for now
+		if i.Name != "enp0s8" {
+			continue
+		}
+		addrs, err := i.Addrs()
+		if err != nil {
+			return "", err
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPAddr:
+				ip = v.IP
+				return ip.String(), nil
+			}
+			// process IP address
+		}
+	}
+
+	return "", fmt.Errorf("VTEP IP not found")
+}
 func (agent *HostAgent) Init() {
 	agent.log.Debug("Initializing endpoint CNI metadata")
 	err := md.LoadMetadata(agent.config.CniMetadataDir,
@@ -105,7 +139,13 @@ func (agent *HostAgent) Init() {
 	}
 	agent.log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 	agent.buildUsedIPs()
-
+	vtepIP, err := getVtepIP()
+	if err != nil {
+		agent.log.Errorf("### Could not get vtepIP: %v", err)
+	} else {
+		agent.log.Infof("VtepIP: %s", vtepIP)
+		agent.vtepIP = vtepIP
+	}
 	err = agent.env.Init(agent)
 	if err != nil {
 		panic(err.Error())

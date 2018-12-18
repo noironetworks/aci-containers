@@ -23,7 +23,6 @@ echo "starting opflex build"
 
 pushd $ACICONTAINERS_DIR
 rm -Rf build
-make container-opflex-build-base
 docker build -t $DOCKER_USER/opflex-build-base -f docker/Dockerfile-opflex-build-base-debug docker
 docker push $DOCKER_USER/opflex-build-base
 
@@ -46,6 +45,11 @@ docker run -w /usr/local $DOCKER_USER/opflex-build /bin/sh -c 'find lib \(\
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
 	  | tar -x -C build/opflex/dist
+docker run -w /usr $DOCKER_USER/opflex-build /bin/sh -c 'find lib \(\
+         -name '\''libexecinfo.so.*'\'' -o \
+          \) ! -name '\''*debug'\'' \
+         | xargs tar -c ' \
+        | tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_USER/opflex-build /bin/sh -c \
 	'find lib bin -name '\''*.debug'\'' | xargs tar -cz' \
 	 > opflex-debuginfo.tar.gz
@@ -57,8 +61,8 @@ cp docker/Dockerfile-opflexserver build/opflex/dist/
 
 docker build -t $DOCKER_USER/opflex -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_USER/opflex
-docker build -t $DOCKER_USER/opflexserver -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
-docker push $DOCKER_USER/opflexserver
+docker build -t $DOCKER_USER/opflex-server -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
+docker push $DOCKER_USER/opflex-server
 
 echo "starting aci-containers build"
 make all-static
@@ -71,6 +75,9 @@ docker push $DOCKER_USER/aci-containers-host
 
 docker build -t $DOCKER_USER/cnideploy -f docker/Dockerfile-cnideploy docker
 docker push $DOCKER_USER/cnideploy
+
+docker build -t $DOCKER_USER/gbp-server -f docker/Dockerfile-gbpserver .
+docker push $DOCKER_USER/gbp-server
 
 echo "starting openvswitch build"
 docker build -t $DOCKER_USER/openvswitch -f docker/Dockerfile-openvswitch .
