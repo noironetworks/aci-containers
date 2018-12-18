@@ -19,12 +19,3 @@ RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && mv $ROOT/include/openflow $ROOT/include/openvswitch \
   && cp include/*.h "$ROOT/include/openvswitch/" \
   && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \;
-RUN wget http://10.30.120.20:8000/boost_1_58_0.tar.gz \
-  && tar zxvf boost_1_58_0.tar.gz \
-  && cd boost_1_58_0 \
-  && ./bootstrap.sh --prefix=$ROOT/boost_1_58_0 \
-  && ./b2 cxxflags=-fPIC cflags=-fPIC -a \
-  && ./b2 install --prefix=$ROOT/boost_1_58_0 \
-  && cd .. \
-  && rm -Rf boost_1_58_0.tar.gz \
-  && rm -Rf boost_1_58_0 \;

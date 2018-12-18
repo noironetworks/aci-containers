@@ -1,5 +1,5 @@
-FROM noiro/opflex-build-base
-ARG BUILDOPTS="--with-static-boost --with-boost=/usr/local/boost_1_58_0"
+FROM challa/opflex-build-base:demo
+ARG BUILDOPTS=
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4

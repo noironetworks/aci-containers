@@ -87,7 +87,7 @@ type idSet map[string]struct{}
 
 func (h *appKvHandler) All(items []rkv.KvItem) {
 	ids := make(idSet)
-	for i, _ := range items {
+	for i := range items {
 		h.do(&items[i], ids, false)
 	}
 
@@ -106,7 +106,7 @@ func (h *appKvHandler) All(items []rkv.KvItem) {
 }
 
 func (h *appKvHandler) Update(acts []rkv.KvAction) {
-	for i, _ := range acts {
+	for i := range acts {
 		h.do(&acts[i].Item, nil, acts[i].Action == rkv.OP_DELETE)
 	}
 }
@@ -147,7 +147,7 @@ func (h *appKvHandler) do(item *rkv.KvItem, ids idSet, del bool) {
 func (h *cellKvHandler) All(items []rkv.KvItem) {
 	ids := make(idSet)
 	hasNet, hasSvc := false, false
-	for i, _ := range items {
+	for i := range items {
 		n, s := h.do(&items[i], ids, false)
 		hasNet = hasNet || n
 		hasSvc = hasSvc || s
@@ -178,7 +178,7 @@ func (h *cellKvHandler) All(items []rkv.KvItem) {
 }
 
 func (h *cellKvHandler) Update(acts []rkv.KvAction) {
-	for i, _ := range acts {
+	for i := range acts {
 		h.do(&acts[i].Item, nil, acts[i].Action == rkv.OP_DELETE)
 	}
 }

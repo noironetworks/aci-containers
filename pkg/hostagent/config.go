@@ -64,6 +64,9 @@ type HostAgentNodeConfig struct {
         
 	// Uplink Mac adress
         UplinkMacAdress string `json:"uplink mac_adress,omitempty"`
+
+	// Registry Server URL -- for updating remote EP information
+	RegistryURL string `json:"registry-url,omitempty"`
 }
 
 // Configuration for the host agent
@@ -166,6 +169,12 @@ type HostAgentConfig struct {
 
 	// ACI Tenant containing the ACI VRF for this kubernetes instance
 	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
+
+	// EP Registry specifies where to send ep updates
+	EPRegistry string `json:"ep-registry,omitempty"`
+
+	// OpflexMode selects overlay vs physical fabric. Default is physical
+	OpflexMode string `json:"opflex-mode,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {

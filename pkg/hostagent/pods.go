@@ -27,6 +27,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -56,6 +57,67 @@ type opflexEndpoint struct {
 
 	Attributes map[string]string `json:"attributes,omitempty"`
 	SnatIp     string            `json:"snat-ip,omitempty"`
+	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
+	registered bool
+}
+
+func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
+
+	if agent.crdClient == nil {
+		return // crd not used
+	}
+
+	remEP := &aciv1.PodIF{
+		Status: aciv1.PodIFStatus{
+			PodNS:       ep.Attributes["namespace"],
+			PodName:     ep.Attributes["vm-name"],
+			ContainerID: ep.Uuid,
+			MacAddr:     ep.MacAddress,
+			IPAddr:      ep.IpAddress[0],
+			EPG:         ep.EndpointGroup,
+			VTEP:        agent.vtepIP,
+		},
+	}
+	remEP.ObjectMeta.Name = fmt.Sprintf("%s.%s", ep.Attributes["namespace"], ep.Attributes["vm-name"])
+
+	podif, err := agent.crdClient.PodIFs("kube-system").Get(remEP.ObjectMeta.Name, metav1.GetOptions{})
+	if err != nil {
+		// create podif
+		_, err := agent.crdClient.PodIFs("kube-system").Create(remEP)
+		if err != nil {
+			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
+			return
+		}
+
+	} else {
+		// update it
+		podif.Status = remEP.Status
+		_, err := agent.crdClient.PodIFs("kube-system").Update(podif)
+		if err != nil {
+			logrus.Errorf("Update error %v, podif: %+v", err, remEP)
+			return
+		}
+	}
+	ep.registered = true
+}
+func (agent *HostAgent) EPRegDelEP(name string) {
+	if agent.crdClient == nil {
+		return // crd not used
+	}
+	err := agent.crdClient.PodIFs("kube-system").Delete(name, &metav1.DeleteOptions{})
+	if err != nil {
+		logrus.Errorf("Error %v, podif: %s", err, name)
+	}
+}
+
+func (agent *HostAgent) EPRegDel(obj interface{}) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		agent.log.Errorf("Bad object -- expected Pod")
+		return
+	}
+	k := fmt.Sprintf("%s.%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	agent.EPRegDelEP(k)
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -160,7 +222,8 @@ func (agent *HostAgent) syncEps() bool {
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".ep") {
+		if !strings.HasSuffix(f.Name(), ".ep") ||
+			strings.Contains(f.Name(), "veth_host_ac") {
 			continue
 		}
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
@@ -213,6 +276,7 @@ func (agent *HostAgent) syncEps() bool {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
 				} else if wrote {
+					agent.EPRegAdd(ep)
 					opflexEpLogger(agent.log, ep).
 						Info("Updated endpoint")
 				}
@@ -238,6 +302,8 @@ func (agent *HostAgent) syncEps() bool {
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
+			} else {
+				agent.EPRegAdd(ep)
 			}
 		}
 	}
@@ -253,6 +319,7 @@ func podFilter(pod *v1.Pod) bool {
 }
 
 func (agent *HostAgent) podUpdated(obj interface{}) {
+	agent.log.Info("podUpdated")
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
@@ -310,8 +377,9 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	logger.Debug("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
-		logger.Infof("No metadata %v", *epMetaKey)
-		logger.Debugf("epMd: %+v", agent.epMetadata)
+		logger.Debug("No metadata")
+		k := fmt.Sprintf("%s.%s", epAttributes["namespace"], epAttributes["vm-name"])
+		agent.EPRegDelEP(k)
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
 		return
@@ -367,6 +435,10 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	}
 
 	existing, ok := agent.opflexEps[*epUuid]
+	for ix, ep := range existing { // TODO - fixme
+		neweps[ix].registered = ep.registered
+	}
+
 	if (ok && !reflect.DeepEqual(existing, neweps)) || !ok {
 		logger.WithFields(logrus.Fields{
 			"id": *epMetaKey,
@@ -387,6 +459,8 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 }
 
 func (agent *HostAgent) podDeleted(obj interface{}) {
+	agent.log.Info("podDeleted")
+	agent.EPRegDel(obj)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 

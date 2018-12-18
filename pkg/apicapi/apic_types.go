@@ -365,11 +365,92 @@ func (o ApicObject) Copy() ApicObject {
 	return res
 }
 
+func NewFvTenant(name string) ApicObject {
+	ret := newApicObject("fvTenant")
+	ret["fvTenant"].Attributes["name"] = name
+	ret["fvTenant"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s", name)
+	return ret
+}
+
+func NewCloudAwsProvider(tenant, region, providerID string) ApicObject {
+	ret := newApicObject("cloudAwsProvider")
+	ret["cloudAwsProvider"].Attributes["region"] = region
+	ret["cloudAwsProvider"].Attributes["providerId"] = providerID
+	ret["cloudAwsProvider"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/awsprovider", tenant)
+	return ret
+}
+
+func NewCloudCtxProfile(tenant, name string) ApicObject {
+	ret := newApicObject("cloudCtxProfile")
+	ret["cloudCtxProfile"].Attributes["name"] = name
+	ret["cloudCtxProfile"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/ctxprofile-%s", tenant, name)
+	return ret
+}
+
+func NewCloudRsToCtx(cCtxDn, ctxName string) ApicObject {
+	ret := newApicObject("cloudRsToCtx")
+	ret["cloudRsToCtx"].Attributes["tnFvCtxName"] = ctxName
+	ret["cloudRsToCtx"].Attributes["dn"] =
+		fmt.Sprintf("%s/rstoCtx", cCtxDn)
+	return ret
+}
+
+func NewCloudRsCtxProfileToRegion(cCtxDn, tDn string) ApicObject {
+	ret := newApicObject("cloudRsCtxProfileToRegion")
+	ret["cloudRsCtxProfileToRegion"].Attributes["tDn"] = tDn
+	ret["cloudRsCtxProfileToRegion"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsctxProfileToRegion", cCtxDn)
+	return ret
+}
+
+func NewCloudCidr(cCtxDn, addr string) ApicObject {
+	ret := newApicObject("cloudCidr")
+	ret["cloudCidr"].Attributes["addr"] = addr
+	ret["cloudCidr"].Attributes["dn"] =
+		fmt.Sprintf("%s/cidr-[%s]", cCtxDn, addr)
+	return ret
+}
+
+func NewCloudSubnet(cidrDn, ip string) ApicObject {
+	ret := newApicObject("cloudSubnet")
+	ret["cloudSubnet"].Attributes["ip"] = ip
+	ret["cloudSubnet"].Attributes["dn"] =
+		fmt.Sprintf("%s/subnet-[%s]", cidrDn, ip)
+	return ret
+}
+
+func NewFvCtx(tenantName string, name string) ApicObject {
+	ret := newApicObject("fvCtx")
+	ret["fvCtx"].Attributes["name"] = name
+	ret["fvCtx"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/ctx-%s", tenantName, name)
+	return ret
+}
+
 func NewFvBD(tenantName string, name string) ApicObject {
 	ret := newApicObject("fvBD")
 	ret["fvBD"].Attributes["name"] = name
 	ret["fvBD"].Attributes["dn"] =
 		fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, name)
+	return ret
+}
+
+func NewCloudApp(tenantName string, name string) ApicObject {
+	ret := newApicObject("cloudApp")
+	ret["cloudApp"].Attributes["name"] = name
+	ret["cloudApp"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/cloudapp-%s", tenantName, name)
+	return ret
+}
+
+func NewCloudEpg(tenantName, appName, name string) ApicObject {
+	ret := newApicObject("cloudEPg")
+	ret["cloudEPg"].Attributes["name"] = name
+	ret["cloudEPg"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/cloudapp-%s/cloudepg-%s", tenantName, appName, name)
 	return ret
 }
 

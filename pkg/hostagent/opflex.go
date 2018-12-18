@@ -29,6 +29,13 @@ import (
 )
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
+	if agent.config.OpflexMode == "overlay" {
+		conf = &HostAgentNodeConfig{}
+		conf.OpflexPeerIp = "127.0.0.1"
+		agent.log.Info("\n  == Opflex: Running in overlay mode ==\n")
+		return
+	}
+
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)

@@ -27,7 +27,7 @@ if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then
         "name": "disabled",
         "domain": "disabled",
         "ssl": {
-            "mode": "encrypted",
+            "mode": "disabled",
             "ca-store": "/etc/ssl/certs/"
         }
     }
