@@ -1,4 +1,4 @@
 FROM alpine:3.7
 RUN apk upgrade --no-cache
 COPY dist-static/moserver /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/moserver"]
+ENTRYPOINT ["/usr/local/bin/moserver", "-api-listen-port", "443"]

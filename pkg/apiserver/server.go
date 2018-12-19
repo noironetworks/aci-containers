@@ -168,10 +168,14 @@ func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
 	r.Handle("/api/aaaLogin.json", &loginHandler{})
 	r.Handle("/api/aaaRefresh.json", &refreshSucc{})
 	r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
+	//r.PathPrefix("/api/node").HandlerFunc(wHandler)
 	t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// Routes consist of a path and a handler function.
-	r.Methods("GET").Subrouter().PathPrefix("/api/mo").HandlerFunc(rHandler)
+	getR := r.Methods("GET").Subrouter()
+	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
+	getR.PathPrefix("/api/node").HandlerFunc(rHandler)
+	r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
 	r.NotFoundHandler = &nfh{}
 	tlsCfg, err := getTLSCfg()
 	if err != nil {
