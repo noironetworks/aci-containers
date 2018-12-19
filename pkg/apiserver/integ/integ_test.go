@@ -29,8 +29,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/noironetworks/aci-containers/pkg/apiserver"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/apiserver"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
 	"github.com/coreos/etcd/embed"
 )
@@ -81,9 +81,9 @@ func TestBasic(t *testing.T) {
 	logger.Level = log.DebugLevel
 
 	cert := pem.EncodeToMemory(&pem.Block{
-              Type:  "CERTIFICATE",
-              Bytes: clientCert,
-        })
+		Type:  "CERTIFICATE",
+		Bytes: clientCert,
+	})
 	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
 		"admin", "noir0123", nil, cert, "kube", 60)
 	if err != nil {
@@ -91,15 +91,15 @@ func TestBasic(t *testing.T) {
 		t.FailNow()
 	}
 	stopCh := make(chan struct{})
-        go conn.Run(stopCh)
-	time.Sleep(2*time.Second)
+	go conn.Run(stopCh)
+	time.Sleep(2 * time.Second)
 
 	// Inject some Apic Writes
 	var as apicapi.ApicSlice
 	as = append(as, apicapi.NewFvBD("common", "test"))
 	dn1 := as[0].GetDn()
 	conn.WriteApicObjects("serverKey1", as)
-	time.Sleep(1*time.Second)
+	time.Sleep(1 * time.Second)
 
 	cli, err := getClient(cert)
 	if err != nil {
@@ -108,32 +108,38 @@ func TestBasic(t *testing.T) {
 	}
 
 	url1 := fmt.Sprintf("https://example.com:8899/api/mo/%s.json", dn1)
-	req, err := http.NewRequest("GET", url1, nil)
-	if err != nil {
-		log.Info(err)
-		t.Fail()
+	url2 := "https://example.com:8899/api/node/mo/uni/userext/user-demo.json"
+
+	urlList := []string{url1, url2}
+
+	for _, u := range urlList {
+		req, err := http.NewRequest("GET", u, nil)
+		if err != nil {
+			log.Info(err)
+			t.Fail()
+		}
+
+		resp, err := cli.Do(req)
+		if err != nil {
+			log.Info(err)
+			t.Fail()
+		}
+
+		res, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			log.Info(err)
+			t.Fail()
+		}
+
+		log.Infof("==>> Response: %s", res)
 	}
 
-	resp, err := cli.Do(req)
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	res, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	log.Infof("==>> Response: %s", res)
-
-	time.Sleep(5*time.Second)
+	time.Sleep(5 * time.Second)
 	close(stopCh)
 }
 
-func getClient(cert []byte)(*http.Client, error) {
+func getClient(cert []byte) (*http.Client, error) {
 	var tlsCfg tls.Config
 
 	if cert == nil {
@@ -141,16 +147,15 @@ func getClient(cert []byte)(*http.Client, error) {
 	} else {
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(cert) {
-               	 return nil, errors.New("Could not load CA certificates")
-        	}
+			return nil, errors.New("Could not load CA certificates")
+		}
 
 		tlsCfg.RootCAs = pool
 	}
 
-	
 	return &http.Client{
-			Transport: &http.Transport{
-					TLSClientConfig: &tlsCfg,
-				},
-		}, nil
+		Transport: &http.Transport{
+			TLSClientConfig: &tlsCfg,
+		},
+	}, nil
 }
