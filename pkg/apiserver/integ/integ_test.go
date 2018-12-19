@@ -71,7 +71,8 @@ func TestBasic(t *testing.T) {
 		log.Infof("Server took too long to start!")
 	}
 
-	clientCert, err := apiserver.StartNewServer(etcdClientURLs)
+	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
+	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort)
 	if err != nil {
 		t.Errorf("Starting api server: %v", err)
 	}
@@ -83,7 +84,7 @@ func TestBasic(t *testing.T) {
               Type:  "CERTIFICATE",
               Bytes: clientCert,
         })
-	conn, err := apicapi.New(logger, []string{"example.com:8899"},
+	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
 		"admin", "noir0123", nil, cert, "kube", 60)
 	if err != nil {
 		t.Errorf("Starting apicapi : %v", err)

@@ -30,7 +30,7 @@ import (
 
 const (
 	root       = "/aci/objdb"
-	listenPort = ":8899"
+	ListenPort = "8899"
 	defToken   = "api-server-token"
 )
 
@@ -61,6 +61,13 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	json.NewEncoder(w).Encode(result)
+}
+
+type refreshSucc struct{}
+
+func (h *refreshSucc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+        result := map[string]interface{}{}
+        json.NewEncoder(w).Encode(result)
 }
 
 type socketHandler struct {
@@ -137,7 +144,7 @@ type nfh struct {
 func(n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
-func StartNewServer(etcdURLs []string) ([]byte, error) {
+func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
 	// create an etcd client
 
 	log.Infof("=> Creating new client ..")
@@ -159,6 +166,7 @@ func StartNewServer(etcdURLs []string) ([]byte, error) {
 	r := mux.NewRouter()
 	r.Handle("/api/webtokenSession.json", &loginHandler{})
 	r.Handle("/api/aaaLogin.json", &loginHandler{})
+	r.Handle("/api/aaaRefresh.json", &refreshSucc{})
 	r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
 	t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
