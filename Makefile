@@ -112,6 +112,8 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/controller
 
+dist-static/moserver:
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/moserver
 dist/acikubectl: ${ACIKUBECTL_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 dist-static/acikubectl: ${ACIKUBECTL_DEPS}
@@ -127,6 +129,8 @@ dist/simpleservice: ${SIMPLESERVICE_DEPS}
 dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
 
+container-moserver: dist-static/moserver 
+	${DOCKER_BUILD_CMD} -t noiro/moserver -f ./docker/Dockerfile-moserver .
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
