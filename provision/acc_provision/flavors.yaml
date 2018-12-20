@@ -51,21 +51,25 @@ flavors:
     default_version: 1.9
     status: null
     hidden: false
+    order: 3
   kubernetes-1.11:
     desc: Kubernetes 1.11
     default_version: 1.9
     status: null
     hidden: false
+    order: 4
   kubernetes-1.10:
     desc: Kubernetes 1.10
     default_version: 1.9
     status: null
     hidden: true
+    order: 5
   kubernetes-1.9:
     desc: Kubernetes 1.9
     default_version: 1.9
     status: null
     hidden: true
+    order: 6
   kubernetes-1.8:
     desc: Kubernetes 1.8
     default_version: 1.7
@@ -75,6 +79,7 @@ flavors:
         use_apps_apigroup: apps
     status: null
     hidden: true
+    order: 7
   kubernetes-1.7:
     desc: Kubernetes 1.7
     default_version: 1.7
@@ -84,7 +89,8 @@ flavors:
         use_apps_api: extensions/v1beta1
         use_apps_apigroup: extensions
     status: null
-    hidden: true  
+    hidden: true
+    order: 8  
   kubernetes-1.6:
     desc: Kubernetes 1.6
     default_version: 1.6
@@ -96,7 +102,8 @@ flavors:
         use_netpol_annotation: True
         use_netpol_apigroup: extensions
     status: null
-    hidden: true  
+    hidden: true
+    order: 9
   openshift-3.11:
     desc: Red Hat OpenShift Container Platform 3.11
     default_version: 1.9
@@ -114,6 +121,7 @@ flavors:
           type: OpenShift
     status: Experimental
     hidden: false
+    order: 11
   openshift-3.9:
     desc: Red Hat OpenShift Container Platform 3.9
     default_version: 1.9
@@ -131,6 +139,7 @@ flavors:
           type: OpenShift
     status: null
     hidden: false
+    order: 1
   openshift-3.6:
     desc: Red Hat OpenShift Container Platform 3.6
     default_version: 1.6
@@ -153,12 +162,14 @@ flavors:
           type: OpenShift
     status: null
     hidden: true
+    order: 2
   # Docker Universal Control Plane (UCP)
   docker-ucp-3.0:
     desc: Docker Universal Control Plane (UCP) 3.0
     default_version: 1.9
     status: Experimental
     hidden: false
+    order: 12
   # CloudFoundry
   cloudfoundry-1.0:
     desc: CloudFoundry cf-deployment 1.x
@@ -170,3 +181,4 @@ flavors:
     options: *anchor
     status: null
     hidden: false
+    order: 10
