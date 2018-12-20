@@ -36,9 +36,9 @@ def test_base_case():
 
 
 @in_testdir
-def test_flavors_base_case():
+def test_versions_base_case():
     run_provision(
-        "flavor_wrong_url.inp.yaml",
+        "version_wrong_url.inp.yaml",
         "base_case.kube.yaml",
         "base_case.apic.txt"
     )

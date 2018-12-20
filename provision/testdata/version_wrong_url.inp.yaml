@@ -49,5 +49,5 @@ logging:
   opflexagent_log_level: info
 
 #could be a URL address or a local path
-flavors_url:
+versions_url:
   path: https://random-wrong-url

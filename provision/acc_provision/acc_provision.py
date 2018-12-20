@@ -27,6 +27,30 @@ from jinja2 import Environment, PackageLoader
 from os.path import exists
 
 
+VERSION_FIELDS = [
+    "cnideploy_version",
+    "aci_containers_host_version",
+    "opflex_agent_version",
+    "aci_containers_controller_version",
+    "openvswitch_version",
+]
+
+
+FLAVORS_PATH = os.path.dirname(os.path.realpath(__file__)) + "/flavors.yaml"
+
+
+with open(FLAVORS_PATH, 'r') as stream:
+        try:
+                doc = yaml.load(stream)
+        except yaml.YAMLError as exc:
+                print(exc)
+        DEFAULT_FLAVOR = doc['default_flavor']
+        VERSIONS = doc['versions']
+        DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
+        CfFlavorOptions = doc['cfFlavorOptions']
+        FLAVORS = doc['flavors']
+
+
 def info(msg):
     print("INFO: " + msg, file=sys.stderr)
 
@@ -137,15 +161,14 @@ def config_default():
             "hostagent_log_level": "info",
             "opflexagent_log_level": "info",
         },
-        "flavors_url": {
-            "path": "",
-        },
     }
     return default_config
 
-# Adding a constructor to yaml SafeLoader so that it always overrides
-# the PyYAML handling of strings. For eg, strings like '10.0.0.0/24'
-# in our user input YAML files which contain masks.
+
+# This black magic forces pyyaml to load YAML strings as unicode rather
+# than byte strings in Python 2, thus ensuring that the type of strings
+# is consistent across versions.  From
+# https://stackoverflow.com/a/2967461/3857947.
 
 
 def construct_yaml_str(self, node):
@@ -163,15 +186,6 @@ def config_user(config_file):
             config = yaml.safe_load(sys.stdin)
         else:
             info("Loading configuration from \"%s\"" % config_file)
-
-            # This black magic forces pyyaml to load YAML strings as
-            # unicode rather than byte strings in Python 2, thus
-            # ensuring that the type of strings is consistent across
-            # versions.  From
-            # https://stackoverflow.com/a/2967461/3857947.
-            def construct_yaml_str(self, node):
-                return self.construct_scalar(node)
-            yaml.Loader.add_constructor(u'tag:yaml.org,2002:str', construct_yaml_str)
             with open(config_file, 'r') as file:
                 config = yaml.safe_load(file)
     if config is None:
@@ -719,6 +733,9 @@ networks:
     return config
 
 
+CfFlavorOptions['template_generator'] = generate_cf_yaml
+
+
 def generate_apic_config(flavor_opts, config, prov_apic, apic_file):
     configurator = ApicKubeConfig(config)
     for k, v in flavor_opts.get("apic", {}).items():
@@ -775,7 +792,7 @@ class CustomFormatter(argparse.HelpFormatter):
         return ret
 
 
-def parse_args():
+def parse_args(show_help):
     version = 'Unknown'
     try:
         version = pkg_resources.require("acc_provision")[0].version
@@ -825,7 +842,33 @@ def parse_args():
     parser.add_argument(
         '-t', '--version-token', default=None, metavar='token',
         help='set a configuration version token.  Default is UUID.')
+
+    # If the input has no arguments, show help output and exit
+    if show_help:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
     return parser.parse_args()
+
+
+def get_versions(versions_url):
+        global VERSIONS
+        try:
+            # try as a URL
+            res = requests.get(versions_url)
+            versions_yaml = yaml.safe_load(res)
+            info("Loading versions from URL: " + versions_url)
+            VERSIONS = versions_yaml['versions']
+
+        except Exception:
+            try:
+                # try as a local file
+                with open(versions_url, 'r') as res:
+                    versions_yaml = yaml.safe_load(res)
+                    info("Loading versions from local file: " + versions_url)
+                    VERSIONS = versions_yaml['versions']
+            except Exception:
+                info("Unable to load versions from path: " + versions_url)
 
 
 def provision(args, apic_file, no_random):
@@ -877,6 +920,12 @@ def provision(args, apic_file, no_random):
 
     # Create config
     user_config = config_user(config_file)
+
+    if user_config:
+        if 'versions_url' in user_config and 'path' in user_config['versions_url']:
+            versions_url = user_config['versions_url']['path']
+            get_versions(versions_url)
+
     deep_merge(config, user_config)
 
     flavor = DEFAULT_FLAVOR
@@ -943,90 +992,15 @@ def provision(args, apic_file, no_random):
     return ret
 
 
-DEFAULT_FLAVORS_PATH = os.path.dirname(os.path.realpath(__file__)) + "/flavors.yaml"
-VERSION_FIELDS = [
-    "cnideploy_version",
-    "aci_containers_host_version",
-    "opflex_agent_version",
-    "aci_containers_controller_version",
-    "openvswitch_version",
-]
-
-
-def check_yaml(text_to_verify):
-    try:
-        flavors_yaml = yaml.safe_load(text_to_verify)
-        if 'default_flavor' in flavors_yaml:
-            return flavors_yaml
-    except yaml.YAMLError as exc:
-        print(exc)
-        raise Exception
-
-
-def default_flavors_path():
-    with open(DEFAULT_FLAVORS_PATH, 'r') as res:
-        info("Loading flavors from default flavors.yaml: " + DEFAULT_FLAVORS_PATH)
-        valid_yaml = check_yaml(res)
-        if valid_yaml:
-            set_flavors(valid_yaml)
-    return
-
-
-def get_flavors(flavors_url):
-    if flavors_url == 'blah':
-        return default_flavors_path()
-    flag = False
-    try:
-        # try as a URL
-        res = requests.get(flavors_url)
-        valid_yaml = check_yaml(res.text)
-        info("Loading flavors from URL: " + flavors_url)
-        set_flavors(valid_yaml)
-        flag = True
-
-    except Exception:
-        try:
-            # try as a local file
-            with open(flavors_url, 'r') as res:
-                valid_yaml = check_yaml(res)
-                info("Loading flavors from local file: " + flavors_url)
-                set_flavors(valid_yaml)
-                flag = True
-        except Exception:
-            info("Unable to load flavors from path: " + flavors_url)
-
-    finally:
-        # try the static file in repo
-        if not flag:
-            return default_flavors_path()
-
-
-def set_flavors(doc):
-    global DEFAULT_FLAVOR, VERSIONS, DEFAULT_FLAVOR_OPTIONS, CfFlavorOptions, FLAVORS
-    DEFAULT_FLAVOR = doc['default_flavor']
-    VERSIONS = doc['versions']
-    DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
-    CfFlavorOptions = doc['cfFlavorOptions']
-    CfFlavorOptions['template_generator'] = generate_cf_yaml
-    FLAVORS = doc['flavors']
-
-
 def main(args=None, apic_file=None, no_random=False):
     # apic_file and no_random are used by the test functions
+    # len(sys.argv) == 1 when acc-provision is called w/o arguments
     if args is None:
-        args = parse_args()
-
-    config = config_user(args.config)
-    if config:
-        if 'flavors_url' not in config:
-            config['flavors_url'] = {}
-            config['flavors_url']['path'] = "blah"
-        flavors_url = config['flavors_url']['path']
-        get_flavors(flavors_url)
+        args = parse_args(len(sys.argv) == 1)
 
     if args.list_flavors:
         info("Available configuration flavors:")
-        for flavor in sorted(FLAVORS.iterkeys()):
+        for flavor in sorted(FLAVORS, key=lambda x: int(FLAVORS[x]['order'])):
             if not FLAVORS[flavor]['hidden']:
                 desc = FLAVORS[flavor]["desc"]
                 if FLAVORS[flavor]["status"]:
