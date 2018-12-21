@@ -19,6 +19,7 @@ package apiserver
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -31,10 +32,15 @@ const (
 	propIntraPolicy   = "intraGroupPolicy"
 	defIntraPolicy    = "allow"
 	subjEPG           = "GbpEpGroup"
+	subjEPGToFD       = "GbpEpGroupToNetworkRSrc"
+	subjEPGToSnet     = "GbpEpGroupToSubnetsRSrc"
+	subjFD            = "GbpFloodDomain"
+	subjFDMcast       = "GbpFloodContext"
+	subjFDToBD        = "GbpFloodDomainToNetworkRSrc"
 	subjBD            = "GbpBridgeDomain"
 	subjEIC           = "GbpeInstContext"
-	subjBDNW          = "GbpBridgeDomainToNetworkRSrc"
-	subjSubnetRsrc    = "GbpForwardingBehavioralGroupToSubnetsRSrc"
+	subjBDToVrf       = "GbpBridgeDomainToNetworkRSrc"
+	subjBDToSubnets   = "GbpForwardingBehavioralGroupToSubnetsRSrc"
 	subjContract      = "GbpContract"
 	subjSubject       = "GbpSubject"
 	subjRule          = "GbpRule"
@@ -61,6 +67,14 @@ const (
 	defVrfName        = "defaultVrf"
 	defBDURI          = "/PolicyUniverse/PolicySpace/common/GbpBridgeDomain/defaultBD/"
 	defBDName         = "defaultBD"
+	defFDName         = "defaultFD"
+	defFDURI          = "/PolicyUniverse/PolicySpace/common/GbpFloodDomain/defaultFD/"
+	defFDMcastURI     = defFDURI + "GbpeFloodContext/"
+	defFDToBDURI      = defFDURI + "GbpFloodDomainToNetworkRSrc/"
+	defMcastGroup     = "225.0.193.80"
+	propMcast         = "multicastGroupIP"
+	defEPGURI         = "/PolicyUniverse/PolicySpace/common/GbpEpGroup/default/"
+	defEPGName        = "default"
 )
 
 var encapID = uint(5000)
@@ -158,6 +172,12 @@ func (epg *GBPEpGroup) Make(name, uri string) error {
 	epg.URI = uri
 	epg.AddProperty(propName, name)
 	epg.AddProperty(propIntraPolicy, defIntraPolicy)
+	// create GBPeInstContext
+	eic, err := createEIC(subjEPG, uri)
+	if err != nil {
+		return err
+	}
+	epg.AddChild(eic.URI)
 	epg.save()
 	return nil
 }
@@ -183,10 +203,11 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 	bd.AddChild(eic.URI)
 
 	// create subnets resource
-	netRs := &GBPSubnetRsrc{}
-	netRsUri := filepath.Join(uri, subjSubnetRsrc)
+	netRs := &GBPBDToSubnets{}
+	netRs.setSubject(subjBDToSubnets)
+	netRsUri := filepath.Join(uri, subjBDToSubnets)
 	netRs.Make("", netRsUri+"/")
-	netRs.SetParent(subjBD, subjSubnetRsrc, uri)
+	netRs.SetParent(subjBD, subjBDToSubnets, uri)
 
 	netsRef := RefProperty{
 		Subject: subjSubnetSet,
@@ -197,8 +218,9 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 	bd.AddChild(netRs.URI)
 
 	// create GbpBridgeDomainToNetworkRSrc
-	bdnw := &GBPBDToNW{}
-	bdnwUri := filepath.Join(uri, subjBDNW)
+	bdnw := &GBPBDToVrf{}
+	bdnwUri := filepath.Join(uri, subjBDToVrf)
+	bdnw.setSubject(subjBDToVrf)
 	bdnw.Make("", bdnwUri)
 	vrfRef := RefProperty{
 		Subject: subjVRF,
@@ -245,43 +267,91 @@ func (eic *GBPeInstContext) Validate() error {
 	return nil
 }
 
-type GBPBDToNW struct {
+// gbpToMo implements a forward reference
+type gbpToMo struct {
 	gbpBaseMo
 }
 
-func (bdnw *GBPBDToNW) Make(name, uri string) error {
-	bdnw.Subject = subjBDNW
-	bdnw.URI = uri
-	bdnw.save()
+func (to *gbpToMo) setSubject(subj string) {
+	to.Subject = subj
+}
+
+func (to *gbpToMo) Make(name, uri string) error {
+	if to.Subject == "" {
+		return fmt.Errorf("Subject not initialized")
+	}
+
+	to.URI = uri
+	to.save()
 	return nil
 }
 
-func (bdnw *GBPBDToNW) Validate() error {
-	if bdnw.ParentURI == "" || bdnw.ParentRel == "" || bdnw.ParentSub == "" {
+func (to *gbpToMo) Validate() error {
+	if to.ParentURI == "" || to.ParentRel == "" || to.ParentSub == "" {
+		return fmt.Errorf("Missing parent info")
+	}
+
+	if len(to.Properties) != 1 {
+		return fmt.Errorf("Expected single property. Have %d", len(to.Properties))
+	}
+
+	if to.Properties[0].Name != propTarget {
+		return fmt.Errorf("Expected target property. Have %s", to.Properties[0].Name)
+	}
+	return nil
+}
+
+type GBPBDToVrf struct {
+	gbpToMo
+}
+type GBPBDToSubnets struct {
+	gbpToMo
+}
+type GBPEPGToFD struct {
+	gbpToMo
+}
+type GBPFDToBD struct {
+	gbpToMo
+}
+type GBPEPGToSnet struct {
+	gbpToMo
+}
+
+/*
+func (bdvrf *GBPBDToVrf) Make(name, uri string) error {
+	bdvrf.Subject = subjBDToVrf
+	bdvrf.URI = uri
+	bdvrf.save()
+	return nil
+}
+
+func (bdvrf *GBPBDToVrf) Validate() error {
+	if bdvrf.ParentURI == "" || bdvrf.ParentRel == "" || bdvrf.ParentSub == "" {
 		return fmt.Errorf("Missing parent info")
 	}
 
 	return nil
 }
 
-type GBPSubnetRsrc struct {
+type GBPBDToSubnets struct {
 	gbpBaseMo
 }
 
-func (snet *GBPSubnetRsrc) Make(name, uri string) error {
-	snet.Subject = subjSubnetRsrc
+func (snet *GBPBDToSubnets) Make(name, uri string) error {
+	snet.Subject = subjBDToSubnets
 	snet.URI = uri
 	snet.save()
 	return nil
 }
 
-func (snet *GBPSubnetRsrc) Validate() error {
+func (snet *GBPBDToSubnets) Validate() error {
 	if snet.ParentURI == "" || snet.ParentRel == "" || snet.ParentSub == "" {
 		return fmt.Errorf("Missing parent info")
 	}
 
 	return nil
 }
+*/
 
 type GBPContract struct {
 	gbpBaseMo
@@ -516,6 +586,37 @@ func (s *GBPSubnet) Validate() error {
 	return nil
 }
 
+type GBPFloodDomain struct {
+	gbpBaseMo
+}
+
+func (fd *GBPFloodDomain) Make(name, uri string) error {
+	fd.Subject = subjFD
+	fd.URI = uri
+	fd.AddProperty(propName, name)
+	fd.save()
+	return nil
+}
+
+func (ss *GBPFloodDomain) Validate() error {
+	return nil
+}
+
+type GBPFloodMcast struct {
+	gbpBaseMo
+}
+
+func (fm *GBPFloodMcast) Make(name, uri string) error {
+	fm.Subject = subjFDMcast
+	fm.URI = uri
+	fm.save()
+	return nil
+}
+
+func (ss *GBPFloodMcast) Validate() error {
+	return nil
+}
+
 func CreateDefSubnet(subnet string) {
 	snUri := strings.Replace(subnet, "/", "%2f", 1)
 	uri := filepath.Join(defSubnetsURI, snUri)
@@ -534,10 +635,69 @@ func CreateDefBD() {
 	bd.Make(defBDName, defBDURI)
 }
 
+func CreateDefFD() {
+	// create child 1: default Mcast
+	fm := &GBPFloodMcast{}
+	fm.Make("", defFDMcastURI)
+	fm.AddProperty(propMcast, defMcastGroup)
+	fm.SetParent(subjFD, subjFDMcast, defFDURI)
+
+	// create child 2: FD to DefaultBD reference
+	bdRef := &GBPFDToBD{}
+	bdRef.setSubject(subjFDToBD)
+	bdRef.Make("", defFDToBDURI)
+
+	to := RefProperty{
+		Subject: subjBD,
+		RefURI:  defBDURI,
+	}
+
+	bdRef.AddProperty(propTarget, to)
+
+	fd := &GBPFloodDomain{}
+	fd.Make(defFDName, defFDURI)
+	fd.AddChild(fm.URI)
+	fd.AddChild(bdRef.URI)
+
+	// set properties
+	fd.AddProperty("unknownFloodMode", "drop")
+	fd.AddProperty("arpMode", "unicast")
+	fd.AddProperty("neighborDiscMode", "unicast")
+}
+
+func CreateDefEPG() {
+	epg := &GBPEpGroup{}
+	epg.Make(defEPGName, defEPGURI)
+
+	fdRef := GBPEPGToFD{}
+	fdRef.setSubject(subjEPGToFD)
+	fdRef.Make("", defEPGURI+"GbpEpGroupToNetworkRSrc/")
+	to := RefProperty{
+		Subject: subjFD,
+		RefURI:  defFDURI,
+	}
+
+	fdRef.AddProperty(propTarget, to)
+	epg.AddChild(fdRef.URI)
+
+	snetRef := GBPEPGToSnet{}
+	snetRef.setSubject(subjEPGToSnet)
+	snetRef.Make("", defEPGURI+"GbpEpGroupToSubnetsRSrc/")
+	tosnet := RefProperty{
+		Subject: subjSubnetSet,
+		RefURI:  defSubnetsURI,
+	}
+
+	snetRef.AddProperty(propTarget, tosnet)
+	epg.AddChild(snetRef.URI)
+}
+
 func DoAll() {
 	CreateDefSubnet("101.1.1.1/23")
 	CreateDefVrf()
 	CreateDefBD()
+	CreateDefEPG()
 	policyJson, _ := json.MarshalIndent(MoList, "", "    ")
+	ioutil.WriteFile("/tmp/gen_policy.json", policyJson, 0644)
 	fmt.Printf("policy.json: %s", policyJson)
 }
