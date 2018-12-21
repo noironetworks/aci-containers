@@ -137,6 +137,7 @@ func TestBasic(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	close(stopCh)
+	apiserver.DoAll()
 }
 
 func getClient(cert []byte) (*http.Client, error) {
