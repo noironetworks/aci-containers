@@ -61,6 +61,9 @@ const (
 	propPrefix        = "prefixLen"
 	propNw            = "address"
 	propMac           = "macAddress"
+	propProt          = "prot"
+	propDToPort       = "dToPort"
+	propDFromPort     = "dFromPort"
 	defRMac           = "00:22:bd:f8:19:ff"
 	defSubnetsURI     = "/PolicyUniverse/PolicySpace/common/GbpSubnets/allsubnets/"
 	defVrfURI         = "/PolicyUniverse/PolicySpace/common/GbpRoutingDomain/defaultVrf/"
@@ -80,7 +83,7 @@ const (
 var encapID = uint(5000)
 var classID = uint(5000)
 var gMutex sync.Mutex
-var MoList []*gbpBaseMo
+var MoDB = make(map[string]*gbpBaseMo)
 
 type GBPMo interface {
 	Make(name, uri string) error
@@ -145,7 +148,7 @@ func (g *gbpBaseMo) save() {
 	if g.Properties == nil {
 		g.Properties = []Property{}
 	}
-	MoList = append(MoList, g)
+	MoDB[g.URI] = g
 }
 
 func (g *gbpBaseMo) GetStringProperty(name string) string {
@@ -316,42 +319,12 @@ type GBPFDToBD struct {
 type GBPEPGToSnet struct {
 	gbpToMo
 }
-
-/*
-func (bdvrf *GBPBDToVrf) Make(name, uri string) error {
-	bdvrf.Subject = subjBDToVrf
-	bdvrf.URI = uri
-	bdvrf.save()
-	return nil
+type GBPRuleToClass struct {
+	gbpToMo
 }
-
-func (bdvrf *GBPBDToVrf) Validate() error {
-	if bdvrf.ParentURI == "" || bdvrf.ParentRel == "" || bdvrf.ParentSub == "" {
-		return fmt.Errorf("Missing parent info")
-	}
-
-	return nil
+type GBPRuleToAct struct {
+	gbpToMo
 }
-
-type GBPBDToSubnets struct {
-	gbpBaseMo
-}
-
-func (snet *GBPBDToSubnets) Make(name, uri string) error {
-	snet.Subject = subjBDToSubnets
-	snet.URI = uri
-	snet.save()
-	return nil
-}
-
-func (snet *GBPBDToSubnets) Validate() error {
-	if snet.ParentURI == "" || snet.ParentRel == "" || snet.ParentSub == "" {
-		return fmt.Errorf("Missing parent info")
-	}
-
-	return nil
-}
-*/
 
 type GBPContract struct {
 	gbpBaseMo
@@ -432,21 +405,6 @@ func (c *GBPL24Classifier) Make(name, uri string) error {
 }
 
 func (c *GBPL24Classifier) Validate() error {
-	return nil
-}
-
-type GBPActionRsrc struct {
-	gbpBaseMo
-}
-
-func (ar *GBPActionRsrc) Make(name, uri string) error {
-	ar.Subject = subjActionRsrc
-	ar.URI = uri
-	ar.save()
-	return nil
-}
-
-func (ar *GBPActionRsrc) Validate() error {
 	return nil
 }
 
@@ -697,7 +655,12 @@ func DoAll() {
 	CreateDefVrf()
 	CreateDefBD()
 	CreateDefEPG()
-	policyJson, _ := json.MarshalIndent(MoList, "", "    ")
+
+	moList := make([]*gbpBaseMo, 0, len(MoDB))
+	for _, mo := range MoDB {
+		moList = append(moList, mo)
+	}
+	policyJson, _ := json.MarshalIndent(moList, "", "    ")
 	ioutil.WriteFile("/tmp/gen_policy.json", policyJson, 0644)
 	fmt.Printf("policy.json: %s", policyJson)
 }
