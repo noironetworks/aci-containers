@@ -137,6 +137,7 @@ func TestBasic(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	close(stopCh)
+	addContract(t)
 	apiserver.DoAll()
 }
 
@@ -159,4 +160,29 @@ func getClient(cert []byte) (*http.Client, error) {
 			TLSClientConfig: &tlsCfg,
 		},
 	}, nil
+}
+
+func addContract(t *testing.T) {
+
+	rule := apiserver.WLRule{
+		Protocol: "tcp",
+		Ports: apiserver.IntRange{
+			Start: 6443,
+			End:   6443,
+		},
+	}
+
+	c := &apiserver.Contract{
+		Name:   "kubeAPI",
+		Tenant: "common",
+		AllowList: []apiserver.WLRule{
+			rule,
+		},
+	}
+
+	err := c.Make()
+	if err != nil {
+		log.Errorf("Contract make - %v", err)
+		t.FailNow()
+	}
 }
