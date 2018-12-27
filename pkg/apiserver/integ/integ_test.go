@@ -138,6 +138,7 @@ func TestBasic(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	close(stopCh)
 	addContract(t)
+	addEPGs(t)
 	apiserver.DoAll()
 }
 
@@ -183,6 +184,53 @@ func addContract(t *testing.T) {
 	err := c.Make()
 	if err != nil {
 		log.Errorf("Contract make - %v", err)
+		t.FailNow()
+	}
+}
+
+func addEPGs(t *testing.T) {
+	epgA := &apiserver.EPG{
+		Name:   "epgA",
+		Tenant: "common",
+		ProvContracts: []string{
+			"kubeAPI",
+		},
+	}
+
+	err := epgA.Make()
+	if err != nil {
+		log.Errorf("epgA make - %v", err)
+		t.FailNow()
+	}
+
+	epgB := &apiserver.EPG{
+		Name:   "epgB",
+		Tenant: "common",
+		ConsContracts: []string{
+			"kubeAPI",
+		},
+	}
+
+	err = epgB.Make()
+	if err != nil {
+		log.Errorf("epgB make - %v", err)
+		t.FailNow()
+	}
+
+	epgC := &apiserver.EPG{
+		Name:   "epgC",
+		Tenant: "common",
+		ConsContracts: []string{
+			"kubeAPI",
+		},
+		ProvContracts: []string{
+			"kubeAPI",
+		},
+	}
+
+	err = epgC.Make()
+	if err != nil {
+		log.Errorf("epgB make - %v", err)
 		t.FailNow()
 	}
 }

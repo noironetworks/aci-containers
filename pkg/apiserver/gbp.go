@@ -34,6 +34,8 @@ const (
 	subjEPG           = "GbpEpGroup"
 	subjEPGToFD       = "GbpEpGroupToNetworkRSrc"
 	subjEPGToSnet     = "GbpEpGroupToSubnetsRSrc"
+	subjEPGToCC       = "GbpEpGroupToConsContractRSrc"
+	subjEPGToPC       = "GbpEpGroupToProvContractRSrc"
 	subjFD            = "GbpFloodDomain"
 	subjFDMcast       = "GbpFloodContext"
 	subjFDToBD        = "GbpFloodDomainToNetworkRSrc"
@@ -90,10 +92,12 @@ type GBPMo interface {
 	FromJSON(j []byte) error
 	SetParent(subj, rel, uri string)
 	AddChild(uri string)
+	DelChild(uri string)
 	AddProperty(name string, data interface{})
 	WriteJSON() []byte
 	Validate() error
 	GetStringProperty(name string) string
+	GetRefURIs(subject string) (map[string]string, error)
 }
 
 type Property struct {
@@ -114,6 +118,7 @@ type gbpBaseMo struct {
 	ParentSub  string     `json:"parent_subject,omitempty"`
 	ParentURI  string     `json:"parent_uri,omitempty"`
 	ParentRel  string     `json:"parent_relation,omitempty"`
+	isRef      bool
 }
 
 func (g *gbpBaseMo) FromJSON(j []byte) error {
@@ -126,6 +131,14 @@ func (g *gbpBaseMo) SetParent(subj, rel, uri string) {
 
 func (g *gbpBaseMo) AddChild(uri string) {
 	g.Children = append(g.Children, uri)
+}
+
+func (g *gbpBaseMo) DelChild(uri string) {
+	for ix, u := range g.Children {
+		if u == uri {
+			g.Children = append(g.Children[:ix], g.Children[ix+1:]...)
+		}
+	}
 }
 
 func (g *gbpBaseMo) AddProperty(name string, data interface{}) {
@@ -164,6 +177,66 @@ func (g *gbpBaseMo) GetStringProperty(name string) string {
 	}
 
 	return ""
+}
+
+// returns refMo URI, indexed by the actual target uri
+func (g *gbpBaseMo) GetRefURIs(subject string) (map[string]string, error) {
+	result := make(map[string]string)
+
+	for _, c := range g.Children {
+		cMo := MoDB[c]
+		if cMo == nil {
+			return nil, fmt.Errorf("Child %s not found", c)
+		}
+
+		if cMo.isRef && cMo.Subject == subject {
+			target, err := cMo.getTarget()
+			if err != nil {
+				return nil, fmt.Errorf("Target for %s not found - %v", c, err)
+			}
+
+			result[target] = c
+		}
+	}
+
+	return result, nil
+}
+
+func (g *gbpBaseMo) getTarget() (string, error) {
+
+	for _, p := range g.Properties {
+		if p.Name == propName {
+			ref, ok := p.Data.(RefProperty)
+			if !ok {
+				return "", fmt.Errorf("Bad property type for %s", g.URI)
+			}
+
+			return ref.RefURI, nil
+		}
+	}
+
+	return "", fmt.Errorf("Not found")
+}
+
+func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
+	targetMo := MoDB[targetURI]
+	if targetMo == nil {
+		return fmt.Errorf("Mo %s not found", targetURI)
+	}
+	targetName := targetMo.GetStringProperty(propName)
+	refMo := &gbpToMo{}
+	refMo.setSubject(refSubj)
+	refURI := fmt.Sprintf("%s%s/%s/", g.URI, refSubj, targetName)
+	refMo.Make("", refURI)
+
+	p := RefProperty{
+		Subject: targetMo.Subject,
+		RefURI:  targetURI,
+	}
+	refMo.AddProperty(propTarget, p)
+	g.AddChild(refURI)
+
+	return nil
 }
 
 type GBPEpGroup struct {
@@ -285,6 +358,7 @@ func (to *gbpToMo) Make(name, uri string) error {
 	}
 
 	to.URI = uri
+	to.isRef = true
 	to.save()
 	return nil
 }
@@ -623,13 +697,13 @@ func CreateDefFD() {
 	fd.AddProperty("neighborDiscMode", "unicast")
 }
 
-func CreateDefEPG() {
+func CreateEPG(name, uri string) *gbpBaseMo {
 	epg := &GBPEpGroup{}
-	epg.Make(defEPGName, defEPGURI)
+	epg.Make(name, uri)
 
 	fdRef := GBPEPGToFD{}
 	fdRef.setSubject(subjEPGToFD)
-	fdRef.Make("", defEPGURI+"GbpEpGroupToNetworkRSrc/")
+	fdRef.Make("", uri+"GbpEpGroupToNetworkRSrc/")
 	to := RefProperty{
 		Subject: subjFD,
 		RefURI:  defFDURI,
@@ -640,7 +714,7 @@ func CreateDefEPG() {
 
 	snetRef := GBPEPGToSnet{}
 	snetRef.setSubject(subjEPGToSnet)
-	snetRef.Make("", defEPGURI+"GbpEpGroupToSubnetsRSrc/")
+	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
 	tosnet := RefProperty{
 		Subject: subjSubnetSet,
 		RefURI:  defSubnetsURI,
@@ -648,13 +722,14 @@ func CreateDefEPG() {
 
 	snetRef.AddProperty(propTarget, tosnet)
 	epg.AddChild(snetRef.URI)
+	return MoDB[uri]
 }
 
 func DoAll() {
 	CreateDefSubnet("101.1.1.1/23")
 	CreateDefVrf()
 	CreateDefBD()
-	CreateDefEPG()
+	CreateEPG(defEPGName, defEPGURI)
 
 	moList := make([]*gbpBaseMo, 0, len(MoDB))
 	for _, mo := range MoDB {
