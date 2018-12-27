@@ -103,6 +103,7 @@ func (c *Contract) makeClassifiers() error {
 		}
 	}
 
+	// TODO remove stale classifiers.
 	return nil
 }
 
@@ -175,4 +176,76 @@ func (wr *WLRule) getClassifierURI(tenant string) (string, string) {
 	un = fmt.Sprintf("%s-%d-%d", un, wr.Ports.Start, wr.Ports.End)
 
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", tenant, un), un
+}
+
+type EPG struct {
+	Tenant        string   `json:"tenant,omitempty"`
+	Name          string   `json:"name,omitempty"`
+	ConsContracts []string `json:"consumed-contracts,omitempty"`
+	ProvContracts []string `json:"provided-contracts,omitempty"`
+}
+
+func (e *EPG) Make() error {
+	eUri := e.getURI()
+
+	base := MoDB[eUri]
+	if base == nil {
+		base = CreateEPG(e.Name, eUri)
+	}
+	err := e.setContracts(base, e.ConsContracts, subjEPGToCC)
+	if err != nil {
+		return err
+	}
+	err = e.setContracts(base, e.ProvContracts, subjEPGToPC)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *EPG) getURI() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", e.Tenant, e.Name)
+}
+
+func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) error {
+
+	desiredC := e.getContractURIs(contracts)
+	currentC, err := mo.GetRefURIs(refSubj)
+	if err != nil {
+		return err
+	}
+
+	// delete any ref no longer required
+	for tgt, ref := range currentC {
+		if desiredC[tgt] == false {
+			mo.DelChild(ref)
+			delete(currentC, tgt)
+			delete(MoDB, ref)
+		}
+	}
+
+	// add any new ref
+	for tgt := range desiredC {
+		_, ok := currentC[tgt]
+		if !ok {
+			err = mo.AddRef(refSubj, tgt)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (e *EPG) getContractURIs(contracts []string) map[string]bool {
+	result := make(map[string]bool)
+
+	for _, c := range contracts {
+		uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpContract/%s/", e.Tenant, c)
+		result[uri] = true
+	}
+
+	return result
 }
