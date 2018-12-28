@@ -139,6 +139,7 @@ func TestBasic(t *testing.T) {
 	close(stopCh)
 	addContract(t)
 	addEPGs(t)
+	addEPs(t)
 	apiserver.DoAll()
 }
 
@@ -232,5 +233,29 @@ func addEPGs(t *testing.T) {
 	if err != nil {
 		log.Errorf("epgB make - %v", err)
 		t.FailNow()
+	}
+}
+
+func addEPs(t *testing.T) {
+	epList := []apiserver.Endpoint{
+		{EPG: "epgA", VTEP: "101.10.1.1"},
+		{EPG: "epgC", VTEP: "101.10.1.1"},
+		{EPG: "epgA", VTEP: "101.10.1.2"},
+		{EPG: "epgB", VTEP: "101.10.1.2"},
+		{EPG: "epgB", VTEP: "101.10.1.3"},
+		{EPG: "epgB", VTEP: "101.10.1.3"},
+		{EPG: "epgA", VTEP: "101.10.1.3"},
+	}
+
+	for ix, ep := range epList {
+		ep.Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
+		ep.MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
+		ep.IPAddr = fmt.Sprintf("121.1.1.%d", ix)
+		err := ep.Add()
+		if err != nil {
+			log.Errorf("ep make - %v", err)
+			t.FailNow()
+		}
+
 	}
 }

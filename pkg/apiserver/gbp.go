@@ -27,127 +27,14 @@ import (
 	"sync"
 )
 
-const (
-	propName          = "name"
-	propIntraPolicy   = "intraGroupPolicy"
-	defIntraPolicy    = "allow"
-	subjEPG           = "GbpEpGroup"
-	subjEPGToFD       = "GbpEpGroupToNetworkRSrc"
-	subjEPGToSnet     = "GbpEpGroupToSubnetsRSrc"
-	subjEPGToCC       = "GbpEpGroupToConsContractRSrc"
-	subjEPGToPC       = "GbpEpGroupToProvContractRSrc"
-	subjFD            = "GbpFloodDomain"
-	subjFDMcast       = "GbpFloodContext"
-	subjFDToBD        = "GbpFloodDomainToNetworkRSrc"
-	subjBD            = "GbpBridgeDomain"
-	subjEIC           = "GbpeInstContext"
-	subjBDToVrf       = "GbpBridgeDomainToNetworkRSrc"
-	subjBDToSubnets   = "GbpForwardingBehavioralGroupToSubnetsRSrc"
-	subjContract      = "GbpContract"
-	subjSubject       = "GbpSubject"
-	subjRule          = "GbpRule"
-	subjClassRsrc     = "GbpRuleToClassifierRSrc"
-	subjL24Class      = "GbpeL24Classifier"
-	subjAction        = "GbpAllowDenyAction"
-	subjActionRsrc    = "GbpRuleToActionRSrc"
-	subjVRF           = "GbpRoutingDomain"
-	subjVRFIntSubnets = "GbpRoutingDomainToIntSubnetsRSrc"
-	subjSubnetSet     = "GbpSubnets"
-	subjSubnet        = "GbpSubnet"
-	propRoutingMode   = "routingMode"
-	defRoutingMode    = "enabled"
-	propEncapID       = "encapId"
-	propClassID       = "classid"
-	propTarget        = "target"
-	propGw            = "virtualRouterIp"
-	propPrefix        = "prefixLen"
-	propNw            = "address"
-	propMac           = "macAddress"
-	propProt          = "prot"
-	propDToPort       = "dToPort"
-	propDFromPort     = "dFromPort"
-	defRMac           = "00:22:bd:f8:19:ff"
-	defSubnetsURI     = "/PolicyUniverse/PolicySpace/common/GbpSubnets/allsubnets/"
-	defVrfURI         = "/PolicyUniverse/PolicySpace/common/GbpRoutingDomain/defaultVrf/"
-	defVrfName        = "defaultVrf"
-	defBDURI          = "/PolicyUniverse/PolicySpace/common/GbpBridgeDomain/defaultBD/"
-	defBDName         = "defaultBD"
-	defFDName         = "defaultFD"
-	defFDURI          = "/PolicyUniverse/PolicySpace/common/GbpFloodDomain/defaultFD/"
-	defFDMcastURI     = defFDURI + "GbpeFloodContext/"
-	defFDToBDURI      = defFDURI + "GbpFloodDomainToNetworkRSrc/"
-	defMcastGroup     = "225.0.193.80"
-	propMcast         = "multicastGroupIP"
-	defEPGURI         = "/PolicyUniverse/PolicySpace/common/GbpEpGroup/default/"
-	defEPGName        = "default"
-)
-
 var encapID = uint(5000)
 var classID = uint(5000)
 var gMutex sync.Mutex
 var MoDB = make(map[string]*gbpBaseMo)
 
-type GBPMo interface {
-	Make(name, uri string) error
-	FromJSON(j []byte) error
-	SetParent(subj, rel, uri string)
-	AddChild(uri string)
-	DelChild(uri string)
-	AddProperty(name string, data interface{})
-	WriteJSON() []byte
-	Validate() error
-	GetStringProperty(name string) string
-	GetRefURIs(subject string) (map[string]string, error)
-}
-
-type Property struct {
-	Name string      `json:"name,omitempty"`
-	Data interface{} `json:"data,omitempty"`
-}
-
-type RefProperty struct {
-	Subject string `json:"subject,omitempty"`
-	RefURI  string `json:"reference_uri,omitempty"`
-}
-
+// BaseMo methods refer the underlying MoDB.
 type gbpBaseMo struct {
-	Subject    string     `json:"subject,omitempty"`
-	URI        string     `json:"uri",omitempty"`
-	Properties []Property `json:"properties",omitempty"`
-	Children   []string   `json:"children",omitempty"`
-	ParentSub  string     `json:"parent_subject,omitempty"`
-	ParentURI  string     `json:"parent_uri,omitempty"`
-	ParentRel  string     `json:"parent_relation,omitempty"`
-	isRef      bool
-}
-
-func (g *gbpBaseMo) FromJSON(j []byte) error {
-	return json.Unmarshal(j, g)
-}
-
-func (g *gbpBaseMo) SetParent(subj, rel, uri string) {
-	g.ParentSub, g.ParentRel, g.ParentURI = subj, rel, uri
-}
-
-func (g *gbpBaseMo) AddChild(uri string) {
-	g.Children = append(g.Children, uri)
-}
-
-func (g *gbpBaseMo) DelChild(uri string) {
-	for ix, u := range g.Children {
-		if u == uri {
-			g.Children = append(g.Children[:ix], g.Children[ix+1:]...)
-		}
-	}
-}
-
-func (g *gbpBaseMo) AddProperty(name string, data interface{}) {
-	p := Property{Name: name, Data: data}
-	g.Properties = append(g.Properties, p)
-}
-
-func (g *gbpBaseMo) WriteJSON() ([]byte, error) {
-	return json.Marshal(g)
+	gbpCommonMo
 }
 
 func (g *gbpBaseMo) save() {
@@ -162,21 +49,6 @@ func (g *gbpBaseMo) save() {
 		g.Properties = []Property{}
 	}
 	MoDB[g.URI] = g
-}
-
-func (g *gbpBaseMo) GetStringProperty(name string) string {
-	for _, p := range g.Properties {
-		if p.Name == name {
-			res, ok := p.Data.(string)
-			if ok {
-				return res
-			}
-
-			break
-		}
-	}
-
-	return ""
 }
 
 // returns refMo URI, indexed by the actual target uri
@@ -202,22 +74,6 @@ func (g *gbpBaseMo) GetRefURIs(subject string) (map[string]string, error) {
 	return result, nil
 }
 
-func (g *gbpBaseMo) getTarget() (string, error) {
-
-	for _, p := range g.Properties {
-		if p.Name == propName {
-			ref, ok := p.Data.(RefProperty)
-			if !ok {
-				return "", fmt.Errorf("Bad property type for %s", g.URI)
-			}
-
-			return ref.RefURI, nil
-		}
-	}
-
-	return "", fmt.Errorf("Not found")
-}
-
 func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
 	targetMo := MoDB[targetURI]
 	if targetMo == nil {
@@ -234,6 +90,7 @@ func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
 		RefURI:  targetURI,
 	}
 	refMo.AddProperty(propTarget, p)
+	refMo.SetParent(g.Subject, refMo.Subject, g.URI)
 	g.AddChild(refURI)
 
 	return nil
@@ -725,17 +582,27 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	return MoDB[uri]
 }
 
+func init() {
+	CreateRoot()
+}
 func DoAll() {
 	CreateDefSubnet("101.1.1.1/23")
 	CreateDefVrf()
 	CreateDefBD()
 	CreateEPG(defEPGName, defEPGURI)
 
-	moList := make([]*gbpBaseMo, 0, len(MoDB))
+	moList := make([]*gbpCommonMo, 0, len(MoDB))
 	for _, mo := range MoDB {
-		moList = append(moList, mo)
+		moList = append(moList, &mo.gbpCommonMo)
 	}
-	policyJson, _ := json.MarshalIndent(moList, "", "    ")
-	ioutil.WriteFile("/tmp/gen_policy.json", policyJson, 0644)
-	fmt.Printf("policy.json: %s", policyJson)
+
+	for vtep := range InvDB {
+		invMos := GetInvMoList(vtep)
+		invMos = append(invMos, moList...)
+		policyJson, _ := json.MarshalIndent(invMos, "", "    ")
+		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
+		ioutil.WriteFile(fileName, policyJson, 0644)
+	}
+
+//	fmt.Printf("policy.json: %s", policyJson)
 }
