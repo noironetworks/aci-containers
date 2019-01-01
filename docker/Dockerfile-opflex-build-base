@@ -3,7 +3,9 @@ COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
     libtool pkgconfig autoconf automake cmake doxygen file py-six \
     linux-headers libuv-dev boost-dev openssl-dev git \
-    libnetfilter_conntrack-dev rapidjson-dev
+    libnetfilter_conntrack-dev rapidjson-dev \
+    && apk add --no-cache libexecinfo-dev --repository \
+    http://nl.alpinelinux.org/alpine/edge/main
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
