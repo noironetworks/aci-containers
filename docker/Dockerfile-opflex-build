@@ -17,6 +17,7 @@ RUN for p in `find /usr/local/lib/ /usr/local/bin/ -type f \(\
     -name 'opflex_agent' -o \
     -name 'gbp_inspect' -o \
     -name 'mcast_daemon' -o \
+    -name 'mock_server' -o \
     -name 'libopflex*so*' -o \
     -name 'libmodelgbp*so*' -o \
     -name 'libopenvswitch*so*' -o \
