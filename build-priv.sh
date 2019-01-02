@@ -17,13 +17,14 @@ ACICONTAINERS_DIR=$GOPATH/src/github.com/noironetworks/aci-containers
 [ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex-noiro
 export OPFLEX_DIR
 
-set -x
+set -Eeuxo pipefail
 
 echo "starting opflex build"
 
 pushd $ACICONTAINERS_DIR
 rm -Rf build
 make container-opflex-build-base
+docker build -t $DOCKER_USER/opflex-build-base -f docker/Dockerfile-opflex-build-base-debug docker
 docker push $DOCKER_USER/opflex-build-base
 
 pushd $OPFLEX_DIR/genie
