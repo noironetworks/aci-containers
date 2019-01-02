@@ -16,7 +16,6 @@ package hostagent
 
 import (
 	"bytes"
-	"errors"
 	"io/ioutil"
 	"net"
 	"os"
@@ -215,7 +214,10 @@ func (agent *HostAgent) updateOpflexConfig() {
 
 	newNodeConfig := agent.discoverHostConfig()
 	if newNodeConfig == nil {
-		panic(errors.New("Node configuration autodiscovery failed"))
+		newNodeConfig = &HostAgentNodeConfig{}
+		// FIXME: derive address at runtime
+		newNodeConfig.OpflexPeerIp = "1.100.201.11"
+		agent.log.Info("Node configuration autodiscovery failed, running in Virtual mode")
 	}
 	var update bool
 

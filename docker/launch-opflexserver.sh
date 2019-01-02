@@ -18,4 +18,4 @@ if [ ! -f ${OPFLEXSERVER_CONF} ]; then
 EOF
 fi
 
-exec ${OPFLEXSERVER} --policy=${OPFLEXSERVER_CONF}
+exec ${OPFLEXSERVER} --policy=${OPFLEXSERVER_CONF} --level=trace
