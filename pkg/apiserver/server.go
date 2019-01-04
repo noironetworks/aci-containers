@@ -36,6 +36,14 @@ const (
 
 var DefETCD = []string{"127.0.0.1:2379"}
 
+type PostResp struct {
+	URI string
+}
+
+type ListResp struct {
+	URIs []string
+}
+
 type Server struct {
 	objapi   objdb.API
 	upgrader websocket.Upgrader
@@ -66,8 +74,8 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type refreshSucc struct{}
 
 func (h *refreshSucc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-        result := map[string]interface{}{}
-        json.NewEncoder(w).Encode(result)
+	result := map[string]interface{}{}
+	json.NewEncoder(w).Encode(result)
 }
 
 type socketHandler struct {
@@ -141,7 +149,7 @@ func getTLSCfg() (*tls.Config, error) {
 type nfh struct {
 }
 
-func(n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
 func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
@@ -162,17 +170,26 @@ func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
 		s.handleRead(w, r)
 	}
 
-
 	r := mux.NewRouter()
+
+	// add websocket handlers
 	r.Handle("/api/webtokenSession.json", &loginHandler{})
 	r.Handle("/api/aaaLogin.json", &loginHandler{})
 	r.Handle("/api/aaaRefresh.json", &refreshSucc{})
 	r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
 	//r.PathPrefix("/api/node").HandlerFunc(wHandler)
+
 	t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
+	// gbp rest handlers
+	addGBPPost(t)
+
+	// api/mo handlers (apic stub)
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// Routes consist of a path and a handler function.
+	delR := r.Methods("DELETE").Subrouter()
+	addGBPDelete(delR)
 	getR := r.Methods("GET").Subrouter()
+	addGBPGet(getR)
 	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
 	getR.PathPrefix("/api/node").HandlerFunc(rHandler)
 	r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
@@ -225,4 +242,25 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	// write the HTTP status code
 	w.WriteHeader(http.StatusOK)
 	w.Write(content)
+}
+
+func addGBPPost(mr *mux.Router) {
+	mr.PathPrefix("/gbp/contracts").HandlerFunc(MakeHTTPHandler(postContract))
+	mr.PathPrefix("/gbp/epgs").HandlerFunc(MakeHTTPHandler(postEpg))
+	mr.PathPrefix("/gbp/endpoints").HandlerFunc(MakeHTTPHandler(postEndpoint))
+}
+
+func addGBPGet(mr *mux.Router) {
+	//	mr.PathPrefix("/gbp/contracts/").HandlerFunc(MakeHTTPHandler(listContracts))
+	//	mr.PathPrefix("/gbp/contracts/{key}").HandlerFunc(MakeHTTPHandler(getContract))
+	mr.Path("/gbp/epgs/").HandlerFunc(MakeHTTPHandler(listEpgs))
+	mr.Path("/gbp/epg/").HandlerFunc(MakeHTTPHandler(getEpg))
+	mr.Path("/gbp/endpoints/").HandlerFunc(MakeHTTPHandler(listEndpoints))
+	mr.Path("/gbp/endpoint/").HandlerFunc(MakeHTTPHandler(getEndpoint))
+}
+
+func addGBPDelete(mr *mux.Router) {
+	mr.Path("/gbp/contract/").HandlerFunc(MakeHTTPHandler(deleteObject))
+	mr.Path("/gbp/epg/").HandlerFunc(MakeHTTPHandler(deleteObject))
+	mr.Path("/gbp/endpoint/").HandlerFunc(MakeHTTPHandler(deleteEndpoint))
 }

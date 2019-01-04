@@ -18,6 +18,7 @@ package integ
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,11 +137,12 @@ func TestBasic(t *testing.T) {
 		log.Infof("==>> Response: %s", res)
 	}
 
-	time.Sleep(5 * time.Second)
-	close(stopCh)
+	time.Sleep(2 * time.Second)
 	addContract(t)
 	addEPGs(t)
 	addEPs(t)
+	verifyRest(t, cli)
+	close(stopCh)
 	apiserver.DoAll()
 }
 
@@ -190,49 +193,55 @@ func addContract(t *testing.T) {
 }
 
 func addEPGs(t *testing.T) {
-	epgA := &apiserver.EPG{
-		Name:   "epgA",
-		Tenant: "common",
-		ProvContracts: []string{
-			"kubeAPI",
+	epgList := []*apiserver.EPG{
+		{
+			Name:   "epgA",
+			Tenant: "common",
+			ProvContracts: []string{
+				"kubeAPI",
+			},
+		},
+
+		{
+			Name:   "epgB",
+			Tenant: "common",
+			ConsContracts: []string{
+				"kubeAPI",
+			},
+		},
+
+		{
+			Name:   "epgC",
+			Tenant: "common",
+			ConsContracts: []string{
+				"kubeAPI",
+			},
+			ProvContracts: []string{
+				"kubeAPI",
+			},
+		},
+
+		{
+			Name:          "kubernetes|kube-system",
+			Tenant:        "vk8s_1",
+			ConsContracts: []string{},
+			ProvContracts: []string{},
+		},
+
+		{
+			Name:          "kubernetes|kube-default",
+			Tenant:        "vk8s_1",
+			ConsContracts: []string{},
+			ProvContracts: []string{},
 		},
 	}
 
-	err := epgA.Make()
-	if err != nil {
-		log.Errorf("epgA make - %v", err)
-		t.FailNow()
-	}
-
-	epgB := &apiserver.EPG{
-		Name:   "epgB",
-		Tenant: "common",
-		ConsContracts: []string{
-			"kubeAPI",
-		},
-	}
-
-	err = epgB.Make()
-	if err != nil {
-		log.Errorf("epgB make - %v", err)
-		t.FailNow()
-	}
-
-	epgC := &apiserver.EPG{
-		Name:   "epgC",
-		Tenant: "common",
-		ConsContracts: []string{
-			"kubeAPI",
-		},
-		ProvContracts: []string{
-			"kubeAPI",
-		},
-	}
-
-	err = epgC.Make()
-	if err != nil {
-		log.Errorf("epgB make - %v", err)
-		t.FailNow()
+	for _, e := range epgList {
+		err := e.Make()
+		if err != nil {
+			log.Errorf("%s make - %v", e.Name, err)
+			t.FailNow()
+		}
 	}
 }
 
@@ -251,11 +260,115 @@ func addEPs(t *testing.T) {
 		ep.Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
 		ep.MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
 		ep.IPAddr = fmt.Sprintf("121.1.1.%d", ix)
-		err := ep.Add()
+		_, err := ep.Add()
 		if err != nil {
 			log.Errorf("ep make - %v", err)
 			t.FailNow()
 		}
 
+	}
+}
+
+func verifyRest(t *testing.T, c *http.Client) {
+	// epg without contracts
+	testEpg := &apiserver.EPG{
+		Tenant: "Flowers",
+		Name:   "Roses",
+	}
+
+	content, err := json.Marshal(testEpg)
+	if err != nil {
+		log.Errorf("json.Marshal :% v", err)
+		t.FailNow()
+	}
+
+	resp, err := c.Post("https://example.com:8899/gbp/epgs", "application/json", strings.NewReader(string(content)))
+	if err != nil {
+		log.Errorf("Post :% v", err)
+		t.FailNow()
+	}
+
+	defer resp.Body.Close()
+
+	rBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("ReadAll :% v", err)
+		t.FailNow()
+	}
+
+	var reply apiserver.PostResp
+
+	err = json.Unmarshal(rBody, &reply)
+	if err != nil {
+		log.Errorf("Unmarshal :% v", err)
+		t.FailNow()
+	}
+
+	log.Infof("reply: %+v", reply)
+
+	getter := func(uri string) []byte {
+		getResp, err := c.Get(uri)
+		if err != nil {
+			log.Errorf("Get :% v", err)
+			t.FailNow()
+		}
+
+		defer getResp.Body.Close()
+		gBody, err := ioutil.ReadAll(getResp.Body)
+		if err != nil {
+			log.Errorf("ReadAll :% v", err)
+			t.FailNow()
+		}
+
+		return gBody
+	}
+
+	l := getter("https://example.com:8899/gbp/epgs/")
+	var getList apiserver.ListResp
+
+	err = json.Unmarshal(l, &getList)
+	if err != nil {
+		log.Errorf("Marshal get list :% v", err)
+		t.FailNow()
+	}
+	for _, reqUri := range getList.URIs {
+		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/epg/?key=%s", reqUri))
+		log.Infof("EPG Get Resp: %s", gb)
+	}
+
+	l = getter("https://example.com:8899/gbp/endpoints/")
+
+	err = json.Unmarshal(l, &getList)
+	if err != nil {
+		log.Errorf("Marshal get list :% v", err)
+		t.FailNow()
+	}
+
+	log.Infof("eplist: %+v", getList)
+	for _, reqUri := range getList.URIs {
+		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/endpoint/?key=%s", reqUri))
+		log.Infof("Endpoint Get Resp: %s", gb)
+	}
+
+	for _, reqUri := range getList.URIs {
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://example.com:8899/gbp/endpoint/?key=%s", reqUri), nil)
+		_, err = c.Do(req)
+		if err != nil {
+			log.Errorf("Delete %s :% v", reqUri, err)
+			t.FailNow()
+		}
+	}
+
+	l = getter("https://example.com:8899/gbp/endpoints/")
+
+	err = json.Unmarshal(l, &getList)
+	if err != nil {
+		log.Errorf("Marshal get list :% v", err)
+		t.FailNow()
+	}
+
+	if len(getList.URIs) != 0 {
+		log.Errorf("EPs present: %q", getList.URIs)
+		t.FailNow()
 	}
 }
