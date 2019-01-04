@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	kubeTenant        = "vk8s_1"
 	propName          = "name"
 	propIntraPolicy   = "intraGroupPolicy"
 	defIntraPolicy    = "allow"
@@ -159,7 +160,7 @@ func (g *gbpCommonMo) GetStringProperty(name string) string {
 func (g *gbpCommonMo) getTarget() (string, error) {
 
 	for _, p := range g.Properties {
-		if p.Name == propName {
+		if p.Name == propTarget {
 			ref, ok := p.Data.(RefProperty)
 			if !ok {
 				return "", fmt.Errorf("Bad property type for %s", g.URI)

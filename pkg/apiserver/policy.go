@@ -17,8 +17,13 @@ limitations under the License.
 package apiserver
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/pkg/errors"
+	"io/ioutil"
+	"net/http"
+	"strings"
 )
 
 // Following restrictions apply for container contracts
@@ -205,7 +210,8 @@ func (e *EPG) Make() error {
 }
 
 func (e *EPG) getURI() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", e.Tenant, e.Name)
+	escName := strings.Replace(e.Name, "|", "%7c", -1)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", e.Tenant, escName)
 }
 
 func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) error {
@@ -248,4 +254,154 @@ func (e *EPG) getContractURIs(contracts []string) map[string]bool {
 	}
 
 	return result
+}
+
+func (e *EPG) FromMo(mo *gbpBaseMo) error {
+	if mo.Subject != subjEPG {
+		return fmt.Errorf("Mo class %s is not epg", mo.Subject)
+	}
+
+	e.Name = mo.GetStringProperty(propName)
+	comps := strings.Split(mo.URI, "/")
+	if len(comps) < 4 {
+		return fmt.Errorf("Malformed URI %s", mo.URI)
+	}
+
+	e.Tenant = comps[3]
+
+	// get provided contracts
+	readContracts := func(sub string) []string {
+		var res []string
+		for _, c := range mo.Children {
+			cMo := MoDB[c]
+			if cMo == nil {
+				log.Errorf("Child %s not found", c)
+				continue
+			}
+			if cMo != nil && cMo.isRef && cMo.Subject == sub {
+				target, err := cMo.getTarget()
+				if err != nil {
+					log.Errorf("Target not found for %s", c)
+					continue
+
+				}
+
+				comps := strings.Split(target, "/")
+				if len(comps) != 7 {
+					log.Errorf("Malformed uri %s, %q", target, comps)
+					continue
+				}
+
+				res = append(res, comps[5])
+			}
+		}
+
+		return res
+	}
+
+	e.ProvContracts = readContracts(subjEPGToPC)
+	e.ConsContracts = readContracts(subjEPGToCC)
+
+	return nil
+}
+
+// postEpg rest handler to create an epg
+func postEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	content, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "ioutil.ReadAll")
+	}
+
+	epg := &EPG{}
+	err = json.Unmarshal(content, epg)
+	if err != nil {
+		return nil, errors.Wrap(err, "json.Unmarshal")
+	}
+
+	err = epg.Make()
+	if err != nil {
+		return nil, errors.Wrap(err, "epg.Make")
+	}
+
+	return &PostResp{URI: epg.getURI()}, nil
+}
+
+func listEpgs(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	var resp ListResp
+
+	for _, mo := range MoDB {
+		if mo.Subject == subjEPG {
+			resp.URIs = append(resp.URIs, mo.URI)
+		}
+	}
+
+	return &resp, nil
+}
+
+func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	params := r.URL.Query()
+	uri, ok := params["key"]
+	if !ok {
+		return nil, fmt.Errorf("key is missing")
+	}
+
+	k := strings.Replace(uri[0], "|", "%7c", -1)
+	eMo, ok := MoDB[k]
+	if !ok {
+		return nil, fmt.Errorf("%s - Not found", k)
+	}
+
+	e := &EPG{}
+	e.FromMo(eMo)
+
+	log.Infof("Key: %s", uri)
+	return e, nil
+}
+
+// postContracte rest handler to create an epg
+func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	content, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "ioutil.ReadAll")
+	}
+
+	c := &Contract{}
+	err = json.Unmarshal(content, c)
+	if err != nil {
+		return nil, errors.Wrap(err, "json.Unmarshal")
+	}
+
+	err = c.Make()
+	if err != nil {
+		return nil, errors.Wrap(err, "c.Make")
+	}
+
+	return &PostResp{URI: c.getURI()}, nil
+}
+func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	params := r.URL.Query()
+	uri, ok := params["key"]
+	if !ok {
+		return nil, fmt.Errorf("key is missing")
+	}
+
+	k := strings.Replace(uri[0], "|", "%7c", -1)
+	delete(MoDB, k)
+	log.Infof("%s deleted", k)
+	return nil, nil
 }

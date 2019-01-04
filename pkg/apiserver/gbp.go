@@ -38,8 +38,6 @@ type gbpBaseMo struct {
 }
 
 func (g *gbpBaseMo) save() {
-	gMutex.Lock()
-	defer gMutex.Unlock()
 
 	// json fixup
 	if g.Children == nil {
@@ -360,8 +358,6 @@ type GBPRoutingDomain struct {
 }
 
 func getEncapClass() (uint, uint) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
 	e, c := encapID, classID
 	encapID++
 	classID++
@@ -604,5 +600,5 @@ func DoAll() {
 		ioutil.WriteFile(fileName, policyJson, 0644)
 	}
 
-//	fmt.Printf("policy.json: %s", policyJson)
+	//	fmt.Printf("policy.json: %s", policyJson)
 }
