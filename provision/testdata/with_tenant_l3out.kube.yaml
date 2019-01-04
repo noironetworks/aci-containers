@@ -258,7 +258,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: aci-containers-host
-          image: noiro/aci-containers-host:1.9r38
+          image: noiro/aci-containers-host:1.9r43
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -290,7 +290,7 @@ spec:
               path: /status
               port: 8090
         - name: opflex-agent
-          image: noiro/opflex:1.9r69
+          image: noiro/opflex:1.9r80
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -308,7 +308,7 @@ spec:
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
         - name: mcast-daemon
-          image: noiro/opflex:1.9r69
+          image: noiro/opflex:1.9r80
           command: ["/bin/sh"]
           args: ["/usr/local/bin/launch-mcastdaemon.sh"]
           imagePullPolicy: Always
@@ -457,7 +457,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: aci-containers-controller
-          image: noiro/aci-containers-controller:1.9r38
+          image: noiro/aci-containers-controller:1.9r43
           imagePullPolicy: Always
           volumeMounts:
             - name: controller-config-volume
