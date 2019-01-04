@@ -26,6 +26,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/noironetworks/aci-containers/pkg/objdb"
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 const (
@@ -192,6 +193,7 @@ func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
 	addGBPGet(getR)
 	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
 	getR.PathPrefix("/api/node").HandlerFunc(rHandler)
+	getR.PathPrefix("/api/class").HandlerFunc(rHandler)
 	r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
 	r.NotFoundHandler = &nfh{}
 	tlsCfg, err := getTLSCfg()
@@ -233,8 +235,12 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Infof("handleRead: %s", uri)
 	content, err := s.objapi.GetRaw(uri)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	//	http.Error(w, err.Error(), http.StatusInternalServerError)
+	//	return
+		nullResp := &apicapi.ApicResponse{
+                SubscriptionId: "4-3-3",
+        	}
+		content, _ = json.Marshal(nullResp)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
