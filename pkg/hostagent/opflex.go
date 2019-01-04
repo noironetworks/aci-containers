@@ -216,7 +216,7 @@ func (agent *HostAgent) updateOpflexConfig() {
 	if newNodeConfig == nil {
 		newNodeConfig = &HostAgentNodeConfig{}
 		// FIXME: derive address at runtime
-		newNodeConfig.OpflexPeerIp = "1.100.201.11"
+		newNodeConfig.OpflexPeerIp = "127.0.0.1"
 		agent.log.Info("Node configuration autodiscovery failed, running in Virtual mode")
 	}
 	var update bool

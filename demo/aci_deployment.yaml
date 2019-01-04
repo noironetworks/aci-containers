@@ -307,6 +307,20 @@ spec:
               mountPath: /usr/local/etc/opflex-agent-ovs/base-conf.d
             - name: opflex-config-volume
               mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
+        - name: opflex-server
+          image: challa/opflexserver:latest
+          imagePullPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          ports:
+            - containerPort: 8009
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - name: opflex-server-config-volume
+              mountPath: /usr/local/etc/opflex-server
         - name: mcast-daemon
           image: challa/opflex:latest
           command: ["/bin/sh"]
@@ -348,6 +362,7 @@ spec:
             items:
               - key: opflex-agent-config
                 path: local.conf
+        - name: opflex-server-config-volume
 ---
 apiVersion: apps/v1
 kind: DaemonSet
