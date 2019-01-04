@@ -26,11 +26,28 @@ import (
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/spf13/cobra"
 )
+
+func getNodes() (*v1.NodeList, error) {
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		fmt.Fprintln(os.Stderr, "Could not get kubeclient", nil)
+		return nil, nil
+	}
+
+	nodes, err :=
+		kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
+	}
+
+	return nodes, err
+}
 
 func execKubectl(args []string, out io.Writer) error {
 	baseargs := []string{"--kubeconfig", kubeconfig, "--context", context}
@@ -58,6 +75,68 @@ type reportNodeCmd struct {
 	selector string
 	args     []string
 	argFunc  nodeCmdArgFunc
+}
+
+func addFileToTarball(path string, tarWriter *tar.Writer) error {
+	file, err := os.Open(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Can not open the file", path)
+		return err
+	}
+	defer file.Close()
+
+	if stat, err := file.Stat(); err == nil {
+		// now lets create the header as needed for this file within the tarball
+		header := new(tar.Header)
+		header.Name = "cluster-report/hostfiles.tar"
+		header.Size = stat.Size()
+		header.Mode = 0644
+		header.ModTime = time.Now()
+		// write the header to the tarball archive
+		if err := tarWriter.WriteHeader(header); err != nil {
+			fmt.Fprintln(os.Stderr, "Can not write file %s header to tarball", path)
+			return err
+		}
+		// copy the file data to the tarball
+		if _, err := io.Copy(tarWriter, file); err != nil {
+			fmt.Fprintln(os.Stderr, "Can not copy file %s to tarball", path)
+			return err
+		}
+	}
+	return nil
+}
+
+func createTarForClusterReport(tarWriter *tar.Writer) error {
+	// Create tar file out for all kubectl cp files
+	createTarCmd := exec.Command("tar", "-cvf", "hostfiles.tar", "cluster-report/hostfiles/")
+	err := createTarCmd.Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error while running command")
+		return err
+	}
+
+	// write hostfiles.tar file to cluster-report tar
+	err = addFileToTarball("hostfiles.tar", tarWriter)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not add files.tar to cluster-report tar")
+		return err
+	}
+
+	// Delete tar and cluster-report/files dir
+	deleteCmds := []string{"rm -rf cluster-report/",
+		"rm -rf hostfiles.tar",
+	}
+
+	for _, cmd := range deleteCmds {
+		cmdOp := exec.Command("/bin/sh", "-c", cmd)
+		err = cmdOp.Run()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error while running command ", cmd)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func clusterReport(cmd *cobra.Command, args []string) {
@@ -121,11 +200,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 	}
 
-	nodes, err :=
-		kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
-	}
+	// Get all nodes of k8s cluster
+	nodes, _ := getNodes()
 
 	nodeItems := []reportNodeCmd{
 		{
@@ -205,6 +281,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 				}
 			}
 
+			// Prepare kubectl cp command for opflex-agent-ovs
+			tempName := fmt.Sprintf("cluster-report/hostfiles/node-%s/opflex-agent-ovs", node.Name)
+			cmds = append(cmds, reportCmdElem{
+				name: tempName,
+				args: []string{"cp", systemNamespace + "/" + podName + ":" +
+					"/usr/local/var/lib/opflex-agent-ovs", tempName},
+			})
+
 			cmds = append(cmds, reportCmdElem{
 				name: fmt.Sprintf(nodeItem.path, node.Name),
 				args: nodeItem.argFunc(systemNamespace, podName,
@@ -244,6 +328,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		})
 		buffer.WriteTo(tarWriter)
 	}
+
+	createTarForClusterReport(tarWriter)
 
 	tarWriter.Close()
 	gzWriter.Close()
@@ -342,8 +428,7 @@ func nodeCmd(cmd *cobra.Command, args []string, selector string,
 	}
 
 	if allNodes {
-		nodeObjs, err :=
-			kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		nodeObjs, err := getNodes()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
 		}
