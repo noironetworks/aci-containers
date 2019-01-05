@@ -45,6 +45,11 @@ docker run -w /usr/local $DOCKER_USER/opflex-build /bin/sh -c 'find lib \(\
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
 	  | tar -x -C build/opflex/dist
+docker run -w /usr $DOCKER_USER/opflex-build /bin/sh -c 'find lib \(\
+         -name '\''libexecinfo.so.*'\'' -o \
+          \) ! -name '\''*debug'\'' \
+         | xargs tar -c ' \
+        | tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_USER/opflex-build /bin/sh -c \
 	'find lib bin -name '\''*.debug'\'' | xargs tar -cz' \
 	 > opflex-debuginfo.tar.gz
