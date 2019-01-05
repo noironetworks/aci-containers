@@ -31,6 +31,7 @@ type cliOpts struct {
 	etcdDir       string
 	etcdPort      string
 	apiListenPort string
+	insecurePort  string
 }
 
 func main() {
@@ -44,6 +45,8 @@ func main() {
 		"Client port for etcd")
 	flagSet.StringVar(&opts.apiListenPort, "api-listen-port", "8899",
 		"Listen port for moserver")
+	flagSet.StringVar(&opts.insecurePort, "insecure-port", "",
+		"Listen port for moserver")
 	err := flagSet.Parse(os.Args[1:])
 	if err != nil {
 		log.Fatalf("Failed to parse command. Error: %s", err)
@@ -51,7 +54,12 @@ func main() {
 
 	etcdURLs := startEtcd(&opts)
 	lPort := fmt.Sprintf(":%s", opts.apiListenPort)
-	_, err = apiserver.StartNewServer(etcdURLs, lPort)
+	insPort := ""
+	if opts.insecurePort != "" {
+		insPort = fmt.Sprintf(":%s", opts.insecurePort)
+	}
+
+	_, err = apiserver.StartNewServer(etcdURLs, lPort, insPort)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
 	}

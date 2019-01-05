@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/noironetworks/aci-containers/pkg/objdb"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/objdb"
 )
 
 const (
@@ -153,7 +154,7 @@ type nfh struct {
 func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
-func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
+func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte, error) {
 	// create an etcd client
 
 	log.Infof("=> Creating new client ..")
@@ -208,6 +209,20 @@ func StartNewServer(etcdURLs []string, listenPort string) ([]byte, error) {
 		// Bind to a port and pass our router in
 		log.Fatal(tlsSrv.ListenAndServeTLS("", ""))
 	}()
+
+	if insecurePort != "" {
+		go func() {
+			srv := &http.Server{
+				Handler: r,
+				Addr:    insecurePort,
+				// Good practice: enforce timeouts for servers you create!
+				WriteTimeout: 15 * time.Second,
+				ReadTimeout:  15 * time.Second,
+			}
+
+			log.Fatal(srv.ListenAndServe())
+		}()
+	}
 	return tlsCfg.Certificates[0].Certificate[0], nil
 }
 
@@ -235,11 +250,11 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Infof("handleRead: %s", uri)
 	content, err := s.objapi.GetRaw(uri)
 	if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
+		//	http.Error(w, err.Error(), http.StatusInternalServerError)
+		//	return
 		nullResp := &apicapi.ApicResponse{
-                SubscriptionId: "4-3-3",
-        	}
+			SubscriptionId: "4-3-3",
+		}
 		content, _ = json.Marshal(nullResp)
 	}
 

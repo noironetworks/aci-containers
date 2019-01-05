@@ -211,6 +211,7 @@ func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string
 	}
 
 	uri, err := ep.Add()
+	DoAll()
 	return &PostResp{URI: uri}, err
 }
 
@@ -276,5 +277,6 @@ func deleteEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]stri
 
 	log.Infof("deleteEndpoint - VTEP: %s", ep.VTEP)
 	err = ep.Delete()
+	DoAll()
 	return nil, err
 }
