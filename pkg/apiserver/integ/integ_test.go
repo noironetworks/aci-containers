@@ -74,7 +74,7 @@ func TestBasic(t *testing.T) {
 	}
 
 	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
-	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort)
+	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")
 	if err != nil {
 		t.Errorf("Starting api server: %v", err)
 	}

@@ -580,13 +580,13 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 
 func init() {
 	CreateRoot()
-}
-func DoAll() {
 	CreateDefSubnet("101.1.1.1/23")
 	CreateDefVrf()
 	CreateDefBD()
 	CreateEPG(defEPGName, defEPGURI)
+}
 
+func DoAll() {
 	moList := make([]*gbpCommonMo, 0, len(MoDB))
 	for _, mo := range MoDB {
 		moList = append(moList, &mo.gbpCommonMo)

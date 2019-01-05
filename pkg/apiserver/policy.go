@@ -326,6 +326,7 @@ func postEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (in
 		return nil, errors.Wrap(err, "epg.Make")
 	}
 
+	DoAll()
 	return &PostResp{URI: epg.getURI()}, nil
 }
 
@@ -388,6 +389,7 @@ func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string
 		return nil, errors.Wrap(err, "c.Make")
 	}
 
+	DoAll()
 	return &PostResp{URI: c.getURI()}, nil
 }
 func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
@@ -403,5 +405,6 @@ func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string
 	k := strings.Replace(uri[0], "|", "%7c", -1)
 	delete(MoDB, k)
 	log.Infof("%s deleted", k)
+	DoAll()
 	return nil, nil
 }
