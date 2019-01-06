@@ -121,7 +121,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 var opflexConfigBase = initTempl("opflex-config-base", `{
     "opflex": {
         "name": "{{.NodeName | js}}",
-        "domain": "{{print "demo" | js}}",
+        "domain": "{{print "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid" | js}}",
         "peers": [
             {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
         ]
