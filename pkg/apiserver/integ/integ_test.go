@@ -223,14 +223,14 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:          "kubernetes|kube-system",
-			Tenant:        "vk8s_1",
+			Tenant:        "kube",
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},
 
 		{
 			Name:          "kubernetes|kube-default",
-			Tenant:        "vk8s_1",
+			Tenant:        "kube",
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},

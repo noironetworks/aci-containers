@@ -19,6 +19,7 @@ package apiserver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -77,6 +78,7 @@ const (
 	propMcast         = "multicastGroupIP"
 	defEPGURI         = "/PolicyUniverse/PolicySpace/common/GbpEpGroup/default/"
 	defEPGName        = "default"
+	defPConfigName    = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
 )
 
 type GBPMo interface {
@@ -173,6 +175,36 @@ func (g *gbpCommonMo) getTarget() (string, error) {
 	return "", fmt.Errorf("Not found")
 }
 
+func escapeName(n string) string {
+	escs := []struct {
+			Orig string
+			Escape string
+		} {
+			{
+				Orig: "/",
+				Escape: "%2f",
+			},
+			{
+				Orig: "[",
+				Escape: "%5b",
+			},
+			{
+				Orig: "]",
+				Escape: "%5d",
+			},
+			{
+				Orig: "|",
+				Escape: "%7c",
+			},
+		}
+
+	for _, e := range escs {
+		n = strings.Replace(n, e.Orig, e.Escape, -1)
+	}
+
+	return n
+}
+
 func CreateRoot() {
 	// DmtreeRoot
 	rMo := &gbpBaseMo{
@@ -188,7 +220,7 @@ func CreateRoot() {
 		if name == "" {
 			cURI = fmt.Sprintf("%s%s/", p.URI, childSub)
 		} else {
-			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, name)
+			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, escapeName(name))
 		}
 		child := &gbpBaseMo{
 			gbpCommonMo{
@@ -220,13 +252,13 @@ func CreateRoot() {
 		log.Fatal("PolicyUniverse not found")
 	}
 
-	pcMo := createChild(puMo, "PlatformConfig", "demo")
+	pcMo := createChild(puMo, "PlatformConfig", defPConfigName)
 	pcProps := []Property{
 		{Name: "multicastGroupIP", Data: "225.1.2.3"},
 		{Name: "inventoryType", Data: "ON_LINK"},
 		{Name: "encapType", Data: "vxlan"},
 		{Name: "mode", Data: "intra_epg"},
-		{Name: "name", Data: "demo"},
+		{Name: "name", Data: defPConfigName},
 	}
 	pcMo.Properties = pcProps
 
@@ -243,7 +275,8 @@ func CreateRoot() {
 		log.Fatal("DomainConfig not found")
 	}
 
-	err := dcMo.AddRef("DomainConfigToConfigRSrc", "/PolicyUniverse/PlatformConfig/demo/")
+	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName))
+	err := dcMo.AddRef("DomainConfigToConfigRSrc", pConfURI)
 	if err != nil {
 		log.Fatalf("Failed to add DomainConfigToConfigRSrc - %v", err)
 	}
