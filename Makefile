@@ -97,7 +97,7 @@ goinstall:
 	${INSTALL_CMD} ${BASE}/cmd/hostagent
 	${INSTALL_CMD} ${BASE}/cmd/acikubectl
 
-dist/opflex-agent-cni: ${AGENTCNI_DEPS} 
+dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
@@ -153,6 +153,8 @@ check-controller:
 	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
 check-keyvalueservice:
 	${TEST_CMD} ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
+gometalintercheck:
+	@bash ./golang_checks.sh
 
 DEB_PKG_DIR=build-deb-pkg
 dsc: dist
@@ -174,4 +176,3 @@ deb: dist
 		dpkg-buildpackage -us -uc -rfakeroot -b
 	cp $(DEB_PKG_DIR)/*.deb .
 	rm -rf $(DEB_PKG_DIR)
-
