@@ -210,7 +210,7 @@ func (e *EPG) Make() error {
 }
 
 func (e *EPG) getURI() string {
-	escName := strings.Replace(e.Name, "|", "%7c", -1)
+	escName := escapeName(e.Name)
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", e.Tenant, escName)
 }
 

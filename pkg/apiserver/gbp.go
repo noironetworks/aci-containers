@@ -80,7 +80,7 @@ func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
 	targetName := targetMo.GetStringProperty(propName)
 	refMo := &gbpToMo{}
 	refMo.setSubject(refSubj)
-	refURI := fmt.Sprintf("%s%s/%s/", g.URI, refSubj, targetName)
+	refURI := fmt.Sprintf("%s%s/%s/", g.URI, refSubj, escapeName(targetName))
 	refMo.Make("", refURI)
 
 	p := RefProperty{
@@ -583,6 +583,7 @@ func init() {
 	CreateDefSubnet("101.1.1.1/23")
 	CreateDefVrf()
 	CreateDefBD()
+	CreateDefFD()
 	CreateEPG(defEPGName, defEPGURI)
 }
 
