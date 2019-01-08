@@ -150,6 +150,7 @@ func (c *Contract) addRule(r WLRule) error {
 
 	// add reference to filterMo
 	fMo.AddChild(toCF.URI)
+	toCF.SetParent(fMo.Subject, toCF.Subject, fMo.URI)
 
 	return nil
 }

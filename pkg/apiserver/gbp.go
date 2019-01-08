@@ -22,13 +22,14 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 )
 
-var encapID = uint(5000)
-var classID = uint(5000)
+var encapID = uint(7700000)
+var classID = uint(32000)
 var gMutex sync.Mutex
 var MoDB = make(map[string]*gbpBaseMo)
 
@@ -108,6 +109,8 @@ func (epg *GBPEpGroup) Make(name, uri string) error {
 	if err != nil {
 		return err
 	}
+	eic.AddProperty("multicastGroupIP", "225.107.24.233")
+	eic.SetParent(epg.Subject, eic.Subject, epg.URI)
 	epg.AddChild(eic.URI)
 	epg.save()
 	return nil
@@ -132,6 +135,7 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 		return err
 	}
 	bd.AddChild(eic.URI)
+	eic.SetParent(bd.Subject, eic.Subject, bd.URI)
 
 	// create subnets resource
 	netRs := &GBPBDToSubnets{}
@@ -147,6 +151,7 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 
 	netRs.AddProperty(propTarget, netsRef)
 	bd.AddChild(netRs.URI)
+	netRs.SetParent(bd.Subject, netRs.Subject, bd.URI)
 
 	// create GbpBridgeDomainToNetworkRSrc
 	bdnw := &GBPBDToVrf{}
@@ -158,6 +163,7 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 		RefURI:  defVrfURI,
 	}
 	bdnw.AddProperty(propTarget, vrfRef)
+	bdnw.SetParent(bd.Subject, bdnw.Subject, bd.URI)
 	bd.AddChild(bdnw.URI)
 	bd.save()
 	return nil
@@ -362,12 +368,8 @@ func getEncapClass() (uint, uint) {
 	encapID++
 	classID++
 
-	if encapID > 64000 {
-		encapID = 5000
-	}
-
 	if classID > 64000 {
-		classID = 5000
+		classID = 32000
 	}
 
 	return e, c
@@ -401,6 +403,7 @@ func (rd *GBPRoutingDomain) Make(name, uri string) error {
 		return err
 	}
 	rd.AddChild(eic.URI)
+	eic.SetParent(rd.Subject, eic.Subject, rd.URI)
 	rd.save()
 	return nil
 }
@@ -462,7 +465,7 @@ func (s *GBPSubnet) Make(name, uri string) error {
 	s.AddProperty(propGw, fields[0])
 	s.AddProperty(propPrefix, pLen)
 	s.AddProperty(propMac, defRMac)
-	s.AddProperty(propNw, ipnet.String())
+	s.AddProperty(propNw, strings.Split(ipnet.String(), "/")[0])
 	s.save()
 	return nil
 }
@@ -503,10 +506,16 @@ func (ss *GBPFloodMcast) Validate() error {
 }
 
 func CreateDefSubnet(subnet string) {
-	snUri := strings.Replace(subnet, "/", "%2f", 1)
-	uri := filepath.Join(defSubnetsURI, snUri)
+	// create subnet set
+	ss := &GBPSubnetSet{}
+	ss.Make("allsubnets", defSubnetsURI)
+	sn := escapeName(subnet)
+	uri := fmt.Sprintf("%sGbpSubnet/%s/", defSubnetsURI, sn)
 	s := &GBPSubnet{}
 	s.Make(subnet, uri)
+
+	ss.AddChild(s.URI)
+	s.SetParent(subjSubnetSet, subjSubnet, ss.URI)
 }
 
 func CreateDefVrf() {
@@ -542,7 +551,9 @@ func CreateDefFD() {
 	fd := &GBPFloodDomain{}
 	fd.Make(defFDName, defFDURI)
 	fd.AddChild(fm.URI)
+	fm.SetParent(fd.Subject, fm.Subject, fd.URI)
 	fd.AddChild(bdRef.URI)
+	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.URI)
 
 	// set properties
 	fd.AddProperty("unknownFloodMode", "drop")
@@ -564,6 +575,8 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 
 	fdRef.AddProperty(propTarget, to)
 	epg.AddChild(fdRef.URI)
+	// setparent
+	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.URI)
 
 	snetRef := GBPEPGToSnet{}
 	snetRef.setSubject(subjEPGToSnet)
@@ -575,31 +588,100 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 
 	snetRef.AddProperty(propTarget, tosnet)
 	epg.AddChild(snetRef.URI)
+	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.URI)
 	return MoDB[uri]
 }
 
 func init() {
 	CreateRoot()
-	CreateDefSubnet("101.1.1.1/23")
+	CreateDefSubnet("10.2.56.1/21")
 	CreateDefVrf()
 	CreateDefBD()
 	CreateDefFD()
 	CreateEPG(defEPGName, defEPGURI)
 }
 
-func DoAll() {
-	moList := make([]*gbpCommonMo, 0, len(MoDB))
-	for _, mo := range MoDB {
-		moList = append(moList, &mo.gbpCommonMo)
+func addToMap(sum, addend map[string]*gbpCommonMo) {
+	for k, m := range addend {
+		sum[k] = m
 	}
+}
+
+func DoAll() {
 
 	for vtep := range InvDB {
-		invMos := GetInvMoList(vtep)
-		invMos = append(invMos, moList...)
-		policyJson, _ := json.MarshalIndent(invMos, "", "    ")
+		moMap := make(map[string]*gbpCommonMo)
+		for k, mo := range MoDB {
+			moMap[k] = &mo.gbpCommonMo
+		}
+		addToMap(moMap, GetInvMoMap(vtep))
 		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
-		ioutil.WriteFile(fileName, policyJson, 0644)
+		printSorted(moMap, fileName)
 	}
 
 	//	fmt.Printf("policy.json: %s", policyJson)
+}
+
+func VerifyFile(pFile string, print bool) {
+	data, err := ioutil.ReadFile(pFile)
+	if err != nil {
+		fmt.Printf("Reading %s - %v", pFile, err)
+		return
+	}
+
+	var moList []gbpCommonMo
+
+	err = json.Unmarshal(data, &moList)
+	if err != nil {
+		fmt.Printf("Decoding %s - %v", pFile, err)
+		return
+	}
+
+	db := make(map[string]*gbpCommonMo)
+
+	for _, m := range moList {
+		mm := new(gbpCommonMo)
+		*mm = m
+		db[m.URI] = mm
+	}
+
+	for _, m := range moList {
+		err = m.Verify(db)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
+
+	}
+
+	if print {
+		printSorted(db, pFile+".sorted")
+	}
+}
+
+func printSorted(mos map[string]*gbpCommonMo, outFile string) {
+	var keys []string
+
+	for k := range mos {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	var sortedMos []*gbpCommonMo
+
+	for _, kk := range keys {
+		m, ok := mos[kk]
+		if !ok {
+			fmt.Printf("ERROR: missing mo")
+			continue
+		} else {
+			//			fmt.Printf("Appending mo %s\n", m.URI)
+		}
+		sortedMos = append(sortedMos, m)
+	}
+	policyJson, err := json.MarshalIndent(sortedMos, "", "    ")
+	if err != nil {
+		fmt.Printf("ERROR: %v", err)
+	}
+	ioutil.WriteFile(outFile, policyJson, 0644)
 }

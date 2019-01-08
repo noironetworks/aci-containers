@@ -19,8 +19,9 @@ package apiserver
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	log "github.com/Sirupsen/logrus"
+	"github.com/davecgh/go-spew/spew"
+	"strings"
 )
 
 const (
@@ -35,7 +36,7 @@ const (
 	subjEPGToCC       = "GbpEpGroupToConsContractRSrc"
 	subjEPGToPC       = "GbpEpGroupToProvContractRSrc"
 	subjFD            = "GbpFloodDomain"
-	subjFDMcast       = "GbpFloodContext"
+	subjFDMcast       = "GbpeFloodContext"
 	subjFDToBD        = "GbpFloodDomainToNetworkRSrc"
 	subjBD            = "GbpBridgeDomain"
 	subjEIC           = "GbpeInstContext"
@@ -115,6 +116,71 @@ type gbpCommonMo struct {
 	isRef      bool
 }
 
+func (g *gbpCommonMo) needParent() bool {
+	switch g.Subject {
+	case subjContract:
+		return false
+	case subjEPG:
+		return false
+	case subjVRF:
+		return false
+	case subjFD:
+		return false
+	case subjBD:
+		return false
+	case subjL24Class:
+		return false
+	case subjAction:
+		return false
+	case subjSubnetSet:
+		return false
+	}
+
+	return true
+}
+
+func (g *gbpCommonMo) Verify(db map[string]*gbpCommonMo) error {
+	// verify parent is set
+	if g.needParent() {
+		if g.ParentSub == "" || g.ParentURI == "" || g.ParentRel == "" {
+			return fmt.Errorf("%s -- parent not set", g.URI)
+		}
+	}
+
+	// verify children are present in db
+	for _, u := range g.Children {
+		_, ok := db[u]
+		if !ok {
+			return fmt.Errorf("%s -- child %s not present", g.URI, u)
+		}
+	}
+
+	// verify references are present
+	for _, p := range g.Properties {
+		if p.Name == propTarget {
+			var ref RefProperty
+			js, err := json.Marshal(p.Data)
+			if err != nil {
+				spew.Dump(p)
+				return fmt.Errorf("%s -- bad target", g.URI)
+			}
+
+			err = json.Unmarshal(js, &ref)
+			if err != nil {
+				spew.Dump(p)
+				return fmt.Errorf("%s -- bad target", g.URI)
+			}
+
+			_, ok := db[ref.RefURI]
+			if !ok {
+				return fmt.Errorf("%s -- reference %s not present", g.URI, ref.RefURI)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (g *gbpCommonMo) FromJSON(j []byte) error {
 	return json.Unmarshal(j, g)
 }
@@ -177,26 +243,26 @@ func (g *gbpCommonMo) getTarget() (string, error) {
 
 func escapeName(n string) string {
 	escs := []struct {
-			Orig string
-			Escape string
-		} {
-			{
-				Orig: "/",
-				Escape: "%2f",
-			},
-			{
-				Orig: "[",
-				Escape: "%5b",
-			},
-			{
-				Orig: "]",
-				Escape: "%5d",
-			},
-			{
-				Orig: "|",
-				Escape: "%7c",
-			},
-		}
+		Orig   string
+		Escape string
+	}{
+		{
+			Orig:   "/",
+			Escape: "%2f",
+		},
+		{
+			Orig:   "[",
+			Escape: "%5b",
+		},
+		{
+			Orig:   "]",
+			Escape: "%5d",
+		},
+		{
+			Orig:   "|",
+			Escape: "%7c",
+		},
+	}
 
 	for _, e := range escs {
 		n = strings.Replace(n, e.Orig, e.Escape, -1)
@@ -275,13 +341,14 @@ func CreateRoot() {
 		log.Fatal("DomainConfig not found")
 	}
 
+	dcToCR := createChild(dcMo, "DomainConfigToConfigRSrc", "")
 	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName))
-	err := dcMo.AddRef("DomainConfigToConfigRSrc", pConfURI)
-	if err != nil {
-		log.Fatalf("Failed to add DomainConfigToConfigRSrc - %v", err)
+	refP := RefProperty{Subject: "PlatformConfig", RefURI: pConfURI}
+	dcToCR.AddProperty(propTarget, refP)
+
+	dcToREI := createChild(dcMo, "DomainConfigToRemoteEndpointInventoryRSrc", "")
+	refP = RefProperty{Subject: "InvRemoteEndpointInventory",
+		RefURI: "/InvUniverse/InvRemoteEndpointInventory/",
 	}
-	err = dcMo.AddRef("DomainConfigToRemoteEndpointInventoryRSrc", "/InvUniverse/InvRemoteEndpointInventory/")
-	if err != nil {
-		log.Fatalf("Failed to add DomainConfigToRemoteEndpointInventoryRSrc - %v", err)
-	}
+	dcToREI.AddProperty(propTarget, refP)
 }
