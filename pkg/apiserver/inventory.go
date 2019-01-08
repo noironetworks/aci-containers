@@ -65,15 +65,15 @@ func removeInvMo(vtep, uri string) {
 	}
 }
 
-func GetInvMoList(vtep string) []*gbpCommonMo {
-	res := make([]*gbpCommonMo, 0, 64)
+func GetInvMoMap(vtep string) map[string]*gbpCommonMo {
+	res := make(map[string]*gbpCommonMo)
 	for k, m := range InvDB {
 		if k == vtep {
 			continue // skip this vtep
 		}
 
-		for _, mo := range m {
-			res = append(res, &mo.gbpCommonMo)
+		for kk, mo := range m {
+			res[kk] = &mo.gbpCommonMo
 		}
 	}
 
