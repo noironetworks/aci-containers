@@ -16,7 +16,6 @@ package hostagent
 
 import (
 	"bytes"
-	"errors"
 	"io/ioutil"
 	"net"
 	"os"
@@ -122,7 +121,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 var opflexConfigBase = initTempl("opflex-config-base", `{
     "opflex": {
         "name": "{{.NodeName | js}}",
-        "domain": "{{print "comp/prov-" .AciVmmDomainType "/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
+        "domain": "{{print "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid" | js}}",
         "peers": [
             {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
         ]
@@ -215,7 +214,10 @@ func (agent *HostAgent) updateOpflexConfig() {
 
 	newNodeConfig := agent.discoverHostConfig()
 	if newNodeConfig == nil {
-		panic(errors.New("Node configuration autodiscovery failed"))
+                // FIXME
+                newNodeConfig = &HostAgentNodeConfig{}
+                newNodeConfig.OpflexPeerIp = "127.0.0.1"
+                agent.log.Info("Node configuration autodiscovery failed, running in Virtual mode")
 	}
 	var update bool
 

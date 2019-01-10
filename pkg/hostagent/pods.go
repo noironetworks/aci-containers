@@ -337,6 +337,8 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			} else {
 				ep.EgPolicySpace = epGroup.PolicySpace
 			}
+                        // FIXME
+                        ep.EgPolicySpace = "kube"
 			if epGroup.AppProfile != "" {
 				ep.EndpointGroup = epGroup.AppProfile + "|" + epGroup.Name
 			} else {
