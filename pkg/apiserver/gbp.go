@@ -21,11 +21,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	osexec "os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
+)
+
+const (
+	gbpUpdPath = "/usr/local/bin/gbp_update.sh"
 )
 
 var encapID = uint(7700000)
@@ -617,6 +624,12 @@ func DoAll() {
 		addToMap(moMap, GetInvMoMap(vtep))
 		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
 		printSorted(moMap, fileName)
+		out, err := osexec.Command(gbpUpdPath, vtep).CombinedOutput()
+		if err != nil {
+			log.Errorf("%s returned %v", gbpUpdPath, err)
+		} else {
+			log.Infof("wrote vtep %s -- %s", vtep, out)
+		}
 	}
 
 	//	fmt.Printf("policy.json: %s", policyJson)
