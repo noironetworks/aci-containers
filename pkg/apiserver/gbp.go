@@ -605,7 +605,8 @@ func init() {
 	CreateDefVrf()
 	CreateDefBD()
 	CreateDefFD()
-	CreateEPG(defEPGName, defEPGURI)
+	uri := defEPGURI + escapeName(defEPGName) + "/"
+	CreateEPG(defEPGName, uri)
 }
 
 func addToMap(sum, addend map[string]*gbpCommonMo) {
