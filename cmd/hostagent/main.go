@@ -46,6 +46,8 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
+
+		logrus.Infof("config: %+v", *config)
 	}
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)

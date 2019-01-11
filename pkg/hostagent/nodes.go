@@ -108,6 +108,15 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 		}
 	}
 
+	if agent.vtepIP == "" {
+		for _, a := range node.Status.Addresses {
+			if a.Type == v1.NodeInternalIP {
+				agent.vtepIP = a.Address
+				agent.log.Infof("vtepIP: %s", agent.vtepIP)
+			}
+		}
+	}
+
 	agent.indexMutex.Unlock()
 
 	if updateServices {

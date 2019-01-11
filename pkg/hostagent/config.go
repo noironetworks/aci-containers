@@ -61,6 +61,9 @@ type HostAgentNodeConfig struct {
 
 	// Anycast IP used for OpFlex communication
 	OpflexPeerIp string `json:"opflex-peer-ip,omitempty"`
+
+	// Registry Server URL -- for updating remote EP information
+	RegistryURL string `json:"registry-url,omitempty"`
 }
 
 // Configuration for the host agent

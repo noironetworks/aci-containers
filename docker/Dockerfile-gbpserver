@@ -1,0 +1,4 @@
+FROM alpine:3.7
+RUN apk upgrade --no-cache
+COPY dist-static/gbpserver /usr/local/bin/
+ENTRYPOINT ["/usr/local/bin/gbpserver", "-api-listen-port", "443", "-insecure-port", "14443"]
