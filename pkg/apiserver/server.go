@@ -155,8 +155,10 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
 func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte, error) {
-	// create an etcd client
+	// init inventory
+	InitInvDB()
 
+	// create an etcd client
 	log.Infof("=> Creating new client ..")
 	ec, err := objdb.NewClient(etcdURLs, root)
 	if err != nil {

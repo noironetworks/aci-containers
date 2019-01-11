@@ -53,6 +53,8 @@ vendor-rebuild: Gopkg.lock Gopkg.toml
 vendor: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
 
+clean-dist-static:
+	rm -rf dist-static/*
 clean-dist:
 	rm -rf dist
 clean-vendor:

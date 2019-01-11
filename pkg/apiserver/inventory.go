@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	osexec "os/exec"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -34,9 +35,27 @@ type gbpInvMo struct {
 const (
 	epInvURI     = "/InvUniverse/InvRemoteEndpointInventory/"
 	subjRemoteEP = "InvRemoteInventoryEp"
+	getVtepsPath = "/usr/local/bin/get_vteps.sh"
 )
 
 var InvDB = make(map[string]map[string]*gbpInvMo)
+
+func InitInvDB() {
+	// fetch VTEPs and init them
+	vtepList, err := osexec.Command(getVtepsPath).Output()
+	if err != nil {
+		log.Errorf("Getting vteps: %v", err)
+		return
+	}
+
+	vteps := strings.TrimSuffix(string(vtepList), "\n")
+	for _, vtep := range strings.Split(vteps, "\n") {
+		log.Infof("Adding VTEP %s", vtep)
+		InvDB[vtep] = make(map[string]*gbpInvMo)
+	}
+
+	DoAll()
+}
 
 func (g *gbpInvMo) save(vtep string) {
 	_, ok := InvDB[vtep]
