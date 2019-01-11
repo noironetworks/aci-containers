@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/apiserver"
 )
 
 type opflexEndpoint struct {
@@ -55,6 +57,33 @@ type opflexEndpoint struct {
 	IfaceName         string `json:"interface-name,omitempty"`
 
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
+	remEP := &apiserver.Endpoint{
+			Uuid: ep.Uuid,
+			MacAddr: ep.MacAddress,
+			IPAddr: ep.IpAddress[0],
+			EPG: ep.EndpointGroup,
+			VTEP: agent.vtepIP,
+		}
+	content, err := json.Marshal(remEP)
+	if err != nil {
+		agent.log.Errorf("Marshal EP - %v", err)
+		return
+	}
+
+	u := fmt.Sprintf("%s/gbp/endpoints", saveRegURL)
+	agent.log.Debugf("URL: %s", u)
+	resp, err := http.Post(u, "application/json", strings.NewReader(string(content)))
+	if err != nil {
+		agent.log.Errorf("Post EP - %v", err)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		agent.log.Errorf("Post EP Status - %s", resp.StatusCode)
+	}
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -193,6 +222,7 @@ func (agent *HostAgent) syncEps() bool {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
 				} else if wrote {
+					agent.EPRegAdd(ep)
 					opflexEpLogger(agent.log, ep).
 						Info("Updated endpoint")
 				}
@@ -219,6 +249,8 @@ func (agent *HostAgent) syncEps() bool {
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
+			} else {
+				agent.EPRegAdd(ep)
 			}
 		}
 	}

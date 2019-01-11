@@ -8,7 +8,7 @@ EPRPCCLIENT_SRC=$(wildcard pkg/eprpcclient/*.go)
 HOSTAGENT_SRC=$(wildcard cmd/hostagent/*.go pkg/hostagent/*.go)
 AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard cmd/controller/*.go pkg/controller/*.go)
-MOSERVER_SRC=$(wildcard cmd/moserver/*.go pkg/apiserver/*.go)
+GBPSERVER_SRC=$(wildcard cmd/gbpserver/*.go pkg/apiserver/*.go)
 ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
 OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
 SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
@@ -30,6 +30,7 @@ OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC} vendor
 SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC} vendor
 DIST_FILE=aci-containers.tgz
 
+DOCKER_HUB_ID ?= noiro
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
@@ -103,7 +104,7 @@ dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
-dist/aci-containers-host-agent: ${HOSTAGENT_DEPS}
+dist/aci-containers-host-agent: ${HOSTAGENT_DEPS} 
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
 dist-static/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
@@ -113,8 +114,8 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/controller
 
-dist-static/moserver: ${MOSERVER_SRC}
-	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/moserver
+dist-static/gbpserver: ${GBPSERVER_SRC}
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
 dist/acikubectl: ${ACIKUBECTL_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 dist-static/acikubectl: ${ACIKUBECTL_DEPS}
@@ -130,10 +131,10 @@ dist/simpleservice: ${SIMPLESERVICE_DEPS}
 dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
 
-container-moserver: dist-static/moserver 
-	${DOCKER_BUILD_CMD} -t noiro/moserver -f ./docker/Dockerfile-moserver .
+container-gbpserver: dist-static/gbpserver 
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbpserver -f ./docker/Dockerfile-gbpserver .
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
-	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
 container-opflex-build-base:
