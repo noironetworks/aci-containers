@@ -48,7 +48,7 @@ func InitInvDB() {
 		return
 	}
 
-	vteps := strings.TrimSuffix(string(vtepList), "\n")
+	vteps := strings.TrimPrefix(strings.TrimSuffix(string(vtepList), "\n"), "\n")
 	for _, vtep := range strings.Split(vteps, "\n") {
 		log.Infof("Adding VTEP %s", vtep)
 		InvDB[vtep] = make(map[string]*gbpInvMo)
