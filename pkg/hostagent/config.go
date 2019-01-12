@@ -19,6 +19,7 @@ import (
 	"net"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 type route struct {
@@ -30,6 +31,22 @@ type cniNetConfig struct {
 	Subnet  cnitypes.IPNet `json:"subnet,omitempty"`
 	Gateway net.IP         `json:"gateway,omitempty"`
 	Routes  []route        `json:"routes,omitempty"`
+}
+
+type GroupDefaults struct {
+        // Default endpoint group annotation value
+        DefaultEg metadata.OpflexGroup `json:"default-endpoint-group,omitempty"`
+
+        // Default security group annotation value
+        DefaultSg []metadata.OpflexGroup `json:"default-security-group,omitempty"`
+
+        // Override default endpoint group assignments for a namespace
+        // map ns name -> group
+        NamespaceDefaultEg map[string]metadata.OpflexGroup `json:"namespace-default-endpoint-group,omitempty"`
+
+        // Override default security group assignments for namespaces
+        // map ns name -> slice of groups
+        NamespaceDefaultSg map[string][]metadata.OpflexGroup `json:"namespace-default-security-group,omitempty"`
 }
 
 type HostAgentNodeConfig struct {
@@ -49,6 +66,7 @@ type HostAgentNodeConfig struct {
 // Configuration for the host agent
 type HostAgentConfig struct {
 	HostAgentNodeConfig
+	GroupDefaults
 
 	// Run as child mode for executing network namespace commands in a
 	// separate process.
@@ -102,6 +120,9 @@ type HostAgentConfig struct {
 
 	// Permissions to set for endpoint RPC socket file. Octal string.
 	EpRpcSockPerms string `json:"ep-rpc-sock-perms,omitempty"`
+
+	// AciPrefix is used for generating aci names
+	AciPrefix string `json:"aci-prefix,omitempty"`
 
 	// Vlan used for ACI infrastructure traffic
 	AciInfraVlan uint `json:"aci-infra-vlan,omitempty"`

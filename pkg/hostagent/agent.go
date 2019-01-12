@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -46,6 +47,11 @@ type HostAgent struct {
 	endpointsInformer cache.SharedIndexInformer
 	serviceInformer   cache.SharedIndexInformer
 	nodeInformer      cache.SharedIndexInformer
+	nsInformer        cache.SharedIndexInformer
+	netPolInformer    cache.SharedIndexInformer
+	depInformer       cache.SharedIndexInformer
+	netPolPods        *index.PodSelectorIndex
+	depPods           *index.PodSelectorIndex
 
 	podNetAnnotation string
 	podIps           *ipam.IpCache
