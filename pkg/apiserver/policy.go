@@ -38,7 +38,7 @@ type IntRange struct {
 
 // WLRules are implicit allow
 type WLRule struct {
-	Protocol string
+	Protocol string  `json:"protocol,omitempty"`
 	Ports    IntRange `json:"ports,omitempty"`
 }
 
@@ -75,6 +75,7 @@ func (c *Contract) Make() error {
 	fmo.SetParent(subjSubject, subjRule, smo.URI)
 	fmo.AddProperty("direction", "bidirectional")
 	fmo.AddProperty("order", 1)
+	smo.AddChild(fmo.URI)
 	err := c.makeClassifiers()
 	if err != nil {
 		return err
