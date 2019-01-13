@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 	osexec "os/exec"
 	"path/filepath"
 	"sort"
@@ -39,6 +40,7 @@ var encapID = uint(7700000)
 var classID = uint(32000)
 var gMutex sync.Mutex
 var MoDB = make(map[string]*gbpBaseMo)
+var dbDataDir string
 
 // BaseMo methods refer the underlying MoDB.
 type gbpBaseMo struct {
@@ -599,7 +601,12 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	return MoDB[uri]
 }
 
-func init() {
+func InitDB(dataDir string) {
+	dbDataDir = dataDir
+	if restoreDB() == nil {
+		return
+	}
+
 	CreateRoot()
 	CreateDefSubnet("10.2.56.1/21")
 	CreateDefVrf()
@@ -609,19 +616,69 @@ func init() {
 	CreateEPG(defEPGName, uri)
 }
 
+func getMoFile() string {
+	return filepath.Join(dbDataDir, "mo.json")
+}
+
+func getInvDir() string {
+	return filepath.Join(dbDataDir, "inventory")
+}
+
+func restoreDB() error {
+	mofile := getMoFile()
+	data, err := ioutil.ReadFile(mofile)
+	if err != nil {
+		log.Infof("Reading %s - %v", mofile, err)
+		return err
+	}
+
+	var moList []gbpBaseMo
+
+	err = json.Unmarshal(data, &moList)
+	if err != nil {
+		log.Infof("Decoding %s - %v", mofile, err)
+		return err
+	}
+
+	for _, mo := range moList {
+		mm := new(gbpBaseMo)
+		*mm = mo
+		MoDB[mo.URI] = mm
+	}
+
+	invdir := getInvDir()
+	vteps, err := ioutil.ReadDir(invdir)
+	if err != nil {
+		log.Infof("Reading %s - %v", invdir, err)
+		return nil // ignore the error
+	}
+
+	for _, vtep := range vteps {
+		ReadInvFile(vtep.Name(), filepath.Join(invdir, vtep.Name()))
+	}
+
+	return nil
+}
+
 func addToMap(sum, addend map[string]*gbpCommonMo) {
 	for k, m := range addend {
 		sum[k] = m
 	}
 }
 
+func getMoMap() map[string]*gbpCommonMo {
+	moMap := make(map[string]*gbpCommonMo)
+	for k, mo := range MoDB {
+		moMap[k] = &mo.gbpCommonMo
+	}
+
+	return moMap
+}
+
 func DoAll() {
 
 	for vtep := range InvDB {
-		moMap := make(map[string]*gbpCommonMo)
-		for k, mo := range MoDB {
-			moMap[k] = &mo.gbpCommonMo
-		}
+		moMap := getMoMap()
 		addToMap(moMap, GetInvMoMap(vtep))
 		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
 		printSorted(moMap, fileName)
@@ -633,7 +690,36 @@ func DoAll() {
 		}
 	}
 
+	saveDBToFile()
+
 	//	fmt.Printf("policy.json: %s", policyJson)
+}
+func invToCommon(vtep string) map[string]*gbpCommonMo {
+	moMap := make(map[string]*gbpCommonMo)
+
+	invM := InvDB[vtep]
+	for k, mo := range invM {
+		moMap[k] = &mo.gbpCommonMo
+	}
+
+	return moMap
+}
+
+func saveDBToFile() {
+	invDir := getInvDir()
+	err := os.MkdirAll(invDir, 0777)
+	if err != nil {
+		log.Errorf("os.MkDirAll: %s - %v", invDir, err)
+		return
+	}
+
+	moMap := getMoMap()
+	printSorted(moMap, getMoFile())
+	for vtep := range InvDB {
+		vtepFile := filepath.Join(invDir, vtep)
+		printSorted(invToCommon(vtep), vtepFile)
+	}
+
 }
 
 func VerifyFile(pFile string, print bool) {

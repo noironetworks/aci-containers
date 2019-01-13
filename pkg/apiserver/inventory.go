@@ -40,6 +40,30 @@ const (
 
 var InvDB = make(map[string]map[string]*gbpInvMo)
 
+func ReadInvFile(vtep, file string) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		log.Errorf("Reading %s - %v", file, err)
+		return
+	}
+
+	var moList []gbpInvMo
+
+	err = json.Unmarshal(data, &moList)
+	if err != nil {
+		log.Infof("Decoding %s - %v", file, err)
+		return 
+	}
+
+	moMap := make(map[string]*gbpInvMo)
+	for _, mo := range moList {
+		mm := new(gbpInvMo)
+		*mm = mo
+		moMap[mo.URI] = mm
+	}
+	InvDB[vtep] = moMap
+}
+
 func InitInvDB() {
 	// fetch VTEPs and init them
 	vtepList, err := osexec.Command(getVtepsPath).Output()
@@ -51,7 +75,10 @@ func InitInvDB() {
 	vteps := strings.TrimPrefix(strings.TrimSuffix(string(vtepList), "\n"), "\n")
 	for _, vtep := range strings.Split(vteps, "\n") {
 		log.Infof("Adding VTEP %s", vtep)
-		InvDB[vtep] = make(map[string]*gbpInvMo)
+		_, ok := InvDB[vtep]
+		if !ok {
+			InvDB[vtep] = make(map[string]*gbpInvMo)
+		}
 	}
 
 	DoAll()
