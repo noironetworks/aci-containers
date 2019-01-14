@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	kubeTenant        = "vk8s_1"
+	kubeTenant        = "kube"
 	propName          = "name"
 	propIntraPolicy   = "intraGroupPolicy"
 	defIntraPolicy    = "allow"
