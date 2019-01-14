@@ -38,8 +38,8 @@ import (
 
 	"k8s.io/kubernetes/pkg/controller"
 
-	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/apiserver"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 type opflexEndpoint struct {
@@ -56,17 +56,18 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes map[string]string `json:"attributes,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
+	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
 }
 
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 	remEP := &apiserver.Endpoint{
-			Uuid: ep.Uuid,
-			MacAddr: ep.MacAddress,
-			IPAddr: ep.IpAddress[0],
-			EPG: ep.EndpointGroup,
-			VTEP: agent.vtepIP,
-		}
+		Uuid:    ep.Uuid,
+		MacAddr: ep.MacAddress,
+		IPAddr:  ep.IpAddress[0],
+		EPG:     ep.EndpointGroup,
+		VTEP:    agent.vtepIP,
+	}
 	content, err := json.Marshal(remEP)
 	if err != nil {
 		agent.log.Errorf("Marshal EP - %v", err)
@@ -83,7 +84,61 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 
 	if resp.StatusCode != http.StatusOK {
 		agent.log.Errorf("Post EP Status - %s", resp.StatusCode)
+		return
 	}
+
+	defer resp.Body.Close()
+	rBody, err := ioutil.ReadAll(resp.Body)
+
+	var reply apiserver.PostResp
+
+	err = json.Unmarshal(rBody, &reply)
+	if err != nil {
+		agent.log.Errorf("Unmarshal :% v", err)
+		return
+	}
+
+	ep.registryKey = reply.URI
+}
+func (agent *HostAgent) EPRegDelEP(key string) {
+	if epList, ok := agent.opflexEps[key]; ok {
+		for _, ep := range epList {
+			if ep.registryKey == "" {
+				agent.log.Warnf("EPRegDel - no regKey - %+v", ep)
+				continue
+			}
+			u := fmt.Sprintf("%s/gbp/endpoint/?key=%s", saveRegURL, ep.registryKey)
+			req, err := http.NewRequest("DELETE", u, nil)
+			if err != nil {
+				agent.log.Errorf("EPRegDel - %v", err)
+				return
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				agent.log.Errorf("Post EP - %v", err)
+				return
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				agent.log.Errorf("Post EP Status - %s", resp.StatusCode)
+				return
+			}
+
+			agent.log.Infof("EPRegDelEP %s", u)
+		}
+	} else {
+		agent.log.Infof("podkey: %s -- ep not found", key)
+	}
+}
+
+func (agent *HostAgent) EPRegDel(obj interface{}) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		agent.log.Errorf("Bad object -- expected Pod")
+		return
+	}
+	k := string(pod.ObjectMeta.UID)
+	agent.EPRegDelEP(k)
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -266,6 +321,7 @@ func podFilter(pod *v1.Pod) bool {
 }
 
 func (agent *HostAgent) podUpdated(obj interface{}) {
+	agent.log.Info("podUpdated")
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.podChangedLocked(obj)
@@ -337,6 +393,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
+		agent.EPRegDelEP(*epUuid)
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
 		return
@@ -380,8 +437,8 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			} else {
 				ep.EgPolicySpace = epGroup.PolicySpace
 			}
-                        // FIXME
-                        ep.EgPolicySpace = "kube"
+			// FIXME
+			ep.EgPolicySpace = "kube"
 			if epGroup.AppProfile != "" {
 				ep.EndpointGroup = epGroup.AppProfile + "|" + epGroup.Name
 			} else {
@@ -394,6 +451,10 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	}
 
 	existing, ok := agent.opflexEps[*epUuid]
+	for ix, ep := range existing {	// TODO - fixme
+		neweps[ix].registryKey = ep.registryKey
+	}
+
 	if (ok && !reflect.DeepEqual(existing, neweps)) || !ok {
 		logger.WithFields(logrus.Fields{
 			"id": *epMetaKey,
@@ -413,6 +474,8 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 }
 
 func (agent *HostAgent) podDeleted(obj interface{}) {
+	agent.log.Info("podDeleted")
+	agent.EPRegDel(obj)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 

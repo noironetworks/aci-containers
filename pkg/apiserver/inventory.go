@@ -52,7 +52,7 @@ func ReadInvFile(vtep, file string) {
 	err = json.Unmarshal(data, &moList)
 	if err != nil {
 		log.Infof("Decoding %s - %v", file, err)
-		return 
+		return
 	}
 
 	moMap := make(map[string]*gbpInvMo)
@@ -236,6 +236,11 @@ func (ep *Endpoint) Delete() error {
 		removeInvMo(ep.VTEP, u)
 	}
 	removeInvMo(ep.VTEP, epURI)
+	invMo := MoDB[epInvURI]
+	if invMo == nil {
+		return fmt.Errorf("epInventory not found")
+	}
+	invMo.DelChild(epURI)
 
 	return nil
 }
