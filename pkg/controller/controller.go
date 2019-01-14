@@ -274,6 +274,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	var err error
 	var privKey []byte
 	var apicCert []byte
+
+	if gitCommit != "" {
+		cont.log.Info("Running controller built from git commit ID " + gitCommit + "at build time " + buildTime)
+	}
+
 	if cont.config.ApicPrivateKeyPath != "" {
 		privKey, err = ioutil.ReadFile(cont.config.ApicPrivateKeyPath)
 		if err != nil {

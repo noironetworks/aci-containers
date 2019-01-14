@@ -15,9 +15,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -35,7 +37,18 @@ func main() {
 	controller.InitFlags(config)
 	configPath := flag.String("config-path", "",
 		"Absolute path to a host agent configuration file")
+	version := flag.Bool("version", false, "prints github commit ID and build time")
 	flag.Parse()
+
+	if *version {
+		if controller.GetVersion().GitCommit != "" {
+			buffer := bytes.NewBufferString(controller.VersionString())
+			fmt.Println(buffer.String())
+		} else {
+			fmt.Println("Information missing in current build")
+		}
+		os.Exit(0)
+	}
 
 	if configPath != nil && *configPath != "" {
 		log.Info("Loading configuration from ", *configPath)
