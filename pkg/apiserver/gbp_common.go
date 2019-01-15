@@ -62,6 +62,7 @@ const (
 	propPrefix        = "prefixLen"
 	propNw            = "address"
 	propMac           = "macAddress"
+	propEther         = "etherT"
 	propProt          = "prot"
 	propDToPort       = "dToPort"
 	propDFromPort     = "dFromPort"
@@ -80,6 +81,8 @@ const (
 	defEPGURI         = "/PolicyUniverse/PolicySpace/kube/GbpEpGroup/"
 	defEPGName        = "kubernetes|kube-default"
 	defPConfigName    = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
+	propConnTrack     = "connectionTracking"
+	propOrder         = "order"
 )
 
 type GBPMo interface {

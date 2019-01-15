@@ -38,7 +38,7 @@ type IntRange struct {
 
 // WLRules are implicit allow
 type WLRule struct {
-	Protocol string  `json:"protocol,omitempty"`
+	Protocol string   `json:"protocol,omitempty"`
 	Ports    IntRange `json:"ports,omitempty"`
 }
 
@@ -89,7 +89,8 @@ func (c *Contract) Make() error {
 
 	aRef := &gbpToMo{}
 	aRef.setSubject(subjActionRsrc)
-	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/allow", furi)
+	arefName := escapeName(aMo.URI)
+	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", furi, arefName)
 	aRef.Make("", arefURI)
 	ref := RefProperty{
 		Subject: aMo.Subject,
@@ -97,6 +98,7 @@ func (c *Contract) Make() error {
 	}
 	aRef.AddProperty(propTarget, ref)
 	aRef.SetParent(fmo.Subject, aRef.Subject, fmo.URI)
+	fmo.AddChild(aRef.URI)
 
 	return nil
 }
@@ -132,13 +134,25 @@ func (c *Contract) addRule(r WLRule) error {
 	// make classifier
 	cfMo := &GBPL24Classifier{}
 	cfMo.Make(cname, uri)
+	cfMo.AddProperty(propName, cname)
+	cfMo.AddProperty(propConnTrack, "normal")
+	cfMo.AddProperty(propOrder, 0)
 
-	cfMo.AddProperty(propProt, protToInt(r.Protocol))
-	cfMo.AddProperty(propDFromPort, r.Ports.Start)
-	cfMo.AddProperty(propDToPort, r.Ports.End)
+	prot, ether, err := protToValues(r.Protocol)
+	if err == nil {
+		cfMo.AddProperty(propProt, prot)
+		cfMo.AddProperty(propEther, ether)
+	}
+
+	if r.Ports.Start != 0 {
+		cfMo.AddProperty(propDFromPort, r.Ports.Start)
+	}
+	if r.Ports.End != 0 {
+		cfMo.AddProperty(propDToPort, r.Ports.End)
+	}
 
 	// make reference
-	tocfURI := c.getToCfURI(cname)
+	tocfURI := c.getToCfURI(escapeName(uri))
 	toCF := &gbpToMo{}
 	toCF.setSubject(subjClassRsrc)
 	toCF.Make("", tocfURI)
@@ -156,14 +170,16 @@ func (c *Contract) addRule(r WLRule) error {
 	return nil
 }
 
-func protToInt(prot string) int {
+func protToValues(prot string) (int, string, error) {
 	switch prot {
+	case "":
+		return 0, "", fmt.Errorf("unspecified")
 	case "udp":
-		return 17
+		return 17, "ipv4", nil
 	case "icmp":
-		return 1
+		return 1, "ipv4", nil
 	default:
-		return 6
+		return 6, "ipv4", nil
 	}
 }
 
@@ -176,10 +192,13 @@ func (c *Contract) getFilterURI() string {
 }
 
 func (c *Contract) getToCfURI(name string) string {
-	return fmt.Sprintf("%sGbpRuleToClassifierRSrc/%s", c.getFilterURI(), name)
+	return fmt.Sprintf("%sGbpRuleToClassifierRSrc/178/%s/", c.getFilterURI(), name)
 }
 func (wr *WLRule) getClassifierURI(tenant string) (string, string) {
 	un := wr.Protocol
+	if un == "" {
+		un = "ANY"
+	}
 	un = fmt.Sprintf("%s-%d-%d", un, wr.Ports.Start, wr.Ports.End)
 
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", tenant, un), un

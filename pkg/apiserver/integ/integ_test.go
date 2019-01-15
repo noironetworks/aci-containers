@@ -73,6 +73,14 @@ func TestBasic(t *testing.T) {
 		log.Infof("Server took too long to start!")
 	}
 
+	dataDir, err := ioutil.TempDir("", "_gbpdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(dataDir)
+	apiserver.InitDB(dataDir)
+
 	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
 	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")
 	if err != nil {
@@ -115,6 +123,7 @@ func TestBasic(t *testing.T) {
 	urlList := []string{url1, url2}
 
 	for _, u := range urlList {
+		log.Infof("Verify gets")
 		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
 			log.Info(err)
@@ -186,6 +195,20 @@ func addContract(t *testing.T) {
 	}
 
 	err := c.Make()
+	if err != nil {
+		log.Errorf("Contract make - %v", err)
+		t.FailNow()
+	}
+
+	emptyRule := apiserver.WLRule{}
+	emptyC := &apiserver.Contract{
+                Name:   "any",
+                Tenant: "common",
+                AllowList: []apiserver.WLRule{
+                        emptyRule,
+                },
+        }
+	err = emptyC.Make()
 	if err != nil {
 		log.Errorf("Contract make - %v", err)
 		t.FailNow()

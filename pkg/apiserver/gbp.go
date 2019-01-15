@@ -90,7 +90,7 @@ func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
 	targetName := targetMo.GetStringProperty(propName)
 	refMo := &gbpToMo{}
 	refMo.setSubject(refSubj)
-	refURI := fmt.Sprintf("%s%s/%s/", g.URI, refSubj, escapeName(targetName))
+	refURI := fmt.Sprintf("%s%s/288/%s/", g.URI, refSubj, escapeName(targetName))
 	refMo.Make("", refURI)
 
 	p := RefProperty{
@@ -166,7 +166,7 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 	bdnw := &GBPBDToVrf{}
 	bdnwUri := filepath.Join(uri, subjBDToVrf)
 	bdnw.setSubject(subjBDToVrf)
-	bdnw.Make("", bdnwUri)
+	bdnw.Make("", bdnwUri+"/")
 	vrfRef := RefProperty{
 		Subject: subjVRF,
 		RefURI:  defVrfURI,
