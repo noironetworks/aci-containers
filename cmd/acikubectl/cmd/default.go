@@ -28,14 +28,8 @@ import (
 
 func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 	args []string) {
-	kubeClient, err := initClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not initialize kubernetes client:")
-		fmt.Fprintln(os.Stderr, err)
-		if kubeconfig == "" {
-			fmt.Fprintln(os.Stderr,
-				"You may need to specify a kubeconfig file with --kubeconfig.")
-		}
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
 		return
 	}
 
@@ -131,14 +125,8 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 
 func getObjectAnnot(annot string, format func(string),
 	cmd *cobra.Command, args []string) {
-	kubeClient, err := initClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not initialize kubernetes client:")
-		fmt.Fprintln(os.Stderr, err)
-		if kubeconfig == "" {
-			fmt.Fprintln(os.Stderr,
-				"You may need to specify a kubeconfig file with --kubeconfig.")
-		}
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
 		return
 	}
 
