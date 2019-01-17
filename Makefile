@@ -14,6 +14,7 @@ SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
 CFAPI_SRC=$(wildcard pkg/cfapi/*.go)
 KEYVALUESVC_SRC=$(wildcard pkg/keyvalueservice/*.go)
 CF_COMMON_SRC=$(wildcard pkg/cf_common/*.go)
+UTIL_SRC=$(wildcard pkg/util/*.go)
 DEBIAN_FILES=$(wildcard debian/*)
 GOPKG_FILES=$(wildcard Gopkg.*)
 
@@ -82,6 +83,7 @@ dist: ${METADATA_SRC} \
 	${OVSRESYNC_SRC} \
 	${SIMPLESERVICE} \
 	${CF_COMMON_SRC} \
+        ${UTIL_SRC} \
 	${CFAPI_SRC} \
 	${KEYVALUESVC_SRC} \
 	${DEBIAN_FILES} ${GOPKG_FILES} Makefile
