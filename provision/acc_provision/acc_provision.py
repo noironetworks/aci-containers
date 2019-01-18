@@ -27,6 +27,16 @@ from jinja2 import Environment, PackageLoader
 from os.path import exists
 
 
+# This black magic forces pyyaml to load YAML strings as unicode rather
+# than byte strings in Python 2, thus ensuring that the type of strings
+# is consistent across versions.  From
+# https://stackoverflow.com/a/2967461/3857947.
+def construct_yaml_str(self, node):
+    return self.construct_scalar(node)
+
+
+SafeLoader.add_constructor(u'tag:yaml.org,2002:str', construct_yaml_str)
+
 VERSION_FIELDS = [
     "cnideploy_version",
     "aci_containers_host_version",
@@ -37,15 +47,22 @@ VERSION_FIELDS = [
 
 
 FLAVORS_PATH = os.path.dirname(os.path.realpath(__file__)) + "/flavors.yaml"
+VERSIONS_PATH = os.path.dirname(os.path.realpath(__file__)) + "/versions.yaml"
 
+
+with open(VERSIONS_PATH, 'r') as stream:
+    try:
+        doc = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
+    VERSIONS = doc['versions']
 
 with open(FLAVORS_PATH, 'r') as stream:
         try:
-                doc = yaml.load(stream)
+            doc = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
-                print(exc)
+            print(exc)
         DEFAULT_FLAVOR = doc['default_flavor']
-        VERSIONS = doc['versions']
         DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
         CfFlavorOptions = doc['cfFlavorOptions']
         FLAVORS = doc['flavors']
@@ -163,19 +180,6 @@ def config_default():
         },
     }
     return default_config
-
-
-# This black magic forces pyyaml to load YAML strings as unicode rather
-# than byte strings in Python 2, thus ensuring that the type of strings
-# is consistent across versions.  From
-# https://stackoverflow.com/a/2967461/3857947.
-
-
-def construct_yaml_str(self, node):
-    return self.construct_scalar(node)
-
-
-SafeLoader.add_constructor(u'tag:yaml.org,2002:str', construct_yaml_str)
 
 
 def config_user(config_file):
