@@ -79,10 +79,17 @@ const (
 	defMcastGroup     = "225.0.193.80"
 	propMcast         = "multicastGroupIP"
 	defEPGURI         = "/PolicyUniverse/PolicySpace/kube/GbpEpGroup/"
-	defEPGName        = "kubernetes|kube-default"
-	defPConfigName    = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
-	propConnTrack     = "connectionTracking"
-	propOrder         = "order"
+	//defEPGName        = "kubernetes|kube-default"
+	defEPGName     = "kubernetes-kube-default"
+	defPConfigName = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
+	propConnTrack  = "connectionTracking"
+	propOrder      = "order"
+	defSubnet      = "10.2.56.1/21"
+	defCAPICSubnet = "10.2.50.0/21"
+	defCAPICCidr   = "10.2.0.0/16"
+	defRegion      = "us-west-1"
+	cctxProfName   = defVrfName + "_" + defRegion
+	defCloudApp    = "kubeApp1"
 )
 
 type GBPMo interface {

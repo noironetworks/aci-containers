@@ -39,7 +39,15 @@ import (
 )
 
 func complete(resp *http.Response) {
-	io.Copy(ioutil.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		rBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			logrus.Errorf("ReadAll :% v", err)
+		} else {
+			logrus.Infof("Resp: %s", rBody)
+		}
+
+	}
 	resp.Body.Close()
 }
 
@@ -106,6 +114,7 @@ func (conn *ApicConnection) login() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	conn.log.Infof("Req: %+v", req)
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := conn.client.Do(req)
@@ -179,6 +188,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		TLSClientConfig: tls,
 	}
 	tr := &http.Transport{
+		Proxy:           http.ProxyFromEnvironment,
 		TLSClientConfig: dialer.TLSClientConfig,
 	}
 	jar, err := cookiejar.New(nil)
@@ -663,6 +673,98 @@ func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) PostTestAPI(data interface{}) error {
+	if conn.token == "" {
+		token, err := conn.login()
+		if err != nil {
+			conn.log.Error("Login: %v", err)
+			return err
+		}
+		conn.token = token
+	}
+	uri := "/testapi/cloudpe/mo/.json"
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	raw, err := json.Marshal(data)
+	if err != nil {
+		conn.log.Error("Could not serialize object for testapi %v", err)
+		return err
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return err
+	}
+	conn.sign(req, uri, raw)
+	req.Header.Set("Content-Type", "application/json")
+	conn.log.Infof("Post: %+v", req)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not update dn %v", err)
+		return err
+	}
+
+	complete(resp)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Staus: %v", resp.StatusCode)
+	}
+	return nil
+}
+
+func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
+	if conn.token == "" {
+		token, err := conn.login()
+		if err != nil {
+			conn.log.Error("Login: %v", err)
+			return err
+		}
+		conn.token = token
+	}
+	uri := fmt.Sprintf("/api/mo/%s.json", dn)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	raw, err := json.Marshal(obj)
+	if err != nil {
+		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
+		return err
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return err
+	}
+	conn.sign(req, uri, raw)
+	req.Header.Set("Content-Type", "application/json")
+	conn.log.Infof("Post: %+v", req)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not update dn ", dn, ": ", err)
+		return err
+	}
+
+	complete(resp)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Staus: %v", resp.StatusCode)
+	}
+	return nil
+}
+
+func (conn *ApicConnection) DeleteDnInline(dn string) error {
+	uri := fmt.Sprintf("/api/mo/%s.json", dn)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create delete request: ", err)
+		return err
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not delete dn ", dn, ": ", err)
+		return err
+	}
+	defer complete(resp)
+	return nil
+}
+
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	conn.log.WithFields(logrus.Fields{
 		"dn": dn,
@@ -811,11 +913,11 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		kind = "class"
 	}
 
-        refresh_interval := ""
-        if conn.RefreshInterval != 0 {
-                refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
-                        conn.RefreshInterval)
-        }
+	refresh_interval := ""
+	if conn.RefreshInterval != 0 {
+		refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
+			conn.RefreshInterval)
+	}
 
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
