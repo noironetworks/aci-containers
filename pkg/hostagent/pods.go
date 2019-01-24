@@ -239,7 +239,8 @@ func (agent *HostAgent) syncEps() bool {
 	}
 	seen := make(map[string]bool)
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".ep") {
+		if !strings.HasSuffix(f.Name(), ".ep") ||
+		    strings.Contains(f.Name(), "veth_host_ac") {
 			continue
 		}
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
