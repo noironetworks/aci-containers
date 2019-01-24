@@ -142,6 +142,166 @@ func injectedSvcPortNormalizer(b *ApicObjectBody) {
 }
 
 var metadata = map[string]*apicMeta{
+	"fvTenant": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"fvBD",
+			"fvCtx",
+		},
+	},
+	"cloudAwsProvider": {
+		attributes: map[string]interface{}{
+			"region":          "",
+			"accessKeyId":     "{{accessKeyId}}",
+			"secretAccessKey": "{{secretAccessKey}}",
+			"providerId":      "",
+		},
+		children: []string{},
+	},
+	"cloudDomP": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"cloudBgpAsP",
+			"cloudProvP",
+		},
+	},
+	"cloudBgpAsP": {
+		attributes: map[string]interface{}{
+			"asn": "",
+		},
+		children: []string{},
+	},
+	"cloudProvP": {
+		attributes: map[string]interface{}{
+			"vendor": "",
+		},
+		children: []string{
+			"cloudRegion",
+		},
+	},
+	"cloudRegion": {
+		attributes: map[string]interface{}{
+			"name":    "",
+			"adminSt": "managed",
+		},
+		children: []string{},
+	},
+	"cloudCtxProfile": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"cloudRsToCtx",
+			"cloudRsCtxProfileToRegion",
+			"cloudCidr",
+		},
+	},
+	"cloudRsToCtx": {
+		attributes: map[string]interface{}{
+			"tnFvCtxName": "",
+		},
+		children: []string{},
+	},
+	"cloudRsCtxProfileToRegion": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+		children: []string{},
+	},
+	"cloudCidr": {
+		attributes: map[string]interface{}{
+			"addr":    "",
+			"primary": "yes",
+		},
+		children: []string{
+			"cloudSubnet",
+		},
+	},
+	"cloudSubnet": {
+		attributes: map[string]interface{}{
+			"ip":    "",
+			"scope": "shared,public",
+		},
+		children: []string{},
+	},
+	"fvCtx": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+			"pcEnfPref": "enforced",
+		},
+		children: []string{
+			"fvRtCtx",
+		},
+	},
+	"fvAp": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"fvAEPg",
+		},
+	},
+	"cloudApp": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"cloudEPg",
+		},
+	},
+	"fvAEPg": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"fvRsBd",
+			"fvRsCons",
+			"fvRsProv",
+		},
+	},
+	"cloudEPg": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"fvRsCons",
+			"fvRsProv",
+		},
+	},
+	"cloudEPSelector": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"matchExpression": "",
+		},
+		children: []string{
+		},
+	},
+	"fvRsBd": {
+		attributes: map[string]interface{}{
+			"name":       "",
+			"nameAlias":  "",
+			"tCl":        "fvBD",
+			"tDn":        "",
+			"tRn":        "",
+			"tType":      "name",
+			"tnFvBDName": "",
+		},
+		children: []string{
+			"fvRsBd",
+			"fvRsCons",
+			"fvRsProv",
+		},
+	},
 	"fvBD": {
 		attributes: map[string]interface{}{
 			"arpFlood":       "no",
@@ -445,7 +605,7 @@ var metadata = map[string]*apicMeta{
 	},
 	"vzBrCP": {
 		attributes: map[string]interface{}{
-			"name": "",
+			"name":  "",
 			"scope": "context",
 		},
 		children: []string{

@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/pkg/errors"
 )
 
@@ -181,7 +182,43 @@ func (ep *Endpoint) Add() (string, error) {
 
 	epgRefMo.AddProperty("target", ref)
 
-	return epMo.URI, nil
+	return epMo.URI, ep.pushTocAPIC()
+}
+
+func (ep *Endpoint) pushTocAPIC() error {
+	if apicCon == nil {
+		return nil
+	}
+
+	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
+	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn(ep.EPG)
+	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
+	epName := string(ep.Uuid[len(ep.Uuid)-12:])
+	cEP["hcloudEndPoint"].Attributes["name"] = epName
+	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr
+	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
+
+	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
+	cSN["hcloudSubnet"].Attributes["addr"] = defCAPICSubnet
+	cSN["hcloudSubnet"].Children = append(cSN["hcloudSubnet"].Children, cEP)
+
+	cCidr := apicapi.EmptyApicObject("hcloudCidr", "")
+	cCidr["hcloudCidr"].Attributes["addr"] = defCAPICCidr
+	cCidr["hcloudCidr"].Children = append(cCidr["hcloudCidr"].Children, cSN)
+
+	cCtx := apicapi.EmptyApicObject("hcloudCtx", "")
+	cCtx["hcloudCtx"].Attributes["name"] = defVrfName
+	cCtx["hcloudCtx"].Children = append(cCtx["hcloudCtx"].Children, cCidr)
+
+	cRegion := apicapi.EmptyApicObject("hcloudRegion", "")
+	cRegion["hcloudRegion"].Attributes["regionName"] = defRegion
+	cRegion["hcloudRegion"].Children = append(cRegion["hcloudRegion"].Children, cCtx)
+
+	cAcc := apicapi.EmptyApicObject("hcloudAccount", "")
+	cAcc["hcloudAccount"].Attributes["name"] = kubeTenant
+	cAcc["hcloudAccount"].Children = append(cAcc["hcloudAccount"].Children, cRegion)
+
+	return apicCon.PostTestAPI(cAcc)
 }
 
 func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
@@ -243,6 +280,13 @@ func (ep *Endpoint) Delete() error {
 	invMo.DelChild(epURI)
 
 	return nil
+}
+
+func getSgDn(epgName string) string {
+	cepg := apicapi.NewCloudEpg(kubeTenant, defCloudApp, epgName)
+	n := fmt.Sprintf("acct-[%s]/region-[%s]/context-[%s]/sgroup-[%s]",
+		kubeTenant, defRegion, defVrfName, cepg.GetDn())
+	return n
 }
 
 // postEndpoint rest handler to create an endpoint

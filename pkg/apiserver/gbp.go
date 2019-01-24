@@ -28,8 +28,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 const (
@@ -41,6 +43,7 @@ var classID = uint(32000)
 var gMutex sync.Mutex
 var MoDB = make(map[string]*gbpBaseMo)
 var dbDataDir string
+var apicCon *apicapi.ApicConnection
 
 // BaseMo methods refer the underlying MoDB.
 type gbpBaseMo struct {
@@ -601,19 +604,30 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	return MoDB[uri]
 }
 
-func InitDB(dataDir string) {
+func InitDB(dataDir, apic string) {
+	if apic != "" {
+		var err error
+		log1 := log.New()
+		apicCon, err = apicapi.New(log1, []string{apic}, "admin", "noir0!234", nil, nil, "test", 60)
+		if err != nil {
+			log.Fatalf("Connecting to APIC: %v", err)
+		}
+	}
+
 	dbDataDir = dataDir
 	if restoreDB() == nil {
 		return
 	}
 
 	CreateRoot()
-	CreateDefSubnet("10.2.56.1/21")
+	CreateDefSubnet(defSubnet)
 	CreateDefVrf()
 	CreateDefBD()
 	CreateDefFD()
 	uri := defEPGURI + escapeName(defEPGName) + "/"
 	CreateEPG(defEPGName, uri)
+
+	SendDefaultsToAPIC()
 }
 
 func getMoFile() string {
@@ -784,4 +798,48 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string) {
 		fmt.Printf("ERROR: %v", err)
 	}
 	ioutil.WriteFile(outFile, policyJson, 0644)
+}
+
+func SendDefaultsToAPIC() {
+	if apicCon == nil {
+		return
+	}
+
+	log.Infof("Posting tenant to cAPIC")
+	vrfMo := apicapi.NewFvCtx(kubeTenant, defVrfName)
+	cCtxMo := apicapi.NewCloudCtxProfile(kubeTenant, cctxProfName)
+	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), defCAPICCidr)
+	cCtxMoBody := cCtxMo["cloudCtxProfile"]
+	ctxChildren := []apicapi.ApicObject{
+		cidrMo,
+		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), defVrfName),
+		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
+	}
+
+	for _, child := range ctxChildren {
+		cCtxMoBody.Children = append(cCtxMoBody.Children, child)
+	}
+
+	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
+	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
+	cepgA := apicapi.NewCloudEpg(kubeTenant, defCloudApp, defEPGName)
+	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
+	var cfgMos = []apicapi.ApicObject{
+		apicapi.NewFvTenant(kubeTenant),
+		vrfMo,
+		apicapi.NewCloudAwsProvider(kubeTenant, defRegion, "gmeouw1"),
+		cCtxMo,
+		apicapi.NewCloudSubnet(cidrMo.GetDn(), defCAPICSubnet),
+		apicapi.NewCloudApp(kubeTenant, defCloudApp),
+		cepgA,
+	}
+	for _, cmo := range cfgMos {
+		err := apicCon.PostDnInline(cmo.GetDn(), cmo)
+		if err != nil {
+			log.Errorf("Post %s -- %v", cmo.GetDn(), err)
+			return
+		}
+	}
+
+	time.Sleep(3 * time.Second) // delay before any EP can be attached
 }

@@ -37,6 +37,13 @@ import (
 	"github.com/coreos/etcd/embed"
 )
 
+const (
+	testTenant = "gbpKubeTenant"
+	testVrf    = "gbpKubeVrf1"
+	testRegion = "us-west-1"
+	kubeTenant = "kube"
+)
+
 var etcdClientURLs = []string{"http://localhost:12379"}
 
 func TestBasic(t *testing.T) {
@@ -79,7 +86,7 @@ func TestBasic(t *testing.T) {
 	}
 
 	defer os.RemoveAll(dataDir)
-	apiserver.InitDB(dataDir)
+	apiserver.InitDB(dataDir, "18.217.5.107:443")
 
 	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
 	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")
@@ -188,7 +195,7 @@ func addContract(t *testing.T) {
 
 	c := &apiserver.Contract{
 		Name:   "kubeAPI",
-		Tenant: "common",
+		Tenant: kubeTenant,
 		AllowList: []apiserver.WLRule{
 			rule,
 		},
@@ -202,12 +209,12 @@ func addContract(t *testing.T) {
 
 	emptyRule := apiserver.WLRule{}
 	emptyC := &apiserver.Contract{
-                Name:   "any",
-                Tenant: "common",
-                AllowList: []apiserver.WLRule{
-                        emptyRule,
-                },
-        }
+		Name:   "any",
+		Tenant: kubeTenant,
+		AllowList: []apiserver.WLRule{
+			emptyRule,
+		},
+	}
 	err = emptyC.Make()
 	if err != nil {
 		log.Errorf("Contract make - %v", err)
@@ -219,7 +226,7 @@ func addEPGs(t *testing.T) {
 	epgList := []*apiserver.EPG{
 		{
 			Name:   "epgA",
-			Tenant: "common",
+			Tenant: kubeTenant,
 			ProvContracts: []string{
 				"kubeAPI",
 			},
@@ -227,7 +234,7 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:   "epgB",
-			Tenant: "common",
+			Tenant: kubeTenant,
 			ConsContracts: []string{
 				"kubeAPI",
 			},
@@ -235,7 +242,7 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:   "epgC",
-			Tenant: "common",
+			Tenant: kubeTenant,
 			ConsContracts: []string{
 				"kubeAPI",
 			},
@@ -245,15 +252,15 @@ func addEPGs(t *testing.T) {
 		},
 
 		{
-			Name:          "kubernetes|kube-system",
-			Tenant:        "kube",
+			Name:          "kubernetes-kube-system",
+			Tenant:        kubeTenant,
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},
 
 		{
-			Name:          "kubernetes|kube-default",
-			Tenant:        "kube",
+			Name:          "kubernetes-kube-default",
+			Tenant:        kubeTenant,
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},
@@ -282,7 +289,7 @@ func addEPs(t *testing.T) {
 	for ix, ep := range epList {
 		ep.Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
 		ep.MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
-		ep.IPAddr = fmt.Sprintf("121.1.1.%d", ix)
+		ep.IPAddr = fmt.Sprintf("10.2.52.%d", ix)
 		_, err := ep.Add()
 		if err != nil {
 			log.Errorf("ep make - %v", err)
@@ -293,41 +300,66 @@ func addEPs(t *testing.T) {
 }
 
 func verifyRest(t *testing.T, c *http.Client) {
-	// epg without contracts
+	// Contract
+	emptyRule := apiserver.WLRule{}
+	testContract := &apiserver.Contract{
+		Name:      "all-ALL",
+		Tenant:    kubeTenant,
+		AllowList: []apiserver.WLRule{emptyRule},
+	}
 	testEpg := &apiserver.EPG{
-		Tenant: "Flowers",
-		Name:   "Roses",
+		Tenant:        kubeTenant,
+		Name:          "Roses",
+		ConsContracts: []string{"all-ALL"},
+		ProvContracts: []string{"all-ALL"},
+	}
+	testEP := &apiserver.Endpoint{
+		Uuid:    "testEP-xxx-yyy-zzz",
+		MacAddr: "58:ef:68:e2:71:0d",
+		IPAddr:  "10.2.50.55",
+		EPG:     "Roses",
+		VTEP:    "8.8.8.8",
 	}
 
-	content, err := json.Marshal(testEpg)
-	if err != nil {
-		log.Errorf("json.Marshal :% v", err)
-		t.FailNow()
+	postList := []struct {
+		url string
+		obj interface{}
+	}{
+		{"https://example.com:8899/gbp/contracts", testContract},
+		{"https://example.com:8899/gbp/epgs", testEpg},
+		{"https://example.com:8899/gbp/endpoints", testEP},
 	}
 
-	resp, err := c.Post("https://example.com:8899/gbp/epgs", "application/json", strings.NewReader(string(content)))
-	if err != nil {
-		log.Errorf("Post :% v", err)
-		t.FailNow()
+	for _, p := range postList {
+		content, err := json.Marshal(p.obj)
+		if err != nil {
+			log.Errorf("json.Marshal :% v", err)
+			t.FailNow()
+		}
+		resp, err := c.Post(p.url, "application/json", strings.NewReader(string(content)))
+		if err != nil {
+			log.Errorf("Post :% v", err)
+			t.FailNow()
+		}
+
+		defer resp.Body.Close()
+
+		rBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Errorf("ReadAll :% v", err)
+			t.FailNow()
+		}
+
+		var reply apiserver.PostResp
+
+		err = json.Unmarshal(rBody, &reply)
+		if err != nil {
+			log.Errorf("Unmarshal :% v", err)
+			t.FailNow()
+		}
+
+		log.Infof("reply: %+v", reply)
 	}
-
-	defer resp.Body.Close()
-
-	rBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Errorf("ReadAll :% v", err)
-		t.FailNow()
-	}
-
-	var reply apiserver.PostResp
-
-	err = json.Unmarshal(rBody, &reply)
-	if err != nil {
-		log.Errorf("Unmarshal :% v", err)
-		t.FailNow()
-	}
-
-	log.Infof("reply: %+v", reply)
 
 	getter := func(uri string) []byte {
 		getResp, err := c.Get(uri)
@@ -349,7 +381,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 	l := getter("https://example.com:8899/gbp/epgs/")
 	var getList apiserver.ListResp
 
-	err = json.Unmarshal(l, &getList)
+	err := json.Unmarshal(l, &getList)
 	if err != nil {
 		log.Errorf("Marshal get list :% v", err)
 		t.FailNow()
@@ -392,6 +424,118 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	if len(getList.URIs) != 0 {
 		log.Errorf("EPs present: %q", getList.URIs)
+		t.FailNow()
+	}
+}
+
+func TestAPIC(t *testing.T) {
+	log1 := log.New()
+	log1.Level = log.DebugLevel
+	log1.Formatter = &log.TextFormatter{
+		DisableColors: true,
+	}
+
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60)
+	if err != nil {
+		log.Errorf("New connection -- %v", err)
+		t.FailNow()
+	}
+
+	log.Infof("Posting tenant...")
+	vrfMo := apicapi.NewFvCtx(testTenant, testVrf)
+	cCtxMo := apicapi.NewCloudCtxProfile(testTenant, "gbpKubeVrf1-west-1")
+	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), "102.176.0.0/16")
+	cCtxMoBody := cCtxMo["cloudCtxProfile"]
+	ctxChildren := []apicapi.ApicObject{
+		cidrMo,
+		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), testVrf),
+		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
+	}
+
+	for _, child := range ctxChildren {
+		cCtxMoBody.Children = append(cCtxMoBody.Children, child)
+	}
+
+	//	epgASel := apicapi.EmptyApicObject("cloudEPSelector", "")
+	//	epgASel["cloudEPSelector"].Attributes["name"] = "selSubnet102.176.1.0"
+	//	epgASel["cloudEPSelector"].Attributes["matchExpression"] = "IP=='102.176.1.0/24'"
+
+	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
+	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = testVrf
+	cepgA := apicapi.NewCloudEpg(testTenant, "gbpApp1", "cEPG-A")
+	//	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgASel)
+	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
+	var cfgMos = []apicapi.ApicObject{
+		apicapi.NewFvTenant(testTenant),
+		vrfMo,
+		apicapi.NewCloudAwsProvider(testTenant, testRegion, "gmeouw1"),
+		cCtxMo,
+		apicapi.NewCloudSubnet(cidrMo.GetDn(), "102.176.1.0/24"),
+		apicapi.NewCloudApp(testTenant, "gbpApp1"),
+		cepgA,
+	}
+	for _, cmo := range cfgMos {
+		err = conn.PostDnInline(cmo.GetDn(), cmo)
+		if err != nil {
+			log.Errorf("Post %s -- %v", cmo.GetDn(), err)
+			t.FailNow()
+		}
+	}
+
+	time.Sleep(5 * time.Second)
+	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn())
+}
+
+func AddEP(t *testing.T, tenant, region, vrf, epgDn string) {
+	log1 := log.New()
+	log1.Level = log.DebugLevel
+	log1.Formatter = &log.TextFormatter{
+		DisableColors: true,
+	}
+
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60)
+	if err != nil {
+		log.Errorf("New connection -- %v", err)
+		t.FailNow()
+	}
+
+	getSgDn := func() string {
+		n := fmt.Sprintf("acct-[%s]/region-[%s]/context-[%s]/sgroup-[%s]",
+			tenant, region, vrf, epgDn)
+		return n
+	}
+
+	log.Infof("Posting EP...")
+	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
+	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn()
+	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
+	cEP["hcloudEndPoint"].Attributes["name"] = "eni-testGbpEP"
+	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = "102.176.1.2"
+	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
+
+	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
+	cSN["hcloudSubnet"].Attributes["addr"] = "102.176.1.0/24"
+	cSN["hcloudSubnet"].Children = append(cSN["hcloudSubnet"].Children, cEP)
+
+	cCidr := apicapi.EmptyApicObject("hcloudCidr", "")
+	cCidr["hcloudCidr"].Attributes["addr"] = "102.176.0.0/16"
+	cCidr["hcloudCidr"].Children = append(cCidr["hcloudCidr"].Children, cSN)
+
+	cCtx := apicapi.EmptyApicObject("hcloudCtx", "")
+	cCtx["hcloudCtx"].Attributes["name"] = vrf
+	cCtx["hcloudCtx"].Children = append(cCtx["hcloudCtx"].Children, cCidr)
+
+	cRegion := apicapi.EmptyApicObject("hcloudRegion", "")
+	cRegion["hcloudRegion"].Attributes["regionName"] = region
+	cRegion["hcloudRegion"].Children = append(cRegion["hcloudRegion"].Children, cCtx)
+
+	cAcc := apicapi.EmptyApicObject("hcloudAccount", "")
+	cAcc["hcloudAccount"].Attributes["name"] = tenant
+	cAcc["hcloudAccount"].Children = append(cAcc["hcloudAccount"].Children, cRegion)
+
+	err = conn.PostTestAPI(cAcc)
+	if err != nil {
+		log.Errorf("Post %+v -- %v", cAcc, err)
 		t.FailNow()
 	}
 }

@@ -20,9 +20,11 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -112,7 +114,7 @@ func (c *Contract) makeClassifiers() error {
 	}
 
 	// TODO remove stale classifiers.
-	return nil
+	return c.pushTocAPIC()
 }
 
 func (c *Contract) addRule(r WLRule) error {
@@ -194,6 +196,50 @@ func (c *Contract) getFilterURI() string {
 func (c *Contract) getToCfURI(name string) string {
 	return fmt.Sprintf("%sGbpRuleToClassifierRSrc/178/%s/", c.getFilterURI(), name)
 }
+func (c *Contract) pushTocAPIC() error {
+	if apicCon == nil {
+		return nil
+	}
+
+	// create contract
+	ac := apicapi.NewVzBrCP(c.Tenant, c.Name)
+	acs := apicapi.NewVzSubj(ac.GetDn(), "subj-"+c.Name)
+	acs.AddChild(apicapi.NewVzRsSubjFiltAtt(acs.GetDn(), c.Name))
+	ac.AddChild(acs)
+
+	// create filter
+	filter := apicapi.NewVzFilter(c.Tenant, c.Name)
+	filterDn := filter.GetDn()
+	for ix, r := range c.AllowList {
+		fe := apicapi.NewVzEntry(filterDn, strconv.Itoa(ix))
+		fe.SetAttr("etherT", "ip")
+		if r.Protocol != "" {
+			fe.SetAttr("prot", r.Protocol)
+		}
+		if r.Ports.Start != 0 {
+			fe.SetAttr("dFromPort", fmt.Sprintf("%d", r.Ports.Start))
+		}
+		if r.Ports.End != 0 {
+			fe.SetAttr("dToPort", fmt.Sprintf("%d", r.Ports.End))
+		}
+		filter.AddChild(fe)
+
+	}
+
+	moList := []apicapi.ApicObject{
+		filter,
+		ac,
+	}
+	for _, mo := range moList {
+		err := apicCon.PostDnInline(mo.GetDn(), mo)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (wr *WLRule) getClassifierURI(tenant string) (string, string) {
 	un := wr.Protocol
 	if un == "" {
@@ -227,7 +273,28 @@ func (e *EPG) Make() error {
 		return err
 	}
 
-	return nil
+	return e.pushTocAPIC()
+}
+func (e *EPG) pushTocAPIC() error {
+	if apicCon == nil {
+		return nil
+	}
+
+	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, e.Name)
+	for _, cc := range e.ConsContracts {
+		ccMo := apicapi.NewFvRsCons(cepg.GetDn(), cc)
+		cepg.AddChild(ccMo)
+	}
+	for _, pc := range e.ProvContracts {
+		pcMo := apicapi.NewFvRsProv(cepg.GetDn(), pc)
+		cepg.AddChild(pcMo)
+	}
+
+	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
+	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
+	cepg.AddChild(epgToVrf)
+
+	return apicCon.PostDnInline(cepg.GetDn(), cepg)
 }
 
 func (e *EPG) getURI() string {
