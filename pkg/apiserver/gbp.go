@@ -620,12 +620,78 @@ func InitDB(dataDir, apic string) {
 	}
 
 	CreateRoot()
-	CreateDefSubnet(defSubnet)
 	CreateDefVrf()
-	CreateDefBD()
-	CreateDefFD()
-	uri := defEPGURI + escapeName(defEPGName) + "/"
-	CreateEPG(defEPGName, uri)
+	podBDS = &BDSubnet{
+		bdName:      defBDName,
+		mcastGroup:  defMcastGroup,
+		fdName:      defFDName,
+		subnetsName: defSubnets,
+		snet:        defSubnet,
+	}
+	podBDS.Setup()
+
+	nodeBDS := &BDSubnet{
+		bdName:      nodeBDName,
+		mcastGroup:  nodeMcastGroup,
+		fdName:      nodeFDName,
+		subnetsName: nodeSubnets,
+		snet:        nodeSubnet,
+	}
+
+	nodeBDS.Setup()
+
+	// create a wildcard contract
+	emptyRule := WLRule{}
+	emptyC := Contract{
+		Name:   anyConName,
+		Tenant: kubeTenant,
+		AllowList: []WLRule{
+			emptyRule,
+		},
+	}
+
+	emptyC.Make()
+
+	epgList := []*EPG{
+		{
+			Name:   defEPGName,
+			Tenant: kubeTenant,
+			ProvContracts: []string{
+				anyConName,
+			},
+			ConsContracts: []string{
+				anyConName,
+			},
+		},
+		{
+			Name:   kubeSysEPGName,
+			Tenant: kubeTenant,
+			ProvContracts: []string{
+				anyConName,
+			},
+			ConsContracts: []string{
+				anyConName,
+			},
+		},
+		{
+			Name:   kubeNodeEPGName,
+			Tenant: kubeTenant,
+			ProvContracts: []string{
+				anyConName,
+			},
+			ConsContracts: []string{
+				anyConName,
+			},
+			bds: nodeBDS,
+		},
+	}
+
+	for _, e := range epgList {
+		err := e.Make()
+		if err != nil {
+			log.Errorf("%v making %+v", err, e)
+		}
+	}
 
 	SendDefaultsToAPIC()
 }

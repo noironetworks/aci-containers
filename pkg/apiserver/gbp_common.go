@@ -67,30 +67,157 @@ const (
 	propDToPort       = "dToPort"
 	propDFromPort     = "dFromPort"
 	defRMac           = "00:22:bd:f8:19:ff"
+	defSubnets        = "allsubnets"
+	nodeSubnets       = "nodesubnets"
 	defSubnetsURI     = "/PolicyUniverse/PolicySpace/kube/GbpSubnets/allsubnets/"
 	defVrfURI         = "/PolicyUniverse/PolicySpace/kube/GbpRoutingDomain/defaultVrf/"
 	defVrfName        = "defaultVrf"
 	defBDURI          = "/PolicyUniverse/PolicySpace/kube/GbpBridgeDomain/defaultBD/"
 	defBDName         = "defaultBD"
 	defFDName         = "defaultFD"
+	nodeBDName        = "nodeBD"
+	nodeFDName        = "nodeFD"
 	defFDURI          = "/PolicyUniverse/PolicySpace/kube/GbpFloodDomain/defaultFD/"
 	defFDMcastURI     = defFDURI + "GbpeFloodContext/"
 	defFDToBDURI      = defFDURI + "GbpFloodDomainToNetworkRSrc/"
 	defMcastGroup     = "225.0.193.80"
+	nodeMcastGroup    = "225.0.193.81"
 	propMcast         = "multicastGroupIP"
 	defEPGURI         = "/PolicyUniverse/PolicySpace/kube/GbpEpGroup/"
-	//defEPGName        = "kubernetes|kube-default"
-	defEPGName     = "kubernetes-kube-default"
-	defPConfigName = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
-	propConnTrack  = "connectionTracking"
-	propOrder      = "order"
-	defSubnet      = "10.2.56.1/21"
-	defCAPICSubnet = "10.2.50.0/21"
-	defCAPICCidr   = "10.2.0.0/16"
-	defRegion      = "us-east-2"
-	cctxProfName   = defVrfName + "_" + defRegion
-	defCloudApp    = "kubeApp1"
+	defEPGName        = "kubernetes|kube-default"
+	//defEPGName     = "kubernetes-kube-default"
+	kubeSysEPGName  = "kubernetes|kube-system"
+	kubeNodeEPGName = "kubernetes|kube-nodes"
+	defPConfigName  = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
+	propConnTrack   = "connectionTracking"
+	propOrder       = "order"
+	nodeSubnet      = "1.100.201.0/24"
+	anyConName      = "all-all"
+	defSubnet       = "10.2.56.1/21"
+	defCAPICSubnet  = "10.2.50.0/21"
+	defCAPICCidr    = "10.2.0.0/16"
+	defRegion       = "us-east-2"
+	cctxProfName    = defVrfName + "_" + defRegion
+	defCloudApp     = "kubeApp1"
 )
+
+type BDSubnet struct {
+	bdName      string
+	mcastGroup  string
+	fdName      string
+	subnetsName string
+	snet        string
+}
+
+var podBDS *BDSubnet
+func (bds *BDSubnet) SubnetsUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, bds.subnetsName)
+}
+
+func (bds *BDSubnet) SnUri() string {
+	sn := escapeName(bds.snet)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/GbpSubnet/%s/", kubeTenant, bds.subnetsName, sn)
+}
+
+func (bds *BDSubnet) BDUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpBridgeDomain/%s/", kubeTenant, bds.bdName)
+}
+
+func (bds *BDSubnet) FDUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/", kubeTenant, bds.fdName)
+}
+func (bds *BDSubnet) FDMcastUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpeFloodContext/", kubeTenant, bds.fdName)
+}
+func (bds *BDSubnet) FDToBDUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpFloodDomainToNetworkRSrc/", kubeTenant, bds.fdName)
+}
+
+func (bds *BDSubnet) CreateSubnet() {
+	// create subnet set
+	ss := &GBPSubnetSet{}
+	ss.Make(bds.subnetsName, bds.SubnetsUri())
+	s := &GBPSubnet{}
+	s.Make(bds.snet, bds.SnUri())
+
+	ss.AddChild(s.URI)
+	s.SetParent(subjSubnetSet, subjSubnet, ss.URI)
+}
+
+func (bds *BDSubnet) CreateBD() {
+	bd := &GBPBridgeDomain{}
+	bd.Make(bds.bdName, bds.BDUri())
+}
+
+func (bds *BDSubnet) CreateFD() {
+	// create child 1: default Mcast
+	fm := &GBPFloodMcast{}
+	fm.Make("", bds.FDMcastUri())
+	fm.AddProperty(propMcast, bds.mcastGroup)
+	fm.SetParent(subjFD, subjFDMcast, bds.FDUri())
+
+	// create child 2: FD to DefaultBD reference
+	bdRef := &GBPFDToBD{}
+	bdRef.setSubject(subjFDToBD)
+	bdRef.Make("", bds.FDToBDUri())
+
+	to := RefProperty{
+		Subject: subjBD,
+		RefURI:  bds.BDUri(),
+	}
+
+	bdRef.AddProperty(propTarget, to)
+
+	fd := &GBPFloodDomain{}
+	fd.Make(bds.fdName, bds.FDUri())
+	fd.AddChild(fm.URI)
+	fm.SetParent(fd.Subject, fm.Subject, fd.URI)
+	fd.AddChild(bdRef.URI)
+	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.URI)
+
+	// set properties
+	fd.AddProperty("unknownFloodMode", "drop")
+	fd.AddProperty("arpMode", "unicast")
+	fd.AddProperty("neighborDiscMode", "unicast")
+}
+
+func (bds *BDSubnet) Setup() {
+	bds.CreateSubnet()
+	bds.CreateBD()
+	bds.CreateFD()
+}
+
+func (bds *BDSubnet) CreateEPG(name, uri string) *gbpBaseMo {
+	epg := &GBPEpGroup{}
+	epg.Make(name, uri)
+
+	fdRef := GBPEPGToFD{}
+	fdRef.setSubject(subjEPGToFD)
+	fdRef.Make("", uri+"GbpEpGroupToNetworkRSrc/")
+	to := RefProperty{
+		Subject: subjFD,
+		RefURI:  bds.FDUri(),
+	}
+
+	fdRef.AddProperty(propTarget, to)
+	epg.AddChild(fdRef.URI)
+	// setparent
+	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.URI)
+
+	snetRef := GBPEPGToSnet{}
+	snetRef.setSubject(subjEPGToSnet)
+	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
+	tosnet := RefProperty{
+		Subject: subjSubnetSet,
+		RefURI:  bds.SnUri(),
+	}
+
+	snetRef.AddProperty(propTarget, tosnet)
+	epg.AddChild(snetRef.URI)
+	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.URI)
+	return MoDB[uri]
+
+}
 
 type GBPMo interface {
 	Make(name, uri string) error
