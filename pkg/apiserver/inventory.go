@@ -159,6 +159,9 @@ func (ep *Endpoint) Add() (string, error) {
 	if invMo == nil {
 		return "", fmt.Errorf("epInventory not found")
 	}
+	// if it already exists, delete it from the tree
+	epURI := fmt.Sprintf("%sInvRemoteInventoryEp/%s/", epInvURI, ep.Uuid)
+	invMo.DelChild(epURI)
 
 	epMo := createChild(&invMo.gbpCommonMo, subjRemoteEP, ep.Uuid)
 
