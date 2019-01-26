@@ -483,10 +483,12 @@ func TestAPIC(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Second)
-	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn())
+	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn(), true)
+	time.Sleep(5 * time.Second)
+	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn(), false)
 }
 
-func AddEP(t *testing.T, tenant, region, vrf, epgDn string) {
+func AddEP(t *testing.T, tenant, region, vrf, epgDn string, add bool) {
 	log1 := log.New()
 	log1.Level = log.DebugLevel
 	log1.Formatter = &log.TextFormatter{
@@ -512,6 +514,9 @@ func AddEP(t *testing.T, tenant, region, vrf, epgDn string) {
 	cEP["hcloudEndPoint"].Attributes["name"] = "eni-testGbpEP"
 	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = "102.176.1.2"
 	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
+	if !add {
+		cEP["hcloudEndPoint"].Attributes["status"] = "deleted"
+	}
 
 	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
 	cSN["hcloudSubnet"].Attributes["addr"] = "102.176.1.0/24"

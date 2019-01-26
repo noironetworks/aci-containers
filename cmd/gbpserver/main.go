@@ -33,6 +33,7 @@ type cliOpts struct {
 	apiListenPort string
 	insecurePort  string
 	moDir         string
+	cAPICUrl      string
 }
 
 func main() {
@@ -50,6 +51,8 @@ func main() {
 		"Listen port for moserver")
 	flagSet.StringVar(&opts.moDir, "mo-dir", "/kube",
 		"GBP backup dir")
+	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "",
+		"Cloud APIC Url")
 	err := flagSet.Parse(os.Args[1:])
 	if err != nil {
 		log.Fatalf("Failed to parse command. Error: %s", err)
@@ -62,7 +65,7 @@ func main() {
 		insPort = fmt.Sprintf(":%s", opts.insecurePort)
 	}
 
-	apiserver.InitDB(opts.moDir)
+	apiserver.InitDB(opts.moDir, opts.cAPICUrl)
 	_, err = apiserver.StartNewServer(etcdURLs, lPort, insPort)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
