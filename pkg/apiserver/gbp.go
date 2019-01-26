@@ -136,7 +136,7 @@ type GBPBridgeDomain struct {
 	gbpBaseMo
 }
 
-func (bd *GBPBridgeDomain) Make(name, uri string) error {
+func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	bd.Subject = subjBD
 	bd.URI = uri
 	bd.AddProperty(propName, name)
@@ -158,7 +158,7 @@ func (bd *GBPBridgeDomain) Make(name, uri string) error {
 
 	netsRef := RefProperty{
 		Subject: subjSubnetSet,
-		RefURI:  defSubnetsURI,
+		RefURI:  subnetsUri,
 	}
 
 	netRs.AddProperty(propTarget, netsRef)
@@ -534,11 +534,6 @@ func CreateDefVrf() {
 	vrf := &GBPRoutingDomain{}
 	// TODO: add subnet ref if necessary
 	vrf.Make(defVrfName, defVrfURI)
-}
-
-func CreateDefBD() {
-	bd := &GBPBridgeDomain{}
-	bd.Make(defBDName, defBDURI)
 }
 
 func CreateDefFD() {
