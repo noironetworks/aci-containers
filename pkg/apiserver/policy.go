@@ -255,14 +255,18 @@ type EPG struct {
 	Name          string   `json:"name,omitempty"`
 	ConsContracts []string `json:"consumed-contracts,omitempty"`
 	ProvContracts []string `json:"provided-contracts,omitempty"`
+	bds           *BDSubnet
 }
 
 func (e *EPG) Make() error {
+	if e.bds == nil {
+		e.bds = podBDS
+	}
 	eUri := e.getURI()
 
 	base := MoDB[eUri]
 	if base == nil {
-		base = CreateEPG(e.Name, eUri)
+		base = e.bds.CreateEPG(e.Name, eUri)
 	}
 	err := e.setContracts(base, e.ConsContracts, subjEPGToCC)
 	if err != nil {
