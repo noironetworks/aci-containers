@@ -146,7 +146,7 @@ func (bds *BDSubnet) CreateSubnet() {
 
 func (bds *BDSubnet) CreateBD() {
 	bd := &GBPBridgeDomain{}
-	bd.Make(bds.bdName, bds.BDUri())
+	bd.Make(bds.bdName, bds.BDUri(), bds.SubnetsUri())
 }
 
 func (bds *BDSubnet) CreateFD() {
