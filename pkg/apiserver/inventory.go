@@ -182,10 +182,10 @@ func (ep *Endpoint) Add() (string, error) {
 
 	epgRefMo.AddProperty("target", ref)
 
-	return epMo.URI, ep.pushTocAPIC()
+	return epMo.URI, ep.pushTocAPIC(true)
 }
 
-func (ep *Endpoint) pushTocAPIC() error {
+func (ep *Endpoint) pushTocAPIC(add bool) error {
 	if apicCon == nil {
 		return nil
 	}
@@ -196,6 +196,9 @@ func (ep *Endpoint) pushTocAPIC() error {
 	epName := string(ep.Uuid[len(ep.Uuid)-12:])
 	cEP["hcloudEndPoint"].Attributes["name"] = epName
 	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr
+	if !add {
+		cEP["hcloudEndPoint"].Attributes["status"] = "deleted"
+	}
 	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
 
 	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
@@ -279,7 +282,7 @@ func (ep *Endpoint) Delete() error {
 	}
 	invMo.DelChild(epURI)
 
-	return nil
+	return ep.pushTocAPIC(false)
 }
 
 func getSgDn(epgName string) string {
