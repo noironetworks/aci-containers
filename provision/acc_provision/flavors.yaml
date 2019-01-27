@@ -26,30 +26,36 @@ cfFlavorOptions: &anchor
 
 flavors: 
   # Upstream Kubernetes
+  kubernetes-1.13:
+    desc: Kubernetes 1.13
+    default_version: 1.9
+    status: null
+    hidden: false
+    order: 4
   kubernetes-1.12:
     desc: Kubernetes 1.12
     default_version: 1.9
     status: null
     hidden: false
-    order: 3
+    order: 5
   kubernetes-1.11:
     desc: Kubernetes 1.11
     default_version: 1.9
     status: null
-    hidden: false
-    order: 4
+    hidden: true
+    order: 6
   kubernetes-1.10:
     desc: Kubernetes 1.10
     default_version: 1.9
     status: null
     hidden: true
-    order: 5
+    order: 7
   kubernetes-1.9:
     desc: Kubernetes 1.9
     default_version: 1.9
     status: null
     hidden: true
-    order: 6
+    order: 8
   kubernetes-1.8:
     desc: Kubernetes 1.8
     default_version: 1.7
@@ -59,7 +65,7 @@ flavors:
         use_apps_apigroup: apps
     status: null
     hidden: true
-    order: 7
+    order: 9
   kubernetes-1.7:
     desc: Kubernetes 1.7
     default_version: 1.7
@@ -70,7 +76,7 @@ flavors:
         use_apps_apigroup: extensions
     status: null
     hidden: true
-    order: 8  
+    order: 10  
   kubernetes-1.6:
     desc: Kubernetes 1.6
     default_version: 1.6
@@ -83,7 +89,7 @@ flavors:
         use_netpol_apigroup: extensions
     status: null
     hidden: true
-    order: 9
+    order: 11
   openshift-3.11:
     desc: Red Hat OpenShift Container Platform 3.11
     default_version: 1.9
@@ -99,9 +105,9 @@ flavors:
       aci_config:
         vmm_domain:
           type: OpenShift
-    status: Experimental
+    status: null
     hidden: false
-    order: 11
+    order: 1
   openshift-3.9:
     desc: Red Hat OpenShift Container Platform 3.9
     default_version: 1.9
@@ -119,7 +125,7 @@ flavors:
           type: OpenShift
     status: null
     hidden: false
-    order: 1
+    order: 2
   openshift-3.6:
     desc: Red Hat OpenShift Container Platform 3.6
     default_version: 1.6
@@ -142,14 +148,14 @@ flavors:
           type: OpenShift
     status: null
     hidden: true
-    order: 2
+    order: 3
   # Docker Universal Control Plane (UCP)
   docker-ucp-3.0:
     desc: Docker Universal Control Plane (UCP) 3.0
     default_version: 1.9
     status: Experimental
     hidden: false
-    order: 12
+    order: 13
   # CloudFoundry
   cloudfoundry-1.0:
     desc: CloudFoundry cf-deployment 1.x
@@ -161,4 +167,4 @@ flavors:
     options: *anchor
     status: null
     hidden: false
-    order: 10
+    order: 12
