@@ -391,6 +391,20 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Infof("EPG Get Resp: %s", gb)
 	}
 
+	l = getter("https://example.com:8899/gbp/contracts/")
+
+	err = json.Unmarshal(l, &getList)
+	if err != nil {
+		log.Errorf("Marshal get list :% v", err)
+		t.FailNow()
+	}
+
+	log.Infof("contractlist: %+v", getList)
+	for _, reqUri := range getList.URIs {
+		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/contract/?key=%s", reqUri))
+		log.Infof("Contract Get Resp: %s", gb)
+	}
+
 	l = getter("https://example.com:8899/gbp/endpoints/")
 
 	err = json.Unmarshal(l, &getList)

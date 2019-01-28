@@ -274,8 +274,8 @@ func addGBPPost(mr *mux.Router) {
 }
 
 func addGBPGet(mr *mux.Router) {
-	//	mr.PathPrefix("/gbp/contracts/").HandlerFunc(MakeHTTPHandler(listContracts))
-	//	mr.PathPrefix("/gbp/contracts/{key}").HandlerFunc(MakeHTTPHandler(getContract))
+	mr.Path("/gbp/contracts/").HandlerFunc(MakeHTTPHandler(listContracts))
+	mr.Path("/gbp/contract/").HandlerFunc(MakeHTTPHandler(getContract))
 	mr.Path("/gbp/epgs/").HandlerFunc(MakeHTTPHandler(listEpgs))
 	mr.Path("/gbp/epg/").HandlerFunc(MakeHTTPHandler(getEpg))
 	mr.Path("/gbp/endpoints/").HandlerFunc(MakeHTTPHandler(listEndpoints))

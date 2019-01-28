@@ -91,7 +91,7 @@ func (c *Contract) Make() error {
 
 	aRef := &gbpToMo{}
 	aRef.setSubject(subjActionRsrc)
-	arefName := escapeName(aMo.URI)
+	arefName := escapeName(aMo.URI, false)
 	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", furi, arefName)
 	aRef.Make("", arefURI)
 	ref := RefProperty{
@@ -154,7 +154,7 @@ func (c *Contract) addRule(r WLRule) error {
 	}
 
 	// make reference
-	tocfURI := c.getToCfURI(escapeName(uri))
+	tocfURI := c.getToCfURI(escapeName(uri, false))
 	toCF := &gbpToMo{}
 	toCF.setSubject(subjClassRsrc)
 	toCF.Make("", tocfURI)
@@ -250,6 +250,73 @@ func (wr *WLRule) getClassifierURI(tenant string) (string, string) {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", tenant, un), un
 }
 
+func (c *Contract) FromMo(mo *gbpBaseMo) error {
+	if mo.Subject != subjContract {
+		return fmt.Errorf("Mo class %s is not contract", mo.Subject)
+	}
+
+	c.Name = mo.GetStringProperty(propName)
+	comps := strings.Split(mo.URI, "/")
+	if len(comps) < 4 {
+		return fmt.Errorf("Malformed URI %s", mo.URI)
+	}
+
+	c.Tenant = comps[3]
+
+	for _, subjMo := range mo.getChildMos() {
+		if subjMo.Subject != subjSubject {
+			continue
+		}
+
+		for _, fMo := range subjMo.getChildMos() {
+			if fMo.Subject != subjRule {
+				continue
+			}
+
+			for _, toCMo := range fMo.getChildMos() {
+				if toCMo.Subject != subjClassRsrc {
+					continue
+				}
+
+				cURI, err := toCMo.getTarget()
+				if err != nil {
+					return err
+				}
+
+				cMo := MoDB[cURI]
+				if cMo == nil {
+					return fmt.Errorf("Classifier %s not found", cURI)
+				}
+
+				cname := cMo.GetStringProperty(propName)
+				cc := strings.Split(cname, "-")
+				if len(cc) != 3 {
+					return fmt.Errorf("Malformed classifier %s ", cname)
+				}
+
+				rule := WLRule{}
+				if cc[0] != "ANY" {
+					rule.Protocol = cc[0]
+				}
+
+				if cc[1] != "0" {
+					start, _ := strconv.Atoi(cc[1])
+					rule.Ports.Start = start
+				}
+
+				if cc[2] != "0" {
+					end, _ := strconv.Atoi(cc[2])
+					rule.Ports.End = end
+				}
+
+				c.AllowList = append(c.AllowList, rule)
+			}
+		}
+	}
+
+	return nil
+}
+
 type EPG struct {
 	Tenant        string   `json:"tenant,omitempty"`
 	Name          string   `json:"name,omitempty"`
@@ -302,7 +369,7 @@ func (e *EPG) pushTocAPIC() error {
 }
 
 func (e *EPG) getURI() string {
-	escName := escapeName(e.Name)
+	escName := escapeName(e.Name, false)
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", e.Tenant, escName)
 }
 
@@ -484,6 +551,45 @@ func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string
 	DoAll()
 	return &PostResp{URI: c.getURI()}, nil
 }
+
+func listContracts(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	var resp ListResp
+
+	for _, mo := range MoDB {
+		if mo.Subject == subjContract {
+			resp.URIs = append(resp.URIs, mo.URI)
+		}
+	}
+
+	return &resp, nil
+}
+
+func getContract(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	params := r.URL.Query()
+	uri, ok := params["key"]
+	if !ok {
+		return nil, fmt.Errorf("key is missing")
+	}
+
+	k := strings.Replace(uri[0], "|", "%7c", -1)
+	cMo, ok := MoDB[k]
+	if !ok {
+		return nil, fmt.Errorf("%s - Not found", k)
+	}
+
+	c := &Contract{}
+	c.FromMo(cMo)
+
+	log.Infof("Key: %s", uri)
+	return c, nil
+}
+
 func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
 	gMutex.Lock()
 	defer gMutex.Unlock()

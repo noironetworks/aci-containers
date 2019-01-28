@@ -110,12 +110,13 @@ type BDSubnet struct {
 }
 
 var podBDS *BDSubnet
+
 func (bds *BDSubnet) SubnetsUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, bds.subnetsName)
 }
 
 func (bds *BDSubnet) SnUri() string {
-	sn := escapeName(bds.snet)
+	sn := escapeName(bds.snet, false)
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/GbpSubnet/%s/", kubeTenant, bds.subnetsName, sn)
 }
 
@@ -338,6 +339,18 @@ func (g *gbpCommonMo) DelChild(uri string) {
 	}
 }
 
+func (g *gbpCommonMo) getChildMos() []*gbpCommonMo {
+	res := make([]*gbpCommonMo, 0, len(g.Children))
+	for _, u := range g.Children {
+		mo := MoDB[u]
+		if mo != nil {
+			res = append(res, &mo.gbpCommonMo)
+		}
+	}
+
+	return res
+}
+
 func (g *gbpCommonMo) AddProperty(name string, data interface{}) {
 	p := Property{Name: name, Data: data}
 	g.Properties = append(g.Properties, p)
@@ -378,7 +391,7 @@ func (g *gbpCommonMo) getTarget() (string, error) {
 	return "", fmt.Errorf("Not found")
 }
 
-func escapeName(n string) string {
+func escapeName(n string, undo bool) string {
 	escs := []struct {
 		Orig   string
 		Escape string
@@ -401,8 +414,14 @@ func escapeName(n string) string {
 		},
 	}
 
-	for _, e := range escs {
-		n = strings.Replace(n, e.Orig, e.Escape, -1)
+	if undo {
+		for _, e := range escs {
+			n = strings.Replace(n, e.Escape, e.Orig, -1)
+		}
+	} else {
+		for _, e := range escs {
+			n = strings.Replace(n, e.Orig, e.Escape, -1)
+		}
 	}
 
 	return n
@@ -423,7 +442,7 @@ func CreateRoot() {
 		if name == "" {
 			cURI = fmt.Sprintf("%s%s/", p.URI, childSub)
 		} else {
-			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, escapeName(name))
+			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, escapeName(name, false))
 		}
 		child := &gbpBaseMo{
 			gbpCommonMo{
@@ -479,7 +498,7 @@ func CreateRoot() {
 	}
 
 	dcToCR := createChild(dcMo, "DomainConfigToConfigRSrc", "")
-	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName))
+	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName, false))
 	refP := RefProperty{Subject: "PlatformConfig", RefURI: pConfURI}
 	dcToCR.AddProperty(propTarget, refP)
 
