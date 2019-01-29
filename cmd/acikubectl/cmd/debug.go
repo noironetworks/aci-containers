@@ -294,89 +294,7 @@ func accLogCmdArgs(systemNamespace string) []string {
 		"-c", "aci-containers-controller"}
 }
 
-func accLog(cmd *cobra.Command, args []string) {
-	kubeClient := initClientPrintError()
-	if kubeClient == nil {
-		return
-	}
-
-	systemNamespace, err := findSystemNamespace(kubeClient)
-	if err != nil {
-		fmt.Fprintln(os.Stderr,
-			"Could not find aci-containers system namespace:", err)
-		return
-	}
-
-	outputCmd(logCmd, accLogCmdArgs(systemNamespace))
-}
-
 type nodeCmdArgFunc func(string, string, string, []string) []string
-
-func nodeCmd(cmd *cobra.Command, args []string, selector string,
-	containerName string, argFunc nodeCmdArgFunc) {
-
-	node, err := cmd.PersistentFlags().GetString("node")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	allNodes, err := cmd.PersistentFlags().GetBool("all-nodes")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	if !allNodes && node == "" {
-		fmt.Fprintln(os.Stderr,
-			"Node not specified (use --node or --all-nodes)")
-		return
-	}
-
-	kubeClient := initClientPrintError()
-	if kubeClient == nil {
-		return
-	}
-
-	nodes := make(map[string]bool)
-	if node != "" {
-		nodes[node] = true
-	}
-
-	if allNodes {
-		nodeObjs, err :=
-			kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
-		}
-		for _, no := range nodeObjs.Items {
-			nodes[no.Name] = true
-		}
-	}
-	if len(nodes) == 0 {
-		fmt.Fprintln(os.Stderr, "No nodes on which to run command")
-		return
-	}
-
-	systemNamespace, err := findSystemNamespace(kubeClient)
-	if err != nil {
-		fmt.Fprintln(os.Stderr,
-			"Could not find aci-containers system namespace:", err)
-		return
-	}
-
-	for n, _ := range nodes {
-		podName, err := podForNode(kubeClient, systemNamespace, n, selector)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
-		}
-		if allNodes {
-			fmt.Fprintln(os.Stdout, "Running command on node", n)
-		}
-
-		outputCmd(logCmd, argFunc(systemNamespace, podName,
-			containerName, args))
-	}
-}
 
 func nodeLogCmdArgs(systemNamespace string, podName string,
 	containerName string, args []string) []string {
@@ -423,29 +341,10 @@ const opflexAgentSelector = "network-plugin=aci-containers,name=aci-containers-h
 const hostAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
 const openvswitchSelector = "network-plugin=aci-containers,name=aci-containers-openvswitch"
 
-func opflexAgentLog(cmd *cobra.Command, args []string) {
-	nodeCmd(nodeLogCmd, args, opflexAgentSelector,
-		"opflex-agent", nodeLogCmdArgs)
-}
-
-func hostAgentLog(cmd *cobra.Command, args []string) {
-	nodeCmd(nodeLogCmd, args, hostAgentSelector,
-		"aci-containers-host", nodeLogCmdArgs)
-}
-
-func openvswitchLog(cmd *cobra.Command, args []string) {
-	nodeCmd(nodeLogCmd, args, openvswitchSelector,
-		"aci-containers-openvswitch", nodeLogCmdArgs)
-}
-
 func inspectArgs(systemNamespace string, podName string,
 	containerName string, args []string) []string {
 	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--", "gbp_inspect"}, args...)
-}
-
-func inspect(cmd *cobra.Command, args []string) {
-	nodeCmd(cmdCmd, args, opflexAgentSelector, "opflex-agent", inspectArgs)
 }
 
 func ovsVsCtlArgs(systemNamespace string, podName string, containerName string,
@@ -454,21 +353,11 @@ func ovsVsCtlArgs(systemNamespace string, podName string, containerName string,
 		podName, "-c", containerName, "--", "ovs-vsctl"}, args...)
 }
 
-func ovsVsCtl(cmd *cobra.Command, args []string) {
-	nodeCmd(cmdCmd, args, openvswitchSelector,
-		"aci-containers-openvswitch", ovsVsCtlArgs)
-}
-
 func ovsOfCtlArgs(systemNamespace string, podName string, containerName string,
 	args []string) []string {
 	return append([]string{"-n", systemNamespace, "exec",
 		podName, "-c", containerName, "--",
 		"ovs-ofctl", "-OOpenFlow13"}, args...)
-}
-
-func ovsOfCtl(cmd *cobra.Command, args []string) {
-	nodeCmd(cmdCmd, args, openvswitchSelector,
-		"aci-containers-openvswitch", ovsOfCtlArgs)
 }
 
 func otherNodeArgs(systemNamespace string, podName string,
@@ -493,99 +382,9 @@ containers, including logs, status, and other information.`,
 	Run: clusterReport,
 }
 
-var logCmd = &cobra.Command{
-	Use:   "logs",
-	Short: "Get logs from ACI containers components",
-}
-
-var controllerLogCmd = &cobra.Command{
-	Use:   "controller",
-	Short: "Get logs from an ACI containers controller container",
-}
-
-var accControllerLogCmd = &cobra.Command{
-	Use:   "acc",
-	Short: "Get logs from the ACC container",
-	Run:   accLog,
-}
-
-var nodeLogCmd = &cobra.Command{
-	Use:   "node",
-	Short: "Get logs from an ACI containers host container",
-}
-
-var opflexAgentNodeLogCmd = &cobra.Command{
-	Use:   "opflex-agent",
-	Short: "Get logs from the opflex agent container",
-	Run:   opflexAgentLog,
-}
-
-var hostAgentNodeLogCmd = &cobra.Command{
-	Use:   "host-agent",
-	Short: "Get logs from the host agent container",
-	Run:   hostAgentLog,
-}
-
-var openvswitchNodeLogCmd = &cobra.Command{
-	Use:   "openvswitch",
-	Short: "Get logs from the openvswitch container",
-	Run:   openvswitchLog,
-}
-
-var cmdCmd = &cobra.Command{
-	Use:   "node-cmd",
-	Short: "Run a command on an ACI containers host container",
-}
-
-var inspectCmd = &cobra.Command{
-	Use:   "gbp-inspect",
-	Short: "Run the GBP inspect tool for a node",
-	Example: `acikubectl debug cmd -n node1 gbp-inspect -- -rq DmtreeRoot
-acikubectl debug cmd --all-nodes gbp-inspect -- -q GbpEpGroup`,
-	Run: inspect,
-}
-
-var ovsVsCtlCmd = &cobra.Command{
-	Use:     "ovs-vsctl",
-	Short:   "Run the ovs-vsctl tool for a node",
-	Example: `acikubectl debug cmd -n node1 ovs-vsctl -- show`,
-	Run:     ovsVsCtl,
-}
-
-var ovsOfCtlCmd = &cobra.Command{
-	Use:     "ovs-ofctl",
-	Short:   "Run the ovs-ofctl tool for a node",
-	Example: `acikubectl debug cmd -n node1 ovs-ofctl -- dump-flows br-int`,
-	Run:     ovsOfCtl,
-}
-
 func init() {
-	logCmd.PersistentFlags().StringP("output", "o", "",
-		"Output to the specified file")
-
-	controllerLogCmd.AddCommand(accControllerLogCmd)
-	logCmd.AddCommand(controllerLogCmd)
-
-	nodeLogCmd.PersistentFlags().StringP("node", "n", "",
-		"Get logs from the specified node")
-	nodeLogCmd.AddCommand(opflexAgentNodeLogCmd)
-	nodeLogCmd.AddCommand(hostAgentNodeLogCmd)
-	nodeLogCmd.AddCommand(openvswitchNodeLogCmd)
-	logCmd.AddCommand(nodeLogCmd)
-
 	reportCmd.PersistentFlags().StringP("output", "o", "",
 		"Output to the specified file")
-
-	cmdCmd.PersistentFlags().StringP("node", "n", "",
-		"Run command on the specified node")
-	cmdCmd.PersistentFlags().Bool("all-nodes", false,
-		"Run command on all nodes")
-	cmdCmd.AddCommand(inspectCmd)
-	cmdCmd.AddCommand(ovsVsCtlCmd)
-	cmdCmd.AddCommand(ovsOfCtlCmd)
-
-	debugCmd.AddCommand(logCmd)
 	debugCmd.AddCommand(reportCmd)
-	debugCmd.AddCommand(cmdCmd)
 	RootCmd.AddCommand(debugCmd)
 }
