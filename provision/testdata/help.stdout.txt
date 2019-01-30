@@ -1,5 +1,5 @@
-usage: acc_provision.py [-h] [-v] [--debug] [--sample] [-c file] [-o file]
-                        [-a] [-d] [-u name] [-p pass] [-w timeout]
+usage: acc_provision.py [-h] [-v] [--release] [--debug] [--sample] [-c file]
+                        [-o file] [-a] [-d] [-u name] [-p pass] [-w timeout]
                         [--list-flavors] [-f flavor] [-t token]
 
 Provision an ACI/Kubernetes installation
@@ -7,6 +7,7 @@ Provision an ACI/Kubernetes installation
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
+  --release             print git release info
   --debug               enable debug
   --sample              print a sample input file with fabric configuration
   -c, --config file     input file with your fabric configuration
