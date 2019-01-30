@@ -86,7 +86,8 @@ func TestBasic(t *testing.T) {
 	}
 
 	defer os.RemoveAll(dataDir)
-	apiserver.InitDB(dataDir, "18.217.5.107:443")
+	//apiserver.InitDB(dataDir, "18.217.5.107:443")
+	apiserver.InitDB(dataDir, "")
 
 	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
 	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")
@@ -321,6 +322,8 @@ func verifyRest(t *testing.T, c *http.Client) {
 		VTEP:    "8.8.8.8",
 	}
 
+	testNPjson := []byte("{\"hostprotPol\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1\",\"name\":\"vk8s_1_node_vk8s-node1\"},\"children\":[{\"hostprotSubj\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node\",\"name\":\"local-node\"},\"children\":[{\"hostprotRule\":{\"attributes\":{\"connTrack\":\"normal\",\"direction\":\"egress\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress\",\"ethertype\":\"ipv4\",\"fromPort\":\"unspecified\",\"name\":\"allow-all-egress\",\"protocol\":\"unspecified\",\"toPort\":\"unspecified\"},\"children\":[{\"hostprotRemoteIp\":{\"attributes\":{\"addr\":\"1.100.201.12\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/ip-[1.100.201.12]\"},\"children\":[{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/ip-[1.100.201.12]/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"hostprotRule\":{\"attributes\":{\"connTrack\":\"normal\",\"direction\":\"ingress\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress\",\"ethertype\":\"ipv4\",\"fromPort\":\"unspecified\",\"name\":\"allow-all-ingress\",\"protocol\":\"unspecified\",\"toPort\":\"unspecified\"},\"children\":[{\"hostprotRemoteIp\":{\"attributes\":{\"addr\":\"1.100.201.12\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/ip-[1.100.201.12]\"},\"children\":[{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/ip-[1.100.201.12]/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}}")
+
 	postList := []struct {
 		url string
 		obj interface{}
@@ -328,13 +331,18 @@ func verifyRest(t *testing.T, c *http.Client) {
 		{"https://example.com:8899/gbp/contracts", testContract},
 		{"https://example.com:8899/gbp/epgs", testEpg},
 		{"https://example.com:8899/gbp/endpoints", testEP},
+		{"https://example.com:8899/api/mo/uni/tn-kube/pol-blah", testNPjson},
 	}
 
 	for _, p := range postList {
-		content, err := json.Marshal(p.obj)
-		if err != nil {
-			log.Errorf("json.Marshal :% v", err)
-			t.FailNow()
+		var err error
+		content, ok := p.obj.([]byte)
+		if !ok {
+			content, err = json.Marshal(p.obj)
+			if err != nil {
+				log.Errorf("json.Marshal :% v", err)
+				t.FailNow()
+			}
 		}
 		resp, err := c.Post(p.url, "application/json", strings.NewReader(string(content)))
 		if err != nil {
@@ -438,6 +446,13 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	if len(getList.URIs) != 0 {
 		log.Errorf("EPs present: %q", getList.URIs)
+		t.FailNow()
+	}
+
+	req, _ := http.NewRequest("DELETE", "https://example.com:8899/api/mo/uni/tn-kube/pol-blah", nil)
+	_, err = c.Do(req)
+	if err != nil {
+		log.Errorf("Delete :% v", err)
 		t.FailNow()
 	}
 }
