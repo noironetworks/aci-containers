@@ -187,11 +187,14 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 	// gbp rest handlers
 	addGBPPost(t)
 
+	t.PathPrefix("/api/mo/uni/tn-kube/pol-").HandlerFunc(MakeHTTPHandler(postNP))
+	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// api/mo handlers (apic stub)
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// Routes consist of a path and a handler function.
 	delR := r.Methods("DELETE").Subrouter()
 	addGBPDelete(delR)
+	delR.PathPrefix("/api/mo/uni/tn-kube/pol-").HandlerFunc(MakeHTTPHandler(deleteNP))
 	getR := r.Methods("GET").Subrouter()
 	addGBPGet(getR)
 	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)

@@ -83,28 +83,29 @@ func (c *Contract) Make() error {
 		return err
 	}
 
+	addActionRef(&fmo.gbpCommonMo)
+	return nil
+}
+
+func addActionRef(p *gbpCommonMo) {
 	// action and action ref
 	aMo := &GBPAction{}
-	amoURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpAllowDenyAction/allow/", c.Tenant)
+	amoURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpAllowDenyAction/allow/", kubeTenant)
 	aMo.Make("allow", amoURI)
 	aMo.AddProperty("allow", 1)
 
 	aRef := &gbpToMo{}
 	aRef.setSubject(subjActionRsrc)
 	arefName := escapeName(aMo.URI, false)
-	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", furi, arefName)
+	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", p.URI, arefName)
 	aRef.Make("", arefURI)
 	ref := RefProperty{
 		Subject: aMo.Subject,
 		RefURI:  aMo.URI,
 	}
 	aRef.AddProperty(propTarget, ref)
-	aRef.SetParent(fmo.Subject, aRef.Subject, fmo.URI)
-	fmo.AddChild(aRef.URI)
-
-	return nil
+	linkParentChild(p, &aRef.gbpCommonMo)
 }
-
 func (c *Contract) makeClassifiers() error {
 	for _, wRule := range c.AllowList {
 		err := c.addRule(wRule)
@@ -527,7 +528,7 @@ func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	return e, nil
 }
 
-// postContracte rest handler to create an epg
+// postContract rest handler to create an epg
 func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
 	gMutex.Lock()
 	defer gMutex.Unlock()
@@ -603,6 +604,221 @@ func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string
 	k := strings.Replace(uri[0], "|", "%7c", -1)
 	delete(MoDB, k)
 	log.Infof("%s deleted", k)
+	DoAll()
+	return nil, nil
+}
+
+type NetworkPolicy struct {
+	HostprotPol Hpp `json:"hostprotPol,omitempty"`
+}
+
+type Hpp struct {
+	Attributes map[string]string   `json:"attributes,omitempty"`
+	Children   []map[string]HpSubj `json:"children,omitempty"`
+}
+
+type HpSubj struct {
+	Attributes map[string]string        `json:"attributes,omitempty"`
+	Children   []map[string]HpSubjChild `json:"children,omitempty"`
+}
+
+type HpSubjChild struct {
+	Attributes map[string]string             `json:"attributes,omitempty"`
+	Children   []map[string]HpSubjGrandchild `json:"children,omitempty"`
+}
+
+type HpSubjGrandchild struct {
+	Attributes map[string]string        `json:"attributes,omitempty"`
+	Children   []map[string]interface{} `json:"children,omitempty"`
+}
+
+func linkParentChild(p, c *gbpCommonMo) {
+	p.AddChild(c.URI)
+	c.SetParent(p.Subject, c.Subject, p.URI)
+}
+
+func (np *NetworkPolicy) getURI() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", kubeTenant, subjSecGroup, np.HostprotPol.Attributes[propName])
+}
+func (np *NetworkPolicy) Make() error {
+	if np.HostprotPol.Attributes == nil {
+		return fmt.Errorf("Malformed network policy")
+	}
+
+	hpp := &gbpBaseMo{}
+	hpp.Subject = subjSecGroup
+	hpp.URI = np.getURI()
+	hpp.AddProperty(propName, np.HostprotPol.Attributes[propName])
+	hpp.save()
+	c := np.HostprotPol.getChild("hostprotSubj")
+	if c == nil {
+		return fmt.Errorf("hostprotSubj not found")
+	}
+
+	if c.Attributes == nil {
+		return fmt.Errorf("Malformed network policy subject")
+	}
+	hppSub := &gbpBaseMo{}
+	hppSub.Subject = subjSGSubj
+	hppSub.URI = fmt.Sprintf("%s%s/%s/", hpp.URI, subjSGSubj, c.Attributes[propName])
+	hppSub.AddProperty(propName, c.Attributes[propName])
+	hppSub.save()
+	linkParentChild(&hpp.gbpCommonMo, &hppSub.gbpCommonMo)
+	err := c.Make(&hppSub.gbpCommonMo) // make the remaining subtree
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (hpp *Hpp) getChild(key string) *HpSubj {
+	for _, cm := range hpp.Children {
+		res, ok := cm[key]
+		if ok {
+			return &res
+		}
+	}
+
+	return nil
+}
+
+func (hs *HpSubj) Make(hsMo *gbpCommonMo) error {
+	c := hs.getChild("hostprotRule")
+	if c == nil {
+		return nil
+	}
+
+	if c.Attributes == nil {
+		return fmt.Errorf("Malformed network policy rule")
+	}
+	hppRule := &gbpBaseMo{}
+	hppRule.Subject = subjSGRule
+	hppRule.URI = fmt.Sprintf("%s%s/%s/", hsMo.URI, subjSGRule, c.Attributes[propName])
+	hppRule.AddProperty(propName, c.Attributes[propName])
+	dir := "bidirectional"
+	if c.Attributes["direction"] == "ingress" {
+		dir = "in"
+	}
+	if c.Attributes["direction"] == "egress" {
+		dir = "out"
+	}
+	hppRule.AddProperty("direction", dir)
+	hppRule.AddProperty("order", 1)
+	hppRule.save()
+	linkParentChild(hsMo, &hppRule.gbpCommonMo)
+	err := c.Make(&hppRule.gbpCommonMo, hs.Attributes[propName]) // make the remaining subtree
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (hs *HpSubj) getChild(key string) *HpSubjChild {
+	for _, cm := range hs.Children {
+		res, ok := cm[key]
+		if ok {
+			return &res
+		}
+	}
+
+	return nil
+}
+
+func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName string) error {
+	// make a classifier mo
+	cfMo := &GBPL24Classifier{}
+	cname := fmt.Sprintf("%s|%s", subjName, hsc.Attributes[propName])
+	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", kubeTenant, escapeName(cname, false))
+	cfMo.Make(cname, uri)
+	cfMo.AddProperty(propName, cname)
+
+	if hsc.Attributes[propProt] != "unspecified" {
+		prot, ether, err := protToValues(hsc.Attributes[propProt])
+		if err == nil {
+			cfMo.AddProperty(propProt, prot)
+			cfMo.AddProperty(propEther, ether)
+		}
+	}
+
+	portSpec := []struct {
+		apicName string
+		gbpName  string
+	}{
+		{apicName: "toPort", gbpName: propDToPort},
+		{apicName: "fromPort", gbpName: propDFromPort},
+	}
+	for _, s := range portSpec {
+		att := hsc.Attributes[s.apicName]
+		if att != "unspecified" {
+			attInt, _ := strconv.Atoi(att)
+			cfMo.AddProperty(s.gbpName, attInt)
+		}
+	}
+
+	// make reference
+	tocfURI := fmt.Sprintf("%s%s/42/%s", ruleMo.URI, subjClassRsrc, escapeName(cname, false))
+	toCF := &gbpToMo{}
+	toCF.setSubject(subjClassRsrc)
+	toCF.Make("", tocfURI)
+
+	cfRef := RefProperty{
+		Subject: subjL24Class,
+		RefURI:  uri,
+	}
+	toCF.AddProperty(propTarget, cfRef)
+	linkParentChild(ruleMo, &toCF.gbpCommonMo)
+	addActionRef(ruleMo)
+	return nil
+}
+
+func (hs *HpSubjChild) getChild(key string) *HpSubjGrandchild {
+	for _, cm := range hs.Children {
+		res, ok := cm[key]
+		if ok {
+			return &res
+		}
+	}
+
+	return nil
+}
+
+// postNP rest handler to create a network policy
+func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	content, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "ioutil.ReadAll")
+	}
+
+	c := &NetworkPolicy{}
+	err = json.Unmarshal(content, c)
+	if err != nil {
+		return nil, errors.Wrap(err, "json.Unmarshal")
+	}
+
+	err = c.Make()
+	if err != nil {
+		return nil, errors.Wrap(err, "c.Make")
+	}
+
+	DoAll()
+	return &PostResp{URI: c.getURI()}, nil
+}
+
+func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+
+	dn := strings.TrimPrefix(r.RequestURI, "/api/mo/uni/tn-kube/pol-")
+	dn = strings.TrimSuffix(dn, ".json")
+	npName := strings.Split(dn, "/")[0]
+	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", kubeTenant, subjSecGroup, npName)
+	delete(MoDB, key)
+	log.Infof("Deleted %s", key)
+
 	DoAll()
 	return nil, nil
 }
