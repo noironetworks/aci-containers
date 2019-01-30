@@ -211,7 +211,11 @@ rules:
   - watch
   - get
 - apiGroups:
+<<<<<<< HEAD
   - "networking.k8s.io"
+=======
+  - "{{ config.kube_config.use_netpol_apigroup }}"
+>>>>>>> 6f5232b... Testcases updated
   resources:
   - networkpolicies
   verbs:
@@ -219,7 +223,11 @@ rules:
   - watch
   - get
 - apiGroups:
+<<<<<<< HEAD
   - "apps"
+=======
+  - "{{ config.kube_config.use_apps_apigroup }}"
+>>>>>>> 6f5232b... Testcases updated
   resources:
   - deployments
   - replicasets
