@@ -167,14 +167,6 @@ rules:
   - list
   - watch
   - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - nodes
-  - services/status
-  verbs:
-  - update
 ---
 apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRole
@@ -188,9 +180,27 @@ rules:
   - ""
   resources:
   - nodes
+  - namespaces
   - pods
   - endpoints
   - services
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "{{ config.kube_config.use_netpol_apigroup }}"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "{{ config.kube_config.use_apps_apigroup }}"
+  resources:
+  - deployments
+  - replicasets
   verbs:
   - list
   - watch
