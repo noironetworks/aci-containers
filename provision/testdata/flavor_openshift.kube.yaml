@@ -210,9 +210,27 @@ rules:
   - ""
   resources:
   - nodes
+  - namespaces
   - pods
   - endpoints
   - services
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "{{ config.kube_config.use_netpol_apigroup }}"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "{{ config.kube_config.use_apps_apigroup }}"
+  resources:
+  - deployments
+  - replicasets
   verbs:
   - list
   - watch
