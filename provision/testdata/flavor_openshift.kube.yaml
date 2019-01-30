@@ -189,14 +189,6 @@ rules:
   - list
   - watch
   - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - nodes
-  - services/status
-  verbs:
-  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -219,7 +211,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "{{ config.kube_config.use_netpol_apigroup }}"
+  - "networking.k8s.io"
   resources:
   - networkpolicies
   verbs:
@@ -227,7 +219,7 @@ rules:
   - watch
   - get
 - apiGroups:
-  - "{{ config.kube_config.use_apps_apigroup }}"
+  - "apps"
   resources:
   - deployments
   - replicasets
