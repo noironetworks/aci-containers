@@ -58,14 +58,14 @@ with open(VERSIONS_PATH, 'r') as stream:
     VERSIONS = doc['versions']
 
 with open(FLAVORS_PATH, 'r') as stream:
-        try:
-            doc = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-        DEFAULT_FLAVOR = doc['default_flavor']
-        DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
-        CfFlavorOptions = doc['cfFlavorOptions']
-        FLAVORS = doc['flavors']
+    try:
+        doc = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
+    DEFAULT_FLAVOR = doc['default_flavor']
+    DEFAULT_FLAVOR_OPTIONS = doc['kubeFlavorOptions']
+    CfFlavorOptions = doc['cfFlavorOptions']
+    FLAVORS = doc['flavors']
 
 
 def info(msg):
@@ -856,23 +856,23 @@ def parse_args(show_help):
 
 
 def get_versions(versions_url):
-        global VERSIONS
-        try:
-            # try as a URL
-            res = requests.get(versions_url)
-            versions_yaml = yaml.safe_load(res)
-            info("Loading versions from URL: " + versions_url)
-            VERSIONS = versions_yaml['versions']
+    global VERSIONS
+    try:
+        # try as a URL
+        res = requests.get(versions_url)
+        versions_yaml = yaml.safe_load(res)
+        info("Loading versions from URL: " + versions_url)
+        VERSIONS = versions_yaml['versions']
 
+    except Exception:
+        try:
+            # try as a local file
+            with open(versions_url, 'r') as res:
+                versions_yaml = yaml.safe_load(res)
+                info("Loading versions from local file: " + versions_url)
+                VERSIONS = versions_yaml['versions']
         except Exception:
-            try:
-                # try as a local file
-                with open(versions_url, 'r') as res:
-                    versions_yaml = yaml.safe_load(res)
-                    info("Loading versions from local file: " + versions_url)
-                    VERSIONS = versions_yaml['versions']
-            except Exception:
-                info("Unable to load versions from path: " + versions_url)
+            info("Unable to load versions from path: " + versions_url)
 
 
 def provision(args, apic_file, no_random):
