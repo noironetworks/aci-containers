@@ -167,6 +167,13 @@ rules:
   - list
   - watch
   - get
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - services/status
+  verbs:
+  - update
 ---
 apiVersion: {{ config.kube_config.use_rbac_api }}
 kind: ClusterRole
