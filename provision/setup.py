@@ -1,9 +1,10 @@
 from setuptools import setup, find_packages
+from git_version import get_git_version
 
 setup(
     name='acc_provision',
     version='1.9.9',
-    description='Tool to provision ACI for ACI Containers Controller',
+    description='Tool to provision ACI for ACI Containers Controller\n\nBuild info: \n' + get_git_version(),
     author="Cisco Systems, Inc.",
     author_email="apicapi@noironetworks.com",
     url='http://github.com/noironetworks/aci-containers/',

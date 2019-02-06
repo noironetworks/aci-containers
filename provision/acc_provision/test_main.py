@@ -234,6 +234,7 @@ def get_args(**overrides):
         "list_flavors": False,
         "flavor": None,
         "version_token": "dummy",
+        "release": False,
     }
     argc = collections.namedtuple('argc', list(arg.keys()))
     args = argc(**arg)
