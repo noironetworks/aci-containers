@@ -811,6 +811,8 @@ def parse_args(show_help):
     parser.add_argument(
         '-v', '--version', action='version', version=version)
     parser.add_argument(
+        '--release', action='store_true', default=False, help='print git release info')
+    parser.add_argument(
         '--debug', action='store_true', default=False,
         help='enable debug')
     parser.add_argument(
@@ -1001,6 +1003,15 @@ def main(args=None, apic_file=None, no_random=False):
     # len(sys.argv) == 1 when acc-provision is called w/o arguments
     if args is None:
         args = parse_args(len(sys.argv) == 1)
+
+    if args.release:
+        try:
+            release_file_path = os.path.dirname(os.path.realpath(__file__)) + '/RELEASE-VERSION'
+            release = open(release_file_path, "r").read().rstrip()
+            print(release, file=sys.stderr)
+        except Exception:
+            info("Release info not present in this package")
+        return
 
     if args.list_flavors:
         info("Available configuration flavors:")
