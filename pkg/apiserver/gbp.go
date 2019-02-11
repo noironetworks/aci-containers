@@ -38,6 +38,7 @@ const (
 	gbpUpdPath = "/usr/local/bin/gbp_update.sh"
 )
 
+var debugDB = false
 var encapID = uint(7700000)
 var classID = uint(32000)
 var gMutex sync.Mutex
@@ -60,6 +61,30 @@ func (g *gbpBaseMo) save() {
 		g.Properties = []Property{}
 	}
 	MoDB[g.URI] = g
+}
+
+// delete children and then self from the DB
+func (g *gbpBaseMo) delRecursive() {
+	log.Debugf("delRecursive: %s", g.URI)
+	for _, c := range g.Children {
+		cMo := MoDB[c]
+		if cMo != nil {
+			cMo.delRecursive()
+		}
+	}
+
+	// delete any reference as well
+	ref, err := g.getTarget()
+	if err == nil {
+		rMo := MoDB[ref]
+		if rMo != nil {
+			rMo.delRecursive()
+		} else {
+			log.Errorf("delRecursive: %s not found", ref)
+		}
+	}
+
+	delete(MoDB, g.URI)
 }
 
 // returns refMo URI, indexed by the actual target uri
@@ -476,7 +501,7 @@ func (s *GBPSubnet) Make(name, uri string) error {
 	s.AddProperty(propName, name)
 	s.AddProperty(propGw, fields[0])
 	s.AddProperty(propPrefix, pLen)
-	s.AddProperty(propMac, defRMac)
+	//	s.AddProperty(propMac, defRMac)
 	s.AddProperty(propNw, strings.Split(ipnet.String(), "/")[0])
 	s.save()
 	return nil
@@ -634,6 +659,7 @@ func InitDB(dataDir, apic string) {
 	}
 
 	nodeBDS.Setup()
+	SendDefaultsToAPIC()
 
 	// create a wildcard contract
 	emptyRule := WLRule{}
@@ -688,7 +714,6 @@ func InitDB(dataDir, apic string) {
 		}
 	}
 
-	SendDefaultsToAPIC()
 }
 
 func getMoFile() string {
@@ -756,7 +781,7 @@ func DoAll() {
 		moMap := getMoMap()
 		addToMap(moMap, GetInvMoMap(vtep))
 		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
-		printSorted(moMap, fileName)
+		printSorted(moMap, fileName, false)
 		out, err := osexec.Command(gbpUpdPath, vtep).CombinedOutput()
 		if err != nil {
 			log.Errorf("%s returned %v", gbpUpdPath, err)
@@ -789,10 +814,10 @@ func saveDBToFile() {
 	}
 
 	moMap := getMoMap()
-	printSorted(moMap, getMoFile())
+	printSorted(moMap, getMoFile(), debugDB)
 	for vtep := range InvDB {
 		vtepFile := filepath.Join(invDir, vtep)
-		printSorted(invToCommon(vtep), vtepFile)
+		printSorted(invToCommon(vtep), vtepFile, debugDB)
 	}
 
 }
@@ -829,11 +854,11 @@ func VerifyFile(pFile string, print bool) {
 	}
 
 	if print {
-		printSorted(db, pFile+".sorted")
+		printSorted(db, pFile+".sorted", false)
 	}
 }
 
-func printSorted(mos map[string]*gbpCommonMo, outFile string) {
+func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
 	var keys []string
 
 	for k := range mos {
@@ -850,7 +875,9 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string) {
 			fmt.Printf("ERROR: missing mo")
 			continue
 		} else {
-			//			fmt.Printf("Appending mo %s\n", m.URI)
+			if debug {
+				fmt.Printf("Appending mo %s\n", m.URI)
+			}
 		}
 		sortedMos = append(sortedMos, m)
 	}
@@ -858,7 +885,14 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string) {
 	if err != nil {
 		fmt.Printf("ERROR: %v", err)
 	}
-	ioutil.WriteFile(outFile, policyJson, 0644)
+	err = ioutil.WriteFile(outFile, policyJson, 0644)
+	if err != nil {
+		log.Errorf("%s - %v", outFile, err)
+	} else {
+		if debug {
+			log.Infof("Wrote %s", outFile)
+		}
+	}
 }
 
 func SendDefaultsToAPIC() {

@@ -352,7 +352,7 @@ func (e *EPG) pushTocAPIC() error {
 		return nil
 	}
 
-	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, e.Name)
+	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, escapeName(e.Name, false))
 	for _, cc := range e.ConsContracts {
 		ccMo := apicapi.NewFvRsCons(cepg.GetDn(), cc)
 		cepg.AddChild(ccMo)
@@ -649,6 +649,7 @@ func (np *NetworkPolicy) Make() error {
 	hpp.Subject = subjSecGroup
 	hpp.URI = np.getURI()
 	hpp.AddProperty(propName, np.HostprotPol.Attributes[propName])
+	log.Infof("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.URI)
 	hpp.save()
 	c := np.HostprotPol.getChild("hostprotSubj")
 	if c == nil {
@@ -664,7 +665,7 @@ func (np *NetworkPolicy) Make() error {
 	hppSub.AddProperty(propName, c.Attributes[propName])
 	hppSub.save()
 	linkParentChild(&hpp.gbpCommonMo, &hppSub.gbpCommonMo)
-	err := c.Make(&hppSub.gbpCommonMo) // make the remaining subtree
+	err := c.Make(&hppSub.gbpCommonMo, np.HostprotPol.Attributes[propName]) // make the remaining subtree
 	if err != nil {
 		return err
 	}
@@ -683,62 +684,82 @@ func (hpp *Hpp) getChild(key string) *HpSubj {
 	return nil
 }
 
-func (hs *HpSubj) Make(hsMo *gbpCommonMo) error {
-	c := hs.getChild("hostprotRule")
-	if c == nil {
-		return nil
-	}
+func (hs *HpSubj) Make(hsMo *gbpCommonMo, npName string) error {
+	cList := hs.getChildren("hostprotRule")
 
-	if c.Attributes == nil {
-		return fmt.Errorf("Malformed network policy rule")
-	}
-	hppRule := &gbpBaseMo{}
-	hppRule.Subject = subjSGRule
-	hppRule.URI = fmt.Sprintf("%s%s/%s/", hsMo.URI, subjSGRule, c.Attributes[propName])
-	hppRule.AddProperty(propName, c.Attributes[propName])
-	dir := "bidirectional"
-	if c.Attributes["direction"] == "ingress" {
-		dir = "in"
-	}
-	if c.Attributes["direction"] == "egress" {
-		dir = "out"
-	}
-	hppRule.AddProperty("direction", dir)
-	hppRule.AddProperty("order", 1)
-	hppRule.save()
-	linkParentChild(hsMo, &hppRule.gbpCommonMo)
-	err := c.Make(&hppRule.gbpCommonMo, hs.Attributes[propName]) // make the remaining subtree
-	if err != nil {
-		return err
+	for _, c := range cList {
+		if c.Attributes == nil {
+			return fmt.Errorf("Malformed network policy rule")
+		}
+		hppRule := new(gbpBaseMo)
+		hppRule.Subject = subjSGRule
+		hppRule.URI = fmt.Sprintf("%s%s/%s/", hsMo.URI, subjSGRule, c.Attributes[propName])
+		hppRule.AddProperty(propName, c.Attributes[propName])
+		dir := "bidirectional"
+		if c.Attributes["direction"] == "ingress" {
+			dir = "in"
+		}
+		if c.Attributes["direction"] == "egress" {
+			dir = "out"
+		}
+		hppRule.AddProperty("direction", dir)
+		hppRule.AddProperty("order", 1)
+		hppRule.save()
+		linkParentChild(hsMo, &hppRule.gbpCommonMo)
+		err := c.Make(&hppRule.gbpCommonMo, hs.Attributes[propName], npName) // make the remaining subtree
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (hs *HpSubj) getChild(key string) *HpSubjChild {
+func (hs *HpSubj) getChildren(key string) []*HpSubjChild {
+	var res []*HpSubjChild
+
 	for _, cm := range hs.Children {
-		res, ok := cm[key]
+		obj, ok := cm[key]
 		if ok {
-			return &res
+			hsc := new(HpSubjChild)
+			*hsc = obj
+			res = append(res, hsc)
 		}
 	}
 
-	return nil
+	return res
 }
 
-func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName string) error {
+func attrToProperties(a map[string]string) map[string]interface{} {
+	p := make(map[string]interface{})
+
+	p[propEther] = a["ethertype"]
+	ct, ok := a["connTrack"]
+	if ok {
+		p[propConnTrack] = ct
+	}
+	switch a["protocol"] {
+	case "udp":
+		p[propProt] = 17
+	case "icmp":
+		p[propProt] = 1
+	case "tcp":
+		p[propProt] = 6
+	}
+
+	return p
+}
+
+func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error {
 	// make a classifier mo
 	cfMo := &GBPL24Classifier{}
-	cname := fmt.Sprintf("%s|%s", subjName, hsc.Attributes[propName])
+	cname := fmt.Sprintf("%s|%s|%s", npName, subjName, hsc.Attributes[propName])
 	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", kubeTenant, escapeName(cname, false))
 	cfMo.Make(cname, uri)
 	cfMo.AddProperty(propName, cname)
 
-	if hsc.Attributes[propProt] != "unspecified" {
-		prot, ether, err := protToValues(hsc.Attributes[propProt])
-		if err == nil {
-			cfMo.AddProperty(propProt, prot)
-			cfMo.AddProperty(propEther, ether)
-		}
+	props := attrToProperties(hsc.Attributes)
+	for p, v := range props {
+		cfMo.AddProperty(p, v)
 	}
 
 	portSpec := []struct {
@@ -769,18 +790,54 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName string) error {
 	toCF.AddProperty(propTarget, cfRef)
 	linkParentChild(ruleMo, &toCF.gbpCommonMo)
 	addActionRef(ruleMo)
+	hsc.addSubnets(ruleMo, cname)
 	return nil
 }
 
-func (hs *HpSubjChild) getChild(key string) *HpSubjGrandchild {
-	for _, cm := range hs.Children {
-		res, ok := cm[key]
+func (hsc *HpSubjChild) getRemoteIPs() []string {
+	var res []string
+	for _, cm := range hsc.Children {
+		hri, ok := cm["hostprotRemoteIp"]
 		if ok {
-			return &res
+			addr, ok := hri.Attributes["addr"]
+			if ok {
+				res = append(res, addr)
+			}
 		}
 	}
 
-	return nil
+	return res
+}
+
+func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
+	ipSet := hsc.getRemoteIPs()
+//	if len(ipSet) == 0 {
+//		log.Infof("No subnets in network policy")
+//		return
+//	}
+	log.Infof("Subnets are: %v", ipSet)
+	ss := &GBPSubnetSet{}
+	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, escapeName(name, false))
+	ss.Make(name, ssUri)
+	for _, addr := range ipSet {
+		if len(strings.Split(addr, "/")) == 1 {
+			addr = addr + "/32"
+		}
+		s := &GBPSubnet{}
+		s.Make(addr, fmt.Sprintf("%sGbpSubnet/%s/", ssUri, escapeName(addr, false)))
+		linkParentChild(&ss.gbpCommonMo, &s.gbpCommonMo)
+	}
+
+	ssRef := &gbpToMo{}
+	ssRef.setSubject(subjSGRuleToCidr)
+	ssRefURI := fmt.Sprintf("%sGbpSecGroupRuleToRemoteAddressRSrc/205/%s/", p.URI, escapeName(name, false))
+	ssRef.Make("", ssRefURI)
+	ref := RefProperty{
+		Subject: ss.Subject,
+		RefURI:  ss.URI,
+	}
+	ssRef.AddProperty(propTarget, ref)
+	linkParentChild(p, &ssRef.gbpCommonMo)
 }
 
 // postNP rest handler to create a network policy
@@ -801,10 +858,15 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 
 	err = c.Make()
 	if err != nil {
+		log.Errorf("Network policy -- %v", err)
 		return nil, errors.Wrap(err, "c.Make")
 	}
 
-	DoAll()
+	name := c.HostprotPol.Attributes[propName]
+	if !strings.Contains(name, "np_static") {
+		DoAll()
+	}
+	log.Infof("Created %+v", c)
 	return &PostResp{URI: c.getURI()}, nil
 }
 
@@ -816,7 +878,11 @@ func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (i
 	dn = strings.TrimSuffix(dn, ".json")
 	npName := strings.Split(dn, "/")[0]
 	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", kubeTenant, subjSecGroup, npName)
-	delete(MoDB, key)
+	npMo := MoDB[key]
+	if npMo == nil {
+		return nil, fmt.Errorf("%s not found", key)
+	}
+	npMo.delRecursive()
 	log.Infof("Deleted %s", key)
 
 	DoAll()

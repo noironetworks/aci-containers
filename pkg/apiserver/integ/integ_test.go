@@ -331,7 +331,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		{"https://example.com:8899/gbp/contracts", testContract},
 		{"https://example.com:8899/gbp/epgs", testEpg},
 		{"https://example.com:8899/gbp/endpoints", testEP},
-		{"https://example.com:8899/api/mo/uni/tn-kube/pol-blah", testNPjson},
+		{"https://example.com:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", testNPjson},
 	}
 
 	for _, p := range postList {
@@ -448,8 +448,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Errorf("EPs present: %q", getList.URIs)
 		t.FailNow()
 	}
-
-	req, _ := http.NewRequest("DELETE", "https://example.com:8899/api/mo/uni/tn-kube/pol-blah", nil)
+	req, _ := http.NewRequest("DELETE", "https://example.com:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", nil)
 	_, err = c.Do(req)
 	if err != nil {
 		log.Errorf("Delete :% v", err)
