@@ -12,7 +12,7 @@ REVISION=${REVISION:-1}
 python setup.py sdist --dist-dir $BUILD_DIR
 SOURCE_FILE=${NAME}-${VERSION}.tar.gz
 tar -C $BUILD_DIR -xf $BUILD_DIR/$SOURCE_FILE
-SOURCE_DIR=$BUILD_DIR/${NAME}-${VERSION}
+SOURCE_DIR=$BUILD_DIR/${NAME}.${VERSION}
 
 sed -e "s/@VERSION@/$VERSION/" -e "s/@REVISION@/$REVISION/" ${SOURCE_DIR}/debian/changelog.in > ${SOURCE_DIR}/debian/changelog
 
