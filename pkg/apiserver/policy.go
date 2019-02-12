@@ -347,12 +347,17 @@ func (e *EPG) Make() error {
 
 	return e.pushTocAPIC()
 }
+func cApicName(name string) string {
+	return strings.Replace(name, "|", "-", -1)
+}
+
 func (e *EPG) pushTocAPIC() error {
 	if apicCon == nil {
 		return nil
 	}
 
-	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, escapeName(e.Name, false))
+	log.Infof("Name: %s cApicName: %s", e.Name, cApicName(e.Name))
+	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, cApicName(e.Name))
 	for _, cc := range e.ConsContracts {
 		ccMo := apicapi.NewFvRsCons(cepg.GetDn(), cc)
 		cepg.AddChild(ccMo)
@@ -811,10 +816,10 @@ func (hsc *HpSubjChild) getRemoteIPs() []string {
 
 func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	ipSet := hsc.getRemoteIPs()
-//	if len(ipSet) == 0 {
-//		log.Infof("No subnets in network policy")
-//		return
-//	}
+	//	if len(ipSet) == 0 {
+	//		log.Infof("No subnets in network policy")
+	//		return
+	//	}
 	log.Infof("Subnets are: %v", ipSet)
 	ss := &GBPSubnetSet{}
 	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, escapeName(name, false))

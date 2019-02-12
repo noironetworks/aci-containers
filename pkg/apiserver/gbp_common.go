@@ -89,23 +89,23 @@ const (
 	propMcast         = "multicastGroupIP"
 	defEPGURI         = "/PolicyUniverse/PolicySpace/kube/GbpEpGroup/"
 	// make cAPIC happy
-	defEPGName        = "kubernetes|kube-default"
+	defEPGName      = "kubernetes|kube-default"
 	kubeSysEPGName  = "kubernetes|kube-system"
 	kubeNodeEPGName = "kubernetes|kube-nodes"
 	//defEPGName     = "kubernetes-kube-default"
 	//kubeSysEPGName  = "kubernetes-kube-system"
 	//kubeNodeEPGName = "kubernetes-kube-nodes"
-	defPConfigName  = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
-	propConnTrack   = "connectionTracking"
-	propOrder       = "order"
-	nodeSubnet      = "1.100.201.0/24"
-	anyConName      = "all-all"
-	defSubnet       = "10.2.56.1/21"
-	defCAPICSubnet  = "10.2.50.0/21"
-	defCAPICCidr    = "10.2.0.0/16"
-	defRegion       = "us-east-2"
-	cctxProfName    = defVrfName + "_" + defRegion
-	defCloudApp     = "kubeApp1"
+	defPConfigName = "comp/prov-Kubernetes/ctrlr-[kube]-kube/sw-InsiemeLSOid"
+	propConnTrack  = "connectionTracking"
+	propOrder      = "order"
+	nodeSubnet     = "1.100.201.0/24"
+	anyConName     = "all-all"
+	defSubnet      = "10.2.56.1/21"
+	defCAPICSubnet = "10.2.50.0/21"
+	defCAPICCidr   = "10.2.0.0/16"
+	defRegion      = "us-west-1"
+	cctxProfName   = defVrfName + "_" + defRegion
+	defCloudApp    = "kubeApp1"
 )
 
 type BDSubnet struct {

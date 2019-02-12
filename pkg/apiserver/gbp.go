@@ -36,6 +36,7 @@ import (
 
 const (
 	gbpUpdPath = "/usr/local/bin/gbp_update.sh"
+	tokenTime = 20*time.Second
 )
 
 var debugDB = false
@@ -917,7 +918,7 @@ func SendDefaultsToAPIC() {
 
 	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
 	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
-	cepgA := apicapi.NewCloudEpg(kubeTenant, defCloudApp, defEPGName)
+	cepgA := apicapi.NewCloudEpg(kubeTenant, defCloudApp, cApicName(defEPGName))
 	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
 	var cfgMos = []apicapi.ApicObject{
 		apicapi.NewFvTenant(kubeTenant),
@@ -936,5 +937,13 @@ func SendDefaultsToAPIC() {
 		}
 	}
 
+	go func() {
+		ticker := time.NewTicker(tokenTime)
+		for range ticker.C {
+			gMutex.Lock()
+			apicCon.ForceRelogin()
+			gMutex.Unlock()
+		}
+	}()
 	time.Sleep(3 * time.Second) // delay before any EP can be attached
 }

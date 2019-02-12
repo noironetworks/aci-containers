@@ -673,6 +673,10 @@ func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) ForceRelogin() {
+	conn.token = ""
+}
+
 func (conn *ApicConnection) PostTestAPI(data interface{}) error {
 	if conn.token == "" {
 		token, err := conn.login()

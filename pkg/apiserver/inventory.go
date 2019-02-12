@@ -194,9 +194,10 @@ func (ep *Endpoint) pushTocAPIC(add bool) error {
 	}
 
 	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
-	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn(ep.EPG)
+	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn(cApicName(ep.EPG))
 	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
 	epName := string(ep.Uuid[len(ep.Uuid)-12:])
+	epName = fmt.Sprintf("%s.%s", epName, ep.VTEP)
 	cEP["hcloudEndPoint"].Attributes["name"] = epName
 	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr
 	if !add {
