@@ -1,8 +1,0 @@
-include README.md
-include acc_provision/templates/*.yaml
-include acc_provision/*.yaml
-include bin/acikubectl
-include debian/*
-include debian/source/*
-include rpm/*
-include acc_provision/RELEASE-VERSION
