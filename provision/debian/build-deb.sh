@@ -3,7 +3,7 @@
 # Set env var REVISION to overwrite the 'revision' field in version string
 
 set -e -x
-BUILD_DIR=${BUILD_DIR:-`pwd`/debbuild}
+BUILD_DIR=${BUILD_DIR:.`pwd`/debbuild}
 mkdir -p $BUILD_DIR
 rm -rf $BUILD_DIR/*
 NAME=`python setup.py --name`
