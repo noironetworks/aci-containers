@@ -96,6 +96,13 @@ func main() {
 		panic(err.Error())
 	}
 
+	if controller.GetVersion().GitCommit != "" {
+		versionInfo := controller.GetVersion()
+		log.Info("Running controller built from git commit ID " +
+                          versionInfo.GitCommit + " at build time " +
+                          versionInfo.BuildTime)
+	}
+
 	cont := controller.NewController(config, env, log)
 	cont.Init()
 	cont.Run(wait.NeverStop)
