@@ -35,11 +35,14 @@ TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
 GIT_COMMIT=$(shell scripts/getGitCommit.sh)
-PKG_NAME=github.com/noironetworks/aci-containers/pkg/controller
+PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
+PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
-        -X ${PKG_NAME}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
-        -X ${PKG_NAME}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT} \
          -s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
 VENDOR_BUILD_CMD ?= dep ensure -v
