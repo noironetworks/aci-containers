@@ -395,6 +395,64 @@ func TestIPAM(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 }
 
+func TestEPDelete(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "node1",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+
+			NamespaceDefaultEg: map[string]metadata.OpflexGroup{
+				"ns1": {
+					PolicySpace: "tenantA",
+					Name:        "ns1EPG",
+				},
+				"ns2": {
+					PolicySpace: "tenantA",
+					Name:        "ns2EPG",
+				},
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// Add pods intf via cni
+	it.cniAddParallel(0, 2)
+
+	time.Sleep(10 * time.Millisecond)
+	it.addPodObj(0, testPodNS, "", "", nil)
+	it.addPodObj(1, testPodNS, testEgAnnot1, "", nil)
+
+	// verify ep file
+	it.checkEpGroups(0, "defaultEPG", emptyJSON)
+	it.checkEpGroups(1, "test-prof|test-eg", emptyJSON)
+	it.cniDelParallel(0, 2)
+
+	// verify ep files are deleted
+	delVerify := func(id int) {
+		epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)
+		epfile := it.ta.FormEPFilePath(epid)
+		tu.WaitFor(it.t, "checking in epfile delete", 100*time.Millisecond,
+			func(last bool) (bool, error) {
+				_, err := getEp(epfile)
+				return tu.WaitNotEqual(it.t, last, err, nil, "epfile not removed"), nil
+			})
+	}
+
+	for id := 0; id < 2; id++ {
+		delVerify(id)
+	}
+}
+
 func TestGroupAssign(t *testing.T) {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	hcf := &HostAgentConfig{
