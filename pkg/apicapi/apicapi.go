@@ -38,6 +38,10 @@ import (
 	"github.com/juju/ratelimit"
 )
 
+// defaultConnectionRefresh is used as connection refresh interval if
+// RefreshInterval is set to 0
+const defaultConnectionRefresh = 30 * time.Second
+
 func complete(resp *http.Response) {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
@@ -423,7 +427,11 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}()
 	}
 
-	refreshTicker := time.NewTicker(conn.RefreshInterval)
+	refreshInterval := conn.RefreshInterval
+	if refreshInterval == 0 {
+		refreshInterval = defaultConnectionRefresh
+	}
+	refreshTicker := time.NewTicker(refreshInterval)
 	defer refreshTicker.Stop()
 
 	closeConn := func(stop bool) {
@@ -811,11 +819,11 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		kind = "class"
 	}
 
-        refresh_interval := ""
-        if conn.RefreshInterval != 0 {
-                refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
-                        conn.RefreshInterval)
-        }
+	refresh_interval := ""
+	if conn.RefreshInterval != 0 {
+		refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
+			conn.RefreshInterval)
+	}
 
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
