@@ -1,0 +1,15 @@
+apiVersion: aci.aw/v1
+kind: Contract
+metadata:
+  name: all-all
+spec:
+  name: all-all
+  allow-list:
+    - protocol: tcp
+      ports:
+        start: 5000
+        end: 6000
+    - protocol: udp
+      ports:
+        start: 500
+        end: 600

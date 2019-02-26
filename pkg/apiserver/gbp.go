@@ -32,11 +32,12 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
 )
 
 const (
 	gbpUpdPath = "/usr/local/bin/gbp_update.sh"
-	tokenTime = 20*time.Second
+	tokenTime  = 20 * time.Second
 )
 
 var debugDB = false
@@ -636,9 +637,9 @@ func InitDB(dataDir, apic string) {
 	}
 
 	dbDataDir = dataDir
-	if restoreDB() == nil {
-		return
-	}
+//	if restoreDB() == nil {
+//		return
+//	}
 
 	CreateRoot()
 	CreateDefVrf()
@@ -663,11 +664,11 @@ func InitDB(dataDir, apic string) {
 	SendDefaultsToAPIC()
 
 	// create a wildcard contract
-	emptyRule := WLRule{}
+	emptyRule := v1.WLRule{}
 	emptyC := Contract{
 		Name:   anyConName,
 		Tenant: kubeTenant,
-		AllowList: []WLRule{
+		AllowList: []v1.WLRule{
 			emptyRule,
 		},
 	}

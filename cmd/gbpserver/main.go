@@ -72,6 +72,8 @@ func main() {
 	}
 
 	log.Infof("Api server listening at %s", lPort)
+	ch := make(chan struct{})
+	apiserver.InitCRDInformers(ch)
 
 	select {}
 }

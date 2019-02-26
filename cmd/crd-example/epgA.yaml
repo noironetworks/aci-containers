@@ -1,0 +1,12 @@
+apiVersion: aci.aw/v1
+kind: Epg
+metadata:
+  name: epga
+spec:
+  name: epga
+  consumed-contracts:
+    - all-all
+    - blah-blah
+  provided-contracts:
+    - all-all
+

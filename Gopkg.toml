@@ -20,6 +20,7 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+required = ["k8s.io/code-generator/cmd/client-gen"]
 
 [[constraint]]
   name = "github.com/Sirupsen/logrus"

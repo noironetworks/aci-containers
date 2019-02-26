@@ -38,7 +38,8 @@ INSTALL_CMD ?= go install -v
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
 	-ldflags="-s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
-VENDOR_BUILD_CMD ?= dep ensure -v
+#VENDOR_BUILD_CMD ?= dep ensure -v
+VENDOR_BUILD_CMD ?= 
 
 .PHONY: clean goinstall check all
 
@@ -133,11 +134,11 @@ dist/simpleservice: ${SIMPLESERVICE_DEPS}
 dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
 
-container-gbpserver: dist-static/gbpserver 
+container-gbpserver: clean-dist-static dist-static/gbpserver 
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbpserver -f ./docker/Dockerfile-gbpserver .
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host -f ./docker/Dockerfile-host .
-container-controller: dist-static/aci-containers-controller
+container-controller: clean-dist-static dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
 container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker

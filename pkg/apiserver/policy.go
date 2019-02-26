@@ -21,6 +21,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
@@ -45,9 +46,9 @@ type WLRule struct {
 }
 
 type Contract struct {
-	Name      string   `json:"name,omitempty"`
-	Tenant    string   `json:"tenant,omitempty"`
-	AllowList []WLRule `json:"allow-list,omitempty"`
+	Name      string      `json:"name,omitempty"`
+	Tenant    string      `json:"tenant,omitempty"`
+	AllowList []v1.WLRule `json:"allow-list,omitempty"`
 }
 
 func (c *Contract) Make() error {
@@ -118,8 +119,8 @@ func (c *Contract) makeClassifiers() error {
 	return c.pushTocAPIC()
 }
 
-func (c *Contract) addRule(r WLRule) error {
-	uri, cname := r.getClassifierURI(c.Tenant)
+func (c *Contract) addRule(r v1.WLRule) error {
+	uri, cname := getClassifierURI(c.Tenant, &r)
 	log.Infof("uri: %s, name: %s", uri, cname)
 	baseMo := MoDB[uri]
 
@@ -241,7 +242,7 @@ func (c *Contract) pushTocAPIC() error {
 	return nil
 }
 
-func (wr *WLRule) getClassifierURI(tenant string) (string, string) {
+func getClassifierURI(tenant string, wr *v1.WLRule) (string, string) {
 	un := wr.Protocol
 	if un == "" {
 		un = "ANY"
@@ -295,7 +296,7 @@ func (c *Contract) FromMo(mo *gbpBaseMo) error {
 					return fmt.Errorf("Malformed classifier %s ", cname)
 				}
 
-				rule := WLRule{}
+				rule := v1.WLRule{}
 				if cc[0] != "ANY" {
 					rule.Protocol = cc[0]
 				}
