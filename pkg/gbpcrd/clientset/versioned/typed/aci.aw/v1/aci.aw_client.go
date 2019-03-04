@@ -28,6 +28,7 @@ type AciV1Interface interface {
 	RESTClient() rest.Interface
 	ContractsGetter
 	EpgsGetter
+	PodIFsGetter
 }
 
 // AciV1Client is used to interact with features provided by the aci.aw group.
@@ -41,6 +42,10 @@ func (c *AciV1Client) Contracts(namespace string) ContractInterface {
 
 func (c *AciV1Client) Epgs(namespace string) EpgInterface {
 	return newEpgs(c, namespace)
+}
+
+func (c *AciV1Client) PodIFs(namespace string) PodIFInterface {
+	return newPodIFs(c, namespace)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.

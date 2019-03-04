@@ -35,6 +35,10 @@ func (c *FakeAciV1) Epgs(namespace string) v1.EpgInterface {
 	return &FakeEpgs{c, namespace}
 }
 
+func (c *FakeAciV1) PodIFs(namespace string) v1.PodIFInterface {
+	return &FakePodIFs{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeAciV1) RESTClient() rest.Interface {

@@ -27,6 +27,8 @@ type Interface interface {
 	Contracts() ContractInformer
 	// Epgs returns a EpgInformer.
 	Epgs() EpgInformer
+	// PodIFs returns a PodIFInformer.
+	PodIFs() PodIFInformer
 }
 
 type version struct {
@@ -48,4 +50,9 @@ func (v *version) Contracts() ContractInformer {
 // Epgs returns a EpgInformer.
 func (v *version) Epgs() EpgInformer {
 	return &epgInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// PodIFs returns a PodIFInformer.
+func (v *version) PodIFs() PodIFInformer {
+	return &podIFInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

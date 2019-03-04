@@ -20,3 +20,5 @@ package v1
 type ContractExpansion interface{}
 
 type EpgExpansion interface{}
+
+type PodIFExpansion interface{}

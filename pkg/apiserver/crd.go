@@ -16,6 +16,7 @@ limitations under the License.
 package apiserver
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
 	restclient "k8s.io/client-go/rest"
@@ -44,6 +45,7 @@ func InitCRDInformers(stopCh <-chan struct{}) error {
 	restClient := aciawClient.AciV1().RESTClient()
 	watchEpgs(restClient, stopCh)
 	watchContracts(restClient, stopCh)
+	watchPodIFs(restClient, stopCh)
 	return nil
 }
 
@@ -83,6 +85,24 @@ func watchContracts(rc restclient.Interface, stopCh <-chan struct{}) {
 	go contractInformer.Run(stopCh)
 }
 
+func watchPodIFs(rc restclient.Interface, stopCh <-chan struct{}) {
+
+	podIFLw := cache.NewListWatchFromClient(rc, "podifs", sysNs, fields.Everything())
+	_, podIFInformer := cache.NewInformer(podIFLw, &aciv1.PodIF{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				podIFAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				podIFAdded(newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				podIFDeleted(obj)
+			},
+		})
+	go podIFInformer.Run(stopCh)
+}
+
 func epgAdded(obj interface{}) {
 	gMutex.Lock()
 	defer gMutex.Unlock()
@@ -104,6 +124,7 @@ func epgAdded(obj interface{}) {
 	if err != nil {
 		log.Errorf("epgAdded: %v", err)
 	}
+	DoAll()
 }
 
 func epgDeleted(obj interface{}) {
@@ -123,6 +144,7 @@ func epgDeleted(obj interface{}) {
 
 	key := e.getURI()
 	delete(MoDB, key)
+	DoAll()
 }
 
 func contractAdded(obj interface{}) {
@@ -145,7 +167,63 @@ func contractAdded(obj interface{}) {
 	if err != nil {
 		log.Errorf("contractAdded: %v", err)
 	}
+	DoAll()
 }
 
 func contractDeleted(obj interface{}) {
+}
+
+func podIFAdded(obj interface{}) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+	podif, ok := obj.(*aciv1.PodIF)
+	if !ok {
+		log.Errorf("podIFAdded: Bad object type")
+		return
+	}
+
+	log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
+	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
+	ep := &Endpoint{
+		Uuid:    uid,
+		MacAddr: podif.Status.MacAddr,
+		IPAddr:  podif.Status.IPAddr,
+		EPG:     podif.Status.IPAddr,
+		VTEP:    podif.Status.VTEP,
+	}
+
+	_, err := ep.Add()
+	if err != nil {
+		log.Errorf("podIFAdded: %v", err)
+		return
+	}
+
+	DoAll()
+}
+
+func podIFDeleted(obj interface{}) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+	podif, ok := obj.(*aciv1.PodIF)
+	if !ok {
+		log.Errorf("podIFDeleted: Bad object type")
+		return
+	}
+
+	log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
+	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
+	ep := &Endpoint{
+		Uuid:    uid,
+		MacAddr: podif.Status.MacAddr,
+		IPAddr:  podif.Status.IPAddr,
+		EPG:     podif.Status.IPAddr,
+		VTEP:    podif.Status.VTEP,
+	}
+
+	err := ep.Delete()
+	if err != nil {
+		log.Errorf("podIFDeleted: %v", err)
+	}
+
+	DoAll()
 }

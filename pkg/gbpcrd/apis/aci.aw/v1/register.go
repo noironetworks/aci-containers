@@ -37,6 +37,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ContractList{},
 		&Epg{},
 		&EpgList{},
+		&PodIF{},
+		&PodIFList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

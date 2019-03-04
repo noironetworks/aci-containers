@@ -32,3 +32,11 @@ type EpgListerExpansion interface{}
 // EpgNamespaceListerExpansion allows custom methods to be added to
 // EpgNamespaceLister.
 type EpgNamespaceListerExpansion interface{}
+
+// PodIFListerExpansion allows custom methods to be added to
+// PodIFLister.
+type PodIFListerExpansion interface{}
+
+// PodIFNamespaceListerExpansion allows custom methods to be added to
+// PodIFNamespaceLister.
+type PodIFNamespaceListerExpansion interface{}
