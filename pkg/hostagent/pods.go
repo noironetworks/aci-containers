@@ -240,6 +240,7 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.podChangedLocked(obj)
 }
@@ -375,6 +376,7 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 
 	agent.podDeletedLocked(obj)
 	agent.depPods.DeletePod(obj.(*v1.Pod))
+	agent.rcPods.DeletePod(obj.(*v1.Pod))
 	agent.netPolPods.DeletePod(obj.(*v1.Pod))
 }
 

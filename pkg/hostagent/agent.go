@@ -51,8 +51,10 @@ type HostAgent struct {
 	nsInformer        cache.SharedIndexInformer
 	netPolInformer    cache.SharedIndexInformer
 	depInformer       cache.SharedIndexInformer
+	rcInformer        cache.SharedIndexInformer
 	netPolPods        *index.PodSelectorIndex
 	depPods           *index.PodSelectorIndex
+	rcPods            *index.PodSelectorIndex
 
 	podNetAnnotation string
 	podIps           *ipam.IpCache

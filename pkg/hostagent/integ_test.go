@@ -51,6 +51,8 @@ const (
 		"\"app-profile\": \"test-prof\", \"name\": \"ann-ns-eg\"}"
 	testEgAnnot4 = "{\"tenant\": \"testps\", " +
 		"\"app-profile\": \"test-prof\", \"name\": \"ann-depl-eg\"}"
+	testEgAnnot5 = "{\"tenant\": \"testps\", " +
+		"\"app-profile\": \"test-prof\", \"name\": \"ann-rc-eg\"}"
 	emptyJSON = "null"
 
 	sgAnnot1 = "[{\"policy-space\":\"testps\",\"name\":\"test-sg1\"}]"
@@ -489,6 +491,21 @@ func TestGroupAssign(t *testing.T) {
 	// add an annotated deployment
 	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
 
+	// add an RC without annotation
+	rc1 := mkRC("annNS", "rcNoAnn", "", "")
+	rc1.Spec.Selector = map[string]string{"app": "rc-app"}
+	it.ta.fakeRCSource.Add(rc1)
+
+	// add an annotated rc
+	rc2 := mkRC("annNS", "rcWithAnn", testEgAnnot5, sgAnnot2)
+	rc2.Spec.Selector = map[string]string{"app": "rc-ann-app"}
+	it.ta.fakeRCSource.Add(rc2)
+
+	// add an annotated rc, no selector, set labels in template
+	templRC := mkRC("annNS", "noSelRC", testEgAnnot5, sgAnnot2)
+	templRC.Spec.Template.Labels = map[string]string{"app": "nosel-app"}
+	it.ta.fakeRCSource.Add(templRC)
+
 	// Add pods intf via cni
 	it.cniAddParallel(0, 2)
 	it.testNS = "ns1"
@@ -496,7 +513,7 @@ func TestGroupAssign(t *testing.T) {
 	it.testNS = "ns2"
 	it.cniAddParallel(3, 5)
 	it.testNS = "annNS"
-	it.cniAddParallel(5, 7)
+	it.cniAddParallel(5, 10)
 
 	time.Sleep(10 * time.Millisecond)
 	it.addPodObj(0, testPodNS, "", "", nil)
@@ -513,6 +530,28 @@ func TestGroupAssign(t *testing.T) {
 
 	it.addPodObj(6, "annNS", "", "", depLabels)
 
+	rcLabels1 := map[string]string{
+		"app":  "rc-app",
+		"tier": "sample-tier",
+		"deer": "dear",
+	}
+
+	rcLabels2 := map[string]string{
+		"app":  "rc-ann-app",
+		"tier": "sample-tier",
+		"deer": "dear",
+	}
+
+	rcLabels3 := map[string]string{
+		"app":  "nosel-app",
+		"tier": "sample-tier",
+		"deer": "dear",
+	}
+
+	it.addPodObj(7, "annNS", "", "", rcLabels1)
+	it.addPodObj(8, "annNS", "", "", rcLabels2)
+	it.addPodObj(9, "annNS", "", "", rcLabels3)
+
 	// verify ep file
 	it.checkEpGroups(0, "defaultEPG", emptyJSON)
 	it.checkEpGroups(1, "test-prof|test-eg", emptyJSON)
@@ -521,8 +560,11 @@ func TestGroupAssign(t *testing.T) {
 	it.checkEpGroups(4, "foo|bar", sgAnnot3)
 	it.checkEpGroups(5, "test-prof|ann-ns-eg", sgAnnot1)
 	it.checkEpGroups(6, "test-prof|ann-depl-eg", sgAnnot2)
+	it.checkEpGroups(7, "test-prof|ann-ns-eg", sgAnnot1)
+	it.checkEpGroups(8, "test-prof|ann-rc-eg", sgAnnot2)
+	it.checkEpGroups(9, "test-prof|ann-rc-eg", sgAnnot2)
 
-	it.cniDelParallel(5, 7)
+	it.cniDelParallel(5, 10)
 	it.testNS = "ns2"
 	it.cniDelParallel(3, 5)
 	it.testNS = "ns1"
