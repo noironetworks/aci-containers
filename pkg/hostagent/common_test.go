@@ -15,16 +15,16 @@
 package hostagent
 
 import (
-	appsv1 "k8s.io/api/apps/v1"
-        v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1net "k8s.io/api/networking/v1"
 	"github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 	"net"
-	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 const nodename = "test-node"
@@ -33,21 +33,22 @@ type testHostAgent struct {
 	*HostAgent
 	stopCh chan struct{}
 
-	fakeNodeSource      *framework.FakeControllerSource
-	fakePodSource       *framework.FakeControllerSource
-	fakeEndpointsSource *framework.FakeControllerSource
-	fakeServiceSource   *framework.FakeControllerSource
+	fakeNodeSource          *framework.FakeControllerSource
+	fakePodSource           *framework.FakeControllerSource
+	fakeEndpointsSource     *framework.FakeControllerSource
+	fakeServiceSource       *framework.FakeControllerSource
 	fakeNamespaceSource     *framework.FakeControllerSource
 	fakeDeploymentSource    *framework.FakeControllerSource
-        fakeNetworkPolicySource *framework.FakeControllerSource
+	fakeRCSource            *framework.FakeControllerSource
+	fakeNetworkPolicySource *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	hcf := &HostAgentConfig{
-			NodeName:       nodename,
-			NetConfig:      []cniNetConfig{ncf},
-			}
+		NodeName:  nodename,
+		NetConfig: []cniNetConfig{ncf},
+	}
 
 	return testAgentWithConf(hcf)
 }
@@ -104,6 +105,13 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			WatchFunc: agent.fakeDeploymentSource.Watch,
 		})
 
+	agent.fakeRCSource = framework.NewFakeControllerSource()
+	agent.initRCInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeRCSource.List,
+			WatchFunc: agent.fakeRCSource.Watch,
+		})
+
 	agent.fakeNetworkPolicySource = framework.NewFakeControllerSource()
 	agent.initNetworkPolicyInformerBase(
 		&cache.ListWatch{
@@ -111,7 +119,8 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			WatchFunc: agent.fakeNetworkPolicySource.Watch,
 		})
 	agent.initNetPolPodIndex()
-        agent.initDepPodIndex()
+	agent.initDepPodIndex()
+	agent.initRCPodIndex()
 
 	return agent
 }
@@ -126,24 +135,24 @@ func (agent *testHostAgent) stop() {
 }
 
 func namespaceLabel(name string, labels map[string]string) *v1.Namespace {
-        return &v1.Namespace{
-                ObjectMeta: metav1.ObjectMeta{
-                        Name:   name,
-                        Labels: labels,
-                },
-        }
+	return &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+	}
 }
 
 func mkNamespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
-        return &v1.Namespace{
-                ObjectMeta: metav1.ObjectMeta{
-                        Name: name,
-                        Annotations: map[string]string{
-                                metadata.EgAnnotation: egAnnot,
-                                metadata.SgAnnotation: sgAnnot,
-                        },
-                },
-        }
+	return &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				metadata.EgAnnotation: egAnnot,
+				metadata.SgAnnotation: sgAnnot,
+			},
+		},
+	}
 }
 
 func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
@@ -180,20 +189,36 @@ func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string)
 	}
 }
 
+func mkRC(namespace string, name string, egAnnot string, sgAnnot string) *v1.ReplicationController {
+	return &v1.ReplicationController{
+		Spec: v1.ReplicationControllerSpec{
+			Template: &v1.PodTemplateSpec{},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			Annotations: map[string]string{
+				metadata.EgAnnotation: egAnnot,
+				metadata.SgAnnotation: sgAnnot,
+			},
+		},
+	}
+}
+
 func mkNetPol(namespace string, name string, podSelector *metav1.LabelSelector,
-        irules []v1net.NetworkPolicyIngressRule,
-        erules []v1net.NetworkPolicyEgressRule,
-        ptypes []v1net.PolicyType) *v1net.NetworkPolicy {
-        return &v1net.NetworkPolicy{
-                ObjectMeta: metav1.ObjectMeta{
-                        Name:      name,
-                        Namespace: namespace,
-                },
-                Spec: v1net.NetworkPolicySpec{
-                        PolicyTypes: ptypes,
-                        PodSelector: *podSelector,
-                        Ingress:     irules,
-                        Egress:      erules,
-                },
-        }
+	irules []v1net.NetworkPolicyIngressRule,
+	erules []v1net.NetworkPolicyEgressRule,
+	ptypes []v1net.PolicyType) *v1net.NetworkPolicy {
+	return &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1net.NetworkPolicySpec{
+			PolicyTypes: ptypes,
+			PodSelector: *podSelector,
+			Ingress:     irules,
+			Egress:      erules,
+		},
+	}
 }
