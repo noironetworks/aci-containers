@@ -44,10 +44,11 @@ VENDOR_BUILD_CMD ?=
 .PHONY: clean goinstall check all
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
-	dist/aci-containers-controller dist/acikubectl dist/ovsresync
+	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
+        dist/gbpserver
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync
+	dist-static/ovsresync dist-static/gbpserver
 
 vendor-rebuild: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
