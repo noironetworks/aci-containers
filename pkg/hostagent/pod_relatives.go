@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/noironetworks/aci-containers/pkg/index"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"github.com/noironetworks/aci-containers/pkg/index"
 )
 
 func (agent *HostAgent) initNamespaceInformerFromClient(
@@ -74,7 +74,7 @@ func (agent *HostAgent) updatePodsForNamespace(ns string) {
 
 func (agent *HostAgent) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
-	agent.log.Infof("###Namespace %+v added", ns)
+	agent.log.Infof("Namespace %+v added", ns)
 	agent.netPolPods.UpdateNamespace(ns)
 	agent.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
@@ -136,23 +136,23 @@ func (agent *HostAgent) networkPolicyAdded(obj interface{}) {
 
 func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 	oldnp := oldobj.(*v1net.NetworkPolicy)
-        newnp := newobj.(*v1net.NetworkPolicy)
+	newnp := newobj.(*v1net.NetworkPolicy)
 	if !reflect.DeepEqual(oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
-                agent.netPolPods.UpdateSelectorObjNoCallback(newobj)
-        }
+		agent.netPolPods.UpdateSelectorObjNoCallback(newobj)
+	}
 
 	npkey, err := cache.MetaNamespaceKeyFunc(newnp)
-        if err != nil {
+	if err != nil {
 		logrus.Error("Could not create network policy key: ", err)
 		return
 	}
 
 	if !reflect.DeepEqual(oldnp.Spec.PolicyTypes, newnp.Spec.PolicyTypes) {
-                peerPodKeys := agent.netPolPods.GetPodForObj(npkey)
-                for _, podkey := range peerPodKeys {
-                        agent.podChanged(&podkey)
-                }
-        }
+		peerPodKeys := agent.netPolPods.GetPodForObj(npkey)
+		for _, podkey := range peerPodKeys {
+			agent.podChanged(&podkey)
+		}
+	}
 }
 
 func (agent *HostAgent) networkPolicyDeleted(obj interface{}) {
@@ -196,7 +196,6 @@ func (agent *HostAgent) initDeploymentInformerBase(listWatch *cache.ListWatch) {
 	agent.depInformer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				agent.log.Infof("BBBBBBBBB")
 				agent.deploymentAdded(obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
@@ -266,4 +265,98 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 
 func (agent *HostAgent) deploymentDeleted(obj interface{}) {
 	agent.depPods.DeleteSelectorObj(obj)
+}
+
+func (agent *HostAgent) initRCInformerFromClient(
+	kubeClient kubernetes.Interface) {
+
+	agent.initRCInformerBase(
+		cache.NewListWatchFromClient(
+			kubeClient.AppsV1().RESTClient(), "replicationcontrollers",
+			metav1.NamespaceAll, fields.Everything()))
+}
+
+func (agent *HostAgent) initRCInformerBase(listWatch *cache.ListWatch) {
+	agent.rcInformer = cache.NewSharedIndexInformer(
+		listWatch, &v1.ReplicationController{}, controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+
+	agent.rcInformer.AddEventHandler(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				agent.rcAdded(obj)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				agent.rcChanged(oldobj, newobj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				agent.rcDeleted(obj)
+			},
+		})
+}
+
+func (agent *HostAgent) initRCPodIndex() {
+	agent.rcPods = index.NewPodSelectorIndex(agent.log,
+		agent.podInformer.GetIndexer(),
+		agent.nsInformer.GetIndexer(),
+		agent.rcInformer.GetIndexer(),
+		cache.MetaNamespaceKeyFunc,
+		func(obj interface{}) []index.PodSelector {
+			rc := obj.(*v1.ReplicationController)
+			labels := rc.Spec.Selector
+			if len(labels) == 0 {
+				agent.log.Infof("RC %s/%s has no selector. Using template", rc.ObjectMeta.Namespace, rc.ObjectMeta.Name)
+				labels = rc.Spec.Template.Labels
+			}
+			ls := &metav1.LabelSelector{MatchLabels: labels}
+			return index.PodSelectorFromNsAndSelector(rc.ObjectMeta.Namespace, ls)
+		},
+	)
+	agent.rcPods.SetPodUpdateCallback(func(podkey string) {
+		agent.podChanged(&podkey)
+	})
+}
+
+func rcLogger(log *logrus.Logger, rc *v1.ReplicationController) *logrus.Entry {
+	return log.WithFields(logrus.Fields{
+		"namespace": rc.ObjectMeta.Namespace,
+		"name":      rc.ObjectMeta.Name,
+	})
+}
+
+func (agent *HostAgent) rcAdded(obj interface{}) {
+	agent.log.Infof("rcAdded => ")
+	agent.rcPods.UpdateSelectorObj(obj)
+}
+
+// rcChanged - callback for replicationController change. Trigger pod update
+// in order to handle any changes to annotations, also keep the indexer
+// in sync
+func (agent *HostAgent) rcChanged(oldobj interface{},
+	newobj interface{}) {
+
+	oldrc := oldobj.(*v1.ReplicationController)
+	newrc := newobj.(*v1.ReplicationController)
+
+	if !reflect.DeepEqual(oldrc.Spec.Selector, newrc.Spec.Selector) {
+		agent.rcPods.UpdateSelectorObj(newobj)
+	}
+	if !reflect.DeepEqual(oldrc.ObjectMeta.Annotations,
+		newrc.ObjectMeta.Annotations) {
+		rckey, err :=
+			cache.MetaNamespaceKeyFunc(newrc)
+		if err != nil {
+			rcLogger(agent.log, newrc).
+				Error("Could not create key: ", err)
+			return
+		}
+		for _, podkey := range agent.rcPods.GetPodForObj(rckey) {
+			agent.podChanged(&podkey)
+		}
+	}
+}
+
+func (agent *HostAgent) rcDeleted(obj interface{}) {
+	agent.rcPods.DeleteSelectorObj(obj)
 }

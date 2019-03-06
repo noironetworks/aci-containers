@@ -99,8 +99,10 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNamespaceInformerFromClient(env.kubeClient)
 	env.agent.initNetworkPolicyInformerFromClient(env.kubeClient)
 	env.agent.initDeploymentInformerFromClient(env.kubeClient)
+	env.agent.initRCInformerFromClient(env.kubeClient)
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
+	env.agent.initRCPodIndex()
 	return nil
 }
 
@@ -123,6 +125,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.nsInformer.Run(stopCh)
 	go env.agent.netPolInformer.Run(stopCh)
 	go env.agent.depInformer.Run(stopCh)
+	go env.agent.rcInformer.Run(stopCh)
 
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,

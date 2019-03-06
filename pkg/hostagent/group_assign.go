@@ -24,6 +24,7 @@ import (
 	v1net "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
@@ -108,6 +109,44 @@ func decodeAnnotation(annStr string, into interface{}, logger *logrus.Entry, com
 	}
 }
 
+// Gets eg, sg annotations on associated deployment or rc
+func (agent *HostAgent) getParentAnn(podKey string) (string, string, bool) {
+	set := []struct {
+		indexer  *index.PodSelectorIndex
+		informer cache.SharedIndexInformer
+	}{
+		{agent.depPods, agent.depInformer},
+		{agent.rcPods, agent.rcInformer},
+	}
+	for _, parent := range set {
+		for _, pkey := range parent.indexer.GetObjForPod(podKey) {
+			agent.log.Infof("deployment/rc found!")
+			obj, exists, err :=
+				parent.informer.GetIndexer().GetByKey(pkey)
+			if err != nil {
+				agent.log.Error("Could not lookup parent " +
+					pkey + ": " + err.Error())
+				continue
+			}
+			if exists && obj != nil {
+				deployment, ok := obj.(*appsv1.Deployment)
+				if ok {
+					return deployment.ObjectMeta.Annotations[metadata.EgAnnotation],
+						deployment.ObjectMeta.Annotations[metadata.SgAnnotation], true
+				}
+
+				rc, ok := obj.(*v1.ReplicationController)
+				if ok {
+					return rc.ObjectMeta.Annotations[metadata.EgAnnotation],
+						rc.ObjectMeta.Annotations[metadata.SgAnnotation], true
+				}
+
+			}
+		}
+	}
+	return "", "", false
+}
+
 // assignGroups assigns epg and security groups based on annotations on the
 // namespace, deployment and pod.
 func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metadata.OpflexGroup, error) {
@@ -152,26 +191,11 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 		decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "namespace[SgAnnotation]")
 	}
 
-	// annotation on associated deployment is next-highest priority
-	for _, depkey := range agent.depPods.GetObjForPod(podkey) {
-		agent.log.Infof("deployment found!")
-		deploymentobj, exists, err :=
-			agent.depInformer.GetIndexer().GetByKey(depkey)
-		if err != nil {
-			agent.log.Error("Could not lookup deployment " +
-				depkey + ": " + err.Error())
-			continue
-		}
-		if exists && deploymentobj != nil {
-			deployment := deploymentobj.(*appsv1.Deployment)
-
-			decodeAnnotation(deployment.ObjectMeta.Annotations[metadata.EgAnnotation], &egval, logger, "deployment[EpgAnnotation]")
-			decodeAnnotation(deployment.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "deployment[SgAnnotation]")
-
-			// multiple deployments matching the same pod is a broken
-			// configuration.  We'll just use the first one.
-			break
-		}
+	// annotation on parent deployment or rc is next-highest priority
+	egAnn, sgAnn, found := agent.getParentAnn(podkey)
+	if found {
+		decodeAnnotation(egAnn, &egval, logger, "deployment/rc[EpgAnnotation]")
+		decodeAnnotation(sgAnn, &sgval, logger, "deployment/rc[SgAnnotation]")
 	}
 
 	// direct pod annotation is highest priority
