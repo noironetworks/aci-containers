@@ -62,8 +62,8 @@ cp docker/Dockerfile-opflexserver build/opflex/dist/
 
 docker build -t $DOCKER_USER/opflex -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_USER/opflex
-docker build -t $DOCKER_USER/opflexserver -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
-docker push $DOCKER_USER/opflexserver
+docker build -t $DOCKER_USER/opflex-server -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
+docker push $DOCKER_USER/opflex-server
 
 echo "starting aci-containers build"
 make all-static
@@ -76,6 +76,9 @@ docker push $DOCKER_USER/aci-containers-host
 
 docker build -t $DOCKER_USER/cnideploy -f docker/Dockerfile-cnideploy docker
 docker push $DOCKER_USER/cnideploy
+
+docker build -t $DOCKER_USER/gbp-server -f docker/Dockerfile-gbpserver .
+docker push $DOCKER_USER/gbp-server
 
 echo "starting openvswitch build"
 docker build -t $DOCKER_USER/openvswitch -f docker/Dockerfile-openvswitch .
