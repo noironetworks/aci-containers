@@ -34,19 +34,19 @@ type cniNetConfig struct {
 }
 
 type GroupDefaults struct {
-        // Default endpoint group annotation value
-        DefaultEg metadata.OpflexGroup `json:"default-endpoint-group,omitempty"`
+	// Default endpoint group annotation value
+	DefaultEg metadata.OpflexGroup `json:"default-endpoint-group,omitempty"`
 
-        // Default security group annotation value
-        DefaultSg []metadata.OpflexGroup `json:"default-security-group,omitempty"`
+	// Default security group annotation value
+	DefaultSg []metadata.OpflexGroup `json:"default-security-group,omitempty"`
 
-        // Override default endpoint group assignments for a namespace
-        // map ns name -> group
-        NamespaceDefaultEg map[string]metadata.OpflexGroup `json:"namespace-default-endpoint-group,omitempty"`
+	// Override default endpoint group assignments for a namespace
+	// map ns name -> group
+	NamespaceDefaultEg map[string]metadata.OpflexGroup `json:"namespace-default-endpoint-group,omitempty"`
 
-        // Override default security group assignments for namespaces
-        // map ns name -> slice of groups
-        NamespaceDefaultSg map[string][]metadata.OpflexGroup `json:"namespace-default-security-group,omitempty"`
+	// Override default security group assignments for namespaces
+	// map ns name -> slice of groups
+	NamespaceDefaultSg map[string][]metadata.OpflexGroup `json:"namespace-default-security-group,omitempty"`
 }
 
 type HostAgentNodeConfig struct {
