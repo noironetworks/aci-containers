@@ -53,9 +53,9 @@ go-targets: nodep-aci-containers-host-agent nodep-aci-containers-controller gbps
 go-build:
 	docker run -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make vendor go-targets
 
-vendor-rebuild: Gopkg.lock Gopkg.toml
+vendor-rebuild: Gopkg.toml
 	${VENDOR_BUILD_CMD}
-vendor: Gopkg.lock Gopkg.toml
+vendor: Gopkg.toml
 	${VENDOR_BUILD_CMD}
 
 clean-dist-static:
@@ -121,7 +121,9 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/controller
 
-gbpserver:
+dist/gbpserver:
+	${BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
+dist-static/gbpserver:
 	${STATIC_BUILD_CMD} -o dist-static/gbpserver ${BASE}/cmd/gbpserver
 nodep-aci-containers-controller:
 	${STATIC_BUILD_CMD} -o dist-static/aci-containers-controller ${BASE}/cmd/controller

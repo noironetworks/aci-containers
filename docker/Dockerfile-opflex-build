@@ -1,4 +1,4 @@
-FROM noiro/opflex-build-base
+FROM noirolabs/opflex-build-base
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4
