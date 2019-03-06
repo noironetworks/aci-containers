@@ -38,8 +38,7 @@ INSTALL_CMD ?= go install -v
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
 	-ldflags="-s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
-#VENDOR_BUILD_CMD ?= dep ensure -v
-VENDOR_BUILD_CMD ?= 
+VENDOR_BUILD_CMD ?= dep ensure -v
 
 .PHONY: clean goinstall check all
 
@@ -49,6 +48,10 @@ all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync dist-static/gbpserver
+
+go-targets: nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
+go-build:
+	docker run -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make vendor go-targets
 
 vendor-rebuild: Gopkg.lock Gopkg.toml
 	${VENDOR_BUILD_CMD}
@@ -118,8 +121,13 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/controller
 
-dist-static/gbpserver: ${GBPSERVER_SRC}
-	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
+gbpserver:
+	${STATIC_BUILD_CMD} -o dist-static/gbpserver ${BASE}/cmd/gbpserver
+nodep-aci-containers-controller:
+	${STATIC_BUILD_CMD} -o dist-static/aci-containers-controller ${BASE}/cmd/controller
+nodep-aci-containers-host-agent:
+	${STATIC_BUILD_CMD} -o dist-static/aci-containers-host-agent ${BASE}/cmd/hostagent
+
 dist/acikubectl: ${ACIKUBECTL_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 dist-static/acikubectl: ${ACIKUBECTL_DEPS}
