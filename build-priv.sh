@@ -23,7 +23,6 @@ echo "starting opflex build"
 
 pushd $ACICONTAINERS_DIR
 rm -Rf build
-make container-opflex-build-base
 docker build -t $DOCKER_USER/opflex-build-base -f docker/Dockerfile-opflex-build-base-debug docker
 docker push $DOCKER_USER/opflex-build-base
 
