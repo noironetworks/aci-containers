@@ -3,3 +3,6 @@ ARG proxy
 ENV https_proxy=$proxy
 ENV http_proxy=$proxy
 RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+RUN apt-get update
+RUN apt-get install -y python python-pip && pip install -U pytest
+RUN pip install kubernetes
