@@ -51,7 +51,7 @@ all-static: vendor dist-static/aci-containers-host-agent \
 
 go-targets: nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
-	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make vendor go-targets
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-targets
 
 vendor-rebuild: Gopkg.toml
 	${VENDOR_BUILD_CMD}
