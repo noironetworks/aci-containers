@@ -272,7 +272,7 @@ func (agent *HostAgent) initRCInformerFromClient(
 
 	agent.initRCInformerBase(
 		cache.NewListWatchFromClient(
-			kubeClient.AppsV1().RESTClient(), "replicationcontrollers",
+			kubeClient.CoreV1().RESTClient(), "replicationcontrollers",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
