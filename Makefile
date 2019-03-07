@@ -123,7 +123,7 @@ dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 
 dist/gbpserver:
 	${BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
-dist-static/gbpserver:
+gbpserver:
 	${STATIC_BUILD_CMD} -o dist-static/gbpserver ${BASE}/cmd/gbpserver
 nodep-aci-containers-controller:
 	${STATIC_BUILD_CMD} -o dist-static/aci-containers-controller ${BASE}/cmd/controller
