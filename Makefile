@@ -49,7 +49,7 @@ all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync dist-static/gbpserver
 
-go-targets: nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
+go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
 	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-targets
 
@@ -129,6 +129,8 @@ nodep-aci-containers-controller:
 	${STATIC_BUILD_CMD} -o dist-static/aci-containers-controller ${BASE}/cmd/controller
 nodep-aci-containers-host-agent:
 	${STATIC_BUILD_CMD} -o dist-static/aci-containers-host-agent ${BASE}/cmd/hostagent
+nodep-opflex-agent-cni:
+	${STATIC_BUILD_CMD} -o dist-static/opflex-agent-cni ${BASE}/cmd/opflexagentcni
 
 dist/acikubectl: ${ACIKUBECTL_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
