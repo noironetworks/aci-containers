@@ -152,7 +152,7 @@ container-gbpserver: dist-static/gbpserver
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
-	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller -f ./docker/Dockerfile-controller .
 container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
