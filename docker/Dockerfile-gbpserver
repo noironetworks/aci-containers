@@ -9,4 +9,4 @@ COPY docker/get_vteps.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/get_vteps.sh
 
 ENV KUBECONFIG=/kube/kube.yml
-ENTRYPOINT ["/usr/local/bin/gbpserver", "-api-listen-port", "443", "-insecure-port", "14443"]
+ENTRYPOINT exec /usr/local/bin/gbpserver -api-listen-port 443 -insecure-port 14443 -capic-url $CAPIC_URL

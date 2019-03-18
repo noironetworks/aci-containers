@@ -910,7 +910,8 @@ func SendDefaultsToAPIC() {
 	ctxChildren := []apicapi.ApicObject{
 		cidrMo,
 		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), defVrfName),
-		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
+		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-east-2"),
+//		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
 	}
 
 	for _, child := range ctxChildren {
