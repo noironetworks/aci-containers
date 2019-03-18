@@ -87,7 +87,7 @@ func TestBasic(t *testing.T) {
 
 	defer os.RemoveAll(dataDir)
 	//apiserver.InitDB(dataDir, "18.217.5.107:443")
-	apiserver.InitDB(dataDir, "")
+	apiserver.InitDB(dataDir, "None")
 
 	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
 	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")

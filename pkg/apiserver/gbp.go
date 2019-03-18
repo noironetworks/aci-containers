@@ -627,7 +627,7 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 }
 
 func InitDB(dataDir, apic string) {
-	if apic != "" {
+	if apic != "None" {
 		var err error
 		log1 := log.New()
 		apicCon, err = apicapi.New(log1, []string{apic}, "admin", "noir0!234", nil, nil, "test", 60)

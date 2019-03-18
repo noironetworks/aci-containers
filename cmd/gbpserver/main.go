@@ -51,7 +51,7 @@ func main() {
 		"Listen port for moserver")
 	flagSet.StringVar(&opts.moDir, "mo-dir", "/kube",
 		"GBP backup dir")
-	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "",
+	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "None",
 		"Cloud APIC Url")
 	err := flagSet.Parse(os.Args[1:])
 	if err != nil {
