@@ -183,27 +183,6 @@ func TestServiceIp(t *testing.T) {
 	cont.stop()
 }
 
-func TestContractScopeValues(t *testing.T) {
-	name := "testContract"
-	tenant := "testTenant"
-	graphName := "testGraph"
-
-	contract, err := apicContract(name, tenant, graphName, "global")
-	assert.Empty(t, err)
-	assert.Equal(t, contract.GetAttrStr("scope"), "global")
-
-	_, err = apicContract(name, tenant, graphName, "wrong-Name")
-	assert.NotNil(t, err)
-
-	contract, err = apicContract(name, tenant, graphName, "")
-	assert.Empty(t, err)
-	assert.Equal(t, contract.GetAttrStr("scope"), "context")
-
-	contract, err = apicContract(name, tenant, graphName, "GloBal")
-	assert.Empty(t, err)
-	assert.Equal(t, contract.GetAttrStr("scope"), "global")
-}
-
 type seMap map[string]*metadata.ServiceEndpoint
 
 func sgCont() *testAciController {
@@ -305,7 +284,7 @@ func TestServiceAnnotation(t *testing.T) {
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
 	})
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, true)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 	filter := apicapi.NewVzFilter("common", name)
 	filterDn := filter.GetDn()
@@ -405,7 +384,7 @@ func TestServiceAnnotation(t *testing.T) {
 	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "global"
 	time.Sleep(2 * time.Second)
 	cont.fakeServiceSource.Modify(service1)
-	contract, _ := apicContract(name, "common", graphName, "global")
+	contract := apicContract(name, "common", graphName, "global")
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
@@ -475,8 +454,8 @@ func TestServiceGraph(t *testing.T) {
 		},
 	})
 
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
-	contract, _ := apicContract(name, "common", graphName, conScope)
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false)
+	contract := apicContract(name, "common", graphName, conScope)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
 	filter := apicapi.NewVzFilter("common", name)
