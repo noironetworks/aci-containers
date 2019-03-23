@@ -37,6 +37,9 @@ import (
 // Default service contract scope value 
 const DefaultServiceContractScope = "context"
 
+// Default service ext subnet scope - enable shared security
+const DefaultServiceExtNetShared = false
+
 func (cont *AciController) initEndpointsInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
@@ -305,17 +308,27 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 }
 
 func apicExtNet(name string, tenantName string, l3Out string,
-	ingresses []string) apicapi.ApicObject {
+	ingresses []string, sharedSecurity bool) apicapi.ApicObject {
 
 	en := apicapi.NewL3extInstP(tenantName, l3Out, name)
 	enDn := en.GetDn()
 	en.AddChild(apicapi.NewFvRsProv(enDn, name))
+
+	sharedSecurityString := "import-security,shared-security"
 	for _, ingress := range ingresses {
 		ip := net.ParseIP(ingress)
 		if ip != nil && ip.To4() != nil {
-			en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/32"))
+			subnet := apicapi.NewL3extSubnet(enDn, ingress+"/32")
+			if sharedSecurity {
+				subnet.SetAttr("scope", sharedSecurityString)
+			}
+			en.AddChild(subnet)
 		} else if ip != nil && ip.To16() != nil {
-			en.AddChild(apicapi.NewL3extSubnet(enDn, ingress+"/128"))
+			subnet := apicapi.NewL3extSubnet(enDn, ingress+"/128")
+			if sharedSecurity {
+				subnet.SetAttr("scope", sharedSecurityString)
+			}
+                        en.AddChild(subnet)
 		}
 	}
 	return en
@@ -431,6 +444,20 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	} else {
 		conScope = DefaultServiceContractScope
 	}
+
+	var sharedSecurity bool
+	sharedSecurityVal, ok := service.ObjectMeta.Annotations[metadata.ServiceExtNetSharedAnnotation]
+	sharedSecurityVal = strings.ToLower(sharedSecurityVal)
+	if ok {
+		sharedSecurity, err = strconv.ParseBool(sharedSecurityVal)
+		if err != nil {
+			serviceLogger(cont.log, service).Error("Could not create ext subnet: ", err)
+			return err
+		}
+	} else {
+		sharedSecurity = DefaultServiceExtNetShared
+	}
+
 	graphName := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
@@ -466,7 +493,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 			}
 			serviceObjs = append(serviceObjs,
 				apicExtNet(name, cont.config.AciVrfTenant,
-					cont.config.AciL3Out, ingresses))
+					cont.config.AciL3Out, ingresses, sharedSecurity))
 		}
 
 		contract, err := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)

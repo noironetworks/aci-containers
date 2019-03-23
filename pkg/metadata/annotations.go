@@ -49,6 +49,10 @@ const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 // Annotation to set service contract scope values. If unset or "", defaults to "context"(VRF). Other valid values: "context", "tenant", and "global"
 const ServiceContractScopeAnnotation = "opflex.cisco.com/ext_service_contract_scope"
 
+// True or False -- will enable the shared security option in addition
+// to import security
+const ServiceExtNetSharedAnnotation = "opflex.cisco.com/ext_service_shared_security"
+
 // List of IP address ranges for use by the pod network
 const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 

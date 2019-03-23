@@ -305,7 +305,7 @@ func TestServiceAnnotation(t *testing.T) {
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
 	})
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 	filter := apicapi.NewVzFilter("common", name)
 	filterDn := filter.GetDn()
@@ -475,7 +475,7 @@ func TestServiceGraph(t *testing.T) {
 		},
 	})
 
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"})
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false)
 	contract, _ := apicContract(name, "common", graphName, conScope)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
