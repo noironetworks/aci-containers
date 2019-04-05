@@ -34,6 +34,7 @@ type cliOpts struct {
 	insecurePort  string
 	moDir         string
 	cAPICUrl      string
+	region        string
 }
 
 func main() {
@@ -53,6 +54,8 @@ func main() {
 		"GBP backup dir")
 	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "None",
 		"Cloud APIC Url")
+	flagSet.StringVar(&opts.region, "aws-region", "None",
+		"AWS region")
 	err := flagSet.Parse(os.Args[1:])
 	if err != nil {
 		log.Fatalf("Failed to parse command. Error: %s", err)
@@ -65,7 +68,7 @@ func main() {
 		insPort = fmt.Sprintf(":%s", opts.insecurePort)
 	}
 
-	apiserver.InitDB(opts.moDir, opts.cAPICUrl)
+	apiserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
 	_, err = apiserver.StartNewServer(etcdURLs, lPort, insPort)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)

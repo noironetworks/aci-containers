@@ -626,7 +626,11 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	return MoDB[uri]
 }
 
-func InitDB(dataDir, apic string) {
+func InitDB(dataDir, apic, region string) {
+	if region != "None" {
+		defRegion = region
+	}
+	log.Infof("InitDB(%s, %s, %s)", dataDir, apic, region)
 	if apic != "None" {
 		var err error
 		log1 := log.New()
@@ -904,13 +908,13 @@ func SendDefaultsToAPIC() {
 
 	log.Infof("Posting tenant to cAPIC")
 	vrfMo := apicapi.NewFvCtx(kubeTenant, defVrfName)
-	cCtxMo := apicapi.NewCloudCtxProfile(kubeTenant, cctxProfName)
+	cCtxMo := apicapi.NewCloudCtxProfile(kubeTenant, cctxProfName())
 	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), defCAPICCidr)
 	cCtxMoBody := cCtxMo["cloudCtxProfile"]
 	ctxChildren := []apicapi.ApicObject{
 		cidrMo,
 		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), defVrfName),
-		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-east-2"),
+		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-"+defRegion),
 //		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
 	}
 
@@ -922,10 +926,13 @@ func SendDefaultsToAPIC() {
 	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
 	cepgA := apicapi.NewCloudEpg(kubeTenant, defCloudApp, cApicName(defEPGName))
 	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
+
+	awsProvider := apicapi.NewCloudAwsProvider(kubeTenant, defRegion, "gmeouw1")
+	awsProvider["cloudAwsProvider"].Attributes["accountId"] = "878180092573"
 	var cfgMos = []apicapi.ApicObject{
 		apicapi.NewFvTenant(kubeTenant),
 		vrfMo,
-		apicapi.NewCloudAwsProvider(kubeTenant, defRegion, "gmeouw1"),
+		awsProvider,
 		cCtxMo,
 		apicapi.NewCloudSubnet(cidrMo.GetDn(), defCAPICSubnet),
 		apicapi.NewCloudApp(kubeTenant, defCloudApp),

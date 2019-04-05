@@ -215,6 +215,7 @@ func (ep *Endpoint) pushTocAPIC(add bool) error {
 
 	cCtx := apicapi.EmptyApicObject("hcloudCtx", "")
 	cCtx["hcloudCtx"].Attributes["name"] = defVrfName
+	cCtx["hcloudCtx"].Attributes["primaryCidr"] = defCAPICCidr
 	cCtx["hcloudCtx"].Children = append(cCtx["hcloudCtx"].Children, cCidr)
 
 	cRegion := apicapi.EmptyApicObject("hcloudRegion", "")

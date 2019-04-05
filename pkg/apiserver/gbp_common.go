@@ -103,10 +103,11 @@ const (
 	defSubnet      = "10.2.56.1/21"
 	defCAPICSubnet = "10.2.50.0/21"
 	defCAPICCidr   = "10.2.0.0/16"
-	//defRegion      = "us-west-1"
-	defRegion      = "us-east-2"
-	cctxProfName   = defVrfName + "_" + defRegion
 	defCloudApp    = "kubeApp1"
+)
+
+var (
+	defRegion = "us-east-2"
 )
 
 type BDSubnet struct {
@@ -119,6 +120,9 @@ type BDSubnet struct {
 
 var podBDS *BDSubnet
 
+func cctxProfName() string {
+	return defVrfName + "_" + defRegion
+}
 func (bds *BDSubnet) SubnetsUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, bds.subnetsName)
 }
