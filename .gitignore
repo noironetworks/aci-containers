@@ -2,7 +2,7 @@
 /build
 /dist
 /dist-static
-/vendor
+*.lock
 *.egg-info
 __pycache__
 .cache
