@@ -18,9 +18,11 @@ package hostagent
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -153,9 +155,14 @@ func (agent *HostAgent) registerHostVeth() {
 				return
 			}
 
+			vmName := ep.Attributes["vm-name"]
+			if !strings.Contains(vmName, agent.vtepIP) {
+				vmName = fmt.Sprintf("%s.%s", vmName, agent.vtepIP)
+				ep.Attributes["vm-name"] = vmName
+			}
 			agent.log.Infof("-- Adding %+v to registry", ep)
 			agent.EPRegAdd(ep)
-			if ep.registryKey != "" {
+			if ep.registered {
 				return
 			}
 			time.Sleep(5 * time.Second)

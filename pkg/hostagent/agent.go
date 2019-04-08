@@ -24,9 +24,12 @@ import (
 	"github.com/juju/ratelimit"
 
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/aci.aw/v1"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -44,6 +47,7 @@ type HostAgent struct {
 	epMetadata     map[string]map[string]*md.ContainerMetadata
 	serviceEp      md.ServiceEndpoint
 
+	crdClient         aciv1.AciV1Interface
 	podInformer       cache.SharedIndexInformer
 	endpointsInformer cache.SharedIndexInformer
 	serviceInformer   cache.SharedIndexInformer
@@ -63,8 +67,6 @@ type HostAgent struct {
 	netNsFuncChan chan func()
 	vtepIP        string
 }
-
-var saveRegURL string
 
 func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) *HostAgent {
 	ha := &HostAgent{
@@ -86,10 +88,18 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			}, "sync"),
 	}
 
-	saveRegURL = config.RegistryURL
 	ha.syncProcessors = map[string]func() bool{
 		"eps":      ha.syncEps,
 		"services": ha.syncServices}
+
+	cfg, err := rest.InClusterConfig()
+	if err == nil {
+		aciawClient, err := crdclientset.NewForConfig(cfg)
+		if err == nil {
+
+			ha.crdClient = aciawClient.AciV1()
+		}
+	}
 	return ha
 }
 

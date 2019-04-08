@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -38,7 +38,6 @@ import (
 
 	"k8s.io/kubernetes/pkg/controller"
 
-	"github.com/noironetworks/aci-containers/pkg/apiserver"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -56,78 +55,56 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
+	Attributes map[string]string `json:"attributes,omitempty"`
+	registered bool
 }
 
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
-	remEP := &apiserver.Endpoint{
-		Uuid:    ep.Uuid,
-		MacAddr: ep.MacAddress,
-		IPAddr:  ep.IpAddress[0],
-		EPG:     ep.EndpointGroup,
-		VTEP:    agent.vtepIP,
+
+	if agent.crdClient == nil {
+		return // crd not used
 	}
-	content, err := json.Marshal(remEP)
+
+	remEP := &aciv1.PodIF{
+		Status: aciv1.PodIFStatus{
+			PodNS:       ep.Attributes["namespace"],
+			PodName:     ep.Attributes["vm-name"],
+			ContainerID: ep.Uuid,
+			MacAddr:     ep.MacAddress,
+			IPAddr:      ep.IpAddress[0],
+			EPG:         ep.EndpointGroup,
+			VTEP:        agent.vtepIP,
+		},
+	}
+	remEP.ObjectMeta.Name = fmt.Sprintf("%s.%s", ep.Attributes["namespace"], ep.Attributes["vm-name"])
+
+	podif, err := agent.crdClient.PodIFs("kube-system").Get(remEP.ObjectMeta.Name, metav1.GetOptions{})
 	if err != nil {
-		agent.log.Errorf("Marshal EP - %v", err)
-		return
-	}
-
-	u := fmt.Sprintf("%s/gbp/endpoints", saveRegURL)
-	agent.log.Debugf("URL: %s", u)
-	resp, err := http.Post(u, "application/json", strings.NewReader(string(content)))
-	if err != nil {
-		agent.log.Errorf("Post EP - %v", err)
-		return
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		agent.log.Errorf("Post EP Status - %s", resp.StatusCode)
-		return
-	}
-
-	defer resp.Body.Close()
-	rBody, err := ioutil.ReadAll(resp.Body)
-
-	var reply apiserver.PostResp
-
-	err = json.Unmarshal(rBody, &reply)
-	if err != nil {
-		agent.log.Errorf("Unmarshal :% v", err)
-		return
-	}
-
-	ep.registryKey = reply.URI
-}
-func (agent *HostAgent) EPRegDelEP(key string) {
-	if epList, ok := agent.opflexEps[key]; ok {
-		for _, ep := range epList {
-			if ep.registryKey == "" {
-				agent.log.Warnf("EPRegDel - no regKey - %+v", ep)
-				continue
-			}
-			u := fmt.Sprintf("%s/gbp/endpoint/?key=%s", saveRegURL, ep.registryKey)
-			req, err := http.NewRequest("DELETE", u, nil)
-			if err != nil {
-				agent.log.Errorf("EPRegDel - %v", err)
-				return
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				agent.log.Errorf("Post EP - %v", err)
-				return
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				agent.log.Errorf("Post EP Status - %s", resp.StatusCode)
-				return
-			}
-
-			agent.log.Infof("EPRegDelEP %s", u)
+		// create podif
+		_, err := agent.crdClient.PodIFs("kube-system").Create(remEP)
+		if err != nil {
+			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
+			return
 		}
+
 	} else {
-		agent.log.Infof("podkey: %s -- ep not found", key)
+		// update it
+		podif.Status = remEP.Status
+		_, err := agent.crdClient.PodIFs("kube-system").Update(podif)
+		if err != nil {
+			logrus.Errorf("Update error %v, podif: %+v", err, remEP)
+			return
+		}
+	}
+	ep.registered = true
+}
+func (agent *HostAgent) EPRegDelEP(name string) {
+	if agent.crdClient == nil {
+		return // crd not used
+	}
+	err := agent.crdClient.PodIFs("kube-system").Delete(name, &metav1.DeleteOptions{})
+	if err != nil {
+		logrus.Errorf("Error %v, podif: %s", err, name)
 	}
 }
 
@@ -137,7 +114,7 @@ func (agent *HostAgent) EPRegDel(obj interface{}) {
 		agent.log.Errorf("Bad object -- expected Pod")
 		return
 	}
-	k := string(pod.ObjectMeta.UID)
+	k := fmt.Sprintf("%s.%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	agent.EPRegDelEP(k)
 }
 
@@ -240,7 +217,7 @@ func (agent *HostAgent) syncEps() bool {
 	seen := make(map[string]bool)
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".ep") ||
-		    strings.Contains(f.Name(), "veth_host_ac") {
+			strings.Contains(f.Name(), "veth_host_ac") {
 			continue
 		}
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
@@ -394,7 +371,8 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
-		agent.EPRegDelEP(*epUuid)
+		k := fmt.Sprintf("%s.%s", epAttributes["namespace"], epAttributes["vm-name"])
+		agent.EPRegDelEP(k)
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
 		return
@@ -452,8 +430,8 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	}
 
 	existing, ok := agent.opflexEps[*epUuid]
-	for ix, ep := range existing {	// TODO - fixme
-		neweps[ix].registryKey = ep.registryKey
+	for ix, ep := range existing { // TODO - fixme
+		neweps[ix].registered = ep.registered
 	}
 
 	if (ok && !reflect.DeepEqual(existing, neweps)) || !ok {

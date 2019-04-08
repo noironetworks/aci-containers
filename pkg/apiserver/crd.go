@@ -188,7 +188,7 @@ func podIFAdded(obj interface{}) {
 		Uuid:    uid,
 		MacAddr: podif.Status.MacAddr,
 		IPAddr:  podif.Status.IPAddr,
-		EPG:     podif.Status.IPAddr,
+		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
 	}
 
@@ -216,7 +216,7 @@ func podIFDeleted(obj interface{}) {
 		Uuid:    uid,
 		MacAddr: podif.Status.MacAddr,
 		IPAddr:  podif.Status.IPAddr,
-		EPG:     podif.Status.IPAddr,
+		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
 	}
 
