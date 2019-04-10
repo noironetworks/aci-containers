@@ -38,7 +38,7 @@ import (
 const DefaultServiceContractScope = "context"
 
 // Default service ext subnet scope - enable shared security
-const DefaultServiceExtNetShared = false
+const DefaultServiceExtSubNetShared = false
 
 func (cont *AciController) initEndpointsInformerFromClient(
 	kubeClient kubernetes.Interface) {
@@ -453,7 +453,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	if conScope == "global" {
 		sharedSecurity = true
 	} else {
-		sharedSecurity = DefaultServiceExtNetShared
+		sharedSecurity = DefaultServiceExtSubNetShared
 	}
 
 	graphName := cont.aciNameForKey("svc", "global")
