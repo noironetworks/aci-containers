@@ -342,7 +342,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) (
 		// 2. Service graph contract and external network
 		serviceObjs = append(serviceObjs,
 			apicExtNet(name, cont.config.AciVrfTenant,
-				cont.config.AciL3Out, extIps, DefaultServiceExtNetShared))
+				cont.config.AciL3Out, extIps, DefaultServiceExtSubNetShared))
 
 		contract := apicContract(name, cont.config.AciVrfTenant, graphName, DefaultServiceContractScope)
 		serviceObjs = append(serviceObjs, contract)
