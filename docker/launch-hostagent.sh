@@ -61,11 +61,10 @@ else
 fi
 ACC_MAC=$(get_mac veth_host)
 
+eth_interface=$(ip route get 8.8.8.8 | awk '{ print $5; exit }')
 # FIXME Let deployment decide interface name
-if check_eth eth0; then
-    VTEP_IP=$(get_ip eth0)
-elif check_eth enp0s8; then
-    VTEP_IP=$(get_ip enp0s8)
+if check_eth "$eth_interface"; then
+    VTEP_IP=$(get_ip "$eth_interface")
 else
     echo "VTEP interface not found"
 fi
