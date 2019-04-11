@@ -11,4 +11,4 @@ RUN chmod +x /usr/local/bin/get_vteps.sh
 ENV KUBECONFIG=/kube/kube.yml
 ENV CAPIC_URL=None
 ENV AWS_REGION=None
-ENTRYPOINT exec /usr/local/bin/gbpserver -api-listen-port 443 -insecure-port 14443 -capic-url $CAPIC_URL -aws-region $AWS_REGION
+ENTRYPOINT exec /usr/local/bin/gbpserver -api-listen-port 2443 -insecure-port 14443 -capic-url $CAPIC_URL -aws-region $AWS_REGION -etcd-port 22379
