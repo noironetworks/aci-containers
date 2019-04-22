@@ -14,7 +14,7 @@ limitations under the License.
 */
 // GBP definitions -- will eventually move to a generator
 
-package apiserver
+package gbpserver
 
 import (
 	"encoding/json"
@@ -85,6 +85,10 @@ func (c *Contract) Make() error {
 	}
 
 	addActionRef(&fmo.gbpCommonMo)
+	return nil
+}
+
+func (c *Contract) Delete() error {
 	return nil
 }
 
@@ -339,11 +343,11 @@ func (e *EPG) Make() error {
 	}
 	err := e.setContracts(base, e.ConsContracts, subjEPGToCC)
 	if err != nil {
-		return err
+		log.Infof("epg %s consumed contracts: %v", e.Name, err)
 	}
 	err = e.setContracts(base, e.ProvContracts, subjEPGToPC)
 	if err != nil {
-		return err
+		log.Infof("epg %s provided contracts: %v", e.Name, err)
 	}
 
 	return e.pushTocAPIC()
@@ -414,8 +418,17 @@ func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) er
 func (e *EPG) getContractURIs(contracts []string) map[string]bool {
 	result := make(map[string]bool)
 
+	parseName := func(name string) (string, string) {
+		parts := strings.Split(name, "/")
+		if len(parts) == 1 {
+			return e.Tenant, name
+		}
+
+		return parts[0], parts[1]
+	}
 	for _, c := range contracts {
-		uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpContract/%s/", e.Tenant, c)
+		tenant, contract := parseName(c)
+		uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpContract/%s/", tenant, contract)
 		result[uri] = true
 	}
 

@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package apiserver
+package gbpserver
 
 import (
 	"crypto/tls"
@@ -36,6 +36,16 @@ const (
 	defToken   = "api-server-token"
 )
 
+const (
+	noOp = iota
+	OpaddEPG
+	OpdelEPG
+	OpaddContract
+	OpdelContract
+	OpaddEP
+	OpdelEP
+)
+
 var DefETCD = []string{"127.0.0.1:2379"}
 
 type PostResp struct {
@@ -47,8 +57,15 @@ type ListResp struct {
 }
 
 type Server struct {
+	rxCh     chan *inputMsg
 	objapi   objdb.API
 	upgrader websocket.Upgrader
+}
+
+// message from one of the watchers
+type inputMsg struct {
+	op   int
+	data interface{}
 }
 
 type loginHandler struct {
@@ -154,7 +171,7 @@ type nfh struct {
 func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
-func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte, error) {
+func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte, *Server, error) {
 	// init inventory
 	InitInvDB()
 
@@ -162,11 +179,12 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 	log.Infof("=> Creating new client ..")
 	ec, err := objdb.NewClient(etcdURLs, root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.Infof("=> New client created..")
-	s := &Server{objapi: ec}
+	s := NewServer()
+	s.objapi = ec
 	wHandler := func(w http.ResponseWriter, r *http.Request) {
 		s.handleWrite(w, r)
 	}
@@ -204,7 +222,7 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 	r.NotFoundHandler = &nfh{}
 	tlsCfg, err := getTLSCfg()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	//	tlsCfg.BuildNameToCertificate()
 
@@ -228,7 +246,151 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 			log.Fatal(srv.ListenAndServe())
 		}()
 	}
-	return tlsCfg.Certificates[0].Certificate[0], nil
+
+	go s.handleMsgs()
+	return tlsCfg.Certificates[0].Certificate[0], s, nil
+}
+
+func NewServer() *Server {
+	return &Server{rxCh: make(chan *inputMsg, 128)}
+}
+
+func (s *Server) UTReadMsg(to time.Duration) (int, interface{}, error) {
+	select {
+	case m, ok := <-s.rxCh:
+		if ok {
+			return m.op, m.data, nil
+		}
+
+		return 0, nil, fmt.Errorf("channel closed")
+
+	case <-time.After(to):
+		return 0, nil, fmt.Errorf("timeout")
+	}
+}
+
+func (s *Server) AddEPG(e EPG) {
+	m := &inputMsg{
+		op:   OpaddEPG,
+		data: &e,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) DelEPG(e EPG) {
+	m := &inputMsg{
+		op:   OpdelEPG,
+		data: &e,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) AddContract(c Contract) {
+	m := &inputMsg{
+		op:   OpaddContract,
+		data: &c,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) DelContract(c Contract) {
+	m := &inputMsg{
+		op:   OpdelContract,
+		data: &c,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) AddEP(ep Endpoint) {
+	m := &inputMsg{
+		op:   OpaddEP,
+		data: &ep,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) DelEP(ep Endpoint) {
+	m := &inputMsg{
+		op:   OpdelEP,
+		data: &ep,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) handleMsgs() {
+	gMutex.Lock()
+	for {
+		gMutex.Unlock()
+		m, ok := <-s.rxCh
+		if !ok {
+			log.Infof("Exiting handleMsgs")
+			return
+		}
+		gMutex.Lock()
+
+		switch m.op {
+		case OpaddEP:
+			ep, ok := m.data.(*Endpoint)
+			if !ok {
+				log.Errorf("Bad OpaddEP msg")
+				continue
+			}
+
+			ep.Add()
+		case OpdelEP:
+			ep, ok := m.data.(*Endpoint)
+			if !ok {
+				log.Errorf("Bad OpdelEP msg")
+				continue
+			}
+
+			ep.Delete()
+		case OpaddEPG:
+			epg, ok := m.data.(*EPG)
+			if !ok {
+				log.Errorf("Bad OpaddEPG msg")
+				continue
+			}
+
+			epg.Make()
+		case OpdelEPG:
+			epg, ok := m.data.(*EPG)
+			if !ok {
+				log.Errorf("Bad OpdelEPG msg")
+				continue
+			}
+
+			key := epg.getURI()
+			delete(MoDB, key)
+		case OpaddContract:
+			c, ok := m.data.(*Contract)
+			if !ok {
+				log.Errorf("Bad OpaddContract msg")
+				continue
+			}
+
+			c.Make()
+		case OpdelContract:
+			c, ok := m.data.(*Contract)
+			if !ok {
+				log.Errorf("Bad OpdelContract msg")
+				continue
+			}
+
+			c.Delete()
+		default:
+			log.Errorf("Unknown msg type: %d", m.op)
+			continue
+		}
+
+		DoAll()
+	}
 }
 
 func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {

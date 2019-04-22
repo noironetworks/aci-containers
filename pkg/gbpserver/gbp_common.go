@@ -14,7 +14,7 @@ limitations under the License.
 */
 // GBP definitions -- will eventually move to a generator
 
-package apiserver
+package gbpserver
 
 import (
 	"encoding/json"

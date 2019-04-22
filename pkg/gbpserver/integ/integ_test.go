@@ -32,7 +32,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/apiserver"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
 	"github.com/coreos/etcd/embed"
 )
@@ -86,11 +86,11 @@ func TestBasic(t *testing.T) {
 	}
 
 	defer os.RemoveAll(dataDir)
-	//apiserver.InitDB(dataDir, "18.217.5.107:443")
-	apiserver.InitDB(dataDir, "None", "None")
+	//gbpserver.InitDB(dataDir, "18.217.5.107:443")
+	gbpserver.InitDB(dataDir, "None", "None")
 
-	lPort := fmt.Sprintf(":%s", apiserver.ListenPort)
-	clientCert, err := apiserver.StartNewServer(etcdClientURLs, lPort, "")
+	lPort := fmt.Sprintf(":%s", gbpserver.ListenPort)
+	clientCert, _, err := gbpserver.StartNewServer(etcdClientURLs, lPort, "")
 	if err != nil {
 		t.Errorf("Starting api server: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestBasic(t *testing.T) {
 	addEPs(t)
 	verifyRest(t, cli)
 	close(stopCh)
-	apiserver.DoAll()
+	gbpserver.DoAll()
 }
 
 func getClient(cert []byte) (*http.Client, error) {
@@ -186,18 +186,18 @@ func getClient(cert []byte) (*http.Client, error) {
 
 func addContract(t *testing.T) {
 
-	rule := apiserver.WLRule{
+	rule := gbpserver.WLRule{
 		Protocol: "tcp",
-		Ports: apiserver.IntRange{
+		Ports: gbpserver.IntRange{
 			Start: 6443,
 			End:   6443,
 		},
 	}
 
-	c := &apiserver.Contract{
+	c := &gbpserver.Contract{
 		Name:   "kubeAPI",
 		Tenant: kubeTenant,
-		AllowList: []apiserver.WLRule{
+		AllowList: []gbpserver.WLRule{
 			rule,
 		},
 	}
@@ -208,11 +208,11 @@ func addContract(t *testing.T) {
 		t.FailNow()
 	}
 
-	emptyRule := apiserver.WLRule{}
-	emptyC := &apiserver.Contract{
+	emptyRule := gbpserver.WLRule{}
+	emptyC := &gbpserver.Contract{
 		Name:   "any",
 		Tenant: kubeTenant,
-		AllowList: []apiserver.WLRule{
+		AllowList: []gbpserver.WLRule{
 			emptyRule,
 		},
 	}
@@ -224,7 +224,7 @@ func addContract(t *testing.T) {
 }
 
 func addEPGs(t *testing.T) {
-	epgList := []*apiserver.EPG{
+	epgList := []*gbpserver.EPG{
 		{
 			Name:   "epgA",
 			Tenant: kubeTenant,
@@ -277,7 +277,7 @@ func addEPGs(t *testing.T) {
 }
 
 func addEPs(t *testing.T) {
-	epList := []apiserver.Endpoint{
+	epList := []gbpserver.Endpoint{
 		{EPG: "epgA", VTEP: "101.10.1.1"},
 		{EPG: "epgC", VTEP: "101.10.1.1"},
 		{EPG: "epgA", VTEP: "101.10.1.2"},
@@ -302,19 +302,19 @@ func addEPs(t *testing.T) {
 
 func verifyRest(t *testing.T, c *http.Client) {
 	// Contract
-	emptyRule := apiserver.WLRule{}
-	testContract := &apiserver.Contract{
+	emptyRule := gbpserver.WLRule{}
+	testContract := &gbpserver.Contract{
 		Name:      "all-ALL",
 		Tenant:    kubeTenant,
-		AllowList: []apiserver.WLRule{emptyRule},
+		AllowList: []gbpserver.WLRule{emptyRule},
 	}
-	testEpg := &apiserver.EPG{
+	testEpg := &gbpserver.EPG{
 		Tenant:        kubeTenant,
 		Name:          "Roses",
 		ConsContracts: []string{"all-ALL"},
 		ProvContracts: []string{"all-ALL"},
 	}
-	testEP := &apiserver.Endpoint{
+	testEP := &gbpserver.Endpoint{
 		Uuid:    "testEP-xxx-yyy-zzz",
 		MacAddr: "58:ef:68:e2:71:0d",
 		IPAddr:  "10.2.50.55",
@@ -358,7 +358,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 			t.FailNow()
 		}
 
-		var reply apiserver.PostResp
+		var reply gbpserver.PostResp
 
 		err = json.Unmarshal(rBody, &reply)
 		if err != nil {
@@ -387,7 +387,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 	}
 
 	l := getter("https://example.com:8899/gbp/epgs/")
-	var getList apiserver.ListResp
+	var getList gbpserver.ListResp
 
 	err := json.Unmarshal(l, &getList)
 	if err != nil {

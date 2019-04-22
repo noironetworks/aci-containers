@@ -74,8 +74,3 @@ var _ clientset.Interface = &Clientset{}
 func (c *Clientset) AciV1() aciv1.AciV1Interface {
 	return &fakeaciv1.FakeAciV1{Fake: &c.Fake}
 }
-
-// Aci retrieves the AciV1Client
-func (c *Clientset) Aci() aciv1.AciV1Interface {
-	return &fakeaciv1.FakeAciV1{Fake: &c.Fake}
-}

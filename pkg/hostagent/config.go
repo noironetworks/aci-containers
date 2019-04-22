@@ -163,6 +163,9 @@ type HostAgentConfig struct {
 
 	// ACI Tenant containing the ACI VRF for this kubernetes instance
 	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
+
+	// EP Registry specifies where to send ep updates
+	EPRegistry string `json:"ep-registry,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {

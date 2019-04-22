@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package apiserver
+package watchers
 
 import (
 	"fmt"
@@ -21,91 +21,108 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"strings"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
 	aciawclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 )
 
 const (
-	sysNs = "kube-system"
+	sysNs      = "kube-system"
+	kubeTenant = "kube"
 )
 
-func InitCRDInformers(stopCh <-chan struct{}) error {
-	// creates the in-cluster config
+type K8sWatcher struct {
+	gs  *gbpserver.Server
+	idb *intentDB
+	rc  restclient.Interface
+}
+
+func NewK8sWatcher(gs *gbpserver.Server) (*K8sWatcher, error) {
 	cfg, err := restclient.InClusterConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	aciawClient, err := aciawclientset.NewForConfig(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	restClient := aciawClient.AciV1().RESTClient()
-	watchEpgs(restClient, stopCh)
-	watchContracts(restClient, stopCh)
-	watchPodIFs(restClient, stopCh)
+	return &K8sWatcher{
+		rc:  restClient,
+		gs:  gs,
+		idb: newIntentDB(gs),
+	}, nil
+}
+
+func (kw *K8sWatcher) InitEPInformer(stopCh <-chan struct{}) error {
+	kw.watchPodIFs(stopCh)
 	return nil
 }
 
-func watchEpgs(rc restclient.Interface, stopCh <-chan struct{}) {
+func (kw *K8sWatcher) InitIntentInformers(stopCh <-chan struct{}) error {
+	kw.watchEpgs(stopCh)
+	kw.watchContracts(stopCh)
+	return nil
+}
 
-	epgLw := cache.NewListWatchFromClient(rc, "epgs", sysNs, fields.Everything())
+func (kw *K8sWatcher) watchEpgs(stopCh <-chan struct{}) {
+
+	epgLw := cache.NewListWatchFromClient(kw.rc, "epgs", sysNs, fields.Everything())
 	_, epgInformer := cache.NewInformer(epgLw, &aciv1.Epg{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				epgAdded(obj)
+				kw.epgAdded(obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				epgAdded(newobj)
+				kw.epgAdded(newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				epgDeleted(obj)
+				kw.epgDeleted(obj)
 			},
 		})
 	go epgInformer.Run(stopCh)
 }
 
-func watchContracts(rc restclient.Interface, stopCh <-chan struct{}) {
+func (kw *K8sWatcher) watchContracts(stopCh <-chan struct{}) {
 
-	contractLw := cache.NewListWatchFromClient(rc, "contracts", sysNs, fields.Everything())
+	contractLw := cache.NewListWatchFromClient(kw.rc, "contracts", sysNs, fields.Everything())
 	_, contractInformer := cache.NewInformer(contractLw, &aciv1.Contract{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				contractAdded(obj)
+				kw.contractAdded(obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				contractAdded(newobj)
+				kw.contractAdded(newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				contractDeleted(obj)
+				kw.contractDeleted(obj)
 			},
 		})
 	go contractInformer.Run(stopCh)
 }
 
-func watchPodIFs(rc restclient.Interface, stopCh <-chan struct{}) {
+func (kw *K8sWatcher) watchPodIFs(stopCh <-chan struct{}) {
 
-	podIFLw := cache.NewListWatchFromClient(rc, "podifs", sysNs, fields.Everything())
+	podIFLw := cache.NewListWatchFromClient(kw.rc, "podifs", sysNs, fields.Everything())
 	_, podIFInformer := cache.NewInformer(podIFLw, &aciv1.PodIF{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				podIFAdded(obj)
+				kw.podIFAdded(obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				podIFAdded(newobj)
+				kw.podIFAdded(newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				podIFDeleted(obj)
+				kw.podIFDeleted(obj)
 			},
 		})
 	go podIFInformer.Run(stopCh)
 }
 
-func epgAdded(obj interface{}) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
+func (kw *K8sWatcher) epgAdded(obj interface{}) {
 	epgv1, ok := obj.(*aciv1.Epg)
 	if !ok {
 		log.Errorf("epgAdded: Bad object type")
@@ -113,23 +130,28 @@ func epgAdded(obj interface{}) {
 	}
 
 	log.Infof("epgAdded - %s", epgv1.Spec.Name)
-	e := &EPG{
+	e := &gbpserver.EPG{
 		Tenant:        kubeTenant,
 		Name:          epgv1.Spec.Name,
 		ConsContracts: epgv1.Spec.ConsContracts,
 		ProvContracts: epgv1.Spec.ProvContracts,
 	}
 
-	err := e.Make()
-	if err != nil {
-		log.Errorf("epgAdded: %v", err)
+	// normalize contract names to include tenant
+	normalizer := func(names []string) {
+		for ix, n := range names {
+			if len(strings.Split(n, "/")) == 1 {
+				names[ix] = fmt.Sprintf("%s/%s", e.Tenant, n)
+			}
+		}
 	}
-	DoAll()
+
+	normalizer(e.ConsContracts)
+	normalizer(e.ProvContracts)
+	kw.idb.saveEPG(e)
 }
 
-func epgDeleted(obj interface{}) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
+func (kw *K8sWatcher) epgDeleted(obj interface{}) {
 	epgv1, ok := obj.(*aciv1.Epg)
 	if !ok {
 		log.Errorf("epgAdded: Bad object type")
@@ -137,19 +159,15 @@ func epgDeleted(obj interface{}) {
 	}
 
 	log.Infof("epgDeleted - %s", epgv1.Spec.Name)
-	e := &EPG{
+	e := &gbpserver.EPG{
 		Tenant: kubeTenant,
 		Name:   epgv1.Spec.Name,
 	}
 
-	key := e.getURI()
-	delete(MoDB, key)
-	DoAll()
+	kw.idb.deleteEPG(e)
 }
 
-func contractAdded(obj interface{}) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
+func (kw *K8sWatcher) contractAdded(obj interface{}) {
 	contractv1, ok := obj.(*aciv1.Contract)
 	if !ok {
 		log.Errorf("contractAdded: Bad object type")
@@ -157,25 +175,32 @@ func contractAdded(obj interface{}) {
 	}
 
 	log.Infof("contractAdded - %s", contractv1.Spec.Name)
-	c := &Contract{
+	c := &gbpserver.Contract{
 		Tenant:    kubeTenant,
 		Name:      contractv1.Spec.Name,
 		AllowList: contractv1.Spec.AllowList,
 	}
 
-	err := c.Make()
-	if err != nil {
-		log.Errorf("contractAdded: %v", err)
+	kw.idb.saveGbpContract(c)
+}
+
+func (kw *K8sWatcher) contractDeleted(obj interface{}) {
+	contractv1, ok := obj.(*aciv1.Contract)
+	if !ok {
+		log.Errorf("contractDeleted: Bad object type")
+		return
 	}
-	DoAll()
+	log.Infof("contractDeleted - %s", contractv1.Spec.Name)
+	c := &gbpserver.Contract{
+		Tenant:    kubeTenant,
+		Name:      contractv1.Spec.Name,
+		AllowList: contractv1.Spec.AllowList,
+	}
+
+	kw.idb.deleteGbpContract(c)
 }
 
-func contractDeleted(obj interface{}) {
-}
-
-func podIFAdded(obj interface{}) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
+func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 	podif, ok := obj.(*aciv1.PodIF)
 	if !ok {
 		log.Errorf("podIFAdded: Bad object type")
@@ -184,7 +209,7 @@ func podIFAdded(obj interface{}) {
 
 	log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
-	ep := &Endpoint{
+	ep := gbpserver.Endpoint{
 		Uuid:    uid,
 		MacAddr: podif.Status.MacAddr,
 		IPAddr:  podif.Status.IPAddr,
@@ -192,18 +217,10 @@ func podIFAdded(obj interface{}) {
 		VTEP:    podif.Status.VTEP,
 	}
 
-	_, err := ep.Add()
-	if err != nil {
-		log.Errorf("podIFAdded: %v", err)
-		return
-	}
-
-	DoAll()
+	kw.gs.AddEP(ep)
 }
 
-func podIFDeleted(obj interface{}) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
+func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 	podif, ok := obj.(*aciv1.PodIF)
 	if !ok {
 		log.Errorf("podIFDeleted: Bad object type")
@@ -212,7 +229,7 @@ func podIFDeleted(obj interface{}) {
 
 	log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
-	ep := &Endpoint{
+	ep := gbpserver.Endpoint{
 		Uuid:    uid,
 		MacAddr: podif.Status.MacAddr,
 		IPAddr:  podif.Status.IPAddr,
@@ -220,10 +237,5 @@ func podIFDeleted(obj interface{}) {
 		VTEP:    podif.Status.VTEP,
 	}
 
-	err := ep.Delete()
-	if err != nil {
-		log.Errorf("podIFDeleted: %v", err)
-	}
-
-	DoAll()
+	kw.gs.DelEP(ep)
 }

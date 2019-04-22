@@ -529,6 +529,8 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 			if err != nil {
 				conn.log.Error("Failed to open APIC websocket: ", err)
 				return
+			} else {
+				conn.log.Info("Websocket connected!")
 			}
 
 			conn.runConn(stopCh)

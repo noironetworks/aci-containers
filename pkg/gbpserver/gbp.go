@@ -14,7 +14,7 @@ limitations under the License.
 */
 // GBP definitions -- will eventually move to a generator
 
-package apiserver
+package gbpserver
 
 import (
 	"encoding/json"
@@ -641,9 +641,9 @@ func InitDB(dataDir, apic, region string) {
 	}
 
 	dbDataDir = dataDir
-//	if restoreDB() == nil {
-//		return
-//	}
+	//	if restoreDB() == nil {
+	//		return
+	//	}
 
 	CreateRoot()
 	CreateDefVrf()
@@ -915,7 +915,7 @@ func SendDefaultsToAPIC() {
 		cidrMo,
 		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), defVrfName),
 		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-"+defRegion),
-//		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
+		//		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
 	}
 
 	for _, child := range ctxChildren {

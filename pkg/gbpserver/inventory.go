@@ -14,7 +14,7 @@ limitations under the License.
 */
 // GBP ep inventory definitions
 
-package apiserver
+package gbpserver
 
 import (
 	"encoding/json"
