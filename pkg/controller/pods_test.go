@@ -73,6 +73,7 @@ func waitForGroupAnnot(t *testing.T, cont *testAciController,
 }
 
 func TestPodDefault(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	for _, test := range annotTests {
 		cont := testController()
 		cont.defaultEg = test.egannot
@@ -88,6 +89,7 @@ func TestPodDefault(t *testing.T) {
 }
 
 func TestPodNamespaceDefault(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	for _, test := range annotTests {
 		cont := testController()
 		if test.egannot != "" {
@@ -118,6 +120,7 @@ func TestPodNamespaceDefault(t *testing.T) {
 }
 
 func TestPodAnnotation(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	cont := testController()
 	cont.run()
 
@@ -132,6 +135,7 @@ func TestPodAnnotation(t *testing.T) {
 }
 
 func TestPodNamespaceAnnotation(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	cont := testController()
 	cont.run()
 
@@ -152,6 +156,7 @@ func TestPodNamespaceAnnotation(t *testing.T) {
 }
 
 func TestPodDeploymentAnnotation(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	cont := testController()
 	cont.run()
 
@@ -172,6 +177,7 @@ func TestPodDeploymentAnnotation(t *testing.T) {
 }
 
 func TestPodDeploymentAnnotationPre(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	cont := testController()
 	cont.run()
 
@@ -191,6 +197,7 @@ func TestPodDeploymentAnnotationPre(t *testing.T) {
 }
 
 func TestPodNetworkPolicy(t *testing.T) {
+	t.Skip("Group computation moved to hostagent")
 	cont := testController()
 	cont.fakePodSource.Add(pod("testns", "testpod", "", ""))
 	cont.fakeNetworkPolicySource.Add(netpol("testns", "np1",

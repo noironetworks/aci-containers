@@ -108,3 +108,29 @@ type PodIFList struct {
 
 	Items []PodIF `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type GBPServer struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec  GBPServerSpec  `json:"spec"`
+}
+
+// GBPServerSpec is the spec for a gbpserver
+type GBPServerSpec struct {
+	ApiPort string `json:"api-port,omitempty"`
+	InsecurePort string `json:"insecure-port,omitempty"`
+	ApicURL string `json:"apic-url,omitempty"`
+	AwsRegion string `json:"aws-region,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// GBPServerList is a list of gbpserver objects
+type GBPServerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GBPServer `json:"items"`
+}

@@ -38,6 +38,10 @@ import (
 	"github.com/juju/ratelimit"
 )
 
+// defaultConnectionRefresh is used as connection refresh interval if
+// RefreshInterval is set to 0
+const defaultConnectionRefresh = 30 * time.Second
+
 func complete(resp *http.Response) {
 	if resp.StatusCode != http.StatusOK {
 		rBody, err := ioutil.ReadAll(resp.Body)
@@ -433,7 +437,11 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}()
 	}
 
-	refreshTicker := time.NewTicker(conn.RefreshInterval)
+	refreshInterval := conn.RefreshInterval
+	if refreshInterval == 0 {
+		refreshInterval = defaultConnectionRefresh
+	}
+	refreshTicker := time.NewTicker(refreshInterval)
 	defer refreshTicker.Stop()
 
 	closeConn := func(stop bool) {
@@ -521,6 +529,8 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 			if err != nil {
 				conn.log.Error("Failed to open APIC websocket: ", err)
 				return
+			} else {
+				conn.log.Info("Websocket connected!")
 			}
 
 			conn.runConn(stopCh)

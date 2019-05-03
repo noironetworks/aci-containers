@@ -27,8 +27,6 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	AciV1() aciv1.AciV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Aci() aciv1.AciV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -40,12 +38,6 @@ type Clientset struct {
 
 // AciV1 retrieves the AciV1Client
 func (c *Clientset) AciV1() aciv1.AciV1Interface {
-	return c.aciV1
-}
-
-// Deprecated: Aci retrieves the default version of AciClient.
-// Please explicitly pick a version.
-func (c *Clientset) Aci() aciv1.AciV1Interface {
 	return c.aciV1
 }
 

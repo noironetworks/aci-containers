@@ -24,7 +24,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/embed"
 
-	"github.com/noironetworks/aci-containers/pkg/apiserver"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 )
 
 type cliOpts struct {
@@ -68,15 +69,30 @@ func main() {
 		insPort = fmt.Sprintf(":%s", opts.insecurePort)
 	}
 
-	apiserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
-	_, err = apiserver.StartNewServer(etcdURLs, lPort, insPort)
+	//gbpserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
+	gbpserver.InitDB(opts.moDir, "None", opts.region)
+	_, s, err := gbpserver.StartNewServer(etcdURLs, lPort, insPort)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
 	}
 
 	log.Infof("Api server listening at %s", lPort)
-	ch := make(chan struct{})
-	apiserver.InitCRDInformers(ch)
+	stopCh := make(chan struct{})
+	if opts.cAPICUrl == "None" {
+		kw, err := watchers.NewK8sWatcher(s)
+		if err != nil {
+			log.Fatalf("Starting k8s watcher : %v", err)
+		}
+
+		kw.InitEPInformer(stopCh)
+		kw.InitIntentInformers(stopCh)
+	} else {
+		aw := watchers.NewApicWatcher(s)
+		err = aw.Init(opts.cAPICUrl, stopCh)
+		if err != nil {
+			log.Fatalf("Starting apic watch: %v", err)
+		}
+	}
 
 	select {}
 }

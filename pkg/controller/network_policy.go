@@ -39,6 +39,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
 func (cont *AciController) initNetworkPolicyInformerFromClient(
@@ -70,22 +71,7 @@ func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWa
 }
 
 func (cont *AciController) getNetPolPolicyTypes(key string) []v1net.PolicyType {
-	npobj, exists, err := cont.networkPolicyIndexer.GetByKey(key)
-	if !exists || err != nil {
-		return nil
-	}
-	np := npobj.(*v1net.NetworkPolicy)
-	if len(np.Spec.PolicyTypes) > 0 {
-		return np.Spec.PolicyTypes
-	}
-	if len(np.Spec.Egress) > 0 {
-		return []v1net.PolicyType{
-			v1net.PolicyTypeIngress,
-			v1net.PolicyTypeEgress,
-		}
-	} else {
-		return []v1net.PolicyType{v1net.PolicyTypeIngress}
-	}
+	return util.GetNetPolPolicyTypes(cont.networkPolicyIndexer, key)
 }
 
 func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,

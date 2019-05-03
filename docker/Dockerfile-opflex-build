@@ -1,9 +1,10 @@
-FROM noirolabs/opflex-build-base
+FROM noiro/opflex-build-base
+ARG BUILDOPTS="--with-static-boost --with-boost=/usr/local/boost_1_58_0"
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4
 RUN cd /opflex/libopflex \
-  && ./autogen.sh && ./configure --disable-assert --disable-static \
+  && ./autogen.sh && ./configure --disable-assert $BUILDOPTS \
   && make $make_args && make install
 COPY genie /opflex/genie
 RUN cd /opflex/genie/target/libmodelgbp \
@@ -11,7 +12,7 @@ RUN cd /opflex/genie/target/libmodelgbp \
   && make $make_args && make install
 COPY agent-ovs /opflex/agent-ovs
 RUN cd /opflex/agent-ovs \
-  && ./autogen.sh && ./configure \
+  && ./autogen.sh && ./configure $BUILDOPTS \
   && make $make_args && make install
 RUN for p in `find /usr/local/lib/ /usr/local/bin/ -type f \(\
     -name 'opflex_agent' -o \

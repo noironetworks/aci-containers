@@ -392,6 +392,7 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 		return err
 	}
 
+	agent.cniEpDelete(podid)
 	logger.Debug("Deallocating IP address(es)")
 	agent.deallocateMdIps(metadata)
 

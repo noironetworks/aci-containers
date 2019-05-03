@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/noironetworks/aci-containers/pkg/index"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/aci.aw/v1"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
@@ -45,6 +46,7 @@ type HostAgent struct {
 	opflexEps      map[string][]*opflexEndpoint
 	opflexServices map[string]*opflexService
 	epMetadata     map[string]map[string]*md.ContainerMetadata
+	cniToPodID     map[string]string
 	serviceEp      md.ServiceEndpoint
 
 	crdClient         aciv1.AciV1Interface
@@ -52,6 +54,13 @@ type HostAgent struct {
 	endpointsInformer cache.SharedIndexInformer
 	serviceInformer   cache.SharedIndexInformer
 	nodeInformer      cache.SharedIndexInformer
+	nsInformer        cache.SharedIndexInformer
+	netPolInformer    cache.SharedIndexInformer
+	depInformer       cache.SharedIndexInformer
+	rcInformer        cache.SharedIndexInformer
+	netPolPods        *index.PodSelectorIndex
+	depPods           *index.PodSelectorIndex
+	rcPods            *index.PodSelectorIndex
 
 	podNetAnnotation string
 	podIps           *ipam.IpCache
@@ -76,6 +85,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexEps:      make(map[string][]*opflexEndpoint),
 		opflexServices: make(map[string]*opflexService),
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
+		cniToPodID:     make(map[string]string),
 
 		podIps: ipam.NewIpCache(),
 
@@ -92,13 +102,19 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"eps":      ha.syncEps,
 		"services": ha.syncServices}
 
-	cfg, err := rest.InClusterConfig()
-	if err == nil {
-		aciawClient, err := crdclientset.NewForConfig(cfg)
-		if err == nil {
-
-			ha.crdClient = aciawClient.AciV1()
+	if ha.config.EPRegistry == "k8s" {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			log.Errorf("ERROR getting cluster config: %v", err)
+			return ha
 		}
+		aciawClient, err := crdclientset.NewForConfig(cfg)
+		if err != nil {
+			log.Errorf("ERROR getting crd client for registry: %v", err)
+			return ha
+		}
+
+		ha.crdClient = aciawClient.AciV1()
 	}
 	return ha
 }

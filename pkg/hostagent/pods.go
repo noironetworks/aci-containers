@@ -194,6 +194,10 @@ func opflexEpLogger(log *logrus.Logger, ep *opflexEndpoint) *logrus.Entry {
 	})
 }
 
+func (agent *HostAgent) FormEPFilePath(uuid string) string {
+	return filepath.Join(agent.config.OpFlexEndpointDir, uuid+".ep")
+}
+
 func (agent *HostAgent) syncEps() bool {
 	if !agent.syncEnabled {
 		return false
@@ -276,8 +280,7 @@ func (agent *HostAgent) syncEps() bool {
 			}
 
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
-			epfile := filepath.Join(agent.config.OpFlexEndpointDir,
-				ep.Uuid+".ep")
+			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
@@ -302,6 +305,9 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.log.Info("podUpdated")
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
+	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.podChangedLocked(obj)
 }
 
@@ -331,26 +337,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		agent.epDeleted(&epUuid)
 		return
 	}
+	agent.cniToPodID[epMetaKey] = epUuid
 
-	epGroup := &metadata.OpflexGroup{}
-	if egval, ok := pod.ObjectMeta.Annotations[metadata.CompEgAnnotation]; ok {
-		err := json.Unmarshal([]byte(egval), epGroup)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"EgAnnotation": egval,
-			}).Error("Could not decode annotation: ", err)
-		}
-	}
-
-	secGroup := make([]metadata.OpflexGroup, 0)
-	if sgval, ok := pod.ObjectMeta.Annotations[metadata.CompSgAnnotation]; ok {
-		err := json.Unmarshal([]byte(sgval), &secGroup)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"SgAnnotation": sgval,
-			}).Error("Could not decode annotation: ", err)
-		}
-	}
+	epGroup, secGroup, _ := agent.assignGroups(pod)
 	epAttributes := pod.ObjectMeta.Labels
 	if epAttributes == nil {
 		epAttributes = make(map[string]string)
@@ -358,7 +347,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	epAttributes["vm-name"] = pod.ObjectMeta.Name
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
-	agent.epChanged(&epUuid, &epMetaKey, epGroup, secGroup, epAttributes, logger)
+	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, epAttributes, logger)
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
@@ -368,6 +357,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 		logger = agent.log.WithFields(logrus.Fields{})
 	}
 
+	logger.Debug("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
@@ -439,6 +429,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			"id": *epMetaKey,
 			"ep": neweps,
 		}).Debug("Updated endpoints for pod")
+		logger.Infof("EP: %+v", neweps[0])
 
 		agent.opflexEps[*epUuid] = neweps
 		agent.scheduleSyncEps()
@@ -459,14 +450,35 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 
 	agent.podDeletedLocked(obj)
+	agent.depPods.DeletePod(obj.(*v1.Pod))
+	agent.rcPods.DeletePod(obj.(*v1.Pod))
+	agent.netPolPods.DeletePod(obj.(*v1.Pod))
 }
 
 func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	u := string(pod.ObjectMeta.UID)
 	if _, ok := agent.opflexEps[u]; ok {
+		agent.log.Infof("podDeleted: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		delete(agent.opflexEps, u)
 		agent.scheduleSyncEps()
 	}
 	agent.epDeleted(&u)
+}
+
+func (agent *HostAgent) cniEpDelete(cniKey string) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	epUuid, ok := agent.cniToPodID[cniKey]
+	if !ok {
+		agent.log.Warnf("cniEpDelete: PodID not found for %s", cniKey)
+		return
+	}
+	delete(agent.cniToPodID, cniKey)
+
+	if _, ok := agent.opflexEps[epUuid]; ok {
+		agent.log.Infof("cniEpDelete: delete %s", cniKey)
+		delete(agent.opflexEps, epUuid)
+		agent.scheduleSyncEps()
+	}
 }

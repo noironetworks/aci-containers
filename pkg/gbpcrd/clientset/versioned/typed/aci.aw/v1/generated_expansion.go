@@ -21,4 +21,6 @@ type ContractExpansion interface{}
 
 type EpgExpansion interface{}
 
+type GBPServerExpansion interface{}
+
 type PodIFExpansion interface{}

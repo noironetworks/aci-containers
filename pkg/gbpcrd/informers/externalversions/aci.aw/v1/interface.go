@@ -27,6 +27,8 @@ type Interface interface {
 	Contracts() ContractInformer
 	// Epgs returns a EpgInformer.
 	Epgs() EpgInformer
+	// GBPServers returns a GBPServerInformer.
+	GBPServers() GBPServerInformer
 	// PodIFs returns a PodIFInformer.
 	PodIFs() PodIFInformer
 }
@@ -50,6 +52,11 @@ func (v *version) Contracts() ContractInformer {
 // Epgs returns a EpgInformer.
 func (v *version) Epgs() EpgInformer {
 	return &epgInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// GBPServers returns a GBPServerInformer.
+func (v *version) GBPServers() GBPServerInformer {
+	return &gBPServerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // PodIFs returns a PodIFInformer.

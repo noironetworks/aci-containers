@@ -15,10 +15,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/Sirupsen/logrus"
@@ -34,7 +37,18 @@ func main() {
 	config.InitFlags()
 	configPath := flag.String("config-path", "",
 		"Absolute path to a host agent configuration file")
+	version := flag.Bool("version", false, "prints github commit ID and build time")
 	flag.Parse()
+
+	if *version {
+		if hostagent.GetVersion().GitCommit != "" {
+			buffer := bytes.NewBufferString(hostagent.VersionString())
+			fmt.Println(buffer.String())
+		} else {
+			fmt.Println("Information missing in current build")
+		}
+		os.Exit(0)
+	}
 
 	if configPath != nil && *configPath != "" {
 		log.Info("Loading configuration from ", *configPath)
@@ -81,6 +95,13 @@ func main() {
 		log.Error("Environment set up failed for domain type ", config.AciVmmDomainType)
 		panic(err.Error())
 	}
+
+        if hostagent.GetVersion().GitCommit != "" {
+                versionInfo := hostagent.GetVersion()
+                log.Info("Running hostagent built from git commit ID " +
+                          versionInfo.GitCommit + " at build time " +
+                          versionInfo.BuildTime)
+        }
 
 	agent := hostagent.NewHostAgent(config, env, log)
 	agent.Init()
