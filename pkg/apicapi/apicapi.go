@@ -769,7 +769,6 @@ func computeRespClasses(targetClasses []string,
 
 func (conn *ApicConnection) AddSubscriptionClass(class string,
 	targetClasses []string, targetFilter string) {
-
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubClass,
@@ -790,6 +789,14 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
 	}
 	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) CheckSubscriptionDn(dn string) bool {
+
+	if _, ok := conn.subscriptions.subs[dn]; ok {
+		return true
+	}
+	return false
 }
 
 func (conn *ApicConnection) SetSubscriptionHooks(value string,
@@ -847,14 +854,12 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		conn.logErrorResp("Could not subscribe to "+value, resp)
 		return false
 	}
-
 	var apicresp ApicResponse
 	err = json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
 		conn.log.Error("Could not decode APIC response", err)
 		return false
 	}
-
 	var subId string
 	switch id := apicresp.SubscriptionId.(type) {
 	default:

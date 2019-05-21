@@ -693,6 +693,23 @@ func (cont *AciController) fabricPathLogger(node string,
 }
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
+
+	// This dn subscription is done once per Opflex Device to be
+	// able to process the "delete" updates.
+	cont.indexMutex.Lock()
+	objDn := obj.GetAttrStr("dn")
+	if !cont.apicConn.CheckSubscriptionDn(objDn) {
+		cont.apicConn.AddSubscriptionDn(objDn, []string{"opflexODev"})
+		cont.apicConn.SetSubscriptionHooks(objDn, nil,
+			func(dn string) {
+				cont.opflexDeviceDeleted(dn)
+			})
+	}
+	cont.indexMutex.Unlock()
+
+	if obj.GetAttrStr("state") == "disconnected" {
+		return
+	}
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
