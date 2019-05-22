@@ -129,11 +129,16 @@ func SetupInteg(t *testing.T, c *HostAgentConfig) *integ {
 	if err != nil {
 		panic(err)
 	}
+	snatdir, err := ioutil.TempDir("", "it_snat_")
+	if err != nil {
+		panic(err)
+	}
 
 	it := &integ{t: t, testNS: testPodNS, hcf: c}
 	it.hcf.CniMetadataDir = cnidir
 	it.hcf.OpFlexEndpointDir = epdir
 	it.hcf.OpFlexServiceDir = svcdir
+	it.hcf.OpFlexSnatDir = snatdir
 	PluginCloner.Stub = true
 	it.ta = testAgentWithConf(c)
 	it.ta.run()

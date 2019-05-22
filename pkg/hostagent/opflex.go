@@ -110,8 +110,13 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			conf.UplinkIface = parent.Attrs().Name
 			conf.VxlanAnycastIp = anycast.String()
 			conf.OpflexPeerIp = peerIp.String()
-			return
 		}
+	}
+	intf, err := net.InterfaceByName(conf.UplinkIface)
+	if err == nil {
+		conf.UplinkMacAdress = intf.HardwareAddr.String()
+		agent.log.Info("Hardware address is ", intf.HardwareAddr)
+		return
 	}
 
 	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
@@ -132,6 +137,9 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     },
     "service-sources": {
         "filesystem": ["{{.OpFlexServiceDir | js}}"]
+    },
+    "snat-sources": {
+        "filesystem": ["{{.OpFlexSnatDir | js}}"]
     }
 }
 `)
