@@ -172,6 +172,7 @@ func TestPodSync(t *testing.T) {
 	agent := testAgent()
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
 	agent.run()
 
 	for i, pt := range podTests {
