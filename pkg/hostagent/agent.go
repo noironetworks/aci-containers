@@ -44,30 +44,32 @@ type HostAgent struct {
 	cniToPodID     map[string]string
 	serviceEp      md.ServiceEndpoint
 
-	podInformer       cache.SharedIndexInformer
-	endpointsInformer cache.SharedIndexInformer
-	serviceInformer   cache.SharedIndexInformer
-	nodeInformer      cache.SharedIndexInformer
-	nsInformer        cache.SharedIndexInformer
-	netPolInformer    cache.SharedIndexInformer
-	depInformer       cache.SharedIndexInformer
-	rcInformer        cache.SharedIndexInformer
-	netPolPods        *index.PodSelectorIndex
-	depPods           *index.PodSelectorIndex
-	rcPods            *index.PodSelectorIndex
-
-	podNetAnnotation string
-	podIps           *ipam.IpCache
-	usedIPs          map[string]bool
+	podInformer        cache.SharedIndexInformer
+	endpointsInformer  cache.SharedIndexInformer
+	serviceInformer    cache.SharedIndexInformer
+	nodeInformer       cache.SharedIndexInformer
+	nsInformer         cache.SharedIndexInformer
+	netPolInformer     cache.SharedIndexInformer
+	depInformer        cache.SharedIndexInformer
+	rcInformer         cache.SharedIndexInformer
+	snatLocalInformer  cache.SharedIndexInformer
+	snatGlobalInformer cache.SharedIndexInformer
+	netPolPods         *index.PodSelectorIndex
+	depPods            *index.PodSelectorIndex
+	rcPods             *index.PodSelectorIndex
+	podNetAnnotation   string
+	podIps             *ipam.IpCache
+	usedIPs            map[string]bool
 
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
-	ignoreOvsPorts map[string][]string
-
-	netNsFuncChan chan func()
+	ignoreOvsPorts        map[string][]string
+	opflexSnatLocalInfos  map[string]*OpflexSnatLocalInfo
+	opflexSnatGlobalInfos map[string][]*OpflexSnatGlobalInfo
+	netNsFuncChan         chan func()
 }
 
 func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) *HostAgent {
@@ -84,7 +86,9 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 
 		ignoreOvsPorts: make(map[string][]string),
 
-		netNsFuncChan: make(chan func()),
+		netNsFuncChan:         make(chan func()),
+		opflexSnatLocalInfos:  make(map[string]*OpflexSnatLocalInfo),
+		opflexSnatGlobalInfos: make(map[string][]*OpflexSnatGlobalInfo),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(10)),
@@ -92,7 +96,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 	}
 	ha.syncProcessors = map[string]func() bool{
 		"eps":      ha.syncEps,
-		"services": ha.syncServices}
+		"services": ha.syncServices,
+		"snat":     ha.syncSnat}
 	return ha
 }
 
@@ -122,6 +127,10 @@ func (agent *HostAgent) scheduleSyncEps() {
 
 func (agent *HostAgent) scheduleSyncServices() {
 	agent.ScheduleSync("services")
+}
+
+func (agent *HostAgent) scheduleSyncSnats() {
+	agent.ScheduleSync("snat")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
@@ -180,6 +189,7 @@ func (agent *HostAgent) EnableSync() (changed bool) {
 		agent.log.Info("Enabling OpFlex endpoint and service sync")
 		agent.scheduleSyncServices()
 		agent.scheduleSyncEps()
+		agent.scheduleSyncSnats()
 	}
 	return
 }
@@ -191,7 +201,8 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 
 	if agent.config.OpFlexEndpointDir == "" ||
-		agent.config.OpFlexServiceDir == "" {
+		agent.config.OpFlexServiceDir == "" ||
+		agent.config.OpFlexSnatDir == "" {
 		agent.log.Warn("OpFlex endpoint and service directories not set")
 	} else {
 		if syncEnabled {

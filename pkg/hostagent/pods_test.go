@@ -128,6 +128,17 @@ var podTests = []podTest{
 		egAnnot,
 		sgAnnot,
 	},
+	{
+		"6a281ef1-0fcb-4140-a38c-62977ef25d71",
+		"cont2",
+		"veth2",
+		"testns",
+		"pod3",
+		"10.1.1.5",
+		"52:54:00:e5:26:59",
+		egAnnot,
+		sgAnnot,
+	},
 }
 
 func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
