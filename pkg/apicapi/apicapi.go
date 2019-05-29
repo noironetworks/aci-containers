@@ -821,8 +821,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 
 	refresh_interval := ""
 	if conn.RefreshInterval != 0 {
-		refresh_interval = fmt.Sprintf("refresh-timeout=%s&",
-			conn.RefreshInterval)
+		refresh_interval = fmt.Sprintf("refresh-timeout=%v&",
+			conn.RefreshInterval.Seconds())
 	}
 
 	// properly encoding the URI query parameters breaks APIC
