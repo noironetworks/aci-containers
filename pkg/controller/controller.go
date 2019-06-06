@@ -297,6 +297,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	cont.log.Info("ApicRefreshTimer conf is set to: ", refreshTimeout)
 
+        // Bailout if the refreshTimeout is more than 12Hours
+        if refreshTimeout > (12*60*60) {
+                cont.log.Info("ApicRefreshTimer can't be more than 12Hrs")
+                panic(err)
+        }
+
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
