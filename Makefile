@@ -30,6 +30,8 @@ OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC} vendor
 SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC} vendor
 DIST_FILE=aci-containers.tgz
 
+DOCKER_HUB_ID ?= noiro
+DOCKER_TAG ?=
 BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
@@ -138,17 +140,17 @@ dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
 
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
-	${DOCKER_BUILD_CMD} -t noiro/aci-containers-host -f ./docker/Dockerfile-host .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller
-	${DOCKER_BUILD_CMD} -t noiro/aci-containers-controller -f ./docker/Dockerfile-controller .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller${DOCKER_TAG} -f ./docker/Dockerfile-controller .
 container-opflex-build-base:
-	${DOCKER_BUILD_CMD} -t noiro/opflex-build-base -f ./docker/Dockerfile-opflex-build-base docker
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/opflex-build-base${DOCKER_TAG} -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
-	${DOCKER_BUILD_CMD} -t noiro/openvswitch -f ./docker/Dockerfile-openvswitch .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/openvswitch${DOCKER_TAG} -f ./docker/Dockerfile-openvswitch .
 container-cnideploy:
-	${DOCKER_BUILD_CMD} -t noiro/cnideploy -f ./docker/Dockerfile-cnideploy docker
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy docker
 container-simpleservice: dist-static/simpleservice
-	${DOCKER_BUILD_CMD} -t noiro/simpleservice -f ./docker/Dockerfile-simpleservice .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 
 check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice
 check-ipam:
