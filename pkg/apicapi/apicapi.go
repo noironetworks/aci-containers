@@ -244,9 +244,16 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						pendingKind = pendingChangeUpdate
 					}
 					conn.indexMutex.Lock()
+
+					conn.log.WithFields(logrus.Fields{
+						"dn":  obj.GetDn(),
+						"obj": obj,
+					}).Debug("Processing websocket notification for:")
+
 					conn.pendingSubDnUpdate[dn] = pendingChange{
 						kind:   pendingKind,
 						subIds: subIds,
+						isDirty: false,
 					}
 					if conn.deltaQueue != nil {
 						conn.deltaQueue.Add(dn)
@@ -295,7 +302,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var requeue bool
 	conn.indexMutex.Lock()
 	pending, hasPendingChange := conn.pendingSubDnUpdate[dn]
-	delete(conn.pendingSubDnUpdate, dn)
+	conn.pendingSubDnUpdate[dn] = pendingChange{ isDirty: true }
 	obj, hasDesiredState := conn.desiredStateDn[dn]
 	conn.indexMutex.Unlock()
 
@@ -313,6 +320,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 						" ACI object")
 				requeue = conn.postDn(dn, obj)
 			} else if len(respClasses) > 0 {
+				conn.log.Debug("getSubtreeDn for:", dn)
 				conn.getSubtreeDn(dn, respClasses, updateHandlers)
 			}
 		} else {
@@ -325,6 +333,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 					handler(dn)
 				}
 			} else if len(respClasses) > 0 {
+				conn.log.Debug("getSubtreeDn for:", dn)
 				conn.getSubtreeDn(dn, respClasses, updateHandlers)
 			}
 		} else {
@@ -344,7 +353,6 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if quit {
 				break
 			}
-
 			var requeue bool
 			switch dn := dn.(type) {
 			case string:
@@ -353,10 +361,14 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if requeue {
 				queue.AddRateLimited(dn)
 			} else {
+				conn.indexMutex.Lock()
+				if conn.pendingSubDnUpdate[dn.(string)].isDirty {
+					delete(conn.pendingSubDnUpdate, dn.(string))
+				}
+				conn.indexMutex.Unlock()
 				queue.Forget(dn)
 			}
 			queue.Done(dn)
-
 		}
 	}, time.Second, queueStop)
 	<-queueStop
@@ -396,7 +408,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string]map[string]bool)
-	conn.pendingSubDnUpdate = make(map[string]pendingChange)
 	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.NewMaxOfRateLimiter(
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
@@ -441,6 +452,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.deltaQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
+		conn.subscriptions.ids = make(map[string]string)
 		conn.indexMutex.Unlock()
 
 		conn.log.Debug("Shutting down web socket")
