@@ -55,6 +55,7 @@ type AciController struct {
 	podQueue     workqueue.RateLimitingInterface
 	netPolQueue  workqueue.RateLimitingInterface
 	serviceQueue workqueue.RateLimitingInterface
+	snatQueue    workqueue.RateLimitingInterface
 
 	namespaceIndexer      cache.Indexer
 	namespaceInformer     cache.Controller
@@ -72,6 +73,8 @@ type AciController struct {
 	nodeInformer          cache.Controller
 	networkPolicyIndexer  cache.Indexer
 	networkPolicyInformer cache.Controller
+	snatIndexer           cache.Indexer
+	snatInformer          cache.Controller
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
@@ -106,9 +109,11 @@ type AciController struct {
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
+	snatPolicyCache      map[string]*ContSnatPolicy
 
 	nodeSyncEnabled    bool
 	serviceSyncEnabled bool
+	snatSyncEnabled    bool
 }
 
 type nodeServiceMeta struct {
@@ -141,6 +146,11 @@ type portIndexEntry struct {
 	port              targetPort
 	serviceKeys       map[string]bool
 	networkPolicyKeys map[string]bool
+}
+
+type portRangeSnat struct {
+	start    int
+	end      int
 }
 
 func (e *ipIndexEntry) Network() net.IPNet {
@@ -176,6 +186,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		podQueue:     createQueue("pod"),
 		netPolQueue:  createQueue("networkPolicy"),
 		serviceQueue: createQueue("service"),
+		snatQueue:    createQueue("snat"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -188,6 +199,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
 		serviceMetaCache:     make(map[string]*serviceMeta),
+		snatPolicyCache:      make(map[string]*ContSnatPolicy),
 	}
 }
 
@@ -318,6 +330,23 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
 
+	// If not valid, default to 5000-65000
+	// other permissible values 1-65000
+	defStart := 5000
+	defEnd := 65000
+	if cont.config.SnatDefaultPortRangeStart == 0 {
+		cont.config.SnatDefaultPortRangeStart = defStart
+	}
+	if cont.config.SnatDefaultPortRangeEnd == 0 {
+		cont.config.SnatDefaultPortRangeEnd = defEnd
+	}
+	if (cont.config.SnatDefaultPortRangeStart < 0 || cont.config.SnatDefaultPortRangeEnd < 0 ||
+		cont.config.SnatDefaultPortRangeStart > defEnd || cont.config.SnatDefaultPortRangeEnd > defEnd ||
+			cont.config.SnatDefaultPortRangeStart > cont.config.SnatDefaultPortRangeEnd) {
+		cont.config.SnatDefaultPortRangeStart = defStart
+		cont.config.SnatDefaultPortRangeEnd = defEnd
+	}
+
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
@@ -344,7 +373,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		_, ok := cont.env.(*K8sEnvironment)
 		if ok {
 			qs = []workqueue.RateLimitingInterface{
-				cont.podQueue, cont.netPolQueue, cont.serviceQueue,
+				cont.podQueue, cont.netPolQueue, cont.serviceQueue, cont.snatQueue,
 			}
 		}
 		for _, q := range qs {
