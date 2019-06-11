@@ -307,28 +307,51 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 	return rp, rpDn
 }
 
+func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
+	cidr bool, sharedSec bool) apicapi.ApicObject {
+
+	if !cidr {
+		if ipv4 {
+			ingress = ingress + "/32"
+		} else {
+			ingress = ingress + "/128"
+		}
+	}
+	subnet := apicapi.NewL3extSubnet(enDn, ingress)
+	if sharedSec {
+		subnet.SetAttr("scope", "import-security,shared-security")
+	}
+	return subnet
+}
+
 func apicExtNet(name string, tenantName string, l3Out string,
 	ingresses []string, sharedSecurity bool) apicapi.ApicObject {
 
 	en := apicapi.NewL3extInstP(tenantName, l3Out, name)
 	enDn := en.GetDn()
-	en.AddChild(apicapi.NewFvRsProv(enDn, name))
+	en.AddChild(apicapi.NewFvRsCons(enDn, name))
 
-	sharedSecurityString := "import-security,shared-security"
 	for _, ingress := range ingresses {
-		ip := net.ParseIP(ingress)
-		if ip != nil && ip.To4() != nil {
-			subnet := apicapi.NewL3extSubnet(enDn, ingress+"/32")
-			if sharedSecurity {
-				subnet.SetAttr("scope", sharedSecurityString)
+		ip, _, _ := net.ParseCIDR(ingress)
+		// If ingress is a subnet
+		if ip != nil {
+			if ip != nil && ip.To4() != nil {
+				subnet := apicExtNetCreate(enDn, ingress, true, true, sharedSecurity)
+				en.AddChild(subnet)
+			} else if ip != nil && ip.To16() != nil {
+				subnet := apicExtNetCreate(enDn, ingress, false, true, sharedSecurity)
+				en.AddChild(subnet)
 			}
-			en.AddChild(subnet)
-		} else if ip != nil && ip.To16() != nil {
-			subnet := apicapi.NewL3extSubnet(enDn, ingress+"/128")
-			if sharedSecurity {
-				subnet.SetAttr("scope", sharedSecurityString)
+		} else {
+			// If ingress is an IP address
+			ip := net.ParseIP(ingress)
+			if ip != nil && ip.To4() != nil {
+				subnet := apicExtNetCreate(enDn, ingress, true, false, sharedSecurity)
+				en.AddChild(subnet)
+			} else if ip != nil && ip.To16() != nil {
+				subnet := apicExtNetCreate(enDn, ingress, false, false, sharedSecurity)
+				en.AddChild(subnet)
 			}
-                        en.AddChild(subnet)
 		}
 	}
 	return en
@@ -339,6 +362,13 @@ func apicExtNetCons(conName string, tenantName string,
 
 	enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
 	return apicapi.NewFvRsCons(enDn, conName)
+}
+
+func apicExtNetProv(conName string, tenantName string,
+        l3Out string, net string) apicapi.ApicObject {
+
+        enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
+        return apicapi.NewFvRsProv(enDn, conName)
 }
 
 //Helper function to check if a string item exists in a slice
@@ -390,6 +420,57 @@ func apicDevCtx(name string, tenantName string,
 	}
 
 	return cc
+}
+
+func apicFilterEntry(filterDn string, count string, p_start string,
+	p_end string, protocol string, stateful string) apicapi.ApicObject {
+
+	fe := apicapi.NewVzEntry(filterDn, count)
+	fe.SetAttr("etherT", "ip")
+	fe.SetAttr("prot", protocol)
+	fe.SetAttr("sFromPort", p_start)
+	fe.SetAttr("sToPort", p_end)
+	fe.SetAttr("stateful", stateful)
+	return fe
+}
+func apicFilter(name string, tenantName string,
+	portSpec []v1.ServicePort) apicapi.ApicObject {
+
+	filter := apicapi.NewVzFilter(tenantName, name)
+	filterDn := filter.GetDn()
+
+	for i, port := range portSpec {
+		pstr := strconv.Itoa(int(port.Port))
+		var proto string
+		if port.Protocol == v1.ProtocolUDP {
+			proto = "udp"
+		} else {
+			proto = "tcp"
+		}
+		fe := apicFilterEntry(filterDn, strconv.Itoa(i), pstr,
+			pstr, proto, "no")
+		filter.AddChild(fe)
+	}
+	return filter
+}
+
+func apicFilterSnat(name string, tenantName string,
+        portSpec []portRangeSnat) apicapi.ApicObject {
+
+        filter := apicapi.NewVzFilter(tenantName, name)
+        filterDn := filter.GetDn()
+
+	p_start := strconv.Itoa(int(portSpec[0].start))
+	p_end := strconv.Itoa(int(portSpec[0].end))
+
+	fe := apicFilterEntry(filterDn, "0", p_start,
+		p_end, "tcp", "yes")
+	filter.AddChild(fe)
+	fe1 := apicFilterEntry(filterDn, "1", p_start,
+		p_end, "udp", "yes")
+	filter.AddChild(fe1)
+
+        return filter
 }
 
 func (cont *AciController) updateServiceDeviceInstance(key string,
@@ -496,31 +577,15 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
 		serviceObjs = append(serviceObjs, contract)
-
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
-				apicExtNetCons(name, cont.config.AciVrfTenant,
+				apicExtNetProv(name, cont.config.AciVrfTenant,
 					cont.config.AciL3Out, net))
 		}
-		{
-			filter := apicapi.NewVzFilter(cont.config.AciVrfTenant, name)
-			filterDn := filter.GetDn()
 
-			for i, port := range service.Spec.Ports {
-				fe := apicapi.NewVzEntry(filterDn, strconv.Itoa(i))
-				fe.SetAttr("etherT", "ip")
-				if port.Protocol == v1.ProtocolUDP {
-					fe.SetAttr("prot", "udp")
-				} else {
-					fe.SetAttr("prot", "tcp")
-				}
-				pstr := strconv.Itoa(int(port.Port))
-				fe.SetAttr("dFromPort", pstr)
-				fe.SetAttr("dToPort", pstr)
-				filter.AddChild(fe)
-			}
-			serviceObjs = append(serviceObjs, filter)
-		}
+
+		filter := apicFilter(name, cont.config.AciVrfTenant, service.Spec.Ports)
+		serviceObjs = append(serviceObjs, filter)
 
 		// 3. Device cluster context
 		// The logical device context binds the service contract
@@ -533,6 +598,107 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
 	return nil
+}
+
+func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
+	nodeList := cont.nodeIndexer.List()
+	nodeMap := make(map[string]*metadata.ServiceEndpoint)
+
+	if len(cont.nodeServiceMetaCache) == 0 {
+		return nil
+	}
+	cont.indexMutex.Lock()
+	for _, nodeItem := range nodeList {
+		node := nodeItem.(*v1.Node)
+		nodeName := node.ObjectMeta.Name
+		nodeMeta, ok := cont.nodeServiceMetaCache[nodeName]
+		if !ok {
+			continue
+		}
+		_, ok = cont.fabricPathForNode(nodeName)
+		if !ok {
+			continue
+		}
+		nodeMap[nodeName] = &nodeMeta.serviceEp
+		}
+	cont.indexMutex.Unlock()
+
+	var nodes []string
+        for node := range nodeMap {
+                nodes = append(nodes, node)
+        }
+        sort.Strings(nodes)
+	name := cont.aciNameForKey("snat", key)
+        var conScope string
+	conScope = "global"
+	sharedSecurity := true
+
+	graphName := cont.aciNameForKey("svc", "global")
+        var serviceObjs apicapi.ApicSlice
+        if len(nodes) > 0 {
+
+                // 1. Service redirect policy
+                // The service redirect policy contains the MAC address
+                // and IP address of each of the service endpoints for
+                // each node that hosts a pod for this service.  The
+                // example below shows the case of two nodes.
+                var healthGroupDn string
+                if cont.config.AciServiceMonitorInterval > 0 {
+                        healthGroup :=
+                                apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
+                                        name)
+                        healthGroupDn = healthGroup.GetDn()
+			serviceObjs = append(serviceObjs, healthGroup)
+                }
+
+                rp, rpDn :=
+                        apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+                                nodeMap, cont.staticMonPolDn(), healthGroupDn)
+		serviceObjs = append(serviceObjs, rp)
+
+
+                // 2. Service graph contract and external network
+                // The service graph contract must be bound to the
+                // service
+                // graph.  This contract must be consumed by the default
+                // layer 3 network and provided by the service layer 3
+                // network.
+		{
+                        var ingresses []string
+			for _, policy := range cont.snatPolicyCache {
+				ingresses = append(ingresses, policy.SnatIp...)
+			}
+                        serviceObjs = append(serviceObjs,
+                                apicExtNet(name, cont.config.AciVrfTenant,
+                                        cont.config.AciL3Out, ingresses, sharedSecurity))
+		}
+
+                contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
+                serviceObjs = append(serviceObjs, contract)
+
+                for _, net := range cont.config.AciExtNetworks {
+                        serviceObjs = append(serviceObjs,
+				apicExtNetProv(name, cont.config.AciVrfTenant,
+                                        cont.config.AciL3Out, net))
+                }
+
+		defaultPortRange := portRangeSnat{start: cont.config.SnatDefaultPortRangeStart,
+					end: cont.config.SnatDefaultPortRangeEnd}
+		portSpec := []portRangeSnat{defaultPortRange}
+                filter := apicFilterSnat(name, cont.config.AciVrfTenant, portSpec)
+
+                serviceObjs = append(serviceObjs, filter)
+
+                // 3. Device cluster context
+                // The logical device context binds the service contract
+                // to the redirect policy and the device cluster and
+                // bridge domain for the device cluster.
+                serviceObjs = append(serviceObjs,
+                        apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+                                cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn))
+        }
+        cont.apicConn.WriteApicObjects(name, serviceObjs)
+        return nil
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {

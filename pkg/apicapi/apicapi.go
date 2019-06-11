@@ -196,9 +196,9 @@ func New(log *logrus.Logger, apic []string, user string,
 	}
 
 	conn := &ApicConnection{
-		ReconnectInterval: 	time.Second,
-		RefreshInterval:   	time.Duration(refresh) * time.Second,
-		RefreshTickerAdjust:   	time.Duration(refreshTickerAdjust) * time.Second,
+		ReconnectInterval:	time.Second,
+		RefreshInterval:	time.Duration(refresh) * time.Second,
+		RefreshTickerAdjust:	time.Duration(refreshTickerAdjust) * time.Second,
 		signer:            signer,
 		dialer:            dialer,
 		log:               log,
