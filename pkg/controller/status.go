@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+        // "time"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -31,7 +32,12 @@ type contStatus struct {
 
 func (cont *AciController) RunStatus() {
 	if cont.config.StatusPort <= 0 {
-		return
+                // cont.log.Debug("Adding 100 sec sleep")
+                // time.Sleep(100000 * time.Millisecond)
+                // cont.log.Debug("100 sec sleep done")
+                // block forever without eating CPU
+                select{} 
+		// return
 	}
 
 	http.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
