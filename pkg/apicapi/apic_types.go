@@ -74,6 +74,7 @@ const (
 type pendingChange struct {
 	kind   int
 	subIds []string
+	isDirty bool
 }
 
 type ApicConnection struct {
