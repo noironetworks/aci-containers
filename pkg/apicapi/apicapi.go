@@ -238,6 +238,12 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 				switch status := body.Attributes["status"].(type) {
 				case string:
 					var pendingKind int
+					myDn := body.Attributes["dn"]
+					conn.log.Debug("STATUS CHANGE FOR ", myDn, " to ", status)
+					if myDn == "topology/pod-1/node-102/sys/br-[eth1/28]/odev-167821379" {
+						conn.log.Debug("MY 4th HOST GOT -------", status)
+						conn.log.Debug("MY 4th HOST GOT -------", body.Attributes["state"])
+					}
 					if status == "deleted" {
 						pendingKind = pendingChangeDelete
 					} else {
@@ -411,7 +417,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
+		conn.log.Debug("For ====== ", value)
 		if !(conn.subscribe(value, subscription)) {
+			conn.log.Debug("Error for ------ ", value)
 			hasErr = true
 			conn.restart()
 			break
@@ -811,6 +819,7 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 }
 
 func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
+	conn.log.Debug("IN SUBSCRIBE FOR ", value)
 	args := []string{
 		"query-target=subtree",
 		"rsp-subtree=full",

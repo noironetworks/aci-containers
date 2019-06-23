@@ -20,6 +20,7 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+required = ["k8s.io/code-generator/cmd/client-gen"]
 
 [[constraint]]
   name = "github.com/Sirupsen/logrus"
@@ -128,3 +129,16 @@
 [[override]]
   name = "github.com/docker/distribution"
   branch = "master"
+
+[[override]]
+  name = "github.com/coreos/bbolt"
+  source = "https://github.com/coreos/bbolt"
+  revision = "48ea1b39c25fc1bab3506fbc712ecbaa842c4d2d"
+
+ [[override]]
+  name = "k8s.io/apiserver"
+  revision = "d955b8a826dde3566e9dc4a51493b4afc1b51a7b"
+
+ [[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  revision = "a01914bc74d2605fef74a0248d2eec998f0bb093"
