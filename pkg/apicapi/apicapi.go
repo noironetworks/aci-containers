@@ -239,12 +239,12 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 				case string:
 					var pendingKind int
 					myDn := body.Attributes["dn"]
-					conn.log.Debug("STATUS CHANGE FOR ", myDn, " to ", status)
 					if myDn == "topology/pod-1/node-102/sys/br-[eth1/28]/odev-167821379" {
 						conn.log.Debug("MY 4th HOST GOT -------", status)
 						conn.log.Debug("MY 4th HOST GOT -------", body.Attributes["state"])
 					}
 					if status == "deleted" {
+						conn.log.Debug(dn, " GOT DELETED")
 						pendingKind = pendingChangeDelete
 					} else {
 						pendingKind = pendingChangeUpdate
@@ -558,8 +558,8 @@ func (conn *ApicConnection) refresh() {
 		complete(resp)
 	}
 
-	for _, sub := range conn.subscriptions.subs {
-		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
+	for key, sub := range conn.subscriptions.subs {
+		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id, " for key ", key)
 		url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {

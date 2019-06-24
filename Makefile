@@ -39,7 +39,7 @@ INSTALL_CMD ?= go install -v
 GIT_COMMIT=$(shell scripts/getGitCommit.sh)
 PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
-#STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
+STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
         -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
@@ -47,7 +47,7 @@ PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
         -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT} \
          -s -w" -a -installsuffix cgo
 
-STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -ldflags="-X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT}" -a -installsuffix cgo -gcflags=all="-N -l"
+#STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} -ldflags="-X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT}" -a -installsuffix cgo -gcflags=all="-N -l"
 DOCKER_BUILD_CMD ?= docker build
 VENDOR_BUILD_CMD ?= dep ensure -v
 
