@@ -5,6 +5,8 @@ ENV GOROOT /usr/lib/go
 ENV GOPATH /go
 ENV PATH /go/bin:$PATH
 RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
+RUN mkdir /root/aci-containers
+COPY . /root/aci-containers
 #RUN chmod -R 777 "$GOPATH"
 #RUN go get github.com/derekparker/delve/cmd/dlv
 
