@@ -165,7 +165,7 @@ func configureTls(cert []byte) (*tls.Config, error) {
 
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
-	prefix string, refresh int) (*ApicConnection, error) {
+	prefix string, refresh int, refreshTickerAdjust int) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -196,8 +196,9 @@ func New(log *logrus.Logger, apic []string, user string,
 	}
 
 	conn := &ApicConnection{
-		ReconnectInterval: time.Second,
-		RefreshInterval:   time.Duration(refresh) * time.Second,
+		ReconnectInterval: 	time.Second,
+		RefreshInterval:   	time.Duration(refresh) * time.Second,
+		RefreshTickerAdjust:   	time.Duration(refreshTickerAdjust) * time.Second,
 		signer:            signer,
 		dialer:            dialer,
 		log:               log,
@@ -442,7 +443,10 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	if refreshInterval == 0 {
 		refreshInterval = defaultConnectionRefresh
 	}
-	refreshTicker := time.NewTicker(refreshInterval)
+	// Adjust refreshTickerInterval.
+	// To refresh the subscriptions early than actual refresh timeout value
+	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
+	refreshTicker := time.NewTicker(refreshTickerInterval)
 	defer refreshTicker.Stop()
 
 	closeConn := func(stop bool) {
@@ -561,6 +565,8 @@ func (conn *ApicConnection) refresh() {
 		}
 		complete(resp)
 	}
+
+	conn.log.Debug("Refreshing...")
 
 	for _, sub := range conn.subscriptions.subs {
 		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)

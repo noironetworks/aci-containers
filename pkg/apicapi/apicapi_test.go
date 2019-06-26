@@ -178,7 +178,7 @@ func (server *testServer) testConn(key []byte) (*ApicConnection, error) {
 	})
 
 	n, err := New(log, []string{apic}, "admin", "noir0123", key, cert, "kube",
-		60)
+		60, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -390,6 +390,7 @@ func TestReconnect(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	conn.RefreshInterval = 5 * time.Millisecond
+	conn.RefreshTickerAdjust = 1 * time.Millisecond
 	conn.AddSubscriptionDn("uni/tn-common", []string{"fvBD"})
 	go conn.Run(stopCh)
 
