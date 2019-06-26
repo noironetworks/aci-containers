@@ -42,7 +42,7 @@ import (
 )
 
 func fakeApicConnection(t *testing.T, log *logrus.Logger) *apic.ApicConnection {
-	conn, _ := apic.New(log, []string{}, "admin", "", nil, nil, "test", 60)
+	conn, _ := apic.New(log, []string{}, "admin", "", nil, nil, "test", 60, 5)
 	assert.NotNil(t, conn)
 	return conn
 }
