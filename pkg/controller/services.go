@@ -693,6 +693,34 @@ func (cont *AciController) fabricPathLogger(node string,
 }
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
+
+	cont.indexMutex.Lock()
+	objDn := obj.GetAttrStr("dn")
+	if !cont.apicConn.CheckSubscriptionDn(objDn) {
+		cont.log.Debug("ADDING SUBS FOR ", obj.GetAttrStr("hostName"))
+		cont.apicConn.AddSubscriptionDn(objDn, []string{"opflexODev"})
+		cont.apicConn.SetSubscriptionHooks(objDn, nil,
+			func(dn string) {
+				cont.opflexDeviceDeleted(dn)
+			})
+	}
+	cont.indexMutex.Unlock()
+	if cont.apicConn.TestAndSetSubscriptionId(objDn) {
+		cont.log.Debug("ODEV SUBSCRIBE TO ", objDn)
+		res := cont.apicConn.SubscribeToDn(objDn)
+		if !res {
+			cont.log.Debug("FAILED TO SUBSCRIBE FROM ODEVCHANGED")
+			cont.apicConn.UnsetSubscriptionId(objDn)
+			cont.apicConn.RestartConn()
+		}
+	}
+
+
+
+	if obj.GetAttrStr("state") == "disconnected" {
+		cont.log.Debug("THE NODE HAS BEEN DISCONNECTED")
+		return
+	}
 	var nodeUpdates []string
 
 	cont.indexMutex.Lock()
@@ -756,7 +784,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 
 func (cont *AciController) opflexDeviceDeleted(dn string) {
 	var nodeUpdates []string
-
+	cont.log.Debug("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\delete opflex")
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		for i, device := range devices {

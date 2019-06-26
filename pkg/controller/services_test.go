@@ -349,6 +349,8 @@ func TestServiceAnnotation(t *testing.T) {
 	cont.fakeServiceSource.Add(service2)
 	cont.run()
 	cont.opflexDeviceChanged(opflexDevice1)
+	assert.True(t, cont.apicConn.CheckSubscriptionDn("dev1"), "Opflex Device 1 subscribed")
+	assert.False(t, cont.apicConn.CheckSubscriptionDn("dev2"), "Opflex Device 2 not subscribed yet")
 	cont.opflexDeviceChanged(opflexDevice2)
 	cont.fakeEndpointsSource.Add(endpoints1)
 

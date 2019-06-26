@@ -275,6 +275,10 @@ func (conn *ApicConnection) restart() {
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) RestartConn() {
+	conn.restart()
+}
+
 func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var respClasses []string
 	var updateHandlers []ApicObjectHandler
@@ -422,8 +426,17 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
+		if strings.Contains(value, "odev"){
+			conn.log.Debug("FOUND!!!! ", value)
+			if !conn.TestAndSetSubscriptionId(value){
+				conn.log.Debug("RUNCONN WONT SUBS", value)
+				break
+			}
+			conn.log.Debug("RUNCONN SUBS TO======", value)
+		}
 		if !(conn.subscribe(value, subscription)) {
 			hasErr = true
+			conn.subscriptions.subs[value].id = "" //reset
 			conn.restart()
 			break
 		}
@@ -437,12 +450,18 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			syncHook <- fullSync{}
 		}()
 	}
-
+	minInterval := 90 * time.Second
 	refreshInterval := conn.RefreshInterval
-	if refreshInterval == 0 {
+	var diffInterval time.Duration
+	if refreshInterval <= minInterval {
 		refreshInterval = defaultConnectionRefresh
+		diffInterval = 0 * time.Second
+	} else {
+		refreshInterval = minInterval
+		diffInterval = 60 * time.Second
 	}
-	refreshTicker := time.NewTicker(refreshInterval)
+//	diffInterval := 60 * time.Second
+	refreshTicker := time.NewTicker(refreshInterval - diffInterval)
 	defer refreshTicker.Stop()
 
 	closeConn := func(stop bool) {
@@ -562,7 +581,7 @@ func (conn *ApicConnection) refresh() {
 		complete(resp)
 	}
 
-	for _, sub := range conn.subscriptions.subs {
+	for key, sub := range conn.subscriptions.subs {
 		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
 		url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 		req, err := http.NewRequest("GET", url, nil)
@@ -579,6 +598,7 @@ func (conn *ApicConnection) refresh() {
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			conn.logErrorResp("Error while refreshing subscription", resp)
+			conn.log.Debug("Keyyyyyyyy -----", key)
 			complete(resp)
 			conn.restart()
 			return
@@ -804,6 +824,35 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) SubscribeToDn(dn string) bool {
+	return conn.subscribe(dn, conn.subscriptions.subs[dn])
+}
+
+func (conn *ApicConnection) TestAndSetSubscriptionId(dn string) bool {
+	conn.indexMutex.Lock()
+	defer conn.indexMutex.Unlock()
+	if conn.subscriptions.subs[dn].id == "" {
+		conn.log.Debug("ID NOT SET!!!!!!!!!!")
+		conn.subscriptions.subs[dn].id = "processing"
+		return true
+	}
+	return false
+}
+
+func (conn *ApicConnection) UnsetSubscriptionId(dn string) {
+	conn.indexMutex.Lock()
+	conn.subscriptions.subs[dn].id = ""
+	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) CheckSubscriptionDn(dn string) bool {
+
+	if _, ok := conn.subscriptions.subs[dn]; ok {
+		return true
+	}
+	return false
+}
+
 func (conn *ApicConnection) SetSubscriptionHooks(value string,
 	updateHook ApicObjectHandler, deleteHook ApicDnHandler) {
 
@@ -816,6 +865,7 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 }
 
 func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
+	conn.log.Debug("LETS SUBSCRIBE TO====", value)
 	args := []string{
 		"query-target=subtree",
 		"rsp-subtree=full",

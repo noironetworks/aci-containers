@@ -289,7 +289,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	// If not defined, default is 900
 	if cont.config.ApicRefreshTimer == "" {
-		cont.config.ApicRefreshTimer = "900"
+	//	cont.config.ApicRefreshTimer = "900"
+		cont.config.ApicRefreshTimer = "0"
 	}
 	refreshTimeout, err := strconv.Atoi(cont.config.ApicRefreshTimer)
 	if err != nil {
