@@ -77,6 +77,10 @@ type ControllerConfig struct {
 	// Also, note that this is a string.
 	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
+	// How early (seconds) the subscriptions to be refreshed than
+	// actual subscription refresh-timeout. Will be defaulted to 5Seconds. 
+	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
+
 	// A path for a PEM-encoded private key for client certificate
 	// authentication for APIC API
 	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
