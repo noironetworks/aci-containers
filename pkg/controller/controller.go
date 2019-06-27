@@ -303,6 +303,15 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
                 panic(err)
         }
 
+	// If RefreshTickerAdjustInterval is not defined, default to 5Sec. 
+	if cont.config.ApicRefreshTickerAdjust == "" {
+		cont.config.ApicRefreshTickerAdjust = "5"
+	}
+	refreshTickerAdjust, err := strconv.Atoi(cont.config.ApicRefreshTickerAdjust)
+	if err != nil {
+		panic(err)
+	}
+
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
@@ -312,7 +321,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
-		refreshTimeout)
+		refreshTimeout, refreshTickerAdjust)
 	if err != nil {
 		panic(err)
 	}

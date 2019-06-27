@@ -84,11 +84,12 @@ type ApicConnection struct {
 	password  string
 	prefix    string
 
-	ReconnectInterval time.Duration
-	RefreshInterval   time.Duration
-	RetryInterval     time.Duration
-	UseAPICInstTag    bool // use old-style APIC tags rather than annotations
-	FullSyncHook      func()
+	ReconnectInterval 	time.Duration
+	RefreshInterval   	time.Duration
+	RefreshTickerAdjust 	time.Duration
+	RetryInterval     	time.Duration
+	UseAPICInstTag    	bool // use old-style APIC tags rather than annotations
+	FullSyncHook      	func()
 
 	dialer        *websocket.Dialer
 	connection    *websocket.Conn
