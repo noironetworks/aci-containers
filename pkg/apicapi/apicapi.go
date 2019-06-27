@@ -426,7 +426,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
-		if strings.Contains(value, "odev"){
+	/*	if strings.Contains(value, "odev"){
 			conn.log.Debug("FOUND!!!! ", value)
 			if !conn.TestAndSetSubscriptionId(value){
 				conn.log.Debug("RUNCONN WONT SUBS", value)
@@ -434,9 +434,10 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			}
 			conn.log.Debug("RUNCONN SUBS TO======", value)
 		}
+	*/
 		if !(conn.subscribe(value, subscription)) {
 			hasErr = true
-			conn.subscriptions.subs[value].id = "" //reset
+	//		conn.subscriptions.subs[value].id = "" //reset
 			conn.restart()
 			break
 		}
@@ -832,7 +833,6 @@ func (conn *ApicConnection) TestAndSetSubscriptionId(dn string) bool {
 	conn.indexMutex.Lock()
 	defer conn.indexMutex.Unlock()
 	if conn.subscriptions.subs[dn].id == "" {
-		conn.log.Debug("ID NOT SET!!!!!!!!!!")
 		conn.subscriptions.subs[dn].id = "processing"
 		return true
 	}

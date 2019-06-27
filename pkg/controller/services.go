@@ -697,7 +697,6 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	cont.indexMutex.Lock()
 	objDn := obj.GetAttrStr("dn")
 	if !cont.apicConn.CheckSubscriptionDn(objDn) {
-		cont.log.Debug("ADDING SUBS FOR ", obj.GetAttrStr("hostName"))
 		cont.apicConn.AddSubscriptionDn(objDn, []string{"opflexODev"})
 		cont.apicConn.SetSubscriptionHooks(objDn, nil,
 			func(dn string) {
@@ -705,18 +704,15 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			})
 	}
 	cont.indexMutex.Unlock()
-	if cont.apicConn.TestAndSetSubscriptionId(objDn) {
+/*	if cont.apicConn.TestAndSetSubscriptionId(objDn) {
 		cont.log.Debug("ODEV SUBSCRIBE TO ", objDn)
 		res := cont.apicConn.SubscribeToDn(objDn)
 		if !res {
-			cont.log.Debug("FAILED TO SUBSCRIBE FROM ODEVCHANGED")
 			cont.apicConn.UnsetSubscriptionId(objDn)
 			cont.apicConn.RestartConn()
 		}
 	}
-
-
-
+*/
 	if obj.GetAttrStr("state") == "disconnected" {
 		cont.log.Debug("THE NODE HAS BEEN DISCONNECTED")
 		return

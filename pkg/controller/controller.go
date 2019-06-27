@@ -384,5 +384,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		func(dn string) {
 			cont.opflexDeviceDeleted(dn)
 		})
+
 	go cont.apicConn.Run(stopCh)
 }
