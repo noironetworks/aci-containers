@@ -380,8 +380,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		func(obj apicapi.ApicObject) bool {
 			cont.opflexDeviceChanged(obj)
 			return true
+//		}, nil)
 		},
 		func(dn string) {
+			cont.log.Debug("//////////CLASS SUBS DELETION ")
 			cont.opflexDeviceDeleted(dn)
 		})
 

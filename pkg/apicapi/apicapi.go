@@ -237,6 +237,10 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 			case string:
 				switch status := body.Attributes["status"].(type) {
 				case string:
+					if strings.Contains(dn, "odev") || strings.Contains(dn, "ODev"){
+						conn.log.Debug("-----------status for ", dn, "--is---", status)
+						conn.log.Debug("-----------state for ", dn, "--is---", body.Attributes["state"])
+					}
 					var pendingKind int
 					if status == "deleted" {
 						pendingKind = pendingChangeDelete
@@ -426,18 +430,18 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
-	/*	if strings.Contains(value, "odev"){
-			conn.log.Debug("FOUND!!!! ", value)
-			if !conn.TestAndSetSubscriptionId(value){
-				conn.log.Debug("RUNCONN WONT SUBS", value)
-				break
-			}
-			conn.log.Debug("RUNCONN SUBS TO======", value)
-		}
-	*/
+	//	if strings.Contains(value, "odev"){
+	//		conn.log.Debug("FOUND!!!! ", value)
+	//		if !conn.TestAndSetSubscription(value){
+	//			conn.log.Debug("RUNCONN WONT SUBS", value)
+	//			break
+	//		}
+	//		conn.log.Debug("RUNCONN SUBS TO======", value)
+	//	}
+
 		if !(conn.subscribe(value, subscription)) {
 			hasErr = true
-	//		conn.subscriptions.subs[value].id = "" //reset
+	//		conn.UnsetSubscription(value) //reset
 			conn.restart()
 			break
 		}
@@ -815,7 +819,6 @@ func (conn *ApicConnection) AddSubscriptionClass(class string,
 
 func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	targetClasses []string) {
-
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[dn] = &subscription{
 		kind:          apicSubDn,
@@ -823,30 +826,30 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
 	}
 	conn.indexMutex.Unlock()
+	conn.log.Debug("AddSubsDn for========= ", dn)
 }
 
 func (conn *ApicConnection) SubscribeToDn(dn string) bool {
 	return conn.subscribe(dn, conn.subscriptions.subs[dn])
 }
 
-func (conn *ApicConnection) TestAndSetSubscriptionId(dn string) bool {
+func (conn *ApicConnection) TestAndSetSubscription(dn string) bool {
 	conn.indexMutex.Lock()
 	defer conn.indexMutex.Unlock()
-	if conn.subscriptions.subs[dn].id == "" {
-		conn.subscriptions.subs[dn].id = "processing"
+	if !conn.subscriptions.subs[dn].inProcess {
+		conn.subscriptions.subs[dn].inProcess = true
 		return true
 	}
 	return false
 }
 
-func (conn *ApicConnection) UnsetSubscriptionId(dn string) {
+func (conn *ApicConnection) UnsetSubscription(dn string) {
 	conn.indexMutex.Lock()
-	conn.subscriptions.subs[dn].id = ""
+	conn.subscriptions.subs[dn].inProcess = false
 	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) CheckSubscriptionDn(dn string) bool {
-
 	if _, ok := conn.subscriptions.subs[dn]; ok {
 		return true
 	}

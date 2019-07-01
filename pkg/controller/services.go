@@ -694,7 +694,7 @@ func (cont *AciController) fabricPathLogger(node string,
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 
-	cont.indexMutex.Lock()
+/*	cont.indexMutex.Lock()
 	objDn := obj.GetAttrStr("dn")
 	if !cont.apicConn.CheckSubscriptionDn(objDn) {
 		cont.apicConn.AddSubscriptionDn(objDn, []string{"opflexODev"})
@@ -704,15 +704,16 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			})
 	}
 	cont.indexMutex.Unlock()
-/*	if cont.apicConn.TestAndSetSubscriptionId(objDn) {
+	if cont.apicConn.TestAndSetSubscription(objDn) {
 		cont.log.Debug("ODEV SUBSCRIBE TO ", objDn)
 		res := cont.apicConn.SubscribeToDn(objDn)
 		if !res {
-			cont.apicConn.UnsetSubscriptionId(objDn)
+			cont.apicConn.UnsetSubscription(objDn)
 			cont.apicConn.RestartConn()
 		}
 	}
 */
+
 	if obj.GetAttrStr("state") == "disconnected" {
 		cont.log.Debug("THE NODE HAS BEEN DISCONNECTED")
 		return

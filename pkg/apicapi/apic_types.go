@@ -59,6 +59,7 @@ type subscription struct {
 	targetFilter  string
 	updateHook    ApicObjectHandler
 	deleteHook    ApicDnHandler
+	inProcess     bool
 }
 
 type subIndex struct {
