@@ -69,11 +69,16 @@ func setupODev(cont *testAciController, nodeName string, hasMac bool) {
 	}
 	oDev.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	oDev.SetAttr("devType", "k8s")
+        oDev.SetAttr("domName", "kube")
+        oDev.SetAttr("ctrlrName", "kube")
 	cont.opflexDeviceChanged(oDev)
 }
 
 func TestServiceEpAnnotationV4(t *testing.T) {
 	cont := testController()
+	cont.config.AciVmmDomain = "kube"
+        cont.config.AciVmmController = "kube"
 	cont.config.NodeServiceIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 	}
@@ -104,6 +109,8 @@ func TestServiceEpAnnotationV4(t *testing.T) {
 
 func TestServiceEpAnnotationV6(t *testing.T) {
 	cont := testController()
+	cont.config.AciVmmDomain = "kube"
+	cont.config.AciVmmController = "kube"
 	cont.config.NodeServiceIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::2"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::3")},
 	}
@@ -132,6 +139,8 @@ func TestServiceEpAnnotationV6(t *testing.T) {
 
 func TestServiceEpAnnotationExisting(t *testing.T) {
 	cont := testController()
+	cont.config.AciVmmDomain = "kube"
+        cont.config.AciVmmController = "kube"
 	cont.config.NodeServiceIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.4")},
 		{Start: net.ParseIP("fd43:85d7:bcf2:9ad2::2"), End: net.ParseIP("fd43:85d7:bcf2:9ad2::4")},
@@ -222,6 +231,8 @@ func TestPodNetV6Annotation(t *testing.T) {
 
 func TestPodNetAnnotation(t *testing.T) {
 	cont := testController()
+	cont.config.AciVmmDomain = "kube"
+        cont.config.AciVmmController = "kube"
 	cont.config.PodIpPoolChunkSize = 2
 	cont.config.PodIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.13")},
