@@ -337,13 +337,21 @@ func TestServiceAnnotation(t *testing.T) {
 	opflexDevice1.SetAttr("hostName", "node1")
 	opflexDevice1.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	opflexDevice1.SetAttr("devType", "k8s")
+	opflexDevice1.SetAttr("domName", "kube")
+	opflexDevice1.SetAttr("ctrlrName", "kube")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
 	opflexDevice2.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/34]")
+	opflexDevice2.SetAttr("devType", "k8s")
+        opflexDevice2.SetAttr("domName", "kube")
+        opflexDevice2.SetAttr("ctrlrName", "kube")
 
 	cont := sgCont()
+	cont.config.AciVmmDomain = "kube"
+	cont.config.AciVmmController = "kube"
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
 	cont.fakeServiceSource.Add(service2)
@@ -509,26 +517,41 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice1.SetAttr("hostName", "node1")
 	opflexDevice1.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	opflexDevice1.SetAttr("devType", "k8s")
+        opflexDevice1.SetAttr("domName", "kube")
+        opflexDevice1.SetAttr("ctrlrName", "kube")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
 	opflexDevice2.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/34]")
+	opflexDevice2.SetAttr("devType", "k8s")
+        opflexDevice2.SetAttr("domName", "kube")
+        opflexDevice2.SetAttr("ctrlrName", "kube")
 
 	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice3.SetAttr("hostName", "node3")
 	opflexDevice3.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/50]")
+	opflexDevice3.SetAttr("devType", "k8s")
+        opflexDevice3.SetAttr("domName", "kube")
+        opflexDevice3.SetAttr("ctrlrName", "kube")
 
 	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice4.SetAttr("hostName", "node4")
 	opflexDevice4.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/51]")
+	opflexDevice4.SetAttr("devType", "k8s")
+        opflexDevice4.SetAttr("domName", "kube")
+        opflexDevice4.SetAttr("ctrlrName", "kube")
 
 	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1_alt.SetAttr("hostName", "node1")
 	opflexDevice1_alt.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/100]")
+	opflexDevice1_alt.SetAttr("devType", "k8s")
+        opflexDevice1_alt.SetAttr("domName", "kube")
+        opflexDevice1_alt.SetAttr("ctrlrName", "kube")
 
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
@@ -556,6 +579,8 @@ func TestServiceGraph(t *testing.T) {
 	}
 
 	cont := sgCont()
+	cont.config.AciVmmDomain = "kube"
+        cont.config.AciVmmController = "kube"
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
 	cont.fakeServiceSource.Add(service2)
