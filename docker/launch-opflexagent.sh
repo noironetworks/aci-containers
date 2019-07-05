@@ -17,6 +17,7 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/services
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/mcast
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/snats
 fi
 
 if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then
