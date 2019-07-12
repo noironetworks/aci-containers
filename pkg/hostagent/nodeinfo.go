@@ -17,7 +17,7 @@
 package hostagent
 
 import (
-	nodeinfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.nodeinfo/v1"
+	nodeinfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,17 +50,17 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeinfoclientset.Clients
 		namespace = v.GetObjectMeta().GetNamespace()
 		break
 	}
-	nodeInfoInstance := &nodeinfov1.Nodeinfo{
+	nodeInfoInstance := &nodeinfov1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      agent.config.NodeName,
 			Namespace: namespace,
 		},
-		Spec: nodeinfov1.NodeinfoSpec{
+		Spec: nodeinfov1.NodeInfoSpec{
 			Nodename:   agent.config.NodeName,
 			Macaddress: agent.config.UplinkMacAdress,
 		},
 	}
-	result, err := nodeInfoClient.AciV1().Nodeinfos(namespace).Create(nodeInfoInstance)
+	result, err := nodeInfoClient.AciV1().NodeInfos(namespace).Create(nodeInfoInstance)
 	if err == nil {
 		agent.log.Debug("NodeInfo CR is created: ", result)
 	} else if apierrors.IsAlreadyExists(err) {

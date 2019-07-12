@@ -1,5 +1,5 @@
 package acinodeinfo
 
 const (
-	GroupName = "aci.nodeinfo"
+	GroupName = "aci.snat"
 )
