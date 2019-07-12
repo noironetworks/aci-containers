@@ -19,8 +19,8 @@ package fake
 
 import (
 	clientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.nodeinfo/v1"
-	fakeaciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.nodeinfo/v1/fake"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.snat/v1"
+	fakeaciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.snat/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

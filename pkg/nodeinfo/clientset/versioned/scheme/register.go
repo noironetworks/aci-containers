@@ -18,7 +18,7 @@ limitations under the License.
 package scheme
 
 import (
-	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.nodeinfo/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
