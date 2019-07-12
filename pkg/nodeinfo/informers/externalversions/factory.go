@@ -23,7 +23,7 @@ import (
 	time "time"
 
 	versioned "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
-	acinodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/informers/externalversions/aci.nodeinfo"
+	acisnat "github.com/noironetworks/aci-containers/pkg/nodeinfo/informers/externalversions/aci.snat"
 	internalinterfaces "github.com/noironetworks/aci-containers/pkg/nodeinfo/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -171,9 +171,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Aci() acinodeinfo.Interface
+	Aci() acisnat.Interface
 }
 
-func (f *sharedInformerFactory) Aci() acinodeinfo.Interface {
-	return acinodeinfo.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Aci() acisnat.Interface {
+	return acisnat.New(f, f.namespace, f.tweakListOptions)
 }
