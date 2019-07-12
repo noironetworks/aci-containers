@@ -18,7 +18,7 @@ limitations under the License.
 package versioned
 
 import (
-	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.nodeinfo/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned/typed/aci.snat/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
