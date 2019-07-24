@@ -161,6 +161,10 @@ type ControllerConfig struct {
 	// a list of subnet/gateway CIDR addresses that cover the
 	// addresses in the node service IP pool
 	NodeServiceSubnets []string `json:"node-service-subnets,omitempty"`
+
+	// default port range to use for SNAT svc graph filter
+        SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
+        SnatDefaultPortRangeEnd int `json:"snat-default-port-range-end,omitempty"`
 }
 
 type netIps struct {
