@@ -37,6 +37,10 @@ import (
 	"strings"
 )
 
+// Filename used to create external service file on host
+// example snat-external.service
+const SnatService = "snat-external"
+
 type OpflexPortRange struct {
 	Start int `json:"start,omitempty"`
 	End   int `json:"end,omitempty"`
@@ -299,6 +303,15 @@ func (agent *HostAgent) doUpdateSnatGlobalInfo(key string) {
 	agent.snaGlobalInfoChanged(snatobj, logger)
 }
 
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
+
 func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus.Entry) {
 	snat := snatobj.(*snatglobal.SnatGlobalInfo)
 	syncSnat := false
@@ -339,6 +352,50 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		}
 	}
 	agent.log.Debug("Snat Gobal Obj Map: ", agent.opflexSnatGlobalInfos)
+
+	snatFileName := SnatService + ".service"
+	filePath := filepath.Join(agent.config.OpFlexServiceDir, snatFileName)
+	file_exists := fileExists(filePath)
+
+	if len(agent.opflexSnatGlobalInfos) > 0 {
+		// if more than one global infos, create snat ext file
+		as := &opflexService{
+			Uuid: SnatService,
+			DomainPolicySpace: agent.config.AciVrfTenant,
+			DomainName: agent.config.AciVrf,
+			ServiceMode: "loadbalancer",
+			ServiceMappings: make([]opflexServiceMapping, 0),
+			InterfaceName: agent.config.UplinkIface,
+			InterfaceVlan: uint16(agent.config.ServiceVlan),
+			ServiceMac: agent.serviceEp.Mac,
+			InterfaceIp: agent.serviceEp.Ipv4.String(),
+		}
+		sm := &opflexServiceMapping{
+			Conntrack:    true,
+		}
+		as.ServiceMappings = append(as.ServiceMappings, *sm)
+		agent.opflexServices[SnatService] = as
+		if !file_exists {
+			wrote, err := writeAs(filePath, as)
+			if err != nil {
+				agent.log.Debug("Unable to write snat ext service file")
+			} else if wrote {
+				agent.log.Debug("Created snat ext service file")
+			}
+
+		}
+	} else {
+		delete(agent.opflexServices, SnatService)
+		// delete snat service file if no global infos exist
+		if file_exists {
+			err := os.Remove(filePath)
+			if err!= nil {
+				agent.log.Debug("Unable to delete snat ext service file")
+			} else {
+				agent.log.Debug("Deleted snat ext service file")
+			}
+		}
+	}
 	if syncSnat {
 		agent.scheduleSyncSnats()
 	}
