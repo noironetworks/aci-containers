@@ -354,7 +354,23 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		panic(err)
 	}
-	cont.apicConn.UseAPICInstTag = cont.config.ApicUseInstTag
+
+	if len(cont.config.ApicHosts) != 0 {
+		version, err := cont.apicConn.GetVersion()
+		if err != nil {
+			cont.log.Error("Could not get APIC version")
+			panic(err)
+		}
+		cont.apicConn.CachedVersion = version
+		// APIC version 3.2 introduced tagAnnotation support for better scalability.
+		if version >= 3.2 {
+			cont.apicConn.UseAPICInstTag = false
+		} else {
+			cont.apicConn.UseAPICInstTag = true
+		}
+	}
+
+	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
 
 	cont.initStaticObjs()
 
