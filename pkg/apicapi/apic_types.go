@@ -78,12 +78,14 @@ type pendingChange struct {
 }
 
 type ApicConnection struct {
-	apic      []string
-	apicIndex int
-	user      string
-	password  string
-	prefix    string
+	apic      			[]string
+	apicIndex 			int
+	user      			string
+	password  			string
+	prefix    			string
+	version   			float64 // APIC version
 
+    CachedVersion 		float64
 	ReconnectInterval 	time.Duration
 	RefreshInterval   	time.Duration
 	RefreshTickerAdjust 	time.Duration

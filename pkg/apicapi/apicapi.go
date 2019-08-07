@@ -23,12 +23,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"regexp"
 	"strings"
 	"time"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -439,6 +441,23 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}()
 	}
 
+    // Get APIC version if connection restarts
+	// Unsupported scenario: Exit if APIC downgrades from >=3.2 to <=3.1
+	if conn.version == 0 {
+		go func() {
+			version, err := conn.GetVersion()
+			if err != nil {
+				conn.log.Error("Error while getting APIC version: ", err)
+			} else {
+				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
+				if version <=3.1 && conn.CachedVersion >=3.2 {
+					conn.log.Debug("APIC is downgraded from >=3.2 to a lower version, Exiting ")
+					os.Exit(1) //K8S shall restart the container and fallback to tagInst
+				}
+			}
+		}()
+	}
+
 	refreshInterval := conn.RefreshInterval
 	if refreshInterval == 0 {
 		refreshInterval = defaultConnectionRefresh
@@ -457,6 +476,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
+		conn.version = 0
 		conn.indexMutex.Unlock()
 
 		conn.log.Debug("Shutting down web socket")
@@ -492,6 +512,81 @@ loop:
 	conn.log.Debug("Exiting websocket handler")
 }
 
+func (conn *ApicConnection) GetVersion() (float64, error) {
+    versionMo := "firmwareCtrlrRunning"
+
+	if len(conn.apic) == 0 {
+		return 0, errors.New("No APIC configuration")
+	}
+
+	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+
+	conn.log.WithFields(logrus.Fields{
+		"host": conn.apic[conn.apicIndex],
+	}).Info("Connecting to APIC to determine the Version")
+
+    for conn.version == 0 {
+		// Wait a second before Retry.
+		time.Sleep(conn.ReconnectInterval)
+
+		token, err := conn.login()
+		if err != nil {
+			conn.log.Error("Failed to log into APIC: ", err)
+			continue
+		}
+		conn.token = token
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			conn.log.Error("Could not create request:", err)
+			continue
+		}
+		conn.sign(req, uri, nil)
+		resp, err := conn.client.Do(req)
+		if err != nil {
+			conn.log.Error("Could not get response for ", versionMo, ": ", err)
+			continue
+		}
+		defer complete(resp)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			conn.logErrorResp("Could not get response for "+versionMo, resp)
+			conn.log.Debug("Request:", req)
+			continue
+		}
+
+		var apicresp ApicResponse
+		err = json.NewDecoder(resp.Body).Decode(&apicresp)
+		if err != nil {
+			conn.log.Error("Could not parse APIC response: ", err)
+			continue
+		}
+		for _, obj := range apicresp.Imdata {
+			vresp, ok := obj["firmwareCtrlrRunning"]
+			version, ok := vresp.Attributes["version"]
+			if !ok {
+				conn.log.Debug("No version attribute in the response??!")
+				conn.log.WithFields(logrus.Fields{
+					"firmwareCtrlrRunning": vresp,
+					"firmwareCtrlRunning Attributes": vresp.Attributes,
+				}).Debug("Response:")
+			} else {
+				switch version := version.(type) {
+				default:
+				case string:
+					version_split := strings.Split(version, "(")
+					version_number, err := strconv.ParseFloat(version_split[0], 64)
+					conn.log.Debug("Actual APIC version:", version," Stripped out version:", version_number)
+					if err == nil {
+						conn.version = version_number
+					}
+				}
+			}
+		}
+	}
+	return conn.version, nil
+}
+
 func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 	if len(conn.apic) == 0 {
 		conn.log.Warning("APIC connection not configured")
@@ -511,6 +606,7 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 			}).Info("Connecting to APIC")
 
 			conn.subscriptions.ids = make(map[string]string)
+
 			token, err := conn.login()
 			if err != nil {
 				conn.log.Error("Failed to log into APIC: ", err)
@@ -565,8 +661,6 @@ func (conn *ApicConnection) refresh() {
 		}
 		complete(resp)
 	}
-
-	conn.log.Debug("Refreshing...")
 
 	for _, sub := range conn.subscriptions.subs {
 		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
