@@ -18,12 +18,15 @@ package controller
 import (
 	"github.com/Sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 )
+
+const snatGraphName = "svcgraph"
 
 type ContLabel struct {
 	Key   string `json:"key,omitempty"`
@@ -120,14 +123,20 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 
 	policyName := snatpolicy.ObjectMeta.Name
 	var requeue bool
-	cont.indexMutex.Lock()
-	cont.updateSnatPolicyCache(policyName, snatpolicy)
-	cont.indexMutex.Unlock()
-
+	if len(snatpolicy.Spec.SnatIp) > 0 {
+		cont.indexMutex.Lock()
+		cont.updateSnatPolicyCache(policyName, snatpolicy)
+		cont.indexMutex.Unlock()
+	}
 	cont.indexMutex.Lock()
 	if cont.snatSyncEnabled {
 		cont.indexMutex.Unlock()
-		err = cont.updateServiceDeviceInstanceSnat("MYSNAT")
+
+		if len(snatpolicy.Spec.SnatIp) == 0 {
+			err = cont.handleSnatPolicyForServices(snatpolicy)
+		} else {
+			err = cont.updateServiceDeviceInstanceSnat(snatGraphName)
+		}
 		if err == nil {
 			requeue = true
 		}
@@ -135,6 +144,36 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 		cont.indexMutex.Unlock()
 	}
 	return requeue
+}
+
+func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy ) error {
+
+	ls := make(map[string]string)
+	for _, label := range snatpolicy.Spec.Selector.Labels {
+		ls[label.Key] = label.Value
+	}
+	selector := labels.Set(ls).String()
+	ServicesList, err := cont.listServicesBySelector(selector)
+	if err != nil {
+		cont.log.Debug("Error getting matching services: ", err)
+	}
+	if len(ServicesList.Items) == 0 {
+		return nil
+	}
+	for _, service := range ServicesList.Items {
+		if service.Spec.Type == v1.ServiceTypeLoadBalancer {
+			servicekey, err := cache.MetaNamespaceKeyFunc(service)
+			if err != nil {
+				servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
+			}
+			cont.indexMutex.Lock()
+			if service.GetDeletionTimestamp() == nil {
+				cont.snatServices[servicekey] = true
+			}
+			cont.indexMutex.Unlock()
+		}
+	}
+	return nil
 }
 
 func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpolicy.SnatPolicy) {
@@ -157,12 +196,34 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 	cont.indexMutex.Lock()
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
 
-        if len(cont.snatPolicyCache) == 0 {
-                cont.log.Debug("No more snat policies, deleting graph")
-		graphName := cont.aciNameForKey("snat", "MYSNAT")
-		go cont.apicConn.ClearApicObjects(graphName)
-        } else {
-		go cont.updateServiceDeviceInstanceSnat("MYSNAT")
+	if len(snatpolicy.Spec.SnatIp) == 0 {
+		ls := make(map[string]string)
+		for _, label := range snatpolicy.Spec.Selector.Labels {
+			ls[label.Key] = label.Value
+		}
+		selector := labels.Set(ls).String()
+		ServicesList, err := cont.listServicesBySelector(selector)
+		if err == nil {
+			if len(ServicesList.Items) > 0 {
+				for _, service := range ServicesList.Items {
+					if service.Spec.Type == v1.ServiceTypeLoadBalancer {
+						servicekey, err1 := cache.MetaNamespaceKeyFunc(service)
+						if err1 != nil {
+							servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
+						}
+						delete(cont.snatServices, servicekey)
+					}
+				}
+			}
+		}
+	} else {
+		if len(cont.snatPolicyCache) == 0 {
+			cont.log.Debug("No more snat policies, deleting graph")
+			graphName := cont.aciNameForKey("snat", snatGraphName)
+			go cont.apicConn.ClearApicObjects(graphName)
+		} else {
+			go cont.updateServiceDeviceInstanceSnat(snatGraphName)
+		}
 	}
 	cont.indexMutex.Unlock()
 }

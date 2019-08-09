@@ -434,11 +434,12 @@ func apicFilterEntry(filterDn string, count string, p_start string,
 	return fe
 }
 func apicFilter(name string, tenantName string,
-	portSpec []v1.ServicePort) apicapi.ApicObject {
+	portSpec []v1.ServicePort, snat bool, snatRange portRangeSnat) apicapi.ApicObject {
 
 	filter := apicapi.NewVzFilter(tenantName, name)
 	filterDn := filter.GetDn()
 
+	var i int
 	for i, port := range portSpec {
 		pstr := strconv.Itoa(int(port.Port))
 		var proto string
@@ -450,6 +451,19 @@ func apicFilter(name string, tenantName string,
 		fe := apicFilterEntry(filterDn, strconv.Itoa(i), pstr,
 			pstr, proto, "no")
 		filter.AddChild(fe)
+	}
+
+	if snat {
+		portSpec := []portRangeSnat{snatRange}
+		p_start := strconv.Itoa(int(portSpec[0].start))
+		p_end := strconv.Itoa(int(portSpec[0].end))
+
+		fe1 := apicFilterEntry(filterDn, strconv.Itoa(i+1), p_start,
+			p_end, "tcp", "yes")
+		filter.AddChild(fe1)
+		fe2 := apicFilterEntry(filterDn, strconv.Itoa(i+2), p_start,
+			p_end, "udp", "yes")
+		filter.AddChild(fe2)
 	}
 	return filter
 }
@@ -583,8 +597,12 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 					cont.config.AciL3Out, net))
 		}
 
+		defaultPortRange := portRangeSnat{start: cont.config.SnatDefaultPortRangeStart,
+			end: cont.config.SnatDefaultPortRangeEnd}
 
-		filter := apicFilter(name, cont.config.AciVrfTenant, service.Spec.Ports)
+		_, snat := cont.snatServices[key]
+		filter := apicFilter(name, cont.config.AciVrfTenant,
+			service.Spec.Ports, snat, defaultPortRange)
 		serviceObjs = append(serviceObjs, filter)
 
 		// 3. Device cluster context
@@ -1335,6 +1353,7 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 	cont.indexMutex.Lock()
 	cont.updateTargetPortIndex(true, servicekey, ports, nil)
 	cont.queuePortNetPolUpdates(ports)
+	delete(cont.snatServices, servicekey)
 	cont.indexMutex.Unlock()
 }
 

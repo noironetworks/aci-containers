@@ -51,7 +51,7 @@ func testsnatpolicy(name string, namespace string, deploy string,
 }
 
 func TestSnatGraph(t *testing.T) {
-	name := "kube_snat_MYSNAT"
+	name := "kube_snat_" + snatGraphName
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string

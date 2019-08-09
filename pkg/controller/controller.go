@@ -43,6 +43,7 @@ import (
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
+type serviceListFunc func(string) (*v1.ServiceList, error)
 
 type AciController struct {
 	log    *logrus.Logger
@@ -76,9 +77,10 @@ type AciController struct {
 	snatIndexer           cache.Indexer
 	snatInformer          cache.Controller
 
-	updatePod           podUpdateFunc
-	updateNode          nodeUpdateFunc
-	updateServiceStatus serviceUpdateFunc
+	updatePod              podUpdateFunc
+	updateNode             nodeUpdateFunc
+	updateServiceStatus    serviceUpdateFunc
+	listServicesBySelector serviceListFunc
 
 	indexMutex sync.Mutex
 
@@ -110,6 +112,7 @@ type AciController struct {
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 	snatPolicyCache      map[string]*ContSnatPolicy
+	snatServices         map[string]bool
 
 	nodeSyncEnabled    bool
 	serviceSyncEnabled bool
@@ -200,6 +203,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodePodNetCache:      make(map[string]*nodePodNetMeta),
 		serviceMetaCache:     make(map[string]*serviceMeta),
 		snatPolicyCache:      make(map[string]*ContSnatPolicy),
+		snatServices:         make(map[string]bool),
 	}
 }
 

@@ -19,7 +19,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	"k8s.io/client-go/kubernetes"
@@ -114,6 +114,10 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().
 			Services(service.ObjectMeta.Namespace).UpdateStatus(service)
+	}
+
+	cont.listServicesBySelector = func(selector string) (*v1.ServiceList, error) {
+		return kubeClient.CoreV1().Services("").List(metav1.ListOptions{LabelSelector: selector,})
 	}
 
 	cont.log.Debug("Initializing informers")
