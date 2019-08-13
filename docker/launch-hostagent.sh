@@ -73,14 +73,6 @@ else
     echo "VTEP interface not found"
 fi
 
-# FIXME make route addition based on pod subnet.
-CHECK=$(ip route show 10.2.56.0/24 | wc -l)
-if [ $CHECK -ne 0 ]; then
-    ip route del 10.2.56.0/24
-fi
-
-ip route add 10.2.56.0/24 dev veth_host scope link src $VTEP_IP
-
 # Allow pod traffic to go out of veth_host
 iptables -A FORWARD -i veth_host -j ACCEPT
 
