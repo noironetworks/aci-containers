@@ -18,8 +18,8 @@ RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && mv $ROOT/include/openvswitch/*.h $ROOT/include/openvswitch/openvswitch \
   && mv $ROOT/include/openflow $ROOT/include/openvswitch \
   && cp include/*.h "$ROOT/include/openvswitch/" \
-  && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \;
+  && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \
   && ./b2 install --prefix=$ROOT/boost_1_58_0 \
   && cd .. \
   && rm -Rf boost_1_58_0.tar.gz \
-  && rm -Rf boost_1_58_0 \;
+  && rm -Rf boost_1_58_0 \
