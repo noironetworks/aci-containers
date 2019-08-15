@@ -264,9 +264,3 @@ func targetsDiff(old, new []string) ([]*elbv2.TargetDescription, []*elbv2.Target
 
 	return add, del
 }
-
-//var instanceMap = map[string]string{
-//	"10.2.1.190": "i-0059ba93bf47150cc",
-//	"10.2.1.205": "i-045ce01d1eee099c2",
-//	"10.2.1.240": "i-065531517fe9ba527",
-//}
