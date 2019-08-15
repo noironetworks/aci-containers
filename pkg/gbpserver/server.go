@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -31,9 +32,11 @@ import (
 )
 
 const (
-	root       = "/aci/objdb"
-	ListenPort = "8899"
-	defToken   = "api-server-token"
+	root        = "/aci/objdb"
+	ListenPort  = "8899"
+	defToken    = "api-server-token"
+	versionPath = "/api/node/class/firmwareCtrlrRunning.json"
+	versionStr  = "3.2(5d)"
 )
 
 const (
@@ -82,6 +85,24 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				class: map[string]interface{}{
 					"attributes": map[string]interface{}{
 						"token": defToken,
+					},
+				},
+			},
+		},
+	}
+	json.NewEncoder(w).Encode(result)
+}
+
+type versionResp struct {
+}
+
+func (v *versionResp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	result := map[string]interface{}{
+		"imdata": []interface{}{
+			map[string]interface{}{
+				"firmwareCtrlrRunning": map[string]interface{}{
+					"attributes": map[string]interface{}{
+						"version": versionStr,
 					},
 				},
 			},
@@ -421,6 +442,11 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	uri := r.URL.RequestURI()
 
 	log.Infof("handleRead: %s", uri)
+	if strings.Contains(uri, versionPath) {
+		vR := &versionResp{}
+		vR.ServeHTTP(w, r)
+		return
+	}
 	content, err := s.objapi.GetRaw(uri)
 	if err != nil {
 		//	http.Error(w, err.Error(), http.StatusInternalServerError)
