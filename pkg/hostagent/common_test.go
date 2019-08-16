@@ -56,7 +56,7 @@ func testAgent() *testHostAgent {
 }
 func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	log := logrus.New()
-	log.Level = logrus.DebugLevel
+	log.Level = logrus.InfoLevel
 
 	agent := &testHostAgent{
 		HostAgent: NewHostAgent(hcf, &K8sEnvironment{}, log),

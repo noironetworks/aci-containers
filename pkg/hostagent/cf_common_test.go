@@ -77,7 +77,7 @@ func testCfEnvironment(t *testing.T) *CfEnvironment {
 func (e *CfEnvironment) GetKvContainerMetadata(ctId string) map[string]*md.ContainerMetadata {
 	if v, err := e.kvmgr.Get("container", ctId); err == nil {
 		ifs := v.Value.([]*md.ContainerIfaceMd)
-		return map[string]*md.ContainerMetadata{ctId: &md.ContainerMetadata{
+		return map[string]*md.ContainerMetadata{ctId: {
 			Id:     md.ContainerId{Namespace: "_cf_", Pod: ctId, ContId: ctId},
 			Ifaces: ifs}}
 	}
@@ -94,8 +94,8 @@ func newFakeIpTables() *fakeIpTables {
 		rules:  make(map[string]struct{}),
 		chains: make(map[string]map[string]struct{})}
 	t.chains["nat"] = map[string]struct{}{
-		"PREROUTING":  struct{}{},
-		"POSTROUTING": struct{}{}}
+		"PREROUTING":  {},
+		"POSTROUTING": {}}
 	return t
 }
 

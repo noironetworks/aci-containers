@@ -291,7 +291,7 @@ func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {
 	for dn, ids := range oldState {
 		_, found := conn.cacheDnSubIds[dn]
 		if !found {
-			for id, _ := range ids {
+			for id := range ids {
 				value, ok := conn.subscriptions.ids[id]
 				if !ok {
 					continue

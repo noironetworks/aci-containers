@@ -8,6 +8,7 @@ EPRPCCLIENT_SRC=$(wildcard pkg/eprpcclient/*.go)
 HOSTAGENT_SRC=$(wildcard cmd/hostagent/*.go pkg/hostagent/*.go)
 AGENTCNI_SRC=$(wildcard cmd/opflexagentcni/*.go)
 CONTROLLER_SRC=$(wildcard cmd/controller/*.go pkg/controller/*.go)
+GBPSERVER_SRC=$(wildcard cmd/gbpserver/*.go pkg/apiserver/*.go)
 ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
 OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
 SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
@@ -52,16 +53,25 @@ VENDOR_BUILD_CMD ?= dep ensure -v
 .PHONY: clean goinstall check all
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
-	dist/aci-containers-controller dist/acikubectl dist/ovsresync
+	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
+        dist/gbpserver
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync
+	dist-static/ovsresync dist-static/gbpserver
 
-vendor-rebuild: Gopkg.lock Gopkg.toml
-	${VENDOR_BUILD_CMD}
-vendor: Gopkg.lock Gopkg.toml
-	${VENDOR_BUILD_CMD}
+go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
+go-build:
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-targets
 
+vendor-rebuild: Gopkg.toml
+	${VENDOR_BUILD_CMD}
+vendor: Gopkg.toml
+	${VENDOR_BUILD_CMD}
+	# fix etcd repo issue
+	@rm -f vendor/github.com/coreos/etcd/client/keys.generated.go
+
+clean-dist-static:
+	rm -rf dist-static/*
 clean-dist:
 	rm -rf dist
 clean-vendor:
@@ -114,7 +124,7 @@ dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
-dist/aci-containers-host-agent: ${HOSTAGENT_DEPS}
+dist/aci-containers-host-agent: ${HOSTAGENT_DEPS} 
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
 dist-static/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
@@ -123,6 +133,19 @@ dist/aci-containers-controller: ${CONTROLLER_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/controller
 dist-static/aci-containers-controller: ${CONTROLLER_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/controller
+dist-static/gbpserver:
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
+
+dist/gbpserver:
+	${BUILD_CMD} -o $@ ${BASE}/cmd/gbpserver
+gbpserver:
+	${STATIC_BUILD_CMD} -o dist-static/gbpserver ${BASE}/cmd/gbpserver
+nodep-aci-containers-controller:
+	${STATIC_BUILD_CMD} -o dist-static/aci-containers-controller ${BASE}/cmd/controller
+nodep-aci-containers-host-agent:
+	${STATIC_BUILD_CMD} -o dist-static/aci-containers-host-agent ${BASE}/cmd/hostagent
+nodep-opflex-agent-cni:
+	${STATIC_BUILD_CMD} -o dist-static/opflex-agent-cni ${BASE}/cmd/opflexagentcni
 
 dist/acikubectl: ${ACIKUBECTL_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
@@ -139,6 +162,8 @@ dist/simpleservice: ${SIMPLESERVICE_DEPS}
 dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/simpleservice
 
+container-gbpserver: dist-static/gbpserver 
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbp-server${DOCKER_TAG} -f ./docker/Dockerfile-gbpserver .
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host .
 container-controller: dist-static/aci-containers-controller

@@ -51,6 +51,11 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
 	  | tar -x -C build/opflex/dist
+docker run -w /usr $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
+         -name '\''libexecinfo.so.*'\'' -o \
+          \) ! -name '\''*debug'\'' \
+         | xargs tar -c ' \
+        | tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c \
 	'find lib bin -name '\''*.debug'\'' | xargs tar -cz' \
 	 > opflex-debuginfo.tar.gz
@@ -62,8 +67,8 @@ cp docker/Dockerfile-opflexserver build/opflex/dist/
 
 docker build -t $DOCKER_HUB_ID/opflex$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
-docker build -t $DOCKER_HUB_ID/opflexserver$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
-docker push $DOCKER_HUB_ID/opflexserver$DOCKER_TAG
+docker build -t $DOCKER_HUB_ID/opflex-server$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
+docker push $DOCKER_HUB_ID/opflex-server$DOCKER_TAG
 
 echo "starting aci-containers build"
 make all-static
@@ -76,6 +81,9 @@ docker push $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG
 
 docker build -t $DOCKER_HUB_ID/cnideploy$DOCKER_TAG -f docker/Dockerfile-cnideploy docker
 docker push $DOCKER_HUB_ID/cnideploy$DOCKER_TAG
+
+docker build -t $DOCKER_HUB_ID/gbp-server$DOCKER_TAG -f docker/Dockerfile-gbpserver .
+docker push $DOCKER_HUB_ID/gbp-server$DOCKER_TAG
 
 echo "starting openvswitch build"
 docker build -t $DOCKER_HUB_ID/openvswitch$DOCKER_TAG -f docker/Dockerfile-openvswitch .

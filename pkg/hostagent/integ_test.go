@@ -243,7 +243,14 @@ func (it *integ) checkEpGroups(id int, epg, sg string) {
 			if err == nil {
 				err = json.Unmarshal([]byte(epRaw), &ep)
 			}
-			return tu.WaitEqual(it.t, last, epg, ep.EndpointGroup, "epg does not match") && tu.WaitEqual(it.t, last, secGroups, ep.SecurityGroup, "sec group does not match") && tu.WaitEqual(it.t, last, err, nil, "epg file read error"), nil
+
+			epgRes := tu.WaitEqual(it.t, last, epg, ep.EndpointGroup, "epg does not match") && tu.WaitEqual(it.t, last, err, nil, "epg file read error")
+			if epgRes {
+				// sec group is an unordered list
+				return assert.ElementsMatch(it.t, secGroups, ep.SecurityGroup, "sec group does not match"), nil
+			}
+
+			return false, nil
 		})
 }
 

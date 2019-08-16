@@ -317,7 +317,7 @@ func (env *CfEnvironment) syncLegacyCfNet() bool {
 	env.indexLock.Lock()
 	contPorts := make(map[uint32]struct{})
 	for _, ep := range env.epIdx {
-		for i, _ := range ep.PortMapping {
+		for i := range ep.PortMapping {
 			r := fmt.Sprintf(
 				"-d %s/32 -p tcp -m tcp --dport %d -j DNAT "+
 					"--to-destination %s:%d",
@@ -328,7 +328,7 @@ func (env *CfEnvironment) syncLegacyCfNet() bool {
 		}
 	}
 	env.indexLock.Unlock()
-	for cp, _ := range contPorts {
+	for cp := range contPorts {
 		r := fmt.Sprintf("-o %s -p tcp -m tcp --dport %d -j SNAT "+
 			"--to-source %s",
 			env.cfconfig.CfNetOvsPort, cp, env.cfconfig.CfNetIntfAddress)
