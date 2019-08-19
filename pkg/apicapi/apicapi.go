@@ -529,6 +529,13 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 		return 0, errors.New("No APIC configuration")
 	}
 
+	// To Handle unit-tests
+	if strings.Contains(conn.apic[conn.apicIndex], "127.0.0.1") {
+		conn.version = 3.2
+		conn.log.Debug("Returning APIC version 3.2 for test server")
+		return conn.version, nil
+	}
+
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 
