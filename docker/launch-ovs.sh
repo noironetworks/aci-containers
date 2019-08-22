@@ -26,6 +26,9 @@ done
 # Signal the host agent to resync OVS port configuration
 ovsresync /usr/local/var/run/aci-containers-ep-rpc.sock
 
+# Signal the opflex-agent to reload
+echo $(date) >> /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf
+
 cat <<EOF > /etc/logrotate.conf
 include /etc/logrotate.d
 EOF
