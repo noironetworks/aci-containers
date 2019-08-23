@@ -60,7 +60,7 @@ func ReadInvFile(vtep, file string) {
 	for _, mo := range moList {
 		mm := new(gbpInvMo)
 		*mm = mo
-		moMap[mo.URI] = mm
+		moMap[mo.Uri] = mm
 	}
 	InvDB[vtep] = moMap
 }
@@ -92,7 +92,53 @@ func (g *gbpInvMo) save(vtep string) {
 	}
 
 	db := InvDB[vtep]
-	db[g.URI] = g
+	db[g.Uri] = g
+}
+
+func getInvSubTree(url, vtep string) []*GBPObject {
+	db := InvDB[vtep]
+	if db == nil {
+		log.Errorf("InvDB vtep %s not found", vtep)
+		return nil
+	}
+
+	im := db[url]
+	if im == nil {
+		log.Errorf("InvDB mo %s/%s not found", vtep, url)
+		return nil
+	}
+
+	return im.getSubTree(vtep)
+}
+
+// returns the preOrder traversal of the GBP subtree rooted at g.
+func (g *gbpInvMo) getSubTree(vtep string) []*GBPObject {
+	st := make([]*GBPObject, 0, 8)
+
+	return g.preOrder(st, vtep)
+}
+
+func (g *gbpInvMo) preOrder(moList []*GBPObject, vtep string) []*GBPObject {
+	// append self first
+	moList = append(moList, &g.GBPObject)
+
+	// append child subtrees
+	for _, c := range g.Children {
+		db := InvDB[vtep]
+		if db == nil {
+			log.Errorf("InvDB vtep %s not found", vtep)
+			continue
+		}
+
+		cMo := db[c]
+		if cMo == nil {
+			log.Errorf("Child %s missing for %s", c, g.Uri)
+			continue
+		}
+		moList = cMo.preOrder(moList, vtep)
+	}
+
+	return moList
 }
 
 func getInvMo(vtep, uri string) *gbpInvMo {
@@ -139,19 +185,24 @@ func (ep *Endpoint) Add() (string, error) {
 	createChild := func(p *gbpCommonMo, childSub, name string) *gbpInvMo {
 		var cURI string
 		if name == "" {
-			cURI = fmt.Sprintf("%s%s/", p.URI, childSub)
+			cURI = fmt.Sprintf("%s%s/", p.Uri, childSub)
 		} else {
-			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, name)
+			cURI = fmt.Sprintf("%s%s/%s/", p.Uri, childSub, name)
 		}
 		child := &gbpInvMo{
 			gbpCommonMo{
-				Subject: childSub,
-				URI:     cURI,
+				GBPObject{
+					Subject: childSub,
+					Uri:     cURI,
+				},
+				false,
+				false,
 			},
 		}
-		child.SetParent(p.Subject, childSub, p.URI)
+
+		child.SetParent(p.Subject, childSub, p.Uri)
 		child.save(ep.VTEP)
-		p.AddChild(child.URI)
+		p.AddChild(child.Uri)
 		return child
 	}
 
@@ -160,32 +211,41 @@ func (ep *Endpoint) Add() (string, error) {
 		return "", fmt.Errorf("epInventory not found")
 	}
 	// if it already exists, delete it from the tree
-	epURI := fmt.Sprintf("%sInvRemoteInventoryEp/%s/", epInvURI, ep.Uuid)
+	epURI := ep.getURI()
 	invMo.DelChild(epURI)
 
 	epMo := createChild(&invMo.gbpCommonMo, subjRemoteEP, ep.Uuid)
 
-	props := []Property{
+	props := []struct {
+		Name string
+		Data string
+	}{
 		{Name: "mac", Data: ep.MacAddr},
 		{Name: "nextHopTunnel", Data: ep.VTEP},
 		{Name: "uuid", Data: ep.Uuid},
 	}
 
-	epMo.Properties = props
+	for _, v := range props {
+		epMo.AddProperty(v.Name, v.Data)
+	}
 
 	ipMo := createChild(&epMo.gbpCommonMo, "InvRemoteIp", ep.IPAddr)
 	ipMo.AddProperty("ip", ep.IPAddr)
 
 	epgRefMo := createChild(&epMo.gbpCommonMo, "InvRemoteInventoryEpToGroupRSrc", "")
 	epgURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", kubeTenant, strings.Replace(ep.EPG, "|", "%7c", -1))
-	ref := RefProperty{
-		Subject: "GbpEpGroup",
-		RefURI:  epgURI,
+	ref := Reference{
+		Subject:      "GbpEpGroup",
+		ReferenceUri: epgURI,
 	}
 
 	epgRefMo.AddProperty("target", ref)
 
-	return epMo.URI, ep.pushTocAPIC(true)
+	return epMo.Uri, ep.pushTocAPIC(true)
+}
+
+func (ep *Endpoint) getURI() string {
+	return fmt.Sprintf("%sInvRemoteInventoryEp/%s/", epInvURI, ep.Uuid)
 }
 
 func (ep *Endpoint) pushTocAPIC(add bool) error {
@@ -256,14 +316,14 @@ func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
 			if len(cMo.Properties) != 1 {
 				return fmt.Errorf("Bad refmo %s", c)
 			}
-			rp, ok := cMo.Properties[0].Data.(RefProperty)
-			if !ok {
+			rp := cMo.Properties[0].GetRefVal()
+			if rp == nil {
 				return fmt.Errorf("Bad prop refmo %s", c)
 			}
 
-			epgURI := strings.Split(rp.RefURI, "/")
+			epgURI := strings.Split(rp.ReferenceUri, "/")
 			if len(epgURI) < 6 {
-				return fmt.Errorf("Malformed refuri %s", rp.RefURI)
+				return fmt.Errorf("Malformed refuri %s", rp.ReferenceUri)
 			}
 			ep.EPG = epgURI[5]
 		}
@@ -273,7 +333,7 @@ func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
 }
 
 func (ep *Endpoint) Delete() error {
-	epURI := fmt.Sprintf("%sInvRemoteInventoryEp/%s/", epInvURI, ep.Uuid)
+	epURI := ep.getURI()
 	epMo := getInvMo(ep.VTEP, epURI)
 	if epMo == nil {
 		return fmt.Errorf("%s Not found", epURI)
@@ -326,7 +386,7 @@ func getAllEPs() map[string]*gbpInvMo {
 	for _, m := range InvDB {
 		for _, mo := range m {
 			if mo.Subject == subjRemoteEP {
-				allEPs[mo.URI] = mo
+				allEPs[mo.Uri] = mo
 			}
 		}
 	}

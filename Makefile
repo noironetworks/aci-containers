@@ -177,7 +177,7 @@ container-cnideploy:
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 
-check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice
+check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
@@ -188,6 +188,9 @@ check-hostagent:
 	${TEST_CMD} ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
 	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
+check-gbpserver:
+	${TEST_CMD} ${BASE}/pkg/gbpserver/integ ${TEST_ARGS}
+	${TEST_CMD} ${BASE}/pkg/gbpserver/watchers ${TEST_ARGS}
 check-keyvalueservice:
 	${TEST_CMD} ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 gometalintercheck:

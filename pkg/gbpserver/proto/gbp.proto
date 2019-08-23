@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package gbpserver;
+
+// GBP service definition
+service GBP {
+	// Obtains the objects currently in the policy database as a stream
+	rpc ListObjects(Version) returns (stream GBPOperation) {}
+}
+
+// A GBPOperation adds, replaces or deletes a subtree
+message GBPOperation {
+	enum OpCode {
+		ADD = 0;
+		REPLACE = 1;
+		DELETE = 2;
+	}
+
+	OpCode opcode = 1;
+	repeated GBPObject object_list = 2;
+}
+
+// Version is used for syncing between client and server
+message Version {
+	int32 number = 1;
+}
+
+// GBPObject is a generic definition representing an object
+message GBPObject {
+	string subject = 1;
+	string uri = 2;
+	repeated Property properties = 3;
+	repeated string children = 4;
+        string parent_subject = 5;
+	string parent_uri = 6;
+	string parent_relation = 7;
+}
+
+// Property is a name value pair, where the value could be one of [string, int, Reference]
+message Property {
+	string name = 1;
+	oneof value {
+		string strVal = 2;
+		int32 intVal = 3;
+		Reference refVal = 4;
+	}
+}
+
+// Reference refers to another GBP object
+message Reference {
+	string subject = 1;
+	string reference_uri = 2;
+}

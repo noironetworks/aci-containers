@@ -60,19 +60,55 @@ func (g *gbpBaseMo) save() {
 		g.Children = []string{}
 	}
 	if g.Properties == nil {
-		g.Properties = []Property{}
+		g.Properties = []*Property{}
 	}
-	MoDB[g.URI] = g
+	MoDB[g.Uri] = g
+}
+
+func getMoSubTree(url string) []*GBPObject {
+	mo := MoDB[url]
+	if mo == nil {
+		log.Errorf("mo %s not found", url)
+		return nil
+	}
+
+	return mo.getSubTree()
+}
+
+// returns the preOrder traversal of the GBP subtree rooted at g.
+func (g *gbpBaseMo) getSubTree() []*GBPObject {
+	st := make([]*GBPObject, 0, 8)
+	//	gMutex.Lock()
+	//	defer gMutex.Unlock()
+
+	return g.preOrder(st)
+}
+
+func (g *gbpBaseMo) preOrder(moList []*GBPObject) []*GBPObject {
+	// append self first
+	moList = append(moList, &g.GBPObject)
+
+	// append child subtrees
+	for _, c := range g.Children {
+		cMo := MoDB[c]
+		if cMo == nil {
+			log.Errorf("Child %s missing for %s", c, g.Uri)
+			continue
+		}
+		moList = cMo.preOrder(moList)
+	}
+
+	return moList
 }
 
 // delete children and then self from the DB
 func (g *gbpBaseMo) delRecursive() {
 	if g.permanent {
-		log.Infof("delRecursive: %s - permanent", g.URI)
+		log.Infof("delRecursive: %s - permanent", g.Uri)
 		return
 	}
 
-	log.Infof("delRecursive: %s", g.URI)
+	log.Infof("delRecursive: %s", g.Uri)
 	for _, c := range g.Children {
 		cMo := MoDB[c]
 		if cMo != nil {
@@ -91,7 +127,7 @@ func (g *gbpBaseMo) delRecursive() {
 		}
 	}
 
-	delete(MoDB, g.URI)
+	delete(MoDB, g.Uri)
 }
 
 // returns refMo URI, indexed by the actual target uri
@@ -125,15 +161,15 @@ func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
 	targetName := targetMo.GetStringProperty(propName)
 	refMo := &gbpToMo{}
 	refMo.setSubject(refSubj)
-	refURI := fmt.Sprintf("%s%s/288/%s/", g.URI, refSubj, escapeName(targetName, false))
+	refURI := fmt.Sprintf("%s%s/288/%s/", g.Uri, refSubj, escapeName(targetName, false))
 	refMo.Make("", refURI)
 
-	p := RefProperty{
-		Subject: targetMo.Subject,
-		RefURI:  targetURI,
+	p := Reference{
+		Subject:      targetMo.Subject,
+		ReferenceUri: targetURI,
 	}
 	refMo.AddProperty(propTarget, p)
-	refMo.SetParent(g.Subject, refMo.Subject, g.URI)
+	refMo.SetParent(g.Subject, refMo.Subject, g.Uri)
 	g.AddChild(refURI)
 
 	return nil
@@ -145,7 +181,7 @@ type GBPEpGroup struct {
 
 func (epg *GBPEpGroup) Make(name, uri string) error {
 	epg.Subject = subjEPG
-	epg.URI = uri
+	epg.Uri = uri
 	epg.AddProperty(propName, name)
 	epg.AddProperty(propIntraPolicy, defIntraPolicy)
 	// create GBPeInstContext
@@ -154,8 +190,8 @@ func (epg *GBPEpGroup) Make(name, uri string) error {
 		return err
 	}
 	eic.AddProperty("multicastGroupIP", "225.107.24.233")
-	eic.SetParent(epg.Subject, eic.Subject, epg.URI)
-	epg.AddChild(eic.URI)
+	eic.SetParent(epg.Subject, eic.Subject, epg.Uri)
+	epg.AddChild(eic.Uri)
 	epg.save()
 	return nil
 }
@@ -170,7 +206,7 @@ type GBPBridgeDomain struct {
 
 func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	bd.Subject = subjBD
-	bd.URI = uri
+	bd.Uri = uri
 	bd.AddProperty(propName, name)
 	bd.AddProperty(propRoutingMode, defRoutingMode)
 	// create GBPeInstContext
@@ -178,8 +214,8 @@ func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	if err != nil {
 		return err
 	}
-	bd.AddChild(eic.URI)
-	eic.SetParent(bd.Subject, eic.Subject, bd.URI)
+	bd.AddChild(eic.Uri)
+	eic.SetParent(bd.Subject, eic.Subject, bd.Uri)
 
 	// create subnets resource
 	netRs := &GBPBDToSubnets{}
@@ -188,27 +224,27 @@ func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	netRs.Make("", netRsUri+"/")
 	netRs.SetParent(subjBD, subjBDToSubnets, uri)
 
-	netsRef := RefProperty{
-		Subject: subjSubnetSet,
-		RefURI:  subnetsUri,
+	netsRef := Reference{
+		Subject:      subjSubnetSet,
+		ReferenceUri: subnetsUri,
 	}
 
 	netRs.AddProperty(propTarget, netsRef)
-	bd.AddChild(netRs.URI)
-	netRs.SetParent(bd.Subject, netRs.Subject, bd.URI)
+	bd.AddChild(netRs.Uri)
+	netRs.SetParent(bd.Subject, netRs.Subject, bd.Uri)
 
 	// create GbpBridgeDomainToNetworkRSrc
 	bdnw := &GBPBDToVrf{}
 	bdnwUri := filepath.Join(uri, subjBDToVrf)
 	bdnw.setSubject(subjBDToVrf)
 	bdnw.Make("", bdnwUri+"/")
-	vrfRef := RefProperty{
-		Subject: subjVRF,
-		RefURI:  defVrfURI,
+	vrfRef := Reference{
+		Subject:      subjVRF,
+		ReferenceUri: defVrfURI,
 	}
 	bdnw.AddProperty(propTarget, vrfRef)
-	bdnw.SetParent(bd.Subject, bdnw.Subject, bd.URI)
-	bd.AddChild(bdnw.URI)
+	bdnw.SetParent(bd.Subject, bdnw.Subject, bd.Uri)
+	bd.AddChild(bdnw.Uri)
 	bd.save()
 	return nil
 }
@@ -227,13 +263,13 @@ type GBPeInstContext struct {
 
 func (eic *GBPeInstContext) Make(name, uri string) error {
 	eic.Subject = subjEIC
-	eic.URI = uri
+	eic.Uri = uri
 	eic.save()
 	return nil
 }
 
 func (eic *GBPeInstContext) Validate() error {
-	if eic.ParentURI == "" || eic.ParentRel == "" || eic.ParentSub == "" {
+	if eic.ParentUri == "" || eic.ParentRelation == "" || eic.ParentSubject == "" {
 		return fmt.Errorf("Missing parent info")
 	}
 
@@ -262,14 +298,14 @@ func (to *gbpToMo) Make(name, uri string) error {
 		return fmt.Errorf("Subject not initialized")
 	}
 
-	to.URI = uri
+	to.Uri = uri
 	to.isRef = true
 	to.save()
 	return nil
 }
 
 func (to *gbpToMo) Validate() error {
-	if to.ParentURI == "" || to.ParentRel == "" || to.ParentSub == "" {
+	if to.ParentUri == "" || to.ParentRelation == "" || to.ParentSubject == "" {
 		return fmt.Errorf("Missing parent info")
 	}
 
@@ -311,7 +347,7 @@ type GBPContract struct {
 
 func (c *GBPContract) Make(name, uri string) error {
 	c.Subject = subjContract
-	c.URI = uri
+	c.Uri = uri
 	c.AddProperty(propName, name)
 	c.save()
 	return nil
@@ -330,7 +366,7 @@ type GBPSubject struct {
 
 func (s *GBPSubject) Make(name, uri string) error {
 	s.Subject = subjSubject
-	s.URI = uri
+	s.Uri = uri
 	s.AddProperty(propName, name)
 	s.save()
 	return nil
@@ -346,7 +382,7 @@ type GBPRule struct {
 
 func (r *GBPRule) Make(name, uri string) error {
 	r.Subject = subjRule
-	r.URI = uri
+	r.Uri = uri
 	r.AddProperty(propName, name)
 	r.save()
 	return nil
@@ -362,7 +398,7 @@ type GBPClassifierRsrc struct {
 
 func (cr *GBPClassifierRsrc) Make(name, uri string) error {
 	cr.Subject = subjClassRsrc
-	cr.URI = uri
+	cr.Uri = uri
 	cr.AddProperty(propName, name)
 	cr.save()
 	return nil
@@ -378,7 +414,7 @@ type GBPL24Classifier struct {
 
 func (c *GBPL24Classifier) Make(name, uri string) error {
 	c.Subject = subjL24Class
-	c.URI = uri
+	c.Uri = uri
 	c.save()
 	return nil
 }
@@ -393,7 +429,7 @@ type GBPAction struct {
 
 func (a *GBPAction) Make(name, uri string) error {
 	a.Subject = subjAction
-	a.URI = uri
+	a.Uri = uri
 	a.AddProperty(propName, name)
 	a.permanent = true // as we use a single instance of this action
 	a.save()
@@ -439,7 +475,7 @@ func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
 
 func (rd *GBPRoutingDomain) Make(name, uri string) error {
 	rd.Subject = subjVRF
-	rd.URI = uri
+	rd.Uri = uri
 	rd.AddProperty(propName, name)
 
 	// create GBPeInstContext
@@ -447,8 +483,8 @@ func (rd *GBPRoutingDomain) Make(name, uri string) error {
 	if err != nil {
 		return err
 	}
-	rd.AddChild(eic.URI)
-	eic.SetParent(rd.Subject, eic.Subject, rd.URI)
+	rd.AddChild(eic.Uri)
+	eic.SetParent(rd.Subject, eic.Subject, rd.Uri)
 	rd.save()
 	return nil
 }
@@ -463,7 +499,7 @@ type GBPVrfIntSubnet struct {
 
 func (vi *GBPVrfIntSubnet) Make(name, uri string) error {
 	vi.Subject = subjVRFIntSubnets
-	vi.URI = uri
+	vi.Uri = uri
 	vi.save()
 	return nil
 }
@@ -478,7 +514,7 @@ type GBPSubnetSet struct {
 
 func (ss *GBPSubnetSet) Make(name, uri string) error {
 	ss.Subject = subjSubnetSet
-	ss.URI = uri
+	ss.Uri = uri
 	ss.AddProperty(propName, name)
 	ss.save()
 	return nil
@@ -505,7 +541,7 @@ func (s *GBPSubnet) Make(name, uri string) error {
 	}
 
 	s.Subject = subjSubnet
-	s.URI = uri
+	s.Uri = uri
 	s.AddProperty(propName, name)
 	s.AddProperty(propGw, fields[0])
 	s.AddProperty(propPrefix, pLen)
@@ -525,7 +561,7 @@ type GBPFloodDomain struct {
 
 func (fd *GBPFloodDomain) Make(name, uri string) error {
 	fd.Subject = subjFD
-	fd.URI = uri
+	fd.Uri = uri
 	fd.AddProperty(propName, name)
 	fd.save()
 	return nil
@@ -541,7 +577,7 @@ type GBPFloodMcast struct {
 
 func (fm *GBPFloodMcast) Make(name, uri string) error {
 	fm.Subject = subjFDMcast
-	fm.URI = uri
+	fm.Uri = uri
 	fm.save()
 	return nil
 }
@@ -559,8 +595,8 @@ func CreateDefSubnet(subnet string) {
 	s := &GBPSubnet{}
 	s.Make(subnet, uri)
 
-	ss.AddChild(s.URI)
-	s.SetParent(subjSubnetSet, subjSubnet, ss.URI)
+	ss.AddChild(s.Uri)
+	s.SetParent(subjSubnetSet, subjSubnet, ss.Uri)
 }
 
 func CreateDefVrf() {
@@ -581,19 +617,19 @@ func CreateDefFD() {
 	bdRef.setSubject(subjFDToBD)
 	bdRef.Make("", defFDToBDURI)
 
-	to := RefProperty{
-		Subject: subjBD,
-		RefURI:  defBDURI,
+	to := Reference{
+		Subject:      subjBD,
+		ReferenceUri: defBDURI,
 	}
 
 	bdRef.AddProperty(propTarget, to)
 
 	fd := &GBPFloodDomain{}
 	fd.Make(defFDName, defFDURI)
-	fd.AddChild(fm.URI)
-	fm.SetParent(fd.Subject, fm.Subject, fd.URI)
-	fd.AddChild(bdRef.URI)
-	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.URI)
+	fd.AddChild(fm.Uri)
+	fm.SetParent(fd.Subject, fm.Subject, fd.Uri)
+	fd.AddChild(bdRef.Uri)
+	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.Uri)
 
 	// set properties
 	fd.AddProperty("unknownFloodMode", "drop")
@@ -608,27 +644,27 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	fdRef := GBPEPGToFD{}
 	fdRef.setSubject(subjEPGToFD)
 	fdRef.Make("", uri+"GbpEpGroupToNetworkRSrc/")
-	to := RefProperty{
-		Subject: subjFD,
-		RefURI:  defFDURI,
+	to := Reference{
+		Subject:      subjFD,
+		ReferenceUri: defFDURI,
 	}
 
 	fdRef.AddProperty(propTarget, to)
-	epg.AddChild(fdRef.URI)
+	epg.AddChild(fdRef.Uri)
 	// setparent
-	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.URI)
+	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.Uri)
 
 	snetRef := GBPEPGToSnet{}
 	snetRef.setSubject(subjEPGToSnet)
 	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
-	tosnet := RefProperty{
-		Subject: subjSubnetSet,
-		RefURI:  defSubnetsURI,
+	tosnet := Reference{
+		Subject:      subjSubnetSet,
+		ReferenceUri: defSubnetsURI,
 	}
 
 	snetRef.AddProperty(propTarget, tosnet)
-	epg.AddChild(snetRef.URI)
-	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.URI)
+	epg.AddChild(snetRef.Uri)
+	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
 	return MoDB[uri]
 }
 
@@ -755,7 +791,7 @@ func restoreDB() error {
 	for _, mo := range moList {
 		mm := new(gbpBaseMo)
 		*mm = mo
-		MoDB[mo.URI] = mm
+		MoDB[mo.Uri] = mm
 	}
 
 	invdir := getInvDir()
@@ -785,6 +821,26 @@ func getMoMap() map[string]*gbpCommonMo {
 	}
 
 	return moMap
+}
+
+func getSnapShot(vtep string) []*GBPObject {
+	moMap := getMoMap()
+	addToMap(moMap, GetInvMoMap(vtep))
+
+	var keys []string
+	for k := range moMap {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	moList := make([]*GBPObject, len(keys))
+	for ix, k := range keys {
+		mo := moMap[k]
+		moList[ix] = &mo.GBPObject
+	}
+
+	return moList
 }
 
 func DoAll() {
@@ -854,7 +910,7 @@ func VerifyFile(pFile string, print bool) {
 	for _, m := range moList {
 		mm := new(gbpCommonMo)
 		*mm = m
-		db[m.URI] = mm
+		db[m.Uri] = mm
 	}
 
 	for _, m := range moList {
@@ -888,7 +944,7 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
 			continue
 		} else {
 			if debug {
-				fmt.Printf("Appending mo %s\n", m.URI)
+				fmt.Printf("Appending mo %s\n", m.Uri)
 			}
 		}
 		sortedMos = append(sortedMos, m)

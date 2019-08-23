@@ -33,6 +33,7 @@ type cliOpts struct {
 	etcdPort      string
 	apiListenPort string
 	insecurePort  string
+	grpcPort  string
 	moDir         string
 	cAPICUrl      string
 	region        string
@@ -51,6 +52,8 @@ func main() {
 		"Listen port for moserver")
 	flagSet.StringVar(&opts.insecurePort, "insecure-port", "",
 		"Listen port for moserver")
+	flagSet.StringVar(&opts.grpcPort, "grpc-port", "19999",
+		"Listen port for grpc server")
 	flagSet.StringVar(&opts.moDir, "mo-dir", "/kube",
 		"GBP backup dir")
 	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "None",
@@ -69,9 +72,11 @@ func main() {
 		insPort = fmt.Sprintf(":%s", opts.insecurePort)
 	}
 
+	grpcPort := fmt.Sprintf(":%s", opts.grpcPort)
+
 	//gbpserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
 	gbpserver.InitDB(opts.moDir, "None", opts.region)
-	_, s, err := gbpserver.StartNewServer(etcdURLs, lPort, insPort)
+	_, s, err := gbpserver.StartNewServer(etcdURLs, lPort, insPort, grpcPort)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
 	}

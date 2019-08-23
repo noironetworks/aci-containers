@@ -60,9 +60,14 @@ type ListResp struct {
 }
 
 type Server struct {
-	rxCh     chan *inputMsg
-	objapi   objdb.API
-	upgrader websocket.Upgrader
+	rxCh      chan *inputMsg
+	objapi    objdb.API
+	upgrader  websocket.Upgrader
+	listeners map[string]func(op GBPOperation_OpCode, url string)
+	gw *gbpWatch
+	tlsSrv *http.Server
+	insSrv *http.Server
+	stopped   bool
 }
 
 // message from one of the watchers
@@ -192,7 +197,7 @@ type nfh struct {
 func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
-func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte, *Server, error) {
+func StartNewServer(etcdURLs []string, listenPort, insecurePort, grpcPort string) ([]byte, *Server, error) {
 	// init inventory
 	InitInvDB()
 
@@ -250,8 +255,12 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 	go func() {
 		log.Infof("=> Listening at %s", listenPort)
 		tlsSrv := http.Server{Addr: listenPort, Handler: r, TLSConfig: tlsCfg}
+		s.tlsSrv = &tlsSrv
 		// Bind to a port and pass our router in
-		log.Fatal(tlsSrv.ListenAndServeTLS("", ""))
+		err := tlsSrv.ListenAndServeTLS("", "")
+		if !s.stopped {
+			log.Fatal(err)
+		}
 	}()
 
 	if insecurePort != "" {
@@ -264,16 +273,33 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort string) ([]byte,
 				ReadTimeout:  15 * time.Second,
 			}
 
-			log.Fatal(srv.ListenAndServe())
+			s.insSrv = srv
+			err := srv.ListenAndServe()
+			if !s.stopped {
+				log.Fatal(err)
+			}
 		}()
 	}
 
 	go s.handleMsgs()
-	return tlsCfg.Certificates[0].Certificate[0], s, nil
+	s.gw, err = StartGRPC(grpcPort, s)
+	return tlsCfg.Certificates[0].Certificate[0], s, err
 }
 
 func NewServer() *Server {
-	return &Server{rxCh: make(chan *inputMsg, 128)}
+	return &Server{
+		rxCh:      make(chan *inputMsg, 128),
+		listeners: make(map[string]func(op GBPOperation_OpCode, url string)),
+	}
+}
+
+func (s *Server) Stop () {
+	s.stopped = true
+	s.gw.Stop()
+	s.tlsSrv.Close()
+	if s.insSrv != nil {
+		s.insSrv.Close()
+	}
 }
 
 func (s *Server) UTReadMsg(to time.Duration) (int, interface{}, error) {
@@ -288,6 +314,14 @@ func (s *Server) UTReadMsg(to time.Duration) (int, interface{}, error) {
 	case <-time.After(to):
 		return 0, nil, fmt.Errorf("timeout")
 	}
+}
+
+func (s *Server) RegisterCallBack(id string, fn func(op GBPOperation_OpCode, url string)) {
+	s.listeners[id] = fn
+}
+
+func (s *Server) RemoveCallBack(id string) {
+	delete(s.listeners, id)
 }
 
 func (s *Server) AddEPG(e EPG) {
@@ -365,6 +399,10 @@ func (s *Server) handleMsgs() {
 
 			log.Infof("OpaddEP: %+v", ep)
 			ep.Add()
+			for _, fn := range s.listeners {
+				fn(GBPOperation_REPLACE, ep.getURI())
+			}
+
 		case OpdelEP:
 			ep, ok := m.data.(*Endpoint)
 			if !ok {
@@ -372,6 +410,9 @@ func (s *Server) handleMsgs() {
 				continue
 			}
 
+			for _, fn := range s.listeners {
+				fn(GBPOperation_DELETE, ep.getURI())
+			}
 			ep.Delete()
 		case OpaddEPG:
 			epg, ok := m.data.(*EPG)
@@ -381,6 +422,9 @@ func (s *Server) handleMsgs() {
 			}
 
 			epg.Make()
+			for _, fn := range s.listeners {
+				fn(GBPOperation_REPLACE, epg.getURI())
+			}
 		case OpdelEPG:
 			epg, ok := m.data.(*EPG)
 			if !ok {
@@ -389,6 +433,9 @@ func (s *Server) handleMsgs() {
 			}
 
 			key := epg.getURI()
+			for _, fn := range s.listeners {
+				fn(GBPOperation_DELETE, key)
+			}
 			delete(MoDB, key)
 		case OpaddContract:
 			c, ok := m.data.(*Contract)
@@ -398,6 +445,9 @@ func (s *Server) handleMsgs() {
 			}
 
 			c.Make()
+			for _, fn := range s.listeners {
+				fn(GBPOperation_REPLACE, c.getURI())
+			}
 		case OpdelContract:
 			c, ok := m.data.(*Contract)
 			if !ok {
@@ -407,6 +457,9 @@ func (s *Server) handleMsgs() {
 
 			key := c.getURI()
 			log.Infof("delete contract: %s", key)
+			for _, fn := range s.listeners {
+				fn(GBPOperation_DELETE, key)
+			}
 			cmo := MoDB[key]
 			if cmo != nil {
 				cmo.delRecursive()

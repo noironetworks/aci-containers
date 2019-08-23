@@ -16,10 +16,10 @@ limitations under the License.
 package integ
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -33,8 +33,11 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"google.golang.org/grpc"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
 	"github.com/coreos/etcd/embed"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -46,7 +49,19 @@ const (
 
 var etcdClientURLs = []string{"http://localhost:12379"}
 
-func TestBasic(t *testing.T) {
+type testSuite struct {
+	e       *embed.Etcd
+	tempDir string
+	dataDir string
+}
+
+func (ts *testSuite) tearDown() {
+	ts.e.Close()
+	os.RemoveAll(ts.tempDir)
+	os.RemoveAll(ts.dataDir)
+}
+
+func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
 	var lcURLs []url.URL
 
 	for _, u := range etcdClientURLs {
@@ -63,7 +78,7 @@ func TestBasic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer os.RemoveAll(tempDir)
+	ts.tempDir = tempDir
 	cfg := embed.NewConfig()
 	cfg.Dir = tempDir
 	cfg.LCUrls = lcURLs
@@ -71,39 +86,47 @@ func TestBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer e.Close()
 	select {
 	case <-e.Server.ReadyNotify():
 		log.Infof("Server is ready!")
 	case <-time.After(60 * time.Second):
 		e.Server.Stop() // trigger a shutdown
 		log.Infof("Server took too long to start!")
+		t.Fatal("Etcd Server took too long to start!")
 	}
+
+	ts.e = e
 
 	dataDir, err := ioutil.TempDir("", "_gbpdata")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer os.RemoveAll(dataDir)
-	//gbpserver.InitDB(dataDir, "18.217.5.107:443")
+	ts.dataDir = dataDir
 	gbpserver.InitDB(dataDir, "None", "None")
 
 	lPort := fmt.Sprintf(":%s", gbpserver.ListenPort)
-	clientCert, _, err := gbpserver.StartNewServer(etcdClientURLs, lPort, "")
+	_, s, err := gbpserver.StartNewServer(etcdClientURLs, lPort, "", ":19999")
 	if err != nil {
-		t.Errorf("Starting api server: %v", err)
+		t.Fatalf("Starting api server: %v", err)
 	}
-	log.Infof("=> Started API server")
+
+	return s
+}
+
+func TestBasic(t *testing.T) {
+	var apicCert []byte
+	var apicKey []byte
+
+	suite := &testSuite{}
+	s := suite.setupGBPServer(t)
+	defer s.Stop()
+	defer suite.tearDown()
 	logger := log.New()
 	logger.Level = log.DebugLevel
 
-	cert := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: clientCert,
-	})
 	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
-		"admin", "noir0123", nil, cert, "kube", 60)
+		"admin", "noir0123", apicKey, apicCert, "kube", 60, 5)
 	if err != nil {
 		t.Errorf("Starting apicapi : %v", err)
 		t.FailNow()
@@ -119,14 +142,14 @@ func TestBasic(t *testing.T) {
 	conn.WriteApicObjects("serverKey1", as)
 	time.Sleep(1 * time.Second)
 
-	cli, err := getClient(cert)
+	cli, err := getClient(apicCert)
 	if err != nil {
 		log.Info(err)
 		t.Fail()
 	}
 
-	url1 := fmt.Sprintf("https://example.com:8899/api/mo/%s.json", dn1)
-	url2 := "https://example.com:8899/api/node/mo/uni/userext/user-demo.json"
+	url1 := fmt.Sprintf("https://127.0.0.1:8899/api/mo/%s.json", dn1)
+	url2 := "https://127.0.0.1:8899/api/node/mo/uni/userext/user-demo.json"
 
 	urlList := []string{url1, url2}
 
@@ -186,9 +209,9 @@ func getClient(cert []byte) (*http.Client, error) {
 
 func addContract(t *testing.T) {
 
-	rule := gbpserver.WLRule{
+	rule := v1.WLRule{
 		Protocol: "tcp",
-		Ports: gbpserver.IntRange{
+		Ports: v1.IntRange{
 			Start: 6443,
 			End:   6443,
 		},
@@ -197,7 +220,7 @@ func addContract(t *testing.T) {
 	c := &gbpserver.Contract{
 		Name:   "kubeAPI",
 		Tenant: kubeTenant,
-		AllowList: []gbpserver.WLRule{
+		AllowList: []v1.WLRule{
 			rule,
 		},
 	}
@@ -208,11 +231,11 @@ func addContract(t *testing.T) {
 		t.FailNow()
 	}
 
-	emptyRule := gbpserver.WLRule{}
+	emptyRule := v1.WLRule{}
 	emptyC := &gbpserver.Contract{
 		Name:   "any",
 		Tenant: kubeTenant,
-		AllowList: []gbpserver.WLRule{
+		AllowList: []v1.WLRule{
 			emptyRule,
 		},
 	}
@@ -302,11 +325,11 @@ func addEPs(t *testing.T) {
 
 func verifyRest(t *testing.T, c *http.Client) {
 	// Contract
-	emptyRule := gbpserver.WLRule{}
+	emptyRule := v1.WLRule{}
 	testContract := &gbpserver.Contract{
 		Name:      "all-ALL",
 		Tenant:    kubeTenant,
-		AllowList: []gbpserver.WLRule{emptyRule},
+		AllowList: []v1.WLRule{emptyRule},
 	}
 	testEpg := &gbpserver.EPG{
 		Tenant:        kubeTenant,
@@ -328,10 +351,10 @@ func verifyRest(t *testing.T, c *http.Client) {
 		url string
 		obj interface{}
 	}{
-		{"https://example.com:8899/gbp/contracts", testContract},
-		{"https://example.com:8899/gbp/epgs", testEpg},
-		{"https://example.com:8899/gbp/endpoints", testEP},
-		{"https://example.com:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", testNPjson},
+		{"https://127.0.0.1:8899/gbp/contracts", testContract},
+		{"https://127.0.0.1:8899/gbp/epgs", testEpg},
+		{"https://127.0.0.1:8899/gbp/endpoints", testEP},
+		{"https://127.0.0.1:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", testNPjson},
 	}
 
 	for _, p := range postList {
@@ -386,7 +409,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		return gBody
 	}
 
-	l := getter("https://example.com:8899/gbp/epgs/")
+	l := getter("https://127.0.0.1:8899/gbp/epgs/")
 	var getList gbpserver.ListResp
 
 	err := json.Unmarshal(l, &getList)
@@ -395,11 +418,11 @@ func verifyRest(t *testing.T, c *http.Client) {
 		t.FailNow()
 	}
 	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/epg/?key=%s", reqUri))
+		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/epg/?key=%s", reqUri))
 		log.Infof("EPG Get Resp: %s", gb)
 	}
 
-	l = getter("https://example.com:8899/gbp/contracts/")
+	l = getter("https://127.0.0.1:8899/gbp/contracts/")
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
@@ -409,11 +432,11 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	log.Infof("contractlist: %+v", getList)
 	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/contract/?key=%s", reqUri))
+		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/contract/?key=%s", reqUri))
 		log.Infof("Contract Get Resp: %s", gb)
 	}
 
-	l = getter("https://example.com:8899/gbp/endpoints/")
+	l = getter("https://127.0.0.1:8899/gbp/endpoints/")
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
@@ -423,12 +446,12 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	log.Infof("eplist: %+v", getList)
 	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://example.com:8899/gbp/endpoint/?key=%s", reqUri))
+		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri))
 		log.Infof("Endpoint Get Resp: %s", gb)
 	}
 
 	for _, reqUri := range getList.URIs {
-		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://example.com:8899/gbp/endpoint/?key=%s", reqUri), nil)
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri), nil)
 		_, err = c.Do(req)
 		if err != nil {
 			log.Errorf("Delete %s :% v", reqUri, err)
@@ -436,7 +459,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		}
 	}
 
-	l = getter("https://example.com:8899/gbp/endpoints/")
+	l = getter("https://127.0.0.1:8899/gbp/endpoints/")
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
@@ -448,7 +471,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Errorf("EPs present: %q", getList.URIs)
 		t.FailNow()
 	}
-	req, _ := http.NewRequest("DELETE", "https://example.com:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", nil)
+	req, _ := http.NewRequest("DELETE", "https://127.0.0.1:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", nil)
 	_, err = c.Do(req)
 	if err != nil {
 		log.Errorf("Delete :% v", err)
@@ -457,13 +480,14 @@ func verifyRest(t *testing.T, c *http.Client) {
 }
 
 func TestAPIC(t *testing.T) {
+	t.Skip()
 	log1 := log.New()
 	log1.Level = log.DebugLevel
 	log1.Formatter = &log.TextFormatter{
 		DisableColors: true,
 	}
 
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60)
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60, 5)
 	if err != nil {
 		log.Errorf("New connection -- %v", err)
 		t.FailNow()
@@ -523,7 +547,7 @@ func AddEP(t *testing.T, tenant, region, vrf, epgDn string, add bool) {
 		DisableColors: true,
 	}
 
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60)
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60, 5)
 	if err != nil {
 		log.Errorf("New connection -- %v", err)
 		t.FailNow()
@@ -570,5 +594,66 @@ func AddEP(t *testing.T, tenant, region, vrf, epgDn string, add bool) {
 	if err != nil {
 		log.Errorf("Post %+v -- %v", cAcc, err)
 		t.FailNow()
+	}
+}
+
+func TestGRPC(t *testing.T) {
+	suite := &testSuite{}
+	s := suite.setupGBPServer(t)
+	defer s.Stop()
+	defer suite.tearDown()
+
+	// setup a connection to grpc server
+
+	conn, err := grpc.Dial("localhost:19999", grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	c := gbpserver.NewGBPClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	lc, err := c.ListObjects(ctx, &gbpserver.Version{}, grpc.WaitForReady(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listCh := make(chan *gbpserver.GBPOperation)
+	go func() {
+		for {
+			gbpOp, err := lc.Recv()
+			if err != nil {
+				log.Info(err)
+				break
+			}
+			listCh <- gbpOp
+		}
+	}()
+
+	rcv := <-listCh
+	log.Infof("List opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
+
+	// inject an update into gbp server
+	var contract = gbpserver.Contract{
+		Name:      "tcp-6020",
+		Tenant:    "kube",
+		AllowList: []v1.WLRule{{Protocol: "tcp", Ports: v1.IntRange{Start: 6020, End: 6020}}},
+	}
+
+	s.AddContract(contract)
+
+rcvLoop:
+	for {
+		select {
+		case rcv = <-listCh:
+			assert.Equal(t, len(rcv.ObjectList), 6)
+			log.Infof("Update opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
+			break rcvLoop
+		case <-ctx.Done():
+			t.Error("Update not received")
+			break rcvLoop
+		}
 	}
 }

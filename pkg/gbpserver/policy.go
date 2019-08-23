@@ -66,21 +66,21 @@ func (c *Contract) Make() error {
 
 	// subject
 	subjName := fmt.Sprintf("%s-subj", c.Name)
-	subjURI := fmt.Sprintf("%sGbpSubject/%s/", cmo.URI, subjName)
+	subjURI := fmt.Sprintf("%sGbpSubject/%s/", cmo.Uri, subjName)
 	smo := &GBPSubject{}
 	smo.Make(subjName, subjURI)
-	smo.SetParent(subjContract, subjSubject, cmo.URI)
-	cmo.AddChild(smo.URI)
+	smo.SetParent(subjContract, subjSubject, cmo.Uri)
+	cmo.AddChild(smo.Uri)
 
 	// filter
 	fmo := &GBPRule{}
 	furi := c.getFilterURI()
 	fname := fmt.Sprintf("%s-%s", c.Name, "filter")
 	fmo.Make(fname, furi)
-	fmo.SetParent(subjSubject, subjRule, smo.URI)
+	fmo.SetParent(subjSubject, subjRule, smo.Uri)
 	fmo.AddProperty("direction", "bidirectional")
 	fmo.AddProperty("order", 1)
-	smo.AddChild(fmo.URI)
+	smo.AddChild(fmo.Uri)
 	err := c.makeClassifiers()
 	if err != nil {
 		return err
@@ -103,12 +103,12 @@ func addActionRef(p *gbpCommonMo) {
 
 	aRef := &gbpToMo{}
 	aRef.setSubject(subjActionRsrc)
-	arefName := escapeName(aMo.URI, false)
-	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", p.URI, arefName)
+	arefName := escapeName(aMo.Uri, false)
+	arefURI := fmt.Sprintf("%sGbpRuleToActionRSrc/286/%s/", p.Uri, arefName)
 	aRef.Make("", arefURI)
-	ref := RefProperty{
-		Subject: aMo.Subject,
-		RefURI:  aMo.URI,
+	ref := Reference{
+		Subject:      aMo.Subject,
+		ReferenceUri: aMo.Uri,
 	}
 	aRef.AddProperty(propTarget, ref)
 	linkParentChild(p, &aRef.gbpCommonMo)
@@ -184,15 +184,15 @@ func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	toCF.setSubject(subjClassRsrc)
 	toCF.Make("", tocfURI)
 
-	cfRef := RefProperty{
-		Subject: subjL24Class,
-		RefURI:  uri,
+	cfRef := Reference{
+		Subject:      subjL24Class,
+		ReferenceUri: uri,
 	}
 	toCF.AddProperty(propTarget, cfRef)
 
 	// add reference to filterMo
-	fMo.AddChild(toCF.URI)
-	toCF.SetParent(fMo.Subject, toCF.Subject, fMo.URI)
+	fMo.AddChild(toCF.Uri)
+	toCF.SetParent(fMo.Subject, toCF.Subject, fMo.Uri)
 
 	return nil
 }
@@ -281,9 +281,9 @@ func (c *Contract) FromMo(mo *gbpBaseMo) error {
 	}
 
 	c.Name = mo.GetStringProperty(propName)
-	comps := strings.Split(mo.URI, "/")
+	comps := strings.Split(mo.Uri, "/")
 	if len(comps) < 4 {
-		return fmt.Errorf("Malformed URI %s", mo.URI)
+		return fmt.Errorf("Malformed URI %s", mo.Uri)
 	}
 
 	c.Tenant = comps[3]
@@ -460,9 +460,9 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 	}
 
 	e.Name = mo.GetStringProperty(propName)
-	comps := strings.Split(mo.URI, "/")
+	comps := strings.Split(mo.Uri, "/")
 	if len(comps) < 4 {
-		return fmt.Errorf("Malformed URI %s", mo.URI)
+		return fmt.Errorf("Malformed URI %s", mo.Uri)
 	}
 
 	e.Tenant = comps[3]
@@ -536,7 +536,7 @@ func listEpgs(w http.ResponseWriter, r *http.Request, vars map[string]string) (i
 
 	for _, mo := range MoDB {
 		if mo.Subject == subjEPG {
-			resp.URIs = append(resp.URIs, mo.URI)
+			resp.URIs = append(resp.URIs, mo.Uri)
 		}
 	}
 
@@ -599,7 +599,7 @@ func listContracts(w http.ResponseWriter, r *http.Request, vars map[string]strin
 
 	for _, mo := range MoDB {
 		if mo.Subject == subjContract {
-			resp.URIs = append(resp.URIs, mo.URI)
+			resp.URIs = append(resp.URIs, mo.Uri)
 		}
 	}
 
@@ -671,8 +671,8 @@ type HpSubjGrandchild struct {
 }
 
 func linkParentChild(p, c *gbpCommonMo) {
-	p.AddChild(c.URI)
-	c.SetParent(p.Subject, c.Subject, p.URI)
+	p.AddChild(c.Uri)
+	c.SetParent(p.Subject, c.Subject, p.Uri)
 }
 
 func (np *NetworkPolicy) getURI() string {
@@ -685,9 +685,9 @@ func (np *NetworkPolicy) Make() error {
 
 	hpp := &gbpBaseMo{}
 	hpp.Subject = subjSecGroup
-	hpp.URI = np.getURI()
+	hpp.Uri = np.getURI()
 	hpp.AddProperty(propName, np.HostprotPol.Attributes[propName])
-	log.Infof("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.URI)
+	log.Infof("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.Uri)
 	hpp.save()
 	c := np.HostprotPol.getChild("hostprotSubj")
 	if c == nil {
@@ -699,7 +699,7 @@ func (np *NetworkPolicy) Make() error {
 	}
 	hppSub := &gbpBaseMo{}
 	hppSub.Subject = subjSGSubj
-	hppSub.URI = fmt.Sprintf("%s%s/%s/", hpp.URI, subjSGSubj, c.Attributes[propName])
+	hppSub.Uri = fmt.Sprintf("%s%s/%s/", hpp.Uri, subjSGSubj, c.Attributes[propName])
 	hppSub.AddProperty(propName, c.Attributes[propName])
 	hppSub.save()
 	linkParentChild(&hpp.gbpCommonMo, &hppSub.gbpCommonMo)
@@ -731,7 +731,7 @@ func (hs *HpSubj) Make(hsMo *gbpCommonMo, npName string) error {
 		}
 		hppRule := new(gbpBaseMo)
 		hppRule.Subject = subjSGRule
-		hppRule.URI = fmt.Sprintf("%s%s/%s/", hsMo.URI, subjSGRule, c.Attributes[propName])
+		hppRule.Uri = fmt.Sprintf("%s%s/%s/", hsMo.Uri, subjSGRule, c.Attributes[propName])
 		hppRule.AddProperty(propName, c.Attributes[propName])
 		dir := "bidirectional"
 		if c.Attributes["direction"] == "ingress" {
@@ -816,14 +816,14 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	}
 
 	// make reference
-	tocfURI := fmt.Sprintf("%s%s/42/%s", ruleMo.URI, subjClassRsrc, escapeName(cname, false))
+	tocfURI := fmt.Sprintf("%s%s/42/%s", ruleMo.Uri, subjClassRsrc, escapeName(cname, false))
 	toCF := &gbpToMo{}
 	toCF.setSubject(subjClassRsrc)
 	toCF.Make("", tocfURI)
 
-	cfRef := RefProperty{
-		Subject: subjL24Class,
-		RefURI:  uri,
+	cfRef := Reference{
+		Subject:      subjL24Class,
+		ReferenceUri: uri,
 	}
 	toCF.AddProperty(propTarget, cfRef)
 	linkParentChild(ruleMo, &toCF.gbpCommonMo)
@@ -868,11 +868,11 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 
 	ssRef := &gbpToMo{}
 	ssRef.setSubject(subjSGRuleToCidr)
-	ssRefURI := fmt.Sprintf("%sGbpSecGroupRuleToRemoteAddressRSrc/205/%s/", p.URI, escapeName(name, false))
+	ssRefURI := fmt.Sprintf("%sGbpSecGroupRuleToRemoteAddressRSrc/205/%s/", p.Uri, escapeName(name, false))
 	ssRef.Make("", ssRefURI)
-	ref := RefProperty{
-		Subject: ss.Subject,
-		RefURI:  ss.URI,
+	ref := Reference{
+		Subject:      ss.Subject,
+		ReferenceUri: ss.Uri,
 	}
 	ssRef.AddProperty(propTarget, ref)
 	linkParentChild(p, &ssRef.gbpCommonMo)
