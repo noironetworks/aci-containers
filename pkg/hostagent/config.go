@@ -61,9 +61,9 @@ type HostAgentNodeConfig struct {
 
 	// Anycast IP used for OpFlex communication
 	OpflexPeerIp string `json:"opflex-peer-ip,omitempty"`
-        
+
 	// Uplink Mac adress
-        UplinkMacAdress string `json:"uplink mac_adress,omitempty"`
+	UplinkMacAdress string `json:"uplink mac_adress,omitempty"`
 }
 
 // Configuration for the host agent
@@ -166,6 +166,9 @@ type HostAgentConfig struct {
 
 	// ACI Tenant containing the ACI VRF for this kubernetes instance
 	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
+
+	//ZoneId for Snat flows
+	Zone uint `json:"zone,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -219,4 +222,5 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.AciVrf, "aci-vrf", "kubernetes-vrf", "ACI VRF for this kubernetes instance")
 	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
+	flag.UintVar(&config.Zone, "zone", 8191, "Zone Id for snat flows")
 }

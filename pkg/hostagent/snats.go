@@ -56,6 +56,7 @@ type OpflexSnatIp struct {
 	DestPrefix    uint16                   `json:"dest-prefix,omitempty"`
 	PortRange     []OpflexPortRange        `json:"port-range,omitempty"`
 	InterfaceVlan uint                     `json:"interface-vlan,omitempty"`
+	Zone          uint                     `json:"zone,omitempty"`
 	Remote        []OpflexSnatIpRemoteInfo `json:"remote,omitempty"`
 }
 type OpflexSnatIpRemoteInfo struct {
@@ -311,7 +312,6 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-
 func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus.Entry) {
 	snat := snatobj.(*snatglobal.SnatGlobalInfo)
 	syncSnat := false
@@ -360,18 +360,18 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 	if len(agent.opflexSnatGlobalInfos) > 0 {
 		// if more than one global infos, create snat ext file
 		as := &opflexService{
-			Uuid: SnatService,
+			Uuid:              SnatService,
 			DomainPolicySpace: agent.config.AciVrfTenant,
-			DomainName: agent.config.AciVrf,
-			ServiceMode: "loadbalancer",
-			ServiceMappings: make([]opflexServiceMapping, 0),
-			InterfaceName: agent.config.UplinkIface,
-			InterfaceVlan: uint16(agent.config.ServiceVlan),
-			ServiceMac: agent.serviceEp.Mac,
-			InterfaceIp: agent.serviceEp.Ipv4.String(),
+			DomainName:        agent.config.AciVrf,
+			ServiceMode:       "loadbalancer",
+			ServiceMappings:   make([]opflexServiceMapping, 0),
+			InterfaceName:     agent.config.UplinkIface,
+			InterfaceVlan:     uint16(agent.config.ServiceVlan),
+			ServiceMac:        agent.serviceEp.Mac,
+			InterfaceIp:       agent.serviceEp.Ipv4.String(),
 		}
 		sm := &opflexServiceMapping{
-			Conntrack:    true,
+			Conntrack: true,
 		}
 		as.ServiceMappings = append(as.ServiceMappings, *sm)
 		agent.opflexServices[SnatService] = as
@@ -389,7 +389,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		// delete snat service file if no global infos exist
 		if file_exists {
 			err := os.Remove(filePath)
-			if err!= nil {
+			if err != nil {
 				agent.log.Debug("Unable to delete snat ext service file")
 			} else {
 				agent.log.Debug("Deleted snat ext service file")
@@ -475,6 +475,7 @@ func (agent *HostAgent) syncSnat() bool {
 			snatinfo.Local = local[ginfo.SnatIp]
 			snatinfo.SnatIp = ginfo.SnatIp
 			snatinfo.Uuid = ginfo.SnatIpUid
+			snatinfo.Zone = agent.config.Zone
 			snatinfo.Remote = remoteinfo[ginfo.SnatIp]
 			opflexSnatIps[ginfo.SnatIp] = &snatinfo
 			agent.log.Debug("Opflex Snat data IP: ", opflexSnatIps[ginfo.SnatIp])
