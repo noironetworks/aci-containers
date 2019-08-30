@@ -28,14 +28,8 @@ import (
 
 const snatGraphName = "svcgraph"
 
-type ContLabel struct {
-	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
 type ContPodSelector struct {
-	Labels     []ContLabel
-	Deployment string
+	Labels     map[string]string
 	Namespace  string
 }
 
@@ -148,11 +142,7 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 
 func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy ) error {
 
-	ls := make(map[string]string)
-	for _, label := range snatpolicy.Spec.Selector.Labels {
-		ls[label.Key] = label.Value
-	}
-	selector := labels.Set(ls).String()
+	selector := labels.Set(snatpolicy.Spec.Selector.Labels).String()
 	ServicesList, err := cont.listServicesBySelector(selector)
 	if err != nil {
 		cont.log.Debug("Error getting matching services: ", err)
@@ -179,15 +169,7 @@ func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.Sn
 func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpolicy.SnatPolicy) {
 	var policy ContSnatPolicy
 	policy.SnatIp = snatpolicy.Spec.SnatIp
-	snatLabels := snatpolicy.Spec.Selector.Labels
-	snatDeploy := snatpolicy.Spec.Selector.Deployment
-	snatNS := snatpolicy.Spec.Selector.Namespace
-	var labels []ContLabel
-	for _, val := range snatLabels {
-		lab := ContLabel{Key: val.Key, Value: val.Value}
-		labels = append(labels, lab)
-	}
-	policy.Selector = ContPodSelector{Labels: labels, Deployment: snatDeploy, Namespace: snatNS}
+	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
 	cont.snatPolicyCache[key] = &policy
 }
 
@@ -197,11 +179,7 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
 
 	if len(snatpolicy.Spec.SnatIp) == 0 {
-		ls := make(map[string]string)
-		for _, label := range snatpolicy.Spec.Selector.Labels {
-			ls[label.Key] = label.Value
-		}
-		selector := labels.Set(ls).String()
+		selector := labels.Set(snatpolicy.Spec.Selector.Labels).String()
 		ServicesList, err := cont.listServicesBySelector(selector)
 		if err == nil {
 			if len(ServicesList.Items) > 0 {
