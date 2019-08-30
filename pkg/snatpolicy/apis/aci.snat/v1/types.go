@@ -2,24 +2,27 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apimachinery/pkg/runtime"
+)
+
+type PolicyState string
+
+const (
+	Ready      PolicyState = "Ready"
+	Failed     PolicyState = "Failed"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json
-// tags for the fields to be serialized.
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // SnatPolicySpec defines the desired state of SnatPolicy
 // +k8s:openapi-gen=true
 type SnatPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code
-	// after modifying this file
-	// Add custom validation using kubebuilder tags:
-	// https://book.kubebuilder.io/beyond_basics/generating_crd.html
+	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
+	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	SnatIp    []string    `json:"snatIp"`
 	Selector  PodSelector `json:"selector,omitempty"`
-	PortRange []PortRange `json:"portRange"`
+	PortRange []PortRange `json:"portRange, omitempty"`
 	// +kubebuilder:validation:Enum=tcp,udp,icmp
 	Protocols []string `json:"protocols,omitempty"`
 }
@@ -28,9 +31,10 @@ type SnatPolicySpec struct {
 // +k8s:openapi-gen=true
 type SnatPolicyStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
+	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file7
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	SnatPortsAllocated map[string][]NodePortRange `json:"snat-allocation,omitempty"`
+	SnatPortsAllocated map[string][]NodePortRange `json:"snatPortsAllocated,omitempty"`
+	State              PolicyState `json:"state"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -55,27 +59,21 @@ type SnatPolicyList struct {
 	Items           []SnatPolicy `json:"items"`
 }
 
-type PortRange struct {
-	Start int `json:"start,omitempty"`
-	End   int `json:"end,omitempty"`
-}
-
 type PodSelector struct {
-	Labels     []Label `json:"labels,omitempty"`
-	Deployment string  `json:"deployment,omitempty"`
-	Namespace  string  `json:"namespace,omitempty"`
+	Labels    map[string]string `json:"labels,omitempty"`
+	Namespace string            `json:"namespace,omitempty"`
 }
-
-type Label struct {
-	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
 type NodePortRange struct {
 	NodeName  string    `json:"nodename,omitempty"`
 	PortRange PortRange `json:"portrange,omitempty"`
 }
 
-//func init() {
-//	(*runtime.SchemeBuilder).Register(&SnatPolicy{}, &SnatPolicyList{})
-//}
+// +k8s:openapi-gen=true
+type PortRange struct {
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Start int `json:"start,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	End int `json:"end,omitempty"`
+}
