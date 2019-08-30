@@ -27,7 +27,7 @@ import (
 )
 
 func testsnatpolicy(name string, namespace string, deploy string,
-	snatIp []string, labels []ContLabel) *snatpolicy.SnatPolicy {
+	snatIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
 	policy := &snatpolicy.SnatPolicy{
 		Spec: snatpolicy.SnatPolicySpec {
 			SnatIp : snatIp,
@@ -37,14 +37,8 @@ func testsnatpolicy(name string, namespace string, deploy string,
 		},
 	}
 	var podSelector snatpolicy.PodSelector
-	podSelector.Deployment = deploy
 	podSelector.Namespace = namespace
-	var snatLabels []snatpolicy.Label
-	for _, val := range labels {
-		lab := snatpolicy.Label{Key: val.Key, Value: val.Value}
-		snatLabels = append(snatLabels, lab)
-	}
-	podSelector.Labels = snatLabels
+	podSelector.Labels = labels
 	policy.Spec.Selector = podSelector
 
 	return policy
@@ -109,16 +103,20 @@ func TestSnatGraph(t *testing.T) {
 		"kube_bd_kubernetes-service", twoNodeRedirect.GetDn())
 
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
-	label := ContLabel{Key: "lab_key", Value: "lab_value"}
-	var labels []ContLabel
-	labels = append(labels, label)
+	labels := map[string]string{
+			"lab_key" : "lab_value"}
+	//label := ContLabel{Key: "lab_key", Value: "lab_value"}
+//	var labels []ContLabel
+//	labels = append(labels, label)
 	policy := testsnatpolicy("testpolicy", "common", "deployment",
 		snatIp, labels)
 
 	snatIp2 := []string{"172.2.2.1/32"}
-	label2 := ContLabel{Key: "lab_key2", Value: "lab_value2"}
-	var labels2 []ContLabel
-	labels2 = append(labels2, label2)
+	labels2 := map[string]string{
+			"lab_key2" : "lab_value2"}
+//	label2 := ContLabel{Key: "lab_key2", Value: "lab_value2"}
+//	var labels2 []ContLabel
+//	labels2 = append(labels2, label2)
 	policy2 := testsnatpolicy("testpolicy2", "common", "deployment2",
 		snatIp2, labels2)
 
