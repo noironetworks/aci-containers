@@ -30,7 +30,7 @@ cat <<EOF > /etc/logrotate.conf
 include /etc/logrotate.d
 EOF
 
-cat <<EOF > /etc/logrotate.d/openvswitch
+cat <<'EOF' > /etc/logrotate.d/openvswitch
 /var/log/openvswitch/*.log {
     size 100k
     compress
