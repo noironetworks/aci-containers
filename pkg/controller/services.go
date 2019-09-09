@@ -307,6 +307,37 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 	return rp, rpDn
 }
 
+func apicRedirectPolSnat(name string, tenantName string, nodes []string,
+	nodeMap map[string]*metadata.ServiceEndpoint,
+	monPolDn string, healthGroupDnMap map[string]string) (apicapi.ApicObject, string) {
+
+	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
+	rp.SetAttr("thresholdDownAction", "deny")
+	rpDn := rp.GetDn()
+	for _, node := range nodes {
+		healthGroupDn, ok := healthGroupDnMap[node]
+		if !ok {
+			continue
+		}
+		serviceEp, ok := nodeMap[node]
+		if !ok {
+			continue
+		}
+		if serviceEp.Ipv4 != nil {
+			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv4.String(),
+				serviceEp.Mac, node, healthGroupDn))
+		}
+		if serviceEp.Ipv6 != nil {
+			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
+				serviceEp.Mac, node, healthGroupDn))
+		}
+	}
+	if monPolDn != "" {
+		rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
+	}
+	return rp, rpDn
+}
+
 func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
 	cidr bool, sharedSec bool) apicapi.ApicObject {
 
@@ -660,20 +691,25 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
                 // and IP address of each of the service endpoints for
                 // each node that hosts a pod for this service.  The
                 // example below shows the case of two nodes.
+				healthGroupDnMap := make(map[string]string)
                 var healthGroupDn string
+			    // For SNAT if IPSLA is enabled: 
+				// create one healthgroup per compute-node
                 if cont.config.AciServiceMonitorInterval > 0 {
+					for _,node := range nodes {
+						healthGroupName := name+"_"+node
                         healthGroup :=
-                                apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
-                                        name)
+							apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,healthGroupName)
+						serviceObjs = append(serviceObjs, healthGroup)
                         healthGroupDn = healthGroup.GetDn()
-			serviceObjs = append(serviceObjs, healthGroup)
+						healthGroupDnMap[node] = healthGroupDn
+					}
                 }
 
                 rp, rpDn :=
-                        apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-                                nodeMap, cont.staticMonPolDn(), healthGroupDn)
-		serviceObjs = append(serviceObjs, rp)
-
+					apicRedirectPolSnat(name, cont.config.AciVrfTenant, nodes, nodeMap, 
+						cont.staticMonPolDn(), healthGroupDnMap)
+				serviceObjs = append(serviceObjs, rp)
 
                 // 2. Service graph contract and external network
                 // The service graph contract must be bound to the
