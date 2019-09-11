@@ -5,4 +5,6 @@ RUN apk upgrade --no-cache && apk add --no-cache musl libstdc++ libuv \
   && update-ca-certificates
 COPY bin/* /usr/local/bin/
 COPY lib/* /usr/local/lib/
+ENV SSL_MODE="encrypted"
+ENV REBOOT_WITH_OVS="true"
 CMD ["/usr/local/bin/launch-opflexagent.sh"]

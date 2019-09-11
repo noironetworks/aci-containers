@@ -7,6 +7,7 @@ PREFIX=/usr/local
 VARDIR=${PREFIX}/var
 OPFLEXAGENT=${PREFIX}/bin/opflex_agent
 OPFLEXAGENT_CONF_PATH=/usr/local/etc/opflex-agent-ovs
+OPFLEXAGENT_REBOOT_CONFD=${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
 OPFLEXAGENT_DISABLED_CONF=${OPFLEXAGENT_CONF_PATH}/opflex-agent.conf
 OPFLEXAGENT_BASE_CONF=${OPFLEXAGENT_CONF_PATH}/base-conf.d
 OPFLEXAGENT_CONFD=${OPFLEXAGENT_CONF_PATH}/conf.d
@@ -18,6 +19,7 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/mcast
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/snats
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
 fi
 
 if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then
@@ -35,7 +37,15 @@ if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then
 EOF
 fi
 
-exec ${OPFLEXAGENT} -w \
-     -c ${OPFLEXAGENT_DISABLED_CONF} \
-     -c ${OPFLEXAGENT_BASE_CONF} \
-     -c ${OPFLEXAGENT_CONFD}
+if [ "$REBOOT_WITH_OVS" == "true" ]; then
+	exec ${OPFLEXAGENT} -w \
+		 -c ${OPFLEXAGENT_DISABLED_CONF} \
+		 -c ${OPFLEXAGENT_BASE_CONF} \
+		 -c ${OPFLEXAGENT_CONFD} \
+		 -c ${OPFLEXAGENT_REBOOT_CONFD}
+else
+	exec ${OPFLEXAGENT} -w \
+		 -c ${OPFLEXAGENT_DISABLED_CONF} \
+		 -c ${OPFLEXAGENT_BASE_CONF} \
+		 -c ${OPFLEXAGENT_CONFD}
+fi
