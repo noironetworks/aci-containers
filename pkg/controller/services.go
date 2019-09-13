@@ -282,7 +282,7 @@ func apicRedirectDst(rpDn string, ip string, mac string,
 
 func apicRedirectPol(name string, tenantName string, nodes []string,
 	nodeMap map[string]*metadata.ServiceEndpoint,
-	monPolDn string, healthGroupDn string) (apicapi.ApicObject, string) {
+	monPolDn string) (apicapi.ApicObject, string) {
 
 	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
 	rp.SetAttr("thresholdDownAction", "deny")
@@ -294,11 +294,11 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 		}
 		if serviceEp.Ipv4 != nil {
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv4.String(),
-				serviceEp.Mac, node, healthGroupDn))
+				serviceEp.Mac, node, serviceEp.HealthGroupDn))
 		}
 		if serviceEp.Ipv6 != nil {
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
-				serviceEp.Mac, node, healthGroupDn))
+				serviceEp.Mac, node, serviceEp.HealthGroupDn))
 		}
 	}
 	if monPolDn != "" {
@@ -560,18 +560,9 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// and IP address of each of the service endpoints for
 		// each node that hosts a pod for this service.  The
 		// example below shows the case of two nodes.
-		var healthGroupDn string
-		if cont.config.AciServiceMonitorInterval > 0 {
-			healthGroup :=
-				apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
-					name)
-			healthGroupDn = healthGroup.GetDn()
-			serviceObjs = append(serviceObjs, healthGroup)
-		}
-
 		rp, rpDn :=
 			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn(), healthGroupDn)
+				nodeMap, cont.staticMonPolDn())
 		serviceObjs = append(serviceObjs, rp)
 
 		// 2. Service graph contract and external network
@@ -663,18 +654,9 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
                 // and IP address of each of the service endpoints for
                 // each node that hosts a pod for this service.  The
                 // example below shows the case of two nodes.
-                var healthGroupDn string
-                if cont.config.AciServiceMonitorInterval > 0 {
-                        healthGroup :=
-                                apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
-                                        name)
-                        healthGroupDn = healthGroup.GetDn()
-			serviceObjs = append(serviceObjs, healthGroup)
-                }
-
                 rp, rpDn :=
                         apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-                                nodeMap, cont.staticMonPolDn(), healthGroupDn)
+                                nodeMap, cont.staticMonPolDn())
 		serviceObjs = append(serviceObjs, rp)
 
 

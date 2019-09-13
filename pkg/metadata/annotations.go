@@ -32,9 +32,10 @@ type OpflexGroup struct {
 
 // annotation type for service endpoint information
 type ServiceEndpoint struct {
-	Mac  string `json:"mac,omitempty"`
-	Ipv4 net.IP `json:"ipv4,omitempty"`
-	Ipv6 net.IP `json:"ipv6,omitempty"`
+	HealthGroupDn   string `json:"-"`
+	Mac  			string `json:"mac,omitempty"`
+	Ipv4 			net.IP `json:"ipv4,omitempty"`
+	Ipv6 			net.IP `json:"ipv6,omitempty"`
 }
 
 // annotation type for IPs allocation chunks

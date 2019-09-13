@@ -63,8 +63,6 @@ func TestSnatGraph(t *testing.T) {
 	})
 
 	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
-	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
-		name)
 
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
@@ -75,15 +73,17 @@ func TestSnatGraph(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn, healthGroup.GetDn())
+			nmap, monPolDn)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
 			Mac:  "8a:35:a1:a6:e4:60",
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
 		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
 			Mac:  "a2:7e:45:57:a0:d4",
 			Ipv4: net.ParseIP("10.6.1.2"),
 		},
@@ -116,13 +116,13 @@ func TestSnatGraph(t *testing.T) {
 
 	node1 := node("node1")
 	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
+		"{\"health-group-dn\":\"uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1\",\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
 	node2 := node("node2")
 	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
+		"{\"health-group-dn\":\"uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2\",\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
 	node3 := node("node3")
 	node3.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
-		"{\"mac\":\"3e:13:a1:a1:34:60\",\"ipv4\":\"10.6.1.3\"}"
+		"{\"health-group-dn\":\"uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node3\",\"mac\":\"3e:13:a1:a1:34:60\",\"ipv4\":\"10.6.1.3\"}"
 
 	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1.SetAttr("hostName", "node1")
@@ -146,7 +146,7 @@ func TestSnatGraph(t *testing.T) {
 	cont.config.MaxSvcGraphNodes = 2
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
-	cont.fakeNodeSource.Add(node3)
+	//cont.fakeNodeSource.Add(node3)
 
 	cont.run()
 	cont.fakeSnatPolicySource.Add(policy)
@@ -157,7 +157,7 @@ func TestSnatGraph(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup, twoNodeRedirect, extNet, contract, rsProv, filter, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat graph creation", cont, expected)
@@ -168,7 +168,7 @@ func TestSnatGraph(t *testing.T) {
 	expected2 := map[string]apicapi.ApicSlice{
                 graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
                         graph}, "kube", graphName),
-                name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup, twoNodeRedirect, extNet2, contract, rsProv, filter, cc},
+                name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filter, cc},
                         "kube", name),
         }
 	sgWait(t, "snat graph addition", cont, expected2)
@@ -178,7 +178,7 @@ func TestSnatGraph(t *testing.T) {
 	expectedDeleteSnatPolicy := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup, twoNodeRedirect, extNet, contract, rsProv, filter, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat policy deleted", cont, expectedDeleteSnatPolicy)
