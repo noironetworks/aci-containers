@@ -350,6 +350,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.SnatDefaultPortRangeStart = defStart
 		cont.config.SnatDefaultPortRangeEnd = defEnd
 	}
+	if cont.config.MaxSvcGraphNodes == 0 {
+		cont.config.MaxSvcGraphNodes = 32
+	}
+	cont.log.Info("Max number of nodes per svc graph is set to: ", cont.config.MaxSvcGraphNodes)
 
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
