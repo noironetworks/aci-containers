@@ -162,6 +162,9 @@ type ControllerConfig struct {
 	// default port range to use for SNAT svc graph filter
         SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
         SnatDefaultPortRangeEnd int `json:"snat-default-port-range-end,omitempty"`
+
+	// Maximum number of nodes permitted in a svc graph
+	MaxSvcGraphNodes int `json:"max-nodes-svc-graph,omitempty"`
 }
 
 type netIps struct {

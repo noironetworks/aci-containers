@@ -626,7 +626,10 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		return nil
 	}
 	cont.indexMutex.Lock()
-	for _, nodeItem := range nodeList {
+	for itr, nodeItem := range nodeList {
+		if itr == cont.config.MaxSvcGraphNodes {
+			break
+		}
 		node := nodeItem.(*v1.Node)
 		nodeName := node.ObjectMeta.Name
 		nodeMeta, ok := cont.nodeServiceMetaCache[nodeName]
