@@ -112,7 +112,7 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 		})
 }
 
-func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpoint, ep *metadata.ServiceEndpoint, deviceMac string) error {
+func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpoint, ep *metadata.ServiceEndpoint, deviceMac string, nodeName string) error {
 
 	_, err := net.ParseMAC(deviceMac)
 	if err == nil && deviceMac != "00:00:00:00:00:00" {
@@ -165,6 +165,13 @@ func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpo
 	if ep.Ipv4 == nil && ep.Ipv6 == nil {
 		return errors.New("No IP addresses available for service endpoint")
 	}
+
+   if (ep.HealthGroupDn == "") && (cont.config.AciServiceMonitorInterval > 0) {
+		   name := cont.aciNameForKey("svc", nodeName)
+		   healthGroupObj := apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant, name)
+		   ep.HealthGroupDn = healthGroupObj.GetDn()
+		   cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{healthGroupObj})
+   }
 
 	return nil
 }
@@ -256,7 +263,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			}
 		}
 
-		cont.createServiceEndpoint(existing, &nodeMeta.serviceEp, deviceMac)
+		cont.createServiceEndpoint(existing, &nodeMeta.serviceEp, deviceMac, node.ObjectMeta.Name)
 		raw, err := json.Marshal(&nodeMeta.serviceEp)
 		if err != nil {
 			logger.Error("Could not create node service endpoint annotation", err)
