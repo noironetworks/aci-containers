@@ -325,18 +325,9 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) (
 
 	if len(nodes) > 0 {
 		// 1. Service redirect policy
-		var healthGroupDn string
-		if cont.config.AciServiceMonitorInterval > 0 {
-			healthGroup :=
-				apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant,
-					name)
-			healthGroupDn = healthGroup.GetDn()
-			serviceObjs = append(serviceObjs, healthGroup)
-		}
-
 		rp, rpDn :=
 			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn(), healthGroupDn)
+				nodeMap, cont.staticMonPolDn())
 		serviceObjs = append(serviceObjs, rp)
 
 		// 2. Service graph contract and external network
