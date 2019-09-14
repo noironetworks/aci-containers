@@ -253,8 +253,6 @@ func TestServiceAnnotation(t *testing.T) {
 		"node2": "topology/pod-1/paths-301/pathep-[eth1/34]",
 	})
 	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
-	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
-		name)
 
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
@@ -265,15 +263,17 @@ func TestServiceAnnotation(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn, healthGroup.GetDn())
+			nmap, monPolDn)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
-			Mac:  "8a:35:a1:a6:e4:60",
-			Ipv4: net.ParseIP("10.6.1.1"),
+			HealthGroupDn:  "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
+			Mac:  			"8a:35:a1:a6:e4:60",
+			Ipv4: 			net.ParseIP("10.6.1.1"),
 		},
 		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn:  "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
 			Mac:  "a2:7e:45:57:a0:d4",
 			Ipv4: net.ParseIP("10.6.1.2"),
 		},
@@ -396,7 +396,7 @@ func TestServiceAnnotation(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup, twoNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,
 	}
@@ -431,8 +431,6 @@ func TestServiceGraph(t *testing.T) {
 	name := "kube_svc_testns_service1"
 	conScope := "context"
 	nameS2 := "kube_svc_testns_service2"
-	healthGroup := apicapi.NewVnsRedirectHealthGroup("common",
-		name)
 	redirect := func(nmap seMap) apicapi.ApicObject {
 		var nodes []string
 		for node := range nmap {
@@ -442,21 +440,24 @@ func TestServiceGraph(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn, healthGroup.GetDn())
+			nmap, monPolDn)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
 			Mac:  "8a:35:a1:a6:e4:60",
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
 		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
 			Mac:  "a2:7e:45:57:a0:d4",
 			Ipv4: net.ParseIP("10.6.1.2"),
 		},
 	})
 	oneNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
 			Mac:  "8a:35:a1:a6:e4:60",
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
@@ -556,7 +557,7 @@ func TestServiceGraph(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup,
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
 			twoNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,
@@ -565,7 +566,7 @@ func TestServiceGraph(t *testing.T) {
 	expectedOneNode := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{healthGroup,
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
 			oneNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,

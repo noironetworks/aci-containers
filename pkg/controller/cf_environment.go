@@ -672,7 +672,7 @@ func (env *CfEnvironment) SetCellServiceInfo(nodeName, cellId string) {
 		existing = &currMeta.serviceEp
 	}
 	err := env.cont.createServiceEndpoint(existing, &nodeMeta.serviceEp,
-		deviceMac)
+		deviceMac, nodeName)
 	if err != nil {
 		env.log.Error("Couldn't create service EP info for cell: ", err)
 		return
