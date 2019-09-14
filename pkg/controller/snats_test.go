@@ -105,18 +105,12 @@ func TestSnatGraph(t *testing.T) {
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
 	labels := map[string]string{
 			"lab_key" : "lab_value"}
-	//label := ContLabel{Key: "lab_key", Value: "lab_value"}
-//	var labels []ContLabel
-//	labels = append(labels, label)
 	policy := testsnatpolicy("testpolicy", "common", "deployment",
 		snatIp, labels)
 
 	snatIp2 := []string{"172.2.2.1/32"}
 	labels2 := map[string]string{
 			"lab_key2" : "lab_value2"}
-//	label2 := ContLabel{Key: "lab_key2", Value: "lab_value2"}
-//	var labels2 []ContLabel
-//	labels2 = append(labels2, label2)
 	policy2 := testsnatpolicy("testpolicy2", "common", "deployment2",
 		snatIp2, labels2)
 
@@ -126,6 +120,9 @@ func TestSnatGraph(t *testing.T) {
 	node2 := node("node2")
 	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 		"{\"health-group-dn\":\"uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2\",\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
+	node3 := node("node3")
+	node3.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"health-group-dn\":\"uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node3\",\"mac\":\"3e:13:a1:a1:34:60\",\"ipv4\":\"10.6.1.3\"}"
 
 	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1.SetAttr("hostName", "node1")
@@ -146,8 +143,10 @@ func TestSnatGraph(t *testing.T) {
 	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
 	cont.config.AciVmmController = "kube"
+	cont.config.MaxSvcGraphNodes = 2
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
+	//cont.fakeNodeSource.Add(node3)
 
 	cont.run()
 	cont.fakeSnatPolicySource.Add(policy)
