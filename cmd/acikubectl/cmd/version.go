@@ -42,10 +42,19 @@ func getVersion(cmd *cobra.Command, args []string) {
 	if err1 != nil {
 		fmt.Fprintln(os.Stderr, "Could not list pods:", err1)
 	}
+	// Check again in kube-system
+	if len(systemNamespacePods.Items) == 0 {
+		systemNamespace = "kube-system"
+		systemNamespacePods, err1 = kubeClient.CoreV1().Pods(systemNamespace).List(metav1.ListOptions{})
+	}
+	if err1 != nil {
+		fmt.Fprintln(os.Stderr, "Could not list pods:", err1)
+	}
 	for _, pod := range systemNamespacePods.Items {
 		if strings.Contains(pod.Name, "aci-containers-controller") {
 			buffer := new(bytes.Buffer)
-			mylist := []string{"exec", "-n" + systemNamespace, pod.Name, "--", "/bin/sh", "-c", "aci-containers-controller -version"}
+			mylist := []string{"exec", "-c" + "aci-containers-controller", "-n" + systemNamespace, pod.Name,
+					"--", "/bin/sh", "-c", "aci-containers-controller -version"}
 			execKubectl(mylist, buffer)
 			trimString := strings.TrimSpace(buffer.String())
 			fmt.Println(trimString)
