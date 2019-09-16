@@ -406,10 +406,15 @@ func NewTagInst(parentDn string, name string) ApicObject {
 }
 
 func NewTagAnnotation(parentDn string, key string) ApicObject {
+	dn := ""
 	ret := newApicObject("tagAnnotation")
 	ret["tagAnnotation"].Attributes["key"] = key
-	ret["tagAnnotation"].Attributes["dn"] =
-		fmt.Sprintf("%s/annotationKey-%s", parentDn, key)
+	if ApicVersion >=4.1 {
+		dn = fmt.Sprintf("%s/annotationKey-[%s]", parentDn, key)
+	} else {
+		dn = fmt.Sprintf("%s/annotationKey-%s", parentDn, key)
+	}
+	ret["tagAnnotation"].Attributes["dn"] = dn
 	return ret
 }
 
