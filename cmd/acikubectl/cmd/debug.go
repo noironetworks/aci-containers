@@ -168,6 +168,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: accLogCmdArgs(systemNamespace),
 		},
 		{
+                        name: "cluster-report/logs/controller/snat.log",
+                        args: snatLogCmdArgs(systemNamespace),
+                },
+		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
 		},
@@ -208,6 +212,12 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			path:     "cluster-report/logs/node-%s/opflex-agent.log",
 			cont:     "opflex-agent",
 			selector: opflexAgentSelector,
+			argFunc:  nodeLogCmdArgs,
+		},
+		{
+			path:     "cluster-report/logs/node-%s/mcast-daemon.log",
+			cont:     "mcast-daemon",
+			selector: mcastDaemonSelector,
 			argFunc:  nodeLogCmdArgs,
 		},
 		{
@@ -267,7 +277,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	}
 
 	nodePodMap := make(map[string]string)
-
 	for _, node := range nodes.Items {
 		for _, nodeItem := range nodeItems {
 			key := node.Name + ";" + nodeItem.selector
@@ -380,6 +389,12 @@ func accLogCmdArgs(systemNamespace string) []string {
 		"-c", "aci-containers-controller"}
 }
 
+func snatLogCmdArgs(systemNamespace string) []string {
+        return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+                "deployment/aci-containers-controller",
+                "-c", "snat-operator"}
+}
+
 type nodeCmdArgFunc func(string, string, string, []string) []string
 
 func nodeLogCmdArgs(systemNamespace string, podName string,
@@ -424,6 +439,7 @@ func podForNode(kubeClient kubernetes.Interface,
 
 const namespaceSelector = "network-plugin=aci-containers"
 const opflexAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
+const mcastDaemonSelector = "network-plugin=aci-containers,name=aci-containers-host"
 const hostAgentSelector = "network-plugin=aci-containers,name=aci-containers-host"
 const openvswitchSelector = "network-plugin=aci-containers,name=aci-containers-openvswitch"
 
