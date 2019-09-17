@@ -44,6 +44,13 @@ import (
 // RefreshInterval is set to 0
 const defaultConnectionRefresh = 30 * time.Second
 
+// ApicVersion - This global variable to be used when dealing with version-
+// dependencies during APIC interaction. It gets filled with actual version
+// as part of runConn()
+var (
+	ApicVersion = 3.1
+)
+
 func complete(resp *http.Response) {
 	if resp.StatusCode != http.StatusOK {
 		rBody, err := ioutil.ReadAll(resp.Body)
@@ -472,6 +479,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	if refreshInterval == 0 {
 		refreshInterval = defaultConnectionRefresh
 	}
+	ApicVersion = conn.version
 	// Adjust refreshTickerInterval.
 	// To refresh the subscriptions early than actual refresh timeout value
 	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
