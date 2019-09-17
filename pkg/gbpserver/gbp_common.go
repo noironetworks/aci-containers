@@ -155,8 +155,8 @@ func (bds *BDSubnet) CreateSubnet() {
 	s := &GBPSubnet{}
 	s.Make(bds.snet, bds.SnUri())
 
-	ss.AddChild(s.URI)
-	s.SetParent(subjSubnetSet, subjSubnet, ss.URI)
+	ss.AddChild(s.Uri)
+	s.SetParent(subjSubnetSet, subjSubnet, ss.Uri)
 }
 
 func (bds *BDSubnet) CreateBD() {
@@ -176,19 +176,19 @@ func (bds *BDSubnet) CreateFD() {
 	bdRef.setSubject(subjFDToBD)
 	bdRef.Make("", bds.FDToBDUri())
 
-	to := RefProperty{
-		Subject: subjBD,
-		RefURI:  bds.BDUri(),
+	to := Reference{
+		Subject:      subjBD,
+		ReferenceUri: bds.BDUri(),
 	}
 
 	bdRef.AddProperty(propTarget, to)
 
 	fd := &GBPFloodDomain{}
 	fd.Make(bds.fdName, bds.FDUri())
-	fd.AddChild(fm.URI)
-	fm.SetParent(fd.Subject, fm.Subject, fd.URI)
-	fd.AddChild(bdRef.URI)
-	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.URI)
+	fd.AddChild(fm.Uri)
+	fm.SetParent(fd.Subject, fm.Subject, fd.Uri)
+	fd.AddChild(bdRef.Uri)
+	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.Uri)
 
 	// set properties
 	fd.AddProperty("unknownFloodMode", "drop")
@@ -209,27 +209,27 @@ func (bds *BDSubnet) CreateEPG(name, uri string) *gbpBaseMo {
 	fdRef := GBPEPGToFD{}
 	fdRef.setSubject(subjEPGToFD)
 	fdRef.Make("", uri+"GbpEpGroupToNetworkRSrc/")
-	to := RefProperty{
-		Subject: subjFD,
-		RefURI:  bds.FDUri(),
+	to := Reference{
+		Subject:      subjFD,
+		ReferenceUri: bds.FDUri(),
 	}
 
 	fdRef.AddProperty(propTarget, to)
-	epg.AddChild(fdRef.URI)
+	epg.AddChild(fdRef.Uri)
 	// setparent
-	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.URI)
+	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.Uri)
 
 	snetRef := GBPEPGToSnet{}
 	snetRef.setSubject(subjEPGToSnet)
 	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
-	tosnet := RefProperty{
-		Subject: subjSubnetSet,
-		RefURI:  bds.SnUri(),
+	tosnet := Reference{
+		Subject:      subjSubnetSet,
+		ReferenceUri: bds.SnUri(),
 	}
 
 	snetRef.AddProperty(propTarget, tosnet)
-	epg.AddChild(snetRef.URI)
-	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.URI)
+	epg.AddChild(snetRef.Uri)
+	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
 	return MoDB[uri]
 
 }
@@ -247,26 +247,10 @@ type GBPMo interface {
 	GetRefURIs(subject string) (map[string]string, error)
 }
 
-type Property struct {
-	Name string      `json:"name,omitempty"`
-	Data interface{} `json:"data,omitempty"`
-}
-
-type RefProperty struct {
-	Subject string `json:"subject,omitempty"`
-	RefURI  string `json:"reference_uri,omitempty"`
-}
-
 type gbpCommonMo struct {
-	Subject    string     `json:"subject,omitempty"`
-	URI        string     `json:"uri",omitempty"`
-	Properties []Property `json:"properties",omitempty"`
-	Children   []string   `json:"children",omitempty"`
-	ParentSub  string     `json:"parent_subject,omitempty"`
-	ParentURI  string     `json:"parent_uri,omitempty"`
-	ParentRel  string     `json:"parent_relation,omitempty"`
-	isRef      bool
-	permanent  bool // do not delete
+	GBPObject
+	isRef     bool
+	permanent bool // do not delete
 }
 
 func (g *gbpCommonMo) needParent() bool {
@@ -295,8 +279,8 @@ func (g *gbpCommonMo) needParent() bool {
 func (g *gbpCommonMo) Verify(db map[string]*gbpCommonMo) error {
 	// verify parent is set
 	if g.needParent() {
-		if g.ParentSub == "" || g.ParentURI == "" || g.ParentRel == "" {
-			return fmt.Errorf("%s -- parent not set", g.URI)
+		if g.ParentSubject == "" || g.ParentUri == "" || g.ParentRelation == "" {
+			return fmt.Errorf("%s -- parent not set", g.Uri)
 		}
 	}
 
@@ -304,29 +288,29 @@ func (g *gbpCommonMo) Verify(db map[string]*gbpCommonMo) error {
 	for _, u := range g.Children {
 		_, ok := db[u]
 		if !ok {
-			return fmt.Errorf("%s -- child %s not present", g.URI, u)
+			return fmt.Errorf("%s -- child %s not present", g.Uri, u)
 		}
 	}
 
 	// verify references are present
 	for _, p := range g.Properties {
 		if p.Name == propTarget {
-			var ref RefProperty
-			js, err := json.Marshal(p.Data)
+			var ref Reference
+			js, err := json.Marshal(p.Value)
 			if err != nil {
 				spew.Dump(p)
-				return fmt.Errorf("%s -- bad target", g.URI)
+				return fmt.Errorf("%s -- bad target", g.Uri)
 			}
 
 			err = json.Unmarshal(js, &ref)
 			if err != nil {
 				spew.Dump(p)
-				return fmt.Errorf("%s -- bad target", g.URI)
+				return fmt.Errorf("%s -- bad target", g.Uri)
 			}
 
-			_, ok := db[ref.RefURI]
+			_, ok := db[ref.ReferenceUri]
 			if !ok {
-				return fmt.Errorf("%s -- reference %s not present", g.URI, ref.RefURI)
+				return fmt.Errorf("%s -- reference %s not present", g.Uri, ref.ReferenceUri)
 			}
 		}
 	}
@@ -339,7 +323,7 @@ func (g *gbpCommonMo) FromJSON(j []byte) error {
 }
 
 func (g *gbpCommonMo) SetParent(subj, rel, uri string) {
-	g.ParentSub, g.ParentRel, g.ParentURI = subj, rel, uri
+	g.ParentSubject, g.ParentRelation, g.ParentUri = subj, rel, uri
 }
 
 func (g *gbpCommonMo) AddChild(uri string) {
@@ -367,7 +351,25 @@ func (g *gbpCommonMo) getChildMos() []*gbpCommonMo {
 }
 
 func (g *gbpCommonMo) AddProperty(name string, data interface{}) {
-	p := Property{Name: name, Data: data}
+	var pVal isProperty_Value
+
+	switch data.(type) {
+	case string:
+		pVal = &Property_StrVal{StrVal: data.(string)}
+	case int32:
+		pVal = &Property_IntVal{IntVal: data.(int32)}
+	case uint:
+		pVal = &Property_IntVal{IntVal: int32(data.(uint))}
+	case int:
+		pVal = &Property_IntVal{IntVal: int32(data.(int))}
+	case Reference:
+		ref := data.(Reference)
+		pVal = &Property_RefVal{RefVal: &ref}
+	default:
+		log.Fatalf("Unknown type for property %s", name)
+	}
+
+	p := &Property{Name: name, Value: pVal}
 	g.Properties = append(g.Properties, p)
 }
 
@@ -378,12 +380,7 @@ func (g *gbpCommonMo) WriteJSON() ([]byte, error) {
 func (g *gbpCommonMo) GetStringProperty(name string) string {
 	for _, p := range g.Properties {
 		if p.Name == name {
-			res, ok := p.Data.(string)
-			if ok {
-				return res
-			}
-
-			break
+			return p.GetStrVal()
 		}
 	}
 
@@ -394,12 +391,12 @@ func (g *gbpCommonMo) getTarget() (string, error) {
 
 	for _, p := range g.Properties {
 		if p.Name == propTarget {
-			ref, ok := p.Data.(RefProperty)
-			if !ok {
-				return "", fmt.Errorf("Bad property type for %s", g.URI)
+			ref := p.GetRefVal()
+			if ref == nil {
+				return "", fmt.Errorf("Bad property type for %s", g.Uri)
 			}
 
-			return ref.RefURI, nil
+			return ref.ReferenceUri, nil
 		}
 	}
 
@@ -446,8 +443,12 @@ func CreateRoot() {
 	// DmtreeRoot
 	rMo := &gbpBaseMo{
 		gbpCommonMo{
-			Subject: subjRoot,
-			URI:     "/",
+			GBPObject{
+				Subject: subjRoot,
+				Uri:     "/",
+			},
+			false,
+			false,
 		},
 	}
 	rMo.save()
@@ -455,19 +456,23 @@ func CreateRoot() {
 	createChild := func(p *gbpBaseMo, childSub, name string) *gbpBaseMo {
 		var cURI string
 		if name == "" {
-			cURI = fmt.Sprintf("%s%s/", p.URI, childSub)
+			cURI = fmt.Sprintf("%s%s/", p.Uri, childSub)
 		} else {
-			cURI = fmt.Sprintf("%s%s/%s/", p.URI, childSub, escapeName(name, false))
+			cURI = fmt.Sprintf("%s%s/%s/", p.Uri, childSub, escapeName(name, false))
 		}
 		child := &gbpBaseMo{
 			gbpCommonMo{
-				Subject: childSub,
-				URI:     cURI,
+				GBPObject{
+					Subject: childSub,
+					Uri:     cURI,
+				},
+				false,
+				false,
 			},
 		}
-		child.SetParent(p.Subject, childSub, p.URI)
+		child.SetParent(p.Subject, childSub, p.Uri)
 		child.save()
-		p.AddChild(child.URI)
+		p.AddChild(child.Uri)
 		return child
 	}
 
@@ -490,14 +495,20 @@ func CreateRoot() {
 	}
 
 	pcMo := createChild(puMo, "PlatformConfig", defPConfigName)
-	pcProps := []Property{
+	pcProps := []struct {
+		Name string
+		Data string
+	}{
 		{Name: "multicastGroupIP", Data: "225.1.2.3"},
 		{Name: "inventoryType", Data: "ON_LINK"},
 		{Name: "encapType", Data: "vxlan"},
 		{Name: "mode", Data: "intra_epg"},
 		{Name: "name", Data: defPConfigName},
 	}
-	pcMo.Properties = pcProps
+
+	for _, v := range pcProps {
+		pcMo.AddProperty(v.Name, v.Data)
+	}
 
 	// attach remoteepinventory to Invuniverse
 	iuMo := MoDB["/InvUniverse/"]
@@ -514,12 +525,12 @@ func CreateRoot() {
 
 	dcToCR := createChild(dcMo, "DomainConfigToConfigRSrc", "")
 	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName, false))
-	refP := RefProperty{Subject: "PlatformConfig", RefURI: pConfURI}
+	refP := Reference{Subject: "PlatformConfig", ReferenceUri: pConfURI}
 	dcToCR.AddProperty(propTarget, refP)
 
 	dcToREI := createChild(dcMo, "DomainConfigToRemoteEndpointInventoryRSrc", "")
-	refP = RefProperty{Subject: "InvRemoteEndpointInventory",
-		RefURI: "/InvUniverse/InvRemoteEndpointInventory/",
+	refP = Reference{Subject: "InvRemoteEndpointInventory",
+		ReferenceUri: "/InvUniverse/InvRemoteEndpointInventory/",
 	}
 	dcToREI.AddProperty(propTarget, refP)
 }
