@@ -145,7 +145,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
-	go env.agent.InformNodeInfo(env.nodeInfo, env.kubeClient)
+	go env.agent.InformNodeInfo(env.nodeInfo)
 	go env.agent.podInformer.Run(stopCh)
 	go env.agent.endpointsInformer.Run(stopCh)
 	go env.agent.serviceInformer.Run(stopCh)
