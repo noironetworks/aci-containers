@@ -24,7 +24,6 @@ import (
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatlocal "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
 	snatlocalclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
-	gouuid "github.com/nu7hatch/gouuid"
 	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -41,7 +40,6 @@ import (
 // Filename used to create external service file on host
 // example snat-external.service
 const SnatService = "snat-external"
-const NullMac = "null-mac"
 
 type OpflexPortRange struct {
 	Start int `json:"start,omitempty"`
@@ -358,17 +356,6 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 	snatFileName := SnatService + ".service"
 	filePath := filepath.Join(agent.config.OpFlexServiceDir, snatFileName)
 	file_exists := fileExists(filePath)
-	epGroup := agent.config.DefaultEg
-	temp := strings.Split(epGroup.Name, "|")
-	var EpFileName string
-	if len(temp) == 1 {
-		EpFileName = epGroup.Name + "_" + NullMac + ".ep"
-	} else {
-		EpFileName = temp[1] + "_" + NullMac + ".ep"
-	}
-	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
-	ep_file_exists := fileExists(EpFilePath)
-
 	if len(agent.opflexSnatGlobalInfos) > 0 {
 		// if more than one global infos, create snat ext file
 		as := &opflexService{
@@ -396,26 +383,6 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 			}
 
 		}
-		epGroup := agent.config.DefaultEg
-		uuid, _ := gouuid.NewV4()
-		ep := &opflexEndpoint{
-			Uuid:          uuid.String(),
-			EgPolicySpace: epGroup.PolicySpace,
-			EndpointGroup: epGroup.Name,
-			MacAddress:    "00:00:00:00:00:00",
-		}
-		var neweps []*opflexEndpoint
-		neweps = append(neweps, ep)
-		agent.opflexEps[NullMac] = neweps
-		if !ep_file_exists {
-			wrote, err := writeEp(EpFilePath, ep)
-			if err != nil {
-				agent.log.Debug("Unable to write null mac Ep file")
-			} else if wrote {
-				agent.log.Debug("Created null mac Ep file")
-			}
-		}
-
 	} else {
 		delete(agent.opflexServices, SnatService)
 		// delete snat service file if no global infos exist
@@ -425,16 +392,6 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 				agent.log.Debug("Unable to delete snat ext service file")
 			} else {
 				agent.log.Debug("Deleted snat ext service file")
-			}
-		}
-		delete(agent.opflexEps, NullMac)
-		// delete dummy Ep file if no global infos exist
-		if ep_file_exists {
-			err := os.Remove(EpFilePath)
-			if err != nil {
-				agent.log.Debug("Unable to delete null mac Ep file")
-			} else {
-				agent.log.Debug("Deleted null mac Ep file")
 			}
 		}
 	}

@@ -39,7 +39,10 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	gouuid "github.com/nu7hatch/gouuid"
 )
+
+const NullMac = "null-mac"
 
 type opflexEndpoint struct {
 	Uuid string `json:"uuid"`
@@ -55,10 +58,10 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes map[string]string `json:"attributes,omitempty"`
-	SnatIp     string            `json:"snat-ip,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
+	SnatIp      string            `json:"snat-ip,omitempty"`
 	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
-	registered bool
+	registered  bool
 }
 
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
@@ -223,7 +226,7 @@ func (agent *HostAgent) syncEps() bool {
 	seen := make(map[string]bool)
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".ep") ||
-			strings.Contains(f.Name(), "veth_host_ac") {
+			strings.Contains(f.Name(), "veth_host_ac") || strings.Contains(f.Name(), NullMac) {
 			continue
 		}
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
@@ -261,9 +264,9 @@ func (agent *HostAgent) syncEps() bool {
 					if k == poduuid {
 						if agent.opflexSnatLocalInfos[poduuid].MarkDelete == true {
 							delete(agent.opflexSnatLocalInfos, poduuid)
-						   	agent.log.Debug("Restting Snat IP in ep file")
+							agent.log.Debug("Restting Snat IP in ep file")
 							ep.SnatIp = ""
-							break	
+							break
 						}
 						ep.SnatIp = v.SnatIp
 						agent.log.Debug("Ep file updated with Snat IP", ep.SnatIp)
@@ -307,8 +310,40 @@ func (agent *HostAgent) syncEps() bool {
 			}
 		}
 	}
+
+	agent.creatNullMacEp()
 	agent.log.Debug("Finished endpoint sync")
 	return false
+}
+
+func (agent *HostAgent) creatNullMacEp() {
+	epGroup := agent.config.DefaultEg
+	temp := strings.Split(epGroup.Name, "|")
+	var EpFileName string
+	if len(temp) == 1 {
+		EpFileName = epGroup.Name + "_" + NullMac + ".ep"
+	} else {
+		EpFileName = temp[1] + "_" + NullMac + ".ep"
+	}
+	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
+	ep_file_exists := fileExists(EpFilePath)
+	if ep_file_exists {
+		return
+	}
+	uuid, _ := gouuid.NewV4()
+	ep := &opflexEndpoint{
+		Uuid:          uuid.String(),
+		EgPolicySpace: epGroup.PolicySpace,
+		EndpointGroup: epGroup.Name,
+		MacAddress:    "00:00:00:00:00:00",
+	}
+	wrote, err := writeEp(EpFilePath, ep)
+	if err != nil {
+		agent.log.Debug("Unable to write null mac Ep file")
+	} else if wrote {
+		agent.log.Debug("Created null mac Ep file")
+	}
+
 }
 
 func podFilter(pod *v1.Pod) bool {
