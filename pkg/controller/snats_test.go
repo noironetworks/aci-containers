@@ -73,7 +73,7 @@ func TestSnatGraph(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn)
+			nmap, monPolDn, true)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{

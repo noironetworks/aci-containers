@@ -327,7 +327,7 @@ func (env *CfEnvironment) createAppServiceGraph(appId string, extIps []string) (
 		// 1. Service redirect policy
 		rp, rpDn :=
 			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn())
+				nodeMap, cont.staticMonPolDn(), cont.config.AciPbrTrackingNonSnat)
 		serviceObjs = append(serviceObjs, rp)
 
 		// 2. Service graph contract and external network
