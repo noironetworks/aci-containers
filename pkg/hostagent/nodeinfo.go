@@ -21,52 +21,29 @@ import (
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 )
 
-func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeinfoclientset.Clientset,
-	kubeClient *kubernetes.Clientset) {
-	if nodeInfoClient == nil || kubeClient == nil {
+func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeinfoclientset.Clientset) {
+	if nodeInfoClient == nil {
 		agent.log.Debug("nodeinfo or Kube clients are not intialized")
 		return
-	}
-	label := make(map[string]string, 0)
-	label["name"] = "aci-containers-host"
-	options := metav1.ListOptions{
-		LabelSelector: labels.Set(label).String(),
-		FieldSelector: fields.Set{"spec.nodeName": agent.config.NodeName}.String(),
-	}
-	existingPods, err1 := kubeClient.Core().Pods("").List(options)
-
-	if err1 != nil {
-		agent.log.Debug("failed to list existing pods", err1)
-		return
-	}
-	var namespace string
-	// selecting the first pod under label aci-containers-host
-	for _, v := range existingPods.Items {
-		namespace = v.GetObjectMeta().GetNamespace()
-		break
 	}
 	nodeInfoInstance := &nodeinfov1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      agent.config.NodeName,
-			Namespace: namespace,
+			Namespace: agent.config.AciSnatNamespace,
 		},
 		Spec: nodeinfov1.NodeInfoSpec{
 			Nodename:   agent.config.NodeName,
 			Macaddress: agent.config.UplinkMacAdress,
 		},
 	}
-	result, err := nodeInfoClient.AciV1().NodeInfos(namespace).Create(nodeInfoInstance)
+	result, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(nodeInfoInstance)
 	if err == nil {
 		agent.log.Debug("NodeInfo CR is created: ", result)
 	} else if apierrors.IsAlreadyExists(err) {
 		agent.log.Debug("Node info CR already exists: ", result)
 	} else {
-		agent.log.Debug("Failed to Create Node info CR")
-		panic(err)
+		agent.log.Error("Failed to Create Node info CR, namespace not valid: ", agent.config.AciSnatNamespace)
 	}
 }
