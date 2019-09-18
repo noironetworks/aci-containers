@@ -263,7 +263,7 @@ func TestServiceAnnotation(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn)
+			nmap, monPolDn, false)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{
@@ -440,7 +440,7 @@ func TestServiceGraph(t *testing.T) {
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
 		dc, _ := apicRedirectPol(name, "common", nodes,
-			nmap, monPolDn)
+			nmap, monPolDn, false)
 		return dc
 	}
 	twoNodeRedirect := redirect(seMap{

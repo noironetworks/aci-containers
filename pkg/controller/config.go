@@ -117,6 +117,11 @@ type ControllerConfig struct {
 	// 0 (default) means don't monitor
 	AciServiceMonitorInterval int `json:"aci-service-monitor-interval,omitempty"`
 
+	// Whether to enable PBR tracking for non-SNAT services
+	// when AciServiceMonitorInterval is set to non-zero, PBR tracking
+	// is enabled for snat
+	AciPbrTrackingNonSnat bool `json:"aci-pbr-tracking-non-snat,omitempty"`
+
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
 

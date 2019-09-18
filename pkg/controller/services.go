@@ -271,9 +271,9 @@ func (cont *AciController) deviceMacForNode(name string) (string, bool) {
 }
 
 func apicRedirectDst(rpDn string, ip string, mac string,
-	descr string, healthGroupDn string) apicapi.ApicObject {
+	descr string, healthGroupDn string, enablePbrTracking bool) apicapi.ApicObject {
 	dst := apicapi.NewVnsRedirectDest(rpDn, ip, mac).SetAttr("descr", descr)
-	if healthGroupDn != "" {
+	if healthGroupDn != "" && enablePbrTracking {
 		dst.AddChild(apicapi.NewVnsRsRedirectHealthGroup(dst.GetDn(),
 			healthGroupDn))
 	}
@@ -282,7 +282,7 @@ func apicRedirectDst(rpDn string, ip string, mac string,
 
 func apicRedirectPol(name string, tenantName string, nodes []string,
 	nodeMap map[string]*metadata.ServiceEndpoint,
-	monPolDn string) (apicapi.ApicObject, string) {
+	monPolDn string, enablePbrTracking bool) (apicapi.ApicObject, string) {
 
 	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
 	rp.SetAttr("thresholdDownAction", "deny")
@@ -294,14 +294,14 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 		}
 		if serviceEp.Ipv4 != nil {
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv4.String(),
-				serviceEp.Mac, node, serviceEp.HealthGroupDn))
+				serviceEp.Mac, node, serviceEp.HealthGroupDn, enablePbrTracking))
 		}
 		if serviceEp.Ipv6 != nil {
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
-				serviceEp.Mac, node, serviceEp.HealthGroupDn))
+				serviceEp.Mac, node, serviceEp.HealthGroupDn, enablePbrTracking))
 		}
 	}
-	if monPolDn != "" {
+	if monPolDn != "" && enablePbrTracking {
 		rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
 	}
 	return rp, rpDn
@@ -562,7 +562,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// example below shows the case of two nodes.
 		rp, rpDn :=
 			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn())
+				nodeMap, cont.staticMonPolDn(), cont.config.AciPbrTrackingNonSnat)
 		serviceObjs = append(serviceObjs, rp)
 
 		// 2. Service graph contract and external network
@@ -656,7 +656,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
                 // example below shows the case of two nodes.
                 rp, rpDn :=
                         apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
-                                nodeMap, cont.staticMonPolDn())
+                                nodeMap, cont.staticMonPolDn(), true)
 		serviceObjs = append(serviceObjs, rp)
 
 
