@@ -458,18 +458,25 @@ func (agent *HostAgent) syncSnat() bool {
 	}
 	agent.log.Debug("Remte: ", remoteinfo)
 	// set the Opflex Snat IP information
-	var localportrange []OpflexPortRange
-	for nodename, v := range agent.opflexSnatGlobalInfos {
+	localportrange := make(map[string][]OpflexPortRange)
+	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
+
+	if ok {
+		for _, ginfo := range ginfos {
+			if local[ginfo.SnatIp] {
+				localportrange[ginfo.SnatIp] = ginfo.PortRange
+			}
+		}
+	}
+
+	for _, v := range agent.opflexSnatGlobalInfos {
 		for _, ginfo := range v {
 			var snatinfo OpflexSnatIp
 			// set the local portrange
-			if nodename == agent.config.NodeName && local[ginfo.SnatIp] {
-				localportrange = ginfo.PortRange
-			}
 			snatinfo.InterfaceName = agent.config.UplinkIface
 			snatinfo.InterfaceVlan = agent.config.ServiceVlan
-			if local[ginfo.SnatIp] {
-				snatinfo.PortRange = localportrange
+			if _, ok := localportrange[ginfo.SnatIp]; ok {
+				snatinfo.PortRange = localportrange[ginfo.SnatIp]
 			}
 			snatinfo.Local = local[ginfo.SnatIp]
 			snatinfo.SnatIp = ginfo.SnatIp
