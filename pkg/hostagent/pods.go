@@ -224,11 +224,18 @@ func (agent *HostAgent) syncEps() bool {
 		return true
 	}
 	seen := make(map[string]bool)
+	nullMacFile := false
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".ep") ||
-			strings.Contains(f.Name(), "veth_host_ac") || strings.Contains(f.Name(), NullMac) {
+			strings.Contains(f.Name(), "veth_host_ac") {
 			continue
 		}
+
+		if strings.Contains(f.Name(), NullMac) {
+			nullMacFile = true
+			continue
+		}
+
 		epfile := filepath.Join(agent.config.OpFlexEndpointDir, f.Name())
 		epidstr := f.Name()
 		epidstr = epidstr[:len(epidstr)-3]
@@ -310,8 +317,9 @@ func (agent *HostAgent) syncEps() bool {
 			}
 		}
 	}
-
-	agent.creatNullMacEp()
+	if !nullMacFile {
+		agent.creatNullMacEp()
+	}
 	agent.log.Debug("Finished endpoint sync")
 	return false
 }
