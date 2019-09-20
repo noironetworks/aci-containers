@@ -205,7 +205,7 @@ func New(log *logrus.Logger, apic []string, user string,
 	}
 
 	conn := &ApicConnection{
-		ReconnectInterval:	time.Second,
+		ReconnectInterval:	time.Duration(5) * time.Second,
 		RefreshInterval:	time.Duration(refresh) * time.Second,
 		RefreshTickerAdjust:	time.Duration(refreshTickerAdjust) * time.Second,
 		signer:            signer,
@@ -403,6 +403,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			err := conn.connection.ReadJSON(&apicresp)
 			if c, k := err.(*websocket.CloseError); k {
 				conn.log.Info("Websocket connection closed: ", c.Code)
+				conn.restart()
 				break
 			} else if err != nil {
 				conn.log.Error("Could not read web socket message:", err)
@@ -415,6 +416,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}()
 
 	conn.indexMutex.Lock()
+	ApicVersion = conn.version
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string]map[string]bool)
@@ -469,7 +471,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	if refreshInterval == 0 {
 		refreshInterval = defaultConnectionRefresh
 	}
-	ApicVersion = conn.version
 	// Adjust refreshTickerInterval.
 	// To refresh the subscriptions early than actual refresh timeout value
 	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
@@ -542,7 +543,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 	}).Info("Connecting to APIC to determine the Version")
 
     for conn.version == 0 {
-		// Wait a second before Retry.
+		// Wait before Retry.
 		time.Sleep(conn.ReconnectInterval)
 
 		token, err := conn.login()
