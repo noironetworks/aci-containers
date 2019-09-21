@@ -87,7 +87,7 @@ FNAME=veth_host_ac.ep
 cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 {
   "uuid": "$UUID",
-  "eg-policy-space": "kube",
+  "eg-policy-space": "$TENANT",
   "endpoint-group-name": "kubernetes|kube-nodes",
   "ip": [
     "$VTEP_IP"

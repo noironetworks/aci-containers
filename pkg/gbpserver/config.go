@@ -1,0 +1,95 @@
+// Copyright 2019 Cisco Systems, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package gbpserver
+
+import (
+	"flag"
+)
+
+// Configuration for the gbpserver
+type GBPServerConfig struct {
+	// Log level
+	LogLevel string `json:"log-level,omitempty"`
+
+	// Absolute path to a kubeconfig file
+	KubeConfig string `json:"kubeconfig,omitempty"`
+
+	// TCP port to run status server on (or 0 to disable)
+	StatusPort int `json:"status-port,omitempty"`
+
+	// TCP port to run grpc server on
+	GRPCPort int `json:"grpc-port,omitempty"`
+
+	// TCP port to run apic proxy server on (or 0 to disable)
+	ProxyListenPort int `json:"proxy-listen-port,omitempty"`
+
+	// The hostnames or IPs for connecting to apic
+	ApicHosts []string `json:"apic-hosts,omitempty"`
+
+	// The username for connecting to APIC
+	ApicUsername string `json:"apic-username,omitempty"`
+
+	// The password for connecting to APIC
+	ApicPassword string `json:"apic-password,omitempty"`
+
+	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
+
+	// How early (seconds) the subscriptions to be refreshed than
+	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
+	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
+
+	// A path for a PEM-encoded private key for client certificate
+	// authentication for APIC API
+	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
+
+	// A path for a PEM-encoded public certificate for APIC server to
+	// enable secure TLS server verifification
+	ApicCertPath string `json:"apic-cert-path,omitempty"`
+
+	// The name of the ACI VMM domain
+	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
+
+	// Tenant to use when creating policy objects in APIC
+	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
+
+	// ACI VRF for this kubernetes instance
+	AciVrf string `json:"aci-vrf,omitempty"`
+
+	// Pod subnet CIDR in the form <gateway-address>/<prefix-length> that
+	// cover all pod-ip-pools
+	PodSubnet  string `json:"pod-subnet,omitempty"`
+	NodeSubnet string `json:"node-subnet,omitempty"`
+
+	// Used by internal kv store
+	EtcdDir      string `json:"etcd-dir,omitempty"`
+	EtcdPort     int    `json:"etcd-port,omitempty"`
+	pushJsonFile bool
+}
+
+func InitConfig(config *GBPServerConfig) {
+	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
+
+	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+	flag.IntVar(&config.StatusPort, "status-port", 8092, "TCP port to run status server on (or 0 to disable)")
+	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port to run grpc server on")
+	flag.IntVar(&config.ProxyListenPort, "proxy-listen-port", 8899, "TCP port to run apic proxy listener on(0 to disable)")
+	//flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "apicless", "Tenant")
+	flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "kube", "Tenant")
+	flag.StringVar(&config.EtcdDir, "etcd-dir", "/var/gbpserver/etcd", "Etcd dir")
+	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
+	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
+	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "pod subnet")
+	flag.BoolVar(&config.pushJsonFile, "push-json-file", true, "push file to opflexserver (testing)")
+}

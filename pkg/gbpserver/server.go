@@ -60,14 +60,23 @@ type ListResp struct {
 }
 
 type Server struct {
-	rxCh      chan *inputMsg
-	objapi    objdb.API
-	upgrader  websocket.Upgrader
+	config   *GBPServerConfig
+	rxCh     chan *inputMsg
+	objapi   objdb.API
+	upgrader websocket.Upgrader
+	// policy Mos
+	policyDB map[string]*gbpBaseMo
+	// inventory -- ep's organized per vtep
+	invDB map[string]map[string]*gbpInvMo
+	// listener callbacks for DB updates
 	listeners map[string]func(op GBPOperation_OpCode, url string)
+	// grpc server
 	gw *gbpWatch
+	// tls rest server
 	tlsSrv *http.Server
-	insSrv *http.Server
-	stopped   bool
+	// insecure rest server
+	insSrv  *http.Server
+	stopped bool
 }
 
 // message from one of the watchers
@@ -197,19 +206,21 @@ type nfh struct {
 func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
-func StartNewServer(etcdURLs []string, listenPort, insecurePort, grpcPort string) ([]byte, *Server, error) {
+
+func StartNewServer(config *GBPServerConfig, etcdURLs []string) (*Server, error) {
 	// init inventory
-	InitInvDB()
+	//InitInvDB()
 
 	// create an etcd client
 	log.Infof("=> Creating new client ..")
 	ec, err := objdb.NewClient(etcdURLs, root)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	log.Infof("=> New client created..")
-	s := NewServer()
+	s := NewServer(config)
+	s.InitDB()
 	s.objapi = ec
 	wHandler := func(w http.ResponseWriter, r *http.Request) {
 		s.handleWrite(w, r)
@@ -231,14 +242,15 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort, grpcPort string
 	// gbp rest handlers
 	addGBPPost(t)
 
-	t.PathPrefix("/api/mo/uni/tn-kube/pol-").HandlerFunc(MakeHTTPHandler(postNP))
+	npPath := fmt.Sprintf("/api/mo/uni/tn-%s/pol-", config.AciPolicyTenant)
+	t.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(postNP))
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// api/mo handlers (apic stub)
 	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
 	// Routes consist of a path and a handler function.
 	delR := r.Methods("DELETE").Subrouter()
 	addGBPDelete(delR)
-	delR.PathPrefix("/api/mo/uni/tn-kube/pol-").HandlerFunc(MakeHTTPHandler(deleteNP))
+	delR.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(deleteNP))
 	getR := r.Methods("GET").Subrouter()
 	addGBPGet(getR)
 	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
@@ -248,10 +260,11 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort, grpcPort string
 	r.NotFoundHandler = &nfh{}
 	tlsCfg, err := getTLSCfg()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	//	tlsCfg.BuildNameToCertificate()
 
+	listenPort := fmt.Sprintf(":%d", config.ProxyListenPort)
 	go func() {
 		log.Infof("=> Listening at %s", listenPort)
 		tlsSrv := http.Server{Addr: listenPort, Handler: r, TLSConfig: tlsCfg}
@@ -263,37 +276,46 @@ func StartNewServer(etcdURLs []string, listenPort, insecurePort, grpcPort string
 		}
 	}()
 
-	if insecurePort != "" {
-		go func() {
-			srv := &http.Server{
-				Handler: r,
-				Addr:    insecurePort,
-				// Good practice: enforce timeouts for servers you create!
-				WriteTimeout: 15 * time.Second,
-				ReadTimeout:  15 * time.Second,
-			}
+	/*
+		if insecurePort != "" {
+			go func() {
+				srv := &http.Server{
+					Handler: r,
+					Addr:    insecurePort,
+					// Good practice: enforce timeouts for servers you create!
+					WriteTimeout: 15 * time.Second,
+					ReadTimeout:  15 * time.Second,
+				}
 
-			s.insSrv = srv
-			err := srv.ListenAndServe()
-			if !s.stopped {
-				log.Fatal(err)
-			}
-		}()
-	}
+				s.insSrv = srv
+				err := srv.ListenAndServe()
+				if !s.stopped {
+					log.Fatal(err)
+				}
+			}()
+		}
+	*/
 
 	go s.handleMsgs()
+	grpcPort := fmt.Sprintf(":%d", config.GRPCPort)
 	s.gw, err = StartGRPC(grpcPort, s)
-	return tlsCfg.Certificates[0].Certificate[0], s, err
+	return s, err
 }
 
-func NewServer() *Server {
+func NewServer(config *GBPServerConfig) *Server {
 	return &Server{
+		config:    config,
 		rxCh:      make(chan *inputMsg, 128),
 		listeners: make(map[string]func(op GBPOperation_OpCode, url string)),
 	}
 }
 
-func (s *Server) Stop () {
+func (s *Server) Config() *GBPServerConfig {
+	cfg := *s.config
+	return &cfg
+}
+
+func (s *Server) Stop() {
 	s.stopped = true
 	s.gw.Stop()
 	s.tlsSrv.Close()
@@ -379,6 +401,7 @@ func (s *Server) DelEP(ep Endpoint) {
 }
 
 func (s *Server) handleMsgs() {
+	moDB := getMoDB()
 	gMutex.Lock()
 	for {
 		gMutex.Unlock()
@@ -436,7 +459,7 @@ func (s *Server) handleMsgs() {
 			for _, fn := range s.listeners {
 				fn(GBPOperation_DELETE, key)
 			}
-			delete(MoDB, key)
+			delete(moDB, key)
 		case OpaddContract:
 			c, ok := m.data.(*Contract)
 			if !ok {
@@ -460,7 +483,7 @@ func (s *Server) handleMsgs() {
 			for _, fn := range s.listeners {
 				fn(GBPOperation_DELETE, key)
 			}
-			cmo := MoDB[key]
+			cmo := moDB[key]
 			if cmo != nil {
 				cmo.delRecursive()
 			}

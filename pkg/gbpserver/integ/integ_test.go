@@ -103,10 +103,15 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
 	}
 
 	ts.dataDir = dataDir
-	gbpserver.InitDB(dataDir, "None", "None")
 
-	lPort := fmt.Sprintf(":%s", gbpserver.ListenPort)
-	_, s, err := gbpserver.StartNewServer(etcdClientURLs, lPort, "", ":19999")
+	gCfg := &gbpserver.GBPServerConfig{}
+	gCfg.GRPCPort = 19999
+	gCfg.ProxyListenPort = 8899
+	gCfg.PodSubnet = "10.2.56.1/21"
+	gCfg.NodeSubnet = "1.100.201.0/24"
+	gCfg.AciPolicyTenant = testTenant
+
+	s, err := gbpserver.StartNewServer(gCfg, etcdClientURLs)
 	if err != nil {
 		t.Fatalf("Starting api server: %v", err)
 	}
@@ -126,7 +131,7 @@ func TestBasic(t *testing.T) {
 	logger.Level = log.DebugLevel
 
 	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
-		"admin", "noir0123", apicKey, apicCert, "kube", 60, 5)
+		"admin", "noir0123", apicKey, apicCert, testTenant, 60, 5)
 	if err != nil {
 		t.Errorf("Starting apicapi : %v", err)
 		t.FailNow()
@@ -219,7 +224,7 @@ func addContract(t *testing.T) {
 
 	c := &gbpserver.Contract{
 		Name:   "kubeAPI",
-		Tenant: kubeTenant,
+		Tenant: testTenant,
 		AllowList: []v1.WLRule{
 			rule,
 		},
@@ -234,7 +239,7 @@ func addContract(t *testing.T) {
 	emptyRule := v1.WLRule{}
 	emptyC := &gbpserver.Contract{
 		Name:   "any",
-		Tenant: kubeTenant,
+		Tenant: testTenant,
 		AllowList: []v1.WLRule{
 			emptyRule,
 		},
@@ -250,7 +255,7 @@ func addEPGs(t *testing.T) {
 	epgList := []*gbpserver.EPG{
 		{
 			Name:   "epgA",
-			Tenant: kubeTenant,
+			Tenant: testTenant,
 			ProvContracts: []string{
 				"kubeAPI",
 			},
@@ -258,7 +263,7 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:   "epgB",
-			Tenant: kubeTenant,
+			Tenant: testTenant,
 			ConsContracts: []string{
 				"kubeAPI",
 			},
@@ -266,7 +271,7 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:   "epgC",
-			Tenant: kubeTenant,
+			Tenant: testTenant,
 			ConsContracts: []string{
 				"kubeAPI",
 			},
@@ -277,14 +282,14 @@ func addEPGs(t *testing.T) {
 
 		{
 			Name:          "kubernetes-kube-system",
-			Tenant:        kubeTenant,
+			Tenant:        testTenant,
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},
 
 		{
 			Name:          "kubernetes-kube-default",
-			Tenant:        kubeTenant,
+			Tenant:        testTenant,
 			ConsContracts: []string{},
 			ProvContracts: []string{},
 		},
@@ -328,11 +333,11 @@ func verifyRest(t *testing.T, c *http.Client) {
 	emptyRule := v1.WLRule{}
 	testContract := &gbpserver.Contract{
 		Name:      "all-ALL",
-		Tenant:    kubeTenant,
+		Tenant:    testTenant,
 		AllowList: []v1.WLRule{emptyRule},
 	}
 	testEpg := &gbpserver.EPG{
-		Tenant:        kubeTenant,
+		Tenant:        testTenant,
 		Name:          "Roses",
 		ConsContracts: []string{"all-ALL"},
 		ProvContracts: []string{"all-ALL"},
@@ -354,7 +359,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		{"https://127.0.0.1:8899/gbp/contracts", testContract},
 		{"https://127.0.0.1:8899/gbp/epgs", testEpg},
 		{"https://127.0.0.1:8899/gbp/endpoints", testEP},
-		{"https://127.0.0.1:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", testNPjson},
+		{fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), testNPjson},
 	}
 
 	for _, p := range postList {
@@ -471,7 +476,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Errorf("EPs present: %q", getList.URIs)
 		t.FailNow()
 	}
-	req, _ := http.NewRequest("DELETE", "https://127.0.0.1:8899/api/mo/uni/tn-kube/pol-vk8s_1_node_vk8s-node1", nil)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), nil)
 	_, err = c.Do(req)
 	if err != nil {
 		log.Errorf("Delete :% v", err)
@@ -638,7 +643,7 @@ func TestGRPC(t *testing.T) {
 	// inject an update into gbp server
 	var contract = gbpserver.Contract{
 		Name:      "tcp-6020",
-		Tenant:    "kube",
+		Tenant:    testTenant,
 		AllowList: []v1.WLRule{{Protocol: "tcp", Ports: v1.IntRange{Start: 6020, End: 6020}}},
 	}
 

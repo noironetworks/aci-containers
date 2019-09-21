@@ -15,8 +15,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"time"
@@ -33,54 +35,84 @@ type cliOpts struct {
 	etcdPort      string
 	apiListenPort string
 	insecurePort  string
-	grpcPort  string
+	grpcPort      string
 	moDir         string
 	cAPICUrl      string
 	region        string
 }
 
 func main() {
-	var opts cliOpts
-	var flagSet *flag.FlagSet
+	cfg := &gbpserver.GBPServerConfig{}
+	gbpserver.InitConfig(cfg)
 
-	flagSet = flag.NewFlagSet("moServer", flag.ExitOnError)
-	flagSet.StringVar(&opts.etcdDir, "etcd-dir", "/var/moserver/etcd",
-		"Path to etcd data store")
-	flagSet.StringVar(&opts.etcdPort, "etcd-port", "12379",
-		"Client port for etcd")
-	flagSet.StringVar(&opts.apiListenPort, "api-listen-port", "8899",
-		"Listen port for moserver")
-	flagSet.StringVar(&opts.insecurePort, "insecure-port", "",
-		"Listen port for moserver")
-	flagSet.StringVar(&opts.grpcPort, "grpc-port", "19999",
-		"Listen port for grpc server")
-	flagSet.StringVar(&opts.moDir, "mo-dir", "/kube",
-		"GBP backup dir")
-	flagSet.StringVar(&opts.cAPICUrl, "capic-url", "None",
-		"Cloud APIC Url")
-	flagSet.StringVar(&opts.region, "aws-region", "None",
-		"AWS region")
-	err := flagSet.Parse(os.Args[1:])
-	if err != nil {
-		log.Fatalf("Failed to parse command. Error: %s", err)
+	configPath := flag.String("config-path", "",
+		"Absolute path to a gbp-server configuration file")
+	//	version := flag.Bool("version", false, "prints github commit ID and build time")
+	flag.Parse()
+	/*	if *version {
+		if gbpserver.GetVersion().GitCommit != "" {
+			buffer := bytes.NewBufferString(controller.VersionString())
+			fmt.Println(buffer.String())
+		} else {
+			fmt.Println("Information missing in current build")
+		}
+		os.Exit(0)
+	} */
+
+	if configPath != nil && *configPath != "None" {
+		log.Info("Loading configuration from ", *configPath)
+		raw, err := ioutil.ReadFile(*configPath)
+		if err != nil {
+			panic(err.Error())
+		}
+		err = json.Unmarshal(raw, cfg)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 
-	etcdURLs := startEtcd(&opts)
-	lPort := fmt.Sprintf(":%s", opts.apiListenPort)
-	insPort := ""
-	if opts.insecurePort != "" {
-		insPort = fmt.Sprintf(":%s", opts.insecurePort)
-	}
+	/*
+		var opts cliOpts
+		var flagSet *flag.FlagSet
 
-	grpcPort := fmt.Sprintf(":%s", opts.grpcPort)
+		flagSet = flag.NewFlagSet("moServer", flag.ExitOnError)
+		flagSet.StringVar(&opts.etcdDir, "etcd-dir", "/var/moserver/etcd",
+			"Path to etcd data store")
+		flagSet.StringVar(&opts.etcdPort, "etcd-port", "12379",
+			"Client port for etcd")
+		flagSet.StringVar(&opts.apiListenPort, "api-listen-port", "8899",
+			"Listen port for moserver")
+		flagSet.StringVar(&opts.insecurePort, "insecure-port", "",
+			"Listen port for moserver")
+		flagSet.StringVar(&opts.grpcPort, "grpc-port", "19999",
+			"Listen port for grpc server")
+		flagSet.StringVar(&opts.moDir, "mo-dir", "/kube",
+			"GBP backup dir")
+		flagSet.StringVar(&opts.cAPICUrl, "capic-url", "None",
+			"Cloud APIC Url")
+		flagSet.StringVar(&opts.region, "aws-region", "None",
+			"AWS region")
+		err := flagSet.Parse(os.Args[1:])
+		if err != nil {
+			log.Fatalf("Failed to parse command. Error: %s", err)
+		}
 
-	//gbpserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
-	gbpserver.InitDB(opts.moDir, "None", opts.region)
-	_, s, err := gbpserver.StartNewServer(etcdURLs, lPort, insPort, grpcPort)
+		lPort := fmt.Sprintf(":%s", opts.apiListenPort)
+		insPort := ""
+		if opts.insecurePort != "" {
+			insPort = fmt.Sprintf(":%s", opts.insecurePort)
+		}
+
+		grpcPort := fmt.Sprintf(":%s", opts.grpcPort)
+		//gbpserver.InitDB(opts.moDir, opts.cAPICUrl, opts.region)
+		//gbpserver.InitDB(opts.moDir, "None", opts.region)
+	*/
+
+	etcdURLs := startEtcd(cfg)
+	s, err := gbpserver.StartNewServer(cfg, etcdURLs)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
 	}
-	log.Infof("Api server listening at %s", lPort)
 
 	kw, err := watchers.NewK8sWatcher(s)
 	if err != nil {
@@ -88,11 +120,13 @@ func main() {
 	}
 
 	stopCh := make(chan struct{})
-	if opts.cAPICUrl == "None" {
+	if cfg.ApicHosts == nil {
+		log.Infof("Listening for intent from k8s")
 		kw.InitIntentInformers(stopCh)
 	} else {
+		log.Infof("Listening for intent from apic")
 		aw := watchers.NewApicWatcher(s)
-		err = aw.Init(opts.cAPICUrl, stopCh)
+		err = aw.Init(cfg.ApicHosts, stopCh)
 		if err != nil {
 			log.Fatalf("Starting apic watch: %v", err)
 		}
@@ -103,8 +137,8 @@ func main() {
 }
 
 // panics on error
-func startEtcd(opts *cliOpts) []string {
-	var etcdClientURLs = []string{fmt.Sprintf("http://localhost:%s", opts.etcdPort)}
+func startEtcd(c *gbpserver.GBPServerConfig) []string {
+	var etcdClientURLs = []string{fmt.Sprintf("http://localhost:%d", c.EtcdPort)}
 	var lcURLs []url.URL
 
 	for _, u := range etcdClientURLs {
@@ -116,13 +150,13 @@ func startEtcd(opts *cliOpts) []string {
 		lcURLs = append(lcURLs, *uu)
 	}
 
-	err := os.MkdirAll(opts.etcdDir, os.ModePerm)
+	err := os.MkdirAll(c.EtcdDir, os.ModePerm)
 	if err != nil {
 		log.Fatalf("os.MkdirAll: %v", err)
 	}
 
 	cfg := embed.NewConfig()
-	cfg.Dir = opts.etcdDir
+	cfg.Dir = c.EtcdDir
 	cfg.LCUrls = lcURLs
 
 	e, err := embed.StartEtcd(cfg)

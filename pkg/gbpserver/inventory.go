@@ -86,17 +86,22 @@ func InitInvDB() {
 }
 
 func (g *gbpInvMo) save(vtep string) {
-	_, ok := InvDB[vtep]
-	if !ok {
-		InvDB[vtep] = make(map[string]*gbpInvMo)
-	}
-
-	db := InvDB[vtep]
+	db := getInvDB(vtep)
 	db[g.Uri] = g
 }
 
+func getInvDB(vtep string) map[string]*gbpInvMo {
+	db := theServer.invDB[vtep]
+	if db == nil {
+		theServer.invDB[vtep] = make(map[string]*gbpInvMo)
+		db = theServer.invDB[vtep]
+	}
+
+	return db
+}
+
 func getInvSubTree(url, vtep string) []*GBPObject {
-	db := InvDB[vtep]
+	db := getInvDB(vtep)
 	if db == nil {
 		log.Errorf("InvDB vtep %s not found", vtep)
 		return nil
@@ -124,7 +129,7 @@ func (g *gbpInvMo) preOrder(moList []*GBPObject, vtep string) []*GBPObject {
 
 	// append child subtrees
 	for _, c := range g.Children {
-		db := InvDB[vtep]
+		db := getInvDB(vtep)
 		if db == nil {
 			log.Errorf("InvDB vtep %s not found", vtep)
 			continue
@@ -142,7 +147,7 @@ func (g *gbpInvMo) preOrder(moList []*GBPObject, vtep string) []*GBPObject {
 }
 
 func getInvMo(vtep, uri string) *gbpInvMo {
-	db := InvDB[vtep]
+	db := getInvDB(vtep)
 	if db != nil {
 		return db[uri]
 	}
@@ -151,7 +156,7 @@ func getInvMo(vtep, uri string) *gbpInvMo {
 }
 
 func removeInvMo(vtep, uri string) {
-	db := InvDB[vtep]
+	db := getInvDB(vtep)
 	if db != nil {
 		delete(db, uri)
 		log.Infof("Deleted %s, %s", uri, vtep)
@@ -160,7 +165,7 @@ func removeInvMo(vtep, uri string) {
 
 func GetInvMoMap(vtep string) map[string]*gbpCommonMo {
 	res := make(map[string]*gbpCommonMo)
-	for k, m := range InvDB {
+	for k, m := range theServer.invDB {
 		if k == vtep {
 			continue // skip this vtep
 		}
@@ -206,7 +211,7 @@ func (ep *Endpoint) Add() (string, error) {
 		return child
 	}
 
-	invMo := MoDB[epInvURI]
+	invMo := getMoDB()[epInvURI]
 	if invMo == nil {
 		return "", fmt.Errorf("epInventory not found")
 	}
@@ -233,7 +238,7 @@ func (ep *Endpoint) Add() (string, error) {
 	ipMo.AddProperty("ip", ep.IPAddr)
 
 	epgRefMo := createChild(&epMo.gbpCommonMo, "InvRemoteInventoryEpToGroupRSrc", "")
-	epgURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", kubeTenant, strings.Replace(ep.EPG, "|", "%7c", -1))
+	epgURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", getTenantName(), strings.Replace(ep.EPG, "|", "%7c", -1))
 	ref := Reference{
 		Subject:      "GbpEpGroup",
 		ReferenceUri: epgURI,
@@ -283,7 +288,7 @@ func (ep *Endpoint) pushTocAPIC(add bool) error {
 	cRegion["hcloudRegion"].Children = append(cRegion["hcloudRegion"].Children, cCtx)
 
 	cAcc := apicapi.EmptyApicObject("hcloudAccount", "")
-	cAcc["hcloudAccount"].Attributes["name"] = kubeTenant
+	cAcc["hcloudAccount"].Attributes["name"] = getTenantName()
 	cAcc["hcloudAccount"].Children = append(cAcc["hcloudAccount"].Children, cRegion)
 
 	err := apicCon.PostTestAPI(cAcc)
@@ -300,7 +305,7 @@ func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
 	ep.VTEP = mo.GetStringProperty("nextHopTunnel")
 	ep.Uuid = mo.GetStringProperty("uuid")
 
-	m := InvDB[ep.VTEP]
+	m := getInvDB(ep.VTEP)
 
 	for _, c := range mo.Children {
 		cMo, ok := m[c]
@@ -343,7 +348,7 @@ func (ep *Endpoint) Delete() error {
 		removeInvMo(ep.VTEP, u)
 	}
 	removeInvMo(ep.VTEP, epURI)
-	invMo := MoDB[epInvURI]
+	invMo := getMoDB()[epInvURI]
 	if invMo == nil {
 		return fmt.Errorf("epInventory not found")
 	}
@@ -353,9 +358,9 @@ func (ep *Endpoint) Delete() error {
 }
 
 func getSgDn(epgName string) string {
-	cepg := apicapi.NewCloudEpg(kubeTenant, defCloudApp, epgName)
+	cepg := apicapi.NewCloudEpg(getTenantName(), defCloudApp, epgName)
 	n := fmt.Sprintf("acct-[%s]/region-[%s]/context-[%s]/sgroup-[%s]",
-		kubeTenant, defRegion, defVrfName, cepg.GetDn())
+		getTenantName(), defRegion, defVrfName, cepg.GetDn())
 	return n
 }
 
@@ -383,7 +388,7 @@ func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string
 func getAllEPs() map[string]*gbpInvMo {
 	allEPs := make(map[string]*gbpInvMo)
 
-	for _, m := range InvDB {
+	for _, m := range theServer.invDB {
 		for _, mo := range m {
 			if mo.Subject == subjRemoteEP {
 				allEPs[mo.Uri] = mo

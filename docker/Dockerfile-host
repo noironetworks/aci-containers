@@ -1,4 +1,5 @@
 FROM alpine:3.10.2
 RUN apk upgrade --no-cache && apk add --no-cache iproute2
 COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh /usr/local/bin/
+ENV TENANT=kube
 CMD ["/usr/local/bin/launch-hostagent.sh"]

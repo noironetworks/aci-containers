@@ -31,7 +31,14 @@ type k8s_suite struct {
 }
 
 func (s *k8s_suite) setup() {
-	s.s = gbpserver.NewServer()
+	gCfg := &gbpserver.GBPServerConfig{}
+	gCfg.GRPCPort = 19999
+	gCfg.ProxyListenPort = 8899
+	gCfg.PodSubnet = "10.2.56.1/21"
+	gCfg.NodeSubnet = "1.100.201.0/24"
+	gCfg.AciPolicyTenant = "defaultTenant"
+	s.s = gbpserver.NewServer(gCfg)
+
 	s.kw = &K8sWatcher{
 		gs:  s.s,
 		idb: newIntentDB(s.s),
@@ -85,16 +92,16 @@ var k8s_contract = v1.ContractSpec{
 	AllowList: []v1.WLRule{{Protocol: "tcp", Ports: v1.IntRange{Start: 6020, End: 6020}}},
 }
 var k8s_gbp_epgA = &gbpserver.EPG{
-	Tenant:        "kube",
+	Tenant:        "defaultTenant",
 	Name:          "epg-a",
-	ConsContracts: []string{"kube/tcp-6020"},
-	ProvContracts: []string{"kube/tcp-6020"},
+	ConsContracts: []string{"defaultTenant/tcp-6020"},
+	ProvContracts: []string{"defaultTenant/tcp-6020"},
 }
 
 var k8s_gbp_epgA_trim = &gbpserver.EPG{
-	Tenant:        "kube",
+	Tenant:        "defaultTenant",
 	Name:          "epg-a",
-	ProvContracts: []string{"kube/tcp-6020"},
+	ProvContracts: []string{"defaultTenant/tcp-6020"},
 }
 
 func TestK8sEPG(t *testing.T) {
