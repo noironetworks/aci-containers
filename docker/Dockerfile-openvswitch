@@ -1,4 +1,4 @@
-FROM alpine:3.10
+FROM alpine:3.10.2
 RUN apk upgrade --no-cache && \
   apk --no-cache add openvswitch logrotate
 COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
