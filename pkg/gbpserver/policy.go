@@ -97,7 +97,7 @@ func (c *Contract) Delete() error {
 func addActionRef(p *gbpCommonMo) {
 	// action and action ref
 	aMo := &GBPAction{}
-	amoURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpAllowDenyAction/allow/", kubeTenant)
+	amoURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpAllowDenyAction/allow/", getTenantName())
 	aMo.Make("allow", amoURI)
 	aMo.AddProperty("allow", 1)
 
@@ -137,7 +137,8 @@ func (c *Contract) makeClassifiers() error {
 func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	uri, cname := getClassifierURI(c.Tenant, dir, &r)
 	log.Infof("uri: %s, name: %s", uri, cname)
-	baseMo := MoDB[uri]
+	moDB := getMoDB()
+	baseMo := moDB[uri]
 
 	if baseMo != nil {
 		log.Infof("==> Mo exists")
@@ -145,7 +146,7 @@ func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	}
 
 	furi := c.getFilterURI()
-	fMo := MoDB[furi]
+	fMo := moDB[furi]
 	if fMo == nil {
 		return fmt.Errorf("FilterMO missing")
 	}
@@ -280,6 +281,7 @@ func (c *Contract) FromMo(mo *gbpBaseMo) error {
 		return fmt.Errorf("Mo class %s is not contract", mo.Subject)
 	}
 
+	moDB := getMoDB()
 	c.Name = mo.GetStringProperty(propName)
 	comps := strings.Split(mo.Uri, "/")
 	if len(comps) < 4 {
@@ -308,7 +310,7 @@ func (c *Contract) FromMo(mo *gbpBaseMo) error {
 					return err
 				}
 
-				cMo := MoDB[cURI]
+				cMo := moDB[cURI]
 				if cMo == nil {
 					return fmt.Errorf("Classifier %s not found", cURI)
 				}
@@ -355,8 +357,9 @@ func (e *EPG) Make() error {
 		e.bds = podBDS
 	}
 	eUri := e.getURI()
+	moDB := getMoDB()
 
-	base := MoDB[eUri]
+	base := moDB[eUri]
 	if base == nil {
 		base = e.bds.CreateEPG(e.Name, eUri)
 	}
@@ -416,7 +419,7 @@ func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) er
 		if desiredC[tgt] == false {
 			mo.DelChild(ref)
 			delete(currentC, tgt)
-			delete(MoDB, ref)
+			delete(getMoDB(), ref)
 		}
 	}
 
@@ -458,6 +461,7 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 	if mo.Subject != subjEPG {
 		return fmt.Errorf("Mo class %s is not epg", mo.Subject)
 	}
+	moDB := getMoDB()
 
 	e.Name = mo.GetStringProperty(propName)
 	comps := strings.Split(mo.Uri, "/")
@@ -471,7 +475,7 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 	readContracts := func(sub string) []string {
 		var res []string
 		for _, c := range mo.Children {
-			cMo := MoDB[c]
+			cMo := moDB[c]
 			if cMo == nil {
 				log.Errorf("Child %s not found", c)
 				continue
@@ -534,7 +538,7 @@ func listEpgs(w http.ResponseWriter, r *http.Request, vars map[string]string) (i
 
 	var resp ListResp
 
-	for _, mo := range MoDB {
+	for _, mo := range getMoDB() {
 		if mo.Subject == subjEPG {
 			resp.URIs = append(resp.URIs, mo.Uri)
 		}
@@ -547,6 +551,7 @@ func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
+	moDB := getMoDB()
 	params := r.URL.Query()
 	uri, ok := params["key"]
 	if !ok {
@@ -554,7 +559,7 @@ func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	}
 
 	k := strings.Replace(uri[0], "|", "%7c", -1)
-	eMo, ok := MoDB[k]
+	eMo, ok := moDB[k]
 	if !ok {
 		return nil, fmt.Errorf("%s - Not found", k)
 	}
@@ -597,7 +602,7 @@ func listContracts(w http.ResponseWriter, r *http.Request, vars map[string]strin
 
 	var resp ListResp
 
-	for _, mo := range MoDB {
+	for _, mo := range getMoDB() {
 		if mo.Subject == subjContract {
 			resp.URIs = append(resp.URIs, mo.Uri)
 		}
@@ -610,6 +615,7 @@ func getContract(w http.ResponseWriter, r *http.Request, vars map[string]string)
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
+	moDB := getMoDB()
 	params := r.URL.Query()
 	uri, ok := params["key"]
 	if !ok {
@@ -617,7 +623,7 @@ func getContract(w http.ResponseWriter, r *http.Request, vars map[string]string)
 	}
 
 	k := strings.Replace(uri[0], "|", "%7c", -1)
-	cMo, ok := MoDB[k]
+	cMo, ok := moDB[k]
 	if !ok {
 		return nil, fmt.Errorf("%s - Not found", k)
 	}
@@ -640,7 +646,7 @@ func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string
 	}
 
 	k := strings.Replace(uri[0], "|", "%7c", -1)
-	delete(MoDB, k)
+	delete(getMoDB(), k)
 	log.Infof("%s deleted", k)
 	DoAll()
 	return nil, nil
@@ -676,7 +682,7 @@ func linkParentChild(p, c *gbpCommonMo) {
 }
 
 func (np *NetworkPolicy) getURI() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", kubeTenant, subjSecGroup, np.HostprotPol.Attributes[propName])
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, np.HostprotPol.Attributes[propName])
 }
 func (np *NetworkPolicy) Make() error {
 	if np.HostprotPol.Attributes == nil {
@@ -791,7 +797,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	// make a classifier mo
 	cfMo := &GBPL24Classifier{}
 	cname := fmt.Sprintf("%s|%s|%s", npName, subjName, hsc.Attributes[propName])
-	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", kubeTenant, escapeName(cname, false))
+	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", getTenantName(), escapeName(cname, false))
 	cfMo.Make(cname, uri)
 	cfMo.AddProperty(propName, cname)
 
@@ -855,7 +861,7 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	//	}
 	log.Infof("Subnets are: %v", ipSet)
 	ss := &GBPSubnetSet{}
-	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, escapeName(name, false))
+	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), escapeName(name, false))
 	ss.Make(name, ssUri)
 	for _, addr := range ipSet {
 		if len(strings.Split(addr, "/")) == 1 {
@@ -911,12 +917,13 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
 	gMutex.Lock()
 	defer gMutex.Unlock()
+	moDB := getMoDB()
 
-	dn := strings.TrimPrefix(r.RequestURI, "/api/mo/uni/tn-kube/pol-")
+	dn := strings.TrimPrefix(r.RequestURI, fmt.Sprintf("/api/mo/uni/tn-%s/pol-", getTenantName()))
 	dn = strings.TrimSuffix(dn, ".json")
 	npName := strings.Split(dn, "/")[0]
-	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", kubeTenant, subjSecGroup, npName)
-	npMo := MoDB[key]
+	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, npName)
+	npMo := moDB[key]
 	if npMo == nil {
 		return nil, fmt.Errorf("%s not found", key)
 	}

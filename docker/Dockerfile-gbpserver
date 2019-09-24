@@ -9,6 +9,5 @@ COPY docker/get_vteps.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/get_vteps.sh
 
 ENV KUBECONFIG=/kube/kube.yml
-ENV CAPIC_URL=None
-ENV AWS_REGION=None
-ENTRYPOINT exec /usr/local/bin/gbpserver -api-listen-port 443 -insecure-port 14443 -capic-url $CAPIC_URL -aws-region $AWS_REGION
+ENV GBP_SERVER_CONF=None
+ENTRYPOINT exec /usr/local/bin/gbpserver -proxy-listen-port 443 --config-path $GBP_SERVER_CONF

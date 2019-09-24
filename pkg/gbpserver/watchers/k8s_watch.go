@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	sysNs      = "kube-system"
-	kubeTenant = "kube"
+	sysNs = "kube-system"
 )
 
 type K8sWatcher struct {
@@ -131,7 +130,7 @@ func (kw *K8sWatcher) epgAdded(obj interface{}) {
 
 	log.Infof("epgAdded - %s", epgv1.Spec.Name)
 	e := &gbpserver.EPG{
-		Tenant:        kubeTenant,
+		Tenant:        kw.gs.Config().AciPolicyTenant,
 		Name:          epgv1.Spec.Name,
 		ConsContracts: epgv1.Spec.ConsContracts,
 		ProvContracts: epgv1.Spec.ProvContracts,
@@ -160,7 +159,7 @@ func (kw *K8sWatcher) epgDeleted(obj interface{}) {
 
 	log.Infof("epgDeleted - %s", epgv1.Spec.Name)
 	e := &gbpserver.EPG{
-		Tenant: kubeTenant,
+		Tenant: kw.gs.Config().AciPolicyTenant,
 		Name:   epgv1.Spec.Name,
 	}
 
@@ -176,7 +175,7 @@ func (kw *K8sWatcher) contractAdded(obj interface{}) {
 
 	log.Infof("contractAdded - %s", contractv1.Spec.Name)
 	c := &gbpserver.Contract{
-		Tenant:    kubeTenant,
+		Tenant:    kw.gs.Config().AciPolicyTenant,
 		Name:      contractv1.Spec.Name,
 		AllowList: contractv1.Spec.AllowList,
 	}
@@ -192,7 +191,7 @@ func (kw *K8sWatcher) contractDeleted(obj interface{}) {
 	}
 	log.Infof("contractDeleted - %s", contractv1.Spec.Name)
 	c := &gbpserver.Contract{
-		Tenant:    kubeTenant,
+		Tenant:    kw.gs.Config().AciPolicyTenant,
 		Name:      contractv1.Spec.Name,
 		AllowList: contractv1.Spec.AllowList,
 	}

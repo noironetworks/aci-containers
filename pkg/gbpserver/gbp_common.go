@@ -76,7 +76,7 @@ const (
 	defSubnets        = "allsubnets"
 	nodeSubnets       = "nodesubnets"
 	defSubnetsURI     = "/PolicyUniverse/PolicySpace/kube/GbpSubnets/allsubnets/"
-	defVrfURI         = "/PolicyUniverse/PolicySpace/kube/GbpRoutingDomain/defaultVrf/"
+	defVrfURI         = "GbpRoutingDomain/defaultVrf/"
 	defVrfName        = "defaultVrf"
 	defBDURI          = "/PolicyUniverse/PolicySpace/kube/GbpBridgeDomain/defaultBD/"
 	defBDName         = "defaultBD"
@@ -122,30 +122,42 @@ type BDSubnet struct {
 
 var podBDS *BDSubnet
 
+func getTenantName() string {
+	if theServer != nil {
+		return theServer.config.AciPolicyTenant
+	}
+
+	return "undefined"
+}
+
+func getTenantUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/", getTenantName())
+}
+
 func cctxProfName() string {
 	return defVrfName + "_" + defRegion
 }
 func (bds *BDSubnet) SubnetsUri() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", kubeTenant, bds.subnetsName)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), bds.subnetsName)
 }
 
 func (bds *BDSubnet) SnUri() string {
 	sn := escapeName(bds.snet, false)
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/GbpSubnet/%s/", kubeTenant, bds.subnetsName, sn)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/GbpSubnet/%s/", getTenantName(), bds.subnetsName, sn)
 }
 
 func (bds *BDSubnet) BDUri() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpBridgeDomain/%s/", kubeTenant, bds.bdName)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpBridgeDomain/%s/", getTenantName(), bds.bdName)
 }
 
 func (bds *BDSubnet) FDUri() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/", kubeTenant, bds.fdName)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/", getTenantName(), bds.fdName)
 }
 func (bds *BDSubnet) FDMcastUri() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpeFloodContext/", kubeTenant, bds.fdName)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpeFloodContext/", getTenantName(), bds.fdName)
 }
 func (bds *BDSubnet) FDToBDUri() string {
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpFloodDomainToNetworkRSrc/", kubeTenant, bds.fdName)
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpFloodDomain/%s/GbpFloodDomainToNetworkRSrc/", getTenantName(), bds.fdName)
 }
 
 func (bds *BDSubnet) CreateSubnet() {
@@ -230,7 +242,7 @@ func (bds *BDSubnet) CreateEPG(name, uri string) *gbpBaseMo {
 	snetRef.AddProperty(propTarget, tosnet)
 	epg.AddChild(snetRef.Uri)
 	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
-	return MoDB[uri]
+	return getMoDB()[uri]
 
 }
 
@@ -340,8 +352,9 @@ func (g *gbpCommonMo) DelChild(uri string) {
 
 func (g *gbpCommonMo) getChildMos() []*gbpCommonMo {
 	res := make([]*gbpCommonMo, 0, len(g.Children))
+	moDB := getMoDB()
 	for _, u := range g.Children {
-		mo := MoDB[u]
+		mo := moDB[u]
 		if mo != nil {
 			res = append(res, &mo.gbpCommonMo)
 		}
@@ -439,7 +452,11 @@ func escapeName(n string, undo bool) string {
 	return n
 }
 
-func CreateRoot() {
+func getDefPConfigName(tenant string) string {
+	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/sw-InsiemeLSOid", tenant, tenant)
+}
+
+func CreateRoot(config *GBPServerConfig) {
 	// DmtreeRoot
 	rMo := &gbpBaseMo{
 		gbpCommonMo{
@@ -489,12 +506,13 @@ func CreateRoot() {
 	}
 
 	// attach platform config to policyuniverse
-	puMo := MoDB["/PolicyUniverse/"]
+	puMo := getMoDB()["/PolicyUniverse/"]
 	if puMo == nil {
 		log.Fatal("PolicyUniverse not found")
 	}
 
-	pcMo := createChild(puMo, "PlatformConfig", defPConfigName)
+	pConfigName := getDefPConfigName(config.AciPolicyTenant)
+	pcMo := createChild(puMo, "PlatformConfig", pConfigName)
 	pcProps := []struct {
 		Name string
 		Data string
@@ -503,7 +521,7 @@ func CreateRoot() {
 		{Name: "inventoryType", Data: "ON_LINK"},
 		{Name: "encapType", Data: "vxlan"},
 		{Name: "mode", Data: "intra_epg"},
-		{Name: "name", Data: defPConfigName},
+		{Name: "name", Data: pConfigName},
 	}
 
 	for _, v := range pcProps {
@@ -511,20 +529,20 @@ func CreateRoot() {
 	}
 
 	// attach remoteepinventory to Invuniverse
-	iuMo := MoDB["/InvUniverse/"]
+	iuMo := getMoDB()["/InvUniverse/"]
 	if iuMo == nil {
 		log.Fatal("InvUniverse not found")
 	}
 	createChild(iuMo, "InvRemoteEndpointInventory", "")
 
 	// attach references to domainconfig
-	dcMo := MoDB["/DomainConfig/"]
+	dcMo := getMoDB()["/DomainConfig/"]
 	if dcMo == nil {
 		log.Fatal("DomainConfig not found")
 	}
 
 	dcToCR := createChild(dcMo, "DomainConfigToConfigRSrc", "")
-	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(defPConfigName, false))
+	pConfURI := fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(pConfigName, false))
 	refP := Reference{Subject: "PlatformConfig", ReferenceUri: pConfURI}
 	dcToCR.AddProperty(propTarget, refP)
 

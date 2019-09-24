@@ -44,9 +44,9 @@ var debugDB = false
 var encapID = uint(7700000)
 var classID = uint(32000)
 var gMutex sync.Mutex
-var MoDB = make(map[string]*gbpBaseMo)
 var dbDataDir string
 var apicCon *apicapi.ApicConnection
+var theServer *Server
 
 // BaseMo methods refer the underlying MoDB.
 type gbpBaseMo struct {
@@ -62,11 +62,20 @@ func (g *gbpBaseMo) save() {
 	if g.Properties == nil {
 		g.Properties = []*Property{}
 	}
-	MoDB[g.Uri] = g
+
+	modb := getMoDB()
+	if modb == nil {
+		log.Fatalf("save %s, MoDB not found", g.Uri)
+	}
+	modb[g.Uri] = g
+}
+
+func getMoDB() map[string]*gbpBaseMo {
+	return theServer.policyDB
 }
 
 func getMoSubTree(url string) []*GBPObject {
-	mo := MoDB[url]
+	mo := getMoDB()[url]
 	if mo == nil {
 		log.Errorf("mo %s not found", url)
 		return nil
@@ -90,7 +99,7 @@ func (g *gbpBaseMo) preOrder(moList []*GBPObject) []*GBPObject {
 
 	// append child subtrees
 	for _, c := range g.Children {
-		cMo := MoDB[c]
+		cMo := getMoDB()[c]
 		if cMo == nil {
 			log.Errorf("Child %s missing for %s", c, g.Uri)
 			continue
@@ -110,7 +119,7 @@ func (g *gbpBaseMo) delRecursive() {
 
 	log.Infof("delRecursive: %s", g.Uri)
 	for _, c := range g.Children {
-		cMo := MoDB[c]
+		cMo := getMoDB()[c]
 		if cMo != nil {
 			cMo.delRecursive()
 		}
@@ -119,7 +128,7 @@ func (g *gbpBaseMo) delRecursive() {
 	// delete any reference as well
 	ref, err := g.getTarget()
 	if err == nil {
-		rMo := MoDB[ref]
+		rMo := getMoDB()[ref]
 		if rMo != nil {
 			rMo.delRecursive()
 		} else {
@@ -127,15 +136,16 @@ func (g *gbpBaseMo) delRecursive() {
 		}
 	}
 
-	delete(MoDB, g.Uri)
+	delete(getMoDB(), g.Uri)
 }
 
 // returns refMo URI, indexed by the actual target uri
 func (g *gbpBaseMo) GetRefURIs(subject string) (map[string]string, error) {
 	result := make(map[string]string)
 
+	moDB := getMoDB()
 	for _, c := range g.Children {
-		cMo := MoDB[c]
+		cMo := moDB[c]
 		if cMo == nil {
 			return nil, fmt.Errorf("Child %s not found", c)
 		}
@@ -154,7 +164,7 @@ func (g *gbpBaseMo) GetRefURIs(subject string) (map[string]string, error) {
 }
 
 func (g *gbpBaseMo) AddRef(refSubj, targetURI string) error {
-	targetMo := MoDB[targetURI]
+	targetMo := getMoDB()[targetURI]
 	if targetMo == nil {
 		return fmt.Errorf("Mo %s not found", targetURI)
 	}
@@ -240,7 +250,7 @@ func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	bdnw.Make("", bdnwUri+"/")
 	vrfRef := Reference{
 		Subject:      subjVRF,
-		ReferenceUri: defVrfURI,
+		ReferenceUri: getTenantUri() + defVrfURI,
 	}
 	bdnw.AddProperty(propTarget, vrfRef)
 	bdnw.SetParent(bd.Subject, bdnw.Subject, bd.Uri)
@@ -602,7 +612,7 @@ func CreateDefSubnet(subnet string) {
 func CreateDefVrf() {
 	vrf := &GBPRoutingDomain{}
 	// TODO: add subnet ref if necessary
-	vrf.Make(defVrfName, defVrfURI)
+	vrf.Make(defVrfName, getTenantUri()+defVrfURI)
 }
 
 func CreateDefFD() {
@@ -665,36 +675,32 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 	snetRef.AddProperty(propTarget, tosnet)
 	epg.AddChild(snetRef.Uri)
 	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
-	return MoDB[uri]
+	return getMoDB()[uri]
 }
 
-func InitDB(dataDir, apic, region string) {
-	if region != "None" {
-		defRegion = region
-	}
-	log.Infof("InitDB(%s, %s, %s)", dataDir, apic, region)
-	if apic != "None" {
+// Initializes the Mo DB
+func (s *Server) InitDB() {
+	if s.config.ApicHosts != nil {
 		var err error
 		log1 := log.New()
-		apicCon, err = apicapi.New(log1, []string{apic}, "admin", "noir0!234", nil, nil, "test", 60, 5)
+		apicCon, err = apicapi.New(log1, s.config.ApicHosts, s.config.ApicUsername, s.config.ApicPassword, nil, nil, "test", 60, 5)
 		if err != nil {
 			log.Fatalf("Connecting to APIC: %v", err)
 		}
 	}
 
-	dbDataDir = dataDir
-	//	if restoreDB() == nil {
-	//		return
-	//	}
+	theServer = s
+	s.policyDB = make(map[string]*gbpBaseMo)
+	s.invDB = make(map[string]map[string]*gbpInvMo)
 
-	CreateRoot()
+	CreateRoot(s.config)
 	CreateDefVrf()
 	podBDS = &BDSubnet{
 		bdName:      defBDName,
 		mcastGroup:  defMcastGroup,
 		fdName:      defFDName,
 		subnetsName: defSubnets,
-		snet:        defSubnet,
+		snet:        s.config.PodSubnet,
 	}
 	podBDS.Setup()
 
@@ -703,17 +709,16 @@ func InitDB(dataDir, apic, region string) {
 		mcastGroup:  nodeMcastGroup,
 		fdName:      nodeFDName,
 		subnetsName: nodeSubnets,
-		snet:        nodeSubnet,
+		snet:        s.config.NodeSubnet,
 	}
 
 	nodeBDS.Setup()
-	SendDefaultsToAPIC()
 
 	// create a wildcard contract
 	emptyRule := v1.WLRule{}
 	emptyC := Contract{
 		Name:   anyConName,
-		Tenant: kubeTenant,
+		Tenant: getTenantName(),
 		AllowList: []v1.WLRule{
 			emptyRule,
 		},
@@ -724,7 +729,7 @@ func InitDB(dataDir, apic, region string) {
 	epgList := []*EPG{
 		{
 			Name:   defEPGName,
-			Tenant: kubeTenant,
+			Tenant: getTenantName(),
 			ProvContracts: []string{
 				anyConName,
 			},
@@ -734,7 +739,7 @@ func InitDB(dataDir, apic, region string) {
 		},
 		{
 			Name:   kubeSysEPGName,
-			Tenant: kubeTenant,
+			Tenant: getTenantName(),
 			ProvContracts: []string{
 				anyConName,
 			},
@@ -744,7 +749,7 @@ func InitDB(dataDir, apic, region string) {
 		},
 		{
 			Name:   kubeNodeEPGName,
-			Tenant: kubeTenant,
+			Tenant: getTenantName(),
 			ProvContracts: []string{
 				anyConName,
 			},
@@ -762,6 +767,7 @@ func InitDB(dataDir, apic, region string) {
 		}
 	}
 
+	SendDefaultsToAPIC()
 }
 
 func getMoFile() string {
@@ -788,10 +794,11 @@ func restoreDB() error {
 		return err
 	}
 
+	moDB := getMoDB()
 	for _, mo := range moList {
 		mm := new(gbpBaseMo)
 		*mm = mo
-		MoDB[mo.Uri] = mm
+		moDB[mo.Uri] = mm
 	}
 
 	invdir := getInvDir()
@@ -816,7 +823,7 @@ func addToMap(sum, addend map[string]*gbpCommonMo) {
 
 func getMoMap() map[string]*gbpCommonMo {
 	moMap := make(map[string]*gbpCommonMo)
-	for k, mo := range MoDB {
+	for k, mo := range getMoDB() {
 		moMap[k] = &mo.gbpCommonMo
 	}
 
@@ -845,7 +852,11 @@ func getSnapShot(vtep string) []*GBPObject {
 
 func DoAll() {
 
-	for vtep := range InvDB {
+	if !theServer.config.pushJsonFile {
+		return
+	}
+
+	for vtep := range theServer.invDB {
 		moMap := getMoMap()
 		addToMap(moMap, GetInvMoMap(vtep))
 		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
@@ -969,8 +980,8 @@ func SendDefaultsToAPIC() {
 	}
 
 	log.Infof("Posting tenant to cAPIC")
-	vrfMo := apicapi.NewFvCtx(kubeTenant, defVrfName)
-	cCtxMo := apicapi.NewCloudCtxProfile(kubeTenant, cctxProfName())
+	vrfMo := apicapi.NewFvCtx(getTenantName(), defVrfName)
+	cCtxMo := apicapi.NewCloudCtxProfile(getTenantName(), cctxProfName())
 	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), defCAPICCidr)
 	cCtxMoBody := cCtxMo["cloudCtxProfile"]
 	ctxChildren := []apicapi.ApicObject{
@@ -986,18 +997,18 @@ func SendDefaultsToAPIC() {
 
 	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
 	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
-	cepgA := apicapi.NewCloudEpg(kubeTenant, defCloudApp, cApicName(defEPGName))
+	cepgA := apicapi.NewCloudEpg(getTenantName(), defCloudApp, cApicName(defEPGName))
 	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
 
-	awsProvider := apicapi.NewCloudAwsProvider(kubeTenant, defRegion, "gmeouw1")
+	awsProvider := apicapi.NewCloudAwsProvider(getTenantName(), defRegion, "gmeouw1")
 	awsProvider["cloudAwsProvider"].Attributes["accountId"] = "878180092573"
 	var cfgMos = []apicapi.ApicObject{
-		apicapi.NewFvTenant(kubeTenant),
+		apicapi.NewFvTenant(getTenantName()),
 		vrfMo,
 		awsProvider,
 		cCtxMo,
 		apicapi.NewCloudSubnet(cidrMo.GetDn(), defCAPICSubnet),
-		apicapi.NewCloudApp(kubeTenant, defCloudApp),
+		apicapi.NewCloudApp(getTenantName(), defCloudApp),
 		cepgA,
 	}
 	for _, cmo := range cfgMos {

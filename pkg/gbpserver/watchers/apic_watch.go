@@ -51,18 +51,18 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 		gs:  gs,
 		idb: newIntentDB(gs),
 		apicInfo: ApicInfo{
-			user:     "admin",
-			password: "noir0!234",
+			user:     gs.Config().ApicUsername,
+			password: gs.Config().ApicPassword,
 			prefix:   "k8s",
 		},
 	}
 }
 
-func (aw *ApicWatcher) Init(apicUrl string, stopCh <-chan struct{}) error {
+func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 	// eventually, the url and credentials will come from the crd
 	ai := aw.apicInfo
 	log := logrus.New()
-	conn, err := apicapi.New(log, []string{apicUrl}, ai.user, ai.password,
+	conn, err := apicapi.New(log, apicUrl, ai.user, ai.password,
 		ai.privKey, ai.cert, ai.prefix, refreshTime, 5)
 
 	if err != nil {

@@ -32,7 +32,12 @@ type suite struct {
 }
 
 func (s *suite) setup() {
-	s.s = gbpserver.NewServer()
+	gCfg := &gbpserver.GBPServerConfig{}
+	gCfg.GRPCPort = 19999
+	gCfg.ProxyListenPort = 8899
+	gCfg.PodSubnet = "10.2.56.1/21"
+	gCfg.NodeSubnet = "1.100.201.0/24"
+	s.s = gbpserver.NewServer(gCfg)
 	s.aw = NewApicWatcher(s.s)
 }
 

@@ -31,8 +31,8 @@ const (
 
 // gbpWatch implements the GBPServer interface
 type gbpWatch struct {
-	gs *Server
-	l net.Listener
+	gs      *Server
+	l       net.Listener
 	stopped bool
 }
 
@@ -48,7 +48,7 @@ func StartGRPC(port string, gs *Server) (*gbpWatch, error) {
 	go func() {
 		if err := s.Serve(lis); err != nil {
 			if !gw.stopped {
-			log.Fatalf("Failed to serve - %v", err)
+				log.Fatalf("Failed to serve - %v", err)
 			}
 		}
 		if !gw.stopped {
@@ -63,6 +63,7 @@ func (gw *gbpWatch) Stop() {
 	gw.stopped = true
 	gw.l.Close()
 }
+
 // ListObjects is the list-watch streaming method invoked by the client.
 // It blocks after each send, until a new operation is avaialable to send
 func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
