@@ -370,6 +370,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			panic(err)
 		}
 		cont.apicConn.CachedVersion = version
+		apicapi.ApicVersion = version
 		// APIC version 3.2 introduced tagAnnotation support for better scalability.
 		if version >= 3.2 {
 			cont.apicConn.UseAPICInstTag = false
