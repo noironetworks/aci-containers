@@ -416,7 +416,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}()
 
 	conn.indexMutex.Lock()
-	ApicVersion = conn.version
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
 	conn.cacheDnSubIds = make(map[string]map[string]bool)
@@ -459,6 +458,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 				conn.log.Error("Error while getting APIC version: ", err)
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
+				ApicVersion = version
 				if version <=3.1 && conn.CachedVersion >=3.2 {
 					conn.log.Debug("APIC is downgraded from >=3.2 to a lower version, Exiting ")
 					os.Exit(1) //K8S shall restart the container and fallback to tagInst
