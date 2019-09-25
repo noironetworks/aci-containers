@@ -1,21 +1,24 @@
 diff --git a/vswitchd/ovs-vswitchd.c b/vswitchd/ovs-vswitchd.c
-index 1e72b628b..c12a7e319 100644
+index 1e72b628b..40fc9816b 100644
 --- a/vswitchd/ovs-vswitchd.c
 +++ b/vswitchd/ovs-vswitchd.c
-@@ -24,6 +24,8 @@
+@@ -24,6 +24,10 @@
  #ifdef HAVE_MLOCKALL
  #include <sys/mman.h>
  #endif
++#include <fcntl.h>
++#include <unistd.h>
 +#include <stdlib.h>
 +#include <sanitizer/lsan_interface.h>
 
  #include "bridge.h"
  #include "command-line.h"
-@@ -78,8 +80,11 @@ main(int argc, char *argv[])
+@@ -78,8 +82,12 @@ main(int argc, char *argv[])
      bool exiting, cleanup;
      struct ovs_vswitchd_exit_args exit_args = {&exiting, &cleanup};
      int retval;
 +    int leak_check = 0;
++    int outfd, errfd;
 
      set_program_name(argv[0]);
 +    daemon_save_fd(1);
@@ -23,18 +26,38 @@ index 1e72b628b..c12a7e319 100644
      ovsthread_id_init();
 
      dns_resolve_init(true);
-@@ -115,6 +120,10 @@ main(int argc, char *argv[])
+@@ -89,6 +97,17 @@ main(int argc, char *argv[])
+     fatal_ignore_sigpipe();
+
+     daemonize_start(true);
++    outfd = open("/tmp/ovs_console.out", O_RDWR|O_CREAT|O_APPEND, 0600);
++    if (outfd == -1)
++        VLOG_ERR("/tmp/ovs_console.out open failed: %s", ovs_strerror(errno));
++    errfd = open("/tmp/ovs_console.err", O_RDWR|O_CREAT|O_APPEND, 0600);
++    if (errfd == -1)
++        VLOG_ERR("/tmp/ovs_console.err open failed: %s", ovs_strerror(errno));
++
++    if (dup2(outfd, fileno(stdout)) == -1)
++        VLOG_ERR("failed to redirect stdout to /tmp/ovs_console.out: %s", ovs_strerror(errno));
++    if (dup2(errfd, fileno(stderr)) == -1)
++        VLOG_ERR("failed to redirect stderr to /tmp/ovs_console.err: %s", ovs_strerror(errno));
+
+     if (want_mlockall) {
+ #ifdef HAVE_MLOCKALL
+@@ -115,6 +134,12 @@ main(int argc, char *argv[])
      exiting = false;
      cleanup = false;
      while (!exiting) {
 +        if (leak_check++ % 1000 == 0) {
 +            printf("Checking for memory leaks %d\n", leak_check-1);
 +            __lsan_do_recoverable_leak_check();
++            fflush(stdout);
++            fflush(stderr);
 +        }
          memory_run();
          if (memory_should_report()) {
              struct simap usage;
-@@ -146,6 +155,8 @@ main(int argc, char *argv[])
+@@ -146,6 +171,8 @@ main(int argc, char *argv[])
      vlog_disable_async();
      ovsrcu_exit();
      dns_resolve_destroy();
