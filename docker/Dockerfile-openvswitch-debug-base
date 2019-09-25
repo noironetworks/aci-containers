@@ -1,0 +1,6 @@
+FROM challa/ubuntu
+RUN apt update \
+    && apt install -y build-essential autoconf libtool python libssl-dev libpcap-dev software-properties-common python-six git gawk vim kmod logrotate
+COPY docker/ovs-asan.patch /tmp
+COPY docker/install-asan-ovs.sh docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
+CMD ["/bin/sh"]

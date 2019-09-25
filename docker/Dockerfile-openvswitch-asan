@@ -1,0 +1,2 @@
+FROM challa/openvswitch-debug-base
+CMD ["/usr/local/bin/launch-ovs.sh"]

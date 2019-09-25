@@ -1,0 +1,45 @@
+diff --git a/vswitchd/ovs-vswitchd.c b/vswitchd/ovs-vswitchd.c
+index 1e72b628b..c12a7e319 100644
+--- a/vswitchd/ovs-vswitchd.c
++++ b/vswitchd/ovs-vswitchd.c
+@@ -24,6 +24,8 @@
+ #ifdef HAVE_MLOCKALL
+ #include <sys/mman.h>
+ #endif
++#include <stdlib.h>
++#include <sanitizer/lsan_interface.h>
+
+ #include "bridge.h"
+ #include "command-line.h"
+@@ -78,8 +80,11 @@ main(int argc, char *argv[])
+     bool exiting, cleanup;
+     struct ovs_vswitchd_exit_args exit_args = {&exiting, &cleanup};
+     int retval;
++    int leak_check = 0;
+
+     set_program_name(argv[0]);
++    daemon_save_fd(1);
++    daemon_save_fd(2);
+     ovsthread_id_init();
+
+     dns_resolve_init(true);
+@@ -115,6 +120,10 @@ main(int argc, char *argv[])
+     exiting = false;
+     cleanup = false;
+     while (!exiting) {
++        if (leak_check++ % 1000 == 0) {
++            printf("Checking for memory leaks %d\n", leak_check-1);
++            __lsan_do_recoverable_leak_check();
++        }
+         memory_run();
+         if (memory_should_report()) {
+             struct simap usage;
+@@ -146,6 +155,8 @@ main(int argc, char *argv[])
+     vlog_disable_async();
+     ovsrcu_exit();
+     dns_resolve_destroy();
++    printf("Checking for memory leaks on exit\n");
++    __lsan_do_recoverable_leak_check();
+
+     return 0;
+ }

@@ -1,0 +1,9 @@
+./build-ovs-debug-base.sh challa
+docker run -it --privileged challa/openvswitch-debug-base sh
+install-asan-ovs.sh
+rm -Rf ovs
+docker ps
+docker commit 497b5ff4d80f challa/openvswitch-debug-base
+docker push challa/openvswitch-debug-base
+./build-ovs-asan.sh challa :asan
+docker run -it --privileged challa/openvswitch:asan
