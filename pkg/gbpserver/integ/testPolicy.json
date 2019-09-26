@@ -1,0 +1,914 @@
+[
+    {
+        "subject": "DmtreeRoot",
+        "uri": "/",
+        "children": [
+            "/RelatorUniverse/",
+            "/GbpeVMUniverse/",
+            "/DomainConfig/",
+            "/InvUniverse/",
+            "/PolicyUniverse/"
+        ]
+    },
+    {
+        "subject": "DomainConfig",
+        "uri": "/DomainConfig/",
+        "children": [
+            "/DomainConfig/DomainConfigToConfigRSrc/",
+            "/DomainConfig/DomainConfigToRemoteEndpointInventoryRSrc/"
+        ],
+        "parent_subject": "DmtreeRoot",
+        "parent_uri": "/",
+        "parent_relation": "DomainConfig"
+    },
+    {
+        "subject": "DomainConfigToConfigRSrc",
+        "uri": "/DomainConfig/DomainConfigToConfigRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "PlatformConfig",
+                    "reference_uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/"
+                }
+            }
+        ],
+        "parent_subject": "DomainConfig",
+        "parent_uri": "/DomainConfig/",
+        "parent_relation": "DomainConfigToConfigRSrc"
+    },
+    {
+        "subject": "DomainConfigToRemoteEndpointInventoryRSrc",
+        "uri": "/DomainConfig/DomainConfigToRemoteEndpointInventoryRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "InvRemoteEndpointInventory",
+                    "reference_uri": "/InvUniverse/InvRemoteEndpointInventory/"
+                }
+            }
+        ],
+        "parent_subject": "DomainConfig",
+        "parent_uri": "/DomainConfig/",
+        "parent_relation": "DomainConfigToRemoteEndpointInventoryRSrc"
+    },
+    {
+        "subject": "GbpeVMUniverse",
+        "uri": "/GbpeVMUniverse/",
+        "parent_subject": "DmtreeRoot",
+        "parent_uri": "/",
+        "parent_relation": "GbpeVMUniverse"
+    },
+    {
+        "subject": "InvUniverse",
+        "uri": "/InvUniverse/",
+        "children": [
+            "/InvUniverse/InvRemoteEndpointInventory/"
+        ],
+        "parent_subject": "DmtreeRoot",
+        "parent_uri": "/",
+        "parent_relation": "InvUniverse"
+    },
+    {
+        "subject": "InvRemoteEndpointInventory",
+        "uri": "/InvUniverse/InvRemoteEndpointInventory/",
+        "parent_subject": "InvUniverse",
+        "parent_uri": "/InvUniverse/",
+        "parent_relation": "InvRemoteEndpointInventory"
+    },
+    {
+        "subject": "PolicyUniverse",
+        "uri": "/PolicyUniverse/",
+        "children": [
+            "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/"
+        ],
+        "parent_subject": "DmtreeRoot",
+        "parent_uri": "/",
+        "parent_relation": "PolicyUniverse"
+    },
+    {
+        "subject": "PlatformConfig",
+        "uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/",
+        "properties": [
+            {
+                "name": "multicastGroupIP",
+                "data": "225.1.2.3"
+            },
+            {
+                "name": "inventoryType",
+                "data": "ON_LINK"
+            },
+            {
+                "name": "encapType",
+                "data": "vxlan"
+            },
+            {
+                "name": "mode",
+                "data": "intra_epg"
+            },
+            {
+                "name": "name",
+                "data": "comp/prov-Kubernetes/ctrlr-[gbpKubeTenant]-gbpKubeTenant/sw-InsiemeLSOid"
+            }
+        ],
+        "parent_subject": "PolicyUniverse",
+        "parent_uri": "/PolicyUniverse/",
+        "parent_relation": "PlatformConfig"
+    },
+    {
+        "subject": "GbpAllowDenyAction",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpAllowDenyAction/allow/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "allow"
+            },
+            {
+                "name": "allow",
+                "data": 1
+            }
+        ]
+    },
+    {
+        "subject": "GbpBridgeDomain",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "defaultBD"
+            },
+            {
+                "name": "routingMode",
+                "data": "enabled"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpeInstContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpForwardingBehavioralGroupToSubnetsRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpBridgeDomainToNetworkRSrc/"
+        ]
+    },
+    {
+        "subject": "GbpBridgeDomainToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpBridgeDomainToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpRoutingDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/"
+                }
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/",
+        "parent_relation": "GbpBridgeDomainToNetworkRSrc"
+    },
+    {
+        "subject": "GbpForwardingBehavioralGroupToSubnetsRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpForwardingBehavioralGroupToSubnetsRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpSubnets",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
+                }
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/",
+        "parent_relation": "GbpForwardingBehavioralGroupToSubnetsRSrc"
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700001
+            },
+            {
+                "name": "classid",
+                "data": 32001
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpBridgeDomain",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "nodeBD"
+            },
+            {
+                "name": "routingMode",
+                "data": "enabled"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpeInstContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpForwardingBehavioralGroupToSubnetsRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpBridgeDomainToNetworkRSrc/"
+        ]
+    },
+    {
+        "subject": "GbpBridgeDomainToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpBridgeDomainToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpRoutingDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/"
+                }
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/",
+        "parent_relation": "GbpBridgeDomainToNetworkRSrc"
+    },
+    {
+        "subject": "GbpForwardingBehavioralGroupToSubnetsRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpForwardingBehavioralGroupToSubnetsRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpSubnets",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/"
+                }
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/",
+        "parent_relation": "GbpForwardingBehavioralGroupToSubnetsRSrc"
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700002
+            },
+            {
+                "name": "classid",
+                "data": 32002
+            }
+        ],
+        "parent_subject": "GbpBridgeDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpContract",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "all-all"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/"
+        ]
+    },
+    {
+        "subject": "GbpSubject",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "all-all-subj"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/"
+        ],
+        "parent_subject": "GbpContract",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/",
+        "parent_relation": "GbpSubject"
+    },
+    {
+        "subject": "GbpRule",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "all-all-filter"
+            },
+            {
+                "name": "direction",
+                "data": "bidirectional"
+            },
+            {
+                "name": "order",
+                "data": 1
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fANY--0-0%2f/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToActionRSrc/286/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpAllowDenyAction%2fallow%2f/"
+        ],
+        "parent_subject": "GbpSubject",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/",
+        "parent_relation": "GbpRule"
+    },
+    {
+        "subject": "GbpRuleToActionRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToActionRSrc/286/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpAllowDenyAction%2fallow%2f/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpAllowDenyAction",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpAllowDenyAction/allow/"
+                }
+            }
+        ],
+        "parent_subject": "GbpRule",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/",
+        "parent_relation": "GbpRuleToActionRSrc"
+    },
+    {
+        "subject": "GbpRuleToClassifierRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fANY--0-0%2f/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpeL24Classifier",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/ANY--0-0/"
+                }
+            }
+        ],
+        "parent_subject": "GbpRule",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/",
+        "parent_relation": "GbpRuleToClassifierRSrc"
+    },
+    {
+        "subject": "GbpEpGroup",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "kubernetes|kube-default"
+            },
+            {
+                "name": "intraGroupPolicy",
+                "data": "allow"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpeInstContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToNetworkRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToSubnetsRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToConsContractRSrc/288/all-all/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToProvContractRSrc/288/all-all/"
+        ]
+    },
+    {
+        "subject": "GbpEpGroupToConsContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToConsContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "parent_relation": "GbpEpGroupToConsContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpFloodDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "parent_relation": "GbpEpGroupToNetworkRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToProvContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToProvContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "parent_relation": "GbpEpGroupToProvContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToSubnetsRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpEpGroupToSubnetsRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpSubnets",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "parent_relation": "GbpEpGroupToSubnetsRSrc"
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700003
+            },
+            {
+                "name": "classid",
+                "data": 32003
+            },
+            {
+                "name": "multicastGroupIP",
+                "data": "225.107.24.233"
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpEpGroup",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "kubernetes|kube-nodes"
+            },
+            {
+                "name": "intraGroupPolicy",
+                "data": "allow"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpeInstContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToNetworkRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToSubnetsRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToConsContractRSrc/288/all-all/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToProvContractRSrc/288/all-all/"
+        ]
+    },
+    {
+        "subject": "GbpEpGroupToConsContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToConsContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "parent_relation": "GbpEpGroupToConsContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpFloodDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "parent_relation": "GbpEpGroupToNetworkRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToProvContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToProvContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "parent_relation": "GbpEpGroupToProvContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToSubnetsRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpEpGroupToSubnetsRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpSubnets",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/GbpSubnet/1.100.201.0%2f24/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "parent_relation": "GbpEpGroupToSubnetsRSrc"
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700005
+            },
+            {
+                "name": "classid",
+                "data": 32005
+            },
+            {
+                "name": "multicastGroupIP",
+                "data": "225.107.24.233"
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpEpGroup",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "kubernetes|kube-system"
+            },
+            {
+                "name": "intraGroupPolicy",
+                "data": "allow"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpeInstContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToNetworkRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToSubnetsRSrc/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToConsContractRSrc/288/all-all/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToProvContractRSrc/288/all-all/"
+        ]
+    },
+    {
+        "subject": "GbpEpGroupToConsContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToConsContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "parent_relation": "GbpEpGroupToConsContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpFloodDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "parent_relation": "GbpEpGroupToNetworkRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToProvContractRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToProvContractRSrc/288/all-all/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpContract",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "parent_relation": "GbpEpGroupToProvContractRSrc"
+    },
+    {
+        "subject": "GbpEpGroupToSubnetsRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpEpGroupToSubnetsRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpSubnets",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                }
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "parent_relation": "GbpEpGroupToSubnetsRSrc"
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700004
+            },
+            {
+                "name": "classid",
+                "data": 32004
+            },
+            {
+                "name": "multicastGroupIP",
+                "data": "225.107.24.233"
+            }
+        ],
+        "parent_subject": "GbpEpGroup",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpFloodDomain",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "defaultFD"
+            },
+            {
+                "name": "unknownFloodMode",
+                "data": "drop"
+            },
+            {
+                "name": "arpMode",
+                "data": "unicast"
+            },
+            {
+                "name": "neighborDiscMode",
+                "data": "unicast"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/GbpeFloodContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/GbpFloodDomainToNetworkRSrc/"
+        ]
+    },
+    {
+        "subject": "GbpFloodDomainToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/GbpFloodDomainToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpBridgeDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/"
+                }
+            }
+        ],
+        "parent_subject": "GbpFloodDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/",
+        "parent_relation": "GbpFloodDomainToNetworkRSrc"
+    },
+    {
+        "subject": "GbpeFloodContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/GbpeFloodContext/",
+        "properties": [
+            {
+                "name": "multicastGroupIP",
+                "data": "225.0.193.80"
+            }
+        ],
+        "parent_subject": "GbpFloodDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/defaultFD/",
+        "parent_relation": "GbpeFloodContext"
+    },
+    {
+        "subject": "GbpFloodDomain",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "nodeFD"
+            },
+            {
+                "name": "unknownFloodMode",
+                "data": "drop"
+            },
+            {
+                "name": "arpMode",
+                "data": "unicast"
+            },
+            {
+                "name": "neighborDiscMode",
+                "data": "unicast"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/GbpeFloodContext/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/GbpFloodDomainToNetworkRSrc/"
+        ]
+    },
+    {
+        "subject": "GbpFloodDomainToNetworkRSrc",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/GbpFloodDomainToNetworkRSrc/",
+        "properties": [
+            {
+                "name": "target",
+                "data": {
+                    "subject": "GbpBridgeDomain",
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/"
+                }
+            }
+        ],
+        "parent_subject": "GbpFloodDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/",
+        "parent_relation": "GbpFloodDomainToNetworkRSrc"
+    },
+    {
+        "subject": "GbpeFloodContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/GbpeFloodContext/",
+        "properties": [
+            {
+                "name": "multicastGroupIP",
+                "data": "225.0.193.81"
+            }
+        ],
+        "parent_subject": "GbpFloodDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpFloodDomain/nodeFD/",
+        "parent_relation": "GbpeFloodContext"
+    },
+    {
+        "subject": "GbpRoutingDomain",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "defaultVrf"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/GbpeInstContext/"
+        ]
+    },
+    {
+        "subject": "GbpeInstContext",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/GbpeInstContext/",
+        "properties": [
+            {
+                "name": "encapId",
+                "data": 7700000
+            },
+            {
+                "name": "classid",
+                "data": 32000
+            }
+        ],
+        "parent_subject": "GbpRoutingDomain",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/",
+        "parent_relation": "GbpeInstContext"
+    },
+    {
+        "subject": "GbpSubnets",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "allsubnets"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+        ]
+    },
+    {
+        "subject": "GbpSubnet",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "10.2.56.1/21"
+            },
+            {
+                "name": "virtualRouterIp",
+                "data": "10.2.56.1"
+            },
+            {
+                "name": "prefixLen",
+                "data": 21
+            },
+            {
+                "name": "address",
+                "data": "10.2.56.0"
+            }
+        ],
+        "parent_subject": "GbpSubnets",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/",
+        "parent_relation": "GbpSubnet"
+    },
+    {
+        "subject": "GbpSubnets",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "nodesubnets"
+            }
+        ],
+        "children": [
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/GbpSubnet/1.100.201.0%2f24/"
+        ]
+    },
+    {
+        "subject": "GbpSubnet",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/GbpSubnet/1.100.201.0%2f24/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "1.100.201.0/24"
+            },
+            {
+                "name": "virtualRouterIp",
+                "data": "1.100.201.0"
+            },
+            {
+                "name": "prefixLen",
+                "data": 24
+            },
+            {
+                "name": "address",
+                "data": "1.100.201.0"
+            }
+        ],
+        "parent_subject": "GbpSubnets",
+        "parent_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/",
+        "parent_relation": "GbpSubnet"
+    },
+    {
+        "subject": "GbpeL24Classifier",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/ANY--0-0/",
+        "properties": [
+            {
+                "name": "name",
+                "data": "ANY--0-0"
+            },
+            {
+                "name": "connectionTracking",
+                "data": "normal"
+            },
+            {
+                "name": "order",
+                "data": 1
+            }
+        ]
+    },
+    {
+        "subject": "RelatorUniverse",
+        "uri": "/RelatorUniverse/",
+        "parent_subject": "DmtreeRoot",
+        "parent_uri": "/",
+        "parent_relation": "RelatorUniverse"
+    }
+]

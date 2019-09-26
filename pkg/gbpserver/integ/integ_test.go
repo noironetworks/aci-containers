@@ -26,6 +26,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -639,6 +641,13 @@ func TestGRPC(t *testing.T) {
 
 	rcv := <-listCh
 	log.Infof("List opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
+	moMap := make(map[string]*gbpserver.GBPObject)
+	for _, o := range rcv.ObjectList {
+		moMap[o.Uri] = o
+	}
+
+	//printSorted(moMap, "testPolicy.json")
+	verifyPolicy(t, moMap)
 
 	// inject an update into gbp server
 	var contract = gbpserver.Contract{
@@ -660,5 +669,62 @@ rcvLoop:
 			t.Error("Update not received")
 			break rcvLoop
 		}
+	}
+}
+
+func verifyPolicy(t *testing.T, moMap map[string]*gbpserver.GBPObject) {
+	data, err := ioutil.ReadFile("./testPolicy.json")
+	if err != nil {
+		log.Infof("Reading ./testPolicy.json - %v", err)
+		t.Fatal(err)
+	}
+
+	var moList []*gbpserver.GBPObject
+	err = json.Unmarshal(data, &moList)
+	if err != nil {
+		log.Infof("Decoding ./testPolicy.json %v", err)
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, len(moList), len(moMap))
+	for _, m := range moList {
+		n, found := moMap[m.Uri]
+		if !found {
+			t.Fatal(fmt.Errorf("Object %s not found in received policy", m.Uri))
+		}
+
+		if !reflect.DeepEqual(m, n) {
+			log.Infof("%+v  not equal to %+v", m, n)
+			t.Fatal(fmt.Errorf("Object %s did not match in received policy", m.Uri))
+		}
+	}
+}
+
+func printSorted(mos map[string]*gbpserver.GBPObject, outFile string) {
+	var keys []string
+
+	for k := range mos {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	var sortedMos []*gbpserver.GBPObject
+	for _, kk := range keys {
+		m, ok := mos[kk]
+		if !ok {
+			fmt.Printf("ERROR: missing mo %s", kk)
+			continue
+		}
+		sortedMos = append(sortedMos, m)
+	}
+
+	policyJson, err := json.MarshalIndent(sortedMos, "", "    ")
+	if err != nil {
+		fmt.Printf("ERROR: %v", err)
+	}
+	err = ioutil.WriteFile(outFile, policyJson, 0644)
+	if err != nil {
+		log.Errorf("%s - %v", outFile, err)
 	}
 }

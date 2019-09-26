@@ -77,6 +77,8 @@ type Server struct {
 	// insecure rest server
 	insSrv  *http.Server
 	stopped bool
+	encapID uint
+	classID uint
 }
 
 // message from one of the watchers
@@ -307,6 +309,8 @@ func NewServer(config *GBPServerConfig) *Server {
 		config:    config,
 		rxCh:      make(chan *inputMsg, 128),
 		listeners: make(map[string]func(op GBPOperation_OpCode, url string)),
+		encapID:   7700000,
+		classID:   32000,
 	}
 }
 
