@@ -17,9 +17,10 @@ package gbpserver
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
-func (p Property) MarshalJSON() ([]byte, error) {
+func (p *Property) MarshalJSON() ([]byte, error) {
 	var s struct {
 		Name string      `json:"name,omitempty"`
 		Data interface{} `json:"data,omitempty"`
@@ -46,4 +47,54 @@ func (p Property) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(s)
+}
+
+func (p *Property) UnmarshalJSON(data []byte) error {
+	var s struct {
+		Name string      `json:"name,omitempty"`
+		Data interface{} `json:"data,omitempty"`
+	}
+
+	type rp struct {
+		Subject string `json:"subject,omitempty"`
+		Ref     string `json:"reference_uri,omitempty"`
+	}
+
+	var ss struct {
+		Name      string `json:"name,omitempty"`
+		Reference *rp    `json:"data,omitempty"`
+	}
+
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	p.Name = s.Name
+	switch s.Data.(type) {
+	case string:
+		ps := s.Data.(string)
+		psv := &Property_StrVal{StrVal: ps}
+		p.Value = psv
+	case float64:
+		pi := s.Data.(float64)
+		piv := &Property_IntVal{IntVal: int32(pi)}
+		p.Value = piv
+	default:
+		if err := json.Unmarshal(data, &ss); err != nil {
+			return err
+		}
+
+		if ss.Reference == nil {
+			return fmt.Errorf("json Unmarshal error")
+		}
+
+		p.Value = &Property_RefVal{
+			RefVal: &Reference{
+				Subject:      ss.Reference.Subject,
+				ReferenceUri: ss.Reference.Ref,
+			},
+		}
+	}
+
+	return nil
 }

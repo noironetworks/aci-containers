@@ -41,8 +41,6 @@ const (
 )
 
 var debugDB = false
-var encapID = uint(7700000)
-var classID = uint(32000)
 var gMutex sync.Mutex
 var dbDataDir string
 var apicCon *apicapi.ApicConnection
@@ -455,12 +453,12 @@ type GBPRoutingDomain struct {
 }
 
 func getEncapClass() (uint, uint) {
-	e, c := encapID, classID
-	encapID++
-	classID++
+	e, c := theServer.encapID, theServer.classID
+	theServer.encapID++
+	theServer.classID++
 
-	if classID > 64000 {
-		classID = 32000
+	if theServer.classID > 64000 {
+		theServer.classID = 32000
 	}
 
 	return e, c
