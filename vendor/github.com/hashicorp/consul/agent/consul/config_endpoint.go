@@ -19,6 +19,10 @@ type ConfigEntry struct {
 
 // Apply does an upsert of the given config entry.
 func (c *ConfigEntry) Apply(args *structs.ConfigEntryRequest, reply *bool) error {
+	// Ensure that all config entry writes go to the primary datacenter. These will then
+	// be replicated to all the other datacenters.
+	args.Datacenter = c.srv.config.PrimaryDatacenter
+
 	if done, err := c.srv.forward("ConfigEntry.Apply", args, args, reply); done {
 		return err
 	}
@@ -181,6 +185,10 @@ func (c *ConfigEntry) ListAll(args *structs.DCSpecificRequest, reply *structs.In
 
 // Delete deletes a config entry.
 func (c *ConfigEntry) Delete(args *structs.ConfigEntryRequest, reply *struct{}) error {
+	// Ensure that all config entry writes go to the primary datacenter. These will then
+	// be replicated to all the other datacenters.
+	args.Datacenter = c.srv.config.PrimaryDatacenter
+
 	if done, err := c.srv.forward("ConfigEntry.Delete", args, args, reply); done {
 		return err
 	}
@@ -231,6 +239,9 @@ func (c *ConfigEntry) ResolveServiceConfig(args *structs.ServiceConfigRequest, r
 		&args.QueryOptions,
 		&reply.QueryMeta,
 		func(ws memdb.WatchSet, state *state.Store) error {
+			reply.Reset()
+
+			reply.MeshGateway.Mode = structs.MeshGatewayModeDefault
 			// Pass the WatchSet to both the service and proxy config lookups. If either is updated
 			// during the blocking query, this function will be rerun and these state store lookups
 			// will both be current.
@@ -263,15 +274,27 @@ func (c *ConfigEntry) ResolveServiceConfig(args *structs.ServiceConfigRequest, r
 					return fmt.Errorf("failed to copy global proxy-defaults: %v", err)
 				}
 				reply.ProxyConfig = mapCopy.(map[string]interface{})
+				reply.MeshGateway = proxyConf.MeshGateway
 			}
 
 			reply.Index = index
 
-			if serviceConf != nil && serviceConf.Protocol != "" {
-				if reply.ProxyConfig == nil {
-					reply.ProxyConfig = make(map[string]interface{})
+			if serviceConf != nil {
+				if serviceConf.MeshGateway.Mode != structs.MeshGatewayModeDefault {
+					reply.MeshGateway.Mode = serviceConf.MeshGateway.Mode
 				}
-				reply.ProxyConfig["protocol"] = serviceConf.Protocol
+				if serviceConf.Protocol != "" {
+					if reply.ProxyConfig == nil {
+						reply.ProxyConfig = make(map[string]interface{})
+					}
+					reply.ProxyConfig["protocol"] = serviceConf.Protocol
+				}
+			}
+
+			// Extract the global protocol from proxyConf for upstream configs.
+			var proxyConfGlobalProtocol interface{}
+			if proxyConf != nil && proxyConf.Config != nil {
+				proxyConfGlobalProtocol = proxyConf.Config["protocol"]
 			}
 
 			// Apply the upstream protocols to the upstream configs
@@ -289,8 +312,19 @@ func (c *ConfigEntry) ResolveServiceConfig(args *structs.ServiceConfigRequest, r
 					}
 				}
 
+				// No upstream found; skip.
+				if upstreamConf == nil {
+					continue
+				}
+
+				// Fallback to proxyConf global protocol.
+				protocol := proxyConfGlobalProtocol
+				if upstreamConf.Protocol != "" {
+					protocol = upstreamConf.Protocol
+				}
+
 				// Nothing to configure if a protocol hasn't been set.
-				if upstreamConf == nil || upstreamConf.Protocol == "" {
+				if protocol == nil {
 					continue
 				}
 
@@ -298,7 +332,7 @@ func (c *ConfigEntry) ResolveServiceConfig(args *structs.ServiceConfigRequest, r
 					reply.UpstreamConfigs = make(map[string]map[string]interface{})
 				}
 				reply.UpstreamConfigs[upstream] = map[string]interface{}{
-					"protocol": upstreamConf.Protocol,
+					"protocol": protocol,
 				}
 			}
 

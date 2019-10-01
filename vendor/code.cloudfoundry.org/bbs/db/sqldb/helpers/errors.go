@@ -3,6 +3,8 @@ package helpers
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
@@ -13,9 +15,17 @@ var (
 	ErrDeadlock           = errors.New("sql-deadlock")
 	ErrBadRequest         = errors.New("sql-bad-request")
 	ErrUnrecoverableError = errors.New("sql-unrecoverable")
-	ErrUnknownError       = errors.New("sql-unknown")
 	ErrResourceNotFound   = errors.New("sql-resource-not-found")
 )
+
+type ErrUnknownError struct {
+	errorCode string
+	flavor    string
+}
+
+func (e *ErrUnknownError) Error() string {
+	return fmt.Sprintf("sql-unknown, error code: %s, flavor: %s", e.errorCode, e.flavor)
+}
 
 func (h *sqlHelper) ConvertSQLError(err error) error {
 	if err != nil {
@@ -45,7 +55,7 @@ func (h *sqlHelper) convertMySQLError(err *mysql.MySQLError) error {
 	case 1146:
 		return ErrUnrecoverableError
 	default:
-		return ErrUnknownError
+		return &ErrUnknownError{errorCode: strconv.Itoa(int(err.Number)), flavor: MySQL}
 	}
 }
 
@@ -58,6 +68,6 @@ func (h *sqlHelper) convertPostgresError(err *pq.Error) error {
 	case "42P01":
 		return ErrUnrecoverableError
 	default:
-		return ErrUnknownError
+		return &ErrUnknownError{errorCode: string(err.Code), flavor: Postgres}
 	}
 }

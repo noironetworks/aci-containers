@@ -869,6 +869,29 @@ var _ = Describe("DesiredLRP Handlers", func() {
 					Expect(startAuctions[0].Resource).To(Equal(expectedStartRequest.Resource))
 				})
 			})
+
+			Context("when number of desired instances is 0", func() {
+				BeforeEach(func() {
+					desiredLRP.Instances = 0
+					requestBody = &models.DesireLRPRequest{
+						DesiredLrp: desiredLRP,
+					}
+				})
+
+				It("does not emit ActualLRPCreatedEvent", func() {
+					Expect(fakeActualLRPDB.CreateUnclaimedActualLRPCallCount()).To(Equal(0))
+					Eventually(actualHub.EmitCallCount).Should(Equal(0))
+				})
+
+				It("does not emit ActualLRPInstanceCreatedEvent", func() {
+					Expect(fakeActualLRPDB.CreateUnclaimedActualLRPCallCount()).To(Equal(0))
+					Eventually(actualLRPInstanceHub.EmitCallCount).Should(Equal(0))
+				})
+
+				It("does not emit auctioneer requests", func() {
+					Expect(fakeAuctioneerClient.RequestLRPAuctionsCallCount()).To(Equal(0))
+				})
+			})
 		})
 
 		Context("when the DB returns an unrecoverable error", func() {

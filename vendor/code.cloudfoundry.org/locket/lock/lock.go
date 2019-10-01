@@ -87,7 +87,14 @@ func (l *lockRunner) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	}
 	_, err = l.locker.Lock(ctx, &models.LockRequest{Resource: l.lock, TtlInSeconds: l.ttlInSeconds})
 	if err != nil {
-		logger.Error("failed-to-acquire-lock", err, lager.Data{"request-uuid": uuid})
+		lagerData := lager.Data{"request-uuid": uuid}
+		resp, fErr := l.locker.Fetch(ctx, &models.FetchRequest{Key: l.lock.Key})
+		if fErr != nil {
+			logger.Error("failed-fetching-lock-owner", fErr)
+		} else {
+			lagerData["lock-owner"] = resp.Resource.Owner
+		}
+		logger.Error("failed-to-acquire-lock", err, lagerData)
 	} else {
 		logger.Info("acquired-lock")
 		close(ready)

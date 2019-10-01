@@ -1,7 +1,6 @@
 @import './app-view/index';
 @import './filter-bar/index';
-@import './buttons/index';
-@import './type-icon/index';
+@import '../base/components/buttons/index';
 main {
   @extend %app-view;
 }
@@ -19,12 +18,14 @@ main {
 // TODO: This should be its own component
 %app-view h1 span[data-tooltip] {
   @extend %with-external-source-icon;
-  // TODO: Look to remove this, right now its needed but this
-  // should automaticaly vertically center
-  margin-top: 20px;
+  margin-top: 13px;
 }
 %app-view h1 span.kind-proxy {
-  @extend %type-icon, %with-proxy;
+  @extend %frame-gray-900;
+  @extend %pill;
+}
+%app-view h1 span.kind-proxy::before {
+  width: 0.3em !important;
 }
 %app-view h1 em {
   color: $gray-600;

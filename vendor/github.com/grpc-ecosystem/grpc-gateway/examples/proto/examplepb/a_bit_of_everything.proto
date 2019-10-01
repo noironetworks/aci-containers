@@ -25,6 +25,12 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 			name: "BSD 3-Clause License";
 			url: "https://github.com/grpc-ecosystem/grpc-gateway/blob/master/LICENSE.txt";
 		};
+		extensions: {
+			key: "x-something-something";
+			value {
+				string_value: "yadda";
+			}
+		}
 	};
 	// Overwriting host entry breaks tests, so this is not done here.
 	external_docs: {
@@ -51,6 +57,31 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 				type: TYPE_API_KEY;
 				in: IN_HEADER;
 				name: "X-API-Key";
+				extensions: {
+					key: "x-amazon-apigateway-authtype";
+					value {
+						string_value: "oauth2";
+					}
+				}
+				extensions: {
+					key: "x-amazon-apigateway-authorizer";
+					value {
+						struct_value {
+							fields {
+								key: "type";
+								value {
+									string_value: "token";
+								}
+							}
+							fields {
+								key: "authorizerResultTtlInSeconds";
+								value {
+									number_value: 60;
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 		security: {
@@ -128,11 +159,29 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 			}
 		}
 	}
+	extensions: {
+		key: "x-grpc-gateway-foo";
+		value {
+			string_value: "bar";
+		}
+	}
+	extensions: {
+		key: "x-grpc-gateway-baz-list";
+		value {
+			list_value: {
+				values: {
+					string_value: "one";
+				}
+				values: {
+					bool_value: true;
+				}
+			}
+		}
+	}
 };
 
 
-// Intentionaly complicated message type to cover many features of Protobuf.
-// NEXT ID: 30
+// Intentionally complicated message type to cover many features of Protobuf.
 message ABitOfEverything {
 	option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
 		json_schema: {
@@ -205,7 +254,7 @@ message ABitOfEverything {
 	// repeated enum value. it is comma-separated in query
 	repeated NumericEnum repeated_enum_value = 28;
 
-    // repeated numeric enum comment (This comment is overridden by the field annotation)
+	// repeated numeric enum comment (This comment is overridden by the field annotation)
 	repeated NumericEnum repeated_enum_annotation = 32 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Repeated numeric enum title", description: "Repeated numeric enum description."}];
 
 	// numeric enum comment (This comment is overridden by the field annotation)
@@ -219,6 +268,8 @@ message ABitOfEverything {
 
 	// nested object comments (This comment is overridden by the field annotation)
 	Nested nested_annotation = 36 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {title: "Nested object title", description: "Nested object description."}];
+
+	int64 int64_override_type = 37 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {type: INTEGER}];
 }
 
 // ABitOfEverythingRepeated is used to validate repeated path parameter functionality
@@ -311,18 +362,19 @@ service ABitOfEverythingService {
 		option (google.api.http) = {
 			put: "/v2/example/a_bit_of_everything/{abe.uuid}"
 			body: "abe"
-			additional_bindings {
-				patch: "/v2/example/a_bit_of_everything/{abe.uuid}"
-				body: "abe"
-			}
+			additional_bindings: [
+				{
+					patch: "/v2/example/a_bit_of_everything/{abe.uuid}"
+					body: "abe"
+				},
+				{
+					patch: "/v2a/example/a_bit_of_everything/{abe.uuid}"
+					body: "*"
+				}
+			]
 		};
 	}
-	rpc PatchWithFieldMaskInBody(UpdateV2Request) returns (google.protobuf.Empty) {
-		option (google.api.http) = {
-			patch: "/v2a/example/a_bit_of_everything/{abe.uuid}"
-			body: "*"
-		};
-	}
+
 	rpc Delete(sub2.IdMessage) returns (google.protobuf.Empty) {
 		option (google.api.http) = {
 			delete: "/v1/example/a_bit_of_everything/{uuid}"
@@ -339,6 +391,12 @@ service ABitOfEverythingService {
 						scope: "read";
 						scope: "write";
 					}
+				}
+			}
+			extensions: {
+				key: "x-irreversible";
+				value {
+					bool_value: true;
 				}
 			}
 		};
@@ -393,6 +451,12 @@ service ABitOfEverythingService {
 				key: "503";
 				value: {
 					description: "Returned when the resource is temporarily unavailable.";
+					extensions: {
+						key: "x-number";
+						value {
+							number_value: 100;
+						}
+					}
 				}
 			}
 			responses: {
@@ -438,17 +502,22 @@ service ABitOfEverythingService {
 			body: "*"
 		};
 	}
-    rpc CheckGetQueryParams(ABitOfEverything) returns (ABitOfEverything) {
-        option (google.api.http) = {
+	rpc CheckGetQueryParams(ABitOfEverything) returns (ABitOfEverything) {
+		option (google.api.http) = {
 			get: "/v1/example/a_bit_of_everything/params/get/{single_nested.name}"
 		};
-    }
-    rpc CheckPostQueryParams(ABitOfEverything) returns (ABitOfEverything) {
-        option (google.api.http) = {
+	}
+	rpc CheckNestedEnumGetQueryParams(ABitOfEverything) returns (ABitOfEverything) {
+		option (google.api.http) = {
+			get: "/v1/example/a_bit_of_everything/params/get/nested_enum/{single_nested.ok}"
+		};
+	}
+	rpc CheckPostQueryParams(ABitOfEverything) returns (ABitOfEverything) {
+		option (google.api.http) = {
 			post: "/v1/example/a_bit_of_everything/params/post/{string_value}"
 			body: "single_nested"
 		};
-    }
+	}
 }
 
 // camelCase and lowercase service names are valid but not recommended (use TitleCase instead)

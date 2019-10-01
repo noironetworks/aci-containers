@@ -86,6 +86,7 @@ var _ = Describe("Lock", func() {
 		Context("when the lock cannot be acquired", func() {
 			BeforeEach(func() {
 				fakeLocker.LockReturns(nil, errors.New("no-lock-for-you"))
+				fakeLocker.FetchReturns(&models.FetchResponse{Resource: &models.Resource{Owner: "joe"}}, nil)
 			})
 
 			JustBeforeEach(func() {
@@ -144,10 +145,27 @@ var _ = Describe("Lock", func() {
 					// do not use models.ErrLockCollision because in practice from the wire that
 					// variable instance cannot be returned
 					fakeLocker.LockReturns(nil, grpc.Errorf(codes.AlreadyExists, "lock-collision"))
+
+					fakeLocker.FetchReturns(&models.FetchResponse{Resource: &models.Resource{Owner: "joe"}}, nil)
 				})
 
 				It("logs the initial error", func() {
 					Eventually(logger).Should(gbytes.Say("lock-collision"))
+				})
+
+				It("logs the owner of the lock", func() {
+					Eventually(logger).Should(gbytes.Say("lock-owner"))
+					Eventually(logger).Should(gbytes.Say("joe"))
+				})
+
+				Context("when fetching the owner of the lock fails", func() {
+					BeforeEach(func() {
+						fakeLocker.FetchReturns(nil, errors.New("no-fetch-for-you"))
+					})
+
+					It("logs that the fetch failed", func() {
+						Eventually(logger).Should(gbytes.Say("no-fetch-for-you"))
+					})
 				})
 
 				Context("and the retry interval elapses", func() {

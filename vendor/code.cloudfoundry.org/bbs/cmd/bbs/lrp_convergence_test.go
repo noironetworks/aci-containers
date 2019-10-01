@@ -651,10 +651,7 @@ var _ = Describe("Convergence API", func() {
 						`UPDATE desired_lrps SET instances=290 WHERE process_guid='some-process-guid-with-many-instances'`,
 					)
 					Expect(err).NotTo(HaveOccurred())
-				})
-
-				AfterEach(func() {
-					sqlConn.Close()
+					Expect(sqlConn.Close()).To(Succeed())
 				})
 
 				It("removes extra lrps", func() {

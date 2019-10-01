@@ -61,6 +61,7 @@ func main() {
 		mustOpen(api("go1.10.txt")),
 		mustOpen(api("go1.11.txt")),
 		mustOpen(api("go1.12.txt")),
+		mustOpen(api("go1.13.txt")),
 	)
 	sc := bufio.NewScanner(f)
 
@@ -71,10 +72,6 @@ func main() {
 	paths := []string{"unsafe", "syscall/js"}
 	for sc.Scan() {
 		l := sc.Text()
-		has := func(v string) bool { return strings.Contains(l, v) }
-		if has("struct, ") || has("interface, ") || has(", method (") {
-			continue
-		}
 		if m := sym.FindStringSubmatch(l); m != nil {
 			path, _ := m[1], m[2]
 
@@ -94,7 +91,7 @@ func main() {
 		marker := strings.ReplaceAll(path, "/", "slash")
 		markers = append(markers, marker)
 	}
-	outf("	//@complete(\"\", %s)\n", strings.Join(markers, ", "))
+	outf("	//@unimported(\"\", %s)\n", strings.Join(markers, ", "))
 	outf("}\n")
 	outf("// Create markers for unimported std lib packages. Only for use by this test.\n")
 

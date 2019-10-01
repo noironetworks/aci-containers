@@ -15,42 +15,14 @@ import (
 	"golang.org/x/tools/internal/telemetry/log"
 )
 
-type hoverKind int
-
-const (
-	singleLine = hoverKind(iota)
-	noDocumentation
-	synopsisDocumentation
-	fullDocumentation
-
-	// structured is an experimental setting that returns a structured hover format.
-	// This format separates the signature from the documentation, so that the client
-	// can do more manipulation of these fields.
-	//
-	// This should only be used by clients that support this behavior.
-	structured
-)
-
-func (s *Server) hover(ctx context.Context, params *protocol.TextDocumentPositionParams) (*protocol.Hover, error) {
+func (s *Server) hover(ctx context.Context, params *protocol.HoverParams) (*protocol.Hover, error) {
 	uri := span.NewURI(params.TextDocument.URI)
 	view := s.session.ViewOf(uri)
 	f, err := getGoFile(ctx, view, uri)
 	if err != nil {
 		return nil, err
 	}
-	m, err := getMapper(ctx, f)
-	if err != nil {
-		return nil, err
-	}
-	spn, err := m.PointSpan(params.Position)
-	if err != nil {
-		return nil, err
-	}
-	identRange, err := spn.Range(m.Converter)
-	if err != nil {
-		return nil, err
-	}
-	ident, err := source.Identifier(ctx, f, identRange.Start)
+	ident, err := source.Identifier(ctx, view, f, params.Position)
 	if err != nil {
 		return nil, nil
 	}
@@ -58,47 +30,43 @@ func (s *Server) hover(ctx context.Context, params *protocol.TextDocumentPositio
 	if err != nil {
 		return nil, err
 	}
-	identSpan, err := ident.Range.Span()
+	rng, err := ident.Range()
 	if err != nil {
 		return nil, err
 	}
-	rng, err := m.Range(identSpan)
-	if err != nil {
-		return nil, err
-	}
-	contents := s.toProtocolHoverContents(ctx, hover)
+	contents := s.toProtocolHoverContents(ctx, hover, view.Options())
 	return &protocol.Hover{
 		Contents: contents,
 		Range:    &rng,
 	}, nil
 }
 
-func (s *Server) toProtocolHoverContents(ctx context.Context, h *source.HoverInformation) protocol.MarkupContent {
+func (s *Server) toProtocolHoverContents(ctx context.Context, h *source.HoverInformation, options source.Options) protocol.MarkupContent {
 	content := protocol.MarkupContent{
-		Kind: s.preferredContentFormat,
+		Kind: options.PreferredContentFormat,
 	}
 	signature := h.Signature
 	if content.Kind == protocol.Markdown {
 		signature = fmt.Sprintf("```go\n%s\n```", h.Signature)
 	}
-	switch s.hoverKind {
-	case singleLine:
+	switch options.HoverKind {
+	case source.SingleLine:
 		content.Value = h.SingleLine
-	case noDocumentation:
+	case source.NoDocumentation:
 		content.Value = signature
-	case synopsisDocumentation:
+	case source.SynopsisDocumentation:
 		if h.Synopsis != "" {
 			content.Value = fmt.Sprintf("%s\n%s", h.Synopsis, signature)
 		} else {
 			content.Value = signature
 		}
-	case fullDocumentation:
+	case source.FullDocumentation:
 		if h.FullDocumentation != "" {
 			content.Value = fmt.Sprintf("%s\n%s", signature, h.FullDocumentation)
 		} else {
 			content.Value = signature
 		}
-	case structured:
+	case source.Structured:
 		b, err := json.Marshal(h)
 		if err != nil {
 			log.Error(ctx, "failed to marshal structured hover", err)

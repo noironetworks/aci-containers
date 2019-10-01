@@ -29,8 +29,6 @@ import (
 	batchinternal "k8s.io/kubernetes/pkg/apis/batch"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	extensionsinternal "k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/kubectl"
 )
 
 func deleteResource(c clientset.Interface, kind schema.GroupKind, namespace, name string, options *metav1.DeleteOptions) error {
@@ -40,11 +38,11 @@ func deleteResource(c clientset.Interface, kind schema.GroupKind, namespace, nam
 	case api.Kind("ReplicationController"):
 		return c.CoreV1().ReplicationControllers(namespace).Delete(name, options)
 	case extensionsinternal.Kind("ReplicaSet"), appsinternal.Kind("ReplicaSet"):
-		return c.ExtensionsV1beta1().ReplicaSets(namespace).Delete(name, options)
+		return c.AppsV1().ReplicaSets(namespace).Delete(name, options)
 	case extensionsinternal.Kind("Deployment"), appsinternal.Kind("Deployment"):
-		return c.ExtensionsV1beta1().Deployments(namespace).Delete(name, options)
+		return c.AppsV1().Deployments(namespace).Delete(name, options)
 	case extensionsinternal.Kind("DaemonSet"):
-		return c.ExtensionsV1beta1().DaemonSets(namespace).Delete(name, options)
+		return c.AppsV1().DaemonSets(namespace).Delete(name, options)
 	case batchinternal.Kind("Job"):
 		return c.BatchV1().Jobs(namespace).Delete(name, options)
 	case api.Kind("Secret"):
@@ -58,31 +56,9 @@ func deleteResource(c clientset.Interface, kind schema.GroupKind, namespace, nam
 	}
 }
 
-func getReaperForKind(c internalclientset.Interface, kind schema.GroupKind) (kubectl.Reaper, error) {
-	return kubectl.ReaperFor(kind, c)
-}
-
 func DeleteResourceWithRetries(c clientset.Interface, kind schema.GroupKind, namespace, name string, options *metav1.DeleteOptions) error {
 	deleteFunc := func() (bool, error) {
 		err := deleteResource(c, kind, namespace, name, options)
-		if err == nil || apierrs.IsNotFound(err) {
-			return true, nil
-		}
-		if IsRetryableAPIError(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("Failed to delete object with non-retriable error: %v", err)
-	}
-	return RetryWithExponentialBackOff(deleteFunc)
-}
-
-func DeleteResourceUsingReaperWithRetries(c internalclientset.Interface, kind schema.GroupKind, namespace, name string, options *metav1.DeleteOptions) error {
-	reaper, err := getReaperForKind(c, kind)
-	if err != nil {
-		return err
-	}
-	deleteFunc := func() (bool, error) {
-		err := reaper.Stop(namespace, name, 0, options)
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}

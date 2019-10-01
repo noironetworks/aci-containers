@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"code.cloudfoundry.org/bbs/models"
+	"code.cloudfoundry.org/lager"
 )
 
 const MAX_PENDING_SUBSCRIBER_EVENTS = 1024
@@ -31,13 +32,15 @@ type hub struct {
 	subscribers map[*hubSource]struct{}
 	closed      bool
 	lock        sync.Mutex
+	logger      lager.Logger
 
 	cb func(count int)
 }
 
-func NewHub() Hub {
+func NewHub(logger lager.Logger) Hub {
 	return &hub{
 		subscribers: make(map[*hubSource]struct{}),
+		logger:      logger,
 	}
 }
 
@@ -85,6 +88,7 @@ func (hub *hub) Emit(event models.Event) {
 	for sub, _ := range hub.subscribers {
 		err := sub.send(event)
 		if err != nil {
+			hub.logger.Error("got-error-sending-event", err)
 			delete(hub.subscribers, sub)
 		}
 	}

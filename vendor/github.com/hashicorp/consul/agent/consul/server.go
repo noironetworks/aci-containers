@@ -142,12 +142,6 @@ type Server struct {
 	caProviderRoot *structs.CARoot
 	caProviderLock sync.RWMutex
 
-	// caPruningCh is used to shut down the CA root pruning goroutine when we
-	// lose leadership.
-	caPruningCh      chan struct{}
-	caPruningLock    sync.RWMutex
-	caPruningEnabled bool
-
 	// Consul configuration
 	config *Config
 
@@ -276,6 +270,15 @@ type Server struct {
 	shutdown     bool
 	shutdownCh   chan struct{}
 	shutdownLock sync.Mutex
+
+	// State for multi-dc connect leader logic
+	connectLock    sync.RWMutex
+	connectEnabled bool
+	connectCh      chan struct{}
+
+	// State for whether this datacenter is acting as a secondary CA.
+	actingSecondaryCA   bool
+	actingSecondaryLock sync.RWMutex
 
 	// embedded struct to hold all the enterprise specific data
 	EnterpriseServer
@@ -894,6 +897,9 @@ func (s *Server) Leave() error {
 		}
 	}
 
+	// Leave everything enterprise related as well
+	s.handleEnterpriseLeave()
+
 	// Start refusing RPCs now that we've left the LAN pool. It's important
 	// to do this *after* we've left the LAN pool so that clients will know
 	// to shift onto another server if they perform a retry. We also wake up
@@ -1256,6 +1262,10 @@ func (s *Server) resetConsistentReadReady() {
 // Returns true if this server is ready to serve consistent reads
 func (s *Server) isReadyForConsistentReads() bool {
 	return atomic.LoadInt32(&s.readyForConsistentReads) == 1
+}
+
+func (s *Server) intentionReplicationEnabled() bool {
+	return s.config.ConnectEnabled && s.config.Datacenter != s.config.PrimaryDatacenter
 }
 
 // peersInfoContent is used to help operators understand what happened to the

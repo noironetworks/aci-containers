@@ -71,20 +71,29 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   branch = "master"
 
 [[constraint]]
+  name = "k8s.io/client-go"
+  branch = "release-12.0"
+
+# keep same version for k8s api components
+[[constraint]]
   name = "k8s.io/api"
-  branch = "release-1.10"
+  branch = "release-1.15"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.10"
-
-[[constraint]]
-  name = "k8s.io/client-go"
-  branch = "release-6.0"
+  branch = "release-1.15"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  branch = "release-1.10"
+  branch = "release-1.15"
+
+[[constraint]]
+  name = "k8s.io/apiextensions-apiserver"
+  branch = "release-1.15"
+
+[[constraint]]
+  name = "k8s.io/apiserver"
+  branch = "release-1.15"
 
 [[constraint]]
   name = "code.cloudfoundry.org/bbs"
@@ -135,10 +144,12 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   source = "https://github.com/coreos/bbolt"
   revision = "48ea1b39c25fc1bab3506fbc712ecbaa842c4d2d"
 
+# Need these overrides because dep does not obey constraints for these, picking
+# up from master instead.
 [[override]]
   name = "k8s.io/apiserver"
-  revision = "d955b8a826dde3566e9dc4a51493b4afc1b51a7b"
+  revision = "fc7f2569c418bacb9fa276b2ffe4696bd53484a9"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  revision = "a01914bc74d2605fef74a0248d2eec998f0bb093"
+  revision = "3652de39ca8ccf74d9126c1f0b5cb3679449c18b"

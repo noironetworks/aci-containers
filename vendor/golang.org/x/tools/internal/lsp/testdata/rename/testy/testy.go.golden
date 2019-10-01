@@ -1,5 +1,4 @@
 -- bar-rename --
-testy.go:
 package testy
 
 type tt int //@rename("tt", "testyType")
@@ -9,7 +8,6 @@ func a() {
 }
 
 -- testyType-rename --
-testy.go:
 package testy
 
 type testyType int //@rename("tt", "testyType")

@@ -76,3 +76,12 @@ See the instructions in [Running the SQL Unit Tests](https://github.com/cloudfou
 for testing against a SQL backend
 
 See [Migrations](https://github.com/cloudfoundry/bbs/blob/master/doc/bbs-migration.md) for information about writing database migrations.
+
+## Run Tests
+
+1. First setup your [GOPATH and install the necessary dependencies](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#initial-setup) for running tests.
+1. Setup a MySQL server or a postgres server. [Please follow these instructions.](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#running-the-sql-unit-tests)
+1. Run the tests from the root directory of the bbs repo:
+```
+SQL_FLAVOR=mysql ginkgo -r -p -race
+```

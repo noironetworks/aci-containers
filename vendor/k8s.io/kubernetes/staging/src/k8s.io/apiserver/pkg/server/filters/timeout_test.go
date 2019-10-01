@@ -82,8 +82,8 @@ func TestTimeout(t *testing.T) {
 
 	handler := newHandler(sendResponse, doPanic, writeErrors)
 	ts := httptest.NewServer(withPanicRecovery(
-		WithTimeout(handler, func(req *http.Request) (<-chan time.Time, func(), *apierrors.StatusError) {
-			return timeout, record.Record, timeoutErr
+		WithTimeout(handler, func(req *http.Request) (*http.Request, <-chan time.Time, func(), *apierrors.StatusError) {
+			return req, timeout, record.Record, timeoutErr
 		}), func(w http.ResponseWriter, req *http.Request, err interface{}) {
 			gotPanic <- err
 			http.Error(w, "This request caused apiserver to panic. Look in the logs for details.", http.StatusInternalServerError)

@@ -10,12 +10,15 @@ import (
 	"go/token"
 	"go/types"
 	"strings"
+	"time"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/internal/imports"
 	"golang.org/x/tools/internal/lsp/fuzzy"
+	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/snippet"
 	"golang.org/x/tools/internal/span"
+	"golang.org/x/tools/internal/telemetry/log"
 	"golang.org/x/tools/internal/telemetry/trace"
 	errors "golang.org/x/xerrors"
 )
@@ -33,7 +36,7 @@ type CompletionItem struct {
 	// The insert text does not contain snippets.
 	InsertText string
 
-	Kind CompletionItemKind
+	Kind protocol.CompletionItemKind
 
 	// An optional array of additional TextEdits that are applied when
 	// selecting this completion.
@@ -41,7 +44,7 @@ type CompletionItem struct {
 	// Additional text edits should be used to change text unrelated to the current cursor position
 	// (for example adding an import statement at the top of the file if the completion item will
 	// insert an unqualified type).
-	AdditionalTextEdits []TextEdit
+	AdditionalTextEdits []protocol.TextEdit
 
 	// Depth is how many levels were searched to find this completion.
 	// For example when completing "foo<>", "fooBar" is depth 0, and
@@ -52,21 +55,9 @@ type CompletionItem struct {
 	// A higher score indicates that this completion item is more relevant.
 	Score float64
 
-	// Snippet is the LSP snippet for the completion item, without placeholders.
-	// The LSP specification contains details about LSP snippets.
-	// For example, a snippet for a function with the following signature:
-	//
-	//     func foo(a, b, c int)
-	//
-	// would be:
-	//
-	//     foo(${1:})
-	//
-	plainSnippet *snippet.Builder
-
-	// PlaceholderSnippet is the LSP snippet for the completion ite, containing
-	// placeholders. The LSP specification contains details about LSP snippets.
-	// For example, a placeholder snippet for a function with the following signature:
+	// snippet is the LSP snippet for the completion item. The LSP
+	// specification contains details about LSP snippets. For example, a
+	// snippet for a function with the following signature:
 	//
 	//     func foo(a, b, c int)
 	//
@@ -74,41 +65,25 @@ type CompletionItem struct {
 	//
 	//     foo(${1:a int}, ${2: b int}, ${3: c int})
 	//
-	placeholderSnippet *snippet.Builder
+	// If Placeholders is false in the CompletionOptions, the above
+	// snippet would instead be:
+	//
+	//     foo(${1:})
+	snippet *snippet.Builder
 
 	// Documentation is the documentation for the completion item.
 	Documentation string
 }
 
-// Snippet is a convenience function that determines the snippet that should be
+// Snippet is a convenience returns the snippet if available, otherwise
+// the InsertText.
 // used for an item, depending on if the callee wants placeholders or not.
-func (i *CompletionItem) Snippet(usePlaceholders bool) string {
-	if usePlaceholders {
-		if i.placeholderSnippet != nil {
-			return i.placeholderSnippet.String()
-		}
-	}
-	if i.plainSnippet != nil {
-		return i.plainSnippet.String()
+func (i *CompletionItem) Snippet() string {
+	if i.snippet != nil {
+		return i.snippet.String()
 	}
 	return i.InsertText
 }
-
-type CompletionItemKind int
-
-const (
-	Unknown CompletionItemKind = iota
-	InterfaceCompletionItem
-	StructCompletionItem
-	TypeCompletionItem
-	ConstantCompletionItem
-	FieldCompletionItem
-	ParameterCompletionItem
-	VariableCompletionItem
-	FunctionCompletionItem
-	MethodCompletionItem
-	PackageCompletionItem
-)
 
 // Scoring constants are used for weighting the relevance of different candidates.
 const (
@@ -122,32 +97,39 @@ const (
 	lowScore float64 = 0.01
 )
 
-// matcher matches a candidate's label against the user input.
-// The returned score reflects the quality of the match. A score
-// less than or equal to zero indicates no match, and a score of
-// one means a perfect match.
+// matcher matches a candidate's label against the user input. The
+// returned score reflects the quality of the match. A score of zero
+// indicates no match, and a score of one means a perfect match.
 type matcher interface {
 	Score(candidateLabel string) (score float32)
 }
 
-// prefixMatcher implements the original case insensitive prefix matching.
-// This matcher should go away once fuzzy matching is released.
+// prefixMatcher implements case sensitive prefix matching.
 type prefixMatcher string
 
 func (pm prefixMatcher) Score(candidateLabel string) float32 {
-	if strings.HasPrefix(strings.ToLower(candidateLabel), string(pm)) {
+	if strings.HasPrefix(candidateLabel, string(pm)) {
 		return 1
 	}
-	return 0
+	return -1
+}
+
+// insensitivePrefixMatcher implements case insensitive prefix matching.
+type insensitivePrefixMatcher string
+
+func (ipm insensitivePrefixMatcher) Score(candidateLabel string) float32 {
+	if strings.HasPrefix(strings.ToLower(candidateLabel), string(ipm)) {
+		return 1
+	}
+	return -1
 }
 
 // completer contains the necessary information for a single completion request.
 type completer struct {
-	// Package-specific fields.
-	types *types.Package
-	info  *types.Info
-	qf    types.Qualifier
-	opts  CompletionOptions
+	pkg Package
+
+	qf   types.Qualifier
+	opts CompletionOptions
 
 	// view is the View associated with this completion request.
 	view View
@@ -176,7 +158,7 @@ type completer struct {
 	// surrounding describes the identifier surrounding the position.
 	surrounding *Selection
 
-	// expectedType conains information about the type we expect the completion
+	// expectedType contains information about the type we expect the completion
 	// candidate to be. It will be the zero value if no information is available.
 	expectedType typeInference
 
@@ -192,6 +174,18 @@ type completer struct {
 
 	// matcher matches the candidates against the surrounding prefix.
 	matcher matcher
+
+	// methodSetCache caches the types.NewMethodSet call, which is relatively
+	// expensive and can be called many times for the same type while searching
+	// for deep completions.
+	methodSetCache map[methodSetKey]*types.MethodSet
+
+	// mapper converts the positions in the file from which the completion originated.
+	mapper *protocol.ColumnMapper
+
+	// startTime is when we started processing this completion request. It does
+	// not include any time the request spent in the queue.
+	startTime time.Time
 }
 
 type compLitInfo struct {
@@ -215,15 +209,20 @@ type compLitInfo struct {
 	maybeInFieldName bool
 }
 
+type methodSetKey struct {
+	typ         types.Type
+	addressable bool
+}
+
 // A Selection represents the cursor position and surrounding identifier.
 type Selection struct {
-	Content string
-	Range   span.Range
-	Cursor  token.Pos
+	content string
+	cursor  token.Pos
+	mappedRange
 }
 
 func (p Selection) Prefix() string {
-	return p.Content[:p.Cursor-p.Range.Start]
+	return p.content[:p.cursor-p.spanRange.Start]
 }
 
 func (c *completer) setSurrounding(ident *ast.Ident) {
@@ -234,27 +233,44 @@ func (c *completer) setSurrounding(ident *ast.Ident) {
 		return
 	}
 	c.surrounding = &Selection{
-		Content: ident.Name,
-		Range:   span.NewRange(c.view.Session().Cache().FileSet(), ident.Pos(), ident.End()),
-		Cursor:  c.pos,
+		content: ident.Name,
+		cursor:  c.pos,
+		mappedRange: mappedRange{
+			spanRange: span.NewRange(c.view.Session().Cache().FileSet(), ident.Pos(), ident.End()),
+			m:         c.mapper,
+		},
 	}
 
-	// Fuzzy matching shares the "useDeepCompletions" config flag, so if deep completions
-	// are enabled then also enable fuzzy matching.
-	if c.deepState.enabled {
-		if c.surrounding.Prefix() != "" {
-			c.matcher = fuzzy.NewMatcher(c.surrounding.Prefix(), fuzzy.Symbol)
-		}
+	if c.opts.FuzzyMatching {
+		c.matcher = fuzzy.NewMatcher(c.surrounding.Prefix(), fuzzy.Symbol)
+	} else if c.opts.CaseSensitive {
+		c.matcher = prefixMatcher(c.surrounding.Prefix())
 	} else {
-		c.matcher = prefixMatcher(strings.ToLower(c.surrounding.Prefix()))
+		c.matcher = insensitivePrefixMatcher(strings.ToLower(c.surrounding.Prefix()))
 	}
+}
+
+func (c *completer) getSurrounding() *Selection {
+	if c.surrounding == nil {
+		c.surrounding = &Selection{
+			content: "",
+			cursor:  c.pos,
+			mappedRange: mappedRange{
+				spanRange: span.NewRange(c.view.Session().Cache().FileSet(), c.pos, c.pos),
+				m:         c.mapper,
+			},
+		}
+	}
+	return c.surrounding
 }
 
 // found adds a candidate completion. We will also search through the object's
 // members for more candidates.
-func (c *completer) found(obj types.Object, score float64, imp *imports.ImportInfo) error {
-	if obj.Pkg() != nil && obj.Pkg() != c.types && !obj.Exported() {
-		return errors.Errorf("%s is inaccessible from %s", obj.Name(), c.types.Path())
+func (c *completer) found(obj types.Object, score float64, imp *imports.ImportInfo) {
+	if obj.Pkg() != nil && obj.Pkg() != c.pkg.GetTypes() && !obj.Exported() {
+		// obj is not accessible because it lives in another package and is not
+		// exported. Don't treat it as a completion candidate.
+		return
 	}
 
 	if c.inDeepCompletion() {
@@ -263,15 +279,21 @@ func (c *completer) found(obj types.Object, score float64, imp *imports.ImportIn
 		// "bar.Baz" even though "Baz" is represented the same types.Object in both.
 		for _, seenObj := range c.deepState.chain {
 			if seenObj == obj {
-				return nil
+				return
 			}
 		}
 	} else {
 		// At the top level, dedupe by object.
 		if c.seen[obj] {
-			return nil
+			return
 		}
 		c.seen[obj] = true
+	}
+
+	// If we are running out of budgeted time we must limit our search for deep
+	// completion candidates.
+	if c.shouldPrune() {
+		return
 	}
 
 	cand := candidate{
@@ -280,30 +302,37 @@ func (c *completer) found(obj types.Object, score float64, imp *imports.ImportIn
 		imp:   imp,
 	}
 
-	if c.matchingType(&cand) {
+	if c.matchingCandidate(&cand) {
 		cand.score *= highScore
+	} else if isTypeName(obj) {
+		// If obj is a *types.TypeName that didn't otherwise match, check
+		// if a literal object of this type makes a good candidate.
+		c.literal(obj.Type())
 	}
 
 	// Favor shallow matches by lowering weight according to depth.
-	cand.score -= stdScore * float64(len(c.deepState.chain))
-
-	item, err := c.item(cand)
-	if err != nil {
-		return err
+	cand.score -= cand.score * float64(len(c.deepState.chain)) / 10
+	if cand.score < 0 {
+		cand.score = 0
 	}
-	if c.matcher == nil {
-		c.items = append(c.items, item)
-	} else {
-		score := c.matcher.Score(item.Label)
-		if score > 0 {
-			item.Score *= float64(score)
-			c.items = append(c.items, item)
+
+	cand.name = c.deepState.chainString(obj.Name())
+	matchScore := c.matcher.Score(cand.name)
+	if matchScore > 0 {
+		cand.score *= float64(matchScore)
+
+		// Avoid calling c.item() for deep candidates that wouldn't be in the top
+		// MaxDeepCompletions anyway.
+		if !c.inDeepCompletion() || c.deepState.isHighScore(cand.score) {
+			if item, err := c.item(cand); err == nil {
+				c.items = append(c.items, item)
+			} else {
+				log.Error(c.ctx, "error generating completion item", err)
+			}
 		}
 	}
 
 	c.deepSearch(obj)
-
-	return nil
 }
 
 // candidate represents a completion candidate.
@@ -314,6 +343,9 @@ type candidate struct {
 	// score is used to rank candidates.
 	score float64
 
+	// name is the deep object name path, e.g. "foo.bar"
+	name string
+
 	// expandFuncCall is true if obj should be invoked in the completion.
 	// For example, expandFuncCall=true yields "foo()", expandFuncCall=false yields "foo".
 	expandFuncCall bool
@@ -323,11 +355,19 @@ type candidate struct {
 	imp *imports.ImportInfo
 }
 
-type CompletionOptions struct {
-	DeepComplete          bool
-	WantDocumentaton      bool
-	WantFullDocumentation bool
-	WantUnimported        bool
+// ErrIsDefinition is an error that informs the user they got no
+// completions because they tried to complete the name of a new object
+// being defined.
+type ErrIsDefinition struct {
+	objStr string
+}
+
+func (e ErrIsDefinition) Error() string {
+	msg := "this is a definition"
+	if e.objStr != "" {
+		msg += " of " + e.objStr
+	}
+	return msg
 }
 
 // Completion returns a list of possible candidates for completion, given a
@@ -336,27 +376,46 @@ type CompletionOptions struct {
 // The selection is computed based on the preceding identifier and can be used by
 // the client to score the quality of the completion. For instance, some clients
 // may tolerate imperfect matches as valid completion results, since users may make typos.
-func Completion(ctx context.Context, view View, f GoFile, pos token.Pos, opts CompletionOptions) ([]CompletionItem, *Selection, error) {
+func Completion(ctx context.Context, view View, f GoFile, pos protocol.Position, opts CompletionOptions) ([]CompletionItem, *Selection, error) {
 	ctx, done := trace.StartSpan(ctx, "source.Completion")
 	defer done()
 
-	file, err := f.GetAST(ctx, ParseFull)
-	if file == nil {
+	startTime := time.Now()
+
+	cphs, err := f.CheckPackageHandles(ctx)
+	if err != nil {
 		return nil, nil, err
 	}
-	pkg, err := f.GetPackage(ctx)
+	cph := NarrowestCheckPackageHandle(cphs)
+	pkg, err := cph.Check(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	ph, err := pkg.File(f.URI())
+	if err != nil {
+		return nil, nil, err
+	}
+	file, m, _, err := ph.Cached(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	spn, err := m.PointSpan(pos)
+	if err != nil {
+		return nil, nil, err
+	}
+	rng, err := spn.Range(m.Converter)
 	if err != nil {
 		return nil, nil, err
 	}
 	// Completion is based on what precedes the cursor.
 	// Find the path to the position before pos.
-	path, _ := astutil.PathEnclosingInterval(file, pos-1, pos-1)
+	path, _ := astutil.PathEnclosingInterval(file, rng.Start-1, rng.Start-1)
 	if path == nil {
 		return nil, nil, errors.Errorf("cannot find node enclosing position")
 	}
 	// Skip completion inside comments.
 	for _, g := range file.Comments {
-		if g.Pos() <= pos && pos <= g.End() {
+		if g.Pos() <= rng.Start && rng.Start <= g.End() {
 			return nil, nil, nil
 		}
 	}
@@ -365,24 +424,31 @@ func Completion(ctx context.Context, view View, f GoFile, pos token.Pos, opts Co
 		return nil, nil, nil
 	}
 
-	clInfo := enclosingCompositeLiteral(path, pos, pkg.GetTypesInfo())
+	clInfo := enclosingCompositeLiteral(path, rng.Start, pkg.GetTypesInfo())
 	c := &completer{
-		types:                     pkg.GetTypes(),
-		info:                      pkg.GetTypesInfo(),
+		pkg:                       pkg,
 		qf:                        qualifier(file, pkg.GetTypes(), pkg.GetTypesInfo()),
 		view:                      view,
 		ctx:                       ctx,
 		filename:                  f.URI().Filename(),
 		file:                      file,
 		path:                      path,
-		pos:                       pos,
+		pos:                       rng.Start,
 		seen:                      make(map[types.Object]bool),
-		enclosingFunction:         enclosingFunction(path, pos, pkg.GetTypesInfo()),
+		enclosingFunction:         enclosingFunction(path, rng.Start, pkg.GetTypesInfo()),
 		enclosingCompositeLiteral: clInfo,
 		opts:                      opts,
+		// default to a matcher that always matches
+		matcher:        prefixMatcher(""),
+		methodSetCache: make(map[methodSetKey]*types.MethodSet),
+		mapper:         m,
+		startTime:      startTime,
 	}
 
-	c.deepState.enabled = opts.DeepComplete
+	if opts.Deep {
+		// Initialize max search depth to unlimited.
+		c.deepState.maxDepth = -1
+	}
 
 	// Set the filter surrounding.
 	if ident, ok := path[0].(*ast.Ident); ok {
@@ -396,7 +462,7 @@ func Completion(ctx context.Context, view View, f GoFile, pos token.Pos, opts Co
 		if err := c.structLiteralFieldName(); err != nil {
 			return nil, nil, err
 		}
-		return c.items, c.surrounding, nil
+		return c.items, c.getSurrounding(), nil
 	}
 
 	switch n := path[0].(type) {
@@ -406,19 +472,19 @@ func Completion(ctx context.Context, view View, f GoFile, pos token.Pos, opts Co
 			if err := c.selector(sel); err != nil {
 				return nil, nil, err
 			}
-			return c.items, c.surrounding, nil
+			return c.items, c.getSurrounding(), nil
 		}
 		// reject defining identifiers
 		if obj, ok := pkg.GetTypesInfo().Defs[n]; ok {
-			if v, ok := obj.(*types.Var); ok && v.IsField() {
+			if v, ok := obj.(*types.Var); ok && v.IsField() && v.Embedded() {
 				// An anonymous field is also a reference to a type.
 			} else {
-				of := ""
+				objStr := ""
 				if obj != nil {
 					qual := types.RelativeTo(pkg.GetTypes())
-					of += ", of " + types.ObjectString(obj, qual)
+					objStr = types.ObjectString(obj, qual)
 				}
-				return nil, nil, errors.Errorf("this is a definition%s", of)
+				return nil, nil, ErrIsDefinition{objStr: objStr}
 			}
 		}
 		if err := c.lexical(); err != nil {
@@ -454,7 +520,7 @@ func Completion(ctx context.Context, view View, f GoFile, pos token.Pos, opts Co
 		}
 	}
 
-	return c.items, c.surrounding, nil
+	return c.items, c.getSurrounding(), nil
 }
 
 func (c *completer) wantStructFieldCompletions() bool {
@@ -474,14 +540,14 @@ func (c *completer) wantTypeName() bool {
 func (c *completer) selector(sel *ast.SelectorExpr) error {
 	// Is sel a qualified identifier?
 	if id, ok := sel.X.(*ast.Ident); ok {
-		if pkgname, ok := c.info.Uses[id].(*types.PkgName); ok {
+		if pkgname, ok := c.pkg.GetTypesInfo().Uses[id].(*types.PkgName); ok {
 			c.packageMembers(pkgname)
 			return nil
 		}
 	}
 
 	// Invariant: sel is a true selector.
-	tv, ok := c.info.Types[sel.X]
+	tv, ok := c.pkg.GetTypesInfo().Types[sel.X]
 	if !ok {
 		return errors.Errorf("cannot resolve %s", sel.X)
 	}
@@ -497,14 +563,16 @@ func (c *completer) packageMembers(pkg *types.PkgName) {
 }
 
 func (c *completer) methodsAndFields(typ types.Type, addressable bool) error {
-	var mset *types.MethodSet
-
-	if addressable && !types.IsInterface(typ) && !isPointer(typ) {
-		// Add methods of *T, which includes methods with receiver T.
-		mset = types.NewMethodSet(types.NewPointer(typ))
-	} else {
-		// Add methods of T.
-		mset = types.NewMethodSet(typ)
+	mset := c.methodSetCache[methodSetKey{typ, addressable}]
+	if mset == nil {
+		if addressable && !types.IsInterface(typ) && !isPointer(typ) {
+			// Add methods of *T, which includes methods with receiver T.
+			mset = types.NewMethodSet(types.NewPointer(typ))
+		} else {
+			// Add methods of T.
+			mset = types.NewMethodSet(typ)
+		}
+		c.methodSetCache[methodSetKey{typ, addressable}] = mset
 	}
 
 	for i := 0; i < mset.Len(); i++ {
@@ -522,15 +590,22 @@ func (c *completer) methodsAndFields(typ types.Type, addressable bool) error {
 func (c *completer) lexical() error {
 	var scopes []*types.Scope // scopes[i], where i<len(path), is the possibly nil Scope of path[i].
 	for _, n := range c.path {
+		// Include *FuncType scope if pos is inside the function body.
 		switch node := n.(type) {
 		case *ast.FuncDecl:
-			n = node.Type
+			if node.Body != nil && nodeContains(node.Body, c.pos) {
+				n = node.Type
+			}
 		case *ast.FuncLit:
-			n = node.Type
+			if node.Body != nil && nodeContains(node.Body, c.pos) {
+				n = node.Type
+			}
 		}
-		scopes = append(scopes, c.info.Scopes[n])
+		scopes = append(scopes, c.pkg.GetTypesInfo().Scopes[n])
 	}
-	scopes = append(scopes, c.types.Scope(), types.Universe)
+	scopes = append(scopes, c.pkg.GetTypes().Scope(), types.Universe)
+
+	builtinIota := types.Universe.Lookup("iota")
 
 	// Track seen variables to avoid showing completions for shadowed variables.
 	// This works since we look at scopes from innermost to outermost.
@@ -558,27 +633,26 @@ func (c *completer) lexical() error {
 					node = c.path[i-1]
 				}
 				if node != nil {
-					if resolved := resolveInvalid(obj, node, c.info); resolved != nil {
+					if resolved := resolveInvalid(obj, node, c.pkg.GetTypesInfo()); resolved != nil {
 						obj = resolved
 					}
 				}
 			}
 
-			score := stdScore
-			// Rank builtins significantly lower than other results.
-			if scope == types.Universe {
-				score *= 0.1
+			// Don't suggest "iota" outside of const decls.
+			if obj == builtinIota && !c.inConstDecl() {
+				continue
 			}
 
 			// If we haven't already added a candidate for an object with this name.
 			if _, ok := seen[obj.Name()]; !ok {
 				seen[obj.Name()] = struct{}{}
-				c.found(obj, score, nil)
+				c.found(obj, stdScore, nil)
 			}
 		}
 	}
 
-	if c.opts.WantUnimported {
+	if c.opts.Unimported {
 		// Suggest packages that have not been imported yet.
 		pkgs, err := CandidateImports(c.ctx, c.view, c.filename)
 		if err != nil {
@@ -597,7 +671,32 @@ func (c *completer) lexical() error {
 			}
 		}
 	}
+
+	if c.expectedType.objType != nil {
+		// If we have an expected type and it is _not_ a named type, see
+		// if an object literal makes a good candidate. Named types are
+		// handled during the normal lexical object search. For example,
+		// if our expected type is "[]int", this will add a candidate of
+		// "[]int{}".
+		if _, named := deref(c.expectedType.objType).(*types.Named); !named {
+			c.literal(c.expectedType.objType)
+		}
+	}
+
 	return nil
+}
+
+func nodeContains(n ast.Node, pos token.Pos) bool {
+	return n != nil && n.Pos() <= pos && pos < n.End()
+}
+
+func (c *completer) inConstDecl() bool {
+	for _, n := range c.path {
+		if decl, ok := n.(*ast.GenDecl); ok && decl.Tok == token.CONST {
+			return true
+		}
+	}
+	return false
 }
 
 // structLiteralFieldName finds completions for struct field names inside a struct literal.
@@ -614,7 +713,7 @@ func (c *completer) structLiteralFieldName() error {
 			}
 
 			if key, ok := kvExpr.Key.(*ast.Ident); ok {
-				if used, ok := c.info.Uses[key]; ok {
+				if used, ok := c.pkg.GetTypesInfo().Uses[key]; ok {
 					if usedVar, ok := used.(*types.Var); ok {
 						addedFields[usedVar] = true
 					}
@@ -672,7 +771,7 @@ func enclosingCompositeLiteral(path []ast.Node, pos token.Pos, info *types.Info)
 
 			clInfo := compLitInfo{
 				cl:     n,
-				clType: tv.Type.Underlying(),
+				clType: deref(tv.Type).Underlying(),
 			}
 
 			var (
@@ -817,6 +916,10 @@ type typeInference struct {
 	// objType is the desired type of an object used at the query position.
 	objType types.Type
 
+	// variadic is true if objType is a slice type from an initial
+	// variadic param.
+	variadic bool
+
 	// wantTypeName is true if we expect the name of a type.
 	wantTypeName bool
 
@@ -844,6 +947,7 @@ func expectedType(c *completer) typeInference {
 
 	var (
 		modifiers     []typeModifier
+		variadic      bool
 		typ           types.Type
 		convertibleTo types.Type
 	)
@@ -857,7 +961,7 @@ Nodes:
 			if c.pos < node.OpPos {
 				e = node.Y
 			}
-			if tv, ok := c.info.Types[e]; ok {
+			if tv, ok := c.pkg.GetTypesInfo().Types[e]; ok {
 				typ = tv.Type
 				break Nodes
 			}
@@ -868,7 +972,7 @@ Nodes:
 				if i >= len(node.Lhs) {
 					i = len(node.Lhs) - 1
 				}
-				if tv, ok := c.info.Types[node.Lhs[i]]; ok {
+				if tv, ok := c.pkg.GetTypesInfo().Types[node.Lhs[i]]; ok {
 					typ = tv.Type
 					break Nodes
 				}
@@ -879,12 +983,12 @@ Nodes:
 			if node.Lparen <= c.pos && c.pos <= node.Rparen {
 				// For type conversions like "int64(foo)" we can only infer our
 				// desired type is convertible to int64.
-				if typ := typeConversion(node, c.info); typ != nil {
+				if typ := typeConversion(node, c.pkg.GetTypesInfo()); typ != nil {
 					convertibleTo = typ
 					break Nodes
 				}
 
-				if tv, ok := c.info.Types[node.Fun]; ok {
+				if tv, ok := c.pkg.GetTypesInfo().Types[node.Fun]; ok {
 					if sig, ok := tv.Type.(*types.Signature); ok {
 						if sig.Params().Len() == 0 {
 							return typeInference{}
@@ -895,6 +999,7 @@ Nodes:
 							i = sig.Params().Len() - 1
 						}
 						typ = sig.Params().At(i).Type()
+						variadic = sig.Variadic() && i == sig.Params().Len()-1
 						break Nodes
 					}
 				}
@@ -913,7 +1018,7 @@ Nodes:
 			return typeInference{}
 		case *ast.CaseClause:
 			if swtch, ok := findSwitchStmt(c.path[i+1:], c.pos, node).(*ast.SwitchStmt); ok {
-				if tv, ok := c.info.Types[swtch.Tag]; ok {
+				if tv, ok := c.pkg.GetTypesInfo().Types[swtch.Tag]; ok {
 					typ = tv.Type
 					break Nodes
 				}
@@ -929,7 +1034,7 @@ Nodes:
 		case *ast.IndexExpr:
 			// Make sure position falls within the brackets (e.g. "foo[<>]").
 			if node.Lbrack < c.pos && c.pos <= node.Rbrack {
-				if tv, ok := c.info.Types[node.X]; ok {
+				if tv, ok := c.pkg.GetTypesInfo().Types[node.X]; ok {
 					switch t := tv.Type.Underlying().(type) {
 					case *types.Map:
 						typ = t.Key()
@@ -945,7 +1050,7 @@ Nodes:
 		case *ast.SendStmt:
 			// Make sure we are on right side of arrow (e.g. "foo <- <>").
 			if c.pos > node.Arrow+1 {
-				if tv, ok := c.info.Types[node.Chan]; ok {
+				if tv, ok := c.pkg.GetTypesInfo().Types[node.Chan]; ok {
 					if ch, ok := tv.Type.Underlying().(*types.Chan); ok {
 						typ = ch.Elem()
 						break Nodes
@@ -970,6 +1075,7 @@ Nodes:
 	}
 
 	return typeInference{
+		variadic:      variadic,
 		objType:       typ,
 		modifiers:     modifiers,
 		convertibleTo: convertibleTo,
@@ -1055,31 +1161,21 @@ func expectTypeName(c *completer) typeInference {
 Nodes:
 	for i, p := range c.path {
 		switch n := p.(type) {
-		case *ast.FuncDecl:
-			// Expect type names in a function declaration receiver, params and results.
-
-			if r := n.Recv; r != nil && r.Pos() <= c.pos && c.pos <= r.End() {
-				wantTypeName = true
-				break Nodes
-			}
-			if t := n.Type; t != nil {
-				if p := t.Params; p != nil && p.Pos() <= c.pos && c.pos <= p.End() {
-					wantTypeName = true
-					break Nodes
-				}
-				if r := t.Results; r != nil && r.Pos() <= c.pos && c.pos <= r.End() {
-					wantTypeName = true
-					break Nodes
-				}
-			}
-			return typeInference{}
+		case *ast.FieldList:
+			// Expect a type name if pos is in a FieldList. This applies to
+			// FuncType params/results, FuncDecl receiver, StructType, and
+			// InterfaceType. We don't need to worry about the field name
+			// because completion bails out early if pos is in an *ast.Ident
+			// that defines an object.
+			wantTypeName = true
+			break Nodes
 		case *ast.CaseClause:
 			// Expect type names in type switch case clauses.
 			if swtch, ok := findSwitchStmt(c.path[i+1:], c.pos, n).(*ast.TypeSwitchStmt); ok {
 				// The case clause types must be assertable from the type switch parameter.
 				ast.Inspect(swtch.Assign, func(n ast.Node) bool {
 					if ta, ok := n.(*ast.TypeAssertExpr); ok {
-						assertableFrom = c.info.TypeOf(ta.X)
+						assertableFrom = c.pkg.GetTypesInfo().TypeOf(ta.X)
 						return false
 					}
 					return true
@@ -1092,7 +1188,7 @@ Nodes:
 			// Expect type names in type assert expressions.
 			if n.Lparen < c.pos && c.pos <= n.Rparen {
 				// The type in parens must be assertable from the expression type.
-				assertableFrom = c.info.TypeOf(n.X)
+				assertableFrom = c.pkg.GetTypesInfo().TypeOf(n.X)
 				wantTypeName = true
 				break Nodes
 			}
@@ -1113,9 +1209,15 @@ Nodes:
 	}
 }
 
-// matchingType reports whether an object is a good completion candidate
-// in the context of the expected type.
-func (c *completer) matchingType(cand *candidate) bool {
+// matchingType reports whether a type matches the expected type.
+func (c *completer) matchingType(T types.Type) bool {
+	fakeObj := types.NewVar(token.NoPos, c.pkg.GetTypes(), "", T)
+	return c.matchingCandidate(&candidate{obj: fakeObj})
+}
+
+// matchingCandidate reports whether a candidate matches our type
+// inferences.
+func (c *completer) matchingCandidate(cand *candidate) bool {
 	if isTypeName(cand.obj) {
 		return c.matchingTypeName(cand)
 	}

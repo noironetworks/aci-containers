@@ -14,7 +14,9 @@ Feature: dc / services / instances / show: Show Service Instance
         ID: service-0-with-id
         Tags: ['Tag1', 'Tag2']
         Meta:
+          consul-dashboard-url: http://url.com
           external-source: nomad
+          test-meta: test-meta-value
       Node:
         Node: another-node
       Checks:
@@ -74,6 +76,11 @@ Feature: dc / services / instances / show: Show Service Instance
 
     Then I see the text "Tag1" in "[data-test-tags] span:nth-child(1)"
     Then I see the text "Tag2" in "[data-test-tags] span:nth-child(2)"
+
+    When I click metaData on the tabs
+    And I see metaDataIsSelected on the tabs
+    And I see 3 of the metaData object
+
   Scenario: A Service instance warns when deregistered whilst blocking
     Given settings from yaml
     ---

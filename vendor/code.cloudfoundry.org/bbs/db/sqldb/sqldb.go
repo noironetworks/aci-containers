@@ -90,8 +90,6 @@ func (db *SQLDB) convertSQLError(err error) *models.Error {
 		return models.ErrBadRequest
 	case helpers.ErrUnrecoverableError:
 		return models.NewUnrecoverableError(err)
-	case helpers.ErrUnknownError:
-		return models.ErrUnknownError
 	case helpers.ErrResourceNotFound:
 		return models.ErrResourceNotFound
 	default:

@@ -70,6 +70,7 @@ EXAMPLES=examples/proto/examplepb/echo_service.proto \
 	 examples/proto/examplepb/a_bit_of_everything.proto \
 	 examples/proto/examplepb/stream.proto \
 	 examples/proto/examplepb/flow_combination.proto \
+	 examples/proto/examplepb/non_standard_names.proto \
 	 examples/proto/examplepb/wrappers.proto \
 	 examples/proto/examplepb/unannotated_echo_service.proto \
 	 examples/proto/examplepb/response_body_service.proto
@@ -194,7 +195,7 @@ changelog:
 				--compare-link \
 				--github-site=https://github.com \
 				--unreleased-label "**Next release**" \
-				--future-release=v1.9.6
+				--future-release=v1.11.3
 lint:
 	golint --set_exit_status ./runtime
 	golint --set_exit_status ./utilities/...

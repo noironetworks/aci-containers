@@ -19,7 +19,6 @@ package e2e_node
 import (
 	"fmt"
 	"os/exec"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -29,28 +28,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
-	"k8s.io/kubernetes/pkg/kubelet/apis/kubeletconfig"
+	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/test/e2e/framework"
+	e2elog "k8s.io/kubernetes/test/e2e/framework/log"
+	imageutils "k8s.io/kubernetes/test/utils/image"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 // makePodToVerifyHugePages returns a pod that verifies specified cgroup with hugetlb
-func makePodToVerifyHugePages(cgroupName cm.CgroupName, hugePagesLimit resource.Quantity) *apiv1.Pod {
+func makePodToVerifyHugePages(baseName string, hugePagesLimit resource.Quantity) *apiv1.Pod {
 	// convert the cgroup name to its literal form
 	cgroupFsName := ""
-	cgroupName = cm.CgroupName(path.Join(defaultNodeAllocatableCgroup, string(cgroupName)))
+	cgroupName := cm.NewCgroupName(cm.RootCgroupName, defaultNodeAllocatableCgroup, baseName)
 	if framework.TestContext.KubeletConfig.CgroupDriver == "systemd" {
-		cgroupFsName = cm.ConvertCgroupNameToSystemd(cgroupName, true)
+		cgroupFsName = cgroupName.ToSystemd()
 	} else {
-		cgroupFsName = string(cgroupName)
+		cgroupFsName = cgroupName.ToCgroupfs()
 	}
 
 	// this command takes the expected value and compares it against the actual value for the pod cgroup hugetlb.2MB.limit_in_bytes
 	command := fmt.Sprintf("expected=%v; actual=$(cat /tmp/hugetlb/%v/hugetlb.2MB.limit_in_bytes); if [ \"$expected\" -ne \"$actual\" ]; then exit 1; fi; ", hugePagesLimit.Value(), cgroupFsName)
-	framework.Logf("Pod to run command: %v", command)
+	e2elog.Logf("Pod to run command: %v", command)
 	pod := &apiv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "pod" + string(uuid.NewUUID()),
@@ -119,7 +120,7 @@ func configureHugePages() error {
 	if err != nil {
 		return err
 	}
-	framework.Logf("HugePages_Total is set to %v", numHugePages)
+	e2elog.Logf("HugePages_Total is set to %v", numHugePages)
 	if numHugePages == 50 {
 		return nil
 	}
@@ -145,7 +146,7 @@ func pollResourceAsString(f *framework.Framework, resourceName string) string {
 	node, err := f.ClientSet.CoreV1().Nodes().Get(framework.TestContext.NodeName, metav1.GetOptions{})
 	framework.ExpectNoError(err)
 	amount := amountOfResourceAsString(node, resourceName)
-	framework.Logf("amount of %v: %v", resourceName, amount)
+	e2elog.Logf("amount of %v: %v", resourceName, amount)
 	return amount
 }
 
@@ -169,7 +170,7 @@ func runHugePagesTests(f *framework.Framework) {
 			Spec: apiv1.PodSpec{
 				Containers: []apiv1.Container{
 					{
-						Image: framework.GetPauseImageName(f.ClientSet),
+						Image: imageutils.GetPauseImageName(),
 						Name:  "container" + string(uuid.NewUUID()),
 						Resources: apiv1.ResourceRequirements{
 							Limits: apiv1.ResourceList{
@@ -184,7 +185,7 @@ func runHugePagesTests(f *framework.Framework) {
 		})
 		podUID := string(pod.UID)
 		By("checking if the expected hugetlb settings were applied")
-		verifyPod := makePodToVerifyHugePages(cm.CgroupName("pod"+podUID), resource.MustParse("50Mi"))
+		verifyPod := makePodToVerifyHugePages("pod"+podUID, resource.MustParse("50Mi"))
 		f.PodClient().Create(verifyPod)
 		err := framework.WaitForPodSuccessInNamespace(f.ClientSet, verifyPod.Name, f.Namespace.Name)
 		Expect(err).NotTo(HaveOccurred())
@@ -192,7 +193,7 @@ func runHugePagesTests(f *framework.Framework) {
 }
 
 // Serial because the test updates kubelet configuration.
-var _ = SIGDescribe("HugePages [Serial] [Feature:HugePages]", func() {
+var _ = SIGDescribe("HugePages [Serial] [Feature:HugePages][NodeFeature:HugePages]", func() {
 	f := framework.NewDefaultFramework("hugepages-test")
 
 	Context("With config updated with hugepages feature enabled", func() {

@@ -173,7 +173,9 @@ func (h *DesiredLRPHandler) DesireDesiredLRP(logger lager.Logger, w http.Respons
 	go h.desiredHub.Emit(models.NewDesiredLRPCreatedEvent(desiredLRP))
 
 	schedulingInfo := request.DesiredLrp.DesiredLRPSchedulingInfo()
-	h.startInstanceRange(req.Context(), logger, 0, schedulingInfo.Instances, &schedulingInfo)
+	if schedulingInfo.Instances > 0 {
+		h.startInstanceRange(req.Context(), logger, 0, schedulingInfo.Instances, &schedulingInfo)
+	}
 }
 
 func (h *DesiredLRPHandler) UpdateDesiredLRP(logger lager.Logger, w http.ResponseWriter, req *http.Request) {

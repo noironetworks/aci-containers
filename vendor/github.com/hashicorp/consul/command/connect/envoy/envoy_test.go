@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/consul/agent"
 	"github.com/hashicorp/consul/agent/xds"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
@@ -20,7 +22,7 @@ import (
 
 var update = flag.Bool("update", false, "update golden files")
 
-func TestCatalogCommand_noTabs(t *testing.T) {
+func TestEnvoyCommand_noTabs(t *testing.T) {
 	t.Parallel()
 	if strings.ContainsRune(New(nil).Help(), '\t') {
 		t.Fatal("help has tabs")
@@ -66,6 +68,7 @@ func TestGenerateConfig(t *testing.T) {
 		Env         []string
 		Files       map[string]string
 		ProxyConfig map[string]interface{}
+		GRPCPort    int // only used for testing custom-configured grpc port
 		WantArgs    BootstrapTplArgs
 		WantErr     string
 	}{
@@ -207,6 +210,39 @@ func TestGenerateConfig(t *testing.T) {
 			},
 		},
 		{
+			Name: "grpc-addr-unix",
+			Flags: []string{"-proxy-id", "test-proxy",
+				"-grpc-addr", "unix:///var/run/consul.sock"},
+			Env: []string{},
+			WantArgs: BootstrapTplArgs{
+				ProxyCluster:          "test-proxy",
+				ProxyID:               "test-proxy",
+				AgentSocket:           "/var/run/consul.sock",
+				AdminAccessLogPath:    "/dev/null",
+				AdminBindAddress:      "127.0.0.1",
+				AdminBindPort:         "19000",
+				LocalAgentClusterName: xds.LocalAgentClusterName,
+			},
+		},
+		{
+			Name:     "grpc-addr-config",
+			Flags:    []string{"-proxy-id", "test-proxy"},
+			GRPCPort: 9999,
+			WantArgs: BootstrapTplArgs{
+				ProxyCluster: "test-proxy",
+				ProxyID:      "test-proxy",
+				// Should resolve IP, note this might not resolve the same way
+				// everywhere which might make this test brittle but not sure what else
+				// to do.
+				AgentAddress:          "127.0.0.1",
+				AgentPort:             "9999",
+				AdminAccessLogPath:    "/dev/null",
+				AdminBindAddress:      "127.0.0.1",
+				AdminBindPort:         "19000",
+				LocalAgentClusterName: xds.LocalAgentClusterName,
+			},
+		},
+		{
 			Name:  "access-log-path",
 			Flags: []string{"-proxy-id", "test-proxy", "-admin-access-log-path", "/some/path/access.log"},
 			Env:   []string{},
@@ -247,7 +283,7 @@ func TestGenerateConfig(t *testing.T) {
 						"cluster": "{{ .ProxyCluster }}",
 						"id": "{{ .ProxyID }}"
 					},
-					custom_field = "foo"
+					"custom_field": "foo"
 				}`,
 			},
 			WantArgs: BootstrapTplArgs{
@@ -437,7 +473,7 @@ func TestGenerateConfig(t *testing.T) {
 
 			// Run a mock agent API that just always returns the proxy config in the
 			// test.
-			srv := httptest.NewServer(testMockAgentProxyConfig(tc.ProxyConfig))
+			srv := httptest.NewServer(testMockAgent(tc.ProxyConfig, tc.GRPCPort))
 			defer srv.Close()
 
 			// Set the agent HTTP address in ENV to be our mock
@@ -485,6 +521,25 @@ func TestGenerateConfig(t *testing.T) {
 	}
 }
 
+// testMockAgent combines testMockAgentProxyConfig and testMockAgentSelf,
+// routing /agent/service/... requests to testMockAgentProxyConfig and
+// routing /agent/self requests to testMockAgentSelf.
+func testMockAgent(agentCfg map[string]interface{}, grpcPort int) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/agent/service") {
+			testMockAgentProxyConfig(agentCfg)(w, r)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/agent/self") {
+			testMockAgentSelf(grpcPort)(w, r)
+			return
+		}
+
+		http.NotFound(w, r)
+	})
+}
+
 func testMockAgentProxyConfig(cfg map[string]interface{}) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse the proxy-id from the end of the URL (blindly assuming it's correct
@@ -510,5 +565,121 @@ func testMockAgentProxyConfig(cfg map[string]interface{}) http.HandlerFunc {
 			return
 		}
 		w.Write(cfgJSON)
+	})
+}
+
+func TestEnvoyCommand_canBindInternal(t *testing.T) {
+	t.Parallel()
+	type testCheck struct {
+		expected bool
+		addr     string
+	}
+
+	type testCase struct {
+		ifAddrs []net.Addr
+		checks  map[string]testCheck
+	}
+
+	parseIPNets := func(t *testing.T, in ...string) []net.Addr {
+		var out []net.Addr
+		for _, addr := range in {
+			ip := net.ParseIP(addr)
+			require.NotNil(t, ip)
+			out = append(out, &net.IPNet{IP: ip})
+		}
+		return out
+	}
+
+	parseIPs := func(t *testing.T, in ...string) []net.Addr {
+		var out []net.Addr
+		for _, addr := range in {
+			ip := net.ParseIP(addr)
+			require.NotNil(t, ip)
+			out = append(out, &net.IPAddr{IP: ip})
+		}
+		return out
+	}
+
+	cases := map[string]testCase{
+		"IPNet": {
+			parseIPNets(t, "10.3.0.2", "198.18.0.1", "2001:db8:a0b:12f0::1"),
+			map[string]testCheck{
+				"ipv4": {
+					true,
+					"10.3.0.2",
+				},
+				"secondary ipv4": {
+					true,
+					"198.18.0.1",
+				},
+				"ipv6": {
+					true,
+					"2001:db8:a0b:12f0::1",
+				},
+				"ipv4 not found": {
+					false,
+					"1.2.3.4",
+				},
+				"ipv6 not found": {
+					false,
+					"::ffff:192.168.0.1",
+				},
+			},
+		},
+		"IPAddr": {
+			parseIPs(t, "10.3.0.2", "198.18.0.1", "2001:db8:a0b:12f0::1"),
+			map[string]testCheck{
+				"ipv4": {
+					true,
+					"10.3.0.2",
+				},
+				"secondary ipv4": {
+					true,
+					"198.18.0.1",
+				},
+				"ipv6": {
+					true,
+					"2001:db8:a0b:12f0::1",
+				},
+				"ipv4 not found": {
+					false,
+					"1.2.3.4",
+				},
+				"ipv6 not found": {
+					false,
+					"::ffff:192.168.0.1",
+				},
+			},
+		},
+	}
+
+	for name, tcase := range cases {
+		t.Run(name, func(t *testing.T) {
+			for checkName, check := range tcase.checks {
+				t.Run(checkName, func(t *testing.T) {
+					require.Equal(t, check.expected, canBindInternal(check.addr, tcase.ifAddrs))
+				})
+			}
+		})
+	}
+}
+
+// testMockAgentSelf returns an empty /v1/agent/self response except GRPC
+// port is filled in to match the given wantGRPCPort argument.
+func testMockAgentSelf(wantGRPCPort int) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := agent.Self{
+			DebugConfig: map[string]interface{}{
+				"GRPCPort": wantGRPCPort,
+			},
+		}
+
+		selfJSON, err := json.Marshal(resp)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		w.Write(selfJSON)
 	})
 }

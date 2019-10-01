@@ -27,15 +27,11 @@ func (s *Server) documentLink(ctx context.Context, params *protocol.DocumentLink
 	if err != nil {
 		return nil, err
 	}
-	m, err := getMapper(ctx, f)
+	fh := f.Handle(ctx)
+	file, m, _, err := view.Session().Cache().ParseGoHandle(fh, source.ParseFull).Parse(ctx)
 	if err != nil {
 		return nil, err
 	}
-	file, err := f.GetAST(ctx, source.ParseFull)
-	if file == nil {
-		return nil, err
-	}
-
 	var links []protocol.DocumentLink
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch n := node.(type) {

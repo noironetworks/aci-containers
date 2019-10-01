@@ -165,8 +165,8 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			desiredHub = events.NewHub()
-			actualHub = events.NewHub()
+			desiredHub = events.NewHub(logger)
+			actualHub = events.NewHub(logger)
 			handler = handlers.NewLRPGroupEventsHandler(desiredHub, actualHub)
 		})
 
@@ -528,8 +528,8 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			desiredHub = events.NewHub()
-			actualHub = events.NewHub()
+			desiredHub = events.NewHub(logger)
+			actualHub = events.NewHub(logger)
 			handler = handlers.NewLRPGroupEventsHandler(desiredHub, actualHub)
 		})
 
@@ -576,8 +576,8 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			desiredHub = events.NewHub()
-			actualHub = events.NewHub()
+			desiredHub = events.NewHub(logger)
+			actualHub = events.NewHub(logger)
 			handler = handlers.NewLRPGroupEventsHandler(desiredHub, actualHub)
 		})
 
@@ -629,8 +629,8 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			desiredHub = events.NewHub()
-			lrpInstanceHub = events.NewHub()
+			desiredHub = events.NewHub(logger)
+			lrpInstanceHub = events.NewHub(logger)
 			handler = handlers.NewLRPInstanceEventHandler(desiredHub, lrpInstanceHub)
 		})
 
@@ -679,8 +679,8 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			desiredHub = events.NewHub()
-			lrpInstanceHub = events.NewHub()
+			desiredHub = events.NewHub(logger)
+			lrpInstanceHub = events.NewHub(logger)
 			handler = handlers.NewLRPInstanceEventHandler(desiredHub, lrpInstanceHub)
 		})
 
@@ -726,7 +726,7 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			taskHub = events.NewHub()
+			taskHub = events.NewHub(logger)
 			handler = handlers.NewTaskEventHandler(taskHub)
 		})
 
@@ -820,7 +820,7 @@ var _ = Describe("Event Handlers", func() {
 		)
 
 		BeforeEach(func() {
-			taskHub = events.NewHub()
+			taskHub = events.NewHub(logger)
 			handler = handlers.NewTaskEventHandler(taskHub)
 		})
 

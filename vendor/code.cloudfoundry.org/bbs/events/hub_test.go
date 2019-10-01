@@ -5,6 +5,7 @@ import (
 
 	"code.cloudfoundry.org/bbs/events"
 	"code.cloudfoundry.org/bbs/events/eventfakes"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,7 +17,7 @@ var _ = Describe("Hub", func() {
 	)
 
 	BeforeEach(func() {
-		hub = events.NewHub()
+		hub = events.NewHub(lagertest.NewTestLogger("something"))
 	})
 
 	Describe("RegisterCallback", func() {
