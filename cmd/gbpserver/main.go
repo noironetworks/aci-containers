@@ -158,6 +158,7 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 	cfg := embed.NewConfig()
 	cfg.Dir = c.EtcdDir
 	cfg.LCUrls = lcURLs
+	cfg.EnableV2 = true
 
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {

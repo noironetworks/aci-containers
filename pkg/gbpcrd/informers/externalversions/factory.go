@@ -23,7 +23,7 @@ import (
 	time "time"
 
 	versioned "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
-	aciaw "github.com/noironetworks/aci-containers/pkg/gbpcrd/informers/externalversions/aci.aw"
+	acipolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/informers/externalversions/acipolicy"
 	internalinterfaces "github.com/noironetworks/aci-containers/pkg/gbpcrd/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -171,9 +171,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Aci() aciaw.Interface
+	Aci() acipolicy.Interface
 }
 
-func (f *sharedInformerFactory) Aci() aciaw.Interface {
-	return aciaw.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Aci() acipolicy.Interface {
+	return acipolicy.New(f, f.namespace, f.tweakListOptions)
 }

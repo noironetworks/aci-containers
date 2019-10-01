@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/juju/ratelimit"
+	"golang.org/x/time/rate"
 	"github.com/yl2chen/cidranger"
 
 	v1 "k8s.io/api/core/v1"
@@ -172,7 +172,7 @@ func createQueue(name string) workqueue.RateLimitingInterface {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
 			},
 		),
 		"delta")

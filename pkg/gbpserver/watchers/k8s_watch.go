@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"strings"
 
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	aciawclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 )

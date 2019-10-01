@@ -50,12 +50,12 @@ func (agent *HostAgent) initNodeInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.Core().Nodes().List(options)
+				return kubeClient.CoreV1().Nodes().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.Core().Nodes().Watch(options)
+				return kubeClient.CoreV1().Nodes().Watch(options)
 			},
 		})
 }

@@ -27,7 +27,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -131,12 +131,12 @@ func (agent *HostAgent) initPodInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.Core().Pods(metav1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.Core().Pods(metav1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
 			},
 		})
 }
