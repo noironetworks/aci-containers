@@ -60,15 +60,6 @@ const (
 	UnknownKind
 )
 
-// TokenHandle represents a handle to the *token.File for a file.
-type TokenHandle interface {
-	// File returns a file handle for which to get the *token.File.
-	File() FileHandle
-
-	// Token returns the *token.File for the file.
-	Token(ctx context.Context) (*token.File, error)
-}
-
 // ParseGoHandle represents a handle to the AST for a file.
 type ParseGoHandle interface {
 	// File returns a file handle for which to get the AST.
@@ -117,6 +108,10 @@ type CheckPackageHandle interface {
 	// Config is the *packages.Config that the package metadata was loaded with.
 	Config() *packages.Config
 
+	// Mode returns the ParseMode for all of the files in the CheckPackageHandle.
+	// The files should always have the same parse mode.
+	Mode() ParseMode
+
 	// Check returns the type-checked Package for the CheckPackageHandle.
 	Check(ctx context.Context) (Package, error)
 
@@ -142,9 +137,6 @@ type Cache interface {
 
 	// FileSet returns the shared fileset used by all files in the system.
 	FileSet() *token.FileSet
-
-	// TokenHandle returns a TokenHandle for the given file handle.
-	TokenHandle(fh FileHandle) TokenHandle
 
 	// ParseGoHandle returns a ParseGoHandle for the given file handle.
 	ParseGoHandle(fh FileHandle, mode ParseMode) ParseGoHandle
@@ -240,6 +232,7 @@ type View interface {
 	// Ignore returns true if this file should be ignored by this view.
 	Ignore(span.URI) bool
 
+	// Config returns the configuration for the view.
 	Config(ctx context.Context) *packages.Config
 
 	// RunProcessEnvFunc runs fn with the process env for this view inserted into opts.
@@ -257,33 +250,28 @@ type View interface {
 	// Analyzers returns the set of Analyzers active for this view.
 	Analyzers() []*analysis.Analyzer
 
+	// CheckPackageHandles returns the CheckPackageHandles for the packages
+	// that this file belongs to.
+	CheckPackageHandles(ctx context.Context, f File) (Snapshot, []CheckPackageHandle, error)
+
 	// GetActiveReverseDeps returns the active files belonging to the reverse
 	// dependencies of this file's package.
-	GetActiveReverseDeps(ctx context.Context, uri span.URI) []CheckPackageHandle
+	GetActiveReverseDeps(ctx context.Context, f File) []CheckPackageHandle
+
+	// Snapshot returns the current snapshot for the view.
+	Snapshot() Snapshot
+}
+
+// Snapshot represents the current state for the given view.
+type Snapshot interface {
+	// Handle returns the FileHandle for the given file.
+	Handle(ctx context.Context, f File) FileHandle
 }
 
 // File represents a source file of any type.
 type File interface {
 	URI() span.URI
-	View() View
-	Handle(ctx context.Context) FileHandle
-}
-
-// GoFile represents a Go source file that has been type-checked.
-type GoFile interface {
-	File
-
-	// GetCheckPackageHandles returns the CheckPackageHandles for the packages
-	// that this file belongs to.
-	CheckPackageHandles(ctx context.Context) ([]CheckPackageHandle, error)
-}
-
-type ModFile interface {
-	File
-}
-
-type SumFile interface {
-	File
+	Kind() FileKind
 }
 
 // Package represents a Go package that has been type-checked. It maintains

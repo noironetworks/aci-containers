@@ -153,3 +153,7 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
   revision = "3652de39ca8ccf74d9126c1f0b5cb3679449c18b"
+
+[[override]]
+  name = "code.cloudfoundry.org/locket"
+  revision = "285105ed8d9a2c4bae7002b0cb5eb35e7e1b6cd7"
