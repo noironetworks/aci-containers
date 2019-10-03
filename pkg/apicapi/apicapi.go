@@ -37,7 +37,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
-	"github.com/juju/ratelimit"
+	"golang.org/x/time/rate"
 )
 
 // defaultConnectionRefresh is used as connection refresh interval if
@@ -434,7 +434,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
 			},
 		),
 		"delta")

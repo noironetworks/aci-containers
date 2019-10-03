@@ -4,13 +4,13 @@
 package grpc_retry_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
@@ -35,6 +35,19 @@ func Example_initializationWithOptions() {
 	opts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(100 * time.Millisecond)),
 		grpc_retry.WithCodes(codes.NotFound, codes.Aborted),
+	}
+	grpc.Dial("myservice.example.com",
+		grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(opts...)),
+		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(opts...)),
+	)
+}
+
+// Example with an exponential backoff starting with 100ms.
+//
+// Each next interval is the previous interval multiplied by 2.
+func Example_initializationWithExponentialBackoff() {
+	opts := []grpc_retry.CallOption{
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(100 * time.Millisecond)),
 	}
 	grpc.Dial("myservice.example.com",
 		grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(opts...)),

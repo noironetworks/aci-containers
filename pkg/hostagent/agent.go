@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/juju/ratelimit"
+	"golang.org/x/time/rate"
 	"github.com/vishvananda/netlink"
         "github.com/containernetworking/cni/pkg/types"
 
@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/aci.aw/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -106,7 +106,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexSnatGlobalInfos: make(map[string][]*OpflexSnatGlobalInfo),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
-				Bucket: ratelimit.NewBucketWithRate(float64(10), int64(10)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
 	}
 

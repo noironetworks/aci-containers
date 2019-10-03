@@ -17,6 +17,7 @@ limitations under the License.
 package dockershim
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -26,9 +27,8 @@ import (
 	dockertypes "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
 )
 
@@ -248,7 +248,7 @@ func TestContainerCreationConflict(t *testing.T) {
 	containerName := makeContainerName(sConfig, config)
 	const sandboxId = "sandboxid"
 	const containerId = "containerid"
-	conflictError := fmt.Errorf("Error response from daemon: Conflict. The name \"/%s\" is already in use by container %s. You have to remove (or rename) that container to be able to reuse that name.",
+	conflictError := fmt.Errorf("Error response from daemon: Conflict. The name \"/%s\" is already in use by container %q. You have to remove (or rename) that container to be able to reuse that name.",
 		containerName, containerId)
 	noContainerError := fmt.Errorf("Error response from daemon: No such container: %s", containerId)
 	randomError := fmt.Errorf("random error")

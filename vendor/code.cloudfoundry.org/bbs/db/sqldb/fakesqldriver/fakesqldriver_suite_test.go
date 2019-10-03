@@ -85,3 +85,7 @@ var _ = BeforeEach(func() {
 
 	ctx = context.Background()
 })
+
+var _ = AfterEach(func() {
+	Expect(db.Close()).To(Succeed())
+})

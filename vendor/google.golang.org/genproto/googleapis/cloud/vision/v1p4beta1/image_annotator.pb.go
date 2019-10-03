@@ -17,6 +17,8 @@ import (
 	latlng "google.golang.org/genproto/googleapis/type/latlng"
 	_ "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status1 "google.golang.org/grpc/status"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -3063,9 +3065,10 @@ type ImageAnnotatorClient interface {
 	// Service that performs image detection and annotation for a batch of files.
 	// Now only "application/pdf", "image/tiff" and "image/gif" are supported.
 	//
-	// This service will extract at most the first 10 frames (gif) or pages
-	// (pdf or tiff) from each file provided and perform detection and annotation
-	// for each image extracted.
+	// This service will extract at most 5 (customers can specify which 5 in
+	// AnnotateFileRequest.pages) frames (gif) or pages (pdf or tiff) from each
+	// file provided and perform detection and annotation for each image
+	// extracted.
 	BatchAnnotateFiles(ctx context.Context, in *BatchAnnotateFilesRequest, opts ...grpc.CallOption) (*BatchAnnotateFilesResponse, error)
 	// Run asynchronous image detection and annotation for a list of images.
 	//
@@ -3137,9 +3140,10 @@ type ImageAnnotatorServer interface {
 	// Service that performs image detection and annotation for a batch of files.
 	// Now only "application/pdf", "image/tiff" and "image/gif" are supported.
 	//
-	// This service will extract at most the first 10 frames (gif) or pages
-	// (pdf or tiff) from each file provided and perform detection and annotation
-	// for each image extracted.
+	// This service will extract at most 5 (customers can specify which 5 in
+	// AnnotateFileRequest.pages) frames (gif) or pages (pdf or tiff) from each
+	// file provided and perform detection and annotation for each image
+	// extracted.
 	BatchAnnotateFiles(context.Context, *BatchAnnotateFilesRequest) (*BatchAnnotateFilesResponse, error)
 	// Run asynchronous image detection and annotation for a list of images.
 	//
@@ -3158,6 +3162,23 @@ type ImageAnnotatorServer interface {
 	// `Operation.metadata` contains `OperationMetadata` (metadata).
 	// `Operation.response` contains `AsyncBatchAnnotateFilesResponse` (results).
 	AsyncBatchAnnotateFiles(context.Context, *AsyncBatchAnnotateFilesRequest) (*longrunning.Operation, error)
+}
+
+// UnimplementedImageAnnotatorServer can be embedded to have forward compatible implementations.
+type UnimplementedImageAnnotatorServer struct {
+}
+
+func (*UnimplementedImageAnnotatorServer) BatchAnnotateImages(ctx context.Context, req *BatchAnnotateImagesRequest) (*BatchAnnotateImagesResponse, error) {
+	return nil, status1.Errorf(codes.Unimplemented, "method BatchAnnotateImages not implemented")
+}
+func (*UnimplementedImageAnnotatorServer) BatchAnnotateFiles(ctx context.Context, req *BatchAnnotateFilesRequest) (*BatchAnnotateFilesResponse, error) {
+	return nil, status1.Errorf(codes.Unimplemented, "method BatchAnnotateFiles not implemented")
+}
+func (*UnimplementedImageAnnotatorServer) AsyncBatchAnnotateImages(ctx context.Context, req *AsyncBatchAnnotateImagesRequest) (*longrunning.Operation, error) {
+	return nil, status1.Errorf(codes.Unimplemented, "method AsyncBatchAnnotateImages not implemented")
+}
+func (*UnimplementedImageAnnotatorServer) AsyncBatchAnnotateFiles(ctx context.Context, req *AsyncBatchAnnotateFilesRequest) (*longrunning.Operation, error) {
+	return nil, status1.Errorf(codes.Unimplemented, "method AsyncBatchAnnotateFiles not implemented")
 }
 
 func RegisterImageAnnotatorServer(s *grpc.Server, srv ImageAnnotatorServer) {

@@ -173,10 +173,10 @@ func main() {
 		metronClient,
 	)
 
-	desiredHub := events.NewHub()
-	actualHub := events.NewHub()
-	actualLRPInstanceHub := events.NewHub()
-	taskHub := events.NewHub()
+	desiredHub := events.NewHub(logger)
+	actualHub := events.NewHub(logger)
+	actualLRPInstanceHub := events.NewHub(logger)
+	taskHub := events.NewHub(logger)
 
 	repTLSConfig := &rep.TLSConfig{
 		RequireTLS:      bbsConfig.RepRequireTLS,

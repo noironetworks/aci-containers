@@ -6,6 +6,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/doc"
 	"go/format"
@@ -38,7 +39,7 @@ func (i *IdentifierInfo) Hover(ctx context.Context) (*HoverInformation, error) {
 	ctx, done := trace.StartSpan(ctx, "source.Hover")
 	defer done()
 
-	h, err := i.decl.hover(ctx)
+	h, err := i.Declaration.hover(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,17 +47,17 @@ func (i *IdentifierInfo) Hover(ctx context.Context) (*HoverInformation, error) {
 	switch x := h.source.(type) {
 	case ast.Node:
 		var b strings.Builder
-		if err := format.Node(&b, i.File.FileSet(), x); err != nil {
+		if err := format.Node(&b, i.View.Session().Cache().FileSet(), x); err != nil {
 			return nil, err
 		}
 		h.Signature = b.String()
 	case types.Object:
-		h.Signature = types.ObjectString(x, i.qf)
+		h.Signature = objectString(x, i.qf)
 	}
 
 	// Set the documentation.
-	if i.decl.obj != nil {
-		h.SingleLine = types.ObjectString(i.decl.obj, i.qf)
+	if i.Declaration.obj != nil {
+		h.SingleLine = objectString(i.Declaration.obj, i.qf)
 	}
 	if h.comment != nil {
 		h.FullDocumentation = h.comment.Text()
@@ -65,9 +66,21 @@ func (i *IdentifierInfo) Hover(ctx context.Context) (*HoverInformation, error) {
 	return h, nil
 }
 
-func (d declaration) hover(ctx context.Context) (*HoverInformation, error) {
-	ctx, done := trace.StartSpan(ctx, "source.hover")
+// objectString is a wrapper around the types.ObjectString function.
+// It handles adding more information to the object string.
+func objectString(obj types.Object, qf types.Qualifier) string {
+	str := types.ObjectString(obj, qf)
+	switch obj := obj.(type) {
+	case *types.Const:
+		str = fmt.Sprintf("%s = %s", str, obj.Val())
+	}
+	return str
+}
+
+func (d Declaration) hover(ctx context.Context) (*HoverInformation, error) {
+	_, done := trace.StartSpan(ctx, "source.hover")
 	defer done()
+
 	obj := d.obj
 	switch node := d.node.(type) {
 	case *ast.ImportSpec:

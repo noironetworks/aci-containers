@@ -1,6 +1,6 @@
 # grpc-gateway
 
-[![release](https://img.shields.io/github/release/grpc-ecosystem/grpc-gateway.svg?style=flat-square)](https://github.com/grpc-ecosystem/grpc-gateway/releases) [![CircleCI](https://img.shields.io/circleci/project/github/grpc-ecosystem/grpc-gateway/master.svg?style=flat-square)](https://circleci.com/gh/grpc-ecosystem/grpc-gateway) [![coverage](https://img.shields.io/codecov/c/github/grpc-ecosystem/grpc-gateway/master.svg?style=flat-square)](https://codecov.io/gh/grpc-ecosystem/grpc-gateway) [![license](https://img.shields.io/github/license/grpc-ecosystem/grpc-gateway.svg?style=flat-square)](LICENSE.txt)
+[![release](https://img.shields.io/github/release/grpc-ecosystem/grpc-gateway.svg?style=flat-square)](https://github.com/grpc-ecosystem/grpc-gateway/releases) [![CircleCI](https://img.shields.io/circleci/project/github/grpc-ecosystem/grpc-gateway/master.svg?style=flat-square)](https://circleci.com/gh/grpc-ecosystem/grpc-gateway) [![fuzzit](https://app.fuzzit.dev/badge?org_id=grpc-gateway)](https://app.fuzzit.dev/orgs/grpc-gateway/dashboard) [![coverage](https://img.shields.io/codecov/c/github/grpc-ecosystem/grpc-gateway/master.svg?style=flat-square)](https://codecov.io/gh/grpc-ecosystem/grpc-gateway) [![license](https://img.shields.io/github/license/grpc-ecosystem/grpc-gateway.svg?style=flat-square)](LICENSE.txt)
 
 The grpc-gateway is a plugin of the Google protocol buffers compiler
 [protoc](https://github.com/protocolbuffers/protobuf).
@@ -235,7 +235,7 @@ More examples are available under `examples` directory.
 To use the same port for custom HTTP handlers (e.g. serving `swagger.json`),
 gRPC-gateway, and a gRPC server, see
 [this example by CoreOS](https://github.com/philips/grpc-gateway-example/blob/master/cmd/serve.go)
-(and its accompanying [blog post](https://coreos.com/blog/gRPC-protobufs-swagger.html)).
+(and its accompanying [blog post](https://coreos.com/blog/grpc-protobufs-swagger.html)).
 
 ## Features
 

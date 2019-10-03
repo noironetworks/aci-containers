@@ -23,6 +23,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/test/e2e/framework"
+	e2elog "k8s.io/kubernetes/test/e2e/framework/log"
 
 	"fmt"
 	"os/exec"
@@ -40,7 +41,7 @@ func waitForPods(f *framework.Framework, pod_count int, timeout time.Duration) (
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(10 * time.Second) {
 		podList, err := f.PodClient().List(metav1.ListOptions{})
 		if err != nil {
-			framework.Logf("Failed to list pods on node: %v", err)
+			e2elog.Logf("Failed to list pods on node: %v", err)
 			continue
 		}
 
@@ -51,7 +52,7 @@ func waitForPods(f *framework.Framework, pod_count int, timeout time.Duration) (
 			}
 			runningPods = append(runningPods, &pod)
 		}
-		framework.Logf("Running pod count %d", len(runningPods))
+		e2elog.Logf("Running pod count %d", len(runningPods))
 		if len(runningPods) >= pod_count {
 			break
 		}
@@ -59,7 +60,7 @@ func waitForPods(f *framework.Framework, pod_count int, timeout time.Duration) (
 	return runningPods
 }
 
-var _ = framework.KubeDescribe("Restart [Serial] [Slow] [Disruptive]", func() {
+var _ = framework.KubeDescribe("Restart [Serial] [Slow] [Disruptive] [NodeFeature:ContainerRuntimeRestart]", func() {
 	const (
 		// Saturate the node. It's not necessary that all these pods enter
 		// Running/Ready, because we don't know the number of cores in the
@@ -81,7 +82,7 @@ var _ = framework.KubeDescribe("Restart [Serial] [Slow] [Disruptive]", func() {
 		Context("Network", func() {
 			It("should recover from ip leak", func() {
 
-				pods := newTestPods(podCount, false, imageutils.GetPauseImageNameForHostArch(), "restart-container-runtime-test")
+				pods := newTestPods(podCount, false, imageutils.GetPauseImageName(), "restart-container-runtime-test")
 				By(fmt.Sprintf("Trying to create %d pods on node", len(pods)))
 				createBatchPodWithRateControl(f, pods, podCreationInterval)
 				defer deletePodsSync(f, pods)

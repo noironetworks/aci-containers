@@ -58,6 +58,8 @@ var _ = BeforeEach(func() {
 	_, err = db.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE %s", dbName))
 	Expect(err).NotTo(HaveOccurred())
 
+	Expect(db.Close()).To(Succeed())
+
 	db, err = sql.Open(dbDriverName, fmt.Sprintf("%s%s", dbBaseConnectionString, dbName))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(db.Ping()).NotTo(HaveOccurred())

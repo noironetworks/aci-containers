@@ -999,6 +999,9 @@ func (c *AppStream) CreateUsageReportSubscriptionRequest(input *CreateUsageRepor
 //   The resource cannot be created because your AWS account is suspended. For
 //   assistance, contact AWS Support.
 //
+//   * ErrCodeLimitExceededException "LimitExceededException"
+//   The requested limit exceeds the permitted limit for an account.
+//
 // See also, https://docs.aws.amazon.com/goto/WebAPI/appstream-2016-12-01/CreateUsageReportSubscription
 func (c *AppStream) CreateUsageReportSubscription(input *CreateUsageReportSubscriptionInput) (*CreateUsageReportSubscriptionOutput, error) {
 	req, out := c.CreateUsageReportSubscriptionRequest(input)
@@ -3255,7 +3258,7 @@ func (c *AppStream) ListTagsForResourceRequest(input *ListTagsForResourceInput) 
 // can tag AppStream 2.0 image builders, images, fleets, and stacks.
 //
 // For more information about tags, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-// in the Amazon AppStream 2.0 Developer Guide.
+// in the Amazon AppStream 2.0 Administration Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3360,6 +3363,12 @@ func (c *AppStream) StartFleetRequest(input *StartFleetInput) (req *request.Requ
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModificationException"
 //   An API error occurred. Wait a few minutes and try again.
+//
+//   * ErrCodeResourceNotAvailableException "ResourceNotAvailableException"
+//   The specified resource exists and is not in use, but isn't available.
+//
+//   * ErrCodeInvalidRoleException "InvalidRoleException"
+//   The specified role is invalid.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/appstream-2016-12-01/StartFleet
 func (c *AppStream) StartFleet(input *StartFleetInput) (*StartFleetOutput, error) {
@@ -3698,7 +3707,7 @@ func (c *AppStream) TagResourceRequest(input *TagResourceInput) (req *request.Re
 // disassociate tags from your resources, use UntagResource.
 //
 // For more information about tags, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-// in the Amazon AppStream 2.0 Developer Guide.
+// in the Amazon AppStream 2.0 Administration Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3791,7 +3800,7 @@ func (c *AppStream) UntagResourceRequest(input *UntagResourceInput) (req *reques
 // To list the current tags for your resources, use ListTagsForResource.
 //
 // For more information about tags, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-// in the Amazon AppStream 2.0 Developer Guide.
+// in the Amazon AppStream 2.0 Administration Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3961,9 +3970,9 @@ func (c *AppStream) UpdateFleetRequest(input *UpdateFleetInput) (req *request.Re
 //
 // If the fleet is in the STOPPED state, you can update any attribute except
 // the fleet name. If the fleet is in the RUNNING state, you can update the
-// DisplayName, ComputeCapacity, ImageARN, ImageName, and DisconnectTimeoutInSeconds
-// attributes. If the fleet is in the STARTING or STOPPING state, you can't
-// update it.
+// DisplayName, ComputeCapacity, ImageARN, ImageName, IdleDisconnectTimeoutInSeconds,
+// and DisconnectTimeoutInSeconds attributes. If the fleet is in the STARTING
+// or STOPPING state, you can't update it.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4214,6 +4223,62 @@ func (c *AppStream) UpdateStackWithContext(ctx aws.Context, input *UpdateStackIn
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
+}
+
+// Describes an interface VPC endpoint (interface endpoint) that lets you create
+// a private connection between the virtual private cloud (VPC) that you specify
+// and AppStream 2.0. When you specify an interface endpoint for a stack, users
+// of the stack can connect to AppStream 2.0 only through that endpoint. When
+// you specify an interface endpoint for an image builder, administrators can
+// connect to the image builder only through that endpoint.
+type AccessEndpoint struct {
+	_ struct{} `type:"structure"`
+
+	// The type of interface endpoint.
+	//
+	// EndpointType is a required field
+	EndpointType *string `type:"string" required:"true" enum:"AccessEndpointType"`
+
+	// The identifier (ID) of the VPC in which the interface endpoint is used.
+	VpceId *string `min:"1" type:"string"`
+}
+
+// String returns the string representation
+func (s AccessEndpoint) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s AccessEndpoint) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *AccessEndpoint) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "AccessEndpoint"}
+	if s.EndpointType == nil {
+		invalidParams.Add(request.NewErrParamRequired("EndpointType"))
+	}
+	if s.VpceId != nil && len(*s.VpceId) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("VpceId", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetEndpointType sets the EndpointType field's value.
+func (s *AccessEndpoint) SetEndpointType(v string) *AccessEndpoint {
+	s.EndpointType = &v
+	return s
+}
+
+// SetVpceId sets the VpceId field's value.
+func (s *AccessEndpoint) SetVpceId(v string) *AccessEndpoint {
+	s.VpceId = &v
+	return s
 }
 
 // Describes an application in the application catalog.
@@ -4946,6 +5011,12 @@ type CreateFleetInput struct {
 	// connected and a small hourly fee for instances that are not streaming apps.
 	FleetType *string `type:"string" enum:"FleetType"`
 
+	// The Amazon Resource Name (ARN) of the IAM role to apply to the fleet. To
+	// assume a role, a fleet instance calls the AWS Security Token Service (STS)
+	// AssumeRole API operation and passes the ARN of the role to use. The operation
+	// creates a new session with temporary credentials.
+	IamRoleArn *string `type:"string"`
+
 	// The amount of time that users can be idle (inactive) before they are disconnected
 	// from their streaming session and the DisconnectTimeoutInSeconds time interval
 	// begins. Users are notified before they are disconnected due to inactivity.
@@ -5048,7 +5119,7 @@ type CreateFleetInput struct {
 	// _ . : / = + \ - @
 	//
 	// For more information, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-	// in the Amazon AppStream 2.0 Developer Guide.
+	// in the Amazon AppStream 2.0 Administration Guide.
 	Tags map[string]*string `min:"1" type:"map"`
 
 	// The VPC configuration for the fleet.
@@ -5140,6 +5211,12 @@ func (s *CreateFleetInput) SetFleetType(v string) *CreateFleetInput {
 	return s
 }
 
+// SetIamRoleArn sets the IamRoleArn field's value.
+func (s *CreateFleetInput) SetIamRoleArn(v string) *CreateFleetInput {
+	s.IamRoleArn = &v
+	return s
+}
+
 // SetIdleDisconnectTimeoutInSeconds sets the IdleDisconnectTimeoutInSeconds field's value.
 func (s *CreateFleetInput) SetIdleDisconnectTimeoutInSeconds(v int64) *CreateFleetInput {
 	s.IdleDisconnectTimeoutInSeconds = &v
@@ -5214,6 +5291,10 @@ func (s *CreateFleetOutput) SetFleet(v *Fleet) *CreateFleetOutput {
 type CreateImageBuilderInput struct {
 	_ struct{} `type:"structure"`
 
+	// The list of interface VPC endpoint (interface endpoint) objects. Administrators
+	// can connect to the image builder only through the specified endpoints.
+	AccessEndpoints []*AccessEndpoint `min:"1" type:"list"`
+
 	// The version of the AppStream 2.0 agent to use for this image builder. To
 	// use the latest version of the AppStream 2.0 agent, specify [LATEST].
 	AppstreamAgentVersion *string `min:"1" type:"string"`
@@ -5230,6 +5311,12 @@ type CreateImageBuilderInput struct {
 
 	// Enables or disables default internet access for the image builder.
 	EnableDefaultInternetAccess *bool `type:"boolean"`
+
+	// The Amazon Resource Name (ARN) of the IAM role to apply to the image builder.
+	// To assume a role, the image builder calls the AWS Security Token Service
+	// (STS) AssumeRole API operation and passes the ARN of the role to use. The
+	// operation creates a new session with temporary credentials.
+	IamRoleArn *string `type:"string"`
 
 	// The ARN of the public, private, or shared image to use.
 	ImageArn *string `type:"string"`
@@ -5259,7 +5346,7 @@ type CreateImageBuilderInput struct {
 	// If you do not specify a value, the value is set to an empty string.
 	//
 	// For more information about tags, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-	// in the Amazon AppStream 2.0 Developer Guide.
+	// in the Amazon AppStream 2.0 Administration Guide.
 	Tags map[string]*string `min:"1" type:"map"`
 
 	// The VPC configuration for the image builder. You can specify only one subnet.
@@ -5279,6 +5366,9 @@ func (s CreateImageBuilderInput) GoString() string {
 // Validate inspects the fields of the type to determine if they are valid.
 func (s *CreateImageBuilderInput) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "CreateImageBuilderInput"}
+	if s.AccessEndpoints != nil && len(s.AccessEndpoints) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("AccessEndpoints", 1))
+	}
 	if s.AppstreamAgentVersion != nil && len(*s.AppstreamAgentVersion) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("AppstreamAgentVersion", 1))
 	}
@@ -5297,11 +5387,27 @@ func (s *CreateImageBuilderInput) Validate() error {
 	if s.Tags != nil && len(s.Tags) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("Tags", 1))
 	}
+	if s.AccessEndpoints != nil {
+		for i, v := range s.AccessEndpoints {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "AccessEndpoints", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
 
 	if invalidParams.Len() > 0 {
 		return invalidParams
 	}
 	return nil
+}
+
+// SetAccessEndpoints sets the AccessEndpoints field's value.
+func (s *CreateImageBuilderInput) SetAccessEndpoints(v []*AccessEndpoint) *CreateImageBuilderInput {
+	s.AccessEndpoints = v
+	return s
 }
 
 // SetAppstreamAgentVersion sets the AppstreamAgentVersion field's value.
@@ -5331,6 +5437,12 @@ func (s *CreateImageBuilderInput) SetDomainJoinInfo(v *DomainJoinInfo) *CreateIm
 // SetEnableDefaultInternetAccess sets the EnableDefaultInternetAccess field's value.
 func (s *CreateImageBuilderInput) SetEnableDefaultInternetAccess(v bool) *CreateImageBuilderInput {
 	s.EnableDefaultInternetAccess = &v
+	return s
+}
+
+// SetIamRoleArn sets the IamRoleArn field's value.
+func (s *CreateImageBuilderInput) SetIamRoleArn(v string) *CreateImageBuilderInput {
+	s.IamRoleArn = &v
 	return s
 }
 
@@ -5479,6 +5591,10 @@ func (s *CreateImageBuilderStreamingURLOutput) SetStreamingURL(v string) *Create
 type CreateStackInput struct {
 	_ struct{} `type:"structure"`
 
+	// The list of interface VPC endpoint (interface endpoint) objects. Users of
+	// the stack can connect to AppStream 2.0 only through the specified endpoints.
+	AccessEndpoints []*AccessEndpoint `min:"1" type:"list"`
+
 	// The persistent application settings for users of a stack. When these settings
 	// are enabled, changes that users make to applications and Windows settings
 	// are automatically saved after each session and applied to the next session.
@@ -5517,7 +5633,7 @@ type CreateStackInput struct {
 	// _ . : / = + \ - @
 	//
 	// For more information about tags, see Tagging Your Resources (https://docs.aws.amazon.com/appstream2/latest/developerguide/tagging-basic.html)
-	// in the Amazon AppStream 2.0 Developer Guide.
+	// in the Amazon AppStream 2.0 Administration Guide.
 	Tags map[string]*string `min:"1" type:"map"`
 
 	// The actions that are enabled or disabled for users during their streaming
@@ -5538,6 +5654,9 @@ func (s CreateStackInput) GoString() string {
 // Validate inspects the fields of the type to determine if they are valid.
 func (s *CreateStackInput) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "CreateStackInput"}
+	if s.AccessEndpoints != nil && len(s.AccessEndpoints) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("AccessEndpoints", 1))
+	}
 	if s.Name == nil {
 		invalidParams.Add(request.NewErrParamRequired("Name"))
 	}
@@ -5546,6 +5665,16 @@ func (s *CreateStackInput) Validate() error {
 	}
 	if s.UserSettings != nil && len(s.UserSettings) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("UserSettings", 1))
+	}
+	if s.AccessEndpoints != nil {
+		for i, v := range s.AccessEndpoints {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "AccessEndpoints", i), err.(request.ErrInvalidParams))
+			}
+		}
 	}
 	if s.ApplicationSettings != nil {
 		if err := s.ApplicationSettings.Validate(); err != nil {
@@ -5577,6 +5706,12 @@ func (s *CreateStackInput) Validate() error {
 		return invalidParams
 	}
 	return nil
+}
+
+// SetAccessEndpoints sets the AccessEndpoints field's value.
+func (s *CreateStackInput) SetAccessEndpoints(v []*AccessEndpoint) *CreateStackInput {
+	s.AccessEndpoints = v
+	return s
 }
 
 // SetApplicationSettings sets the ApplicationSettings field's value.
@@ -5669,7 +5804,7 @@ type CreateStreamingURLInput struct {
 	FleetName *string `min:"1" type:"string" required:"true"`
 
 	// The session context. For more information, see Session Context (https://docs.aws.amazon.com/appstream2/latest/developerguide/managing-stacks-fleets.html#managing-stacks-fleets-parameters)
-	// in the Amazon AppStream 2.0 Developer Guide.
+	// in the Amazon AppStream 2.0 Administration Guide.
 	SessionContext *string `min:"1" type:"string"`
 
 	// The name of the stack.
@@ -7757,7 +7892,7 @@ func (s ExpireSessionOutput) GoString() string {
 type Fleet struct {
 	_ struct{} `type:"structure"`
 
-	// The ARN for the fleet.
+	// The Amazon Resource Name (ARN) for the fleet.
 	//
 	// Arn is a required field
 	Arn *string `type:"string" required:"true"`
@@ -7808,6 +7943,12 @@ type Fleet struct {
 	// one to two minutes. You are charged for instance streaming when users are
 	// connected and a small hourly fee for instances that are not streaming apps.
 	FleetType *string `type:"string" enum:"FleetType"`
+
+	// The ARN of the IAM role that is applied to the fleet. To assume a role, the
+	// fleet instance calls the AWS Security Token Service (STS) AssumeRole API
+	// operation and passes the ARN of the role to use. The operation creates a
+	// new session with temporary credentials.
+	IamRoleArn *string `type:"string"`
 
 	// The amount of time that users can be idle (inactive) before they are disconnected
 	// from their streaming session and the DisconnectTimeoutInSeconds time interval
@@ -7934,6 +8075,12 @@ func (s *Fleet) SetFleetErrors(v []*FleetError) *Fleet {
 // SetFleetType sets the FleetType field's value.
 func (s *Fleet) SetFleetType(v string) *Fleet {
 	s.FleetType = &v
+	return s
+}
+
+// SetIamRoleArn sets the IamRoleArn field's value.
+func (s *Fleet) SetIamRoleArn(v string) *Fleet {
+	s.IamRoleArn = &v
 	return s
 }
 
@@ -8188,6 +8335,10 @@ func (s *Image) SetVisibility(v string) *Image {
 type ImageBuilder struct {
 	_ struct{} `type:"structure"`
 
+	// The list of virtual private cloud (VPC) interface endpoint objects. Administrators
+	// can connect to the image builder only through the specified endpoints.
+	AccessEndpoints []*AccessEndpoint `min:"1" type:"list"`
+
 	// The version of the AppStream 2.0 agent that is currently being used by the
 	// image builder.
 	AppstreamAgentVersion *string `min:"1" type:"string"`
@@ -8210,6 +8361,12 @@ type ImageBuilder struct {
 
 	// Enables or disables default internet access for the image builder.
 	EnableDefaultInternetAccess *bool `type:"boolean"`
+
+	// The ARN of the IAM role that is applied to the image builder. To assume a
+	// role, the image builder calls the AWS Security Token Service (STS) AssumeRole
+	// API operation and passes the ARN of the role to use. The operation creates
+	// a new session with temporary credentials.
+	IamRoleArn *string `type:"string"`
 
 	// The ARN of the image from which this builder was created.
 	ImageArn *string `type:"string"`
@@ -8251,6 +8408,12 @@ func (s ImageBuilder) GoString() string {
 	return s.String()
 }
 
+// SetAccessEndpoints sets the AccessEndpoints field's value.
+func (s *ImageBuilder) SetAccessEndpoints(v []*AccessEndpoint) *ImageBuilder {
+	s.AccessEndpoints = v
+	return s
+}
+
 // SetAppstreamAgentVersion sets the AppstreamAgentVersion field's value.
 func (s *ImageBuilder) SetAppstreamAgentVersion(v string) *ImageBuilder {
 	s.AppstreamAgentVersion = &v
@@ -8290,6 +8453,12 @@ func (s *ImageBuilder) SetDomainJoinInfo(v *DomainJoinInfo) *ImageBuilder {
 // SetEnableDefaultInternetAccess sets the EnableDefaultInternetAccess field's value.
 func (s *ImageBuilder) SetEnableDefaultInternetAccess(v bool) *ImageBuilder {
 	s.EnableDefaultInternetAccess = &v
+	return s
+}
+
+// SetIamRoleArn sets the IamRoleArn field's value.
+func (s *ImageBuilder) SetIamRoleArn(v string) *ImageBuilder {
+	s.IamRoleArn = &v
 	return s
 }
 
@@ -9020,6 +9189,10 @@ func (s *SharedImagePermissions) SetSharedAccountId(v string) *SharedImagePermis
 type Stack struct {
 	_ struct{} `type:"structure"`
 
+	// The list of virtual private cloud (VPC) interface endpoint objects. Users
+	// of the stack can connect to AppStream 2.0 only through the specified endpoints.
+	AccessEndpoints []*AccessEndpoint `min:"1" type:"list"`
+
 	// The persistent application settings for users of the stack.
 	ApplicationSettings *ApplicationSettingsResponse `type:"structure"`
 
@@ -9066,6 +9239,12 @@ func (s Stack) String() string {
 // GoString returns the string representation
 func (s Stack) GoString() string {
 	return s.String()
+}
+
+// SetAccessEndpoints sets the AccessEndpoints field's value.
+func (s *Stack) SetAccessEndpoints(v []*AccessEndpoint) *Stack {
+	s.AccessEndpoints = v
+	return s
 }
 
 // SetApplicationSettings sets the ApplicationSettings field's value.
@@ -9745,6 +9924,12 @@ type UpdateFleetInput struct {
 	// Enables or disables default internet access for the fleet.
 	EnableDefaultInternetAccess *bool `type:"boolean"`
 
+	// The Amazon Resource Name (ARN) of the IAM role to apply to the fleet. To
+	// assume a role, a fleet instance calls the AWS Security Token Service (STS)
+	// AssumeRole API operation and passes the ARN of the role to use. The operation
+	// creates a new session with temporary credentials.
+	IamRoleArn *string `type:"string"`
+
 	// The amount of time that users can be idle (inactive) before they are disconnected
 	// from their streaming session and the DisconnectTimeoutInSeconds time interval
 	// begins. Users are notified before they are disconnected due to inactivity.
@@ -9917,6 +10102,12 @@ func (s *UpdateFleetInput) SetEnableDefaultInternetAccess(v bool) *UpdateFleetIn
 	return s
 }
 
+// SetIamRoleArn sets the IamRoleArn field's value.
+func (s *UpdateFleetInput) SetIamRoleArn(v string) *UpdateFleetInput {
+	s.IamRoleArn = &v
+	return s
+}
+
 // SetIdleDisconnectTimeoutInSeconds sets the IdleDisconnectTimeoutInSeconds field's value.
 func (s *UpdateFleetInput) SetIdleDisconnectTimeoutInSeconds(v int64) *UpdateFleetInput {
 	s.IdleDisconnectTimeoutInSeconds = &v
@@ -10066,6 +10257,10 @@ func (s UpdateImagePermissionsOutput) GoString() string {
 type UpdateStackInput struct {
 	_ struct{} `type:"structure"`
 
+	// The list of interface VPC endpoint (interface endpoint) objects. Users of
+	// the stack can connect to AppStream 2.0 only through the specified endpoints.
+	AccessEndpoints []*AccessEndpoint `min:"1" type:"list"`
+
 	// The persistent application settings for users of a stack. When these settings
 	// are enabled, changes that users make to applications and Windows settings
 	// are automatically saved after each session and applied to the next session.
@@ -10118,6 +10313,9 @@ func (s UpdateStackInput) GoString() string {
 // Validate inspects the fields of the type to determine if they are valid.
 func (s *UpdateStackInput) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "UpdateStackInput"}
+	if s.AccessEndpoints != nil && len(s.AccessEndpoints) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("AccessEndpoints", 1))
+	}
 	if s.Name == nil {
 		invalidParams.Add(request.NewErrParamRequired("Name"))
 	}
@@ -10126,6 +10324,16 @@ func (s *UpdateStackInput) Validate() error {
 	}
 	if s.UserSettings != nil && len(s.UserSettings) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("UserSettings", 1))
+	}
+	if s.AccessEndpoints != nil {
+		for i, v := range s.AccessEndpoints {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "AccessEndpoints", i), err.(request.ErrInvalidParams))
+			}
+		}
 	}
 	if s.ApplicationSettings != nil {
 		if err := s.ApplicationSettings.Validate(); err != nil {
@@ -10157,6 +10365,12 @@ func (s *UpdateStackInput) Validate() error {
 		return invalidParams
 	}
 	return nil
+}
+
+// SetAccessEndpoints sets the AccessEndpoints field's value.
+func (s *UpdateStackInput) SetAccessEndpoints(v []*AccessEndpoint) *UpdateStackInput {
+	s.AccessEndpoints = v
+	return s
 }
 
 // SetApplicationSettings sets the ApplicationSettings field's value.
@@ -10622,6 +10836,11 @@ func (s *VpcConfig) SetSubnetIds(v []*string) *VpcConfig {
 }
 
 const (
+	// AccessEndpointTypeStreaming is a AccessEndpointType enum value
+	AccessEndpointTypeStreaming = "STREAMING"
+)
+
+const (
 	// ActionClipboardCopyFromLocalDevice is a Action enum value
 	ActionClipboardCopyFromLocalDevice = "CLIPBOARD_COPY_FROM_LOCAL_DEVICE"
 
@@ -10659,6 +10878,9 @@ const (
 
 	// FleetAttributeDomainJoinInfo is a FleetAttribute enum value
 	FleetAttributeDomainJoinInfo = "DOMAIN_JOIN_INFO"
+
+	// FleetAttributeIamRoleArn is a FleetAttribute enum value
+	FleetAttributeIamRoleArn = "IAM_ROLE_ARN"
 )
 
 const (
@@ -10679,6 +10901,12 @@ const (
 
 	// FleetErrorCodeIamServiceRoleIsMissing is a FleetErrorCode enum value
 	FleetErrorCodeIamServiceRoleIsMissing = "IAM_SERVICE_ROLE_IS_MISSING"
+
+	// FleetErrorCodeMachineRoleIsMissing is a FleetErrorCode enum value
+	FleetErrorCodeMachineRoleIsMissing = "MACHINE_ROLE_IS_MISSING"
+
+	// FleetErrorCodeStsDisabledInRegion is a FleetErrorCode enum value
+	FleetErrorCodeStsDisabledInRegion = "STS_DISABLED_IN_REGION"
 
 	// FleetErrorCodeSubnetHasInsufficientIpAddresses is a FleetErrorCode enum value
 	FleetErrorCodeSubnetHasInsufficientIpAddresses = "SUBNET_HAS_INSUFFICIENT_IP_ADDRESSES"
@@ -10899,6 +11127,12 @@ const (
 
 	// StackAttributeUserSettings is a StackAttribute enum value
 	StackAttributeUserSettings = "USER_SETTINGS"
+
+	// StackAttributeIamRoleArn is a StackAttribute enum value
+	StackAttributeIamRoleArn = "IAM_ROLE_ARN"
+
+	// StackAttributeAccessEndpoints is a StackAttribute enum value
+	StackAttributeAccessEndpoints = "ACCESS_ENDPOINTS"
 )
 
 const (

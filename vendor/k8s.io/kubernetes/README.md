@@ -42,17 +42,17 @@ If you want to build Kubernetes right away there are two options:
 ##### You have a working [Go environment].
 
 ```
-$ go get -d k8s.io/kubernetes
-$ cd $GOPATH/src/k8s.io/kubernetes
-$ make
+go get -d k8s.io/kubernetes
+cd $GOPATH/src/k8s.io/kubernetes
+make
 ```
 
 ##### You have a working [Docker environment].
 
 ```
-$ git clone https://github.com/kubernetes/kubernetes
-$ cd kubernetes
-$ make quick-release
+git clone https://github.com/kubernetes/kubernetes
+cd kubernetes
+make quick-release
 ```
 
 For the full story, head over to the [developer's documentation].
@@ -76,8 +76,8 @@ That said, if you have questions, reach out to us
 [Go environment]: https://golang.org/doc/install
 [GoDoc]: https://godoc.org/k8s.io/kubernetes
 [GoDoc Widget]: https://godoc.org/k8s.io/kubernetes?status.svg
-[interactive tutorial]: http://kubernetes.io/docs/tutorials/kubernetes-basics
-[kubernetes.io]: http://kubernetes.io
+[interactive tutorial]: https://kubernetes.io/docs/tutorials/kubernetes-basics
+[kubernetes.io]: https://kubernetes.io
 [Scalable Microservices with Kubernetes]: https://www.udacity.com/course/scalable-microservices-with-kubernetes--ud615
 [troubleshooting guide]: https://kubernetes.io/docs/tasks/debug-application-cluster/troubleshooting/
 

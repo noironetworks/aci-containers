@@ -93,6 +93,8 @@ type rpcCodeBucket struct {
 func (r *rpcs) StartSpan(ctx context.Context, span *telemetry.Span)  {}
 func (r *rpcs) FinishSpan(ctx context.Context, span *telemetry.Span) {}
 func (r *rpcs) Log(ctx context.Context, event telemetry.Event)       {}
+func (r *rpcs) Flush()                                               {}
+
 func (r *rpcs) Metric(ctx context.Context, data telemetry.MetricData) {
 	for i, group := range data.Groups() {
 		set := &r.Inbound
@@ -135,7 +137,7 @@ func (r *rpcs) Metric(ctx context.Context, data telemetry.MetricData) {
 				b = &rpcCodeBucket{Key: status}
 				stats.Codes = append(stats.Codes, b)
 				sort.Slice(stats.Codes, func(i int, j int) bool {
-					return stats.Codes[i].Key < stats.Codes[i].Key
+					return stats.Codes[i].Key < stats.Codes[j].Key
 				})
 			}
 			b.Count = data.(*metric.Int64Data).Rows[i]

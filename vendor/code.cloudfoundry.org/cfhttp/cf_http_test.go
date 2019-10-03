@@ -67,7 +67,7 @@ var _ = Describe("CfHttp", func() {
 
 		BeforeEach(func() {
 			certFixture = "fixtures/cert.crt"
-			keyFixture = "fixtures/key.key"
+			keyFixture = "fixtures/cert.key"
 			caCertFixture = "fixtures/cacert.crt"
 		})
 
@@ -90,7 +90,7 @@ var _ = Describe("CfHttp", func() {
 
 		BeforeEach(func() {
 			certFixture = "fixtures/cert.crt"
-			keyFixture = "fixtures/key.key"
+			keyFixture = "fixtures/cert.key"
 			caCertPool = x509.NewCertPool()
 		})
 

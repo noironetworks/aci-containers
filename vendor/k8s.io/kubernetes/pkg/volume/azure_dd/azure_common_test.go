@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/arm/storage"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute"
 	"github.com/stretchr/testify/assert"
 
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -141,12 +141,12 @@ func TestIoHandler(t *testing.T) {
 func TestNormalizeStorageAccountType(t *testing.T) {
 	tests := []struct {
 		storageAccountType  string
-		expectedAccountType storage.SkuName
+		expectedAccountType compute.DiskStorageAccountTypes
 		expectError         bool
 	}{
 		{
 			storageAccountType:  "",
-			expectedAccountType: storage.StandardLRS,
+			expectedAccountType: compute.StandardLRS,
 			expectError:         false,
 		},
 		{
@@ -156,22 +156,22 @@ func TestNormalizeStorageAccountType(t *testing.T) {
 		},
 		{
 			storageAccountType:  "Standard_LRS",
-			expectedAccountType: storage.StandardLRS,
+			expectedAccountType: compute.StandardLRS,
 			expectError:         false,
 		},
 		{
 			storageAccountType:  "Premium_LRS",
-			expectedAccountType: storage.PremiumLRS,
+			expectedAccountType: compute.PremiumLRS,
 			expectError:         false,
 		},
 		{
-			storageAccountType:  "Standard_GRS",
-			expectedAccountType: storage.StandardGRS,
+			storageAccountType:  "StandardSSD_LRS",
+			expectedAccountType: compute.StandardSSDLRS,
 			expectError:         false,
 		},
 		{
-			storageAccountType:  "Standard_RAGRS",
-			expectedAccountType: storage.StandardRAGRS,
+			storageAccountType:  "UltraSSD_LRS",
+			expectedAccountType: compute.UltraSSDLRS,
 			expectError:         false,
 		},
 	}
@@ -183,57 +183,42 @@ func TestNormalizeStorageAccountType(t *testing.T) {
 	}
 }
 
-func TestGetDiskLUN(t *testing.T) {
+func TestGetDiskNum(t *testing.T) {
 	tests := []struct {
 		deviceInfo  string
-		expectedLUN int32
+		expectedNum string
 		expectError bool
 	}{
 		{
-			deviceInfo:  "0",
-			expectedLUN: 0,
+			deviceInfo:  "/dev/disk0",
+			expectedNum: "0",
 			expectError: false,
 		},
 		{
-			deviceInfo:  "10",
-			expectedLUN: 10,
+			deviceInfo:  "/dev/disk99",
+			expectedNum: "99",
 			expectError: false,
 		},
 		{
-			deviceInfo:  "11d",
-			expectedLUN: -1,
+			deviceInfo:  "",
+			expectedNum: "",
+			expectError: true,
+		},
+		{
+			deviceInfo:  "/dev/disk",
+			expectedNum: "",
 			expectError: true,
 		},
 		{
 			deviceInfo:  "999",
-			expectedLUN: -1,
-			expectError: true,
-		},
-		{
-			deviceInfo:  "",
-			expectedLUN: -1,
-			expectError: true,
-		},
-		{
-			deviceInfo:  "/dev/disk/azure/scsi1/lun2",
-			expectedLUN: 2,
-			expectError: false,
-		},
-		{
-			deviceInfo:  "/dev/disk/azure/scsi0/lun12",
-			expectedLUN: 12,
-			expectError: false,
-		},
-		{
-			deviceInfo:  "/dev/disk/by-id/scsi1/lun2",
-			expectedLUN: -1,
+			expectedNum: "",
 			expectError: true,
 		},
 	}
 
 	for _, test := range tests {
-		result, err := getDiskLUN(test.deviceInfo)
-		assert.Equal(t, result, test.expectedLUN)
+		result, err := getDiskNum(test.deviceInfo)
+		assert.Equal(t, result, test.expectedNum)
 		assert.Equal(t, err != nil, test.expectError, fmt.Sprintf("error msg: %v", err))
 	}
 }

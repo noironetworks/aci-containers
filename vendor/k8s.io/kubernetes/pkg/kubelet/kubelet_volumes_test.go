@@ -283,7 +283,6 @@ func TestVolumeAttachAndMountControllerEnabled(t *testing.T) {
 							DevicePath: "fake/path",
 						},
 					}},
-				Spec: v1.NodeSpec{ExternalID: testKubeletHostname},
 			}, nil
 		})
 	kubeClient.AddReactor("*", "*", func(action core.Action) (bool, runtime.Object, error) {
@@ -350,7 +349,6 @@ func TestVolumeUnmountAndDetachControllerEnabled(t *testing.T) {
 							DevicePath: "fake/path",
 						},
 					}},
-				Spec: v1.NodeSpec{ExternalID: testKubeletHostname},
 			}, nil
 		})
 	kubeClient.AddReactor("*", "*", func(action core.Action) (bool, runtime.Object, error) {
@@ -441,11 +439,11 @@ func (f *stubVolume) CanMount() error {
 	return nil
 }
 
-func (f *stubVolume) SetUp(fsGroup *int64) error {
+func (f *stubVolume) SetUp(mounterArgs volume.MounterArgs) error {
 	return nil
 }
 
-func (f *stubVolume) SetUpAt(dir string, fsGroup *int64) error {
+func (f *stubVolume) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {
 	return nil
 }
 
@@ -465,6 +463,11 @@ func (f *stubBlockVolume) GetPodDeviceMapPath() (string, string) {
 func (f *stubBlockVolume) SetUpDevice() (string, error) {
 	return "", nil
 }
+
+func (f stubBlockVolume) MapDevice(devicePath, globalMapPath, volumeMapPath, volumeMapName string, podUID types.UID) error {
+	return nil
+}
+
 func (f *stubBlockVolume) TearDownDevice(mapPath string, devicePath string) error {
 	return nil
 }

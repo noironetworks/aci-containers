@@ -83,6 +83,8 @@ var _ = BeforeSuite(func() {
 	_, err = rawDB.Exec(fmt.Sprintf("CREATE DATABASE diego_%d", GinkgoParallelNode()))
 	Expect(err).NotTo(HaveOccurred())
 
+	Expect(rawDB.Close()).To(Succeed())
+
 	rawDB, err = sql.Open(dbDriverName, fmt.Sprintf("%sdiego_%d", dbBaseConnectionString, GinkgoParallelNode()))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(rawDB.Ping()).NotTo(HaveOccurred())

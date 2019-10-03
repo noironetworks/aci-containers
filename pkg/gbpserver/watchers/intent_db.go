@@ -19,7 +19,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	//"github.com/davecgh/go-spew/spew"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/aci.aw/v1"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"reflect"
 	"sync"

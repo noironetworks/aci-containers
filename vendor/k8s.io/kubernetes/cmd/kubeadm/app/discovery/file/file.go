@@ -17,57 +17,78 @@ limitations under the License.
 package file
 
 import (
-	"fmt"
+	"github.com/pkg/errors"
 
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 )
 
-// RetrieveValidatedClusterInfo connects to the API Server and makes sure it can talk
+// RetrieveValidatedConfigInfo connects to the API Server and makes sure it can talk
 // securely to the API Server using the provided CA cert and
 // optionally refreshes the cluster-info information from the cluster-info ConfigMap
-func RetrieveValidatedClusterInfo(filepath string) (*clientcmdapi.Cluster, error) {
-	clusterinfo, err := clientcmd.LoadFromFile(filepath)
+func RetrieveValidatedConfigInfo(filepath, clustername string) (*clientcmdapi.Config, error) {
+	config, err := clientcmd.LoadFromFile(filepath)
 	if err != nil {
 		return nil, err
 	}
-	return ValidateClusterInfo(clusterinfo)
+	return ValidateConfigInfo(config, clustername)
 }
 
-// ValidateClusterInfo connects to the API Server and makes sure it can talk
-// securely to the API Server using the provided CA cert and
+// ValidateConfigInfo connects to the API Server and makes sure it can talk
+// securely to the API Server using the provided CA cert/client certificates  and
 // optionally refreshes the cluster-info information from the cluster-info ConfigMap
-func ValidateClusterInfo(clusterinfo *clientcmdapi.Config) (*clientcmdapi.Cluster, error) {
-	err := validateClusterInfoKubeConfig(clusterinfo)
+func ValidateConfigInfo(config *clientcmdapi.Config, clustername string) (*clientcmdapi.Config, error) {
+	err := validateKubeConfig(config)
 	if err != nil {
 		return nil, err
 	}
 
-	// This is the cluster object we've got from the cluster-info KubeConfig file
-	defaultCluster := kubeconfigutil.GetClusterFromKubeConfig(clusterinfo)
+	var kubeconfig *clientcmdapi.Config
 
-	// Create a new kubeconfig object from the given, just copy over the server and the CA cert
-	// We do this in order to not pick up other possible misconfigurations in the clusterinfo file
-	configFromClusterInfo := kubeconfigutil.CreateBasic(
-		defaultCluster.Server,
-		"kubernetes",
-		"", // no user provided
-		defaultCluster.CertificateAuthorityData,
-	)
+	// If the discovery file config contains authentication credentials
+	if kubeconfigutil.HasAuthenticationCredentials(config) {
+		klog.V(1).Info("[discovery] Using authentication credentials from the discovery file for validating TLS connection")
 
-	client, err := kubeconfigutil.ToClientSet(configFromClusterInfo)
+		// Use the discovery file config for starting the join process
+		kubeconfig = config
+
+		// We should ensure that all the authentication info is embedded in config file, so everything will work also when
+		// the kubeconfig file will be stored in /etc/kubernetes/boostrap-kubelet.conf
+		if err := kubeconfigutil.EnsureAuthenticationInfoAreEmbedded(kubeconfig); err != nil {
+			return nil, errors.Wrap(err, "error while reading client cert file or client key file")
+		}
+	} else {
+		// If the discovery file config does not contains authentication credentials
+		klog.V(1).Info("[discovery] Discovery file does not contains authentication credentials, using unauthenticated request for validating TLS connection")
+
+		// Create a new kubeconfig object from the discovery file config, with only the server and the CA cert.
+		// NB. We do this in order to not pick up other possible misconfigurations in the clusterinfo file
+		var fileCluster = kubeconfigutil.GetClusterFromKubeConfig(config)
+		kubeconfig = kubeconfigutil.CreateBasic(
+			fileCluster.Server,
+			clustername,
+			"", // no user provided
+			fileCluster.CertificateAuthorityData,
+		)
+	}
+
+	// Try to read the cluster-info config map; this step was required by the original design in order
+	// to validate the TLS connection to the server early in the process
+	client, err := kubeconfigutil.ToClientSet(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("[discovery] Created cluster-info discovery client, requesting info from %q\n", defaultCluster.Server)
+	currentCluster := kubeconfigutil.GetClusterFromKubeConfig(kubeconfig)
+	klog.V(1).Infof("[discovery] Created cluster-info discovery client, requesting info from %q\n", currentCluster.Server)
 
 	var clusterinfoCM *v1.ConfigMap
 	wait.PollInfinite(constants.DiscoveryRetryInterval, func() (bool, error) {
@@ -76,11 +97,11 @@ func ValidateClusterInfo(clusterinfo *clientcmdapi.Config) (*clientcmdapi.Cluste
 		if err != nil {
 			if apierrors.IsForbidden(err) {
 				// If the request is unauthorized, the cluster admin has not granted access to the cluster info configmap for unauthenticated users
-				// In that case, trust the cluster admin and do not refresh the cluster-info credentials
-				fmt.Printf("[discovery] Could not access the %s ConfigMap for refreshing the cluster-info information, but the TLS cert is valid so proceeding...\n", bootstrapapi.ConfigMapClusterInfo)
+				// In that case, trust the cluster admin and do not refresh the cluster-info data
+				klog.Warningf("[discovery] Could not access the %s ConfigMap for refreshing the cluster-info information, but the TLS cert is valid so proceeding...\n", bootstrapapi.ConfigMapClusterInfo)
 				return true, nil
 			}
-			fmt.Printf("[discovery] Failed to validate the API Server's identity, will try again: [%v]\n", err)
+			klog.V(1).Infof("[discovery] Error reading the %s ConfigMap, will try again: %v\n", bootstrapapi.ConfigMapClusterInfo, err)
 			return false, nil
 		}
 		return true, nil
@@ -88,42 +109,45 @@ func ValidateClusterInfo(clusterinfo *clientcmdapi.Config) (*clientcmdapi.Cluste
 
 	// If we couldn't fetch the cluster-info ConfigMap, just return the cluster-info object the user provided
 	if clusterinfoCM == nil {
-		return defaultCluster, nil
+		return kubeconfig, nil
 	}
 
 	// We somehow got hold of the ConfigMap, try to read some data from it. If we can't, fallback on the user-provided file
 	refreshedBaseKubeConfig, err := tryParseClusterInfoFromConfigMap(clusterinfoCM)
 	if err != nil {
-		fmt.Printf("[discovery] The %s ConfigMap isn't set up properly (%v), but the TLS cert is valid so proceeding...\n", bootstrapapi.ConfigMapClusterInfo, err)
-		return defaultCluster, nil
+		klog.V(1).Infof("[discovery] The %s ConfigMap isn't set up properly (%v), but the TLS cert is valid so proceeding...\n", bootstrapapi.ConfigMapClusterInfo, err)
+		return kubeconfig, nil
 	}
 
-	fmt.Println("[discovery] Synced cluster-info information from the API Server so we have got the latest information")
-	// In an HA world in the future, this will make more sense, because now we've got new information, possibly about new API Servers to talk to
-	return kubeconfigutil.GetClusterFromKubeConfig(refreshedBaseKubeConfig), nil
+	refreshedCluster := kubeconfigutil.GetClusterFromKubeConfig(refreshedBaseKubeConfig)
+	currentCluster.Server = refreshedCluster.Server
+	currentCluster.CertificateAuthorityData = refreshedCluster.CertificateAuthorityData
+
+	klog.V(1).Infof("[discovery] Synced Server and CertificateAuthorityData from the %s ConfigMap", bootstrapapi.ConfigMapClusterInfo)
+	return kubeconfig, nil
 }
 
 // tryParseClusterInfoFromConfigMap tries to parse a kubeconfig file from a ConfigMap key
 func tryParseClusterInfoFromConfigMap(cm *v1.ConfigMap) (*clientcmdapi.Config, error) {
 	kubeConfigString, ok := cm.Data[bootstrapapi.KubeConfigKey]
 	if !ok || len(kubeConfigString) == 0 {
-		return nil, fmt.Errorf("no %s key in ConfigMap", bootstrapapi.KubeConfigKey)
+		return nil, errors.Errorf("no %s key in ConfigMap", bootstrapapi.KubeConfigKey)
 	}
 	parsedKubeConfig, err := clientcmd.Load([]byte(kubeConfigString))
 	if err != nil {
-		return nil, fmt.Errorf("couldn't parse the kubeconfig file in the %s ConfigMap: %v", bootstrapapi.ConfigMapClusterInfo, err)
+		return nil, errors.Wrapf(err, "couldn't parse the kubeconfig file in the %s ConfigMap", bootstrapapi.ConfigMapClusterInfo)
 	}
 	return parsedKubeConfig, nil
 }
 
-// validateClusterInfoKubeConfig makes sure the user-provided cluster-info KubeConfig file is valid
-func validateClusterInfoKubeConfig(clusterinfo *clientcmdapi.Config) error {
-	if len(clusterinfo.Clusters) < 1 {
-		return fmt.Errorf("the provided cluster-info KubeConfig file must have at least one Cluster defined")
+// validateKubeConfig makes sure the user-provided kubeconfig file is valid
+func validateKubeConfig(config *clientcmdapi.Config) error {
+	if len(config.Clusters) < 1 {
+		return errors.New("the provided cluster-info kubeconfig file must have at least one Cluster defined")
 	}
-	defaultCluster := kubeconfigutil.GetClusterFromKubeConfig(clusterinfo)
+	defaultCluster := kubeconfigutil.GetClusterFromKubeConfig(config)
 	if defaultCluster == nil {
-		return fmt.Errorf("the provided cluster-info KubeConfig file must have an unnamed Cluster or a CurrentContext that specifies a non-nil Cluster")
+		return errors.New("the provided cluster-info kubeconfig file must have an unnamed Cluster or a CurrentContext that specifies a non-nil Cluster")
 	}
-	return nil
+	return clientcmd.Validate(*config)
 }

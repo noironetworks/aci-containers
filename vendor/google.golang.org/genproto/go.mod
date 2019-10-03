@@ -1,5 +1,7 @@
 module google.golang.org/genproto
 
+go 1.11
+
 require (
 	github.com/golang/protobuf v1.3.2
 	golang.org/x/exp v0.0.0-20190121172915-509febef88a4

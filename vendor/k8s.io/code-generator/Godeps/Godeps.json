@@ -68,7 +68,7 @@
 		},
 		{
 			"ImportPath": "github.com/googleapis/gnostic",
-			"Rev": "68f4ded48ba9"
+			"Rev": "0c5108395e2d"
 		},
 		{
 			"ImportPath": "github.com/json-iterator/go",
@@ -159,6 +159,10 @@
 			"Rev": "cdfb69ac37fc"
 		},
 		{
+			"ImportPath": "golang.org/x/sync",
+			"Rev": "42b317875d0f"
+		},
+		{
 			"ImportPath": "golang.org/x/sys",
 			"Rev": "3b5209105503"
 		},
@@ -168,7 +172,7 @@
 		},
 		{
 			"ImportPath": "golang.org/x/tools",
-			"Rev": "aa82965741a9"
+			"Rev": "6e04913cbbac"
 		},
 		{
 			"ImportPath": "gonum.org/v1/gonum",
@@ -188,15 +192,15 @@
 		},
 		{
 			"ImportPath": "k8s.io/gengo",
-			"Rev": "955ffa8fcfc9"
+			"Rev": "26a664648505"
 		},
 		{
 			"ImportPath": "k8s.io/klog",
-			"Rev": "v0.4.0"
+			"Rev": "v1.0.0"
 		},
 		{
 			"ImportPath": "k8s.io/kube-openapi",
-			"Rev": "33be087ad058"
+			"Rev": "743ec37842bf"
 		},
 		{
 			"ImportPath": "modernc.org/cc",
@@ -221,6 +225,10 @@
 		{
 			"ImportPath": "sigs.k8s.io/structured-merge-diff",
 			"Rev": "15d366b2352e"
+		},
+		{
+			"ImportPath": "sigs.k8s.io/yaml",
+			"Rev": "v1.1.0"
 		}
 	]
 }

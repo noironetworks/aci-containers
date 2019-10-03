@@ -21,10 +21,10 @@ import (
 	"net"
 	"testing"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	api "k8s.io/kubernetes/pkg/apis/core"
 	fake "k8s.io/kubernetes/pkg/proxy/util/testing"
 )
 
@@ -98,16 +98,16 @@ func TestIsProxyableHostname(t *testing.T) {
 
 func TestShouldSkipService(t *testing.T) {
 	testCases := []struct {
-		service    *api.Service
+		service    *v1.Service
 		svcName    types.NamespacedName
 		shouldSkip bool
 	}{
 		{
 			// Cluster IP is None
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
-					ClusterIP: api.ClusterIPNone,
+				Spec: v1.ServiceSpec{
+					ClusterIP: v1.ClusterIPNone,
 				},
 			},
 			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
@@ -115,9 +115,9 @@ func TestShouldSkipService(t *testing.T) {
 		},
 		{
 			// Cluster IP is empty
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
+				Spec: v1.ServiceSpec{
 					ClusterIP: "",
 				},
 			},
@@ -126,11 +126,11 @@ func TestShouldSkipService(t *testing.T) {
 		},
 		{
 			// ExternalName type service
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
+				Spec: v1.ServiceSpec{
 					ClusterIP: "1.2.3.4",
-					Type:      api.ServiceTypeExternalName,
+					Type:      v1.ServiceTypeExternalName,
 				},
 			},
 			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
@@ -138,11 +138,11 @@ func TestShouldSkipService(t *testing.T) {
 		},
 		{
 			// ClusterIP type service with ClusterIP set
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
+				Spec: v1.ServiceSpec{
 					ClusterIP: "1.2.3.4",
-					Type:      api.ServiceTypeClusterIP,
+					Type:      v1.ServiceTypeClusterIP,
 				},
 			},
 			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
@@ -150,11 +150,11 @@ func TestShouldSkipService(t *testing.T) {
 		},
 		{
 			// NodePort type service with ClusterIP set
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
+				Spec: v1.ServiceSpec{
 					ClusterIP: "1.2.3.4",
-					Type:      api.ServiceTypeNodePort,
+					Type:      v1.ServiceTypeNodePort,
 				},
 			},
 			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
@@ -162,11 +162,11 @@ func TestShouldSkipService(t *testing.T) {
 		},
 		{
 			// LoadBalancer type service with ClusterIP set
-			service: &api.Service{
+			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"},
-				Spec: api.ServiceSpec{
+				Spec: v1.ServiceSpec{
 					ClusterIP: "1.2.3.4",
-					Type:      api.ServiceTypeLoadBalancer,
+					Type:      v1.ServiceTypeLoadBalancer,
 				},
 			},
 			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
@@ -393,6 +393,53 @@ func TestGetNodeAddressses(t *testing.T) {
 		}
 		if !addrList.Equal(testCases[i].expected) {
 			t.Errorf("case [%d], unexpected mismatch, expected: %v, got: %v", i, testCases[i].expected, addrList)
+		}
+	}
+}
+
+func TestAppendPortIfNeeded(t *testing.T) {
+	testCases := []struct {
+		name   string
+		addr   string
+		port   int32
+		expect string
+	}{
+		{
+			name:   "IPv4 all-zeros bind address has port",
+			addr:   "0.0.0.0:12345",
+			port:   23456,
+			expect: "0.0.0.0:12345",
+		},
+		{
+			name:   "non-zeros IPv4 config",
+			addr:   "9.8.7.6",
+			port:   12345,
+			expect: "9.8.7.6:12345",
+		},
+		{
+			name:   "IPv6 \"[::]\" bind address has port",
+			addr:   "[::]:12345",
+			port:   23456,
+			expect: "[::]:12345",
+		},
+		{
+			name:   "IPv6 config",
+			addr:   "fd00:1::5",
+			port:   23456,
+			expect: "[fd00:1::5]:23456",
+		},
+		{
+			name:   "Invalid IPv6 Config",
+			addr:   "[fd00:1::5]",
+			port:   12345,
+			expect: "[fd00:1::5]",
+		},
+	}
+
+	for i := range testCases {
+		got := AppendPortIfNeeded(testCases[i].addr, testCases[i].port)
+		if testCases[i].expect != got {
+			t.Errorf("case %s: expected %v, got %v", testCases[i].name, testCases[i].expect, got)
 		}
 	}
 }

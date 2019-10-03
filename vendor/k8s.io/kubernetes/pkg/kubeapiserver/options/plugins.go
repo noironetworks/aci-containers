@@ -20,9 +20,6 @@ package options
 // This should probably be part of some configuration fed into the build for a
 // given binary target.
 import (
-	// Cloud providers
-	_ "k8s.io/kubernetes/pkg/cloudprovider/providers"
-
 	// Admission policies
 	"k8s.io/kubernetes/plugin/pkg/admission/admit"
 	"k8s.io/kubernetes/plugin/pkg/admission/alwayspullimages"
@@ -34,13 +31,11 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/admission/extendedresourcetoleration"
 	"k8s.io/kubernetes/plugin/pkg/admission/gc"
 	"k8s.io/kubernetes/plugin/pkg/admission/imagepolicy"
-	"k8s.io/kubernetes/plugin/pkg/admission/initialresources"
 	"k8s.io/kubernetes/plugin/pkg/admission/limitranger"
 	"k8s.io/kubernetes/plugin/pkg/admission/namespace/autoprovision"
 	"k8s.io/kubernetes/plugin/pkg/admission/namespace/exists"
 	"k8s.io/kubernetes/plugin/pkg/admission/noderestriction"
-	"k8s.io/kubernetes/plugin/pkg/admission/persistentvolume/label"
-	"k8s.io/kubernetes/plugin/pkg/admission/persistentvolume/resize"
+	"k8s.io/kubernetes/plugin/pkg/admission/nodetaint"
 	"k8s.io/kubernetes/plugin/pkg/admission/podnodeselector"
 	"k8s.io/kubernetes/plugin/pkg/admission/podpreset"
 	"k8s.io/kubernetes/plugin/pkg/admission/podtolerationrestriction"
@@ -49,15 +44,18 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/admission/security/podsecuritypolicy"
 	"k8s.io/kubernetes/plugin/pkg/admission/securitycontext/scdeny"
 	"k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
+	"k8s.io/kubernetes/plugin/pkg/admission/storage/persistentvolume/label"
+	"k8s.io/kubernetes/plugin/pkg/admission/storage/persistentvolume/resize"
 	"k8s.io/kubernetes/plugin/pkg/admission/storage/storageclass/setdefault"
 	"k8s.io/kubernetes/plugin/pkg/admission/storage/storageobjectinuseprotection"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission"
-	"k8s.io/apiserver/pkg/admission/plugin/initialization"
 	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
 	mutatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/mutating"
 	validatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/validating"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 // AllOrderedPlugins is the list of all the plugins in order.
@@ -68,11 +66,11 @@ var AllOrderedPlugins = []string{
 	exists.PluginName,                       // NamespaceExists
 	scdeny.PluginName,                       // SecurityContextDeny
 	antiaffinity.PluginName,                 // LimitPodHardAntiAffinityTopology
-	initialresources.PluginName,             // InitialResources
 	podpreset.PluginName,                    // PodPreset
 	limitranger.PluginName,                  // LimitRanger
 	serviceaccount.PluginName,               // ServiceAccount
 	noderestriction.PluginName,              // NodeRestriction
+	nodetaint.PluginName,                    // TaintNodesByCondition
 	alwayspullimages.PluginName,             // AlwaysPullImages
 	imagepolicy.PluginName,                  // ImagePolicyWebhook
 	podsecuritypolicy.PluginName,            // PodSecurityPolicy
@@ -90,7 +88,6 @@ var AllOrderedPlugins = []string{
 	gc.PluginName,                           // OwnerReferencesPermissionEnforcement
 	resize.PluginName,                       // PersistentVolumeClaimResize
 	mutatingwebhook.PluginName,              // MutatingAdmissionWebhook
-	initialization.PluginName,               // Initializers
 	validatingwebhook.PluginName,            // ValidatingAdmissionWebhook
 	resourcequota.PluginName,                // ResourceQuota
 	deny.PluginName,                         // AlwaysDeny
@@ -109,12 +106,12 @@ func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	extendedresourcetoleration.Register(plugins)
 	gc.Register(plugins)
 	imagepolicy.Register(plugins)
-	initialresources.Register(plugins)
 	limitranger.Register(plugins)
 	autoprovision.Register(plugins)
 	exists.Register(plugins)
 	noderestriction.Register(plugins)
-	label.Register(plugins) // DEPRECATED in favor of NewPersistentVolumeLabelController in CCM
+	nodetaint.Register(plugins)
+	label.Register(plugins) // DEPRECATED, future PVs should not rely on labels for zone topology
 	podnodeselector.Register(plugins)
 	podpreset.Register(plugins)
 	podtolerationrestriction.Register(plugins)
@@ -131,16 +128,25 @@ func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 // DefaultOffAdmissionPlugins get admission plugins off by default for kube-apiserver.
 func DefaultOffAdmissionPlugins() sets.String {
 	defaultOnPlugins := sets.NewString(
-		lifecycle.PluginName,                //NamespaceLifecycle
-		limitranger.PluginName,              //LimitRanger
-		serviceaccount.PluginName,           //ServiceAccount
-		label.PluginName,                    //PersistentVolumeLabel
-		setdefault.PluginName,               //DefaultStorageClass
-		defaulttolerationseconds.PluginName, //DefaultTolerationSeconds
-		mutatingwebhook.PluginName,          //MutatingAdmissionWebhook
-		validatingwebhook.PluginName,        //ValidatingAdmissionWebhook
-		resourcequota.PluginName,            //ResourceQuota
+		lifecycle.PluginName,                    //NamespaceLifecycle
+		limitranger.PluginName,                  //LimitRanger
+		serviceaccount.PluginName,               //ServiceAccount
+		setdefault.PluginName,                   //DefaultStorageClass
+		resize.PluginName,                       //PersistentVolumeClaimResize
+		defaulttolerationseconds.PluginName,     //DefaultTolerationSeconds
+		mutatingwebhook.PluginName,              //MutatingAdmissionWebhook
+		validatingwebhook.PluginName,            //ValidatingAdmissionWebhook
+		resourcequota.PluginName,                //ResourceQuota
+		storageobjectinuseprotection.PluginName, //StorageObjectInUseProtection
 	)
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.PodPriority) {
+		defaultOnPlugins.Insert(podpriority.PluginName) //PodPriority
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.TaintNodesByCondition) {
+		defaultOnPlugins.Insert(nodetaint.PluginName) //TaintNodesByCondition
+	}
 
 	return sets.NewString(AllOrderedPlugins...).Difference(defaultOnPlugins)
 }

@@ -43,6 +43,7 @@ import (
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/util/procfs"
 	"k8s.io/kubernetes/test/e2e/framework"
+	e2elog "k8s.io/kubernetes/test/e2e/framework/log"
 	"k8s.io/kubernetes/test/e2e_node/perftype"
 
 	. "github.com/onsi/ginkgo"
@@ -86,9 +87,9 @@ func NewResourceCollector(interval time.Duration) *ResourceCollector {
 // then repeatedly runs collectStats.
 func (r *ResourceCollector) Start() {
 	// Get the cgroup container names for kubelet and runtime
-	kubeletContainer, err := getContainerNameForProcess(kubeletProcessName, "")
-	runtimeContainer, err := getContainerNameForProcess(framework.TestContext.ContainerRuntimeProcessName, framework.TestContext.ContainerRuntimePidFile)
-	if err == nil {
+	kubeletContainer, err1 := getContainerNameForProcess(kubeletProcessName, "")
+	runtimeContainer, err2 := getContainerNameForProcess(framework.TestContext.ContainerRuntimeProcessName, framework.TestContext.ContainerRuntimePidFile)
+	if err1 == nil && err2 == nil {
 		systemContainers = map[string]string{
 			stats.SystemContainerKubelet: kubeletContainer,
 			stats.SystemContainerRuntime: runtimeContainer,
@@ -143,9 +144,9 @@ func (r *ResourceCollector) GetCPUSummary() framework.ContainersCPUSummary {
 func (r *ResourceCollector) LogLatest() {
 	summary, err := r.GetLatest()
 	if err != nil {
-		framework.Logf("%v", err)
+		e2elog.Logf("%v", err)
 	}
-	framework.Logf("%s", formatResourceUsageStats(summary))
+	e2elog.Logf("%s", formatResourceUsageStats(summary))
 }
 
 // collectStats collects resource usage from Cadvisor.
@@ -153,21 +154,18 @@ func (r *ResourceCollector) collectStats(oldStatsMap map[string]*cadvisorapiv2.C
 	for _, name := range systemContainers {
 		ret, err := r.client.Stats(name, r.request)
 		if err != nil {
-			framework.Logf("Error getting container stats, err: %v", err)
+			e2elog.Logf("Error getting container stats, err: %v", err)
 			return
 		}
 		cStats, ok := ret[name]
 		if !ok {
-			framework.Logf("Missing info/stats for container %q", name)
+			e2elog.Logf("Missing info/stats for container %q", name)
 			return
 		}
 
 		newStats := cStats.Stats[0]
 
 		if oldStats, ok := oldStatsMap[name]; ok && oldStats.Timestamp.Before(newStats.Timestamp) {
-			if oldStats.Timestamp.Equal(newStats.Timestamp) {
-				continue
-			}
 			r.buffers[name] = append(r.buffers[name], computeContainerResourceUsage(name, oldStats, newStats))
 		}
 		oldStatsMap[name] = newStats
@@ -220,9 +218,7 @@ func (r *ResourceCollector) GetBasicCPUStats(containerName string) map[float64]f
 
 	// We must make a copy of array, otherwise the timeseries order is changed.
 	usages := make([]*framework.ContainerResourceUsage, 0)
-	for _, usage := range r.buffers[containerName] {
-		usages = append(usages, usage)
-	}
+	usages = append(usages, r.buffers[containerName]...)
 
 	sort.Sort(resourceUsageByCPU(usages))
 	for _, q := range percentiles {

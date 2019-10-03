@@ -102,13 +102,19 @@ var _ = Describe("Version", func() {
 		Context("when the database is down", func() {
 			var (
 				sqlDB *sqldb.SQLDB
+				db    *sql.DB
 			)
 
 			BeforeEach(func() {
-				db, err := sql.Open(dbDriverName, fmt.Sprintf("%sinvalid-db", dbBaseConnectionString))
+				var err error
+				db, err = sql.Open(dbDriverName, fmt.Sprintf("%sinvalid-db", dbBaseConnectionString))
 				Expect(err).NotTo(HaveOccurred())
 				helperDB := helpers.NewMonitoredDB(db, monitor.New())
 				sqlDB = sqldb.NewSQLDB(helperDB, 5, 5, cryptor, fakeGUIDProvider, fakeClock, dbFlavor, fakeMetronClient)
+			})
+
+			AfterEach(func() {
+				Expect(db.Close()).To(Succeed())
 			})
 
 			It("does not return an ErrResourceNotFound", func() {

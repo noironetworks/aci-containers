@@ -15,6 +15,8 @@ import (
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -493,6 +495,7 @@ func (m *ListFeedsRequest) GetParent() string {
 	return ""
 }
 
+// List asset feeds response.
 type ListFeedsResponse struct {
 	// A list of feeds.
 	Feeds                []*Feed  `protobuf:"bytes,1,rep,name=feeds,proto3" json:"feeds,omitempty"`
@@ -589,6 +592,7 @@ func (m *UpdateFeedRequest) GetUpdateMask() *field_mask.FieldMask {
 	return nil
 }
 
+// Delete asset feed request.
 type DeleteFeedRequest struct {
 	// The name of the feed and it must be in the format of:
 	// projects/project_number/feeds/feed_id
@@ -1319,6 +1323,32 @@ type AssetServiceServer interface {
 	UpdateFeed(context.Context, *UpdateFeedRequest) (*Feed, error)
 	// Deletes an asset feed.
 	DeleteFeed(context.Context, *DeleteFeedRequest) (*empty.Empty, error)
+}
+
+// UnimplementedAssetServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedAssetServiceServer struct {
+}
+
+func (*UnimplementedAssetServiceServer) ExportAssets(ctx context.Context, req *ExportAssetsRequest) (*longrunning.Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportAssets not implemented")
+}
+func (*UnimplementedAssetServiceServer) BatchGetAssetsHistory(ctx context.Context, req *BatchGetAssetsHistoryRequest) (*BatchGetAssetsHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetAssetsHistory not implemented")
+}
+func (*UnimplementedAssetServiceServer) CreateFeed(ctx context.Context, req *CreateFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) GetFeed(ctx context.Context, req *GetFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) ListFeeds(ctx context.Context, req *ListFeedsRequest) (*ListFeedsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFeeds not implemented")
+}
+func (*UnimplementedAssetServiceServer) UpdateFeed(ctx context.Context, req *UpdateFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) DeleteFeed(ctx context.Context, req *DeleteFeedRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFeed not implemented")
 }
 
 func RegisterAssetServiceServer(s *grpc.Server, srv AssetServiceServer) {

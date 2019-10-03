@@ -2,6 +2,7 @@ package grpc_zap
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -10,7 +11,6 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
@@ -33,7 +33,7 @@ func PayloadUnaryServerInterceptor(logger *zap.Logger, decider grpc_logging.Serv
 		logProtoMessageAsJson(logEntry, req, "grpc.request.content", "server request payload logged as grpc.request.content field")
 		resp, err := handler(ctx, req)
 		if err == nil {
-			logProtoMessageAsJson(logEntry, resp, "grpc.response.content", "server response payload logged as grpc.request.content field")
+			logProtoMessageAsJson(logEntry, resp, "grpc.response.content", "server response payload logged as grpc.response.content field")
 		}
 		return resp, err
 	}
