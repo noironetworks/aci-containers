@@ -19,8 +19,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strings"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -256,10 +254,6 @@ func prepareApicCache(parentDn string, obj ApicObject) {
 }
 
 func (conn *ApicConnection) fullSync() {
-	// Sleep for service sync up except for unit tests
-	if !strings.Contains(conn.apic[conn.apicIndex], "127.0.0.1") {
-		time.Sleep(5 * time.Second)
-	}
 	conn.log.Info("Starting APIC full sync")
 	var updates ApicSlice
 	var deletes []string
