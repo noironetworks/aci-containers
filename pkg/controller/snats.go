@@ -131,7 +131,7 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 		} else {
 			err = cont.updateServiceDeviceInstanceSnat(snatGraphName)
 		}
-		if err == nil {
+		if err != nil {
 			requeue = true
 		}
 	} else {
@@ -159,6 +159,7 @@ func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.Sn
 			cont.indexMutex.Lock()
 			if service.GetDeletionTimestamp() == nil {
 				cont.snatServices[servicekey] = true
+				cont.queueServiceUpdateByKey(servicekey)
 			}
 			cont.indexMutex.Unlock()
 		}
@@ -190,6 +191,7 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 							servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
 						}
 						delete(cont.snatServices, servicekey)
+						cont.queueServiceUpdateByKey(servicekey)
 					}
 				}
 			}

@@ -1159,7 +1159,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 			cont.indexMutex.Unlock()
 			err = cont.updateServiceDeviceInstance(servicekey, service)
 			if err != nil {
-				return false
+				return true
 			}
 		} else {
 			cont.indexMutex.Unlock()
