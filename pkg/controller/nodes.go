@@ -275,6 +275,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 				nodeUpdated = true
 			}
 			cont.updateServicesForNode(node.ObjectMeta.Name)
+			cont.snatFullSync()
 		}
 	}
 
@@ -339,6 +340,7 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	}
 	delete(cont.nodeServiceMetaCache, node.ObjectMeta.Name)
 	cont.updateServicesForNode(node.ObjectMeta.Name)
+	cont.snatFullSync()
 }
 
 // must have index lock
