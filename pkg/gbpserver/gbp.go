@@ -36,8 +36,11 @@ import (
 )
 
 const (
-	gbpUpdPath = "/usr/local/bin/gbp_update.sh"
-	tokenTime  = 20 * time.Second
+	gbpUpdPath   = "/usr/local/bin/gbp_update.sh"
+	tokenTime    = 20 * time.Second
+	numClassIDs  = 32000
+	firstClassID = 32000
+	firstEncapID = 7700000
 )
 
 var debugDB = false
@@ -45,6 +48,10 @@ var gMutex sync.Mutex
 var dbDataDir string
 var apicCon *apicapi.ApicConnection
 var theServer *Server
+
+func encapFromClass(class uint) uint {
+	return firstEncapID + class
+}
 
 // BaseMo methods refer the underlying MoDB.
 type gbpBaseMo struct {
@@ -115,7 +122,7 @@ func (g *gbpBaseMo) delRecursive() {
 		return
 	}
 
-	log.Infof("delRecursive: %s", g.Uri)
+	log.Debugf("delRecursive: %s", g.Uri)
 	for _, c := range g.Children {
 		cMo := getMoDB()[c]
 		if cMo != nil {
@@ -452,16 +459,12 @@ type GBPRoutingDomain struct {
 	gbpBaseMo
 }
 
-func getEncapClass() (uint, uint) {
-	e, c := theServer.encapID, theServer.classID
-	theServer.encapID++
-	theServer.classID++
+func getEncapClass(objURI string) (uint, uint) {
+	return theServer.getEncapClass(objURI)
+}
 
-	if theServer.classID > 64000 {
-		theServer.classID = 32000
-	}
-
-	return e, c
+func freeEncapClass(objURI string) {
+	theServer.freeEncapClass(objURI)
 }
 
 func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
@@ -474,7 +477,7 @@ func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
 	}
 
 	eic.SetParent(pSub, subjEIC, pURI)
-	enc, class := getEncapClass()
+	enc, class := getEncapClass(eic.Uri)
 	eic.AddProperty(propEncapID, enc)
 	eic.AddProperty(propClassID, class)
 

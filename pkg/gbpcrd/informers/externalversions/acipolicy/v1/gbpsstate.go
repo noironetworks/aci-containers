@@ -30,59 +30,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// GBPServerInformer provides access to a shared informer and lister for
-// GBPServers.
-type GBPServerInformer interface {
+// GBPSStateInformer provides access to a shared informer and lister for
+// GBPSStates.
+type GBPSStateInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.GBPServerLister
+	Lister() v1.GBPSStateLister
 }
 
-type gBPServerInformer struct {
+type gBPSStateInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewGBPServerInformer constructs a new informer for GBPServer type.
+// NewGBPSStateInformer constructs a new informer for GBPSState type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewGBPServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredGBPServerInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewGBPSStateInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredGBPSStateInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredGBPServerInformer constructs a new informer for GBPServer type.
+// NewFilteredGBPSStateInformer constructs a new informer for GBPSState type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredGBPServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredGBPSStateInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().GBPServers(namespace).List(options)
+				return client.AciV1().GBPSStates(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().GBPServers(namespace).Watch(options)
+				return client.AciV1().GBPSStates(namespace).Watch(options)
 			},
 		},
-		&acipolicyv1.GBPServer{},
+		&acipolicyv1.GBPSState{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *gBPServerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredGBPServerInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *gBPSStateInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredGBPSStateInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *gBPServerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&acipolicyv1.GBPServer{}, f.defaultInformer)
+func (f *gBPSStateInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&acipolicyv1.GBPSState{}, f.defaultInformer)
 }
 
-func (f *gBPServerInformer) Lister() v1.GBPServerLister {
-	return v1.NewGBPServerLister(f.Informer().GetIndexer())
+func (f *gBPSStateInformer) Lister() v1.GBPSStateLister {
+	return v1.NewGBPSStateLister(f.Informer().GetIndexer())
 }

@@ -35,8 +35,8 @@ func (c *FakeAciV1) Epgs(namespace string) v1.EpgInterface {
 	return &FakeEpgs{c, namespace}
 }
 
-func (c *FakeAciV1) GBPServers(namespace string) v1.GBPServerInterface {
-	return &FakeGBPServers{c, namespace}
+func (c *FakeAciV1) GBPSStates(namespace string) v1.GBPSStateInterface {
+	return &FakeGBPSStates{c, namespace}
 }
 
 func (c *FakeAciV1) PodIFs(namespace string) v1.PodIFInterface {

@@ -28,46 +28,46 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-// GBPServersGetter has a method to return a GBPServerInterface.
+// GBPSStatesGetter has a method to return a GBPSStateInterface.
 // A group's client should implement this interface.
-type GBPServersGetter interface {
-	GBPServers(namespace string) GBPServerInterface
+type GBPSStatesGetter interface {
+	GBPSStates(namespace string) GBPSStateInterface
 }
 
-// GBPServerInterface has methods to work with GBPServer resources.
-type GBPServerInterface interface {
-	Create(*v1.GBPServer) (*v1.GBPServer, error)
-	Update(*v1.GBPServer) (*v1.GBPServer, error)
-	UpdateStatus(*v1.GBPServer) (*v1.GBPServer, error)
+// GBPSStateInterface has methods to work with GBPSState resources.
+type GBPSStateInterface interface {
+	Create(*v1.GBPSState) (*v1.GBPSState, error)
+	Update(*v1.GBPSState) (*v1.GBPSState, error)
+	UpdateStatus(*v1.GBPSState) (*v1.GBPSState, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.GBPServer, error)
-	List(opts metav1.ListOptions) (*v1.GBPServerList, error)
+	Get(name string, options metav1.GetOptions) (*v1.GBPSState, error)
+	List(opts metav1.ListOptions) (*v1.GBPSStateList, error)
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.GBPServer, err error)
-	GBPServerExpansion
+	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.GBPSState, err error)
+	GBPSStateExpansion
 }
 
-// gBPServers implements GBPServerInterface
-type gBPServers struct {
+// gBPSStates implements GBPSStateInterface
+type gBPSStates struct {
 	client rest.Interface
 	ns     string
 }
 
-// newGBPServers returns a GBPServers
-func newGBPServers(c *AciV1Client, namespace string) *gBPServers {
-	return &gBPServers{
+// newGBPSStates returns a GBPSStates
+func newGBPSStates(c *AciV1Client, namespace string) *gBPSStates {
+	return &gBPSStates{
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
 }
 
-// Get takes name of the gBPServer, and returns the corresponding gBPServer object, and an error if there is any.
-func (c *gBPServers) Get(name string, options metav1.GetOptions) (result *v1.GBPServer, err error) {
-	result = &v1.GBPServer{}
+// Get takes name of the gBPSState, and returns the corresponding gBPSState object, and an error if there is any.
+func (c *gBPSStates) Get(name string, options metav1.GetOptions) (result *v1.GBPSState, err error) {
+	result = &v1.GBPSState{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -75,16 +75,16 @@ func (c *gBPServers) Get(name string, options metav1.GetOptions) (result *v1.GBP
 	return
 }
 
-// List takes label and field selectors, and returns the list of GBPServers that match those selectors.
-func (c *gBPServers) List(opts metav1.ListOptions) (result *v1.GBPServerList, err error) {
+// List takes label and field selectors, and returns the list of GBPSStates that match those selectors.
+func (c *gBPSStates) List(opts metav1.ListOptions) (result *v1.GBPSStateList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
 	}
-	result = &v1.GBPServerList{}
+	result = &v1.GBPSStateList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do().
@@ -92,8 +92,8 @@ func (c *gBPServers) List(opts metav1.ListOptions) (result *v1.GBPServerList, er
 	return
 }
 
-// Watch returns a watch.Interface that watches the requested gBPServers.
-func (c *gBPServers) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested gBPSStates.
+func (c *gBPSStates) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -101,32 +101,32 @@ func (c *gBPServers) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch()
 }
 
-// Create takes the representation of a gBPServer and creates it.  Returns the server's representation of the gBPServer, and an error, if there is any.
-func (c *gBPServers) Create(gBPServer *v1.GBPServer) (result *v1.GBPServer, err error) {
-	result = &v1.GBPServer{}
+// Create takes the representation of a gBPSState and creates it.  Returns the server's representation of the gBPSState, and an error, if there is any.
+func (c *gBPSStates) Create(gBPSState *v1.GBPSState) (result *v1.GBPSState, err error) {
+	result = &v1.GBPSState{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("gbpservers").
-		Body(gBPServer).
+		Resource("gbpsstates").
+		Body(gBPSState).
 		Do().
 		Into(result)
 	return
 }
 
-// Update takes the representation of a gBPServer and updates it. Returns the server's representation of the gBPServer, and an error, if there is any.
-func (c *gBPServers) Update(gBPServer *v1.GBPServer) (result *v1.GBPServer, err error) {
-	result = &v1.GBPServer{}
+// Update takes the representation of a gBPSState and updates it. Returns the server's representation of the gBPSState, and an error, if there is any.
+func (c *gBPSStates) Update(gBPSState *v1.GBPSState) (result *v1.GBPSState, err error) {
+	result = &v1.GBPSState{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("gbpservers").
-		Name(gBPServer.Name).
-		Body(gBPServer).
+		Resource("gbpsstates").
+		Name(gBPSState.Name).
+		Body(gBPSState).
 		Do().
 		Into(result)
 	return
@@ -135,24 +135,24 @@ func (c *gBPServers) Update(gBPServer *v1.GBPServer) (result *v1.GBPServer, err 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 
-func (c *gBPServers) UpdateStatus(gBPServer *v1.GBPServer) (result *v1.GBPServer, err error) {
-	result = &v1.GBPServer{}
+func (c *gBPSStates) UpdateStatus(gBPSState *v1.GBPSState) (result *v1.GBPSState, err error) {
+	result = &v1.GBPSState{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("gbpservers").
-		Name(gBPServer.Name).
+		Resource("gbpsstates").
+		Name(gBPSState.Name).
 		SubResource("status").
-		Body(gBPServer).
+		Body(gBPSState).
 		Do().
 		Into(result)
 	return
 }
 
-// Delete takes name of the gBPServer and deletes it. Returns an error if one occurs.
-func (c *gBPServers) Delete(name string, options *metav1.DeleteOptions) error {
+// Delete takes name of the gBPSState and deletes it. Returns an error if one occurs.
+func (c *gBPSStates) Delete(name string, options *metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		Name(name).
 		Body(options).
 		Do().
@@ -160,14 +160,14 @@ func (c *gBPServers) Delete(name string, options *metav1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *gBPServers) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *gBPSStates) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
 	var timeout time.Duration
 	if listOptions.TimeoutSeconds != nil {
 		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(options).
@@ -175,12 +175,12 @@ func (c *gBPServers) DeleteCollection(options *metav1.DeleteOptions, listOptions
 		Error()
 }
 
-// Patch applies the patch and returns the patched gBPServer.
-func (c *gBPServers) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.GBPServer, err error) {
-	result = &v1.GBPServer{}
+// Patch applies the patch and returns the patched gBPSState.
+func (c *gBPSStates) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.GBPSState, err error) {
+	result = &v1.GBPSState{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("gbpservers").
+		Resource("gbpsstates").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

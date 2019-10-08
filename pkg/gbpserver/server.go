@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/objdb"
 )
 
@@ -37,10 +39,8 @@ const (
 	defToken    = "api-server-token"
 	versionPath = "/api/node/class/firmwareCtrlrRunning.json"
 	versionStr  = "3.2(5d)"
-)
-
-const (
-	noOp = iota
+	maxAttempts = 4096
+	noOp        = iota
 	OpaddEPG
 	OpdelEPG
 	OpaddContract
@@ -61,6 +61,7 @@ type ListResp struct {
 
 type Server struct {
 	config   *GBPServerConfig
+	driver   StateDriver
 	rxCh     chan *inputMsg
 	objapi   objdb.API
 	upgrader websocket.Upgrader
@@ -75,10 +76,16 @@ type Server struct {
 	// tls rest server
 	tlsSrv *http.Server
 	// insecure rest server
-	insSrv  *http.Server
-	stopped bool
-	encapID uint
-	classID uint
+	insSrv        *http.Server
+	usedClassIDs  map[uint]bool
+	instToClassID map[string]uint
+	stopped       bool
+}
+
+type StateDriver interface {
+	Init() error
+	Get() (*crdv1.GBPSState, error)
+	Update(*crdv1.GBPSState) error
 }
 
 // message from one of the watchers
@@ -209,7 +216,7 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
 
-func StartNewServer(config *GBPServerConfig, etcdURLs []string) (*Server, error) {
+func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) (*Server, error) {
 	// init inventory
 	//InitInvDB()
 
@@ -222,6 +229,7 @@ func StartNewServer(config *GBPServerConfig, etcdURLs []string) (*Server, error)
 
 	log.Infof("=> New client created..")
 	s := NewServer(config)
+	s.InitState(sd)
 	s.InitDB()
 	s.objapi = ec
 	wHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -306,12 +314,67 @@ func StartNewServer(config *GBPServerConfig, etcdURLs []string) (*Server, error)
 
 func NewServer(config *GBPServerConfig) *Server {
 	return &Server{
-		config:    config,
-		rxCh:      make(chan *inputMsg, 128),
-		listeners: make(map[string]func(op GBPOperation_OpCode, url string)),
-		encapID:   7700000,
-		classID:   32000,
+		config:        config,
+		rxCh:          make(chan *inputMsg, 128),
+		listeners:     make(map[string]func(op GBPOperation_OpCode, url string)),
+		usedClassIDs:  make(map[uint]bool),
+		instToClassID: make(map[string]uint),
 	}
+}
+
+func (s *Server) InitState(sd StateDriver) error {
+	s.driver = sd
+	state, err := s.driver.Get()
+	if err != nil {
+		return err
+	}
+
+	// populate classID maps based on the state
+	for epg, classID := range state.Status.ClassIDs {
+		s.instToClassID[epg] = classID
+		s.usedClassIDs[classID] = true
+	}
+
+	return nil
+}
+
+func (s *Server) getEncapClass(instURL string) (uint, uint) {
+	if class, ok := s.instToClassID[instURL]; ok {
+		log.Debugf("Found existing classID %v for epg %s", class, instURL)
+		return encapFromClass(class), class
+	}
+
+	// allocate a classID
+	for i := 0; i < maxAttempts; i++ {
+		class := uint(rand.Intn(numClassIDs) + firstClassID)
+		if !s.usedClassIDs[class] {
+			s.usedClassIDs[class] = true
+			s.instToClassID[instURL] = class
+			s.writeState()
+			return encapFromClass(class), class
+		}
+	}
+
+	log.Fatalf("Failed to allocate classID after %d attempts", maxAttempts)
+	return 0, 0
+}
+
+func (s *Server) freeEncapClass(instURL string) {
+	class := s.instToClassID[instURL]
+	log.Infof("Freeing class: %v, uri: %s", class, instURL)
+	delete(s.instToClassID, instURL)
+	delete(s.usedClassIDs, class)
+	s.writeState()
+}
+
+func (s *Server) writeState() {
+	state := &crdv1.GBPSState{}
+	state.Status.ClassIDs = make(map[string]uint, len(s.instToClassID))
+	for uri, class := range s.instToClassID {
+		state.Status.ClassIDs[uri] = class
+	}
+
+	s.driver.Update(state)
 }
 
 func (s *Server) Config() *GBPServerConfig {
@@ -463,7 +526,7 @@ func (s *Server) handleMsgs() {
 			for _, fn := range s.listeners {
 				fn(GBPOperation_DELETE, key)
 			}
-			delete(moDB, key)
+			epg.Delete()
 		case OpaddContract:
 			c, ok := m.data.(*Contract)
 			if !ok {
