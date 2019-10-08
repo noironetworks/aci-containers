@@ -51,10 +51,48 @@ const (
 
 var etcdClientURLs = []string{"http://localhost:12379"}
 
+// implements StateDriver
+type testSD struct {
+	s v1.GBPSState
+}
+
+func (sd *testSD) Init() error {
+	sm := make(map[string]uint)
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/GbpeInstContext/"] = 32000
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpeInstContext/"] = 32001
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpeInstContext/"] = 32002
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpeInstContext/"] = 32003
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpeInstContext/"] = 32004
+	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpeInstContext/"] = 32005
+	sd.s.Status.ClassIDs = sm
+	return nil
+}
+
+func stateCopy(src, dest *v1.GBPSState) error {
+	b, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(b, dest)
+}
+
+func (sd *testSD) Get() (*v1.GBPSState, error) {
+	out := &v1.GBPSState{}
+	return out, stateCopy(&sd.s, out)
+}
+
+func (sd *testSD) Update(s *v1.GBPSState) error {
+	log.Debugf("Update: %+v", s.Status.ClassIDs)
+	sd.s = v1.GBPSState{}
+	return stateCopy(s, &sd.s)
+}
+
 type testSuite struct {
 	e       *embed.Etcd
 	tempDir string
 	dataDir string
+	sd      *testSD
 }
 
 func (ts *testSuite) tearDown() {
@@ -101,11 +139,12 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
 	ts.e = e
 
 	dataDir, err := ioutil.TempDir("", "_gbpdata")
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.Equal(t, err, nil)
 
 	ts.dataDir = dataDir
+	ts.sd = &testSD{}
+	err = ts.sd.Init()
+	assert.Equal(t, err, nil)
 
 	gCfg := &gbpserver.GBPServerConfig{}
 	gCfg.GRPCPort = 19999
@@ -114,7 +153,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
 	gCfg.NodeSubnet = "1.100.201.0/24"
 	gCfg.AciPolicyTenant = testTenant
 
-	s, err := gbpserver.StartNewServer(gCfg, etcdClientURLs)
+	s, err := gbpserver.StartNewServer(gCfg, ts.sd, etcdClientURLs)
 	if err != nil {
 		t.Fatalf("Starting api server: %v", err)
 	}
@@ -619,36 +658,41 @@ func TestGRPC(t *testing.T) {
 	}
 	defer conn.Close()
 
-	c := gbpserver.NewGBPClient(conn)
+	listCh := make(chan *gbpserver.GBPOperation)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	lc, err := c.ListObjects(ctx, &gbpserver.Version{}, grpc.WaitForReady(true))
-	if err != nil {
-		t.Fatal(err)
-	}
+	listVerify := func(lCh chan *gbpserver.GBPOperation) {
+		c := gbpserver.NewGBPClient(conn)
 
-	listCh := make(chan *gbpserver.GBPOperation)
-	go func() {
-		for {
-			gbpOp, err := lc.Recv()
-			if err != nil {
-				log.Info(err)
-				break
-			}
-			listCh <- gbpOp
+		lc, err := c.ListObjects(ctx, &gbpserver.Version{}, grpc.WaitForReady(true))
+		if err != nil {
+			t.Fatal(err)
 		}
-	}()
 
-	rcv := <-listCh
-	log.Infof("List opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
-	moMap := make(map[string]*gbpserver.GBPObject)
-	for _, o := range rcv.ObjectList {
-		moMap[o.Uri] = o
+		go func() {
+			for {
+				gbpOp, err := lc.Recv()
+				if err != nil {
+					log.Info(err)
+					break
+				}
+				lCh <- gbpOp
+			}
+		}()
+
+		rcv := <-lCh
+		log.Infof("List opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
+		moMap := make(map[string]*gbpserver.GBPObject)
+		for _, o := range rcv.ObjectList {
+			moMap[o.Uri] = o
+		}
+
+		//printSorted(moMap, "testPolicy.json")
+		verifyPolicy(t, moMap)
 	}
 
-	//printSorted(moMap, "testPolicy.json")
-	verifyPolicy(t, moMap)
+	listVerify(listCh)
 
 	// inject an update into gbp server
 	var contract = gbpserver.Contract{
@@ -662,7 +706,7 @@ func TestGRPC(t *testing.T) {
 rcvLoop:
 	for {
 		select {
-		case rcv = <-listCh:
+		case rcv := <-listCh:
 			assert.Equal(t, len(rcv.ObjectList), 6)
 			log.Infof("Update opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
 			break rcvLoop
@@ -671,6 +715,37 @@ rcvLoop:
 			break rcvLoop
 		}
 	}
+
+	// add an epg and verify state update.
+	epg := gbpserver.EPG{
+		Tenant: testTenant,
+		Name:   "newComer",
+	}
+
+	s.AddEPG(epg)
+
+	assert.Eventually(t, func() bool {
+		state, err := suite.sd.Get()
+		assert.Equal(t, err, nil)
+		class := state.Status.ClassIDs["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/newComer/GbpeInstContext/"]
+		return class >= uint(32000) && class <= uint(64000)
+	}, time.Second, time.Millisecond)
+
+	// delete epg and verify state update
+	s.DelEPG(epg)
+	assert.Eventually(t, func() bool {
+		state, err := suite.sd.Get()
+		assert.Equal(t, err, nil)
+		_, found := state.Status.ClassIDs["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/newComer/GbpeInstContext/"]
+		return !found
+	}, 2*time.Second, time.Millisecond)
+
+	// delete the contract.
+	s.DelContract(contract)
+	time.Sleep(2 * time.Second)
+
+	newCh := make(chan *gbpserver.GBPOperation)
+	listVerify(newCh)
 }
 
 func verifyPolicy(t *testing.T, moMap map[string]*gbpserver.GBPObject) {

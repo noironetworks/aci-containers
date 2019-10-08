@@ -33,13 +33,13 @@ type EpgListerExpansion interface{}
 // EpgNamespaceLister.
 type EpgNamespaceListerExpansion interface{}
 
-// GBPServerListerExpansion allows custom methods to be added to
-// GBPServerLister.
-type GBPServerListerExpansion interface{}
+// GBPSStateListerExpansion allows custom methods to be added to
+// GBPSStateLister.
+type GBPSStateListerExpansion interface{}
 
-// GBPServerNamespaceListerExpansion allows custom methods to be added to
-// GBPServerNamespaceLister.
-type GBPServerNamespaceListerExpansion interface{}
+// GBPSStateNamespaceListerExpansion allows custom methods to be added to
+// GBPSStateNamespaceLister.
+type GBPSStateNamespaceListerExpansion interface{}
 
 // PodIFListerExpansion allows custom methods to be added to
 // PodIFLister.

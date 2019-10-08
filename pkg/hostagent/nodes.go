@@ -129,7 +129,7 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 	}
 
 	agent.indexMutex.Unlock()
-	if gotVtep {
+	if gotVtep && agent.crdClient != nil {
 		agent.registerHostVeth()
 	}
 

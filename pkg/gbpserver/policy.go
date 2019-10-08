@@ -374,6 +374,30 @@ func (e *EPG) Make() error {
 
 	return e.pushTocAPIC()
 }
+
+func (e *EPG) Delete() {
+	eUri := e.getURI()
+	moDB := getMoDB()
+
+	base := moDB[eUri]
+	if base == nil {
+		log.Errorf("EPG %s not founc", eUri)
+		return
+	}
+
+	// delete all children
+	for _, cUri := range base.Children {
+		cMo := moDB[cUri]
+		if cMo != nil && cMo.Subject == subjEIC {
+			// free encap and class
+			freeEncapClass(cMo.Uri)
+		}
+		delete(moDB, cUri)
+	}
+
+	delete(moDB, eUri)
+}
+
 func cApicName(name string) string {
 	return strings.Replace(name, "|", "-", -1)
 }

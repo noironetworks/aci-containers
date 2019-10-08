@@ -108,8 +108,14 @@ func main() {
 		//gbpserver.InitDB(opts.moDir, "None", opts.region)
 	*/
 
+	stateDriver := &watchers.K8sStateDriver{}
+	err := stateDriver.Init()
+	if err != nil {
+		log.Fatalf("State Driver: %v", err)
+	}
+
 	etcdURLs := startEtcd(cfg)
-	s, err := gbpserver.StartNewServer(cfg, etcdURLs)
+	s, err := gbpserver.StartNewServer(cfg, stateDriver, etcdURLs)
 	if err != nil {
 		log.Fatalf("Starting api server: %v", err)
 	}

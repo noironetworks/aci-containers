@@ -27,7 +27,7 @@ type AciV1Interface interface {
 	RESTClient() rest.Interface
 	ContractsGetter
 	EpgsGetter
-	GBPServersGetter
+	GBPSStatesGetter
 	PodIFsGetter
 }
 
@@ -44,8 +44,8 @@ func (c *AciV1Client) Epgs(namespace string) EpgInterface {
 	return newEpgs(c, namespace)
 }
 
-func (c *AciV1Client) GBPServers(namespace string) GBPServerInterface {
-	return newGBPServers(c, namespace)
+func (c *AciV1Client) GBPSStates(namespace string) GBPSStateInterface {
+	return newGBPSStates(c, namespace)
 }
 
 func (c *AciV1Client) PodIFs(namespace string) PodIFInterface {

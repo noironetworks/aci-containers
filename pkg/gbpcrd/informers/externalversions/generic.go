@@ -56,8 +56,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().Contracts().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("epgs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().Epgs().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("gbpservers"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().GBPServers().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("gbpsstates"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().GBPSStates().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("podifs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().PodIFs().Informer()}, nil
 
