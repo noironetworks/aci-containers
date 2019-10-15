@@ -88,7 +88,7 @@ func TestSnatGraph(t *testing.T) {
 			Ipv4: net.ParseIP("10.6.1.2"),
 		},
 	})
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20"}, true)
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20"}, true, true)
 	rsProv := apicExtNetProv(name, "common", "l3out", "ext1")
 
 	portRanges := []portRangeSnat{
@@ -164,7 +164,7 @@ func TestSnatGraph(t *testing.T) {
 
 	cont.fakeSnatPolicySource.Add(policy2)
 	time.Sleep(2 * time.Second)
-	extNet2 := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20", "172.2.2.1/32"}, true)
+	extNet2 := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20", "172.2.2.1/32"}, true, true)
 	expected2 := map[string]apicapi.ApicSlice{
                 graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
                         graph}, "kube", graphName),

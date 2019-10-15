@@ -269,8 +269,8 @@ func TestServiceAnnotation(t *testing.T) {
 	twoNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
 			HealthGroupDn:  "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
-			Mac:  			"8a:35:a1:a6:e4:60",
-			Ipv4: 			net.ParseIP("10.6.1.1"),
+			Mac:			"8a:35:a1:a6:e4:60",
+			Ipv4:			net.ParseIP("10.6.1.1"),
 		},
 		"node2": &metadata.ServiceEndpoint{
 			HealthGroupDn:  "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
@@ -284,24 +284,24 @@ func TestServiceAnnotation(t *testing.T) {
 			Ipv4: net.ParseIP("10.6.1.1"),
 		},
 	})
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, true)
-	rsProv := apicExtNetProv(name, "common", "l3out", "ext1")
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, true, false)
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 	filter := apicapi.NewVzFilter("common", name)
 	filterDn := filter.GetDn()
 	{
 		fe := apicapi.NewVzEntry(filterDn, "0")
 		fe.SetAttr("etherT", "ip")
 		fe.SetAttr("prot", "tcp")
-		fe.SetAttr("sFromPort", "80")
-		fe.SetAttr("sToPort", "80")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
 		filter.AddChild(fe)
 	}
 	{
 		fe := apicapi.NewVzEntry(filterDn, "1")
 		fe.SetAttr("etherT", "ip")
 		fe.SetAttr("prot", "udp")
-		fe.SetAttr("sFromPort", "53")
-		fe.SetAttr("sToPort", "53")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
 		filter.AddChild(fe)
 	}
 	s1Dcc := apicDevCtx(name, "common", graphName,
@@ -396,7 +396,7 @@ func TestServiceAnnotation(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,
 	}
@@ -463,9 +463,9 @@ func TestServiceGraph(t *testing.T) {
 		},
 	})
 
-	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false)
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false, false)
 	contract := apicContract(name, "common", graphName, conScope)
-	rsProv := apicExtNetProv(name, "common", "l3out", "ext1")
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
 	filter := apicapi.NewVzFilter("common", name)
 	filterDn := filter.GetDn()
@@ -473,16 +473,16 @@ func TestServiceGraph(t *testing.T) {
 		fe := apicapi.NewVzEntry(filterDn, "0")
 		fe.SetAttr("etherT", "ip")
 		fe.SetAttr("prot", "tcp")
-		fe.SetAttr("sFromPort", "80")
-		fe.SetAttr("sToPort", "80")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
 		filter.AddChild(fe)
 	}
 	{
 		fe := apicapi.NewVzEntry(filterDn, "1")
 		fe.SetAttr("etherT", "ip")
 		fe.SetAttr("prot", "udp")
-		fe.SetAttr("sFromPort", "53")
-		fe.SetAttr("sToPort", "53")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
 		filter.AddChild(fe)
 	}
 
@@ -558,7 +558,7 @@ func TestServiceGraph(t *testing.T) {
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
 		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
-			twoNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
+			twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,
 	}
@@ -567,7 +567,7 @@ func TestServiceGraph(t *testing.T) {
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeCluster,
 			graph}, "kube", graphName),
 		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
-			oneNodeRedirect, extNet, contract, rsProv, filter, s1Dcc},
+			oneNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
 			"kube", name),
 		nameS2: nil,
 	}
