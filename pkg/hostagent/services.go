@@ -244,10 +244,10 @@ func (agent *HostAgent) syncServices() bool {
 func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	endpoints *v1.Endpoints) bool {
 
-       if as.Spec.ClusterIP == "None" {
-	   agent.log.Debug("ClusterIP is set to None")
-           return true
-       }
+	if as.Spec.ClusterIP == "None" {
+		agent.log.Debug("ClusterIP is set to None")
+		return true
+	}
 
 	ofas := &opflexService{
 		Uuid:              string(as.ObjectMeta.UID),

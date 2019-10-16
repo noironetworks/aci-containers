@@ -39,7 +39,8 @@ import (
 )
 
 const (
-	hostVethEP = "veth_host_ac.ep"
+	hostVethEP   = "veth_host_ac.ep"
+	hostVethName = "veth_host"
 )
 
 func (agent *HostAgent) initNodeInformerFromClient(
@@ -129,8 +130,11 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 	}
 
 	agent.indexMutex.Unlock()
-	if gotVtep && agent.crdClient != nil {
-		agent.registerHostVeth()
+	if gotVtep {
+		agent.routeInit()
+		if agent.crdClient != nil {
+			agent.registerHostVeth()
+		}
 	}
 
 	if updateServices {
@@ -174,4 +178,15 @@ func (agent *HostAgent) nodeDeleted(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 
+}
+
+func (agent *HostAgent) routeInit() {
+	for _, nc := range agent.config.NetConfig {
+		err := addPodRoute(nc.Subnet, hostVethName, agent.vtepIP)
+		if err != nil {
+			agent.log.Errorf("### Could not add route for subnet %+v", nc.Subnet)
+			continue
+		}
+		agent.log.Infof("VtepIP: %s, subnet: %+v, interface: %s", agent.vtepIP, nc.Subnet, hostVethName)
+	}
 }
