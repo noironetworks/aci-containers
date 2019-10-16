@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"golang.org/x/time/rate"
+	"github.com/containernetworking/cni/pkg/types"
 	"github.com/vishvananda/netlink"
-        "github.com/containernetworking/cni/pkg/types"
+	"golang.org/x/time/rate"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -133,7 +133,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 }
 
 func getVtep() (Vtep, error) {
-        var vtep Vtep
+	var vtep Vtep
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return vtep, err
@@ -172,15 +172,15 @@ func addPodRoute(ipn types.IPNet, dev string, src string) error {
 		return err
 	}
 	ipsrc := net.ParseIP(src)
-        dst := &net.IPNet{
-                        IP: ipn.IP,
-                        Mask: ipn.Mask,
-        }
+	dst := &net.IPNet{
+		IP:   ipn.IP,
+		Mask: ipn.Mask,
+	}
 	route := netlink.Route{LinkIndex: link.Attrs().Index, Dst: dst, Src: ipsrc}
 	if err := netlink.RouteAdd(&route); err != nil {
 		return err
 	}
-        return nil
+	return nil
 }
 
 func (agent *HostAgent) Init() {
@@ -192,20 +192,6 @@ func (agent *HostAgent) Init() {
 	}
 	agent.log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 	agent.buildUsedIPs()
-	vtep, err := getVtep()
-	if err != nil {
-		agent.log.Errorf("### Could not get vtepIP: %v", err)
-	} else {
-		agent.log.Infof("VtepIP: %s, interface: %s", vtep.vtepIP, vtep.vtepIface)
-		agent.vtepIP = vtep.vtepIP
-		agent.vtepIface = vtep.vtepIface
-		for _, nc := range agent.config.NetConfig {
-			err = addPodRoute(nc.Subnet, agent.vtepIface, agent.vtepIP)
-			if err != nil {
-				agent.log.Errorf("### Could not add route for subnet %+v", nc.Subnet)
-			}
-		}
-	}
 	err = agent.env.Init(agent)
 	if err != nil {
 		panic(err.Error())
