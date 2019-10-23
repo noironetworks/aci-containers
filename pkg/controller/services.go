@@ -325,11 +325,15 @@ func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
 }
 
 func apicExtNet(name string, tenantName string, l3Out string,
-	ingresses []string, sharedSecurity bool) apicapi.ApicObject {
+	ingresses []string, sharedSecurity bool, snat bool) apicapi.ApicObject {
 
 	en := apicapi.NewL3extInstP(tenantName, l3Out, name)
 	enDn := en.GetDn()
-	en.AddChild(apicapi.NewFvRsCons(enDn, name))
+	if snat {
+		en.AddChild(apicapi.NewFvRsCons(enDn, name))
+	} else {
+		en.AddChild(apicapi.NewFvRsProv(enDn, name))
+	}
 
 	for _, ingress := range ingresses {
 		ip, _, _ := net.ParseCIDR(ingress)
@@ -423,13 +427,18 @@ func apicDevCtx(name string, tenantName string,
 }
 
 func apicFilterEntry(filterDn string, count string, p_start string,
-	p_end string, protocol string, stateful string) apicapi.ApicObject {
+	p_end string, protocol string, stateful string, snat bool) apicapi.ApicObject {
 
 	fe := apicapi.NewVzEntry(filterDn, count)
 	fe.SetAttr("etherT", "ip")
 	fe.SetAttr("prot", protocol)
-	fe.SetAttr("sFromPort", p_start)
-	fe.SetAttr("sToPort", p_end)
+	if snat {
+		fe.SetAttr("sFromPort", p_start)
+		fe.SetAttr("sToPort", p_end)
+	} else {
+		fe.SetAttr("dFromPort", p_start)
+		fe.SetAttr("dToPort", p_end)
+	}
 	fe.SetAttr("stateful", stateful)
 	return fe
 }
@@ -449,7 +458,7 @@ func apicFilter(name string, tenantName string,
 			proto = "tcp"
 		}
 		fe := apicFilterEntry(filterDn, strconv.Itoa(i), pstr,
-			pstr, proto, "no")
+			pstr, proto, "no", false)
 		filter.AddChild(fe)
 	}
 
@@ -459,10 +468,10 @@ func apicFilter(name string, tenantName string,
 		p_end := strconv.Itoa(int(portSpec[0].end))
 
 		fe1 := apicFilterEntry(filterDn, strconv.Itoa(i+1), p_start,
-			p_end, "tcp", "yes")
+			p_end, "tcp", "no", false)
 		filter.AddChild(fe1)
 		fe2 := apicFilterEntry(filterDn, strconv.Itoa(i+2), p_start,
-			p_end, "udp", "yes")
+			p_end, "udp", "no", false)
 		filter.AddChild(fe2)
 	}
 	return filter
@@ -478,10 +487,10 @@ func apicFilterSnat(name string, tenantName string,
 	p_end := strconv.Itoa(int(portSpec[0].end))
 
 	fe := apicFilterEntry(filterDn, "0", p_start,
-		p_end, "tcp", "yes")
+		p_end, "tcp", "yes", true)
 	filter.AddChild(fe)
 	fe1 := apicFilterEntry(filterDn, "1", p_start,
-		p_end, "udp", "yes")
+		p_end, "udp", "yes", true)
 	filter.AddChild(fe1)
 
         return filter
@@ -577,14 +586,14 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 			}
 			serviceObjs = append(serviceObjs,
 				apicExtNet(name, cont.config.AciVrfTenant,
-					cont.config.AciL3Out, ingresses, sharedSecurity))
+					cont.config.AciL3Out, ingresses, sharedSecurity, false))
 		}
 
 		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
 		serviceObjs = append(serviceObjs, contract)
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
-				apicExtNetProv(name, cont.config.AciVrfTenant,
+				apicExtNetCons(name, cont.config.AciVrfTenant,
 					cont.config.AciL3Out, net))
 		}
 
@@ -673,7 +682,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 			}
                         serviceObjs = append(serviceObjs,
                                 apicExtNet(name, cont.config.AciVrfTenant,
-                                        cont.config.AciL3Out, ingresses, sharedSecurity))
+                                        cont.config.AciL3Out, ingresses, sharedSecurity, true))
 		}
 
                 contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
