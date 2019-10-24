@@ -79,6 +79,7 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 			IPAddr:      ep.IpAddress[0],
 			EPG:         ep.EndpointGroup,
 			VTEP:        agent.vtepIP,
+			IFName:      ep.IfaceName,
 		},
 	}
 	remEP.ObjectMeta.Name = fmt.Sprintf("%s.%s", ep.Attributes["namespace"], ep.Attributes["vm-name"])

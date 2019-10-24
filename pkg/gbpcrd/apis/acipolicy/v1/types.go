@@ -97,6 +97,7 @@ type PodIFStatus struct {
 	IPAddr      string `json:"ipaddr,omitempty"`
 	EPG         string `json:"epg,omitempty"`
 	VTEP        string `json:"vtep,omitempty"`
+	IFName      string `json:"ifname,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -184,6 +184,7 @@ type Endpoint struct {
 	IPAddr  string `json:"ipaddr,omitempty"`
 	EPG     string `json:"epg,omitempty"`
 	VTEP    string `json:"vtep,omitempty"`
+	IFName  string `json:"ifname,omitempty"`
 }
 
 func (ep *Endpoint) Add() (string, error) {
