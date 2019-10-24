@@ -214,6 +214,7 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 		IPAddr:  podif.Status.IPAddr,
 		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
+		IFName:  podif.Status.IFName,
 	}
 
 	kw.gs.AddEP(ep)
@@ -234,6 +235,7 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 		IPAddr:  podif.Status.IPAddr,
 		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
+		IFName:  podif.Status.IFName,
 	}
 
 	kw.gs.DelEP(ep)

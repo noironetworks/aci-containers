@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integ
+package gbpserver
 
 import (
 	"context"
@@ -34,7 +34,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"google.golang.org/grpc"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
 	"github.com/coreos/etcd/embed"
@@ -46,7 +45,6 @@ const (
 	testTenant = "gbpKubeTenant"
 	testVrf    = "gbpKubeVrf1"
 	testRegion = "us-west-1"
-	kubeTenant = "kube"
 )
 
 var etcdClientURLs = []string{"http://localhost:12379"}
@@ -101,7 +99,7 @@ func (ts *testSuite) tearDown() {
 	os.RemoveAll(ts.dataDir)
 }
 
-func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
+func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	var lcURLs []url.URL
 
 	for _, u := range etcdClientURLs {
@@ -146,14 +144,14 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *gbpserver.Server {
 	err = ts.sd.Init()
 	assert.Equal(t, err, nil)
 
-	gCfg := &gbpserver.GBPServerConfig{}
+	gCfg := &GBPServerConfig{}
 	gCfg.GRPCPort = 19999
 	gCfg.ProxyListenPort = 8899
 	gCfg.PodSubnet = "10.2.56.1/21"
 	gCfg.NodeSubnet = "1.100.201.0/24"
 	gCfg.AciPolicyTenant = testTenant
 
-	s, err := gbpserver.StartNewServer(gCfg, ts.sd, etcdClientURLs)
+	s, err := StartNewServer(gCfg, ts.sd, etcdClientURLs)
 	if err != nil {
 		t.Fatalf("Starting api server: %v", err)
 	}
@@ -230,7 +228,7 @@ func TestBasic(t *testing.T) {
 	addEPs(t)
 	verifyRest(t, cli)
 	close(stopCh)
-	gbpserver.DoAll()
+	DoAll()
 }
 
 func getClient(cert []byte) (*http.Client, error) {
@@ -264,7 +262,7 @@ func addContract(t *testing.T) {
 		},
 	}
 
-	c := &gbpserver.Contract{
+	c := &Contract{
 		Name:   "kubeAPI",
 		Tenant: testTenant,
 		AllowList: []v1.WLRule{
@@ -279,7 +277,7 @@ func addContract(t *testing.T) {
 	}
 
 	emptyRule := v1.WLRule{}
-	emptyC := &gbpserver.Contract{
+	emptyC := &Contract{
 		Name:   "any",
 		Tenant: testTenant,
 		AllowList: []v1.WLRule{
@@ -294,7 +292,7 @@ func addContract(t *testing.T) {
 }
 
 func addEPGs(t *testing.T) {
-	epgList := []*gbpserver.EPG{
+	epgList := []*EPG{
 		{
 			Name:   "epgA",
 			Tenant: testTenant,
@@ -347,7 +345,7 @@ func addEPGs(t *testing.T) {
 }
 
 func addEPs(t *testing.T) {
-	epList := []gbpserver.Endpoint{
+	epList := []Endpoint{
 		{EPG: "epgA", VTEP: "101.10.1.1"},
 		{EPG: "epgC", VTEP: "101.10.1.1"},
 		{EPG: "epgA", VTEP: "101.10.1.2"},
@@ -373,18 +371,18 @@ func addEPs(t *testing.T) {
 func verifyRest(t *testing.T, c *http.Client) {
 	// Contract
 	emptyRule := v1.WLRule{}
-	testContract := &gbpserver.Contract{
+	testContract := &Contract{
 		Name:      "all-ALL",
 		Tenant:    testTenant,
 		AllowList: []v1.WLRule{emptyRule},
 	}
-	testEpg := &gbpserver.EPG{
+	testEpg := &EPG{
 		Tenant:        testTenant,
 		Name:          "Roses",
 		ConsContracts: []string{"all-ALL"},
 		ProvContracts: []string{"all-ALL"},
 	}
-	testEP := &gbpserver.Endpoint{
+	testEP := &Endpoint{
 		Uuid:    "testEP-xxx-yyy-zzz",
 		MacAddr: "58:ef:68:e2:71:0d",
 		IPAddr:  "10.2.50.55",
@@ -428,7 +426,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 			t.FailNow()
 		}
 
-		var reply gbpserver.PostResp
+		var reply PostResp
 
 		err = json.Unmarshal(rBody, &reply)
 		if err != nil {
@@ -457,7 +455,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 	}
 
 	l := getter("https://127.0.0.1:8899/gbp/epgs/")
-	var getList gbpserver.ListResp
+	var getList ListResp
 
 	err := json.Unmarshal(l, &getList)
 	if err != nil {
@@ -658,14 +656,14 @@ func TestGRPC(t *testing.T) {
 	}
 	defer conn.Close()
 
-	listCh := make(chan *gbpserver.GBPOperation)
+	listCh := make(chan *GBPOperation)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	listVerify := func(lCh chan *gbpserver.GBPOperation) {
-		c := gbpserver.NewGBPClient(conn)
+	listVerify := func(lCh chan *GBPOperation) {
+		c := NewGBPClient(conn)
 
-		lc, err := c.ListObjects(ctx, &gbpserver.Version{}, grpc.WaitForReady(true))
+		lc, err := c.ListObjects(ctx, &Version{}, grpc.WaitForReady(true))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -683,19 +681,19 @@ func TestGRPC(t *testing.T) {
 
 		rcv := <-lCh
 		log.Infof("List opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
-		moMap := make(map[string]*gbpserver.GBPObject)
+		moMap := make(map[string]*GBPObject)
 		for _, o := range rcv.ObjectList {
 			moMap[o.Uri] = o
 		}
 
-		//printSorted(moMap, "testPolicy.json")
+		//testPrintSorted(moMap, "testPolicy.json")
 		verifyPolicy(t, moMap)
 	}
 
 	listVerify(listCh)
 
 	// inject an update into gbp server
-	var contract = gbpserver.Contract{
+	var contract = Contract{
 		Name:      "tcp-6020",
 		Tenant:    testTenant,
 		AllowList: []v1.WLRule{{Protocol: "tcp", Ports: v1.IntRange{Start: 6020, End: 6020}}},
@@ -717,7 +715,7 @@ rcvLoop:
 	}
 
 	// add an epg and verify state update.
-	epg := gbpserver.EPG{
+	epg := EPG{
 		Tenant: testTenant,
 		Name:   "newComer",
 	}
@@ -744,18 +742,18 @@ rcvLoop:
 	s.DelContract(contract)
 	time.Sleep(2 * time.Second)
 
-	newCh := make(chan *gbpserver.GBPOperation)
+	newCh := make(chan *GBPOperation)
 	listVerify(newCh)
 }
 
-func verifyPolicy(t *testing.T, moMap map[string]*gbpserver.GBPObject) {
+func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
 	data, err := ioutil.ReadFile("./testPolicy.json")
 	if err != nil {
 		log.Infof("Reading ./testPolicy.json - %v", err)
 		t.Fatal(err)
 	}
 
-	var moList []*gbpserver.GBPObject
+	var moList []*GBPObject
 	err = json.Unmarshal(data, &moList)
 	if err != nil {
 		log.Infof("Decoding ./testPolicy.json %v", err)
@@ -776,7 +774,7 @@ func verifyPolicy(t *testing.T, moMap map[string]*gbpserver.GBPObject) {
 	}
 }
 
-func printSorted(mos map[string]*gbpserver.GBPObject, outFile string) {
+func testPrintSorted(mos map[string]*GBPObject, outFile string) {
 	var keys []string
 
 	for k := range mos {
@@ -785,7 +783,7 @@ func printSorted(mos map[string]*gbpserver.GBPObject, outFile string) {
 
 	sort.Strings(keys)
 
-	var sortedMos []*gbpserver.GBPObject
+	var sortedMos []*GBPObject
 	for _, kk := range keys {
 		m, ok := mos[kk]
 		if !ok {

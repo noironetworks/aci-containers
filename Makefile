@@ -189,8 +189,7 @@ check-hostagent:
 check-controller:
 	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
 check-gbpserver:
-	${TEST_CMD} ${BASE}/pkg/gbpserver/integ ${TEST_ARGS}
-	${TEST_CMD} ${BASE}/pkg/gbpserver/watchers ${TEST_ARGS}
+	${TEST_CMD} ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
 check-keyvalueservice:
 	${TEST_CMD} ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 gometalintercheck:
