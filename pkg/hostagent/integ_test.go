@@ -32,6 +32,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -151,6 +152,7 @@ func (it *integ) tearDown() {
 	os.RemoveAll(it.hcf.CniMetadataDir)
 	os.RemoveAll(it.hcf.OpFlexEndpointDir)
 	os.RemoveAll(it.hcf.OpFlexServiceDir)
+	os.RemoveAll(it.hcf.OpFlexSnatDir)
 }
 
 func (it *integ) setupNode(ipam buildIpam, wait bool) {
@@ -243,6 +245,8 @@ func (it *integ) checkEpGroups(id int, epg, sg string) {
 			if err == nil {
 				err = json.Unmarshal([]byte(epRaw), &ep)
 			}
+			log.Infof("EP Raw Data %v", epRaw)
+			log.Infof("EP Raw Data %v", err)
 
 			epgRes := tu.WaitEqual(it.t, last, epg, ep.EndpointGroup, "epg does not match") && tu.WaitEqual(it.t, last, err, nil, "epg file read error")
 			if epgRes {
@@ -445,6 +449,7 @@ func TestEPDelete(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	it.addPodObj(0, testPodNS, "", "", nil)
 	it.addPodObj(1, testPodNS, testEgAnnot1, "", nil)
+	time.Sleep(1000 * time.Millisecond)
 
 	// verify ep file
 	it.checkEpGroups(0, "defaultEPG", emptyJSON)
@@ -644,4 +649,168 @@ func TestNPGroupAssign(t *testing.T) {
 	it.cniDelParallel(1, 3)
 	it.testNS = testPodNS
 	it.cniDelParallel(0, 1)
+}
+
+func mkSnatGlobalObj() *snatglobal.SnatGlobalInfo {
+	var newglobal []snatglobal.GlobalInfo
+	for i, pt := range snatGlobals {
+		var globalinfo snatglobal.GlobalInfo
+		portrange := make([]snatglobal.PortRange, 1)
+		portrange[0].Start = pt.port_range.start
+		portrange[0].End = pt.port_range.end
+		globalinfo.MacAddress = pt.mac
+		globalinfo.SnatIp = pt.ip
+		globalinfo.SnatIpUid = pt.uuid
+		globalinfo.PortRanges = portrange
+		globalinfo.SnatPolicyName = pt.policyname
+		if i == 0 {
+			newglobal = append(newglobal, globalinfo)
+		}
+		for _, v := range newglobal {
+			if v.MacAddress != pt.mac {
+				newglobal = append(newglobal, globalinfo)
+			}
+		}
+	}
+	return snatglobaldata("123456", "snatglobalinfo", "test-node", "aci", newglobal)
+}
+func (it *integ) checkEpSnatUids(id int, uids []string, sg string) {
+	epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)
+	epfile := it.ta.FormEPFilePath(epid)
+	var ep opflexEndpoint
+	tu.WaitFor(it.t, "checking epg in epfile", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			epRaw, err := getEp(epfile)
+			if !tu.WaitNil(it.t, last, err, "create", "Epfile", "read pod") {
+				return false, nil
+			}
+			log.Infof("EP Raw Data %v", epRaw)
+			log.Infof("EP Raw Data %v", err)
+			err = json.Unmarshal([]byte(epRaw), &ep)
+			return tu.WaitNil(it.t, last, err, "create", "Epfile", "unmarshal snat"), nil
+		})
+	assert.Equal(it.t, uids, ep.SnatUuid, "create", "Epfile", "uids")
+}
+
+func TestSnatPolicy(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "test-node",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+		},
+	}
+	it := SetupInteg(t, hcf)
+	it.ta.config.NodeName = "test-node"
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// add an annotated namespace
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, ""))
+
+	// Add pods intf via cni
+	it.cniAddParallel(0, 1)
+	it.testNS = "annNS"
+	it.cniAddParallel(1, 3)
+
+	time.Sleep(10 * time.Millisecond)
+	it.addPodObj(0, testPodNS, "", "", nil)
+	p1Labels := map[string]string{
+		"foo":  "rod",
+		"tier": "sample-tier",
+	}
+	it.addPodObj(1, "annNS", "", "", p1Labels)
+
+	p2Labels := map[string]string{
+		"foo":  "bar",
+		"tier": "sample-tier",
+	}
+	it.addPodObj(2, "annNS", "", "", p2Labels)
+
+	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.10.0/24"}, map[string]string{"foo": "rod"})
+	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.0/16"}, map[string]string{"tier": "sample-tier"})
+	it.ta.fakeSnatPolicySource.Add(snatobj1)
+	it.ta.fakeSnatPolicySource.Add(snatobj2)
+	time.Sleep(1000 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
+	time.Sleep(1000 * time.Millisecond)
+	var uids []string
+	uids = append(uids, "uid-policy1")
+	uids = append(uids, "uid-policy2")
+	it.checkEpSnatUids(1, uids, emptyJSON)
+	uids = []string{}
+	uids = append(uids, "uid-policy2")
+	it.checkEpSnatUids(2, uids, emptyJSON)
+	it.cniDelParallel(1, 3)
+	it.testNS = testPodNS
+	it.cniDelParallel(0, 1)
+}
+
+func TestSnatPolicyDep(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "test-node",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// add an annotated namespace
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+
+	// add an annotated deployment
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+
+	it.testNS = "annNS"
+	it.cniAddParallel(5, 10)
+
+	time.Sleep(10 * time.Millisecond)
+	it.addPodObj(5, "annNS", "", "", nil)
+	depLabels := map[string]string{
+		"app":  "sample-app",
+		"tier": "sample-tier",
+		"deer": "dear",
+	}
+	it.addPodObj(6, "annNS", "", "", depLabels)
+	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.0.0/16", "0.0.0.0/0"}, map[string]string{"app": "sample-app"})
+	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.10/31", "10.10.10.0/24"}, map[string]string{"deer": "dear"})
+	it.ta.fakeSnatPolicySource.Add(snatobj1)
+	it.ta.fakeSnatPolicySource.Add(snatobj2)
+	time.Sleep(1000 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
+	time.Sleep(1000 * time.Millisecond)
+	var uids []string
+	uids = append(uids, "uid-policy2")
+	uids = append(uids, "uid-policy1")
+	it.checkEpSnatUids(6, uids, emptyJSON)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatPolicySource.Delete(snatobj1)
+	time.Sleep(1000 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
+	time.Sleep(1000 * time.Millisecond)
+	var uids1 []string
+	uids1 = append(uids1, "uid-policy2")
+	it.checkEpSnatUids(6, uids1, emptyJSON)
+	it.ta.fakeSnatPolicySource.Delete(snatobj2)
+	time.Sleep(1000 * time.Millisecond)
+	var uids2 []string
+	it.checkEpSnatUids(6, uids2, emptyJSON)
+	it.cniDelParallel(5, 10)
+	it.cniDelParallel(6, 10)
 }

@@ -7,8 +7,8 @@ import (
 type PolicyState string
 
 const (
-	Ready      PolicyState = "Ready"
-	Failed     PolicyState = "Failed"
+	Ready  PolicyState = "Ready"
+	Failed PolicyState = "Failed"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -21,6 +21,7 @@ type SnatPolicySpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	SnatIp    []string    `json:"snatIp"`
+	DestIp    []string    `json:"destIp"`
 	Selector  PodSelector `json:"selector,omitempty"`
 	PortRange []PortRange `json:"portRange, omitempty"`
 	// +kubebuilder:validation:Enum=tcp,udp,icmp
@@ -34,7 +35,7 @@ type SnatPolicyStatus struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file7
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	SnatPortsAllocated map[string][]NodePortRange `json:"snatPortsAllocated,omitempty"`
-	State              PolicyState `json:"state"`
+	State              PolicyState                `json:"state"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

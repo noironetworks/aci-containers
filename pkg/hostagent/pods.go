@@ -60,7 +60,7 @@ type opflexEndpoint struct {
 	IfaceName         string `json:"interface-name,omitempty"`
 
 	Attributes  map[string]string `json:"attributes,omitempty"`
-	SnatIp      string            `json:"snat-ip,omitempty"`
+	SnatUuid    []string          `json:"snat-uuids,omitempty"`
 	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
 	registered  bool
 }
@@ -215,7 +215,6 @@ func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return false, nil
 	}
-
 	err = ioutil.WriteFile(epfile, newdata, 0644)
 	return true, err
 }
@@ -317,27 +316,11 @@ func (agent *HostAgent) syncEps() bool {
 
 		existing, ok := opflexEps[poduuid]
 		if ok {
-			ok = false
 			for _, ep := range existing {
 				if ep.Uuid != epidstr {
 					continue
 				}
-				agent.indexMutex.Lock()
-				agent.log.Debug("snat local info", agent.opflexSnatLocalInfos)
-				for k, v := range agent.opflexSnatLocalInfos {
-					if k == poduuid {
-						if agent.opflexSnatLocalInfos[poduuid].MarkDelete == true {
-							delete(agent.opflexSnatLocalInfos, poduuid)
-							agent.log.Debug("Restting Snat IP in ep file")
-							ep.SnatIp = ""
-							break
-						}
-						ep.SnatIp = v.SnatIp
-						agent.log.Debug("Ep file updated with Snat IP", ep.SnatIp)
-						break
-					}
-				}
-				agent.indexMutex.Unlock()
+				ep.SnatUuid = agent.getSnatUuids(poduuid)
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -348,7 +331,6 @@ func (agent *HostAgent) syncEps() bool {
 						Info("Updated endpoint")
 				}
 				seen[epidstr] = true
-				ok = true
 			}
 		}
 		if !ok {
@@ -362,7 +344,8 @@ func (agent *HostAgent) syncEps() bool {
 			if seen[ep.Uuid] {
 				continue
 			}
-
+			poduuid := strings.Split(ep.Uuid, "_")[0]
+			ep.SnatUuid = agent.getSnatUuids(poduuid)
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
@@ -425,6 +408,7 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.handleObjectUpdateForSnat(obj)
 	agent.podChangedLocked(obj)
 }
 
@@ -475,6 +459,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	}
 
 	logger.Debug("epChanged...")
+	logger.Info("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
@@ -563,11 +548,11 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 	agent.EPRegDel(obj)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-
 	agent.podDeletedLocked(obj)
 	agent.depPods.DeletePod(obj.(*v1.Pod))
 	agent.rcPods.DeletePod(obj.(*v1.Pod))
 	agent.netPolPods.DeletePod(obj.(*v1.Pod))
+	agent.handleObjectDeleteForSnat(obj)
 }
 
 func (agent *HostAgent) podDeletedLocked(obj interface{}) {

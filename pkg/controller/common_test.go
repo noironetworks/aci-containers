@@ -43,6 +43,7 @@ type testAciController struct {
 	fakeNetworkPolicySource *framework.FakeControllerSource
 	fakeSnatPolicySource    *framework.FakeControllerSource
 	fakeAimSource           *framework.FakeControllerSource
+	fakeNodeInfoSource      *framework.FakeControllerSource
 
 	podUpdates     []*v1.Pod
 	nodeUpdates    []*v1.Node
@@ -122,6 +123,13 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeSnatPolicySource.List,
 			WatchFunc: cont.fakeSnatPolicySource.Watch,
+		})
+
+	cont.fakeNodeInfoSource = framework.NewFakeControllerSource()
+	cont.initSnatNodeInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeNodeInfoSource.List,
+			WatchFunc: cont.fakeNodeInfoSource.Watch,
 		})
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {

@@ -28,7 +28,7 @@ import (
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
-	snatlocalclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
+	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 )
 
 type Environment interface {
@@ -43,8 +43,8 @@ type Environment interface {
 
 type K8sEnvironment struct {
 	kubeClient        *kubernetes.Clientset
-	snatLocalClient   *snatlocalclset.Clientset
 	snatGlobalClient  *snatglobalclset.Clientset
+	snatPolicyClient  *snatpolicyclset.Clientset
 	nodeInfo          *nodeinfoclientset.Clientset
 	agent             *HostAgent
 	podInformer       cache.SharedIndexInformer
@@ -92,11 +92,6 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize kube client")
 		return nil, err
 	}
-	snatLocalClient, err := snatlocalclset.NewForConfig(restconfig)
-	if err != nil {
-		log.Debug("Failed to intialize snat local info client")
-		return nil, err
-	}
 	snatGlobalClient, err := snatglobalclset.NewForConfig(restconfig)
 	if err != nil {
 		log.Debug("Failed to intialize snat global info client")
@@ -108,8 +103,12 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize node info client")
 		return nil, err
 	}
-	return &K8sEnvironment{kubeClient: kubeClient, snatLocalClient: snatLocalClient,
-		snatGlobalClient: snatGlobalClient, nodeInfo: nodeInfo}, nil
+	snatPolicyClient, err := snatpolicyclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize snatpolicy info client")
+		return nil, err
+	}
+	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient, nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -124,8 +123,8 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNetworkPolicyInformerFromClient(env.kubeClient)
 	env.agent.initDeploymentInformerFromClient(env.kubeClient)
 	env.agent.initRCInformerFromClient(env.kubeClient)
-	env.agent.initSnatLocalInformerFromClient(env.snatLocalClient)
 	env.agent.initSnatGlobalInformerFromClient(env.snatGlobalClient)
+	env.agent.initSnatPolicyInformerFromClient(env.snatPolicyClient)
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
 	env.agent.initRCPodIndex()
@@ -145,7 +144,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
-	go env.agent.InformNodeInfo(env.nodeInfo)
 	go env.agent.podInformer.Run(stopCh)
 	go env.agent.controllerInformer.Run(stopCh)
 	go env.agent.endpointsInformer.Run(stopCh)
@@ -154,14 +152,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.netPolInformer.Run(stopCh)
 	go env.agent.depInformer.Run(stopCh)
 	go env.agent.rcInformer.Run(stopCh)
-	go env.agent.snatLocalInformer.Run(stopCh)
 	go env.agent.snatGlobalInformer.Run(stopCh)
-
+	go env.agent.snatPolicyInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		env.agent.podInformer.HasSynced, env.agent.endpointsInformer.HasSynced,
-		env.agent.serviceInformer.HasSynced, env.agent.snatLocalInformer.HasSynced,
-		env.agent.snatGlobalInformer.HasSynced)
+		env.agent.serviceInformer.HasSynced, env.agent.snatGlobalInformer.HasSynced,
+		env.agent.snatPolicyInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }

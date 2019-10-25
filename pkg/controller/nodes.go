@@ -419,6 +419,15 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	delete(cont.nodeServiceMetaCache, node.ObjectMeta.Name)
 	cont.updateServicesForNode(node.ObjectMeta.Name)
 	cont.snatFullSync()
+	if _, ok := cont.snatNodeInfoCache[node.ObjectMeta.Name]; ok {
+		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
+		nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
+		if err != nil {
+			return
+		}
+		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
+		cont.queueNodeInfoUpdateByKey(nodeinfokey)
+	}
 }
 
 // must have index lock

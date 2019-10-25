@@ -35,6 +35,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 )
 
 type HostAgent struct {
@@ -45,12 +46,11 @@ type HostAgent struct {
 	indexMutex sync.Mutex
 	ipamMutex  sync.Mutex
 
-	opflexEps      map[string][]*opflexEndpoint
-	opflexServices map[string]*opflexService
-	epMetadata     map[string]map[string]*md.ContainerMetadata
-	cniToPodID     map[string]string
-	serviceEp      md.ServiceEndpoint
-
+	opflexEps          map[string][]*opflexEndpoint
+	opflexServices     map[string]*opflexService
+	epMetadata         map[string]map[string]*md.ContainerMetadata
+	cniToPodID         map[string]string
+	serviceEp          md.ServiceEndpoint
 	crdClient          aciv1.AciV1Interface
 	podInformer        cache.SharedIndexInformer
 	endpointsInformer  cache.SharedIndexInformer
@@ -63,6 +63,7 @@ type HostAgent struct {
 	snatLocalInformer  cache.SharedIndexInformer
 	snatGlobalInformer cache.SharedIndexInformer
 	controllerInformer cache.SharedIndexInformer
+	snatPolicyInformer cache.SharedIndexInformer
 	netPolPods         *index.PodSelectorIndex
 	depPods            *index.PodSelectorIndex
 	rcPods             *index.PodSelectorIndex
@@ -76,12 +77,17 @@ type HostAgent struct {
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
-	opflexSnatLocalInfos  map[string]*OpflexSnatLocalInfo
-	opflexSnatGlobalInfos map[string][]*OpflexSnatGlobalInfo
 	netNsFuncChan         chan func()
 	vtepIP                string
 	vtepIface             string
 	gbpServerIP           string
+	opflexSnatGlobalInfos map[string][]*OpflexSnatGlobalInfo
+	opflexSnatLocalInfos  map[string]*OpflexSnatLocalInfo
+	//snatpods per snat policy
+	snatPods map[string]map[string]ResourceType
+	//Object Key and list of labels active for snatpolicy
+	snatPolicyLabels map[string]map[string]ResourceType
+	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 }
 
 type Vtep struct {
@@ -104,8 +110,11 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		ignoreOvsPorts: make(map[string][]string),
 
 		netNsFuncChan:         make(chan func()),
-		opflexSnatLocalInfos:  make(map[string]*OpflexSnatLocalInfo),
 		opflexSnatGlobalInfos: make(map[string][]*OpflexSnatGlobalInfo),
+		opflexSnatLocalInfos:  make(map[string]*OpflexSnatLocalInfo),
+		snatPods:              make(map[string]map[string]ResourceType),
+		snatPolicyLabels:      make(map[string]map[string]ResourceType),
+		snatPolicyCache:       make(map[string]*snatpolicy.SnatPolicy),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -116,7 +125,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"eps":          ha.syncEps,
 		"services":     ha.syncServices,
 		"opflexServer": ha.syncOpflexServer,
-		"snat":         ha.syncSnat}
+		"snat":         ha.syncSnat,
+		"snatnodeInfo": ha.syncSnatNodeInfo}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -220,6 +230,9 @@ func (agent *HostAgent) scheduleSyncSnats() {
 func (agent *HostAgent) scheduleSyncOpflexServer() {
 	agent.ScheduleSync("opflexServer")
 }
+func (agent *HostAgent) scheduleSyncNodeInfo() {
+	agent.ScheduleSync("snatnodeInfo")
+}
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(time.Second * 30)
@@ -278,6 +291,7 @@ func (agent *HostAgent) EnableSync() (changed bool) {
 		agent.scheduleSyncServices()
 		agent.scheduleSyncEps()
 		agent.scheduleSyncSnats()
+		agent.scheduleSyncNodeInfo()
 	}
 	return
 }
