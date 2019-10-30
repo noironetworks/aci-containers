@@ -179,12 +179,14 @@ func GetInvMoMap(vtep string) map[string]*gbpCommonMo {
 }
 
 type Endpoint struct {
-	Uuid    string `json:"uuid,omitempty"`
-	MacAddr string `json:"macaddr,omitempty"`
-	IPAddr  string `json:"ipaddr,omitempty"`
-	EPG     string `json:"epg,omitempty"`
-	VTEP    string `json:"vtep,omitempty"`
-	IFName  string `json:"ifname,omitempty"`
+	Uuid      string `json:"uuid,omitempty"`
+	MacAddr   string `json:"macaddr,omitempty"`
+	IPAddr    string `json:"ipaddr,omitempty"`
+	EPG       string `json:"epg,omitempty"`
+	VTEP      string `json:"vtep,omitempty"`
+	IFName    string `json:"ifname,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	PodName   string `json:"podname,omitempty"`
 }
 
 func (ep *Endpoint) Add() (string, error) {

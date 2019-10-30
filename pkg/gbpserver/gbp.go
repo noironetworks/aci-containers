@@ -681,10 +681,10 @@ func CreateEPG(name, uri string) *gbpBaseMo {
 
 // Initializes the Mo DB
 func (s *Server) InitDB() {
-	if s.config.ApicHosts != nil {
+	if s.config.Apic != nil {
 		var err error
 		log1 := log.New()
-		apicCon, err = apicapi.New(log1, s.config.ApicHosts, s.config.ApicUsername, s.config.ApicPassword, nil, nil, "test", 60, 5)
+		apicCon, err = apicapi.New(log1, s.config.Apic.Hosts, s.config.Apic.Username, s.config.Apic.Password, nil, nil, "test", 60, 5)
 		if err != nil {
 			log.Fatalf("Connecting to APIC: %v", err)
 		}

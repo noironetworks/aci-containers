@@ -215,6 +215,8 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
 		IFName:  podif.Status.IFName,
+		Namespace: podif.Status.PodNS,
+		PodName: podif.Status.PodName,
 	}
 
 	kw.gs.AddEP(ep)
@@ -236,6 +238,8 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 		EPG:     podif.Status.EPG,
 		VTEP:    podif.Status.VTEP,
 		IFName:  podif.Status.IFName,
+		Namespace: podif.Status.PodNS,
+		PodName: podif.Status.PodName,
 	}
 
 	kw.gs.DelEP(ep)

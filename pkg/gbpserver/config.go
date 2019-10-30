@@ -16,6 +16,7 @@ package gbpserver
 
 import (
 	"flag"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 
 // Configuration for the gbpserver
@@ -35,47 +36,58 @@ type GBPServerConfig struct {
 	// TCP port to run apic proxy server on (or 0 to disable)
 	ProxyListenPort int `json:"proxy-listen-port,omitempty"`
 
-	// The hostnames or IPs for connecting to apic
-	ApicHosts []string `json:"apic-hosts,omitempty"`
-
-	// The username for connecting to APIC
-	ApicUsername string `json:"apic-username,omitempty"`
-
-	// The password for connecting to APIC
-	ApicPassword string `json:"apic-password,omitempty"`
-
-	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
-
-	// How early (seconds) the subscriptions to be refreshed than
-	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
-	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
-
-	// A path for a PEM-encoded private key for client certificate
-	// authentication for APIC API
-	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
-
-	// A path for a PEM-encoded public certificate for APIC server to
-	// enable secure TLS server verifification
-	ApicCertPath string `json:"apic-cert-path,omitempty"`
-
-	// The name of the ACI VMM domain
-	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
-
-	// Tenant to use when creating policy objects in APIC
-	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
-
-	// ACI VRF for this kubernetes instance
-	AciVrf string `json:"aci-vrf,omitempty"`
-
 	// Pod subnet CIDR in the form <gateway-address>/<prefix-length> that
 	// cover all pod-ip-pools
 	PodSubnet  string `json:"pod-subnet,omitempty"`
 	NodeSubnet string `json:"node-subnet,omitempty"`
 
 	// Used by internal kv store
-	EtcdDir      string `json:"etcd-dir,omitempty"`
-	EtcdPort     int    `json:"etcd-port,omitempty"`
+	EtcdDir  string `json:"etcd-dir,omitempty"`
+	EtcdPort int    `json:"etcd-port,omitempty"`
+
+	// Tenant to use when creating policy objects in APIC
+	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
+
+	// APIC info
+	Apic         *ApicInfo `json:"apic,omitempty"`
 	pushJsonFile bool
+}
+
+type ApicInfo struct {
+	// The hostnames or IPs for connecting to apic
+	Hosts []string `json:"apic-hosts,omitempty"`
+
+	// The username for connecting to APIC
+	Username string `json:"apic-username,omitempty"`
+
+	// The password for connecting to APIC
+	Password string `json:"apic-password,omitempty"`
+
+	RefreshTimer string `json:"apic-refreshtime,omitempty"`
+
+	// How early (seconds) the subscriptions to be refreshed than
+	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
+	RefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
+
+	// A path for a PEM-encoded private key for client certificate
+	// authentication for APIC API
+	PrivateKeyPath string `json:"apic-private-key-path,omitempty"`
+
+	// A path for a PEM-encoded public certificate for APIC server to
+	// enable secure TLS server verifification
+	CertPath string `json:"apic-cert-path,omitempty"`
+
+	// The name of the ACI VMM domain
+	VmmDomain string `json:"aci-vmm-domain,omitempty"`
+
+	// ACI VRF for this kubernetes instance
+	AciVrf string `json:"aci-vrf,omitempty"`
+
+	// Cloud Info
+	Cloud *kafkac.CloudInfo `json:"cloud-info,omitempty"`
+
+	// kafka config
+	Kafka *kafkac.KafkaCfg `json:"kafka,omitempty"`
 }
 
 func InitConfig(config *GBPServerConfig) {
