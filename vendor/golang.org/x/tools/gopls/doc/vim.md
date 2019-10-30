@@ -68,7 +68,8 @@ let g:lsc_server_commands = {
 ```
 
 The `log_level` and `suppress_stderr` parts are needed to prevent breakage from logging. See
-[natebosch/vim-lsc#180] and [natebosch/vim-lsc#213].
+issues [#180](https://github.com/natebosch/vim-lsc/issues/180) and
+[#213](https://github.com/natebosch/vim-lsc/issues/213).
 
 ## coc.nvim
 
@@ -79,10 +80,15 @@ Use [coc.nvim], with the following `coc-settings.json` configuration:
     "golang": {
       "command": "gopls",
       "rootPatterns": ["go.mod", ".vim/", ".git/", ".hg/"],
-      "filetypes": ["go"]
+      "filetypes": ["go"],
+      "initializationOptions": {
+        "usePlaceholders": true
+      }
     }
   }
 ```
+
+Other [settings](settings.md) can be added in `initializationOptions` too.
 
 The `editor.action.organizeImport` code action will auto-format code and add missing imports. To run this automatically on save, add the following line to your `init.vim`:
 

@@ -42,6 +42,12 @@ type ContainerMetric struct {
 	Tags                   map[string]string
 }
 
+type SpikeMetric struct {
+	Start time.Time
+	End   time.Time
+	Tags  map[string]string
+}
+
 // IngressClient is the shared contract between v1 and v2 clients.
 //go:generate counterfeiter -o testhelpers/fake_ingress_client.go . IngressClient
 type IngressClient interface {
@@ -55,6 +61,7 @@ type IngressClient interface {
 	SendAppLog(message, sourceType string, tags map[string]string) error
 	SendAppErrorLog(message, sourceType string, tags map[string]string) error
 	SendAppMetrics(metrics ContainerMetric) error
+	SendSpikeMetrics(metrics SpikeMetric) error
 	SendComponentMetric(name string, value float64, unit string) error
 }
 
@@ -228,6 +235,17 @@ func (c client) SendAppMetrics(m ContainerMetric) error {
 		loggregator.WithGaugeValue("absolute_usage", float64(m.AbsoluteCPUUsage), "nanoseconds"),
 		loggregator.WithGaugeValue("absolute_entitlement", float64(m.AbsoluteCPUEntitlement), "nanoseconds"),
 		loggregator.WithGaugeValue("container_age", float64(m.ContainerAge), "nanoseconds"),
+		loggregator.WithEnvelopeTags(m.Tags),
+	)
+
+	return nil
+}
+
+func (c client) SendSpikeMetrics(m SpikeMetric) error {
+	c.client.EmitGauge(
+		loggregator.WithGaugeSourceInfo(m.Tags["source_id"], m.Tags["instance_id"]),
+		loggregator.WithGaugeValue("spike_start", float64(m.Start.Unix()), "seconds"),
+		loggregator.WithGaugeValue("spike_end", float64(m.End.Unix()), "seconds"),
 		loggregator.WithEnvelopeTags(m.Tags),
 	)
 

@@ -290,14 +290,29 @@ func TestKeyEqualArrayBoolsWithComments(t *testing.T) {
 }
 
 func TestDateRegexp(t *testing.T) {
-	if dateRegexp.FindString("1979-05-27T07:32:00Z") == "" {
-		t.Error("basic lexing")
+	cases := map[string]string{
+		"basic":               "1979-05-27T07:32:00Z",
+		"offset":              "1979-05-27T00:32:00-07:00",
+		"nano precision":      "1979-05-27T00:32:00.999999-07:00",
+		"basic-no-T":          "1979-05-27 07:32:00Z",
+		"offset-no-T":         "1979-05-27 00:32:00-07:00",
+		"nano precision-no-T": "1979-05-27 00:32:00.999999-07:00",
+		"no-tz":               "1979-05-27T07:32:00",
+		"no-tz-nano":          "1979-05-27T00:32:00.999999",
+		"no-tz-no-t":          "1979-05-27 07:32:00",
+		"no-tz-no-t-nano":     "1979-05-27 00:32:00.999999",
+		"date-no-tz":          "1979-05-27",
+		"time-no-tz":          "07:32:00",
+		"time-no-tz-nano":     "00:32:00.999999",
 	}
-	if dateRegexp.FindString("1979-05-27T00:32:00-07:00") == "" {
-		t.Error("offset lexing")
+
+	for name, value := range cases {
+		if dateRegexp.FindString(value) == "" {
+			t.Error("failed date regexp test", name)
+		}
 	}
-	if dateRegexp.FindString("1979-05-27T00:32:00.999999-07:00") == "" {
-		t.Error("nano precision lexing")
+	if dateRegexp.FindString("1979-05-27 07:32:00Z") == "" {
+		t.Error("space delimiter lexing")
 	}
 }
 
@@ -319,6 +334,12 @@ func TestKeyEqualDate(t *testing.T) {
 		{Position{1, 5}, tokenEqual, "="},
 		{Position{1, 7}, tokenDate, "1979-05-27T00:32:00.999999-07:00"},
 		{Position{1, 39}, tokenEOF, ""},
+	})
+	testFlow(t, "foo = 1979-05-27 07:32:00Z", []token{
+		{Position{1, 1}, tokenKey, "foo"},
+		{Position{1, 5}, tokenEqual, "="},
+		{Position{1, 7}, tokenDate, "1979-05-27 07:32:00Z"},
+		{Position{1, 27}, tokenEOF, ""},
 	})
 }
 
@@ -723,6 +744,58 @@ func TestLexUnknownRvalue(t *testing.T) {
 		{Position{1, 1}, tokenKey, "a"},
 		{Position{1, 3}, tokenEqual, "="},
 		{Position{1, 5}, tokenError, `no value can start with \`},
+	})
+}
+
+func TestLexInlineTableBareKey(t *testing.T) {
+	testFlow(t, `foo = { bar = "baz" }`, []token{
+		{Position{1, 1}, tokenKey, "foo"},
+		{Position{1, 5}, tokenEqual, "="},
+		{Position{1, 7}, tokenLeftCurlyBrace, "{"},
+		{Position{1, 9}, tokenKey, "bar"},
+		{Position{1, 13}, tokenEqual, "="},
+		{Position{1, 16}, tokenString, "baz"},
+		{Position{1, 21}, tokenRightCurlyBrace, "}"},
+		{Position{1, 22}, tokenEOF, ""},
+	})
+}
+
+func TestLexInlineTableBareKeyDash(t *testing.T) {
+	testFlow(t, `foo = { -bar = "baz" }`, []token{
+		{Position{1, 1}, tokenKey, "foo"},
+		{Position{1, 5}, tokenEqual, "="},
+		{Position{1, 7}, tokenLeftCurlyBrace, "{"},
+		{Position{1, 9}, tokenKey, "-bar"},
+		{Position{1, 14}, tokenEqual, "="},
+		{Position{1, 17}, tokenString, "baz"},
+		{Position{1, 22}, tokenRightCurlyBrace, "}"},
+		{Position{1, 23}, tokenEOF, ""},
+	})
+}
+
+func TestLexInlineTableBareKeyUnderscore(t *testing.T) {
+	testFlow(t, `foo = { _bar = "baz" }`, []token{
+		{Position{1, 1}, tokenKey, "foo"},
+		{Position{1, 5}, tokenEqual, "="},
+		{Position{1, 7}, tokenLeftCurlyBrace, "{"},
+		{Position{1, 9}, tokenKey, "_bar"},
+		{Position{1, 14}, tokenEqual, "="},
+		{Position{1, 17}, tokenString, "baz"},
+		{Position{1, 22}, tokenRightCurlyBrace, "}"},
+		{Position{1, 23}, tokenEOF, ""},
+	})
+}
+
+func TestLexInlineTableQuotedKey(t *testing.T) {
+	testFlow(t, `foo = { "bar" = "baz" }`, []token{
+		{Position{1, 1}, tokenKey, "foo"},
+		{Position{1, 5}, tokenEqual, "="},
+		{Position{1, 7}, tokenLeftCurlyBrace, "{"},
+		{Position{1, 9}, tokenKey, "\"bar\""},
+		{Position{1, 15}, tokenEqual, "="},
+		{Position{1, 18}, tokenString, "baz"},
+		{Position{1, 23}, tokenRightCurlyBrace, "}"},
+		{Position{1, 24}, tokenEOF, ""},
 	})
 }
 
