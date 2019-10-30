@@ -8,9 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
+	"log"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"golang.org/x/tools/go/packages/packagestest"
@@ -1640,6 +1643,7 @@ func (c testConfig) test(t *testing.T, fn func(*goimportTest)) {
 					WorkingDir:      exported.Config.Dir,
 					ForceGoPackages: forceGoPackages,
 					Debug:           *testDebug,
+					Logf:            log.Printf,
 				},
 				exported: exported,
 			}
@@ -1680,8 +1684,9 @@ func (t *goimportTest) processNonModule(file string, contents []byte, opts *Opti
 	if opts == nil {
 		opts = &Options{Comments: true, TabIndent: true, TabWidth: 8}
 	}
-	opts.Env = t.env
-	opts.Env.Debug = *testDebug
+	// ProcessEnv is not safe for concurrent use. Make a copy.
+	env := *t.env
+	opts.Env = &env
 	return Process(file, contents, opts)
 }
 
@@ -2511,31 +2516,88 @@ var _ = bytes.Buffer{}
 
 // TestStdLibGetCandidates tests that get packages finds std library packages
 // with correct priorities.
-func TestStdLibGetCandidates(t *testing.T) {
-	want := []struct {
-		wantName string
-		wantPkg  string
-	}{
+func TestGetCandidates(t *testing.T) {
+	type res struct {
+		name, path string
+	}
+	want := []res{
+		{"bar", "bar.com/bar"},
 		{"bytes", "bytes"},
 		{"rand", "crypto/rand"},
+		{"foo", "foo.com/foo"},
 		{"rand", "math/rand"},
 		{"http", "net/http"},
 	}
 
-	got, err := GetAllCandidates("", nil)
-	if err != nil {
-		t.Fatalf("Process() = %v", err)
-	}
-	wantIdx := 0
-	for _, fix := range got {
-		if wantIdx >= len(want) {
-			break
+	testConfig{
+		modules: []packagestest.Module{
+			{
+				Name:  "foo.com",
+				Files: fm{"foo/foo.go": "package foo\n"},
+			},
+			{
+				Name:  "bar.com",
+				Files: fm{"bar/bar.go": "package bar\n"},
+			},
+		},
+		goPackagesIncompatible: true, // getAllCandidates doesn't support the go/packages resolver.
+	}.test(t, func(t *goimportTest) {
+		candidates, err := getAllCandidates("x.go", t.env)
+		if err != nil {
+			t.Fatalf("GetAllCandidates() = %v", err)
 		}
-		if want[wantIdx].wantName == fix.IdentName && want[wantIdx].wantPkg == fix.StmtInfo.ImportPath && "" == fix.StmtInfo.Name {
-			wantIdx++
+		var got []res
+		for _, c := range candidates {
+			for _, w := range want {
+				if c.StmtInfo.ImportPath == w.path {
+					got = append(got, res{c.IdentName, c.StmtInfo.ImportPath})
+				}
+			}
 		}
-	}
-	if wantIdx < len(want) {
-		t.Errorf("expected to find candidate with path: %q, name: %q next in ordered scan of results`", want[wantIdx].wantPkg, want[wantIdx].wantName)
-	}
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("wanted stdlib results in order %v, got %v", want, got)
+		}
+	})
+}
+
+// Tests #34895: process should not panic on concurrent calls.
+func TestConcurrentProcess(t *testing.T) {
+	testConfig{
+		module: packagestest.Module{
+			Name: "foo.com",
+			Files: fm{
+				"p/first.go": `package foo
+
+func _() {
+	fmt.Println()
+}
+`,
+				"p/second.go": `package foo
+
+import "fmt"
+
+func _() {
+	fmt.Println()
+	imports.Bar() // not imported.
+}
+`,
+			},
+		},
+	}.test(t, func(t *goimportTest) {
+		var (
+			n  = 10
+			wg sync.WaitGroup
+		)
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			go func() {
+				defer wg.Done()
+				_, err := t.process("foo.com", "p/first.go", nil, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}()
+		}
+		wg.Wait()
+	})
 }

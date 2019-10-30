@@ -349,33 +349,35 @@ func TestTransportAbortClosesPipes(t *testing.T) {
 	defer st.Close()
 	defer close(shutdown) // we must shutdown before st.Close() to avoid hanging
 
-	done := make(chan struct{})
-	requestMade := make(chan struct{})
+	errCh := make(chan error)
 	go func() {
-		defer close(done)
+		defer close(errCh)
 		tr := &Transport{TLSClientConfig: tlsConfigInsecure}
 		req, err := http.NewRequest("GET", st.ts.URL, nil)
 		if err != nil {
-			t.Fatal(err)
+			errCh <- err
+			return
 		}
 		res, err := tr.RoundTrip(req)
 		if err != nil {
-			t.Fatal(err)
+			errCh <- err
+			return
 		}
 		defer res.Body.Close()
-		close(requestMade)
+		st.closeConn()
 		_, err = ioutil.ReadAll(res.Body)
 		if err == nil {
-			t.Error("expected error from res.Body.Read")
+			errCh <- errors.New("expected error from res.Body.Read")
+			return
 		}
 	}()
 
-	<-requestMade
-	// Now force the serve loop to end, via closing the connection.
-	st.closeConn()
-	// deadlock? that's a bug.
 	select {
-	case <-done:
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	// deadlock? that's a bug.
 	case <-time.After(3 * time.Second):
 		t.Fatal("timeout")
 	}
@@ -1782,6 +1784,57 @@ func TestTransportChecksResponseHeaderListSize(t *testing.T) {
 					// header block fragment frame.
 					return fmt.Errorf("encoding over 10MB of duplicate keypairs took %d bytes; expected %d", size, want)
 				}
+				ct.fr.WriteHeaders(HeadersFrameParam{
+					StreamID:      f.StreamID,
+					EndHeaders:    true,
+					EndStream:     true,
+					BlockFragment: buf.Bytes(),
+				})
+				return nil
+			}
+		}
+	}
+	ct.run()
+}
+
+func TestTransportCookieHeaderSplit(t *testing.T) {
+	ct := newClientTester(t)
+	ct.client = func() error {
+		req, _ := http.NewRequest("GET", "https://dummy.tld/", nil)
+		req.Header.Add("Cookie", "a=b;c=d;  e=f;")
+		req.Header.Add("Cookie", "e=f;g=h; ")
+		req.Header.Add("Cookie", "i=j")
+		_, err := ct.tr.RoundTrip(req)
+		return err
+	}
+	ct.server = func() error {
+		ct.greet()
+		for {
+			f, err := ct.fr.ReadFrame()
+			if err != nil {
+				return err
+			}
+			switch f := f.(type) {
+			case *HeadersFrame:
+				dec := hpack.NewDecoder(initialHeaderTableSize, nil)
+				hfs, err := dec.DecodeFull(f.HeaderBlockFragment())
+				if err != nil {
+					return err
+				}
+				got := []string{}
+				want := []string{"a=b", "c=d", "e=f", "e=f", "g=h", "i=j"}
+				for _, hf := range hfs {
+					if hf.Name == "cookie" {
+						got = append(got, hf.Value)
+					}
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("Cookies = %#v, want %#v", got, want)
+				}
+
+				var buf bytes.Buffer
+				enc := hpack.NewEncoder(&buf)
+				enc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"})
 				ct.fr.WriteHeaders(HeadersFrameParam{
 					StreamID:      f.StreamID,
 					EndHeaders:    true,

@@ -1,3 +1,205 @@
+Release v1.25.20 (2019-10-28)
+===
+
+### Service Client Updates
+* `service/ecr`: Updates service API, documentation, and paginators
+  * This release of Amazon Elastic Container Registry Service (Amazon ECR) introduces support for image scanning. This identifies the software vulnerabilities in the container image based on the Common Vulnerabilities and Exposures (CVE) database.
+* `service/elasticache`: Updates service API and documentation
+  * Amazon ElastiCache adds support for migrating Redis workloads hosted on Amazon EC2 into ElastiCache by syncing the data between the source Redis cluster and target ElastiCache for Redis cluster in real time. For more information, see https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/migrate-to-elasticache.html.
+* `service/transfer`: Updates service API and documentation
+  * This release adds logical directories support to your AWS SFTP server endpoint, so you can now create logical directory structures mapped to Amazon Simple Storage Service (Amazon S3) bucket paths for users created and stored within the service. Amazon S3 bucket names and paths can now be hidden from AWS SFTP users, providing an additional level of privacy to meet security requirements. You can lock down your SFTP users' access to designated folders (commonly referred to as 'chroot'), and simplify complex folder structures for data distribution through SFTP without replicating files across multiple users.
+
+### SDK Enhancements
+* `aws/client`: Add PartitionID to Config ([#2902](https://github.com/aws/aws-sdk-go/pull/2902))
+* `aws/client/metadata`: Add PartitionID to ClientInfo ([#2902](https://github.com/aws/aws-sdk-go/pull/2902))
+* `aws/endpoints`: Add PartitionID to ResolvedEndpoint ([#2902](https://github.com/aws/aws-sdk-go/pull/2902))
+
+### SDK Bugs
+* `aws/endpoints`: Fix resolve endpoint with empty region ([#2911](https://github.com/aws/aws-sdk-go/pull/2911))
+  * Fixes the SDK's behavior when attempting to resolve a service's endpoint when no region was provided. Adds legacy support for services that were able to resolve a valid endpoint. No new service will support resolving an endpoint without an region.
+  * Fixes [#2909](https://github.com/aws/aws-sdk-go/issues/2909)
+
+Release v1.25.19 (2019-10-24)
+===
+
+### Service Client Updates
+* `service/appmesh`: Updates service API and documentation
+* `service/chime`: Updates service API, documentation, and paginators
+  * * This release introduces Voice Connector PDX region and defaults previously created Voice Connectors to IAD. You can create Voice Connector Groups and add region specific Voice Connectors to direct telephony traffic across AWS regions in case of regional failures. With this release you can add phone numbers to Voice Connector Groups and can bulk move phone numbers between Voice Connectors, between Voice Connector and Voice Connector Groups and between Voice Connector Groups. Voice Connector now supports additional settings to enable SIP Log capture. This is in addition to the launch of Voice Connector Cloud Watch metrics in this release. This release also supports assigning outbound calling name (CNAM) to AWS account and individual phone numbers assigned to Voice Connectors. * Voice Connector now supports a setting to enable real time audio streaming delivered via Kinesis Audio streams. Please note that recording Amazon Chime Voice Connector calls with this feature maybe be subject to laws or regulations regarding the recording of telephone calls and other electronic communications. AWS Customer and their end users' have the responsibility to comply with all applicable laws regarding the recording, including properly notifying all participants in a recorded session or to a recorded communication that the session or communication is being recorded and obtain their consent.
+* `service/ec2`: Updates service API and documentation
+  * This release updates CreateFpgaImage to support tagging FPGA images on creation
+* `service/gamelift`: Updates service API
+  * Amazon GameLift offers expanded hardware options for game hosting: Custom game builds can use the Amazon Linux 2 operating system, and fleets for both custom builds and Realtime servers can now use C5, M5, and R5 instance types.
+* `service/sagemaker`: Updates service API
+  * Adds support for the new family of Elastic Inference Accelerators (eia2) for SageMaker Hosting and Notebook Services
+
+Release v1.25.18 (2019-10-23)
+===
+
+### Service Client Updates
+* `service/connect`: Updates service API, documentation, and paginators
+* `service/polly`: Updates service API
+  * Amazon Polly adds new female voices: US Spanish - Lupe and Brazilian Portuguese - Camila; both voices are available in Standard and Neural engine.
+* `service/sts`: Updates service documentation
+  * AWS Security Token Service (STS) now supports a regional configuration flag to make the client respect the region without the need for the endpoint parameter.
+
+### SDK Enhancements
+* `aws/endpoints`: Adds support for STS Regional Flags ([#2779](https://github.com/aws/aws-sdk-go/pull/2779))
+  * Implements STS regional flag, with support for `legacy` and `regional` options. Defaults to `legacy`. Legacy, will force all regions specified in aws/endpoints/sts_legacy_regions.go to resolve to the STS global endpoint, sts.amazonaws.com. This is the SDK's current behavior.
+  * When the flag's value is `regional` the SDK will resolve the endpoint based on the endpoints.json model. This allows STS to update their service's modeled endpoints to be regionalized for all regions. When `regional` turned on use `aws-global` as the region to use the global endpoint.
+  * `AWS_STS_REGIONAL_ENDPOINTS=regional` for environment, or `sts_regional_endpoints=regional` in shared config file.
+  * The regions the SDK defaults to the STS global endpoint in `legacy` mode are: 
+    * ap-northeast-1
+    * ap-south-1
+    * ap-southeast-1
+    * ap-southeast-2
+    * aws-global
+    * ca-central-1
+    * eu-central-1
+    * eu-north-1
+    * eu-west-1
+    * eu-west-2
+    * eu-west-3
+    * sa-east-1
+    * us-east-1
+    * us-east-2
+    * us-west-1
+    * us-west-2
+
+Release v1.25.17 (2019-10-22)
+===
+
+### Service Client Updates
+* `service/iotevents`: Updates service API and documentation
+* `service/opsworkscm`: Updates service API and documentation
+  * AWS OpsWorks for Chef Automate (OWCA) now allows customers to use a custom domain and respective certificate, for their AWS OpsWorks For Chef Automate servers. Customers can now provide a CustomDomain, CustomCertificate and CustomPrivateKey in CreateServer API to configure their Chef Automate servers with a custom domain and certificate.
+
+### SDK Bugs
+* `service/s3`,`service/kinesis`: Fix streaming APIs' Err method closing stream ([#2882](https://github.com/aws/aws-sdk-go/pull/2882))
+  * Fixes calling the Err method on SDK's Amazon Kinesis's SubscribeToShared and Amazon S3's SelectObjectContent response EventStream members closing the stream. This would cause unexpected read errors, or early termination of the streams. Only the Close method of the streaming members will close the streams.
+  * Related to [#2769](https://github.com/aws/aws-sdk-go/issues/2769)
+
+Release v1.25.16 (2019-10-18)
+===
+
+### Service Client Updates
+* `service/monitoring`: Updates service API and documentation
+  * New Period parameter added to MetricDataQuery structure.
+
+Release v1.25.15 (2019-10-17)
+===
+
+### Service Client Updates
+* `service/batch`: Updates service API and documentation
+  * Adding support for Compute Environment Allocation Strategies
+* `service/rds`: Updates service API, documentation, and paginators
+  * Amazon RDS now supports Amazon RDS on VMware with the introduction of APIs related to Custom Availability Zones and Media installation.
+
+Release v1.25.14 (2019-10-16)
+===
+
+### Service Client Updates
+* `service/kafka`: Updates service API and documentation
+* `service/marketplacecommerceanalytics`: Updates service API and documentation
+  * add 2 more values for the supporting sections - age of past due funds + uncollected funds breakdown
+* `service/robomaker`: Updates service API
+
+Release v1.25.13 (2019-10-15)
+===
+
+### Service Client Updates
+* `service/kinesis-video-archived-media`: Updates service API and documentation
+
+Release v1.25.12 (2019-10-14)
+===
+
+### Service Client Updates
+* `service/personalize`: Updates service API and documentation
+* `service/workspaces`: Updates service documentation
+  * Documentation updates for WorkSpaces
+
+Release v1.25.11 (2019-10-11)
+===
+
+### Service Client Updates
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/greengrass`: Updates service API
+  * Greengrass OTA service supports Raspbian/Armv6l platforms.
+
+Release v1.25.10 (2019-10-10)
+===
+
+### Service Client Updates
+* `service/ec2`: Updates service API
+  * New EC2 M5n, M5dn, R5n, R5dn instances with 100 Gbps network performance and Elastic Fabric Adapter (EFA) for ultra low latency; New A1.metal bare metal instance powered by AWS Graviton Processors
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/fms`: Updates service API and documentation
+* `service/iotanalytics`: Updates service API and documentation
+* `service/runtime.lex`: Updates service API and documentation
+
+Release v1.25.9 (2019-10-09)
+===
+
+### Service Client Updates
+* `service/elasticache`: Updates service API and documentation
+  * Amazon ElastiCache now allows you to apply available service updates on demand to your Memcached and Redis Cache Clusters. Features included: (1) Access to the list of applicable service updates and their priorities. (2) Service update monitoring and regular status updates. (3) Recommended apply-by-dates for scheduling the service updates. (4) Ability to stop and later re-apply updates. For more information, see https://docs.aws.amazon.com/AmazonElastiCache/latest/mem-ug/Self-Service-Updates.html and https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Self-Service-Updates.html
+* `service/kafka`: Updates service documentation
+* `service/mediaconvert`: Updates service API and documentation
+  * AWS Elemental MediaConvert SDK has added support for Dolby Atmos encoding, up to 36 outputs, accelerated transcoding with frame capture and preferred acceleration feature.
+
+Release v1.25.8 (2019-10-08)
+===
+
+### Service Client Updates
+* `service/datasync`: Updates service API and documentation
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/eventbridge`: Updates service documentation
+* `service/firehose`: Updates service API and documentation
+  * With this release, you can use Amazon Kinesis Firehose delivery streams to deliver streaming data to Amazon Elasticsearch Service version 7.x clusters. For technical documentation, look for CreateDeliveryStream operation in Amazon Kinesis Firehose API reference.
+* `service/organizations`: Updates service documentation
+  * Documentation updates for organizations
+
+Release v1.25.7 (2019-10-07)
+===
+
+### Service Client Updates
+* `service/directconnect`: Updates service API and documentation
+  * This release adds a service provider field for physical connection creation and provides a list of available partner providers for each Direct Connect location.
+* `service/firehose`: Updates service API and documentation
+  * Amazon Kinesis Data Firehose now allows delivering data to Elasticsearch clusters set up in a different AWS account than the Firehose AWS account. For technical documentation, look for ElasticsearchDestinationConfiguration in the Amazon Kinesis Firehose API reference.
+* `service/glue`: Updates service API and documentation
+  * AWS Glue now provides ability to use custom certificates for JDBC Connections.
+* `service/pinpoint`: Updates service API and documentation
+  * This release of the Amazon Pinpoint API introduces support for using and managing message templates.
+* `service/pinpoint-email`: Updates service API and documentation
+* `service/snowball`: Updates service API and documentation
+  * AWS Snowball Edge now allows you to perform an offline update to the software of your Snowball Edge device when your device is not connected to the internet. Previously, updating your Snowball Edge's software required that the device be connected to the internet or be sent back to AWS. Now, you can keep your Snowball Edge software up to date even if your device(s) cannot connect to the internet, or are required to run in an air-gapped environment. To complete offline updates, download the software update from a client machine with connection to the internet using the AWS Command Line Interface (CLI). Then, have the Snowball Edge device download and install the software update using the Snowball Edge device API. For more information about offline updates, visit the Snowball Edge documentation page.
+
+Release v1.25.6 (2019-10-04)
+===
+
+### Service Client Updates
+* `service/cognito-idp`: Updates service API, documentation, and paginators
+* `service/mediapackage`: Updates service API, documentation, and paginators
+  * New Harvest Job APIs to export segment-accurate content windows from MediaPackage Origin Endpoints to S3. See https://docs.aws.amazon.com/mediapackage/latest/ug/harvest-jobs.html for more info
+* `service/ssm`: Updates service documentation
+  * Documentation updates for Systems Manager / StartSession.
+
+Release v1.25.5 (2019-10-03)
+===
+
+### Service Client Updates
+* `service/application-autoscaling`: Updates service documentation and examples
+* `service/devicefarm`: Updates service documentation and examples
+  * Documentation updates for devicefarm
+* `service/ec2`: Updates service API and documentation
+  * This release allows customers to purchase regional EC2 RIs on a future date.
+* `service/es`: Updates service API and documentation
+  * Amazon Elasticsearch Service now supports configuring additional options for domain endpoint, such as whether to require HTTPS for all traffic.
+
+### SDK Bugs
+* `service/dynamodb/dynamodbattribute`: Fixes a panic when decoding into a map with a key string type alias. ([#2870](https://github.com/aws/aws-sdk-go/pull/2870))
+
 Release v1.25.4 (2019-10-02)
 ===
 

@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"golang.org/x/tools/go/packages/packagestest"
 	"golang.org/x/tools/internal/lsp/cache"
@@ -48,7 +47,7 @@ func testSource(t *testing.T, exporter packagestest.Exporter) {
 	data := tests.Load(t, exporter, "../testdata")
 	defer data.Exported.Cleanup()
 
-	cache := cache.New()
+	cache := cache.New(nil)
 	session := cache.NewSession(ctx)
 	options := tests.DefaultOptions()
 	options.Env = data.Config.Env
@@ -80,7 +79,7 @@ func (r *runner) Diagnostics(t *testing.T, uri span.URI, want []source.Diagnosti
 		}
 		return
 	}
-	if diff := tests.DiffDiagnostics(uri, want, got); diff != "" {
+	if diff := tests.DiffDiagnostics(want, got); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -113,7 +112,6 @@ func (r *runner) CompletionSnippet(t *testing.T, src span.Span, expected tests.C
 	_, list := r.callCompletion(t, src, source.CompletionOptions{
 		Placeholders: placeholders,
 		Deep:         true,
-		Budget:       5 * time.Second,
 	})
 	got := tests.FindItem(list, *items[expected.CompletionItem])
 	want := expected.PlainSnippet
@@ -136,7 +134,7 @@ func (r *runner) UnimportedCompletion(t *testing.T, src span.Span, test tests.Co
 	if !strings.Contains(string(src.URI()), "builtins") {
 		got = tests.FilterBuiltins(got)
 	}
-	if diff := tests.DiffCompletionItems(want, got); diff != "" {
+	if diff := tests.CheckCompletionOrder(want, got); diff != "" {
 		t.Errorf("%s: %s", src, diff)
 	}
 }
@@ -148,16 +146,15 @@ func (r *runner) DeepCompletion(t *testing.T, src span.Span, test tests.Completi
 	}
 	prefix, list := r.callCompletion(t, src, source.CompletionOptions{
 		Deep:          true,
-		Budget:        5 * time.Second,
 		Documentation: true,
 	})
 	if !strings.Contains(string(src.URI()), "builtins") {
 		list = tests.FilterBuiltins(list)
 	}
-	fuzzyMatcher := fuzzy.NewMatcher(prefix, fuzzy.Symbol)
+	fuzzyMatcher := fuzzy.NewMatcher(prefix)
 	var got []protocol.CompletionItem
 	for _, item := range list {
-		if fuzzyMatcher.Score(item.Label) < 0 {
+		if fuzzyMatcher.Score(item.Label) <= 0 {
 			continue
 		}
 		got = append(got, item)
@@ -175,18 +172,17 @@ func (r *runner) FuzzyCompletion(t *testing.T, src span.Span, test tests.Complet
 	prefix, list := r.callCompletion(t, src, source.CompletionOptions{
 		FuzzyMatching: true,
 		Deep:          true,
-		Budget:        5 * time.Second,
 	})
 	if !strings.Contains(string(src.URI()), "builtins") {
 		list = tests.FilterBuiltins(list)
 	}
 	var fuzzyMatcher *fuzzy.Matcher
 	if prefix != "" {
-		fuzzyMatcher = fuzzy.NewMatcher(prefix, fuzzy.Symbol)
+		fuzzyMatcher = fuzzy.NewMatcher(prefix)
 	}
 	var got []protocol.CompletionItem
 	for _, item := range list {
-		if fuzzyMatcher != nil && fuzzyMatcher.Score(item.Label) < 0 {
+		if fuzzyMatcher != nil && fuzzyMatcher.Score(item.Label) <= 0 {
 			continue
 		}
 		got = append(got, item)
@@ -220,15 +216,11 @@ func (r *runner) RankCompletion(t *testing.T, src span.Span, test tests.Completi
 	prefix, list := r.callCompletion(t, src, source.CompletionOptions{
 		FuzzyMatching: true,
 		Deep:          true,
-		Budget:        5 * time.Second,
 	})
-	if !strings.Contains(string(src.URI()), "builtins") {
-		list = tests.FilterBuiltins(list)
-	}
-	fuzzyMatcher := fuzzy.NewMatcher(prefix, fuzzy.Symbol)
+	fuzzyMatcher := fuzzy.NewMatcher(prefix)
 	var got []protocol.CompletionItem
 	for _, item := range list {
-		if fuzzyMatcher.Score(item.Label) < 0 {
+		if fuzzyMatcher.Score(item.Label) <= 0 {
 			continue
 		}
 		got = append(got, item)
@@ -574,7 +566,7 @@ func (r *runner) Highlight(t *testing.T, name string, locations []span.Span) {
 	}
 }
 
-func (r *runner) Reference(t *testing.T, src span.Span, itemList []span.Span) {
+func (r *runner) References(t *testing.T, src span.Span, itemList []span.Span) {
 	ctx := r.ctx
 	f, err := r.view.GetFile(ctx, src.URI())
 	if err != nil {

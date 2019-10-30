@@ -126,13 +126,13 @@ func main() {
 	}
 
 	stopCh := make(chan struct{})
-	if cfg.ApicHosts == nil {
+	if cfg.Apic == nil {
 		log.Infof("Listening for intent from k8s")
 		kw.InitIntentInformers(stopCh)
 	} else {
 		log.Infof("Listening for intent from apic")
 		aw := watchers.NewApicWatcher(s)
-		err = aw.Init(cfg.ApicHosts, stopCh)
+		err = aw.Init(cfg.Apic.Hosts, stopCh)
 		if err != nil {
 			log.Fatalf("Starting apic watch: %v", err)
 		}

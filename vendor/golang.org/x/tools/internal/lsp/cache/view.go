@@ -15,13 +15,14 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/internal/imports"
 	"golang.org/x/tools/internal/lsp/debug"
+	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/source"
 	"golang.org/x/tools/internal/span"
 	"golang.org/x/tools/internal/telemetry/log"
+	"golang.org/x/tools/internal/xcontext"
 	errors "golang.org/x/xerrors"
 )
 
@@ -79,8 +80,6 @@ type view struct {
 	// ignoredURIs is the set of URIs of files that we ignore.
 	ignoredURIsMu sync.Mutex
 	ignoredURIs   map[span.URI]struct{}
-
-	analyzers []*analysis.Analyzer
 }
 
 func (v *view) Session() source.Session {
@@ -111,6 +110,7 @@ func (v *view) Config(ctx context.Context) *packages.Config {
 	// TODO: Should we cache the config and/or overlay somewhere?
 	return &packages.Config{
 		Dir:        v.folder.Filename(),
+		Context:    ctx,
 		Env:        v.options.Env,
 		BuildFlags: v.options.BuildFlags,
 		Mode: packages.NeedName |
@@ -142,15 +142,11 @@ func (v *view) RunProcessEnvFunc(ctx context.Context, fn func(*imports.Options) 
 	}
 
 	// Before running the user provided function, clear caches in the resolver.
-	if v.modFilesChanged() {
-		if r, ok := v.processEnv.GetResolver().(*imports.ModuleResolver); ok {
-			// Clear the resolver cache and set Initialized to false.
-			r.Initialized = false
-			r.Main = nil
-			r.ModsByModPath = nil
-			r.ModsByDir = nil
-			// Reset the modFileVersions.
-			v.modFileVersions = nil
+	if r, ok := v.processEnv.GetResolver().(*imports.ModuleResolver); ok {
+		if v.modFilesChanged() {
+			r.ClearForNewMod()
+		} else {
+			r.ClearForNewScan()
 		}
 	}
 
@@ -174,6 +170,7 @@ func (v *view) buildProcessEnv(ctx context.Context) (*imports.ProcessEnv, error)
 		Logf: func(format string, args ...interface{}) {
 			log.Print(ctx, fmt.Sprintf(format, args...))
 		},
+		Debug: true,
 	}
 	for _, kv := range cfg.Env {
 		split := strings.Split(kv, "=")
@@ -352,8 +349,9 @@ func (v *view) getFile(ctx context.Context, uri span.URI, kind source.FileKind) 
 		fname: uri.Filename(),
 		kind:  source.Go,
 	}
-	v.session.filesWatchMap.Watch(uri, func() {
-		v.invalidateContent(ctx, uri, kind)
+	v.session.filesWatchMap.Watch(uri, func(changeType protocol.FileChangeType) bool {
+		ctx := xcontext.Detach(ctx)
+		return v.invalidateContent(ctx, f, kind, changeType)
 	})
 	v.mapFile(uri, f)
 	return f, nil
@@ -392,10 +390,6 @@ func (v *view) findFile(uri span.URI) (viewFile, error) {
 	}
 	// no file with a matching name was found, it wasn't in our cache
 	return nil, nil
-}
-
-func (v *view) Analyzers() []*analysis.Analyzer {
-	return v.analyzers
 }
 
 func (f *fileBase) addURI(uri span.URI) int {

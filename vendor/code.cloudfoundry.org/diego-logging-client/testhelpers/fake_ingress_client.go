@@ -146,6 +146,17 @@ type FakeIngressClient struct {
 	sendRequestsPerSecondReturnsOnCall map[int]struct {
 		result1 error
 	}
+	SendSpikeMetricsStub        func(diego_logging_client.SpikeMetric) error
+	sendSpikeMetricsMutex       sync.RWMutex
+	sendSpikeMetricsArgsForCall []struct {
+		arg1 diego_logging_client.SpikeMetric
+	}
+	sendSpikeMetricsReturns struct {
+		result1 error
+	}
+	sendSpikeMetricsReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -825,6 +836,66 @@ func (fake *FakeIngressClient) SendRequestsPerSecondReturnsOnCall(i int, result1
 	}{result1}
 }
 
+func (fake *FakeIngressClient) SendSpikeMetrics(arg1 diego_logging_client.SpikeMetric) error {
+	fake.sendSpikeMetricsMutex.Lock()
+	ret, specificReturn := fake.sendSpikeMetricsReturnsOnCall[len(fake.sendSpikeMetricsArgsForCall)]
+	fake.sendSpikeMetricsArgsForCall = append(fake.sendSpikeMetricsArgsForCall, struct {
+		arg1 diego_logging_client.SpikeMetric
+	}{arg1})
+	fake.recordInvocation("SendSpikeMetrics", []interface{}{arg1})
+	fake.sendSpikeMetricsMutex.Unlock()
+	if fake.SendSpikeMetricsStub != nil {
+		return fake.SendSpikeMetricsStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.sendSpikeMetricsReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeIngressClient) SendSpikeMetricsCallCount() int {
+	fake.sendSpikeMetricsMutex.RLock()
+	defer fake.sendSpikeMetricsMutex.RUnlock()
+	return len(fake.sendSpikeMetricsArgsForCall)
+}
+
+func (fake *FakeIngressClient) SendSpikeMetricsCalls(stub func(diego_logging_client.SpikeMetric) error) {
+	fake.sendSpikeMetricsMutex.Lock()
+	defer fake.sendSpikeMetricsMutex.Unlock()
+	fake.SendSpikeMetricsStub = stub
+}
+
+func (fake *FakeIngressClient) SendSpikeMetricsArgsForCall(i int) diego_logging_client.SpikeMetric {
+	fake.sendSpikeMetricsMutex.RLock()
+	defer fake.sendSpikeMetricsMutex.RUnlock()
+	argsForCall := fake.sendSpikeMetricsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeIngressClient) SendSpikeMetricsReturns(result1 error) {
+	fake.sendSpikeMetricsMutex.Lock()
+	defer fake.sendSpikeMetricsMutex.Unlock()
+	fake.SendSpikeMetricsStub = nil
+	fake.sendSpikeMetricsReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeIngressClient) SendSpikeMetricsReturnsOnCall(i int, result1 error) {
+	fake.sendSpikeMetricsMutex.Lock()
+	defer fake.sendSpikeMetricsMutex.Unlock()
+	fake.SendSpikeMetricsStub = nil
+	if fake.sendSpikeMetricsReturnsOnCall == nil {
+		fake.sendSpikeMetricsReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.sendSpikeMetricsReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeIngressClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -850,6 +921,8 @@ func (fake *FakeIngressClient) Invocations() map[string][][]interface{} {
 	defer fake.sendMetricMutex.RUnlock()
 	fake.sendRequestsPerSecondMutex.RLock()
 	defer fake.sendRequestsPerSecondMutex.RUnlock()
+	fake.sendSpikeMetricsMutex.RLock()
+	defer fake.sendSpikeMetricsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

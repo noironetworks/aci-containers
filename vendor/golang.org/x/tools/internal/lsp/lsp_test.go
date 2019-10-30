@@ -48,7 +48,7 @@ func testLSP(t *testing.T, exporter packagestest.Exporter) {
 	data := tests.Load(t, exporter, "testdata")
 	defer data.Exported.Cleanup()
 
-	cache := cache.New()
+	cache := cache.New(nil)
 	session := cache.NewSession(ctx)
 	options := tests.DefaultOptions()
 	session.SetOptions(options)
@@ -88,7 +88,7 @@ func (r *runner) Diagnostics(t *testing.T, uri span.URI, want []source.Diagnosti
 		}
 		return
 	}
-	if diff := tests.DiffDiagnostics(uri, want, got); diff != "" {
+	if diff := tests.DiffDiagnostics(want, got); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -458,7 +458,7 @@ func (r *runner) Highlight(t *testing.T, name string, locations []span.Span) {
 	}
 }
 
-func (r *runner) Reference(t *testing.T, src span.Span, itemList []span.Span) {
+func (r *runner) References(t *testing.T, src span.Span, itemList []span.Span) {
 	sm, err := r.data.Mapper(src.URI())
 	if err != nil {
 		t.Fatal(err)

@@ -65,15 +65,19 @@ type Application struct {
 
 	// Control ocagent export of telemetry
 	OCAgent string `flag:"ocagent" help:"The address of the ocagent, or off"`
+
+	// PrepareOptions is called to update the options when a new view is built.
+	// It is primarily to allow the behavior of gopls to be modified by hooks.
+	PrepareOptions func(*source.Options)
 }
 
 // Returns a new Application ready to run.
-func New(name, wd string, env []string) *Application {
+func New(name, wd string, env []string, options func(*source.Options)) *Application {
 	if wd == "" {
 		wd, _ = os.Getwd()
 	}
 	app := &Application{
-		cache:   cache.New(),
+		cache:   cache.New(options),
 		name:    name,
 		wd:      wd,
 		env:     env,
@@ -140,6 +144,7 @@ func (app *Application) commands() []tool.Application {
 		&check{app: app},
 		&format{app: app},
 		&query{app: app},
+		&references{app: app},
 		&rename{app: app},
 		&version{app: app},
 	}

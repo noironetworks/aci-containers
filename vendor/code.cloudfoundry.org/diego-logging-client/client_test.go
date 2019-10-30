@@ -325,6 +325,50 @@ var _ = Describe("DiegoLoggingClient", func() {
 					}))
 				})
 			})
+
+			Describe("SendSpikeMetrics", func() {
+				var batch *loggregator_v2.EnvelopeBatch
+
+				JustBeforeEach(func() {
+					metrics := client.SpikeMetric{
+						Start: time.Unix(123, 0),
+						End:   time.Unix(234, 0),
+						Tags: map[string]string{
+							"source_id":   "some-source-id",
+							"instance_id": "345",
+							"some-key":    "some-value",
+						},
+					}
+
+					Expect(c.SendSpikeMetrics(metrics)).To(Succeed())
+					batch = getEnvelopeBatch()
+				})
+
+				It("sets app info", func() {
+					Expect(batch.Batch).To(HaveLen(1))
+					Expect(batch.Batch[0].GetSourceId()).To(Equal("some-source-id"))
+					Expect(batch.Batch[0].GetInstanceId()).To(Equal("345"))
+				})
+
+				It("sends start and end times", func() {
+					metrics := batch.Batch[0].GetGauge().GetMetrics()
+					Expect(metrics["spike_start"].GetValue()).To(Equal(float64(123)))
+					Expect(metrics["spike_start"].GetUnit()).To(Equal("seconds"))
+
+					Expect(metrics["spike_end"].GetValue()).To(Equal(float64(234)))
+					Expect(metrics["spike_end"].GetUnit()).To(Equal("seconds"))
+				})
+
+				It("sends tags", func() {
+					Expect(batch.Batch).To(HaveLen(1))
+					Expect(batch.Batch[0].GetTags()).To(Equal(map[string]string{
+						"origin":      "some-origin",
+						"source_id":   "some-source-id",
+						"instance_id": "345",
+						"some-key":    "some-value",
+					}))
+				})
+			})
 		})
 	})
 })

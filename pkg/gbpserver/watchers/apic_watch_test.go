@@ -37,6 +37,7 @@ func (s *suite) setup() {
 	gCfg.ProxyListenPort = 8899
 	gCfg.PodSubnet = "10.2.56.1/21"
 	gCfg.NodeSubnet = "1.100.201.0/24"
+	gCfg.Apic = &gbpserver.ApicInfo{}
 	s.s = gbpserver.NewServer(gCfg)
 	s.aw = NewApicWatcher(s.s)
 }

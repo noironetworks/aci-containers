@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 	"github.com/noironetworks/aci-containers/pkg/objdb"
 )
 
@@ -76,7 +77,9 @@ type Server struct {
 	// tls rest server
 	tlsSrv *http.Server
 	// insecure rest server
-	insSrv        *http.Server
+	insSrv *http.Server
+	// kafka client
+	kc            *kafkac.KafkaClient
 	usedClassIDs  map[uint]bool
 	instToClassID map[string]uint
 	stopped       bool
@@ -307,6 +310,15 @@ func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) 
 	*/
 
 	go s.handleMsgs()
+	if config.Apic != nil && config.Apic.Kafka != nil {
+		kc, err := kafkac.InitKafkaClient(config.Apic.Kafka, config.Apic.Cloud)
+		if err != nil {
+			return nil, err
+		}
+
+		s.kc = kc
+	}
+
 	grpcPort := fmt.Sprintf(":%d", config.GRPCPort)
 	s.gw, err = StartGRPC(grpcPort, s)
 	return s, err
@@ -493,6 +505,8 @@ func (s *Server) handleMsgs() {
 				fn(GBPOperation_REPLACE, ep.getURI())
 			}
 
+			s.kafkaEPAdd(ep)
+
 		case OpdelEP:
 			ep, ok := m.data.(*Endpoint)
 			if !ok {
@@ -503,6 +517,8 @@ func (s *Server) handleMsgs() {
 			for _, fn := range s.listeners {
 				fn(GBPOperation_DELETE, ep.getURI())
 			}
+
+			s.kafkaEPDel(ep)
 			ep.Delete()
 		case OpaddEPG:
 			epg, ok := m.data.(*EPG)
@@ -561,6 +577,40 @@ func (s *Server) handleMsgs() {
 
 		DoAll()
 	}
+}
+
+func (s *Server) kafkaEPAdd(ep *Endpoint) {
+	if s.kc == nil {
+		return
+	}
+
+	ps := &crdv1.PodIFStatus{
+		PodName: ep.PodName,
+		PodNS:   ep.Namespace,
+		IFName:  ep.IFName,
+		EPG:     ep.EPG,
+		IPAddr:  ep.IPAddr,
+	}
+
+	err := s.kc.AddEP(ps)
+	if err != nil {
+		log.Errorf("Error: %v adding EP: %+v", err, ps)
+	}
+}
+
+func (s *Server) kafkaEPDel(ep *Endpoint) {
+	if s.kc == nil {
+		return
+	}
+
+	ps := &crdv1.PodIFStatus{
+		PodName: ep.PodName,
+		PodNS:   ep.Namespace,
+		IFName:  ep.IFName,
+		EPG:     ep.EPG,
+		IPAddr:  ep.IPAddr,
+	}
+	s.kc.DeleteEP(ps)
 }
 
 func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {

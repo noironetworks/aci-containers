@@ -51,8 +51,8 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 		gs:  gs,
 		idb: newIntentDB(gs),
 		apicInfo: ApicInfo{
-			user:     gs.Config().ApicUsername,
-			password: gs.Config().ApicPassword,
+			user:     gs.Config().Apic.Username,
+			password: gs.Config().Apic.Password,
 			prefix:   "k8s",
 		},
 	}
