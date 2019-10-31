@@ -152,6 +152,7 @@ func (env *K8sEnvironment) NodePodNetworkChanged(nodeName string) {
 func (env *K8sEnvironment) NodeServiceChanged(nodeName string) {
 	env.cont.nodeChangedByName(nodeName)
 	env.cont.updateServicesForNode(nodeName)
+	env.cont.snatFullSync()
 }
 
 func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
