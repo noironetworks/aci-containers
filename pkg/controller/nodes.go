@@ -273,9 +273,9 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 				node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 					serviceEpAnnotation
 				nodeUpdated = true
+				cont.updateServicesForNode(node.ObjectMeta.Name)
+				cont.snatFullSync()
 			}
-			cont.updateServicesForNode(node.ObjectMeta.Name)
-			cont.snatFullSync()
 		}
 	}
 
