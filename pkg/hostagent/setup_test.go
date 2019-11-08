@@ -14,7 +14,7 @@
 
 package hostagent
 
-import (
+/*import (
 	"fmt"
 	"os"
 	"testing"
@@ -31,4 +31,4 @@ func TestGetSandboxUserId(t *testing.T) {
 		getSandboxUserId(log, fmt.Sprintf("/proc/%d/ns/net", os.Getpid())))
 
 	assert.Equal(t, "", getSandboxUserId(log, "/var/vcap/data/1234"))
-}
+}*/
