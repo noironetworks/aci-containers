@@ -50,7 +50,7 @@ type GBPServerConfig struct {
 
 	// APIC info
 	Apic         *ApicInfo `json:"apic,omitempty"`
-	pushJsonFile bool
+	PushJsonFile bool `json:"push-json-file,omitempty"`
 }
 
 type ApicInfo struct {
@@ -103,5 +103,5 @@ func InitConfig(config *GBPServerConfig) {
 	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
 	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "pod subnet")
-	flag.BoolVar(&config.pushJsonFile, "push-json-file", true, "push file to opflexserver (testing)")
+	flag.BoolVar(&config.PushJsonFile, "push-json-file", true, "push file to opflexserver (testing)")
 }
