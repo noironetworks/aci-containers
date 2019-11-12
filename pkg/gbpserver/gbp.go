@@ -853,7 +853,7 @@ func getSnapShot(vtep string) []*GBPObject {
 
 func DoAll() {
 
-	if !theServer.config.pushJsonFile {
+	if !theServer.config.PushJsonFile {
 		return
 	}
 
