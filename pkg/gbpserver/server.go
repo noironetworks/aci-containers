@@ -500,9 +500,11 @@ func (s *Server) handleMsgs() {
 			}
 
 			log.Infof("OpaddEP: %+v", ep)
-			ep.Add()
-			for _, fn := range s.listeners {
-				fn(GBPOperation_REPLACE, ep.getURI())
+			if ep.IPAddr != "" {
+				ep.Add()
+				for _, fn := range s.listeners {
+					fn(GBPOperation_REPLACE, ep.getURI())
+				}
 			}
 
 			s.kafkaEPAdd(ep)
@@ -585,17 +587,23 @@ func (s *Server) kafkaEPAdd(ep *Endpoint) {
 	}
 
 	ps := &crdv1.PodIFStatus{
-		PodName: ep.PodName,
-		PodNS:   ep.Namespace,
-		IFName:  ep.IFName,
-		EPG:     ep.EPG,
-		IPAddr:  ep.IPAddr,
+		PodName:     ep.PodName,
+		PodNS:       ep.Namespace,
+		IFName:      ep.IFName,
+		EPG:         ep.EPG,
+		IPAddr:      ep.IPAddr,
+		ContainerID: UuidToCid(ep.Uuid),
 	}
 
 	err := s.kc.AddEP(ps)
 	if err != nil {
 		log.Errorf("Error: %v adding EP: %+v", err, ps)
 	}
+}
+
+func UuidToCid(uuid string) string {
+	s := strings.Split(uuid, ".")
+	return s[len(s)-1]
 }
 
 func (s *Server) kafkaEPDel(ep *Endpoint) {

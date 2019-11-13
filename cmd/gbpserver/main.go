@@ -126,7 +126,7 @@ func main() {
 	}
 
 	stopCh := make(chan struct{})
-	if cfg.Apic == nil {
+	if cfg.Apic == nil || cfg.Apic.Hosts == nil {
 		log.Infof("Listening for intent from k8s")
 		kw.InitIntentInformers(stopCh)
 	} else {
