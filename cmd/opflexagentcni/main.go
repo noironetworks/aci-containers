@@ -243,7 +243,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	logger.Debug("ADD result: ", result)
-	return result.Print()
+	return types.PrintResult(result, n.CNIVersion)
 }
 
 func cmdDel(args *skel.CmdArgs) error {
