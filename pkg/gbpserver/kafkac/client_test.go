@@ -225,14 +225,14 @@ func TestNew(t *testing.T) {
 	// setup an empty cni cache
 	cCache := &podIFCache{
 		cache:     make(map[string]*CapicEPMsg),
-		state:     syncSent,
+		state:     markerSet,
 		markerID:  testMarkerID,
 		readyChan: make(chan bool),
 	}
 	// inject marker
 	res := cCache.ReadyToFwd("m", &CapicEPMsg{ContainerID: testMarkerID})
 	assert.Equal(t, res, false)
-	assert.Equal(t, cCache.state, syncReceived)
+	assert.Equal(t, cCache.state, markerReceived)
 
 	kc := &KafkaClient{
 		cfg:        cfg,
@@ -301,7 +301,7 @@ func TestExisting(t *testing.T) {
 	// setup an cni cache
 	cCache := &podIFCache{
 		cache:     make(map[string]*CapicEPMsg),
-		state:     syncSent,
+		state:     markerSet,
 		markerID:  testMarkerID,
 		readyChan: make(chan bool),
 	}
@@ -331,7 +331,7 @@ func TestExisting(t *testing.T) {
 	// inject marker
 	res := cCache.ReadyToFwd("m", &CapicEPMsg{ContainerID: testMarkerID})
 	assert.Equal(t, res, false)
-	assert.Equal(t, cCache.state, syncReceived)
+	assert.Equal(t, cCache.state, markerReceived)
 
 	// verify the cni map is as expected
 	cniMap := mapUnion(cniSet1, cniSet2)

@@ -101,19 +101,29 @@ func getInvDB(vtep string) map[string]*gbpInvMo {
 }
 
 func getInvSubTree(url, vtep string) []*GBPObject {
-	db := getInvDB(vtep)
-	if db == nil {
-		log.Errorf("InvDB vtep %s not found", vtep)
-		return nil
+	var res []*GBPObject
+	var db map[string]*gbpInvMo
+
+	for k := range theServer.invDB {
+		if k == vtep { // skip this vtep
+			continue
+		}
+
+		db = getInvDB(k)
+		if db == nil {
+			log.Warnf("InvDB vtep %s not found", vtep)
+			continue
+		}
+
+		im := db[url]
+		if im == nil {
+			log.Warnf("InvDB mo %s/%s not found", vtep, url)
+			continue
+		}
+		res = append(res, im.getSubTree(k)...)
 	}
 
-	im := db[url]
-	if im == nil {
-		log.Errorf("InvDB mo %s/%s not found", vtep, url)
-		return nil
-	}
-
-	return im.getSubTree(vtep)
+	return res
 }
 
 // returns the preOrder traversal of the GBP subtree rooted at g.

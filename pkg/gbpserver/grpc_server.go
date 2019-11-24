@@ -104,7 +104,7 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 
 	// send the snapshot
 	gbpOp := &GBPOperation{
-		Opcode:     GBPOperation_ADD,
+		Opcode:     GBPOperation_REPLACE,
 		ObjectList: objList,
 	}
 	ss.Send(gbpOp)

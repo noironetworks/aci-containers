@@ -34,8 +34,8 @@ import (
 const (
 	markerName = "marker.marker"
 	initial    = iota
-	syncSent
-	syncReceived
+	markerSet
+	markerReceived
 )
 
 // implements the k8s side sync cache
@@ -50,6 +50,7 @@ type podIFCache struct {
 func (pc *podIFCache) Init() error {
 	pc.cache = make(map[string]*CapicEPMsg)
 	pc.markerID = fmt.Sprintf("%04d%08d", rand.Intn(10000), rand.Intn(100000))
+	pc.state = markerSet
 
 	k8sCfg, err := restclient.InClusterConfig()
 	if err != nil {
@@ -67,6 +68,7 @@ func (pc *podIFCache) Init() error {
 	marker.ObjectMeta.Name = markerName
 
 	go func() {
+
 		for {
 			podif, err := pc.crdClient.PodIFs("kube-system").Get(markerName, metav1.GetOptions{})
 			if err != nil {
@@ -85,10 +87,10 @@ func (pc *podIFCache) Init() error {
 			podif.Status.ContainerID = pc.markerID
 			_, err = pc.crdClient.PodIFs("kube-system").Update(podif)
 			if err == nil {
-				log.Errorf("Update podif marker - %v, will retry", err)
-				pc.state = syncSent
 				break
 			}
+
+			log.Errorf("Update podif marker - %v, will retry", err)
 		}
 		log.Infof("Marker with ID: %s set", pc.markerID)
 	}()
@@ -104,8 +106,8 @@ func (pc *podIFCache) Ready() chan bool {
 // Updates the cache, returns true if cache is ready
 func (pc *podIFCache) ReadyToFwd(key string, msg *CapicEPMsg) bool {
 	if msg.ContainerID == pc.markerID {
-		if pc.state == syncSent { // ignore duplicates
-			pc.state = syncReceived
+		if pc.state == markerSet { // ignore duplicates
+			pc.state = markerReceived
 			log.Infof("PodIF marker received")
 			close(pc.readyChan)
 		}
@@ -119,7 +121,7 @@ func (pc *podIFCache) ReadyToFwd(key string, msg *CapicEPMsg) bool {
 		pc.cache[key] = msg
 	}
 
-	return pc.state == syncReceived
+	return pc.state == markerReceived
 }
 
 func (pc *podIFCache) Read() map[string]*CapicEPMsg {

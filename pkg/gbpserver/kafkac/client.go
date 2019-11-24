@@ -20,17 +20,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"time"
 
 	"github.com/Shopify/sarama"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/pkg/errors"
 )
 
 const (
 	inboxSize = 256
-	retryTime = 2*time.Second
+	retryTime = 2 * time.Second
 )
 
 type KafkaClient struct {
@@ -90,6 +92,7 @@ type CapicEPMsg struct {
 }
 
 func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
+	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 	c := &KafkaClient{
 		cfg:        cfg,
 		cloudInfo:  ci,
@@ -107,7 +110,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 		for {
 			err = c.kafkaSetup()
 			if err != nil {
-				log.Errorf("kafkaSetup(): %v -- will retry", err)
+				logrus.Errorf("kafkaSetup(): %v -- will retry", err)
 				time.Sleep(retryTime)
 				continue
 			}
@@ -115,7 +118,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 			break
 		}
 
-		log.Infof("kafkaSetup succeeded, running...")
+		logrus.Infof("kafkaSetup succeeded, running...")
 		c.run()
 	}()
 
@@ -124,11 +127,12 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 
 func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
 	epName := getEPName(ep)
+	logrus.Infof("kc.AddEP: %s", epName)
 	msg := &CapicEPMsg{
-		Name:     epName,
-		IPAddr:   ep.IPAddr,
-		EpgDN:    ep.EPG, // fixme
-		SubnetDN: kc.cloudInfo.Subnet,
+		Name:        epName,
+		IPAddr:      ep.IPAddr,
+		EpgDN:       ep.EPG, // fixme
+		SubnetDN:    kc.cloudInfo.Subnet,
 		ContainerID: ep.ContainerID,
 		//PodDN: tbd,
 		ClusterName: kc.cloudInfo.ClusterName,
@@ -190,7 +194,7 @@ func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config
 
 func (kc *KafkaClient) kafkaSetup() error {
 
-	log.Infof("cfg is: %+v", kc.cfg)
+	logrus.Infof("cfg is: %+v", kc.cfg)
 	producerConfig := sarama.NewConfig()
 	if kc.cfg.ClientKeyPath != "" {
 		tlsConfig, err := newTLSConfig(kc.cfg.ClientCertPath,
@@ -242,7 +246,7 @@ func (kc *KafkaClient) run() {
 	// wait for cniCache to sync
 	<-kc.cniCache.Ready()
 
-	log.Infof("cniCache is ready")
+	logrus.Infof("cniCache is ready")
 
 	// send a marker msg
 	offset := kc.sendOneMsg(markerName, nil, 2*time.Second)
@@ -253,11 +257,11 @@ func (kc *KafkaClient) run() {
 
 	// apply the diff to bring kafka into sync. the order is
 	// irrelevant here, so we walk the map.
-	log.Infof("Applying diff")
+	logrus.Infof("Applying diff")
 	for k, v := range diff {
 		kc.sendOneMsg(k, v, time.Second)
 	}
-	log.Infof("Sync complete")
+	logrus.Infof("Sync complete")
 
 	// process inbox -- forever
 	for m := range kc.inbox {
@@ -268,9 +272,9 @@ func (kc *KafkaClient) run() {
 
 		kc.sendOneMsg(m.Name, v, time.Second)
 		if m.delete {
-			log.Infof("Sent delete for %s", m.Name)
+			logrus.Infof("Sent delete for %s", m.Name)
 		} else {
-			log.Infof("Sent create for %s", m.Name)
+			logrus.Infof("Sent create for %s", m.Name)
 		}
 	}
 
@@ -291,7 +295,7 @@ func (kc *KafkaClient) sendOneMsg(key string, val *CapicEPMsg, delay time.Durati
 	for {
 		_, offset, err := kc.producer.SendMessage(msg)
 		if err != nil {
-			log.Infof("producer.SendMessage - %v, will retry", err)
+			logrus.Infof("producer.SendMessage - %v, will retry", err)
 			time.Sleep(delay)
 			continue
 		}
