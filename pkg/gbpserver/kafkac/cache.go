@@ -117,7 +117,7 @@ func (pc *podIFCache) ReadyToFwd(key string, msg *CapicEPMsg) bool {
 
 	if msg.delete {
 		delete(pc.cache, key)
-	} else {
+	} else if msg.IPAddr != "" { // ignore old markers
 		pc.cache[key] = msg
 	}
 

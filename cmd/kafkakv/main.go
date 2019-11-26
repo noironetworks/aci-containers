@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
@@ -42,14 +43,21 @@ func init() {
 }
 
 func main() {
-
 	brokerList := flag.String("broker-list", "ut-kafka-0.ut-kafka-headless.default.svc.cluster.local:9092", "Comma separated list of brokers")
 	topic := flag.String("kafka-topic", "clusterA", "Topic name")
+	debug := flag.String("debug", "no", "debug yes/no")
+	dumpkv := flag.String("dump-kv", "no", "dump kv yes/no")
 	key := flag.String("key", "", "Key to lookup")
+	keyList := flag.String("key-list", "", "Comma separated list of keys to lookup")
 	timeout := flag.Int("time-out", 15, "timeout in seconds")
 	flag.Parse()
-	if *key == "" {
-		log.Fatalf("Need to specify key")
+	if *key == "" && *keyList == "" {
+		log.Fatalf("Need to specify key or key-list")
+	}
+
+	keySet := strings.Split(*keyList, ",")
+	if *debug == "yes" {
+		sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 	}
 	brokers := strings.Split(*brokerList, ",")
 	tlsConfig, err := NewTLSConfig("/certs/kafka-client.crt",
@@ -105,10 +113,29 @@ looper:
 		}
 	}
 
-	if kv[*key] {
-		fmt.Printf("%s found\n", *key)
-	} else {
-		fmt.Printf("%s missing\n", *key)
+	if *key != "" {
+		if kv[*key] {
+			fmt.Printf("%s found\n", *key)
+		} else {
+			fmt.Printf("%s missing\n", *key)
+		}
+		return
 	}
 
+	for _, k := range keySet {
+		if !kv[k] {
+			fmt.Printf("%s missing\n", k)
+			return
+		}
+	}
+
+	if len(keySet) == len(kv) {
+		fmt.Printf("Got exact match with %d items\n", len(keySet))
+		return
+	}
+
+	fmt.Printf("%d items found\n", len(keySet))
+	if *dumpkv == "yes" {
+		fmt.Printf("All items: %+v\n", kv)
+	}
 }
