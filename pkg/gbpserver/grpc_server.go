@@ -80,13 +80,23 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 	log.Infof("ListObjects from %s", peerVtep)
 	inbox := make(chan *GBPOperation, inboxSize)
 
-	updateFn := func(op GBPOperation_OpCode, url string) {
+	updateFn := func(op GBPOperation_OpCode, urls []string) {
 		var moList []*GBPObject
-		if strings.Contains(url, "InvRemoteInventoryEp") {
-			moList = getInvSubTree(url, peerVtep)
-		} else {
-			moList = getMoSubTree(url)
+
+		for _, url := range urls {
+			if strings.Contains(url, "InvRemoteInventoryEp") {
+				moList = append(moList, getInvSubTree(url, peerVtep)...)
+			} else {
+				moList = append(moList, getMoSubTree(url)...)
+			}
 		}
+
+		if len(moList) == 0 {
+			log.Infof("grpc: Nothing to send to %s", peerVtep)
+			return
+		}
+
+		log.Infof("Sending to %s URIs: %+v", peerVtep, urls)
 
 		gbpOp := &GBPOperation{
 			Opcode:     op,

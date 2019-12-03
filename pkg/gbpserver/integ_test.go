@@ -705,7 +705,7 @@ rcvLoop:
 	for {
 		select {
 		case rcv := <-listCh:
-			assert.Equal(t, len(rcv.ObjectList), 6)
+			assert.Equal(t, 8, len(rcv.ObjectList))
 			log.Infof("Update opcode: %+v, count:% d", rcv.Opcode, len(rcv.ObjectList))
 			break rcvLoop
 		case <-ctx.Done():

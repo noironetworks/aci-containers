@@ -50,7 +50,7 @@ type GBPServerConfig struct {
 
 	// APIC info
 	Apic         *ApicInfo `json:"apic,omitempty"`
-	PushJsonFile bool `json:"push-json-file,omitempty"`
+	PushJsonFile bool      `json:"push-json-file,omitempty"`
 }
 
 type ApicInfo struct {

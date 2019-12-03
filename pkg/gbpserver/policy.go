@@ -48,9 +48,10 @@ type WLRule struct {
 }
 
 type Contract struct {
-	Name      string      `json:"name,omitempty"`
-	Tenant    string      `json:"tenant,omitempty"`
-	AllowList []v1.WLRule `json:"allow-list,omitempty"`
+	Name           string      `json:"name,omitempty"`
+	Tenant         string      `json:"tenant,omitempty"`
+	AllowList      []v1.WLRule `json:"allow-list,omitempty"`
+	classifierUris []string
 }
 
 func (c *Contract) Make() error {
@@ -137,6 +138,7 @@ func (c *Contract) makeClassifiers() error {
 func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	uri, cname := getClassifierURI(c.Tenant, dir, &r)
 	log.Infof("uri: %s, name: %s", uri, cname)
+	c.classifierUris = append(c.classifierUris, uri)
 	moDB := getMoDB()
 	baseMo := moDB[uri]
 
@@ -213,6 +215,10 @@ func protToValues(prot string) (int, string, error) {
 
 func (c *Contract) getURI() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpContract/%s/", c.Tenant, c.Name)
+}
+
+func (c *Contract) getAllURIs() []string {
+	return append(c.classifierUris, c.getURI())
 }
 
 func (c *Contract) getFilterURI() string {
@@ -681,18 +687,21 @@ type NetworkPolicy struct {
 }
 
 type Hpp struct {
-	Attributes map[string]string   `json:"attributes,omitempty"`
-	Children   []map[string]HpSubj `json:"children,omitempty"`
+	Attributes map[string]string    `json:"attributes,omitempty"`
+	Children   []map[string]*HpSubj `json:"children,omitempty"`
 }
 
 type HpSubj struct {
-	Attributes map[string]string        `json:"attributes,omitempty"`
-	Children   []map[string]HpSubjChild `json:"children,omitempty"`
+	Attributes   map[string]string        `json:"attributes,omitempty"`
+	Children     []map[string]HpSubjChild `json:"children,omitempty"`
+	referredUris []string
 }
 
 type HpSubjChild struct {
-	Attributes map[string]string             `json:"attributes,omitempty"`
-	Children   []map[string]HpSubjGrandchild `json:"children,omitempty"`
+	Attributes    map[string]string             `json:"attributes,omitempty"`
+	Children      []map[string]HpSubjGrandchild `json:"children,omitempty"`
+	classifierUri string
+	subnetSetUri  string
 }
 
 type HpSubjGrandchild struct {
@@ -708,6 +717,12 @@ func linkParentChild(p, c *gbpCommonMo) {
 func (np *NetworkPolicy) getURI() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, np.HostprotPol.Attributes[propName])
 }
+
+func (np *NetworkPolicy) getAllURIs() []string {
+	c := np.HostprotPol.getChild("hostprotSubj")
+	return append(c.referredUris, np.getURI())
+}
+
 func (np *NetworkPolicy) Make() error {
 	if np.HostprotPol.Attributes == nil {
 		return fmt.Errorf("Malformed network policy")
@@ -738,6 +753,8 @@ func (np *NetworkPolicy) Make() error {
 		return err
 	}
 
+	log.Debugf("All uris: %+v", c.referredUris)
+
 	return nil
 }
 
@@ -745,7 +762,7 @@ func (hpp *Hpp) getChild(key string) *HpSubj {
 	for _, cm := range hpp.Children {
 		res, ok := cm[key]
 		if ok {
-			return &res
+			return res
 		}
 	}
 
@@ -778,6 +795,7 @@ func (hs *HpSubj) Make(hsMo *gbpCommonMo, npName string) error {
 		if err != nil {
 			return err
 		}
+		hs.referredUris = append(hs.referredUris, c.classifierUri, c.subnetSetUri)
 	}
 	return nil
 }
@@ -822,6 +840,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	cfMo := &GBPL24Classifier{}
 	cname := fmt.Sprintf("%s|%s|%s", npName, subjName, hsc.Attributes[propName])
 	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", getTenantName(), escapeName(cname, false))
+	hsc.classifierUri = uri
 	cfMo.Make(cname, uri)
 	cfMo.AddProperty(propName, cname)
 
@@ -887,12 +906,14 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	ss := &GBPSubnetSet{}
 	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), escapeName(name, false))
 	ss.Make(name, ssUri)
+	hsc.subnetSetUri = ssUri
 	for _, addr := range ipSet {
 		if len(strings.Split(addr, "/")) == 1 {
 			addr = addr + "/32"
 		}
 		s := &GBPSubnet{}
-		s.Make(addr, fmt.Sprintf("%sGbpSubnet/%s/", ssUri, escapeName(addr, false)))
+		sUri := fmt.Sprintf("%sGbpSubnet/%s/", ssUri, escapeName(addr, false))
+		s.Make(addr, sUri)
 		linkParentChild(&ss.gbpCommonMo, &s.gbpCommonMo)
 	}
 
@@ -932,6 +953,9 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 
 	name := c.HostprotPol.Attributes[propName]
 	if !strings.Contains(name, "np_static") {
+		for _, fn := range theServer.listeners {
+			fn(GBPOperation_REPLACE, c.getAllURIs())
+		}
 		DoAll()
 	}
 	log.Infof("Created %+v", c)
@@ -950,6 +974,9 @@ func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (i
 	npMo := moDB[key]
 	if npMo == nil {
 		return nil, fmt.Errorf("%s not found", key)
+	}
+	for _, fn := range theServer.listeners {
+		fn(GBPOperation_DELETE, []string{key})
 	}
 	npMo.delRecursive()
 	log.Infof("Deleted %s", key)
