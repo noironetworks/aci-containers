@@ -71,7 +71,7 @@ type Server struct {
 	// inventory -- ep's organized per vtep
 	invDB map[string]map[string]*gbpInvMo
 	// listener callbacks for DB updates
-	listeners map[string]func(op GBPOperation_OpCode, url string)
+	listeners map[string]func(op GBPOperation_OpCode, url []string)
 	// grpc server
 	gw *gbpWatch
 	// tls rest server
@@ -328,7 +328,7 @@ func NewServer(config *GBPServerConfig) *Server {
 	return &Server{
 		config:        config,
 		rxCh:          make(chan *inputMsg, 128),
-		listeners:     make(map[string]func(op GBPOperation_OpCode, url string)),
+		listeners:     make(map[string]func(op GBPOperation_OpCode, urls []string)),
 		usedClassIDs:  make(map[uint]bool),
 		instToClassID: make(map[string]uint),
 	}
@@ -417,7 +417,7 @@ func (s *Server) UTReadMsg(to time.Duration) (int, interface{}, error) {
 	}
 }
 
-func (s *Server) RegisterCallBack(id string, fn func(op GBPOperation_OpCode, url string)) {
+func (s *Server) RegisterCallBack(id string, fn func(op GBPOperation_OpCode, urls []string)) {
 	s.listeners[id] = fn
 }
 
@@ -503,7 +503,7 @@ func (s *Server) handleMsgs() {
 			if ep.IPAddr != "" {
 				ep.Add()
 				for _, fn := range s.listeners {
-					fn(GBPOperation_REPLACE, ep.getURI())
+					fn(GBPOperation_REPLACE, []string{ep.getURI()})
 				}
 			}
 
@@ -517,7 +517,7 @@ func (s *Server) handleMsgs() {
 			}
 
 			for _, fn := range s.listeners {
-				fn(GBPOperation_DELETE, ep.getURI())
+				fn(GBPOperation_DELETE, []string{ep.getURI()})
 			}
 
 			s.kafkaEPDel(ep)
@@ -531,7 +531,7 @@ func (s *Server) handleMsgs() {
 
 			epg.Make()
 			for _, fn := range s.listeners {
-				fn(GBPOperation_REPLACE, epg.getURI())
+				fn(GBPOperation_REPLACE, []string{epg.getURI()})
 			}
 		case OpdelEPG:
 			epg, ok := m.data.(*EPG)
@@ -542,7 +542,7 @@ func (s *Server) handleMsgs() {
 
 			key := epg.getURI()
 			for _, fn := range s.listeners {
-				fn(GBPOperation_DELETE, key)
+				fn(GBPOperation_DELETE, []string{key})
 			}
 			epg.Delete()
 		case OpaddContract:
@@ -554,7 +554,7 @@ func (s *Server) handleMsgs() {
 
 			c.Make()
 			for _, fn := range s.listeners {
-				fn(GBPOperation_REPLACE, c.getURI())
+				fn(GBPOperation_REPLACE, c.getAllURIs())
 			}
 		case OpdelContract:
 			c, ok := m.data.(*Contract)
@@ -566,7 +566,7 @@ func (s *Server) handleMsgs() {
 			key := c.getURI()
 			log.Infof("delete contract: %s", key)
 			for _, fn := range s.listeners {
-				fn(GBPOperation_DELETE, key)
+				fn(GBPOperation_DELETE, []string{key})
 			}
 			cmo := moDB[key]
 			if cmo != nil {
