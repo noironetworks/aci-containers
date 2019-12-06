@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"golang.org/x/time/rate"
 	"github.com/yl2chen/cidranger"
+	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -152,8 +152,8 @@ type portIndexEntry struct {
 }
 
 type portRangeSnat struct {
-	start    int
-	end      int
+	start int
+	end   int
 }
 
 func (e *ipIndexEntry) Network() net.IPNet {
@@ -313,13 +313,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	cont.log.Info("ApicRefreshTimer conf is set to: ", refreshTimeout)
 
-        // Bailout if the refreshTimeout is more than 12Hours
-        if refreshTimeout > (12*60*60) {
-                cont.log.Info("ApicRefreshTimer can't be more than 12Hrs")
-                panic(err)
-        }
+	// Bailout if the refreshTimeout is more than 12Hours
+	if refreshTimeout > (12 * 60 * 60) {
+		cont.log.Info("ApicRefreshTimer can't be more than 12Hrs")
+		panic(err)
+	}
 
-	// If RefreshTickerAdjustInterval is not defined, default to 5Sec. 
+	// If RefreshTickerAdjustInterval is not defined, default to 5Sec.
 	if cont.config.ApicRefreshTickerAdjust == "" {
 		cont.config.ApicRefreshTickerAdjust = "5"
 	}
@@ -344,9 +344,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.SnatDefaultPortRangeEnd == 0 {
 		cont.config.SnatDefaultPortRangeEnd = defEnd
 	}
-	if (cont.config.SnatDefaultPortRangeStart < 0 || cont.config.SnatDefaultPortRangeEnd < 0 ||
+	if cont.config.SnatDefaultPortRangeStart < 0 || cont.config.SnatDefaultPortRangeEnd < 0 ||
 		cont.config.SnatDefaultPortRangeStart > defEnd || cont.config.SnatDefaultPortRangeEnd > defEnd ||
-			cont.config.SnatDefaultPortRangeStart > cont.config.SnatDefaultPortRangeEnd) {
+		cont.config.SnatDefaultPortRangeStart > cont.config.SnatDefaultPortRangeEnd {
 		cont.config.SnatDefaultPortRangeStart = defStart
 		cont.config.SnatDefaultPortRangeEnd = defEnd
 	}
@@ -381,7 +381,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
 
-	cont.initStaticObjs()
+	if cont.config.LBType == lbTypeAci {
+		cont.initStaticObjs()
+	}
 
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
