@@ -20,6 +20,10 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
+const (
+	lbTypeAci = "aci-nlb"
+)
+
 type OpflexGroup struct {
 	PolicySpace string `json:"policy-space,omitempty"`
 	Name        string `json:"name,omitempty"`
@@ -78,7 +82,7 @@ type ControllerConfig struct {
 	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
 	// How early (seconds) the subscriptions to be refreshed than
-	// actual subscription refresh-timeout. Will be defaulted to 5Seconds. 
+	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
 	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
 
 	// A path for a PEM-encoded private key for client certificate
@@ -105,6 +109,9 @@ type ControllerConfig struct {
 
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
+
+	// Load Balancer Type
+	LBType string `json:"lb-type,omitempty"`
 
 	// Physical domain used for service device clusters
 	AciServicePhysDom string `json:"aci-service-phys-dom,omitempty"`
@@ -165,8 +172,8 @@ type ControllerConfig struct {
 	NodeServiceSubnets []string `json:"node-service-subnets,omitempty"`
 
 	// default port range to use for SNAT svc graph filter
-        SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
-        SnatDefaultPortRangeEnd int `json:"snat-default-port-range-end,omitempty"`
+	SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
+	SnatDefaultPortRangeEnd   int `json:"snat-default-port-range-end,omitempty"`
 
 	// Maximum number of nodes permitted in a svc graph
 	MaxSvcGraphNodes int `json:"max-nodes-svc-graph,omitempty"`
@@ -194,6 +201,7 @@ func NewConfig() *ControllerConfig {
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
 		AllocateServiceIps: &t,
+		LBType:             lbTypeAci,
 	}
 }
 
@@ -205,6 +213,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
+	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,

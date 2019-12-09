@@ -166,12 +166,12 @@ func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpo
 		return errors.New("No IP addresses available for service endpoint")
 	}
 
-   if (ep.HealthGroupDn == "") && (cont.config.AciServiceMonitorInterval > 0) {
-		   name := cont.aciNameForKey("svc", nodeName)
-		   healthGroupObj := apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant, name)
-		   ep.HealthGroupDn = healthGroupObj.GetDn()
-		   cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{healthGroupObj})
-   }
+	if (ep.HealthGroupDn == "") && (cont.config.AciServiceMonitorInterval > 0) {
+		name := cont.aciNameForKey("svc", nodeName)
+		healthGroupObj := apicapi.NewVnsRedirectHealthGroup(cont.config.AciVrfTenant, name)
+		ep.HealthGroupDn = healthGroupObj.GetDn()
+		cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{healthGroupObj})
+	}
 
 	return nil
 }
@@ -213,9 +213,21 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		node.Name)
+	aobj.SetAttr("mgmtIp", getNodeIP(node, v1.NodeInternalIP))
 	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)
 	aobj.SetAttr("kernelVer", node.Status.NodeInfo.KernelVersion)
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
+}
+
+func getNodeIP(node *v1.Node, aType v1.NodeAddressType) string {
+	for _, a := range node.Status.Addresses {
+		if a.Type == aType {
+			return a.Address
+		}
+
+	}
+
+	return ""
 }
 
 func (cont *AciController) nodeChangedByName(nodeName string) {
