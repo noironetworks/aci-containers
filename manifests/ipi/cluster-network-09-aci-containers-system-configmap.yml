@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aci-containers-config
+  namespace: kube-system
+  labels:
+    aci-containers-config-version: "92fe5657-e0ee-499a-b8d0-855a9bfd8988"
+    network-plugin: aci-containers
+data:
+  controller-config: |-
+    {
+        "log-level": "debug",
+        "apic-hosts": [
+            "127.0.0.1"
+        ],
+        "apic-username": "kube",
+        "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
+        "apic-use-inst-tag": true,
+        "aci-prefix": "defaultTenant",
+        "aci-vmm-type": "Kubernetes",
+        "aci-vmm-domain": "defaultTenant",
+        "aci-vmm-controller": "defaultTenant",
+        "aci-policy-tenant": "defaultTenant",
+        "require-netpol-annot": false,
+        "aci-service-phys-dom": "defaultTenant-pdom",
+        "aci-service-encap": "vlan-1022",
+        "aci-service-monitor-interval": 0,
+        "aci-vrf-tenant": "defaultTenant",
+        "aci-l3out": "l3out-v1",
+        "aci-ext-networks": [
+            "l3out_v1_net"
+        ],
+        "aci-vrf": "defaultVrf",
+        "default-endpoint-group": {
+            "policy-space": "defaultTenant",
+            "name": "kubernetes|kube-default"
+        },
+        "namespace-default-endpoint-group": {
+            "kube-system": {
+                "policy-space": "defaultTenant",
+                "name": "kubernetes|kube-system"
+            }
+        },
+        "service-ip-pool": [
+            {
+                "end": "10.3.63.254",
+                "start": "10.3.56.2"
+            }
+        ],
+        "static-service-ip-pool": [
+            {
+                "end": "10.4.63.254",
+                "start": "10.4.56.2"
+            }
+        ],
+        "pod-ip-pool": [
+            {
+                "end": "11.3.63.254",
+                "start": "11.3.56.2"
+            }
+        ],
+        "pod-subnet-chunk-size": 32,
+        "node-service-ip-pool": [
+            {
+                "end": "10.5.63.254",
+                "start": "10.5.56.2"
+            }
+        ],
+        "node-service-subnets": [
+            "10.5.56.1/21"
+        ]
+    }
+  host-agent-config: |-
+    {
+        "ep-registry": "k8s",
+        "opflex-mode": "overlay",
+        "log-level": "debug",
+        "aci-vmm-type": "Kubernetes",
+        "aci-vmm-domain": "defaultTenant",
+        "aci-vmm-controller": "defaultTenant",
+        "aci-prefix": "defaultTenant",
+        "aci-vrf": "defaultVrf",
+        "aci-vrf-tenant": "defaultTenant",
+        "service-vlan": 1022,
+        "encap-type": "vxlan",
+        "aci-infra-vlan": 4093,
+        "cni-netconfig": [
+            {
+                "gateway": "11.3.0.1",
+                "routes": [
+                    {
+                        "dst": "0.0.0.0/0",
+                        "gw": "11.3.0.1"
+                    }
+                ],
+                "subnet": "11.3.0.0/16"
+            }
+        ],
+        "default-endpoint-group": {
+            "policy-space": "defaultTenant",
+            "name": "kubernetes|kube-default"
+        },
+        "namespace-default-endpoint-group": {
+            "kube-system": {
+                "policy-space": "defaultTenant",
+                "name": "kubernetes|kube-system"
+            }
+        }
+    }
+  opflex-agent-config: |-
+    {
+        "log": {
+            "level": "debug"
+        },
+        "opflex": {
+        }
+    }
+  gbp-server-config: |-
+    {
+        "aci-policy-tenant": "defaultTenant",
+        "pod-subnet": "11.3.0.1/16",
+        "push-json-file": false,
+        "apic": {
+                 "cloud-info": {
+                "cluster-name": "clusterA"
+            }
+        }
+    }

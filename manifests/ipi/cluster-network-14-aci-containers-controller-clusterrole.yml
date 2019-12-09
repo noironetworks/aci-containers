@@ -1,0 +1,86 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    aci-containers-config-version: "92fe5657-e0ee-499a-b8d0-855a9bfd8988"
+    network-plugin: aci-containers
+  name: aci-containers:controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - pods/exec
+  - endpoints
+  - services
+  verbs:
+  - '*'
+# - list
+# - watch
+# - get
+- apiGroups:
+  - "networking.k8s.io"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "aci.aw"
+  resources:
+  - epgs
+  - contracts
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "aci.aw"
+  resources:
+  - podifs
+  - gbpsstates
+  - gbpsstates/status
+  verbs:
+  - '*'
+- apiGroups:
+  - "apps"
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - '*'
+# - list
+# - watch
+# - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/exec
+  - nodes
+  - services/status
+  verbs:
+# - update
+  - '*'
+- apiGroups:
+  - "aci.snat"
+  resources:
+  - nodeinfos
+  verbs:
+  - create
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "aci.snat"
+  resources:
+  - snatlocalinfos
+  - snatglobalinfos
+  - snatpolicies
+  verbs:
+  - list
+  - watch
+  - get

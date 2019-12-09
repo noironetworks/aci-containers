@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: aci-containers-host
+  namespace: aci-containers-system
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-host
+      network-plugin: aci-containers
+  template:
+    metadata:
+      labels:
+        name: aci-containers-host
+        network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      serviceAccountName: aci-containers-host-agent
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      initContainers:
+        - name: cnideploy
+          image: docker.io/noiro/cnideploy:4.2.1.1.r22
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /mnt/cni-bin
+      containers:
+        - name: aci-containers-host
+          image: docker.io/abhi21/aci-containers-host:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+          env:
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /mnt/cni-bin
+            - name: cni-conf
+              mountPath: /mnt/cni-conf
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
+            - name: opflex-hostconfig-volume
+              mountPath: /usr/local/etc/opflex-agent-ovs/base-conf.d
+            - name: host-config-volume
+              mountPath: /usr/local/etc/aci-containers/
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8090
+        - name: opflex-agent
+          env:
+            - name: REBOOT_WITH_OVS
+              value: "true"
+          image: docker.io/noiro/opflex:4.2.1.1.r23
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
+            - name: opflex-hostconfig-volume
+              mountPath: /usr/local/etc/opflex-agent-ovs/base-conf.d
+            - name: opflex-config-volume
+              mountPath: /usr/local/etc/opflex-agent-ovs/conf.d
+        - name: mcast-daemon
+          image: docker.io/noiro/opflex:4.2.1.1.r23
+          command: ["/bin/sh"]
+          args: ["/usr/local/bin/launch-mcastdaemon.sh"]
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
+      restartPolicy: Always
+      volumes:
+        - name: cni-bin
+          hostPath:
+            path: /var/lib
+        - name: cni-conf
+          hostPath:
+            path: /etc/kubernetes
+        - name: hostvar
+          hostPath:
+            path: /var
+        - name: hostrun
+          hostPath:
+            path: /run
+        - name: host-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: host-agent-config
+                path: host-agent.conf
+        - name: opflex-hostconfig-volume
+          emptyDir:
+            medium: Memory
+        - name: opflex-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: opflex-agent-config
+                path: local.conf
+

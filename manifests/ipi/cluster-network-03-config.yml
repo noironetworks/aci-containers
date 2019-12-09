@@ -1,0 +1,13 @@
+apiVersion: "operator.openshift.io/v1"
+kind: "Network"
+metadata:
+  name: "cluster"
+spec:
+  disableMultiNetwork: true
+  serviceNetwork:
+    - "172.30.0.0/16"
+  clusterNetwork:
+    - cidr: "10.12.0.0/16"
+      hostPrefix: 23
+  defaultNetwork:
+    type: CiscoAci

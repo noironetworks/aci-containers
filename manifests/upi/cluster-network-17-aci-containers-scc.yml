@@ -1,0 +1,33 @@
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  name: aci-containers-scc
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+users:
+  - system:serviceaccount:aci-containers-system:aci-containers-controller
+  - system:serviceaccount:aci-containers-system:aci-containers-host-agent
+allowHostDirVolumePlugin: true
+allowHostIPC: true
+allowHostNetwork: true
+allowHostPID: true
+allowHostPorts: true
+allowPrivilegedContainer: true
+allowedCapabilities:
+- '*'
+defaultAddCapabilities: []
+requiredDropCapabilities: []
+readOnlyRootFilesystem: false
+fsGroup:
+  type: RunAsAny
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+seccompProfiles:
+- '*'
+volumes:
+- '*'
+priority: 100

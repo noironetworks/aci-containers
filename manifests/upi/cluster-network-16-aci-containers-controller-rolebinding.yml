@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aci-containers:controller
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aci-containers:controller
+subjects:
+- kind: ServiceAccount
+  name: aci-containers-controller
+  namespace: aci-containers-system

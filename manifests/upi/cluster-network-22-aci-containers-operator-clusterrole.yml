@@ -1,0 +1,52 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+  name: aci-containers:acioperator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - endpoints
+  - services
+  - replicationcontrollers
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - delete
+
+- apiGroups:
+  - "aci.ctrl"
+  resources:
+  - acicontainersoperators
+  - acicontainersoperators/status
+  - acicontainersoperators/finalizers
+  verbs:
+  - get
+  - list
+  - update
+  - watch 
+
+- apiGroups:
+  - "apps/v1beta2"
+  resources:
+  - replicasets
+  - deployments
+  - daemonsets
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - delete
+
+

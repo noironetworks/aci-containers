@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: aci-containers-openvswitch
+  namespace: aci-containers-system
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      name: aci-containers-openvswitch
+      network-plugin: aci-containers
+  template:
+    metadata:
+      labels:
+        name: aci-containers-openvswitch
+        network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      serviceAccountName: aci-containers-host-agent
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: aci-containers-openvswitch
+          image: docker.io/noiro/openvswitch:4.2.1.1.r18
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: "1Gi"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+                - SYS_NICE
+                - IPC_LOCK
+          env:
+            - name: OVS_RUNDIR
+              value: /usr/local/var/run/openvswitch
+          volumeMounts:
+            - name: hostvar
+              mountPath: /usr/local/var
+            - name: hostrun
+              mountPath: /run
+            - name: hostrun
+              mountPath: /usr/local/run
+            - name: hostetc
+              mountPath: /usr/local/etc
+            - name: hostmodules
+              mountPath: /lib/modules
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/liveness-ovs.sh
+      restartPolicy: Always
+      volumes:
+        - name: hostetc
+          hostPath:
+            path: /etc
+        - name: hostvar
+          hostPath:
+            path: /var
+        - name: hostrun
+          hostPath:
+            path: /run
+        - name: hostmodules
+          hostPath:
+            path: /lib/modules

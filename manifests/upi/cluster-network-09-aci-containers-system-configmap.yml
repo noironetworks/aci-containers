@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aci-containers-config
+  namespace: aci-containers-system
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+data:
+  controller-config: |-
+    {
+        "log-level": "info",
+        "apic-hosts": [
+            "172.28.184.150"
+        ],
+        "apic-username": "oshift",
+        "apic-private-key-path": "/usr/local/etc/aci-cert/user.key",
+        "apic-use-inst-tag": true,
+        "aci-prefix": "oshift",
+        "aci-vmm-type": "OpenShift",
+        "aci-vmm-domain": "oshift",
+        "aci-vmm-controller": "oshift",
+        "aci-policy-tenant": "oshift",
+        "require-netpol-annot": false,
+        "aci-service-phys-dom": "oshift-pdom",
+        "aci-service-encap": "vlan-4003",
+        "aci-service-monitor-interval": 5,
+        "aci-vrf-tenant": "common",
+        "aci-l3out": "l3out-1",
+        "aci-ext-networks": [
+            "l3out_1_net"
+        ],
+        "aci-vrf": "l3out_1_vrf",
+        "default-endpoint-group": {
+            "policy-space": "oshift",
+            "name": "kubernetes|kube-default"
+        },
+        "max-nodes-svc-graph": 32,
+        "namespace-default-endpoint-group": {
+            "aci-containers-system": {
+                "policy-space": "oshift",
+                "name": "kubernetes|kube-system"
+            }
+        },
+        "service-ip-pool": [
+            {
+                "end": "150.3.1.254",
+                "start": "150.3.1.2"
+            }
+        ],
+        "static-service-ip-pool": [
+            {
+                "end": "150.4.1.254",
+                "start": "150.4.1.2"
+            }
+        ],
+        "allocate-service-ips": true,
+        "pod-ip-pool": [
+            {
+                "end": "10.12.255.254",
+                "start": "10.12.0.2"
+            }
+        ],
+        "pod-subnet-chunk-size": 32,
+        "node-service-ip-pool": [
+            {
+                "end": "10.15.0.254",
+                "start": "10.15.0.2"
+            }
+        ],
+        "node-service-subnets": [
+            "10.15.0.1/24"
+        ]
+    }
+  host-agent-config: |-
+    {
+        "log-level": "info",
+        "aci-vmm-type": "OpenShift",
+        "aci-vmm-domain": "oshift",
+        "aci-vmm-controller": "oshift",
+        "aci-prefix": "oshift",
+        "aci-vrf": "l3out_1_vrf",
+        "aci-vrf-tenant": "common",
+        "service-vlan": 4003,
+        "encap-type": "vxlan",
+        "aci-infra-vlan": 4093,
+        "cni-netconfig": [
+            {
+                "gateway": "10.12.0.1",
+                "routes": [
+                    {
+                        "dst": "0.0.0.0/0",
+                        "gw": "10.12.0.1"
+                    }
+                ],
+                "subnet": "10.12.0.0/16"
+            }
+        ],
+        "default-endpoint-group": {
+            "policy-space": "oshift",
+            "name": "kubernetes|kube-default"
+        },
+        "namespace-default-endpoint-group": {
+            "aci-containers-system": {
+                "policy-space": "oshift",
+                "name": "kubernetes|kube-system"
+            }
+        }
+    }
+  opflex-agent-config: |-
+    {
+        "log": {
+            "level": "info"
+        },
+        "opflex": {
+        }
+    }
+

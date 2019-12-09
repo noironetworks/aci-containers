@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aci-containers-controller
+  namespace: aci-containers-system
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+    name: aci-containers-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      name: aci-containers-controller
+      network-plugin: aci-containers
+  template:
+    metadata:
+      name: aci-containers-controller
+      namespace: aci-containers-system
+      labels:
+        name: aci-containers-controller
+        network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      hostNetwork: true
+      serviceAccountName: aci-containers-controller
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: snat-operator
+          image: docker.io/noiro/snat-operator:4.2.2.2.r4
+          imagePullPolicy: Always
+          command:
+          - snat-operator
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+            - name: ACI_SNAT_NAMESPACE
+              value: "aci-containers-system"
+            - name: ACI_SNAGLOBALINFO_NAME
+              value: "snatglobalinfo"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "snat-operator"
+        - name: aci-containers-controller
+          image: docker.io/noiro/aci-containers-controller:4.2.2.2.r32 
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: controller-config-volume
+              mountPath: /usr/local/etc/aci-containers/
+            - name: aci-user-cert-volume
+              mountPath: /usr/local/etc/aci-cert/
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8091
+      volumes:
+        - name: aci-user-cert-volume
+          secret:
+            secretName: aci-user-cert
+        - name: controller-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: controller-config
+                path: controller.conf
+

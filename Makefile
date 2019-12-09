@@ -54,10 +54,12 @@ VENDOR_BUILD_CMD ?= dep ensure -v
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
-        dist/gbpserver
+        dist/gbpserver \
+        dist/aci-containers-operator
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync dist-static/gbpserver
+	dist-static/ovsresync dist-static/gbpserver \
+        dist-static/aci-containers-operator
 
 go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
@@ -155,6 +157,11 @@ dist/acikubectl: ${ACIKUBECTL_DEPS}
 dist-static/acikubectl: ${ACIKUBECTL_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 
+dist/aci-containers-operator:
+	${BUILD_CMD} -o $@ ${BASE}/cmd/acioperator
+dist-static/aci-containers-operator:
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acioperator
+
 dist/ovsresync: ${OVSRESYNC_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
 dist-static/ovsresync: ${OVSRESYNC_DEPS}
@@ -179,6 +186,8 @@ container-cnideploy:
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy docker
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
+container-operator: dist-static/aci-containers-operator
+	${DOCKER_BUILD_CMD} -t noiro/aci-containers-operator -f ./docker/Dockerfile-operator .
 
 check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
 check-ipam:

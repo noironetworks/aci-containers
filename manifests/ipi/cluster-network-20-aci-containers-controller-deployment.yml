@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aci-containers-controller
+  namespace: kube-system
+  labels:
+    aci-containers-config-version: "92fe5657-e0ee-499a-b8d0-855a9bfd8988"
+    network-plugin: aci-containers
+    name: aci-containers-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      name: aci-containers-controller
+      network-plugin: aci-containers
+  template:
+    metadata:
+      name: aci-containers-controller
+      namespace: kube-system
+      labels:
+        name: aci-containers-controller
+        network-plugin: aci-containers
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      hostNetwork: true
+      serviceAccountName: aci-containers-controller
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: aci-gbpserver
+          image: docker.io/noirolabs/gbp-server:ci_test
+#          image: challa/gbp-server:merge
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: controller-config-volume
+              mountPath: /usr/local/etc/aci-containers/
+          env:
+            - name: GBP_SERVER_CONF
+              value: /usr/local/etc/aci-containers/gbp-server.conf
+
+        - name: aci-containers-controller
+          image: docker.io/challa/aci-containers-controller:merge
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: controller-config-volume
+              mountPath: /usr/local/etc/aci-containers/
+            - name: aci-user-cert-volume
+              mountPath: /usr/local/etc/aci-cert/
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8091
+      volumes:
+        - name: aci-user-cert-volume
+          secret:
+            secretName: aci-user-cert
+        - name: controller-config-volume
+          configMap:
+            name: aci-containers-config
+            items:
+              - key: controller-config
+                path: controller.conf
+              - key: gbp-server-config
+                path: gbp-server.conf

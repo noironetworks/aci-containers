@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aci-containers-system
+  labels:
+    openshift.io/run-level: "0"
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+  annotations:
+    openshift.io/node-selector: ''

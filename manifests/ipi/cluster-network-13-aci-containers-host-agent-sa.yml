@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aci-containers-host-agent
+  namespace: kube-system
+  labels:
+    aci-containers-config-version: "92fe5657-e0ee-499a-b8d0-855a9bfd8988"

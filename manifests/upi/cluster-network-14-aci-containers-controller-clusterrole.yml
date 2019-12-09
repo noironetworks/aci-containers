@@ -1,0 +1,105 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    aci-containers-config-version: "1347910f-26f6-409f-8da4-e89a76a037fc"
+    network-plugin: aci-containers
+  name: aci-containers:controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - endpoints
+  - services
+  - events
+  - replicationcontrollers
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - delete
+- apiGroups:
+  - "networking.k8s.io"
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "apps"
+  resources:
+  - deployments
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - services/status
+  verbs:
+  - update
+- apiGroups:
+  - "monitoring.coreos.com"
+  resources:
+  - servicemonitors
+  verbs:
+  - get
+  - create
+- apiGroups:
+  - "aci.snat"
+  resourceNames:
+  - snat-operator
+  resources:
+  - snatpolicies/finalizers
+  - snatpolicies/status
+  verbs:
+  - update
+  - create
+  - list
+  - watch
+  - get
+  - delete
+- apiGroups:
+  - "aci.snat"
+  resources:
+  - snatlocalinfos
+  - snatglobalinfos
+  - snatpolicies
+  - snatpolicies/finalizers
+  - snatpolicies/status
+  - nodeinfos
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - delete
+- apiGroups:
+  - apps.openshift.io
+  resources:
+  - deploymentconfigs
+  verbs:
+  - list
+  - watch
+  - get
+

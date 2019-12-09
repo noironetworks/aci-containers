@@ -1,0 +1,21 @@
+apiVersion: config.openshift.io/v1
+kind: Network
+metadata:
+  name: cluster
+spec:
+  clusterNetwork:
+  - cidr: 11.3.0.0/16
+    hostPrefix: 23
+  externalIP:
+    policy: {}
+  networkType: CiscoAci
+  serviceNetwork:
+  - 172.30.0.0/16
+status: 
+  clusterNetwork:
+  - cidr: 11.3.0.0/16
+    hostPrefix: 23
+  clusterNetworkMTU: 1450
+  networkType: CiscoAci
+  serviceNetwork:
+  - 172.30.0.0/16
