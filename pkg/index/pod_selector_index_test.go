@@ -15,6 +15,7 @@
 package index
 
 import (
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -533,7 +534,11 @@ func TestPodIndexNSMatch(t *testing.T) {
 				}
 				testIndex.mutex.Unlock()
 				for k, v := range dt.keys {
-					if !tu.WaitEqual(t, last, v, testIndex.si.GetPodForObj(k),
+					sort.Strings(v)
+					act := testIndex.si.GetPodForObj(k)
+					sort.Strings(act)
+
+					if !tu.WaitEqual(t, last, v, act,
 						dt.desc, "podForObj", k) {
 						return false, nil
 					}
