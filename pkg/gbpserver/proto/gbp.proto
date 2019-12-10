@@ -14,6 +14,7 @@ message GBPOperation {
 		ADD = 0;
 		REPLACE = 1;
 		DELETE = 2;
+		DELETE_RECURSIVE = 3;
 	}
 
 	OpCode opcode = 1;

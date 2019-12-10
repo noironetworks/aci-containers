@@ -1,10 +1,10 @@
 FROM noiro/opflex-build-base
-ARG BUILDOPTS="--with-static-boost --with-boost=/usr/local/boost_1_58_0"
+ARG BUILDOPTS="--enable-grpc"
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4
 RUN cd /opflex/libopflex \
-  && ./autogen.sh && ./configure --disable-assert $BUILDOPTS \
+  && ./autogen.sh && ./configure --disable-assert \
   && make $make_args && make install
 COPY genie /opflex/genie
 RUN cd /opflex/genie/target/libmodelgbp \
