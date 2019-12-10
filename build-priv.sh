@@ -16,7 +16,7 @@ DOCKER_TAG=$2
 export GOPATH
 ACICONTAINERS_DIR=.
 
-[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex-noiro
+[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex-master
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
@@ -30,13 +30,13 @@ echo "starting opflex build"
 pushd $ACICONTAINERS_DIR
 rm -Rf build
 docker build -t $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG -f docker/Dockerfile-opflex-build-base docker
-docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
+#docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
 
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
 popd
 docker build -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG -f docker/Dockerfile-opflex-build $OPFLEX_DIR
-docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
+#docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
 
 mkdir -p build/opflex/dist
 docker run $DOCKER_HUB_ID/opflex-build$DOCKER_TAG tar -c -C /usr/local \
@@ -46,16 +46,13 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find
 	 -name '\''libopflex*.so*'\'' -o \
 	 -name '\''libmodelgbp*so*'\'' -o \
 	 -name '\''libopenvswitch*so*'\'' -o \
-	  -name '\''libsflow*so*'\'' -o \
-	  -name '\''libofproto*so*'\'' \
+	 -name '\''libsflow*so*'\'' -o \
+	 -name '\''libofproto*so*'\'' \
+	 -name '\''libgrpc*so*'\'' -o \
+	 -name '\''libgpr*so*'\'' \
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
 	  | tar -x -C build/opflex/dist
-docker run -w /usr $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
-         -name '\''libexecinfo.so.*'\'' -o \
-          \) ! -name '\''*debug'\'' \
-         | xargs tar -c ' \
-        | tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c \
 	'find lib bin -name '\''*.debug'\'' | xargs tar -cz' \
 	 > opflex-debuginfo.tar.gz
@@ -87,6 +84,6 @@ docker push $DOCKER_HUB_ID/gbp-server$DOCKER_TAG
 
 echo "starting openvswitch build"
 docker build -t $DOCKER_HUB_ID/openvswitch$DOCKER_TAG -f docker/Dockerfile-openvswitch .
-docker push $DOCKER_HUB_ID/openvswitchi$DOCKER_TAG
+docker push $DOCKER_HUB_ID/openvswitch$DOCKER_TAG
 
 popd

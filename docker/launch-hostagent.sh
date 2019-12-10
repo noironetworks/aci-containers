@@ -73,16 +73,17 @@ else
     echo "VTEP interface not found"
 fi
 
-# Allow pod traffic to go out of veth_host
-iptables -A FORWARD -i veth_host -j ACCEPT
+if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
+    # Allow pod traffic to go out of veth_host
+    iptables -A FORWARD -i veth_host -j ACCEPT
 
-# SNAT outgoing traffic from pod to external world
-iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+    # SNAT outgoing traffic from pod to external world
+    iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
 
-# Create Host EP file
-UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
-#FNAME=${UUID}.ep
-FNAME=veth_host_ac.ep
+    # Create Host EP file
+    UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
+    #FNAME=${UUID}.ep
+    FNAME=veth_host_ac.ep
 
 cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 {
@@ -105,7 +106,8 @@ cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 }
 EOF
 
-cat ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
+    cat ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
+fi
 
 CMD=${HOSTAGENT}
 if [ -f ${HOSTAGENT_CONF} ]; then
