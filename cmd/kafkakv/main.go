@@ -47,6 +47,7 @@ func main() {
 	topic := flag.String("kafka-topic", "clusterA", "Topic name")
 	debug := flag.String("debug", "no", "debug yes/no")
 	dumpkv := flag.String("dump-kv", "no", "dump kv yes/no")
+	user := flag.String("user", "bitnami", "dump kv yes/no")
 	key := flag.String("key", "", "Key to lookup")
 	keyList := flag.String("key-list", "", "Comma separated list of keys to lookup")
 	timeout := flag.Int("time-out", 15, "timeout in seconds")
@@ -71,9 +72,11 @@ func main() {
 	tlsConfig.InsecureSkipVerify = true
 	consumerConfig := sarama.NewConfig()
 	consumerConfig.Net.TLS.Enable = true
-	consumerConfig.Net.SASL.Enable = true
-	consumerConfig.Net.SASL.User = "user"
-	consumerConfig.Net.SASL.Password = "bitnami"
+	if *user != "none" {
+		consumerConfig.Net.SASL.Enable = true
+		consumerConfig.Net.SASL.User = "user"
+		consumerConfig.Net.SASL.Password = "bitnami"
+	}
 
 	consumerConfig.Net.TLS.Config = tlsConfig
 
