@@ -1099,6 +1099,7 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 		return
 	}
 
+	cont.writeApicNP(npkey, np)
 	cont.indexMutex.Lock()
 	subnets := getNetworkPolicyEgressIpBlocks(np)
 	cont.updateIpIndex(cont.netPolSubnetIndex, nil, subnets, npkey)
@@ -1113,6 +1114,16 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 	cont.queueNetPolUpdateByKey(npkey)
 }
 
+func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
+	npObj := apicapi.NewVmmInjectedNwPol(cont.vmmDomainProvider(),
+		cont.config.AciVmmDomain, cont.config.AciVmmController,
+		np.ObjectMeta.Namespace, np.ObjectMeta.Name)
+
+	key := cont.aciNameForKey("NwPol", npKey)
+	logrus.Infof("Writing %s %+v", key, npObj)
+	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{npObj})
+}
+
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	newobj interface{}) {
 
@@ -1125,6 +1136,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		return
 	}
 
+	cont.writeApicNP(npkey, newnp)
 	cont.indexMutex.Lock()
 	oldSubnets := getNetworkPolicyEgressIpBlocks(oldnp)
 	newSubnets := getNetworkPolicyEgressIpBlocks(newnp)
@@ -1167,6 +1179,7 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 		return
 	}
 
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("NwPol", npkey))
 	cont.indexMutex.Lock()
 	subnets := getNetworkPolicyEgressIpBlocks(np)
 	cont.updateIpIndex(cont.netPolSubnetIndex, subnets, nil, npkey)

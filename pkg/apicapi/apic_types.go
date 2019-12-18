@@ -944,6 +944,17 @@ func NewVmmInjectedNs(vendor string, domain string, controller string,
 	return ret
 }
 
+func NewVmmInjectedNwPol(vendor string, domain string, controller string,
+	ns string, name string) ApicObject {
+
+	ret := newApicObject("vmmInjectedNwPol")
+	ret["vmmInjectedNwPol"].Attributes["name"] = name
+	ret["vmmInjectedNwPol"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/nwpol-[%s]",
+			vendor, domain, controller, ns, name)
+	return ret
+}
+
 func NewVmmInjectedOrg(vendor, domain, controller, name string) ApicObject {
 	ret := newApicObject("vmmInjectedOrg")
 	ret["vmmInjectedOrg"].Attributes["name"] = name
