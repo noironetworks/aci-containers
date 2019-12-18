@@ -749,6 +749,14 @@ var metadata = map[string]*apicMeta{
 			"vmmInjectedSvc",
 			"vmmInjectedDepl",
 			"vmmInjectedReplSet",
+			"vmmInjectedNwPol",
+		},
+	},
+	"vmmInjectedNwPol": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
 		},
 	},
 	"vmmInjectedOrg": {

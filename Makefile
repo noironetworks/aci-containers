@@ -63,6 +63,9 @@ go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-con
 go-build:
 	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-targets
 
+go-gbp-build:
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-gbp-target
+go-gbp-target: gbpserver
 vendor-rebuild: Gopkg.toml
 	${VENDOR_BUILD_CMD}
 vendor: Gopkg.toml
