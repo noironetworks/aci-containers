@@ -16,6 +16,7 @@ limitations under the License.
 package watchers
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
@@ -99,6 +100,20 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 		},
 		func(dn string) {
 			aw.FilterDeleted(dn)
+		})
+
+	protPolDn := "uni/tn-" + aw.gs.Config().AciPolicyTenant
+	aw.apicConn.AddSubscriptionDn(protPolDn,
+		[]string{"hostprotPol"})
+	aw.apicConn.SetSubscriptionHooks(protPolDn,
+		func(obj apicapi.ApicObject) bool {
+			logrus.Infof("Received hostprotPol")
+			aw.NetPolChanged(obj)
+			return true
+		},
+		func(dn string) {
+			logrus.Infof("Received delete hostprotPol: %s", dn)
+			aw.NetPolDeleted(dn)
 		})
 
 	go aw.apicConn.Run(stopCh)
@@ -288,4 +303,33 @@ func (aw *ApicWatcher) FilterChanged(obj apicapi.ApicObject) {
 func (aw *ApicWatcher) FilterDeleted(dn string) {
 	name := dnToCN(dn)
 	aw.idb.deleteFilter(name)
+}
+
+func (aw *ApicWatcher) NetPolChanged(obj apicapi.ApicObject) {
+
+	aw.Lock()
+	defer aw.Unlock()
+	dn := obj.GetAttrStr("dn")
+	jsonStr, err := json.Marshal(obj)
+	if err != nil {
+		logrus.Errorf("Error marshaling %v", err)
+		return
+	}
+
+	np := gbpserver.NetworkPolicy{}
+	err = json.Unmarshal(jsonStr, &np)
+	if err != nil {
+		logrus.Errorf("Error unmarshaling %v", err)
+		return
+	}
+	aw.gs.AddNetPol(np)
+	logrus.Infof("NetPol Added: %s", dn)
+}
+
+func (aw *ApicWatcher) NetPolDeleted(dn string) {
+
+	aw.Lock()
+	defer aw.Unlock()
+	aw.gs.DelNetPol(dn)
+	logrus.Infof("NetPol Added: %s", dn)
 }
