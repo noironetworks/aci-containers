@@ -48,6 +48,8 @@ const (
 	OpdelContract
 	OpaddEP
 	OpdelEP
+	OpaddNetPol
+	OpdelNetPol
 )
 
 var DefETCD = []string{"127.0.0.1:2379"}
@@ -425,6 +427,24 @@ func (s *Server) RemoveCallBack(id string) {
 	delete(s.listeners, id)
 }
 
+func (s *Server) AddNetPol(np NetworkPolicy) {
+	m := &inputMsg{
+		op:   OpaddNetPol,
+		data: &np,
+	}
+
+	s.rxCh <- m
+}
+
+func (s *Server) DelNetPol(dn string) {
+	m := &inputMsg{
+		op:   OpdelNetPol,
+		data: &dn,
+	}
+
+	s.rxCh <- m
+}
+
 func (s *Server) AddEPG(e EPG) {
 	m := &inputMsg{
 		op:   OpaddEPG,
@@ -572,6 +592,43 @@ func (s *Server) handleMsgs() {
 			if cmo != nil {
 				cmo.delRecursive()
 			}
+		case OpaddNetPol:
+			np, ok := m.data.(*NetworkPolicy)
+			if !ok {
+				log.Errorf("Bad OpaddNetPol msg")
+				continue
+			}
+
+			err := np.Make()
+			if err != nil {
+				log.Errorf("Network policy -- %v", err)
+				continue
+			}
+
+			name := np.HostprotPol.Attributes[propName]
+			if !strings.Contains(name, "np_static") {
+				for _, fn := range theServer.listeners {
+					fn(GBPOperation_REPLACE, np.getAllURIs())
+				}
+			}
+		case OpdelNetPol:
+			dn, ok := m.data.(*string)
+			if !ok {
+				log.Errorf("Bad OpdelNetPol msg")
+				continue
+			}
+			npName := npNameFromDn(*dn)
+
+			key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, npName)
+			npMo := moDB[key]
+			if npMo == nil {
+				log.Errorf("%s not found", key)
+				continue
+			}
+			for _, fn := range theServer.listeners {
+				fn(GBPOperation_DELETE, []string{key})
+			}
+			npMo.delRecursive()
 		default:
 			log.Errorf("Unknown msg type: %d", m.op)
 			continue

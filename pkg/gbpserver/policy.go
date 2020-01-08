@@ -962,14 +962,19 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	return &PostResp{URI: c.getURI()}, nil
 }
 
+func npNameFromDn(dn string) string {
+	trimDn := strings.TrimPrefix(dn, fmt.Sprintf("/api/mo/uni/tn-%s/pol-", getTenantName()))
+	trimDn = strings.TrimSuffix(trimDn, ".json")
+	npName := strings.Split(trimDn, "/")[0]
+	return npName
+}
+
 func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
 	gMutex.Lock()
 	defer gMutex.Unlock()
 	moDB := getMoDB()
 
-	dn := strings.TrimPrefix(r.RequestURI, fmt.Sprintf("/api/mo/uni/tn-%s/pol-", getTenantName()))
-	dn = strings.TrimSuffix(dn, ".json")
-	npName := strings.Split(dn, "/")[0]
+	npName := npNameFromDn(r.RequestURI)
 	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, npName)
 	npMo := moDB[key]
 	if npMo == nil {
