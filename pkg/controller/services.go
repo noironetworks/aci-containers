@@ -449,7 +449,8 @@ func apicFilter(name string, tenantName string,
 	filterDn := filter.GetDn()
 
 	var i int
-	for i, port := range portSpec {
+	var port v1.ServicePort
+	for i, port = range portSpec {
 		pstr := strconv.Itoa(int(port.Port))
 		var proto string
 		if port.Protocol == v1.ProtocolUDP {
