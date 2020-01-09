@@ -209,14 +209,14 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 	log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	ep := gbpserver.Endpoint{
-		Uuid:    uid,
-		MacAddr: podif.Status.MacAddr,
-		IPAddr:  podif.Status.IPAddr,
-		EPG:     podif.Status.EPG,
-		VTEP:    podif.Status.VTEP,
-		IFName:  podif.Status.IFName,
+		Uuid:      uid,
+		MacAddr:   podif.Status.MacAddr,
+		IPAddr:    podif.Status.IPAddr,
+		EPG:       podif.Status.EPG,
+		VTEP:      podif.Status.VTEP,
+		IFName:    podif.Status.IFName,
 		Namespace: podif.Status.PodNS,
-		PodName: podif.Status.PodName,
+		PodName:   podif.Status.PodName,
 	}
 
 	kw.gs.AddEP(ep)
@@ -232,14 +232,14 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 	log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	ep := gbpserver.Endpoint{
-		Uuid:    uid,
-		MacAddr: podif.Status.MacAddr,
-		IPAddr:  podif.Status.IPAddr,
-		EPG:     podif.Status.EPG,
-		VTEP:    podif.Status.VTEP,
-		IFName:  podif.Status.IFName,
+		Uuid:      uid,
+		MacAddr:   podif.Status.MacAddr,
+		IPAddr:    podif.Status.IPAddr,
+		EPG:       podif.Status.EPG,
+		VTEP:      podif.Status.VTEP,
+		IFName:    podif.Status.IFName,
 		Namespace: podif.Status.PodNS,
-		PodName: podif.Status.PodName,
+		PodName:   podif.Status.PodName,
 	}
 
 	kw.gs.DelEP(ep)
