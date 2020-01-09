@@ -4,11 +4,22 @@ COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
     libtool pkgconfig autoconf automake cmake doxygen file py-six \
     linux-headers libuv-dev boost-dev openssl-dev git \
-    libnetfilter_conntrack-dev rapidjson-dev python-dev bzip2-dev
+    libnetfilter_conntrack-dev rapidjson-dev python-dev bzip2-dev \
+    curl libcurl curl-dev zlib-dev
+ARG make_args=-j4
+RUN git clone https://github.com/noironetworks/3rdparty-debian.git
+RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
+  && cd prometheus-cpp \
+  && git submodule init \
+  && git submodule update \
+  && git apply ../3rdparty-debian/prometheus/prometheus-cpp.patch \
+  && mkdir _build && cd _build \
+  && cmake .. -DBUILD_SHARED_LIBS=ON \
+  && make $make_args && make install \
+  && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
-ARG make_args=-j4
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.6.0 --depth 1 \
   && cd ovs \
   && patch -p1 < /ovs-musl.patch \

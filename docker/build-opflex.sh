@@ -29,6 +29,7 @@ docker run -w /usr/local noiro/opflex-build /bin/sh -c 'find lib \(\
          -name '\''libmodelgbp*so*'\'' -o \
          -name '\''libopenvswitch*so*'\'' -o \
          -name '\''libsflow*so*'\'' -o \
+         -name '\''libprometheus-cpp-*so*'\'' -o \
          -name '\''libofproto*so*'\'' \
          \) ! -name '\''*debug'\'' \
         | xargs tar -c ' \
