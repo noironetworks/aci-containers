@@ -173,12 +173,14 @@ var gbp_epgA_obj = &gbpserver.EPG{
 	Name:          "epg-a",
 	ConsContracts: []string{"test-kube/tcp-6020"},
 	ProvContracts: []string{"test-kube/tcp-6020"},
+	ApicDN:        "uni/tn-test-kube/cloudapp-test-kubeApp1/cloudepg-epg-a",
 }
 
 var gbp_epgA_obj_trim = &gbpserver.EPG{
 	Tenant:        "test-kube",
 	Name:          "epg-a",
 	ProvContracts: []string{"test-kube/tcp-6020"},
+	ApicDN:        "uni/tn-test-kube/cloudapp-test-kubeApp1/cloudepg-epg-a",
 }
 
 var gbp_contract = &gbpserver.Contract{

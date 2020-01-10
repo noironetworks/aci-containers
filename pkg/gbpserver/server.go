@@ -549,9 +549,13 @@ func (s *Server) handleMsgs() {
 				continue
 			}
 
+			log.Infof("Got epg: %+v", epg)
 			epg.Make()
 			for _, fn := range s.listeners {
 				fn(GBPOperation_REPLACE, []string{epg.getURI()})
+			}
+			if s.kc != nil {
+				s.kc.UpdateEpgDN(epg.Name, epg.ApicDN)
 			}
 		case OpdelEPG:
 			epg, ok := m.data.(*EPG)

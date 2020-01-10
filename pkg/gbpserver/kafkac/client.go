@@ -41,6 +41,7 @@ type KafkaClient struct {
 	producer  sarama.SyncProducer
 	// used for initial sync
 	consumer sarama.PartitionConsumer
+	epgToDn  map[string]string
 
 	// cache of ep's received from k8s/cni
 	cniCache *podIFCache
@@ -83,7 +84,7 @@ type CapicEPMsg struct {
 	ContainerID string `json:"containerid,omitempty"`
 	SubnetDN    string `json:"subnet-dn,omitempty"`
 	//	CIDR        string `json:"cidr,omitempty"`
-	//	VRF         string `json:"vrf,omitempty"`
+	VrfDN string `json:"vrf-dn,omitempty"`
 	//	Region      string `json:"region,omitempty"`
 	//	Account     string `json:"account,omitempty"`
 	PodDN       string `json:"pod-dn,omitempty"`
@@ -99,6 +100,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 		cniCache:   &podIFCache{},
 		kafkaCache: &epCache{},
 		inbox:      make(chan *CapicEPMsg, inboxSize),
+		epgToDn:    make(map[string]string),
 	}
 
 	err := c.cniCache.Init()
@@ -125,18 +127,35 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 	return c, nil
 }
 
+func (kc *KafkaClient) UpdateEpgDN(name, dn string) {
+	kc.epgToDn[name] = dn
+}
+
+func (kc *KafkaClient) getEpgDN(name string) string {
+	dn, found := kc.epgToDn[name]
+	if found {
+		return dn
+	}
+	logrus.Warnf("epg %s dn not found, using name", name)
+
+	return name
+}
+
 func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
 	epName := getEPName(ep)
 	logrus.Infof("kc.AddEP: %s", epName)
 	msg := &CapicEPMsg{
 		Name:        epName,
 		IPAddr:      ep.IPAddr,
-		EpgDN:       ep.EPG, // fixme
+		EpgDN:       kc.getEpgDN(ep.EPG),
 		SubnetDN:    kc.cloudInfo.Subnet,
+		VrfDN:       kc.cloudInfo.VRF,
 		ContainerID: ep.ContainerID,
 		//PodDN: tbd,
 		ClusterName: kc.cloudInfo.ClusterName,
 	}
+
+	logrus.Infof("kc.AddEP: %+v", msg)
 
 	key := epName
 	if !kc.cniCache.ReadyToFwd(key, msg) {

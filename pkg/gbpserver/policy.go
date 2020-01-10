@@ -355,6 +355,7 @@ type EPG struct {
 	Name          string   `json:"name,omitempty"`
 	ConsContracts []string `json:"consumed-contracts,omitempty"`
 	ProvContracts []string `json:"provided-contracts,omitempty"`
+	ApicDN        string
 	bds           *BDSubnet
 }
 

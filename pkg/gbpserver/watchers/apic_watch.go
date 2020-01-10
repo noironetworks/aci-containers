@@ -130,6 +130,7 @@ func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
 	epg := gbpserver.EPG{
 		Tenant: dnToTenant(epgDn),
 		Name:   obj.GetAttrStr("name"),
+		ApicDN: epgDn,
 	}
 
 	for _, body := range obj {
