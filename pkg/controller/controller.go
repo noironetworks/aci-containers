@@ -208,6 +208,13 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 }
 
 func (cont *AciController) Init() {
+	if cont.config.LBType != lbTypeAci {
+		err := apicapi.AddMetaDataChild("vmmInjectedNs", "vmmInjectedNwPol")
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
 	egdata, err := json.Marshal(cont.config.DefaultEg)
 	if err != nil {
 		cont.log.Error("Could not serialize default endpoint group")
