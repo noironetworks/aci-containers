@@ -15,6 +15,7 @@
 package apicapi
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -280,11 +281,10 @@ var metadata = map[string]*apicMeta{
 	},
 	"cloudEPSelector": {
 		attributes: map[string]interface{}{
-			"name":      "",
+			"name":            "",
 			"matchExpression": "",
 		},
-		children: []string{
-		},
+		children: []string{},
 	},
 	"fvRsBd": {
 		attributes: map[string]interface{}{
@@ -749,15 +749,13 @@ var metadata = map[string]*apicMeta{
 			"vmmInjectedSvc",
 			"vmmInjectedDepl",
 			"vmmInjectedReplSet",
-			"vmmInjectedNwPol",
 		},
 	},
 	"vmmInjectedNwPol": {
 		attributes: map[string]interface{}{
 			"name": "",
 		},
-		children: []string{
-		},
+		children: []string{},
 	},
 	"vmmInjectedOrg": {
 		attributes: map[string]interface{}{
@@ -776,4 +774,19 @@ var metadata = map[string]*apicMeta{
 			"vmmInjectedDepl",
 		},
 	},
+}
+
+func AddMetaDataChild(parent, child string) error {
+	p := metadata[parent]
+	if p == nil {
+		return fmt.Errorf("parent %s not found", parent)
+	}
+
+	c := metadata[child]
+	if c == nil {
+		return fmt.Errorf("child %s not found", child)
+	}
+
+	p.children = append(p.children, child)
+	return nil
 }
