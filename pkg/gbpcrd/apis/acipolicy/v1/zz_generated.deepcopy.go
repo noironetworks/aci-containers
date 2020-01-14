@@ -276,6 +276,13 @@ func (in *GBPSStatus) DeepCopyInto(out *GBPSStatus) {
 			(*out)[key] = val
 		}
 	}
+	if in.TunnelIDs != nil {
+		in, out := &in.TunnelIDs, &out.TunnelIDs
+		*out = make(map[string]int64, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

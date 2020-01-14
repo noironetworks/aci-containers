@@ -88,7 +88,7 @@ type Server struct {
 }
 
 type StateDriver interface {
-	Init() error
+	Init(int) error
 	Get() (*crdv1.GBPSState, error)
 	Update(*crdv1.GBPSState) error
 }
