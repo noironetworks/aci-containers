@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -34,9 +35,21 @@ import (
 	"github.com/Sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
+
+const (
+	defTunnelIdBase = 4000
+)
+
+type tunnelState struct {
+	stateDriver  *watchers.K8sStateDriver
+	nodeToTunnel map[string]int64
+	nextID       int64
+}
 
 func (cont *AciController) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
@@ -208,7 +221,59 @@ func (cont *AciController) syncPodNet(obj interface{}) {
 	cont.nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
 }
 
+func maxof(x1, x2 int64) int64 {
+	if x1 > x2 {
+		return x1
+	}
+
+	return x2
+}
+
+func (cont *AciController) getTunnelID(node *v1.Node) int64 {
+	if cont.tunnelGetter == nil {
+		tunnelGetter := &tunnelState{}
+		tunnelGetter.stateDriver = &watchers.K8sStateDriver{}
+		err := tunnelGetter.stateDriver.Init(watchers.FieldTunnelID)
+		if err != nil {
+			cont.log.Warnf("Can't get tunnelID for %s", node.Name)
+			return 0
+		}
+
+		gbps, err := tunnelGetter.stateDriver.Get()
+		if err != nil {
+			cont.log.Warnf("Can't get tunnelID for %s", node.Name)
+			return 0
+		}
+
+		if gbps.Status.TunnelIDs != nil {
+			tunnelGetter.nodeToTunnel = gbps.Status.TunnelIDs
+		} else {
+			tunnelGetter.nodeToTunnel = make(map[string]int64)
+		}
+		cont.tunnelGetter = tunnelGetter
+		for _, val := range tunnelGetter.nodeToTunnel {
+			cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
+		}
+
+		cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + 1
+	}
+
+	id, found := cont.tunnelGetter.nodeToTunnel[node.Name]
+	if found {
+		return id + cont.tunnelIdBase
+	}
+
+	id = cont.tunnelGetter.nextID
+	cont.tunnelGetter.nodeToTunnel[node.Name] = id
+	state := &crdv1.GBPSState{}
+	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
+	cont.tunnelGetter.stateDriver.Update(state)
+	return id + cont.tunnelIdBase
+}
+
 func (cont *AciController) writeApicNode(node *v1.Node) {
+	tunnelID := cont.getTunnelID(node)
+	cont.log.Infof("=>  Node: %s, tunnelID: %v", node.Name, tunnelID)
 	key := cont.aciNameForKey("node-vmm", node.Name)
 	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
@@ -216,6 +281,7 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 	aobj.SetAttr("mgmtIp", getNodeIP(node, v1.NodeInternalIP))
 	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)
 	aobj.SetAttr("kernelVer", node.Status.NodeInfo.KernelVersion)
+	aobj.SetAttr("id", fmt.Sprintf("%v", tunnelID))
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
 }
 

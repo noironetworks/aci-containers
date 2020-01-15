@@ -26,18 +26,21 @@ import (
 )
 
 const (
-	stateObject = "gbp-server"
-	inboxSize   = 32
+	stateObject  = "gbp-server"
+	inboxSize    = 32
+	FieldClassID = iota
+	FieldTunnelID
 )
 
 // K8sStateDriver implements gbpserver.StateDriver
 type K8sStateDriver struct {
-	gsi   aciclientsetv1.GBPSStateInterface
-	inbox chan *aciv1.GBPSState
-	curr  *aciv1.GBPSState
+	gsi    aciclientsetv1.GBPSStateInterface
+	inbox  chan *aciv1.GBPSState
+	curr   *aciv1.GBPSState
+	copier func(s, d *aciv1.GBPSState)
 }
 
-func (ks *K8sStateDriver) Init() error {
+func (ks *K8sStateDriver) Init(wrField int) error {
 	cfg, err := restclient.InClusterConfig()
 	if err != nil {
 		return err
@@ -65,9 +68,28 @@ func (ks *K8sStateDriver) Init() error {
 
 	ks.inbox = make(chan *aciv1.GBPSState, inboxSize)
 	ks.curr = s
+	switch wrField {
+	case FieldClassID:
+		ks.copier = copyClassID
+	case FieldTunnelID:
+		ks.copier = copyTunnelID
+	}
+
 	go ks.run()
 
 	return nil
+}
+
+func copyClassID(src, dest *aciv1.GBPSState) {
+	dest.Kind = "GBPSState"
+	dest.APIVersion = "aci.aw/v1"
+	dest.Status.ClassIDs = src.Status.ClassIDs
+}
+
+func copyTunnelID(src, dest *aciv1.GBPSState) {
+	dest.Kind = "GBPSState"
+	dest.APIVersion = "aci.aw/v1"
+	dest.Status.TunnelIDs = src.Status.TunnelIDs
 }
 
 func (ks *K8sStateDriver) Get() (*aciv1.GBPSState, error) {
@@ -102,15 +124,15 @@ func (ks *K8sStateDriver) run() {
 		}
 
 		c := *ks.curr
-		c.Status = s.Status
-		c.Kind = "GBPSState"
-		c.APIVersion = "aci.aw/v1"
+		ks.copier(s, &c)
 
 		newS, err := ks.gsi.UpdateStatus(&c)
 		if err == nil {
 			ks.curr = newS
 		} else {
-			log.Errorf("State driver Update failed: %v, %+v", err, c)
+			log.Warnf("State driver Update failed(will retry): %v, %+v", err, c)
+			ks.Get() // refresh current
+			goto latest
 		}
 	}
 }

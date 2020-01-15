@@ -131,6 +131,7 @@ type GBPSSpec struct {
 // GBPSStatus is the operational state for a gbpserver
 type GBPSStatus struct {
 	ClassIDs map[string]uint `json:"class-ids,omitempty"`
+	TunnelIDs map[string]int64 `json:"tunnel-ids,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -109,7 +109,7 @@ func main() {
 	*/
 
 	stateDriver := &watchers.K8sStateDriver{}
-	err := stateDriver.Init()
+	err := stateDriver.Init(watchers.FieldClassID)
 	if err != nil {
 		log.Fatalf("State Driver: %v", err)
 	}

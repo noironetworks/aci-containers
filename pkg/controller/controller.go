@@ -105,7 +105,8 @@ type AciController struct {
 	// index of ip blocks referenced by network policy egress rules
 	netPolSubnetIndex cidranger.Ranger
 
-	apicConn *apicapi.ApicConnection
+	apicConn     *apicapi.ApicConnection
+	tunnelIdBase int64
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
@@ -117,6 +118,7 @@ type AciController struct {
 	nodeSyncEnabled    bool
 	serviceSyncEnabled bool
 	snatSyncEnabled    bool
+	tunnelGetter       *tunnelState
 }
 
 type nodeServiceMeta struct {
@@ -204,6 +206,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceMetaCache:     make(map[string]*serviceMeta),
 		snatPolicyCache:      make(map[string]*ContSnatPolicy),
 		snatServices:         make(map[string]bool),
+		tunnelIdBase:         defTunnelIdBase,
 	}
 }
 

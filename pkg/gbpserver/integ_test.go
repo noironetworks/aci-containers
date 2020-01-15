@@ -54,7 +54,7 @@ type testSD struct {
 	s v1.GBPSState
 }
 
-func (sd *testSD) Init() error {
+func (sd *testSD) Init(unused int) error {
 	sm := make(map[string]uint)
 	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/GbpeInstContext/"] = 32000
 	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpeInstContext/"] = 32001
@@ -141,7 +141,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 
 	ts.dataDir = dataDir
 	ts.sd = &testSD{}
-	err = ts.sd.Init()
+	err = ts.sd.Init(0)
 	assert.Equal(t, err, nil)
 
 	gCfg := &GBPServerConfig{}
