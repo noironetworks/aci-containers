@@ -62,6 +62,7 @@ type HostAgent struct {
 	rcInformer         cache.SharedIndexInformer
 	snatLocalInformer  cache.SharedIndexInformer
 	snatGlobalInformer cache.SharedIndexInformer
+	controllerInformer cache.SharedIndexInformer
 	netPolPods         *index.PodSelectorIndex
 	depPods            *index.PodSelectorIndex
 	rcPods             *index.PodSelectorIndex
@@ -80,6 +81,7 @@ type HostAgent struct {
 	netNsFuncChan         chan func()
 	vtepIP                string
 	vtepIface             string
+	gbpServerIP           string
 }
 
 type Vtep struct {
@@ -111,9 +113,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 	}
 
 	ha.syncProcessors = map[string]func() bool{
-		"eps":      ha.syncEps,
-		"services": ha.syncServices,
-		"snat":     ha.syncSnat}
+		"eps":          ha.syncEps,
+		"services":     ha.syncServices,
+		"opflexServer": ha.syncOpflexServer,
+		"snat":         ha.syncSnat}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -212,6 +215,10 @@ func (agent *HostAgent) scheduleSyncServices() {
 
 func (agent *HostAgent) scheduleSyncSnats() {
 	agent.ScheduleSync("snat")
+}
+
+func (agent *HostAgent) scheduleSyncOpflexServer() {
+	agent.ScheduleSync("opflexServer")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
