@@ -16,7 +16,7 @@ DOCKER_TAG=$2
 export GOPATH
 ACICONTAINERS_DIR=.
 
-[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex-master
+[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
@@ -46,8 +46,9 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find
 	 -name '\''libopflex*.so*'\'' -o \
 	 -name '\''libmodelgbp*so*'\'' -o \
 	 -name '\''libopenvswitch*so*'\'' -o \
+         -name '\''libprometheus-cpp-*so*'\'' -o \
 	 -name '\''libsflow*so*'\'' -o \
-	 -name '\''libofproto*so*'\'' \
+	 -name '\''libofproto*so*'\'' -o \
 	 -name '\''libgrpc*so*'\'' -o \
 	 -name '\''libgpr*so*'\'' \
            \) ! -name '\''*debug'\'' \
