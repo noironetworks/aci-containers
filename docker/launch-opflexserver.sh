@@ -5,12 +5,13 @@ set -x
 
 PREFIX=/usr/local
 OPFLEXSERVER=${PREFIX}/bin/mock_server
-OPFLEXSERVER_CONF_PATH=/usr/local/etc/opflex-server
-OPFLEXSERVER_CONF=${OPFLEXSERVER_CONF_PATH}/policy.json
-mkdir -p ${OPFLEXSERVER_CONF_PATH}
+OPFLEXSERVER_POL_PATH=/usr/local/var/lib/opflex-server
+OPFLEXSERVER_POL=${OPFLEXSERVER_POL_PATH}/policy.json
+OPFLEXSERVER_CONF=${OPFLEXSERVER_POL_PATH}/config.json
+mkdir -p ${OPFLEXSERVER_POL_PATH}
 
-if [ ! -f ${OPFLEXSERVER_CONF} ]; then
-    cat <<EOF > ${OPFLEXSERVER_CONF}
+if [ ! -f ${OPFLEXSERVER_POL} ]; then
+    cat <<EOF > ${OPFLEXSERVER_POL}
 [
     {
     }
@@ -18,4 +19,11 @@ if [ ! -f ${OPFLEXSERVER_CONF} ]; then
 EOF
 fi
 
-exec ${OPFLEXSERVER} --policy=${OPFLEXSERVER_CONF} $@
+if [ ! -f ${OPFLEXSERVER_CONF} ]; then
+    cat <<EOF > ${OPFLEXSERVER_CONF}
+{
+}
+EOF
+fi
+
+exec ${OPFLEXSERVER} --policy=${OPFLEXSERVER_POL} --grpc_conf=${OPFLEXSERVER_CONF} $@

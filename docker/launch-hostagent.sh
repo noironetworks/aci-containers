@@ -62,7 +62,6 @@ else
 fi
 ACC_MAC=$(get_mac veth_host)
 
-# FIXME Let deployment decide interface name
 if check_eth eth0; then
     VTEP_IP=$(get_ip eth0)
     VTEP_IFACE=eth0
@@ -70,15 +69,31 @@ elif check_eth enp0s8; then
     VTEP_IP=$(get_ip enp0s8)
     VTEP_IFACE=enp0s8
 else
-    echo "VTEP interface not found"
+    VTEP_IFACE=$(ip -o route get 8.8.8.8 | sed -e 's/^.*dev \([^ ]*\) .*$/\1/')
+    VTEP_IP=$(get_ip ${VTEP_IFACE})
 fi
 
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
-    # Allow pod traffic to go out of veth_host
-    iptables -A FORWARD -i veth_host -j ACCEPT
 
-    # SNAT outgoing traffic from pod to external world
-    iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+    if hash iptables 2>/dev/null; then
+        # Allow pod traffic to go out of veth_host
+        iptables -A FORWARD -i veth_host -j ACCEPT
+
+        # SNAT outgoing traffic from pod to external world
+        iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+    elif hash nft 2>/dev/null; then
+        # Allow pod traffic to go out of veth_host
+        nft add table inet filter
+        nft add chain inet filter forward
+        nft add rule inet filter forward iifname veth_host counter accept
+
+        # SNAT outgoing traffic from pod to external world
+        nft add table ip nat
+        nft add chain ip nat postrouting
+        nft add rule ip nat postrouting oif $VTEP_IFACE masquerade
+    else
+        echo "error finding iptables or nft"
+    fi
 
     # Create Host EP file
     UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
