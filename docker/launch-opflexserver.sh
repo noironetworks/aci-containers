@@ -17,6 +17,7 @@ if [ ! -f ${OPFLEXSERVER_POL} ]; then
     }
 ]
 EOF
+fi
 
 if [ ! -f ${OPFLEXSERVER_CONF} ]; then
     cat <<EOF > ${OPFLEXSERVER_CONF}
