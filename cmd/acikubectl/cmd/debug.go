@@ -240,6 +240,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args:     []string{"-rfpq", "DmtreeRoot", "-t", "dump"},
 		},
 		{
+			path:     "cluster-report/cmds/node-%s/gbp-unresolved.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  inspectArgs,
+			args:     []string{"-urq", "DmtreeRoot"},
+		},
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-int.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
