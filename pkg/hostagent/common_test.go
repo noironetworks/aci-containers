@@ -78,6 +78,12 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			WatchFunc: agent.fakePodSource.Watch,
 		})
 
+	agent.initControllerInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakePodSource.List,
+			WatchFunc: agent.fakePodSource.Watch,
+		})
+
 	agent.fakeEndpointsSource = framework.NewFakeControllerSource()
 	agent.initEndpointsInformerBase(
 		&cache.ListWatch{

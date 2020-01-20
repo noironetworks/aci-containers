@@ -31,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -140,6 +141,20 @@ func (agent *HostAgent) initPodInformerFromClient(
 				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
 			},
 		})
+
+	agent.initControllerInformerBase(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
+				//options.LabelSelector = "name=aci-containers-controller"
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
+				//options.LabelSelector = "name=aci-containers-controller"
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
+			},
+		})
 }
 
 func (agent *HostAgent) initPodInformerBase(listWatch *cache.ListWatch) {
@@ -158,6 +173,27 @@ func (agent *HostAgent) initPodInformerBase(listWatch *cache.ListWatch) {
 		},
 		DeleteFunc: func(obj interface{}) {
 			agent.podDeleted(obj)
+		},
+	})
+}
+
+func (agent *HostAgent) initControllerInformerBase(listWatch *cache.ListWatch) {
+	agent.controllerInformer = cache.NewSharedIndexInformer(
+		listWatch,
+		&v1.Pod{},
+		controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	agent.controllerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.log.Infof("== controller update ==")
+			agent.updateGbpServerInfo(obj.(*v1.Pod))
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.log.Infof("== controller update ==")
+			agent.updateGbpServerInfo(obj.(*v1.Pod))
+		},
+		DeleteFunc: func(obj interface{}) {
 		},
 	})
 }
@@ -202,6 +238,26 @@ func opflexEpLogger(log *logrus.Logger, ep *opflexEndpoint) *logrus.Entry {
 
 func (agent *HostAgent) FormEPFilePath(uuid string) string {
 	return filepath.Join(agent.config.OpFlexEndpointDir, uuid+".ep")
+}
+
+func (agent *HostAgent) syncOpflexServer() bool {
+	grpcAddr := fmt.Sprintf("%s:%d", agent.gbpServerIP, agent.config.GRPCPort)
+	srvCfg := &OpflexServerConfig{GRPCAddress: grpcAddr}
+
+	err := os.MkdirAll(filepath.Dir(agent.config.OpFlexServerConfigFile), os.ModeDir|0664)
+	if err != nil {
+		agent.log.Errorf("Failed to create directory: %s", filepath.Dir(agent.config.OpFlexServerConfigFile))
+	}
+
+	data, err := json.MarshalIndent(srvCfg, "", "  ")
+	err = ioutil.WriteFile(agent.config.OpFlexServerConfigFile, data, 0644)
+	if err != nil {
+		agent.log.Errorf("Failed to create file: %s", agent.config.OpFlexServerConfigFile)
+	} else {
+		agent.log.Infof("Updated grpc addr to %s", grpcAddr)
+	}
+
+	return false
 }
 
 func (agent *HostAgent) syncEps() bool {
@@ -539,5 +595,20 @@ func (agent *HostAgent) cniEpDelete(cniKey string) {
 		agent.log.Infof("cniEpDelete: delete %s", cniKey)
 		delete(agent.opflexEps, epUuid)
 		agent.scheduleSyncEps()
+	}
+}
+
+func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
+	if pod.ObjectMeta.Labels == nil {
+		return
+	}
+
+	nameVal := pod.ObjectMeta.Labels["name"]
+	if nameVal == "aci-containers-controller" {
+		if agent.gbpServerIP != pod.Status.PodIP {
+			agent.log.Infof("gbpServerIPChanged to %s", pod.Status.PodIP)
+			agent.gbpServerIP = pod.Status.PodIP
+			agent.scheduleSyncOpflexServer()
+		}
 	}
 }

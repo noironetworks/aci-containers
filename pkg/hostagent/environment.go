@@ -147,6 +147,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.InformNodeInfo(env.nodeInfo)
 	go env.agent.podInformer.Run(stopCh)
+	go env.agent.controllerInformer.Run(stopCh)
 	go env.agent.endpointsInformer.Run(stopCh)
 	go env.agent.serviceInformer.Run(stopCh)
 	go env.agent.nsInformer.Run(stopCh)

@@ -33,6 +33,11 @@ type cniNetConfig struct {
 	Routes  []route        `json:"routes,omitempty"`
 }
 
+type OpflexServerConfig struct {
+	GRPCAddress string `json:"grpc-address,omitempty"`
+	DebugLevel  string `json:"level,omitempty"`
+}
+
 type GroupDefaults struct {
 	// Default endpoint group annotation value
 	DefaultEg metadata.OpflexGroup `json:"default-endpoint-group,omitempty"`
@@ -93,6 +98,9 @@ type HostAgentConfig struct {
 	// TCP port to run status server on (or 0 to disable)
 	StatusPort int `json:"status-port,omitempty"`
 
+	// TCP port for opflex server to connect
+	GRPCPort int `json:"grpc-port,omitempty"`
+
 	// Directory containing OpFlex CNI metadata
 	CniMetadataDir string `json:"cni-metadata-dir,omitempty"`
 
@@ -116,6 +124,9 @@ type HostAgentConfig struct {
 
 	// Multicast groups file used by OpFlex agent
 	OpFlexMcastFile string `json:"opflex-mcast-file,omitempty"`
+
+	// File for writing Opflex server configuration
+	OpFlexServerConfigFile string `json:"opflex-server-config-file,omitempty"`
 
 	// Location of the OVS DB socket
 	OvsDbSock string `json:"ovs-db-sock,omitempty"`
@@ -191,6 +202,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8090, "TCP port to run status server on (or 0 to disable)")
+	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port for opflex server to connect")
 
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
@@ -206,6 +218,9 @@ func (config *HostAgentConfig) InitFlags() {
 		"/usr/local/var/lib/opflex-agent-ovs/mcast/opflex-groups.json",
 		"Multicast groups file used by OpFlex agent")
 
+	flag.StringVar(&config.OpFlexServerConfigFile, "opflex-server-config-file",
+		"/usr/local/var/lib/opflex-server/config.json",
+		"Config file for opflex server")
 	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
 	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")
 	flag.StringVar(&config.EpRpcSockPerms, "ep-rpc-sock-perms", "", "Permissions to set for endpoint RPC socket file. Octal string")
