@@ -2,15 +2,18 @@
 # Build opflex and aci-containers private images in non jenkins environment
 # 1. go get github.com/noironetworks/aci-containers
 # 2. mkdir -p $HOME/work && cd $HOME/work
-# 3. git clone https://github.com/noironetworks/opflex opflex-noiro
-# 4. Modify docker/Dockerfile-* and Makefile to reflect DOCKER_HUB_ID
-# 5. docker login as DOCKER_HUB_ID
+# 3. git clone https://github.com/noironetworks/opflex opflex
+# 4. docker login as DOCKER_HUB_ID
 # usage: build.sh <docker-user> :<tag>
 # example: ./build-priv.sh challa :demo
 set -x
 
 DOCKER_HUB_ID=$1
 DOCKER_TAG=$2
+
+# Modify docker/Dockerfile-opflex-build to reflect DOCKER_HUB_ID and  DOCKER_TAG
+sed -i -e "s/FROM noiro\/opflex-build-base/FROM $DOCKER_HUB_ID\/opflex-build-base$DOCKER_TAG/g" \
+           docker/Dockerfile-opflex-build
 
 [ -z "$GOPATH" ] && GOPATH=$HOME/go
 export GOPATH
