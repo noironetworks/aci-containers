@@ -9,4 +9,10 @@ matrix:
         - make vendor
       script:
         - make goinstall
-        - make check
+        - make check >& /tmp/check.log
+      after_failure:
+        - grep -C 200 FAIL /tmp/check.log
+        - tail -200 /tmp/check.log
+      after_success:
+        - tail -200 /tmp/check.log
+

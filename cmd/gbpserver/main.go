@@ -144,16 +144,20 @@ func main() {
 
 // panics on error
 func startEtcd(c *gbpserver.GBPServerConfig) []string {
-	var etcdClientURLs = []string{fmt.Sprintf("http://localhost:%d", c.EtcdPort)}
-	var lcURLs []url.URL
 
-	for _, u := range etcdClientURLs {
-		uu, err := url.Parse(u)
-		if err != nil {
-			log.Fatalf("url.Parse: %v", err)
+	urlMaker := func(portNo int) []url.URL {
+		var urlList []url.URL
+		var rawList = []string{fmt.Sprintf("http://localhost:%d", portNo)}
+		for _, u := range rawList {
+			uu, err := url.Parse(u)
+			if err != nil {
+				log.Fatalf("url.Parse: %v", err)
+			}
+
+			urlList = append(urlList, *uu)
 		}
 
-		lcURLs = append(lcURLs, *uu)
+		return urlList
 	}
 
 	err := os.MkdirAll(c.EtcdDir, os.ModePerm)
@@ -163,7 +167,8 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 
 	cfg := embed.NewConfig()
 	cfg.Dir = c.EtcdDir
-	cfg.LCUrls = lcURLs
+	cfg.LCUrls = urlMaker(c.EtcdPort)
+	cfg.LPUrls = urlMaker(c.EtcdPort + 1)
 	cfg.EnableV2 = true
 
 	e, err := embed.StartEtcd(cfg)
@@ -179,5 +184,5 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 		log.Fatalf("Etcd Server took too long to start!")
 	}
 
-	return etcdClientURLs
+	return []string{fmt.Sprintf("http://localhost:%d", c.EtcdPort)}
 }
