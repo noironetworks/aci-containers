@@ -453,7 +453,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		return
 	}
 	agent.cniToPodID[epMetaKey] = epUuid
-
+        if pod.Status.PodIP != "" {
+		agent.podIpToName[pod.Status.PodIP] = epMetaKey;
+	}
 	epGroup, secGroup, _ := agent.assignGroups(pod)
 	epAttributes := pod.ObjectMeta.Labels
 	if epAttributes == nil {
@@ -576,6 +578,9 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 		agent.log.Infof("podDeleted: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		delete(agent.opflexEps, u)
 		agent.scheduleSyncEps()
+	}
+        if pod.Status.PodIP != "" {
+		delete(agent.podIpToName, pod.Status.PodIP);
 	}
 	agent.epDeleted(&u)
 }

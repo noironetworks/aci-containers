@@ -137,6 +137,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
 	env.agent.initRCPodIndex()
+	env.agent.initEventPoster(env.kubeClient)
 	return nil
 }
 

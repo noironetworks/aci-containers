@@ -25,6 +25,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 	"net"
+        record "k8s.io/client-go/tools/record"
+        "time"
 )
 
 const nodename = "test-node"
@@ -145,6 +147,10 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			ListFunc:  agent.fakeRdConfigSource.List,
 			WatchFunc: agent.fakeRdConfigSource.Watch,
 		})
+	agent.poster = &EventPoster{
+		recorder:           record.NewFakeRecorder(100),
+		eventSubmitTimeMap: make(map[string]time.Time),
+        }
 	agent.initNetPolPodIndex()
 	agent.initNetPolPodIndex()
 	agent.initDepPodIndex()
