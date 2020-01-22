@@ -75,26 +75,28 @@ fi
 
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
 
-    if hash iptables 2>/dev/null; then
-        # Allow pod traffic to go out of veth_host
-        iptables -A FORWARD -i veth_host -j ACCEPT
-
-        # SNAT outgoing traffic from pod to external world
-        iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
-    elif hash nft 2>/dev/null; then
-        # Allow pod traffic to go out of veth_host
+    set +e
+    # Allow pod traffic to go out of veth_host
+    iptables -A FORWARD -i veth_host -j ACCEPT
+    retval=$?
+    if [ $retval -ne 0 ]; then
+        echo "command failed, trying with nftables"
         nft add table inet filter
         nft add chain inet filter forward
         nft add rule inet filter forward iifname veth_host counter accept
+    fi
 
-        # SNAT outgoing traffic from pod to external world
+    # SNAT outgoing traffic from pod to external world
+    iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+    retval=$?
+    if [ $retval -ne 0 ]; then
+        echo "command failed, trying with nftables"
         nft add table ip nat
         nft add chain ip nat postrouting
         nft add rule ip nat postrouting oif $VTEP_IFACE masquerade
-    else
-        echo "error finding iptables or nft"
     fi
 
+    set -e
     # Create Host EP file
     UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
     #FNAME=${UUID}.ep
