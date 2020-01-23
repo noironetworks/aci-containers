@@ -62,10 +62,7 @@ else
 fi
 ACC_MAC=$(get_mac veth_host)
 
-if check_eth eth0; then
-    VTEP_IP=$(get_ip eth0)
-    VTEP_IFACE=eth0
-elif check_eth enp0s8; then
+if check_eth enp0s8; then
     VTEP_IP=$(get_ip enp0s8)
     VTEP_IFACE=enp0s8
 else
