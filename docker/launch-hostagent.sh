@@ -81,9 +81,9 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
     retval=$?
     if [ $retval -ne 0 ]; then
         echo "command failed, trying with nftables"
-        nft add table inet filter
-        nft add chain inet filter forward
-        nft add rule inet filter forward iifname veth_host counter accept
+        nft add table ip filter
+        nft add chain ip filter FORWARD
+        nft add rule ip filter FORWARD iifname veth_host counter accept
     fi
 
     # SNAT outgoing traffic from pod to external world
@@ -92,8 +92,8 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
     if [ $retval -ne 0 ]; then
         echo "command failed, trying with nftables"
         nft add table ip nat
-        nft add chain ip nat postrouting
-        nft add rule ip nat postrouting oif $VTEP_IFACE masquerade
+        nft add chain ip nat POSTROUTING
+        nft add rule ip nat POSTROUTING oif $VTEP_IFACE masquerade
     fi
 
     set -e
