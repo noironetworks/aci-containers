@@ -192,16 +192,25 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 		{
 			name: "cluster-report/status/pods_status.log",
-			args: []string{"get", "pods", "--all-namespaces", "--include-uninitialized"},
+			args: []string{"get", "pods", "--all-namespaces"},
 		},
 		{
 			name: "cluster-report/status/services_status.log",
-			args: []string{"get", "services", "--all-namespaces", "--include-uninitialized"},
+			args: []string{"get", "services", "--all-namespaces"},
 		},
 		{
 			name: "cluster-report/status/cluster-info.log",
 			args: []string{"cluster-info"},
 		},
+                {
+                        name: "cluster-report/status/configmap_controller.log",
+                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
+                },
+                {
+                        name: "cluster-report/status/configmap_snatoperator.log",
+                        args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
+                },
+
 	}
 
 	// Get all nodes of k8s cluster
