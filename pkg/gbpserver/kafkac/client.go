@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -136,9 +137,9 @@ func (kc *KafkaClient) getEpgDN(name string) string {
 	if found {
 		return dn
 	}
-	logrus.Warnf("epg %s dn not found, using name", name)
-
-	return name
+	logrus.Warnf("epg %s dn not found, generating", name)
+	tenant := dnToTenant(kc.cloudInfo.VRF)
+	return fmt.Sprintf("uni/tn-%s/cloudapp-%s/cloudepg-%s", tenant, tenant, name)
 }
 
 func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
@@ -321,4 +322,14 @@ func (kc *KafkaClient) sendOneMsg(key string, val *CapicEPMsg, delay time.Durati
 
 		return offset
 	}
+}
+
+func dnToTenant(dn string) string {
+	s := strings.TrimPrefix(dn, "uni/tn-")
+	parts := strings.Split(s, "/")
+	if len(parts) > 1 {
+		return parts[0]
+	}
+
+	return ""
 }
