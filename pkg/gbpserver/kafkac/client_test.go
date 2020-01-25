@@ -74,7 +74,7 @@ func (ts *suite) epPresent(ep *v1.PodIFStatus) bool {
 		return false
 	}
 
-	if m.Name == key && m.IPAddr == ep.IPAddr && m.EpgDN == ep.EPG {
+	if m.Name == key && m.IPAddr == ep.IPAddr {
 		return true
 	}
 	return false
@@ -101,7 +101,7 @@ func (ts *suite) epMsgPresent(ep *CapicEPMsg) bool {
 		return false
 	}
 
-	if m.Name == key && m.IPAddr == ep.IPAddr && m.EpgDN == ep.EpgDN {
+	if m.Name == key && m.IPAddr == ep.IPAddr {
 		return true
 	}
 	return false

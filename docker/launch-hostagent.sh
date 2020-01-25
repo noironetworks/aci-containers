@@ -103,7 +103,7 @@ cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 {
   "uuid": "$UUID",
   "eg-policy-space": "$TENANT",
-  "endpoint-group-name": "kubernetes|kube-nodes",
+  "endpoint-group-name": "$NODE_EPG",
   "ip": [
     "$VTEP_IP"
   ],
