@@ -18,17 +18,19 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
+	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
+	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
+	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/yl2chen/cidranger"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
-	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
-
 )
 
 type Environment interface {
@@ -43,9 +45,11 @@ type Environment interface {
 }
 
 type K8sEnvironment struct {
-	kubeClient   *kubernetes.Clientset
-	snatClient   *snatclientset.Clientset
-	cont         *AciController
+	kubeClient       *kubernetes.Clientset
+	snatClient       *snatclientset.Clientset
+	snatGlobalClient *snatglobalclset.Clientset
+	nodeInfoClient   *nodeinfoclientset.Clientset
+	cont             *AciController
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -78,10 +82,22 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 	}
 	log.Debug("Initializing snat client")
 	snatClient, err := snatclientset.NewForConfig(restconfig)
-	if err !=nil {
+	if err != nil {
 		return nil, err
 	}
-	return &K8sEnvironment{kubeClient: kubeClient, snatClient: snatClient}, nil
+	snatGlobalClient, err := snatglobalclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize snat global info client")
+		return nil, err
+	}
+	nodeInfoClient, err := nodeinfoclientset.NewForConfig(restconfig)
+	log.Debug("Initializing kubernetes client", nodeInfoClient)
+	if err != nil {
+		log.Debug("Failed to intialize node info client")
+		return nil, err
+	}
+	return &K8sEnvironment{kubeClient: kubeClient, snatClient: snatClient,
+		snatGlobalClient: snatGlobalClient, nodeInfoClient: nodeInfoClient}, nil
 }
 
 func (env *K8sEnvironment) VmmPolicy() string {
@@ -117,7 +133,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	}
 
 	cont.listServicesBySelector = func(selector string) (*v1.ServiceList, error) {
-		return kubeClient.CoreV1().Services("").List(metav1.ListOptions{LabelSelector: selector,})
+		return kubeClient.CoreV1().Services("").List(metav1.ListOptions{LabelSelector: selector})
 	}
 
 	cont.log.Debug("Initializing informers")
@@ -130,7 +146,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initServiceInformerFromClient(kubeClient)
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
 	cont.initSnatInformerFromClient(snatClient)
-
+	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
@@ -211,6 +227,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, stopCh)
+	go cont.snatNodeInformer.Run(stopCh)
+	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
+		func(obj interface{}) bool {
+			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
+		}, stopCh)
 
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
@@ -218,7 +239,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.networkPolicyInformer.HasSynced)
+		cont.networkPolicyInformer.HasSynced, cont.snatNodeInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	return nil
 }

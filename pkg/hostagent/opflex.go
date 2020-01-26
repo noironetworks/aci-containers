@@ -122,7 +122,6 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	intf, err := net.InterfaceByName(conf.UplinkIface)
 	if err == nil {
 		conf.UplinkMacAdress = intf.HardwareAddr.String()
-		agent.log.Info("Hardware address is ", intf.HardwareAddr)
 		return
 	}
 

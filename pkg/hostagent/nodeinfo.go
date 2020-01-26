@@ -17,33 +17,43 @@
 package hostagent
 
 import (
-	nodeinfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
-	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	nodeInfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
+	nodeInfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"reflect"
 )
 
-func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeinfoclientset.Clientset) {
+func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]struct{}) bool {
 	if nodeInfoClient == nil {
-		agent.log.Debug("nodeinfo or Kube clients are not intialized")
-		return
+		agent.log.Debug("nodeInfo or Kube clients are not intialized")
+		return true
 	}
-	nodeInfoInstance := &nodeinfov1.NodeInfo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      agent.config.NodeName,
-			Namespace: agent.config.AciSnatNamespace,
-		},
-		Spec: nodeinfov1.NodeInfoSpec{
-			Nodename:   agent.config.NodeName,
-			Macaddress: agent.config.UplinkMacAdress,
-		},
-	}
-	result, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(nodeInfoInstance)
-	if err == nil {
-		agent.log.Debug("NodeInfo CR is created: ", result)
-	} else if apierrors.IsAlreadyExists(err) {
-		agent.log.Debug("Node info CR already exists: ", result)
+	var options metav1.GetOptions
+	nodeInfo, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Get(agent.config.NodeName, options)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			nodeInfoInstance := &nodeInfov1.NodeInfo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agent.config.NodeName,
+					Namespace: agent.config.AciSnatNamespace,
+				},
+				Spec: nodeInfov1.NodeInfoSpec{
+					SnatPolicyNames: snatpolicies,
+					Macaddress:      agent.config.UplinkMacAdress,
+				},
+			}
+			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(nodeInfoInstance)
+		}
 	} else {
-		agent.log.Error("Failed to Create Node info CR, namespace not valid: ", agent.config.AciSnatNamespace)
+		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) {
+			nodeInfo.Spec.SnatPolicyNames = snatpolicies
+			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(nodeInfo)
+		}
 	}
+	if err == nil {
+		agent.log.Debug("NodeInfo Update Successful..")
+		return true
+	}
+	return false
 }

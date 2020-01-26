@@ -47,7 +47,8 @@ type GlobalInfo struct {
 	SnatIp     string      `json:"snatIp"`
 	SnatIpUid  string      `json:"snatIpUid"`
 	// +kubebuilder:validation:Enum=tcp,udp,icmp
-	Protocols []string `json:"protocols"`
+	Protocols      []string `json:"protocols"`
+	SnatPolicyName string   `json:"snatPolicyName"`
 }
 
 // +k8s:openapi-gen=true

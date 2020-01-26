@@ -77,6 +77,7 @@ func (agent *HostAgent) namespaceAdded(obj interface{}) {
 	agent.log.Infof("Namespace %+v added", ns)
 	agent.netPolPods.UpdateNamespace(ns)
 	agent.updatePodsForNamespace(ns.ObjectMeta.Name)
+	agent.handleObjectUpdateForSnat(obj)
 }
 
 func (agent *HostAgent) namespaceChanged(oldobj interface{},
@@ -88,6 +89,7 @@ func (agent *HostAgent) namespaceChanged(oldobj interface{},
 
 	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
 		agent.netPolPods.UpdateNamespace(newns)
+		agent.handleObjectUpdateForSnat(newobj)
 	}
 	if !reflect.DeepEqual(oldns.ObjectMeta.Annotations,
 		newns.ObjectMeta.Annotations) {
@@ -97,6 +99,7 @@ func (agent *HostAgent) namespaceChanged(oldobj interface{},
 
 func (agent *HostAgent) namespaceDeleted(obj interface{}) {
 	ns := obj.(*v1.Namespace)
+	agent.handleObjectDeleteForSnat(obj)
 	agent.netPolPods.DeleteNamespace(ns)
 }
 
@@ -234,6 +237,7 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 func (agent *HostAgent) deploymentAdded(obj interface{}) {
 	agent.log.Infof("deploymentAdded => ")
 	agent.depPods.UpdateSelectorObj(obj)
+	agent.handleObjectUpdateForSnat(obj)
 }
 
 // deploymentChanged - callback for deployment change. Trigger pod update
@@ -244,7 +248,6 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 
 	olddep := oldobj.(*appsv1.Deployment)
 	newdep := newobj.(*appsv1.Deployment)
-
 	if !reflect.DeepEqual(olddep.Spec.Selector, newdep.Spec.Selector) {
 		agent.depPods.UpdateSelectorObj(newobj)
 	}
@@ -261,9 +264,14 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 			agent.podChanged(&podkey)
 		}
 	}
+	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
+		newdep.ObjectMeta.Labels) {
+		agent.handleObjectUpdateForSnat(newdep)
+	}
 }
 
 func (agent *HostAgent) deploymentDeleted(obj interface{}) {
+	agent.handleObjectDeleteForSnat(obj)
 	agent.depPods.DeleteSelectorObj(obj)
 }
 

@@ -399,6 +399,7 @@ func (agent *HostAgent) serviceChanged(obj interface{}) {
 	}
 
 	agent.doUpdateService(key)
+	agent.handleObjectUpdateForSnat(obj)
 }
 
 func (agent *HostAgent) serviceDeleted(obj interface{}) {
@@ -413,6 +414,7 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 		delete(agent.opflexServices, u+"-external")
 		agent.scheduleSyncServices()
 	}
+	agent.handleObjectDeleteForSnat(obj)
 }
 
 func (agent *HostAgent) updateAllServices() {

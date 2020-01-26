@@ -17,20 +17,22 @@ package controller
 
 import (
 	"github.com/Sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
+	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
-	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 )
 
 const snatGraphName = "svcgraph"
 
 type ContPodSelector struct {
-	Labels     map[string]string
-	Namespace  string
+	Labels    map[string]string
+	Namespace string
 }
 
 type ContPortRange struct {
@@ -39,10 +41,12 @@ type ContPortRange struct {
 }
 
 type ContSnatPolicy struct {
-	SnatIp    []string
-	Selector  ContPodSelector
-	PortRange []ContPortRange
-	Protocols []string
+	SnatIp            []string
+	Selector          ContPodSelector
+	PortRange         []ContPortRange
+	Protocols         []string
+	ExpandedSnatIps   []string
+	ExpandedSnatPorts []snatglobalinfo.PortRange
 }
 
 func SnatPolicyLogger(log *logrus.Logger, snat *snatpolicy.SnatPolicy) *logrus.Entry {
@@ -82,7 +86,7 @@ func (cont *AciController) initSnatInformerBase(listWatch *cache.ListWatch) {
 
 }
 
-func(cont *AciController) snatUpdated(obj interface{}) {
+func (cont *AciController) snatUpdated(obj interface{}) {
 	snat := obj.(*snatpolicy.SnatPolicy)
 	key, err := cache.MetaNamespaceKeyFunc(snat)
 	if err != nil {
@@ -116,12 +120,8 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 	}
 
 	policyName := snatpolicy.ObjectMeta.Name
+	cont.updateSnatPolicyCache(policyName, snatpolicy)
 	var requeue bool
-	if len(snatpolicy.Spec.SnatIp) > 0 {
-		cont.indexMutex.Lock()
-		cont.updateSnatPolicyCache(policyName, snatpolicy)
-		cont.indexMutex.Unlock()
-	}
 	cont.indexMutex.Lock()
 	if cont.snatSyncEnabled {
 		cont.indexMutex.Unlock()
@@ -140,7 +140,7 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 	return requeue
 }
 
-func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy ) error {
+func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy) error {
 
 	selector := labels.Set(snatpolicy.Spec.Selector.Labels).String()
 	ServicesList, err := cont.listServicesBySelector(selector)
@@ -168,15 +168,28 @@ func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.Sn
 }
 
 func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpolicy.SnatPolicy) {
+	cont.indexMutex.Lock()
 	var policy ContSnatPolicy
+	env := cont.env.(*K8sEnvironment)
 	policy.SnatIp = snatpolicy.Spec.SnatIp
+	policy.ExpandedSnatIps = util.ExpandCIDRs(policy.SnatIp)
+	portRange := snatglobalinfo.PortRange{Start: 5000, End: 65000}
+	portsPerNode := 3000
+	if env.kubeClient != nil {
+		portRange, portsPerNode = util.GetPortRangeFromConfigMap(env.kubeClient)
+	}
+	var currPortRange []snatglobalinfo.PortRange
+	currPortRange = append(currPortRange, portRange)
+	policy.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
 	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
 	cont.snatPolicyCache[key] = &policy
+	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
-        snatpolicy := snatobj.(*snatpolicy.SnatPolicy)
+	snatpolicy := snatobj.(*snatpolicy.SnatPolicy)
 	cont.indexMutex.Lock()
+	cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
 
 	if len(snatpolicy.Spec.SnatIp) == 0 {
@@ -214,4 +227,3 @@ func (cont *AciController) snatFullSync() {
 			cont.queueSnatUpdate(sobj.(*snatpolicy.SnatPolicy))
 		})
 }
-

@@ -117,6 +117,7 @@ var podTests = []podTest{
 		egAnnot,
 		sgAnnot,
 	},
+
 	{
 		"6a281ef1-0fcb-4140-a38c-62977ef25d72",
 		"cont2",
@@ -181,7 +182,6 @@ func TestPodSync(t *testing.T) {
 				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
 				[]byte("random gibberish"), 0644)
 		}
-
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
@@ -190,6 +190,7 @@ func TestPodSync(t *testing.T) {
 			}
 		agent.fakePodSource.Add(pod)
 		agent.doTestPod(t, tempdir, &pt, "create")
+		agent.log.Info("Created ##### ", i, pt.uuid)
 	}
 
 	for _, pt := range podTests {
@@ -201,8 +202,8 @@ func TestPodSync(t *testing.T) {
 				cnimd.Id.ContId: cnimd,
 			}
 		agent.fakePodSource.Add(pod)
-
 		agent.doTestPod(t, tempdir, &pt, "update")
+		agent.log.Info("Updated ##### ", pt.uuid)
 	}
 
 	for _, pt := range podTests {
@@ -216,6 +217,7 @@ func TestPodSync(t *testing.T) {
 				_, err := ioutil.ReadFile(epfile)
 				return tu.WaitNotNil(t, last, err, "pod deleted"), nil
 			})
+		agent.log.Info("Deleted ##### ", pt.uuid)
 	}
 
 	agent.stop()

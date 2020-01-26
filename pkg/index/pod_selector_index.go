@@ -210,7 +210,6 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 	podUpdated := false
 	matched := make(set)
 	updatedObjs := make(set)
-
 	i.indexMutex.Lock()
 	// check each selector object that could apply to this pod's
 	// namespace for new matches
@@ -443,9 +442,7 @@ func (i *PodSelectorIndex) UpdateSelectorObjNoCallback(obj interface{}) bool {
 	i.indexMutex.Lock()
 	updatedPods, objUpdated := i.updateSelectorObjForNs(obj, namespaces)
 	i.indexMutex.Unlock()
-
 	i.updatePods(updatedPods)
-
 	return objUpdated
 }
 

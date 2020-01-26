@@ -20,9 +20,8 @@ type NodeInfoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-
-	Nodename   string `json:"nodename"`
-	Macaddress string `json:"macaddress"`
+	Macaddress      string              `json:"macaddress"`
+	SnatPolicyNames map[string]struct{} `json: "snatpolicynames"`
 }
 
 // NodeinfoStatus defines the observed state of Nodeinfo
