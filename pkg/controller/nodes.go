@@ -230,6 +230,10 @@ func maxof(x1, x2 int64) int64 {
 }
 
 func (cont *AciController) getTunnelID(node *v1.Node) int64 {
+	if cont.config.LBType == lbTypeAci {
+		return 0
+	}
+
 	if cont.tunnelGetter == nil {
 		tunnelGetter := &tunnelState{}
 		tunnelGetter.stateDriver = &watchers.K8sStateDriver{}
