@@ -44,7 +44,6 @@ import (
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
-type serviceListFunc func(string) (*v1.ServiceList, error)
 
 type AciController struct {
 	log    *logrus.Logger
@@ -84,7 +83,6 @@ type AciController struct {
 	updatePod              podUpdateFunc
 	updateNode             nodeUpdateFunc
 	updateServiceStatus    serviceUpdateFunc
-	listServicesBySelector serviceListFunc
 
 	indexMutex sync.Mutex
 
