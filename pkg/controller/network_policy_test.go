@@ -36,7 +36,6 @@ var udp = "UDP"
 var port80 = 80
 var port443 = 443
 
-
 func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	var portv intstr.IntOrString
 	var protov v1.Protocol
@@ -167,11 +166,11 @@ func addPods(cont *testAciController, incIps bool, ips []string, ipv4 bool) {
 	pods = append(pods, podLabel("ns1", "pod4", map[string]string{"l1": "v2"}))
 	pods = append(pods, podLabel("ns2", "pod5", map[string]string{"l1": "v1"}))
 	pods = append(pods, podLabel("ns2", "pod6", map[string]string{"l1": "v2"}))
-/*
-	ips := []string{
-		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
-	}
-*/
+	/*
+		ips := []string{
+			"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
+		}
+	*/
 	if incIps {
 		for i := range pods {
 			pods[i].Status.PodIP = ips[i]
@@ -195,7 +194,7 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 }
 
 func makeNp(ingress apicapi.ApicSlice,
-		egress apicapi.ApicSlice, name string) apicapi.ApicObject {
+	egress apicapi.ApicSlice, name string) apicapi.ApicObject {
 	np1 := apicapi.NewHostprotPol("test-tenant", name)
 	np1SubjI :=
 		apicapi.NewHostprotSubj(np1.GetDn(), "networkpolicy-ingress")
@@ -218,15 +217,15 @@ func makeEps(namespace string, name string,
 	return &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{
 			{
-					Addresses: addrs,
-					Ports:     ports,
-				},
+				Addresses: addrs,
+				Ports:     ports,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:   namespace,
-				Name:        name,
-				Annotations: map[string]string{},
-			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+		},
 	}
 }
 
@@ -342,17 +341,13 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_9_0 := apicapi.NewHostprotRule(np1SDnI, "0")
 	rule_9_0.SetAttr("direction", "ingress")
 	rule_9_0.SetAttr("ethertype", "ipv4")
-	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.1"))
 	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.3"))
-	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.4"))
 	rule_9_0.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0.GetDn(), "1.1.1.5"))
 
 	rule_10_0 := apicapi.NewHostprotRule(np1SDnE, "0")
 	rule_10_0.SetAttr("direction", "egress")
 	rule_10_0.SetAttr("ethertype", "ipv4")
-	rule_10_0.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0.GetDn(), "1.1.1.1"))
 	rule_10_0.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0.GetDn(), "1.1.1.3"))
-	rule_10_0.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0.GetDn(), "1.1.1.4"))
 	rule_10_0.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0.GetDn(), "1.1.1.5"))
 
 	rule_11_0 := apicapi.NewHostprotRule(np1SDnE, "0_0")
@@ -407,7 +402,6 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_14_s.SetAttr("protocol", "tcp")
 	rule_14_s.SetAttr("toPort", "8080")
 	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
-
 
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
@@ -783,9 +777,9 @@ func TestNetworkPolicy(t *testing.T) {
 		cont.stop()
 	}
 
-    ips := []string{
-	        "1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
-			}
+	ips := []string{
+		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
+	}
 
 	for _, nt := range npTests {
 		cont := initCont()
@@ -898,17 +892,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_9_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0")
 	rule_9_0_v6.SetAttr("direction", "ingress")
 	rule_9_0_v6.SetAttr("ethertype", "ipv6")
-	rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::2"))
 	rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::4"))
-	rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::5"))
 	rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::6"))
 
 	rule_10_0_v6 := apicapi.NewHostprotRule(npv6SDnE, "0")
 	rule_10_0_v6.SetAttr("direction", "egress")
 	rule_10_0_v6.SetAttr("ethertype", "ipv6")
-	rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::2"))
 	rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::4"))
-	rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::5"))
 	rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::6"))
 
 	rule_11_0_v6 := apicapi.NewHostprotRule(npv6SDnE, "0_0")
@@ -964,7 +954,6 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_14_s_v6.SetAttr("toPort", "8080")
 	rule_14_s_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s_v6.GetDn(), "fd00::1234"))
 
-
 	var np6Tests = []npTest{
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil, nil)},
@@ -978,16 +967,16 @@ func TestNetworkPolicyv6(t *testing.T) {
 					nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_1_0_v6}, nil, name),
 			nil, "allow-http"},
-		   {netpol("testnsv6", "npv6", &metav1.LabelSelector{},
-			   []v1net.NetworkPolicyIngressRule{
-				   ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
-					   []v1net.NetworkPolicyPeer{
-						   peerIpBlock(peer(nil, nil),
-							   "8.8.8.8/24", []string{"8.8.8.9/31"}),
-					   },
-				   )}, nil, allPolicyTypes),
-			   makeNp(apicapi.ApicSlice{rule_2_0_v6}, nil, name),
-			   nil, "allow-http-from"},
+		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
+					[]v1net.NetworkPolicyPeer{
+						peerIpBlock(peer(nil, nil),
+							"8.8.8.8/24", []string{"8.8.8.9/31"}),
+					},
+				)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_2_0_v6}, nil, name),
+			nil, "allow-http-from"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{
@@ -1087,7 +1076,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 						}, &metav1.LabelSelector{
 							MatchLabels: map[string]string{"nl": "nv"},
 						}),
-				}),
+					}),
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_10_0_v6}, name),
 			nil, "egress-allow-all-select-pods-and-ns"},
@@ -1105,7 +1094,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
-				//nil),
+					//nil),
 					[]v1net.NetworkPolicyPeer{
 						peer(&metav1.LabelSelector{
 							MatchLabels: map[string]string{"l1": "v1"},
@@ -1211,24 +1200,24 @@ func TestNetworkPolicyv6(t *testing.T) {
 									Kind:      "Pod",
 									Namespace: "testns",
 									Name:      "pod2",
+								},
 							},
 						},
-					},
-					[]v1.EndpointPort{
-						endpointPort(v1.ProtocolTCP, 81, ""),
-					}),
-			},
-			[]*v1.Service{
-				npservice("testns", "service1", "fd00::1234",
-					[]v1.ServicePort{
-						servicePort("", v1.ProtocolTCP, 8080, 80),
-					}),
-				npservice("testns", "service2", "fd00::1239",
-					[]v1.ServicePort{
-						servicePort("", v1.ProtocolTCP, 8080, 81),
-					}), // should not match (port wrong)
-			},
-		}, "egress-allow-http-all-augment"},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 81, ""),
+						}),
+				},
+				[]*v1.Service{
+					npservice("testns", "service1", "fd00::1234",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns", "service2", "fd00::1239",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 81),
+						}), // should not match (port wrong)
+				},
+			}, "egress-allow-http-all-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule(nil,
@@ -1280,7 +1269,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 						}),
 				},
 			}, "egress-allow-subnet-augment"},
-			{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
+		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule(nil, nil),
 			}, allPolicyTypes),
@@ -1305,12 +1294,11 @@ func TestNetworkPolicyv6(t *testing.T) {
 				[]*v1.Service{
 					npservice("testns", "service1", "fd00::1234",
 						[]v1.ServicePort{
-								servicePort("", v1.ProtocolTCP, 8080, 80),
-							}),
-					},
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+				},
 			}, "egress-allow-all-augment"},
 	}
-
 
 	initCont := func() *testAciController {
 		cont := testController()
@@ -1344,8 +1332,8 @@ func TestNetworkPolicyv6(t *testing.T) {
 	}
 
 	ips := []string{
-			"2001::2", "2001::3","2001::4", "2001::5", "2001::6", "",
-			}
+		"2001::2", "2001::3", "2001::4", "2001::5", "2001::6", "",
+	}
 
 	for _, nt := range np6Tests {
 		cont := initCont()
@@ -1374,5 +1362,3 @@ func TestNetworkPolicyv6(t *testing.T) {
 		cont.stop()
 	}
 }
-
-
