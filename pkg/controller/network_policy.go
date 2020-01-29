@@ -79,36 +79,41 @@ func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,
 
 	var ret []index.PodSelector
 	for _, peer := range peers {
-		if peer.PodSelector != nil {
-			selector, err :=
-				metav1.LabelSelectorAsSelector(peer.PodSelector)
-			if err != nil {
-				networkPolicyLogger(cont.log, np).
-					Error("Could not create selector: ", err)
-				continue
-			}
+		podselector, err :=
+			metav1.LabelSelectorAsSelector(peer.PodSelector)
+		if err != nil {
+			networkPolicyLogger(cont.log, np).
+				Error("Could not create selector: ", err)
+			continue
+		}
+		nsselector, err := metav1.
+			LabelSelectorAsSelector(peer.NamespaceSelector)
+		if err != nil {
+			networkPolicyLogger(cont.log, np).
+				Error("Could not create selector: ", err)
+			continue
+		}
 
+		switch {
+		case peer.PodSelector != nil && peer.NamespaceSelector != nil:
+			ret = append(ret, index.PodSelector{
+				NsSelector:  nsselector,
+				PodSelector: podselector,
+			})
+		case peer.PodSelector != nil:
 			ret = append(ret, index.PodSelector{
 				Namespace:   &np.ObjectMeta.Namespace,
-				PodSelector: selector,
+				PodSelector: podselector,
 			})
-		}
-		if peer.NamespaceSelector != nil {
-			selector, err := metav1.
-				LabelSelectorAsSelector(peer.NamespaceSelector)
-			if err != nil {
-				networkPolicyLogger(cont.log, np).
-					Error("Could not create selector: ", err)
-				continue
-			}
-
+		case peer.NamespaceSelector != nil:
 			ret = append(ret, index.PodSelector{
-				NsSelector:  selector,
+				NsSelector:  nsselector,
 				PodSelector: labels.Everything(),
 			})
-		}
-	}
 
+		}
+
+	}
 	return ret
 }
 
