@@ -21,7 +21,6 @@ import (
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -316,20 +315,11 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string, global
 }
 
 func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []string) {
-	var services []*v1.Service
-	selector := labels.SelectorFromSet(labels.Set(policy.Selector.Labels))
-	cache.ListAll(cont.serviceIndexer, selector,
-		func(servobj interface{}) {
-			services = append(services, servobj.(*v1.Service))
-		})
+        services := cont.getServicesBySelector(labels.SelectorFromSet(
+                            labels.Set(policy.Selector.Labels)),
+                                    policy.Selector.Namespace)
 	for _, service := range services {
-		if len(policy.Selector.Namespace) == 0 || (len(policy.Selector.Namespace) > 0 &&
-			policy.Selector.Namespace == service.ObjectMeta.Namespace) {
-			if len(service.Status.LoadBalancer.Ingress) == 0 {
-				continue
-			}
-			serviceIps = append(serviceIps, service.Status.LoadBalancer.Ingress[0].IP)
-		}
+		serviceIps = append(serviceIps, service.Status.LoadBalancer.Ingress[0].IP)
 	}
 	return
 }

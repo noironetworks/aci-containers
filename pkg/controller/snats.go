@@ -140,29 +140,39 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 	return requeue
 }
 
-func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy) error {
+func (cont *AciController) getServicesBySelector(selector labels.Selector, ns string) []*v1.Service {
+        var services []*v1.Service
+        cache.ListAll(cont.serviceIndexer, selector,
+                      func(servobj interface{}) {
+                              service := servobj.(*v1.Service)
+                              if len(ns) == 0 || (len(ns) > 0 && ns == service.ObjectMeta.Namespace) {
+                                      if len(service.Status.LoadBalancer.Ingress) != 0 {
+                                              services = append(services, service)
+                                      }
+                              }
+                      })
+        return services
+}
 
-	selector := labels.Set(snatpolicy.Spec.Selector.Labels).String()
-	ServicesList, err := cont.listServicesBySelector(selector)
-	if err != nil {
-		cont.log.Debug("Error getting matching services: ", err)
-	}
-	if len(ServicesList.Items) == 0 {
+func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy ) error {
+        ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
+                            labels.Set(snatpolicy.Spec.Selector.Labels)),
+                                       snatpolicy.Spec.Selector.Namespace)
+
+	if len(ServiceList) == 0 {
 		return nil
 	}
-	for _, service := range ServicesList.Items {
-		if service.Spec.Type == v1.ServiceTypeLoadBalancer {
-			servicekey, err := cache.MetaNamespaceKeyFunc(service)
-			if err != nil {
-				servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
-			}
-			cont.indexMutex.Lock()
-			if service.GetDeletionTimestamp() == nil {
-				cont.snatServices[servicekey] = true
-				cont.queueServiceUpdateByKey(servicekey)
-			}
-			cont.indexMutex.Unlock()
+	for _, service := range ServiceList {
+	        servicekey, err := cache.MetaNamespaceKeyFunc(service)
+		if err != nil {
+			servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
 		}
+		cont.indexMutex.Lock()
+		if service.GetDeletionTimestamp() == nil {
+			cont.snatServices[servicekey] = true
+			cont.queueServiceUpdateByKey(servicekey)
+		}
+			cont.indexMutex.Unlock()
 	}
 	return nil
 }
@@ -193,20 +203,17 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
 
 	if len(snatpolicy.Spec.SnatIp) == 0 {
-		selector := labels.Set(snatpolicy.Spec.Selector.Labels).String()
-		ServicesList, err := cont.listServicesBySelector(selector)
-		if err == nil {
-			if len(ServicesList.Items) > 0 {
-				for _, service := range ServicesList.Items {
-					if service.Spec.Type == v1.ServiceTypeLoadBalancer {
-						servicekey, err1 := cache.MetaNamespaceKeyFunc(service)
-						if err1 != nil {
-							servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
-						}
-						delete(cont.snatServices, servicekey)
-						cont.queueServiceUpdateByKey(servicekey)
-					}
-				}
+                ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
+                         labels.Set(snatpolicy.Spec.Selector.Labels)),
+                                snatpolicy.Spec.Selector.Namespace)
+		if len(ServiceList) > 0 {
+			for _, service := range ServiceList {
+				servicekey, err1 := cache.MetaNamespaceKeyFunc(service)
+				if err1 != nil {
+					servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
+			        }
+				delete(cont.snatServices, servicekey)
+				cont.queueServiceUpdateByKey(servicekey)
 			}
 		}
 	} else {
