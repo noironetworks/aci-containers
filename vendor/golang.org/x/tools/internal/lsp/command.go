@@ -17,17 +17,21 @@ func (s *Server) executeCommand(ctx context.Context, params *protocol.ExecuteCom
 		}
 		// Confirm that this action is being taken on a go.mod file.
 		uri := span.NewURI(params.Arguments[0].(string))
-		view := s.session.ViewOf(uri)
-		f, err := view.GetFile(ctx, uri)
+		view, err := s.session.ViewOf(uri)
 		if err != nil {
 			return nil, err
 		}
-		fh := view.Snapshot().Handle(ctx, f)
+		fh, err := view.Snapshot().GetFile(uri)
+		if err != nil {
+			return nil, err
+		}
 		if fh.Identity().Kind != source.Mod {
 			return nil, errors.Errorf("%s is not a mod file", uri)
 		}
 		// Run go.mod tidy on the view.
-		if err := source.ModTidy(ctx, view); err != nil {
+		// TODO: This should go through the ModTidyHandle on the view.
+		// That will also allow us to move source.InvokeGo into internal/lsp/cache.
+		if _, err := source.InvokeGo(ctx, view.Folder().Filename(), view.Config(ctx).Env, "mod", "tidy"); err != nil {
 			return nil, err
 		}
 	}

@@ -1295,6 +1295,36 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 				rt.DataDir = dataDir
 			},
 		},
+		{
+			desc: "min/max ports for dynamic exposed listeners",
+			args: []string{`-data-dir=` + dataDir},
+			json: []string{`{
+				"ports": {
+					"expose_min_port": 1234,
+					"expose_max_port": 5678
+				}
+			}`},
+			hcl: []string{`
+				ports {
+					expose_min_port = 1234
+					expose_max_port = 5678
+				}
+			`},
+			patch: func(rt *RuntimeConfig) {
+				rt.ExposeMinPort = 1234
+				rt.ExposeMaxPort = 5678
+				rt.DataDir = dataDir
+			},
+		},
+		{
+			desc: "defaults for dynamic exposed listeners",
+			args: []string{`-data-dir=` + dataDir},
+			patch: func(rt *RuntimeConfig) {
+				rt.ExposeMinPort = 21500
+				rt.ExposeMaxPort = 21755
+				rt.DataDir = dataDir
+			},
+		},
 
 		// ------------------------------------------------------------
 		// precedence rules
@@ -2338,6 +2368,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 									}
 								],
 								"proxy": {
+									"expose": {
+										"checks": true,
+										"paths": [
+											{
+												"path": "/health",
+												"local_path_port": 8080,
+												"listener_port": 21500,
+												"protocol": "http"
+											}
+										]
+									},
 									"upstreams": [
 										{
 											"destination_name": "db",
@@ -2363,6 +2404,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 								}
 							]
 							proxy {
+								expose {
+									checks = true
+									paths = [
+										{
+											path = "/health"
+											local_path_port = 8080
+											listener_port = 21500
+											protocol = "http"
+										}
+									]
+								},
 								upstreams = [
 									{
 										destination_name = "db"
@@ -2391,6 +2443,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 									},
 								},
 								Proxy: &structs.ConnectProxyConfig{
+									Expose: structs.ExposeConfig{
+										Checks: true,
+										Paths: []structs.ExposePath{
+											{
+												Path:          "/health",
+												LocalPathPort: 8080,
+												ListenerPort:  21500,
+												Protocol:      "http",
+											},
+										},
+									},
 									Upstreams: structs.Upstreams{
 										structs.Upstream{
 											DestinationType: "service",
@@ -2434,6 +2497,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 									}
 								],
 								"proxy": {
+									"expose": {
+										"checks": true,
+										"paths": [
+											{
+												"path": "/health",
+												"local_path_port": 8080,
+												"listener_port": 21500,
+												"protocol": "http"
+											}
+										]
+									},
 									"upstreams": [
 										{
 											"destination_name": "db",
@@ -2459,6 +2533,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 								}
 							]
 							proxy {
+								expose {
+									checks = true
+									paths = [
+										{
+											path = "/health"
+											local_path_port = 8080
+											listener_port = 21500
+											protocol = "http"
+										}
+									]
+								},
 								upstreams = [
 									{
 										destination_name = "db"
@@ -2487,6 +2572,17 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 									},
 								},
 								Proxy: &structs.ConnectProxyConfig{
+									Expose: structs.ExposeConfig{
+										Checks: true,
+										Paths: []structs.ExposePath{
+											{
+												Path:          "/health",
+												LocalPathPort: 8080,
+												ListenerPort:  21500,
+												Protocol:      "http",
+											},
+										},
+									},
 									Upstreams: structs.Upstreams{
 										structs.Upstream{
 											DestinationType: "service",
@@ -2588,7 +2684,7 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 			},
 		},
 		{
-			desc: "auto_encrypt.allow fails without verify_incoming or verify_incoming_rpc",
+			desc: "auto_encrypt.allow warns without verify_incoming or verify_incoming_rpc",
 			args: []string{
 				`-data-dir=` + dataDir,
 			},
@@ -2598,7 +2694,12 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 			hcl: []string{`
 			  auto_encrypt { allow_tls = true }
 			`},
-			err: "if auto_encrypt.allow_tls is turned on, either verify_incoming or verify_incoming_rpc must be enabled.",
+			warns: []string{"if auto_encrypt.allow_tls is turned on, either verify_incoming or verify_incoming_rpc should be enabled. It is necessary to turn it off during a migration to TLS, but it should definitely be turned on afterwards."},
+			patch: func(rt *RuntimeConfig) {
+				rt.DataDir = dataDir
+				rt.AutoEncryptAllowTLS = true
+				rt.ConnectEnabled = true
+			},
 		},
 		{
 			desc: "test connect vault provider configuration",
@@ -3191,6 +3292,28 @@ func TestConfigFlagsAndEdgecases(t *testing.T) {
 				}
 			},
 		},
+
+		///////////////////////////////////
+		// Defaults sanity checks
+
+		{
+			desc: "default limits",
+			args: []string{
+				`-data-dir=` + dataDir,
+			},
+			patch: func(rt *RuntimeConfig) {
+				rt.DataDir = dataDir
+				// Note that in the happy case this test will pass even if you comment
+				// out all the stuff below since rt is also initialized from the
+				// defaults. But it's still valuable as it will fail as soon as the
+				// defaults are changed from these values forcing that change to be
+				// intentional.
+				rt.RPCHandshakeTimeout = 5 * time.Second
+				rt.HTTPSHandshakeTimeout = 5 * time.Second
+				rt.HTTPMaxConnsPerClient = 100
+				rt.RPCMaxConnsPerClient = 100
+			},
+		},
 	}
 
 	testConfig(t, tests, dataDir)
@@ -3424,6 +3547,7 @@ func TestFullConfig(t *testing.T) {
 				"disable_upgrade_migration": true,
 				"last_contact_threshold": "12705s",
 				"max_trailing_logs": 17849,
+				"min_quorum":		 3,
 				"redundancy_zone_tag": "3IsufDJf",
 				"server_stabilization_time": "23057s",
 				"upgrade_version_tag": "W9pDwFAL"
@@ -3602,8 +3726,12 @@ func TestFullConfig(t *testing.T) {
 			"key_file": "IEkkwgIA",
 			"leave_on_terminate": true,
 			"limits": {
+				"http_max_conns_per_client": 9283,
+				"https_handshake_timeout": "2391ms",
+				"rpc_handshake_timeout": "1932ms",
 				"rpc_rate": 12029.43,
 				"rpc_max_burst": 44848,
+				"rpc_max_conns_per_client": 2954,
 				"kv_max_value_size": 1234567800000000
 			},
 			"log_level": "k1zo9Spt",
@@ -3627,7 +3755,9 @@ func TestFullConfig(t *testing.T) {
 				"server": 3757,
 				"grpc": 4881,
 				"sidecar_min_port": 8888,
-				"sidecar_max_port": 9999
+				"sidecar_max_port": 9999,
+				"expose_min_port": 1111,
+				"expose_max_port": 2222
 			},
 			"protocol": 30793,
 			"primary_datacenter": "ejtmd43d",
@@ -3871,6 +4001,17 @@ func TestFullConfig(t *testing.T) {
 						"destination_service_name": "6L6BVfgH",
 						"local_service_address": "127.0.0.2",
 						"local_service_port": 23759,
+						"expose": {
+							"checks": true,
+							"paths": [
+								{
+									"path": "/health",
+									"local_path_port": 8080,
+									"listener_port": 21500,
+									"protocol": "http"
+								}
+							]
+						},
 						"upstreams": [
 							{
 								"destination_name": "KPtAj2cb",
@@ -4007,6 +4148,7 @@ func TestFullConfig(t *testing.T) {
 				disable_upgrade_migration = true
 				last_contact_threshold = "12705s"
 				max_trailing_logs = 17849
+				min_quorum = 3
 				redundancy_zone_tag = "3IsufDJf"
 				server_stabilization_time = "23057s"
 				upgrade_version_tag = "W9pDwFAL"
@@ -4186,8 +4328,12 @@ func TestFullConfig(t *testing.T) {
 			key_file = "IEkkwgIA"
 			leave_on_terminate = true
 			limits {
+				http_max_conns_per_client = 9283
+				https_handshake_timeout = "2391ms"
+				rpc_handshake_timeout = "1932ms"
 				rpc_rate = 12029.43
 				rpc_max_burst = 44848
+				rpc_max_conns_per_client = 2954
 				kv_max_value_size = 1234567800000000
 			}
 			log_level = "k1zo9Spt"
@@ -4205,8 +4351,8 @@ func TestFullConfig(t *testing.T) {
 			}
 			pid_file = "43xN80Km"
 			ports {
-				dns = 7001,
-				http = 7999,
+				dns = 7001
+				http = 7999
 				https = 15127
 				server = 3757
 				grpc = 4881
@@ -4214,6 +4360,8 @@ func TestFullConfig(t *testing.T) {
 				proxy_max_port = 3000
 				sidecar_min_port = 8888
 				sidecar_max_port = 9999
+				expose_min_port = 1111
+				expose_max_port = 2222
 			}
 			protocol = 30793
 			primary_datacenter = "ejtmd43d"
@@ -4472,6 +4620,17 @@ func TestFullConfig(t *testing.T) {
 								local_bind_address = "127.24.88.0"
 							},
 						]
+						expose {
+							checks = true
+							paths = [
+								{
+									path = "/health"
+									local_path_port = 8080
+									listener_port = 21500
+									protocol = "http"
+								}
+							]
+						}
 					}
 				},
 				{
@@ -4695,6 +4854,7 @@ func TestFullConfig(t *testing.T) {
 		AutopilotDisableUpgradeMigration: true,
 		AutopilotLastContactThreshold:    12705 * time.Second,
 		AutopilotMaxTrailingLogs:         17849,
+		AutopilotMinQuorum:               3,
 		AutopilotRedundancyZoneTag:       "3IsufDJf",
 		AutopilotServerStabilizationTime: 23057 * time.Second,
 		AutopilotUpgradeVersionTag:       "W9pDwFAL",
@@ -4797,6 +4957,8 @@ func TestFullConfig(t *testing.T) {
 		ConnectEnabled:        true,
 		ConnectSidecarMinPort: 8888,
 		ConnectSidecarMaxPort: 9999,
+		ExposeMinPort:         1111,
+		ExposeMaxPort:         2222,
 		ConnectCAProvider:     "consul",
 		ConnectCAConfig: map[string]interface{}{
 			"RotationPeriod":   "90h",
@@ -4853,6 +5015,8 @@ func TestFullConfig(t *testing.T) {
 		HTTPPort:                         7999,
 		HTTPResponseHeaders:              map[string]string{"M6TKa9NP": "xjuxjOzQ", "JRCrHZed": "rl0mTx81"},
 		HTTPSAddrs:                       []net.Addr{tcpAddr("95.17.17.19:15127")},
+		HTTPMaxConnsPerClient:            9283,
+		HTTPSHandshakeTimeout:            2391 * time.Millisecond,
 		HTTPSPort:                        15127,
 		KeyFile:                          "IEkkwgIA",
 		KVMaxValueSize:                   1234567800000000,
@@ -4867,10 +5031,12 @@ func TestFullConfig(t *testing.T) {
 		PrimaryDatacenter:                "ejtmd43d",
 		RPCAdvertiseAddr:                 tcpAddr("17.99.29.16:3757"),
 		RPCBindAddr:                      tcpAddr("16.99.34.17:3757"),
+		RPCHandshakeTimeout:              1932 * time.Millisecond,
 		RPCHoldTimeout:                   15707 * time.Second,
 		RPCProtocol:                      30793,
 		RPCRateLimit:                     12029.43,
 		RPCMaxBurst:                      44848,
+		RPCMaxConnsPerClient:             2954,
 		RaftProtocol:                     19016,
 		RaftSnapshotThreshold:            16384,
 		RaftSnapshotInterval:             30 * time.Second,
@@ -5042,6 +5208,17 @@ func TestFullConfig(t *testing.T) {
 							DestinationName:      "KSd8HsRl",
 							LocalBindPort:        11884,
 							LocalBindAddress:     "127.24.88.0",
+						},
+					},
+					Expose: structs.ExposeConfig{
+						Checks: true,
+						Paths: []structs.ExposePath{
+							{
+								Path:          "/health",
+								LocalPathPort: 8080,
+								ListenerPort:  21500,
+								Protocol:      "http",
+							},
 						},
 					},
 				},
@@ -5566,6 +5743,7 @@ func TestSanitize(t *testing.T) {
 		"AutopilotDisableUpgradeMigration": false,
 		"AutopilotLastContactThreshold": "0s",
 		"AutopilotMaxTrailingLogs": 0,
+		"AutopilotMinQuorum": 0,
 		"AutopilotRedundancyZoneTag": "",
 		"AutopilotServerStabilizationTime": "0s",
 		"AutopilotUpgradeVersionTag": "",
@@ -5683,6 +5861,8 @@ func TestSanitize(t *testing.T) {
 		"EncryptKey": "hidden",
 		"EncryptVerifyIncoming": false,
 		"EncryptVerifyOutgoing": false,
+		"ExposeMaxPort": 0,
+		"ExposeMinPort": 0,
 		"GRPCAddrs": [],
 		"GRPCPort": 0,
 		"HTTPAddrs": [
@@ -5690,9 +5870,11 @@ func TestSanitize(t *testing.T) {
 			"unix:///var/run/foo"
 		],
 		"HTTPBlockEndpoints": [],
+		"HTTPMaxConnsPerClient": 0,
 		"HTTPPort": 0,
 		"HTTPResponseHeaders": {},
 		"HTTPSAddrs": [],
+		"HTTPSHandshakeTimeout": "0s",
 		"HTTPSPort": 0,
 		"KeyFile": "hidden",
 		"KVMaxValueSize": 1234567800000000,
@@ -5711,8 +5893,10 @@ func TestSanitize(t *testing.T) {
 		"PrimaryDatacenter": "",
 		"RPCAdvertiseAddr": "",
 		"RPCBindAddr": "",
+		"RPCHandshakeTimeout": "0s",
 		"RPCHoldTimeout": "0s",
 		"RPCMaxBurst": 0,
+		"RPCMaxConnsPerClient": 0,
 		"RPCProtocol": 0,
 		"RPCRateLimit": 0,
 		"RaftProtocol": 0,
@@ -5763,6 +5947,8 @@ func TestSanitize(t *testing.T) {
 				"Name": "blurb",
 				"Notes": "",
 				"OutputMaxSize": ` + strconv.Itoa(checks.DefaultBufSize) + `,
+				"ProxyGRPC": "",
+				"ProxyHTTP": "",
 				"ScriptArgs": [],
 				"Shell": "",
 				"Status": "",

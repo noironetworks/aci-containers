@@ -27,9 +27,10 @@ func (fake *FakeLrpConvergenceController) ConvergeLRPs(arg1 context.Context, arg
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("ConvergeLRPs", []interface{}{arg1, arg2})
+	convergeLRPsStubCopy := fake.ConvergeLRPsStub
 	fake.convergeLRPsMutex.Unlock()
-	if fake.ConvergeLRPsStub != nil {
-		fake.ConvergeLRPsStub(arg1, arg2)
+	if convergeLRPsStubCopy != nil {
+		convergeLRPsStubCopy(arg1, arg2)
 	}
 }
 

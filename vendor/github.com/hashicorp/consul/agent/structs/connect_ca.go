@@ -60,8 +60,8 @@ type CARoot struct {
 	SerialNumber uint64
 
 	// SigningKeyID is the ID of the public key that corresponds to the private
-	// key used to sign the certificate. Is is the HexString format of the raw
-	// AuthorityKeyID bytes.
+	// key used to sign leaf certificates. Is is the HexString format of the
+	// raw AuthorityKeyID bytes.
 	SigningKeyID string
 
 	// ExternalTrustDomain is the trust domain this root was generated under. It
@@ -164,11 +164,12 @@ type IssuedCert struct {
 type CAOp string
 
 const (
-	CAOpSetRoots            CAOp = "set-roots"
-	CAOpSetConfig           CAOp = "set-config"
-	CAOpSetProviderState    CAOp = "set-provider-state"
-	CAOpDeleteProviderState CAOp = "delete-provider-state"
-	CAOpSetRootsAndConfig   CAOp = "set-roots-config"
+	CAOpSetRoots                      CAOp = "set-roots"
+	CAOpSetConfig                     CAOp = "set-config"
+	CAOpSetProviderState              CAOp = "set-provider-state"
+	CAOpDeleteProviderState           CAOp = "delete-provider-state"
+	CAOpSetRootsAndConfig             CAOp = "set-roots-config"
+	CAOpIncrementProviderSerialNumber CAOp = "increment-provider-serial"
 )
 
 // CARequest is used to modify connect CA data. This is used by the

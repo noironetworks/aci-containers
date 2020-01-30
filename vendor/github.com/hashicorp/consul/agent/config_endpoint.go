@@ -42,6 +42,7 @@ func (s *HTTPServer) configGet(resp http.ResponseWriter, req *http.Request) (int
 		if err := s.agent.RPC("ConfigEntry.Get", &args, &reply); err != nil {
 			return nil, err
 		}
+		setMeta(resp, &reply.QueryMeta)
 
 		if reply.Entry == nil {
 			return nil, NotFoundError{Reason: fmt.Sprintf("Config entry not found for %q / %q", pathArgs[0], pathArgs[1])}
@@ -56,6 +57,7 @@ func (s *HTTPServer) configGet(resp http.ResponseWriter, req *http.Request) (int
 		if err := s.agent.RPC("ConfigEntry.List", &args, &reply); err != nil {
 			return nil, err
 		}
+		setMeta(resp, &reply.QueryMeta)
 
 		return reply.Entries, nil
 	default:
@@ -101,7 +103,7 @@ func (s *HTTPServer) ConfigApply(resp http.ResponseWriter, req *http.Request) (i
 	s.parseToken(req, &args.Token)
 
 	var raw map[string]interface{}
-	if err := decodeBody(req, &raw, nil); err != nil {
+	if err := decodeBodyDeprecated(req, &raw, nil); err != nil {
 		return nil, BadRequestError{Reason: fmt.Sprintf("Request decoding failed: %v", err)}
 	}
 

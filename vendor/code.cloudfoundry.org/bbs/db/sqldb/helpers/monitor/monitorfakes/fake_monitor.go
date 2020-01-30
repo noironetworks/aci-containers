@@ -80,9 +80,10 @@ func (fake *FakeMonitor) Failed() int64 {
 	fake.failedArgsForCall = append(fake.failedArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Failed", []interface{}{})
+	failedStubCopy := fake.FailedStub
 	fake.failedMutex.Unlock()
-	if fake.FailedStub != nil {
-		return fake.FailedStub()
+	if failedStubCopy != nil {
+		return failedStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -133,9 +134,10 @@ func (fake *FakeMonitor) Monitor(arg1 func() error) error {
 		arg1 func() error
 	}{arg1})
 	fake.recordInvocation("Monitor", []interface{}{arg1})
+	monitorStubCopy := fake.MonitorStub
 	fake.monitorMutex.Unlock()
-	if fake.MonitorStub != nil {
-		return fake.MonitorStub(arg1)
+	if monitorStubCopy != nil {
+		return monitorStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1
@@ -192,9 +194,10 @@ func (fake *FakeMonitor) ReadAndResetDurationMax() time.Duration {
 	fake.readAndResetDurationMaxArgsForCall = append(fake.readAndResetDurationMaxArgsForCall, struct {
 	}{})
 	fake.recordInvocation("ReadAndResetDurationMax", []interface{}{})
+	readAndResetDurationMaxStubCopy := fake.ReadAndResetDurationMaxStub
 	fake.readAndResetDurationMaxMutex.Unlock()
-	if fake.ReadAndResetDurationMaxStub != nil {
-		return fake.ReadAndResetDurationMaxStub()
+	if readAndResetDurationMaxStubCopy != nil {
+		return readAndResetDurationMaxStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -244,9 +247,10 @@ func (fake *FakeMonitor) ReadAndResetInFlightMax() int64 {
 	fake.readAndResetInFlightMaxArgsForCall = append(fake.readAndResetInFlightMaxArgsForCall, struct {
 	}{})
 	fake.recordInvocation("ReadAndResetInFlightMax", []interface{}{})
+	readAndResetInFlightMaxStubCopy := fake.ReadAndResetInFlightMaxStub
 	fake.readAndResetInFlightMaxMutex.Unlock()
-	if fake.ReadAndResetInFlightMaxStub != nil {
-		return fake.ReadAndResetInFlightMaxStub()
+	if readAndResetInFlightMaxStubCopy != nil {
+		return readAndResetInFlightMaxStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -296,9 +300,10 @@ func (fake *FakeMonitor) Succeeded() int64 {
 	fake.succeededArgsForCall = append(fake.succeededArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Succeeded", []interface{}{})
+	succeededStubCopy := fake.SucceededStub
 	fake.succeededMutex.Unlock()
-	if fake.SucceededStub != nil {
-		return fake.SucceededStub()
+	if succeededStubCopy != nil {
+		return succeededStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -348,9 +353,10 @@ func (fake *FakeMonitor) Total() int64 {
 	fake.totalArgsForCall = append(fake.totalArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Total", []interface{}{})
+	totalStubCopy := fake.TotalStub
 	fake.totalMutex.Unlock()
-	if fake.TotalStub != nil {
-		return fake.TotalStub()
+	if totalStubCopy != nil {
+		return totalStubCopy()
 	}
 	if specificReturn {
 		return ret.result1

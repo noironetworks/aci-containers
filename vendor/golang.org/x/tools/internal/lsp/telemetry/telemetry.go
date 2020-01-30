@@ -20,9 +20,12 @@ const (
 	RPCID         = tag.Key("id")
 	RPCDirection  = tag.Key("direction")
 	File          = tag.Key("file")
+	Directory     = tag.Key("directory")
 	URI           = tag.Key("URI")
 	Package       = tag.Key("package")
 	PackagePath   = tag.Key("package_path")
+	Query         = tag.Key("query")
+	Snapshot      = tag.Key("snapshot")
 )
 
 var (

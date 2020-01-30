@@ -2,14 +2,14 @@ version: 2
 jobs:
   build:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     steps:
       - checkout
       - run: go build ./...
   test:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     environment:
       GLOG_logtostderr: '1'
@@ -19,7 +19,7 @@ jobs:
       - run: bash <(curl -s https://codecov.io/bash)
   node_test:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     steps:
       - checkout
@@ -32,17 +32,17 @@ jobs:
           ./node_modules/.bin/gulp
   generate:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     steps:
       - checkout
       - run: make realclean
-      - run: make examples SWAGGER_CODEGEN="${SWAGGER_CODEGEN}" # Set in Docker image
+      - run: make examples
       - run: go mod tidy
       - run: git diff --exit-code
   lint:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     steps:
       - checkout
@@ -84,7 +84,7 @@ jobs:
           when: always
   release:
     docker:
-      - image: jfbrandhorst/grpc-gateway-build-env:1.12
+      - image: jfbrandhorst/grpc-gateway-build-env:1.13
     working_directory: /src/grpc-gateway
     steps:
       - checkout

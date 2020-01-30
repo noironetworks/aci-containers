@@ -40,11 +40,21 @@ Authors of editor clients may wish to handle hover text differently, and so migh
 
 Default: `"SynopsisDocumentation"`.
 
-## **usePlaceholders** *boolean*
+### **usePlaceholders** *boolean*
 
 If true, then completion responses may contain placeholders for function parameters or struct fields.
 
 Default: `false`.
+
+### **linkTarget** *string*
+
+This controls where points documentation for given package in `textDocument/documentLink`.
+It might be one of:
+* `"godoc.org"`   
+* `"pkg.go.dev"`
+If company chooses to use its own `godoc.org`, its address can be used as well.
+
+Default: `"pkg.go.dev"`.
 
 ## Experimental
 
@@ -64,7 +74,7 @@ If false, indicates that the user does not want documentation with completion re
 
 Default value: `true`.
 
-**completeUnimported** *boolean*
+### **completeUnimported** *boolean*
 
 If true, the completion engine is allowed to make suggestions for packages that you do not currently import.
 
@@ -72,7 +82,11 @@ Default: `false`.
 
 ### **deepCompletion** *boolean*
 
-If true, this turns on the ability to return completions from deep inside relevant entities, rather than just the locally accessible ones. Consider this example:
+If true, this turns on the ability to return completions from deep inside relevant entities, rather than just the locally accessible ones.
+
+Default: `true`.
+
+Consider this example:
 
 ```go
 package main
@@ -90,3 +104,9 @@ func main() {
 ```
 
 At the location of the `<>` in this program, deep completion would suggest the result `x.str`.
+
+### **fuzzyMatching** *boolean*
+
+If true, this enables server side fuzzy matching of completion candidates.
+
+Default: `true`.

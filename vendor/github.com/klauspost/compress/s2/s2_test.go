@@ -116,7 +116,7 @@ func roundtrip(b, ebuf, dbuf []byte) error {
 	}
 	concat = concat[len(dst):]
 
-	d, err = Decode(nil, concat)
+	d, _ = Decode(nil, concat)
 	want := append(make([]byte, 0, len(b)*3), b...)
 	want = append(want, b...)
 	want = append(want, b...)
@@ -1528,6 +1528,32 @@ func testFile(t *testing.T, i, repeat int) {
 		t.Run("snappy", func(t *testing.T) {
 			testSnappyDecode(t, data)
 		})
+	})
+}
+
+func TestDataRoundtrips(t *testing.T) {
+	test := func(t *testing.T, data []byte) {
+		t.Run("s2", func(t *testing.T) {
+			testWriterRoundtrip(t, data)
+		})
+		t.Run("s2-better", func(t *testing.T) {
+			testWriterRoundtrip(t, data, WriterBetterCompression())
+		})
+		t.Run("block", func(t *testing.T) {
+			d := data
+			testBlockRoundtrip(t, d)
+		})
+		t.Run("block-better", func(t *testing.T) {
+			d := data
+			testBetterBlockRoundtrip(t, d)
+		})
+		t.Run("snappy", func(t *testing.T) {
+			testSnappyDecode(t, data)
+		})
+	}
+	t.Run("longblock", func(t *testing.T) {
+		data := make([]byte, 1<<25)
+		test(t, data)
 	})
 }
 

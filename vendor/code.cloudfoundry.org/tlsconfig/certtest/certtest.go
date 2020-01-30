@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/square/certstrap/pkix"
@@ -25,14 +24,6 @@ const (
 	//
 	// Do not use these certificates to transport secrets.
 	keySize = 1024
-)
-
-var (
-	// The github.com/square/certstrap/pkix package is not thread-safe for
-	// certain PKI operations. In order to avoid this concern leaking out into
-	// consumers of this package we perform our own locking.
-	caLock  sync.Mutex
-	csrLock sync.Mutex
 )
 
 // Authority represents a Certificate Authority. It should not be used for
@@ -53,13 +44,10 @@ func BuildCA(name string) (*Authority, error) {
 	// XXX: Add a month so CA expires after its certificates.
 	expiry := time.Now().AddDate(1, 1, 0)
 
-	caLock.Lock()
 	crt, err := pkix.CreateCertificateAuthority(key, ou, expiry, o, country, province, city, name)
 	if err != nil {
-		caLock.Unlock()
 		return nil, err
 	}
-	caLock.Unlock()
 
 	return &Authority{
 		cert: crt,
@@ -85,17 +73,19 @@ func WithDomains(domains ...string) SignOption {
 	}
 }
 
-// BuildSignedCertificate creates a new signed certificate with a default expiry date.
-func (a *Authority) BuildSignedCertificate(name string, options ...SignOption) (*Certificate, error) {
-	expiry := time.Now().AddDate(1, 0, 0)
-	return a.BuildSignedCertificateWithExpiry(name, expiry, options...)
+// WithExpiry alters the expiry time of the requested certificate. It must be
+// earlier than the expiry time of the associated CA.
+func WithExpiry(expiry time.Time) SignOption {
+	return func(options *signOptions) {
+		options.expiry = expiry
+	}
 }
 
-// BuildSignedCertificateWithExpiry creates a new signed certificate which is valid for
-// `localhost` and `127.0.0.1` by default. This can be changed by passing in
-// the various options. The certificates it creates should only be used
-// ephemerally in tests.
-func (a *Authority) BuildSignedCertificateWithExpiry(name string, expiry time.Time, options ...SignOption) (*Certificate, error) {
+// BuildSignedCertificateWithExpiry creates a new signed certificate which is
+// valid for `localhost` and `127.0.0.1` by default with the expiry a year from
+// now. This can be changed by passing in the various options. The certificates
+// it creates should only be used ephemerally in tests.
+func (a *Authority) BuildSignedCertificate(name string, options ...SignOption) (*Certificate, error) {
 	key, err := pkix.CreateRSAKey(keySize)
 	if err != nil {
 		return nil, err
@@ -106,15 +96,12 @@ func (a *Authority) BuildSignedCertificateWithExpiry(name string, expiry time.Ti
 		opts.apply(o)
 	}
 
-	csrLock.Lock()
 	csr, err := pkix.CreateCertificateSigningRequest(key, ou, opts.ips, opts.domains, nil, o, country, province, city, name)
 	if err != nil {
-		csrLock.Unlock()
 		return nil, err
 	}
-	csrLock.Unlock()
 
-	crt, err := pkix.CreateCertificateHost(a.cert, a.key, csr, expiry)
+	crt, err := pkix.CreateCertificateHost(a.cert, a.key, csr, opts.expiry)
 	if err != nil {
 		return nil, err
 	}
@@ -125,9 +112,25 @@ func (a *Authority) BuildSignedCertificateWithExpiry(name string, expiry time.Ti
 	}, nil
 }
 
+// BuildSignedCertificateWithExpiry creates a new signed certificate which is valid for
+// `localhost` and `127.0.0.1` by default. This can be changed by passing in
+// the various options. The certificates it creates should only be used
+// ephemerally in tests.
+//
+// Deprecated: Use BuildSignedCertificate with the WithExpiry(...) option.
+func (a *Authority) BuildSignedCertificateWithExpiry(name string, expiry time.Time, options ...SignOption) (*Certificate, error) {
+	options = append(options, WithExpiry(expiry))
+	return a.BuildSignedCertificate(name, options...)
+}
+
 // CertificatePEM returns the authorities certificate as a PEM encoded bytes.
 func (a *Authority) CertificatePEM() ([]byte, error) {
 	return a.cert.Export()
+}
+
+// Certificate resunts the authority's certificate.
+func (a *Authority) Certificate() (*x509.Certificate, error) {
+	return a.cert.GetRawCertificate()
 }
 
 // CertPool returns a certificate pool which is pre-populated with the
@@ -185,12 +188,15 @@ func (c *Certificate) CertificatePEMAndPrivateKey() ([]byte, []byte, error) {
 type signOptions struct {
 	domains []string
 	ips     []net.IP
+
+	expiry time.Time
 }
 
 func defaultSignOptions() *signOptions {
 	return &signOptions{
 		domains: []string{"localhost"},
 		ips:     []net.IP{net.ParseIP("127.0.0.1")},
+		expiry:  time.Now().AddDate(1, 0, 0),
 	}
 }
 

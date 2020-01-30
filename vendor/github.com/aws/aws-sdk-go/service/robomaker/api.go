@@ -66,18 +66,18 @@ func (c *RoboMaker) BatchDescribeSimulationJobRequest(input *BatchDescribeSimula
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation BatchDescribeSimulationJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -157,18 +157,18 @@ func (c *RoboMaker) CancelDeploymentJobRequest(input *CancelDeploymentJobInput) 
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CancelDeploymentJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -248,18 +248,18 @@ func (c *RoboMaker) CancelSimulationJobRequest(input *CancelSimulationJobInput) 
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CancelSimulationJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -345,29 +345,29 @@ func (c *RoboMaker) CreateDeploymentJobRequest(input *CreateDeploymentJobInput) 
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateDeploymentJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeConcurrentDeploymentException "ConcurrentDeploymentException"
+//   * ConcurrentDeploymentException
 //   The failure percentage threshold percentage was met.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
@@ -447,19 +447,19 @@ func (c *RoboMaker) CreateFleetRequest(input *CreateFleetInput) (req *request.Re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateFleet for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
@@ -538,23 +538,23 @@ func (c *RoboMaker) CreateRobotRequest(input *CreateRobotInput) (req *request.Re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateRobot for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeResourceAlreadyExistsException "ResourceAlreadyExistsException"
+//   * ResourceAlreadyExistsException
 //   The specified resource already exists.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/CreateRobot
@@ -632,26 +632,26 @@ func (c *RoboMaker) CreateRobotApplicationRequest(input *CreateRobotApplicationI
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateRobotApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceAlreadyExistsException "ResourceAlreadyExistsException"
+//   * ResourceAlreadyExistsException
 //   The specified resource already exists.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
@@ -731,25 +731,25 @@ func (c *RoboMaker) CreateRobotApplicationVersionRequest(input *CreateRobotAppli
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateRobotApplicationVersion for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/CreateRobotApplicationVersion
@@ -827,26 +827,26 @@ func (c *RoboMaker) CreateSimulationApplicationRequest(input *CreateSimulationAp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateSimulationApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceAlreadyExistsException "ResourceAlreadyExistsException"
+//   * ResourceAlreadyExistsException
 //   The specified resource already exists.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
@@ -926,25 +926,25 @@ func (c *RoboMaker) CreateSimulationApplicationVersionRequest(input *CreateSimul
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateSimulationApplicationVersion for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/CreateSimulationApplicationVersion
@@ -1025,31 +1025,31 @@ func (c *RoboMaker) CreateSimulationJobRequest(input *CreateSimulationJobInput) 
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation CreateSimulationJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
 //
-//   * ErrCodeServiceUnavailableException "ServiceUnavailableException"
+//   * ServiceUnavailableException
 //   The request has failed due to a temporary failure of the server.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/CreateSimulationJob
@@ -1128,15 +1128,15 @@ func (c *RoboMaker) DeleteFleetRequest(input *DeleteFleetInput) (req *request.Re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DeleteFleet for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -1216,15 +1216,15 @@ func (c *RoboMaker) DeleteRobotRequest(input *DeleteRobotInput) (req *request.Re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DeleteRobot for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -1304,16 +1304,16 @@ func (c *RoboMaker) DeleteRobotApplicationRequest(input *DeleteRobotApplicationI
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DeleteRobotApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/DeleteRobotApplication
@@ -1392,16 +1392,16 @@ func (c *RoboMaker) DeleteSimulationApplicationRequest(input *DeleteSimulationAp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DeleteSimulationApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/DeleteSimulationApplication
@@ -1479,19 +1479,19 @@ func (c *RoboMaker) DeregisterRobotRequest(input *DeregisterRobotInput) (req *re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DeregisterRobot for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/DeregisterRobot
@@ -1569,18 +1569,18 @@ func (c *RoboMaker) DescribeDeploymentJobRequest(input *DescribeDeploymentJobInp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeDeploymentJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -1659,18 +1659,18 @@ func (c *RoboMaker) DescribeFleetRequest(input *DescribeFleetInput) (req *reques
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeFleet for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -1749,18 +1749,18 @@ func (c *RoboMaker) DescribeRobotRequest(input *DescribeRobotInput) (req *reques
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeRobot for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -1839,19 +1839,19 @@ func (c *RoboMaker) DescribeRobotApplicationRequest(input *DescribeRobotApplicat
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeRobotApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/DescribeRobotApplication
@@ -1929,19 +1929,19 @@ func (c *RoboMaker) DescribeSimulationApplicationRequest(input *DescribeSimulati
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeSimulationApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/DescribeSimulationApplication
@@ -2019,18 +2019,18 @@ func (c *RoboMaker) DescribeSimulationJobRequest(input *DescribeSimulationJobInp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation DescribeSimulationJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -2116,18 +2116,18 @@ func (c *RoboMaker) ListDeploymentJobsRequest(input *ListDeploymentJobsInput) (r
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListDeploymentJobs for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -2196,10 +2196,12 @@ func (c *RoboMaker) ListDeploymentJobsPagesWithContext(ctx aws.Context, input *L
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListDeploymentJobsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListDeploymentJobsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2263,18 +2265,18 @@ func (c *RoboMaker) ListFleetsRequest(input *ListFleetsInput) (req *request.Requ
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListFleets for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -2343,10 +2345,12 @@ func (c *RoboMaker) ListFleetsPagesWithContext(ctx aws.Context, input *ListFleet
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListFleetsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListFleetsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2410,16 +2414,16 @@ func (c *RoboMaker) ListRobotApplicationsRequest(input *ListRobotApplicationsInp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListRobotApplications for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/ListRobotApplications
@@ -2487,10 +2491,12 @@ func (c *RoboMaker) ListRobotApplicationsPagesWithContext(ctx aws.Context, input
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListRobotApplicationsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListRobotApplicationsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2554,18 +2560,18 @@ func (c *RoboMaker) ListRobotsRequest(input *ListRobotsInput) (req *request.Requ
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListRobots for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -2634,10 +2640,12 @@ func (c *RoboMaker) ListRobotsPagesWithContext(ctx aws.Context, input *ListRobot
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListRobotsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListRobotsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2701,16 +2709,16 @@ func (c *RoboMaker) ListSimulationApplicationsRequest(input *ListSimulationAppli
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListSimulationApplications for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/ListSimulationApplications
@@ -2778,10 +2786,12 @@ func (c *RoboMaker) ListSimulationApplicationsPagesWithContext(ctx aws.Context, 
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListSimulationApplicationsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListSimulationApplicationsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2845,15 +2855,15 @@ func (c *RoboMaker) ListSimulationJobsRequest(input *ListSimulationJobsInput) (r
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListSimulationJobs for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -2922,10 +2932,12 @@ func (c *RoboMaker) ListSimulationJobsPagesWithContext(ctx aws.Context, input *L
 		},
 	}
 
-	cont := true
-	for p.Next() && cont {
-		cont = fn(p.Page().(*ListSimulationJobsOutput), !p.HasNextPage())
+	for p.Next() {
+		if !fn(p.Page().(*ListSimulationJobsOutput), !p.HasNextPage()) {
+			break
+		}
 	}
+
 	return p.Err()
 }
 
@@ -2982,18 +2994,18 @@ func (c *RoboMaker) ListTagsForResourceRequest(input *ListTagsForResourceInput) 
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation ListTagsForResource for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInternalServerException "InternalServerException"
+// Returned Error Types:
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -3072,23 +3084,23 @@ func (c *RoboMaker) RegisterRobotRequest(input *RegisterRobotInput) (req *reques
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation RegisterRobot for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/RegisterRobot
@@ -3167,23 +3179,23 @@ func (c *RoboMaker) RestartSimulationJobRequest(input *RestartSimulationJobInput
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation RestartSimulationJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/RestartSimulationJob
@@ -3262,29 +3274,29 @@ func (c *RoboMaker) SyncDeploymentJobRequest(input *SyncDeploymentJobInput) (req
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation SyncDeploymentJob for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+// Returned Error Types:
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeConcurrentDeploymentException "ConcurrentDeploymentException"
+//   * ConcurrentDeploymentException
 //   The failure percentage threshold percentage was met.
 //
-//   * ErrCodeIdempotentParameterMismatchException "IdempotentParameterMismatchException"
+//   * IdempotentParameterMismatchException
 //   The request uses the same client token as a previous, but non-identical request.
 //   Do not reuse a client token with different requests, unless the requests
 //   are identical.
@@ -3372,18 +3384,18 @@ func (c *RoboMaker) TagResourceRequest(input *TagResourceInput) (req *request.Re
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation TagResource for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInternalServerException "InternalServerException"
+// Returned Error Types:
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -3466,18 +3478,18 @@ func (c *RoboMaker) UntagResourceRequest(input *UntagResourceInput) (req *reques
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation UntagResource for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInternalServerException "InternalServerException"
+// Returned Error Types:
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
@@ -3556,23 +3568,23 @@ func (c *RoboMaker) UpdateRobotApplicationRequest(input *UpdateRobotApplicationI
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation UpdateRobotApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/UpdateRobotApplication
@@ -3650,23 +3662,23 @@ func (c *RoboMaker) UpdateSimulationApplicationRequest(input *UpdateSimulationAp
 // See the AWS API reference guide for AWS RoboMaker's
 // API operation UpdateSimulationApplication for usage and error information.
 //
-// Returned Error Codes:
-//   * ErrCodeInvalidParameterException "InvalidParameterException"
+// Returned Error Types:
+//   * InvalidParameterException
 //   A parameter specified in a request is not valid, is unsupported, or cannot
 //   be used. The returned message provides an explanation of the error value.
 //
-//   * ErrCodeResourceNotFoundException "ResourceNotFoundException"
+//   * ResourceNotFoundException
 //   The specified resource does not exist.
 //
-//   * ErrCodeLimitExceededException "LimitExceededException"
+//   * LimitExceededException
 //   The requested resource exceeds the maximum number allowed, or the number
 //   of concurrent stream requests exceeds the maximum number allowed.
 //
-//   * ErrCodeThrottlingException "ThrottlingException"
+//   * ThrottlingException
 //   AWS RoboMaker is temporarily unable to process the request. Try your call
 //   again.
 //
-//   * ErrCodeInternalServerException "InternalServerException"
+//   * InternalServerException
 //   AWS RoboMaker experienced a service issue. Try your call again.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29/UpdateSimulationApplication
@@ -3872,6 +3884,62 @@ func (s CancelSimulationJobOutput) String() string {
 // GoString returns the string representation
 func (s CancelSimulationJobOutput) GoString() string {
 	return s.String()
+}
+
+// The failure percentage threshold percentage was met.
+type ConcurrentDeploymentException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s ConcurrentDeploymentException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ConcurrentDeploymentException) GoString() string {
+	return s.String()
+}
+
+func newErrorConcurrentDeploymentException(v protocol.ResponseMetadata) error {
+	return &ConcurrentDeploymentException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s ConcurrentDeploymentException) Code() string {
+	return "ConcurrentDeploymentException"
+}
+
+// Message returns the exception's message.
+func (s ConcurrentDeploymentException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s ConcurrentDeploymentException) OrigErr() error {
+	return nil
+}
+
+func (s ConcurrentDeploymentException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s ConcurrentDeploymentException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s ConcurrentDeploymentException) RequestID() string {
+	return s.respMetadata.RequestID
 }
 
 type CreateDeploymentJobInput struct {
@@ -5945,6 +6013,9 @@ type DeploymentConfig struct {
 	// The percentage of robots receiving the deployment at the same time.
 	ConcurrentDeploymentPercentage *int64 `locationName:"concurrentDeploymentPercentage" min:"1" type:"integer"`
 
+	// The download condition file.
+	DownloadConditionFile *S3Object `locationName:"downloadConditionFile" type:"structure"`
+
 	// The percentage of deployments that need to fail before stopping deployment.
 	FailureThresholdPercentage *int64 `locationName:"failureThresholdPercentage" min:"1" type:"integer"`
 
@@ -5973,6 +6044,11 @@ func (s *DeploymentConfig) Validate() error {
 	if s.FailureThresholdPercentage != nil && *s.FailureThresholdPercentage < 1 {
 		invalidParams.Add(request.NewErrParamMinValue("FailureThresholdPercentage", 1))
 	}
+	if s.DownloadConditionFile != nil {
+		if err := s.DownloadConditionFile.Validate(); err != nil {
+			invalidParams.AddNested("DownloadConditionFile", err.(request.ErrInvalidParams))
+		}
+	}
 
 	if invalidParams.Len() > 0 {
 		return invalidParams
@@ -5983,6 +6059,12 @@ func (s *DeploymentConfig) Validate() error {
 // SetConcurrentDeploymentPercentage sets the ConcurrentDeploymentPercentage field's value.
 func (s *DeploymentConfig) SetConcurrentDeploymentPercentage(v int64) *DeploymentConfig {
 	s.ConcurrentDeploymentPercentage = &v
+	return s
+}
+
+// SetDownloadConditionFile sets the DownloadConditionFile field's value.
+func (s *DeploymentConfig) SetDownloadConditionFile(v *S3Object) *DeploymentConfig {
+	s.DownloadConditionFile = v
 	return s
 }
 
@@ -7402,6 +7484,177 @@ func (s *Fleet) SetName(v string) *Fleet {
 	return s
 }
 
+// The request uses the same client token as a previous, but non-identical request.
+// Do not reuse a client token with different requests, unless the requests
+// are identical.
+type IdempotentParameterMismatchException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s IdempotentParameterMismatchException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s IdempotentParameterMismatchException) GoString() string {
+	return s.String()
+}
+
+func newErrorIdempotentParameterMismatchException(v protocol.ResponseMetadata) error {
+	return &IdempotentParameterMismatchException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s IdempotentParameterMismatchException) Code() string {
+	return "IdempotentParameterMismatchException"
+}
+
+// Message returns the exception's message.
+func (s IdempotentParameterMismatchException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s IdempotentParameterMismatchException) OrigErr() error {
+	return nil
+}
+
+func (s IdempotentParameterMismatchException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s IdempotentParameterMismatchException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s IdempotentParameterMismatchException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
+// AWS RoboMaker experienced a service issue. Try your call again.
+type InternalServerException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s InternalServerException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s InternalServerException) GoString() string {
+	return s.String()
+}
+
+func newErrorInternalServerException(v protocol.ResponseMetadata) error {
+	return &InternalServerException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s InternalServerException) Code() string {
+	return "InternalServerException"
+}
+
+// Message returns the exception's message.
+func (s InternalServerException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s InternalServerException) OrigErr() error {
+	return nil
+}
+
+func (s InternalServerException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s InternalServerException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s InternalServerException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
+// A parameter specified in a request is not valid, is unsupported, or cannot
+// be used. The returned message provides an explanation of the error value.
+type InvalidParameterException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s InvalidParameterException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s InvalidParameterException) GoString() string {
+	return s.String()
+}
+
+func newErrorInvalidParameterException(v protocol.ResponseMetadata) error {
+	return &InvalidParameterException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s InvalidParameterException) Code() string {
+	return "InvalidParameterException"
+}
+
+// Message returns the exception's message.
+func (s InvalidParameterException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s InvalidParameterException) OrigErr() error {
+	return nil
+}
+
+func (s InvalidParameterException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s InvalidParameterException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s InvalidParameterException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
 // Information about a launch configuration.
 type LaunchConfig struct {
 	_ struct{} `type:"structure"`
@@ -7482,6 +7735,63 @@ func (s *LaunchConfig) SetPackageName(v string) *LaunchConfig {
 func (s *LaunchConfig) SetPortForwardingConfig(v *PortForwardingConfig) *LaunchConfig {
 	s.PortForwardingConfig = v
 	return s
+}
+
+// The requested resource exceeds the maximum number allowed, or the number
+// of concurrent stream requests exceeds the maximum number allowed.
+type LimitExceededException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s LimitExceededException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s LimitExceededException) GoString() string {
+	return s.String()
+}
+
+func newErrorLimitExceededException(v protocol.ResponseMetadata) error {
+	return &LimitExceededException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s LimitExceededException) Code() string {
+	return "LimitExceededException"
+}
+
+// Message returns the exception's message.
+func (s LimitExceededException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s LimitExceededException) OrigErr() error {
+	return nil
+}
+
+func (s LimitExceededException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s LimitExceededException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s LimitExceededException) RequestID() string {
+	return s.respMetadata.RequestID
 }
 
 type ListDeploymentJobsInput struct {
@@ -8724,6 +9034,118 @@ func (s *RenderingEngine) SetVersion(v string) *RenderingEngine {
 	return s
 }
 
+// The specified resource already exists.
+type ResourceAlreadyExistsException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s ResourceAlreadyExistsException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ResourceAlreadyExistsException) GoString() string {
+	return s.String()
+}
+
+func newErrorResourceAlreadyExistsException(v protocol.ResponseMetadata) error {
+	return &ResourceAlreadyExistsException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s ResourceAlreadyExistsException) Code() string {
+	return "ResourceAlreadyExistsException"
+}
+
+// Message returns the exception's message.
+func (s ResourceAlreadyExistsException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s ResourceAlreadyExistsException) OrigErr() error {
+	return nil
+}
+
+func (s ResourceAlreadyExistsException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s ResourceAlreadyExistsException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s ResourceAlreadyExistsException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
+// The specified resource does not exist.
+type ResourceNotFoundException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s ResourceNotFoundException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ResourceNotFoundException) GoString() string {
+	return s.String()
+}
+
+func newErrorResourceNotFoundException(v protocol.ResponseMetadata) error {
+	return &ResourceNotFoundException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s ResourceNotFoundException) Code() string {
+	return "ResourceNotFoundException"
+}
+
+// Message returns the exception's message.
+func (s ResourceNotFoundException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s ResourceNotFoundException) OrigErr() error {
+	return nil
+}
+
+func (s ResourceNotFoundException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s ResourceNotFoundException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s ResourceNotFoundException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
 type RestartSimulationJobInput struct {
 	_ struct{} `type:"structure"`
 
@@ -9153,6 +9575,130 @@ func (s *S3KeyOutput) SetS3Key(v string) *S3KeyOutput {
 	return s
 }
 
+// Information about an S3 object.
+type S3Object struct {
+	_ struct{} `type:"structure"`
+
+	// The bucket containing the object.
+	//
+	// Bucket is a required field
+	Bucket *string `locationName:"bucket" min:"3" type:"string" required:"true"`
+
+	// The etag of the object.
+	Etag *string `locationName:"etag" type:"string"`
+
+	// The key of the object.
+	//
+	// Key is a required field
+	Key *string `locationName:"key" min:"1" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s S3Object) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s S3Object) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *S3Object) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "S3Object"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 3 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 3))
+	}
+	if s.Key == nil {
+		invalidParams.Add(request.NewErrParamRequired("Key"))
+	}
+	if s.Key != nil && len(*s.Key) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Key", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *S3Object) SetBucket(v string) *S3Object {
+	s.Bucket = &v
+	return s
+}
+
+// SetEtag sets the Etag field's value.
+func (s *S3Object) SetEtag(v string) *S3Object {
+	s.Etag = &v
+	return s
+}
+
+// SetKey sets the Key field's value.
+func (s *S3Object) SetKey(v string) *S3Object {
+	s.Key = &v
+	return s
+}
+
+// The request has failed due to a temporary failure of the server.
+type ServiceUnavailableException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s ServiceUnavailableException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ServiceUnavailableException) GoString() string {
+	return s.String()
+}
+
+func newErrorServiceUnavailableException(v protocol.ResponseMetadata) error {
+	return &ServiceUnavailableException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s ServiceUnavailableException) Code() string {
+	return "ServiceUnavailableException"
+}
+
+// Message returns the exception's message.
+func (s ServiceUnavailableException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s ServiceUnavailableException) OrigErr() error {
+	return nil
+}
+
+func (s ServiceUnavailableException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s ServiceUnavailableException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s ServiceUnavailableException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
 // Information about a simulation application configuration.
 type SimulationApplicationConfig struct {
 	_ struct{} `type:"structure"`
@@ -9349,7 +9895,7 @@ type SimulationJob struct {
 	// The name of the simulation job.
 	Name *string `locationName:"name" min:"1" type:"string"`
 
-	// Describes a network interface.
+	// Information about a network interface.
 	NetworkInterface *NetworkInterface `locationName:"networkInterface" type:"structure"`
 
 	// Location for output files generated by the simulation job.
@@ -9993,6 +10539,63 @@ func (s TagResourceOutput) GoString() string {
 	return s.String()
 }
 
+// AWS RoboMaker is temporarily unable to process the request. Try your call
+// again.
+type ThrottlingException struct {
+	_            struct{} `type:"structure"`
+	respMetadata protocol.ResponseMetadata
+
+	Message_ *string `locationName:"message" type:"string"`
+}
+
+// String returns the string representation
+func (s ThrottlingException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ThrottlingException) GoString() string {
+	return s.String()
+}
+
+func newErrorThrottlingException(v protocol.ResponseMetadata) error {
+	return &ThrottlingException{
+		respMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s ThrottlingException) Code() string {
+	return "ThrottlingException"
+}
+
+// Message returns the exception's message.
+func (s ThrottlingException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s ThrottlingException) OrigErr() error {
+	return nil
+}
+
+func (s ThrottlingException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s ThrottlingException) StatusCode() int {
+	return s.respMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s ThrottlingException) RequestID() string {
+	return s.respMetadata.RequestID
+}
+
 type UntagResourceInput struct {
 	_ struct{} `type:"structure"`
 
@@ -10620,6 +11223,9 @@ const (
 	// DeploymentJobErrorCodeBadPermissionError is a DeploymentJobErrorCode enum value
 	DeploymentJobErrorCodeBadPermissionError = "BadPermissionError"
 
+	// DeploymentJobErrorCodeDownloadConditionFailed is a DeploymentJobErrorCode enum value
+	DeploymentJobErrorCodeDownloadConditionFailed = "DownloadConditionFailed"
+
 	// DeploymentJobErrorCodeInternalServerError is a DeploymentJobErrorCode enum value
 	DeploymentJobErrorCodeInternalServerError = "InternalServerError"
 )
@@ -10663,6 +11269,9 @@ const (
 
 	// RobotDeploymentStepDownloadingExtracting is a RobotDeploymentStep enum value
 	RobotDeploymentStepDownloadingExtracting = "DownloadingExtracting"
+
+	// RobotDeploymentStepExecutingDownloadCondition is a RobotDeploymentStep enum value
+	RobotDeploymentStepExecutingDownloadCondition = "ExecutingDownloadCondition"
 
 	// RobotDeploymentStepExecutingPreLaunch is a RobotDeploymentStep enum value
 	RobotDeploymentStepExecutingPreLaunch = "ExecutingPreLaunch"

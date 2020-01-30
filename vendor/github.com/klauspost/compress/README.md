@@ -13,7 +13,31 @@ This package provides various compression algorithms.
 [![fuzzit](https://app.fuzzit.dev/badge?org_id=klauspost)](https://fuzzit.dev)
 
 # changelog
-* Oct 28, 2018 (v1.9.1) ztsd: Fix crash when compressing blocks. [#174](https://github.com/klauspost/compress/pull/174)
+
+* Jan 20,2020 (v1.9.8) Optimize gzip/deflate with better size estimates and faster table generation. [#207](https://github.com/klauspost/compress/pull/207) by [luyu6056](https://github.com/luyu6056),  [#206](https://github.com/klauspost/compress/pull/206).
+* Jan 11, 2020: S2 Encode/Decode will use provided buffer if capacity is big enough. [#204](https://github.com/klauspost/compress/pull/204) 
+* Jan 5, 2020: (v1.9.7) Fix another zstd regression in v1.9.5 - v1.9.6 removed.
+* Jan 4, 2020: (v1.9.6) Regression in v1.9.5 fixed causing corrupt zstd encodes in rare cases.
+* Jan 4, 2020: Faster IO in [s2c + s2d commandline tools](https://github.com/klauspost/compress/tree/master/s2#commandline-tools) compression/decompression. [#192](https://github.com/klauspost/compress/pull/192)
+* Dec 29, 2019: Removed v1.9.5 since fuzz tests showed a compatibility problem with the reference zstandard decoder.
+* Dec 29, 2019: (v1.9.5) zstd: 10-20% faster block compression. [#199](https://github.com/klauspost/compress/pull/199)
+* Dec 29, 2019: [zip](https://godoc.org/github.com/klauspost/compress/zip) package updated with latest Go features
+* Dec 29, 2019: zstd: Single segment flag condintions tweaked. [#197](https://github.com/klauspost/compress/pull/197)
+* Dec 18, 2019: s2: Faster compression when ReadFrom is used. [#198](https://github.com/klauspost/compress/pull/198)
+* Dec 10, 2019: s2: Fix repeat length output when just above at 16MB limit.
+* Dec 10, 2019: zstd: Add function to get decoder as io.ReadCloser. [#191](https://github.com/klauspost/compress/pull/191)
+* Dec 3, 2019: (v1.9.4) S2: limit max repeat length. [#188](https://github.com/klauspost/compress/pull/188)
+* Dec 3, 2019: Add [WithNoEntropyCompression](https://godoc.org/github.com/klauspost/compress/zstd#WithNoEntropyCompression) to zstd [#187](https://github.com/klauspost/compress/pull/187)
+* Dec 3, 2019: Reduce memory use for tests. Check for leaked goroutines.
+* Nov 28, 2019 (v1.9.3) Less allocations in stateless deflate.
+* Nov 28, 2019: 5-20% Faster huff0 decode. Impacts zstd as well. [#184](https://github.com/klauspost/compress/pull/184)
+* Nov 12, 2019 (v1.9.2) Added [Stateless Compression](#stateless-compression) for gzip/deflate.
+* Nov 12, 2019: Fixed zstd decompression of large single blocks. [#180](https://github.com/klauspost/compress/pull/180)
+* Nov 11, 2019: Set default  [s2c](https://github.com/klauspost/compress/tree/master/s2#commandline-tools) block size to 4MB.
+* Nov 11, 2019: Reduce inflate memory use by 1KB.
+* Nov 10, 2019: Less allocations in deflate bit writer.
+* Nov 10, 2019: Fix inconsistent error returned by zstd decoder.
+* Oct 28, 2019 (v1.9.1) ztsd: Fix crash when compressing blocks. [#174](https://github.com/klauspost/compress/pull/174)
 * Oct 24, 2019 (v1.9.0) zstd: Fix rare data corruption [#173](https://github.com/klauspost/compress/pull/173)
 * Oct 24, 2019 zstd: Fix huff0 out of buffer write [#171](https://github.com/klauspost/compress/pull/171) and always return errors [#172](https://github.com/klauspost/compress/pull/172) 
 * Oct 10, 2019: Big deflate rewrite, 30-40% faster with better compression [#105](https://github.com/klauspost/compress/pull/105)
@@ -106,6 +130,43 @@ The packages contains the same as the standard library, so you can use the godoc
 
 Currently there is only minor speedup on decompression (mostly CRC32 calculation).
 
+# Stateless compression
+
+This package offers stateless compression as a special option for gzip/deflate. 
+It will do compression but without maintaining any state between Write calls.
+
+This means there will be no memory kept between Write calls, but compression and speed will be suboptimal.
+
+This is only relevant in cases where you expect to run many thousands of compressors concurrently, 
+but with very little activity. This is *not* intended for regular web servers serving individual requests.  
+
+Because of this, the size of actual Write calls will affect output size.
+
+In gzip, specify level `-3` / `gzip.StatelessCompression` to enable.
+
+For direct deflate use, NewStatelessWriter and StatelessDeflate are available. See [documentation](https://godoc.org/github.com/klauspost/compress/flate#NewStatelessWriter)
+
+A `bufio.Writer` can of course be used to control write sizes. For example, to use a 4KB buffer:
+
+```
+	// replace 'ioutil.Discard' with your output.
+	gzw, err := gzip.NewWriterLevel(ioutil.Discard, gzip.StatelessCompression)
+	if err != nil {
+		return err
+	}
+	defer gzw.Close()
+
+	w := bufio.NewWriterSize(gzw, 4096)
+	defer w.Flush()
+	
+	// Write to 'w' 
+```
+
+This will only use up to 4KB in memory when the writer is idle. 
+
+Compression is almost always worse than the fastest compression level 
+and each write will allocate (a little) memory. 
+
 # Performance Update 2018
 
 It has been a while since we have been looking at the speed of this package compared to the standard library, so I thought I would re-do my tests and give some overall recommendations based on the current state. All benchmarks have been performed with Go 1.10 on my Desktop Intel(R) Core(TM) i7-2600 CPU @3.40GHz. Since I last ran the tests, I have gotten more RAM, which means tests with big files are no longer limited by my SSD.
@@ -177,7 +238,7 @@ This means that often used characters, like 'e' and ' ' (space) in text use the 
 
 Since this type of compression has much less variance, the compression speed is mostly unaffected by the input data, and is usually more than *180MB/s* for a single core.
 
-The downside is that the compression ratio is usually considerably worse than even the fastest conventional compression. The compression raio can never be better than 8:1 (12.5%). 
+The downside is that the compression ratio is usually considerably worse than even the fastest conventional compression. The compression ratio can never be better than 8:1 (12.5%). 
 
 The linear time compression can be used as a "better than nothing" mode, where you cannot risk the encoder to slow down on some content. For comparison, the size of the "Twain" text is *233460 bytes* (+29% vs. level 1) and encode speed is 144MB/s (4.5x level 1). So in this case you trade a 30% size increase for a 4 times speedup.
 

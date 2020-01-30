@@ -60,9 +60,10 @@ func (fake *FakeServiceClient) CellById(arg1 lager.Logger, arg2 string) (*models
 		arg2 string
 	}{arg1, arg2})
 	fake.recordInvocation("CellById", []interface{}{arg1, arg2})
+	cellByIdStubCopy := fake.CellByIdStub
 	fake.cellByIdMutex.Unlock()
-	if fake.CellByIdStub != nil {
-		return fake.CellByIdStub(arg1, arg2)
+	if cellByIdStubCopy != nil {
+		return cellByIdStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -123,9 +124,10 @@ func (fake *FakeServiceClient) CellEvents(arg1 lager.Logger) <-chan models.CellE
 		arg1 lager.Logger
 	}{arg1})
 	fake.recordInvocation("CellEvents", []interface{}{arg1})
+	cellEventsStubCopy := fake.CellEventsStub
 	fake.cellEventsMutex.Unlock()
-	if fake.CellEventsStub != nil {
-		return fake.CellEventsStub(arg1)
+	if cellEventsStubCopy != nil {
+		return cellEventsStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1
@@ -183,9 +185,10 @@ func (fake *FakeServiceClient) Cells(arg1 lager.Logger) (models.CellSet, error) 
 		arg1 lager.Logger
 	}{arg1})
 	fake.recordInvocation("Cells", []interface{}{arg1})
+	cellsStubCopy := fake.CellsStub
 	fake.cellsMutex.Unlock()
-	if fake.CellsStub != nil {
-		return fake.CellsStub(arg1)
+	if cellsStubCopy != nil {
+		return cellsStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

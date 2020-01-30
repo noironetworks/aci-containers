@@ -41,9 +41,10 @@ func (fake *FakeEventSource) Close() error {
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Close", []interface{}{})
+	closeStubCopy := fake.CloseStub
 	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
-		return fake.CloseStub()
+	if closeStubCopy != nil {
+		return closeStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -93,9 +94,10 @@ func (fake *FakeEventSource) Next() (models.Event, error) {
 	fake.nextArgsForCall = append(fake.nextArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Next", []interface{}{})
+	nextStubCopy := fake.NextStub
 	fake.nextMutex.Unlock()
-	if fake.NextStub != nil {
-		return fake.NextStub()
+	if nextStubCopy != nil {
+		return nextStubCopy()
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

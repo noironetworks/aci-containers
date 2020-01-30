@@ -6,6 +6,10 @@ API to access the database for Diego.
 
 A general overview of the BBS is documented [here](doc).
 
+## Reporting issues and requesting features
+
+Please report all issues and feature requests in [cloudfoundry/diego-release](https://github.com/cloudfoundry/diego-release/issues).
+
 ## API
 
 To interact with the BBS from outside of Diego, use the methods provided on the

@@ -124,9 +124,10 @@ func (fake *FakeQueryableDB) BeginTx(arg1 context.Context, arg2 *sql.TxOptions) 
 		arg2 *sql.TxOptions
 	}{arg1, arg2})
 	fake.recordInvocation("BeginTx", []interface{}{arg1, arg2})
+	beginTxStubCopy := fake.BeginTxStub
 	fake.beginTxMutex.Unlock()
-	if fake.BeginTxStub != nil {
-		return fake.BeginTxStub(arg1, arg2)
+	if beginTxStubCopy != nil {
+		return beginTxStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -189,9 +190,10 @@ func (fake *FakeQueryableDB) ExecContext(arg1 context.Context, arg2 string, arg3
 		arg3 []interface{}
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("ExecContext", []interface{}{arg1, arg2, arg3})
+	execContextStubCopy := fake.ExecContextStub
 	fake.execContextMutex.Unlock()
-	if fake.ExecContextStub != nil {
-		return fake.ExecContextStub(arg1, arg2, arg3...)
+	if execContextStubCopy != nil {
+		return execContextStubCopy(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -251,9 +253,10 @@ func (fake *FakeQueryableDB) OpenConnections() int {
 	fake.openConnectionsArgsForCall = append(fake.openConnectionsArgsForCall, struct {
 	}{})
 	fake.recordInvocation("OpenConnections", []interface{}{})
+	openConnectionsStubCopy := fake.OpenConnectionsStub
 	fake.openConnectionsMutex.Unlock()
-	if fake.OpenConnectionsStub != nil {
-		return fake.OpenConnectionsStub()
+	if openConnectionsStubCopy != nil {
+		return openConnectionsStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -305,9 +308,10 @@ func (fake *FakeQueryableDB) PrepareContext(arg1 context.Context, arg2 string) (
 		arg2 string
 	}{arg1, arg2})
 	fake.recordInvocation("PrepareContext", []interface{}{arg1, arg2})
+	prepareContextStubCopy := fake.PrepareContextStub
 	fake.prepareContextMutex.Unlock()
-	if fake.PrepareContextStub != nil {
-		return fake.PrepareContextStub(arg1, arg2)
+	if prepareContextStubCopy != nil {
+		return prepareContextStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -370,9 +374,10 @@ func (fake *FakeQueryableDB) QueryContext(arg1 context.Context, arg2 string, arg
 		arg3 []interface{}
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("QueryContext", []interface{}{arg1, arg2, arg3})
+	queryContextStubCopy := fake.QueryContextStub
 	fake.queryContextMutex.Unlock()
-	if fake.QueryContextStub != nil {
-		return fake.QueryContextStub(arg1, arg2, arg3...)
+	if queryContextStubCopy != nil {
+		return queryContextStubCopy(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -435,9 +440,10 @@ func (fake *FakeQueryableDB) QueryRowContext(arg1 context.Context, arg2 string, 
 		arg3 []interface{}
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("QueryRowContext", []interface{}{arg1, arg2, arg3})
+	queryRowContextStubCopy := fake.QueryRowContextStub
 	fake.queryRowContextMutex.Unlock()
-	if fake.QueryRowContextStub != nil {
-		return fake.QueryRowContextStub(arg1, arg2, arg3...)
+	if queryRowContextStubCopy != nil {
+		return queryRowContextStubCopy(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1
@@ -494,9 +500,10 @@ func (fake *FakeQueryableDB) WaitCount() int64 {
 	fake.waitCountArgsForCall = append(fake.waitCountArgsForCall, struct {
 	}{})
 	fake.recordInvocation("WaitCount", []interface{}{})
+	waitCountStubCopy := fake.WaitCountStub
 	fake.waitCountMutex.Unlock()
-	if fake.WaitCountStub != nil {
-		return fake.WaitCountStub()
+	if waitCountStubCopy != nil {
+		return waitCountStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -546,9 +553,10 @@ func (fake *FakeQueryableDB) WaitDuration() time.Duration {
 	fake.waitDurationArgsForCall = append(fake.waitDurationArgsForCall, struct {
 	}{})
 	fake.recordInvocation("WaitDuration", []interface{}{})
+	waitDurationStubCopy := fake.WaitDurationStub
 	fake.waitDurationMutex.Unlock()
-	if fake.WaitDurationStub != nil {
-		return fake.WaitDurationStub()
+	if waitDurationStubCopy != nil {
+		return waitDurationStubCopy()
 	}
 	if specificReturn {
 		return ret.result1

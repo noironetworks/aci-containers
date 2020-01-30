@@ -85,7 +85,7 @@ func parseCARoot(pemValue, provider, clusterID string) (*structs.CARoot, error) 
 		ID:                  id,
 		Name:                fmt.Sprintf("%s CA Root Cert", strings.Title(provider)),
 		SerialNumber:        rootCert.SerialNumber.Uint64(),
-		SigningKeyID:        connect.HexString(rootCert.SubjectKeyId),
+		SigningKeyID:        connect.EncodeSigningKeyID(rootCert.SubjectKeyId),
 		ExternalTrustDomain: clusterID,
 		NotBefore:           rootCert.NotBefore,
 		NotAfter:            rootCert.NotAfter,
@@ -284,14 +284,28 @@ func (s *Server) initializeRootCA(provider ca.Provider, conf *structs.CAConfigur
 // initializeSecondaryCA runs the routine for generating an intermediate CA CSR and getting
 // it signed by the primary DC if the root CA of the primary DC has changed since the last
 // intermediate.
-func (s *Server) initializeSecondaryCA(provider ca.Provider, roots structs.IndexedCARoots) error {
+func (s *Server) initializeSecondaryCA(provider ca.Provider, primaryRoots structs.IndexedCARoots) error {
 	activeIntermediate, err := provider.ActiveIntermediate()
 	if err != nil {
 		return err
 	}
 
-	var storedRootID string
+	var (
+		storedRootID         string
+		expectedSigningKeyID string
+		currentSigningKeyID  string
+		activeSecondaryRoot  *structs.CARoot
+	)
 	if activeIntermediate != "" {
+		// In the event that we already have an intermediate, we must have
+		// already replicated some primary root information locally, so check
+		// to see if we're up to date by fetching the rootID and the
+		// signingKeyID used in the secondary.
+		//
+		// Note that for the same rootID the primary representation of the root
+		// will have a different SigningKeyID field than the secondary
+		// representation of the same root. This is because it's derived from
+		// the intermediate which is different in all datacenters.
 		storedRoot, err := provider.ActiveRoot()
 		if err != nil {
 			return err
@@ -299,13 +313,33 @@ func (s *Server) initializeSecondaryCA(provider ca.Provider, roots structs.Index
 
 		storedRootID, err = connect.CalculateCertFingerprint(storedRoot)
 		if err != nil {
-			return fmt.Errorf("error parsing root fingerprint: %v, %#v", err, roots)
+			return fmt.Errorf("error parsing root fingerprint: %v, %#v", err, primaryRoots)
+		}
+
+		intermediateCert, err := connect.ParseCert(activeIntermediate)
+		if err != nil {
+			return fmt.Errorf("error parsing active intermediate cert: %v", err)
+		}
+		expectedSigningKeyID = connect.EncodeSigningKeyID(intermediateCert.SubjectKeyId)
+
+		// This will fetch the secondary's exact current representation of the
+		// active root. Note that this data should only be used if the IDs
+		// match, otherwise it's out of date and should be regenerated.
+		_, activeSecondaryRoot, err = s.fsm.State().CARootActive(nil)
+		if err != nil {
+			return err
+		}
+		if activeSecondaryRoot != nil {
+			currentSigningKeyID = activeSecondaryRoot.SigningKeyID
 		}
 	}
 
+	// Determine which of the provided PRIMARY representations of roots is the
+	// active one. We'll use this as a template to generate any new root
+	// representations meant for this secondary.
 	var newActiveRoot *structs.CARoot
-	for _, root := range roots.Roots {
-		if root.ID == roots.ActiveRootID && root.Active {
+	for _, root := range primaryRoots.Roots {
+		if root.ID == primaryRoots.ActiveRootID && root.Active {
 			newActiveRoot = root
 			break
 		}
@@ -314,10 +348,21 @@ func (s *Server) initializeSecondaryCA(provider ca.Provider, roots structs.Index
 		return fmt.Errorf("primary datacenter does not have an active root CA for Connect")
 	}
 
-	newIntermediate := false
 	// Get a signed intermediate from the primary DC if the provider
 	// hasn't been initialized yet or if the primary's root has changed.
-	if activeIntermediate == "" || storedRootID != roots.ActiveRootID {
+	needsNewIntermediate := false
+	if activeIntermediate == "" || storedRootID != primaryRoots.ActiveRootID {
+		needsNewIntermediate = true
+	}
+
+	// Also we take this opportunity to correct an incorrectly persisted SigningKeyID
+	// in secondary datacenters (see PR-6513).
+	if expectedSigningKeyID != "" && currentSigningKeyID != expectedSigningKeyID {
+		needsNewIntermediate = true
+	}
+
+	newIntermediate := false
+	if needsNewIntermediate {
 		csr, err := provider.GenerateIntermediateCSR()
 		if err != nil {
 			return err
@@ -334,11 +379,22 @@ func (s *Server) initializeSecondaryCA(provider ca.Provider, roots structs.Index
 			return fmt.Errorf("Failed to set the intermediate certificate with the CA provider: %v", err)
 		}
 
-		// Append the new intermediate to our local active root entry.
+		intermediateCert, err := connect.ParseCert(intermediatePEM)
+		if err != nil {
+			return fmt.Errorf("error parsing intermediate cert: %v", err)
+		}
+
+		// Append the new intermediate to our local active root entry. This is
+		// where the root representations start to diverge.
 		newActiveRoot.IntermediateCerts = append(newActiveRoot.IntermediateCerts, intermediatePEM)
+		newActiveRoot.SigningKeyID = connect.EncodeSigningKeyID(intermediateCert.SubjectKeyId)
 		newIntermediate = true
 
 		s.logger.Printf("[INFO] connect: received new intermediate certificate from primary datacenter")
+	} else {
+		// Discard the primary's representation since our local one is
+		// sufficiently up to date.
+		newActiveRoot = activeSecondaryRoot
 	}
 
 	// Update the roots list in the state store if there's a new active root.

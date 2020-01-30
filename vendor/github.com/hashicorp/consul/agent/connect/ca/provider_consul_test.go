@@ -20,28 +20,30 @@ func (c *consulCAMockDelegate) State() *state.Store {
 	return c.state
 }
 
-func (c *consulCAMockDelegate) ApplyCARequest(req *structs.CARequest) error {
+func (c *consulCAMockDelegate) ApplyCARequest(req *structs.CARequest) (interface{}, error) {
 	idx, _, err := c.state.CAConfig(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	switch req.Op {
 	case structs.CAOpSetProviderState:
 		_, err := c.state.CASetProviderState(idx+1, req.ProviderState)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		return nil
+		return true, nil
 	case structs.CAOpDeleteProviderState:
 		if err := c.state.CADeleteProviderState(req.ProviderState.ID); err != nil {
-			return err
+			return nil, err
 		}
 
-		return nil
+		return true, nil
+	case structs.CAOpIncrementProviderSerialNumber:
+		return uint64(2), nil
 	default:
-		return fmt.Errorf("Invalid CA operation '%s'", req.Op)
+		return nil, fmt.Errorf("Invalid CA operation '%s'", req.Op)
 	}
 }
 
@@ -71,6 +73,11 @@ func testConsulCAConfig() *structs.CAConfiguration {
 	}
 }
 
+func requireNotEncoded(t *testing.T, v []byte) {
+	t.Helper()
+	require.False(t, connect.IsHexString(v))
+}
+
 func TestConsulCAProvider_Bootstrap(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +101,8 @@ func TestConsulCAProvider_Bootstrap(t *testing.T) {
 	parsed, err := connect.ParseCert(root)
 	require.NoError(err)
 	require.Equal(parsed.URIs[0].String(), fmt.Sprintf("spiffe://%s.consul", conf.ClusterID))
+	requireNotEncoded(t, parsed.SubjectKeyId)
+	requireNotEncoded(t, parsed.AuthorityKeyId)
 }
 
 func TestConsulCAProvider_Bootstrap_WithCert(t *testing.T) {
@@ -152,6 +161,8 @@ func TestConsulCAProvider_SignLeaf(t *testing.T) {
 		require.Equal(parsed.URIs[0], spiffeService.URI())
 		require.Equal(parsed.Subject.CommonName, "foo")
 		require.Equal(uint64(2), parsed.SerialNumber.Uint64())
+		requireNotEncoded(t, parsed.SubjectKeyId)
+		requireNotEncoded(t, parsed.AuthorityKeyId)
 
 		// Ensure the cert is valid now and expires within the correct limit.
 		now := time.Now()
@@ -176,6 +187,8 @@ func TestConsulCAProvider_SignLeaf(t *testing.T) {
 		require.Equal(parsed.URIs[0], spiffeService.URI())
 		require.Equal(parsed.Subject.CommonName, "bar")
 		require.Equal(parsed.SerialNumber.Uint64(), uint64(2))
+		requireNotEncoded(t, parsed.SubjectKeyId)
+		requireNotEncoded(t, parsed.AuthorityKeyId)
 
 		// Ensure the cert is valid now and expires within the correct limit.
 		require.True(time.Until(parsed.NotAfter) < 3*24*time.Hour)
@@ -202,6 +215,8 @@ func TestConsulCAProvider_SignLeaf(t *testing.T) {
 		require.Equal(spiffeAgent.URI(), parsed.URIs[0])
 		require.Equal("uuid", parsed.Subject.CommonName)
 		require.Equal(uint64(2), parsed.SerialNumber.Uint64())
+		requireNotEncoded(t, parsed.SubjectKeyId)
+		requireNotEncoded(t, parsed.AuthorityKeyId)
 
 		// Ensure the cert is valid now and expires within the correct limit.
 		now := time.Now()
@@ -240,22 +255,30 @@ func testCrossSignProviders(t *testing.T, provider1, provider2 Provider) {
 	newRoot, err := connect.ParseCert(newRootPEM)
 	require.NoError(err)
 	oldSubject := newRoot.Subject.CommonName
+	requireNotEncoded(t, newRoot.SubjectKeyId)
+	requireNotEncoded(t, newRoot.AuthorityKeyId)
 
 	newInterPEM, err := provider2.ActiveIntermediate()
 	require.NoError(err)
 	newIntermediate, err := connect.ParseCert(newInterPEM)
 	require.NoError(err)
+	requireNotEncoded(t, newIntermediate.SubjectKeyId)
+	requireNotEncoded(t, newIntermediate.AuthorityKeyId)
 
 	// Have provider1 cross sign our new root cert.
 	xcPEM, err := provider1.CrossSignCA(newRoot)
 	require.NoError(err)
 	xc, err := connect.ParseCert(xcPEM)
 	require.NoError(err)
+	requireNotEncoded(t, xc.SubjectKeyId)
+	requireNotEncoded(t, xc.AuthorityKeyId)
 
 	oldRootPEM, err := provider1.ActiveRoot()
 	require.NoError(err)
 	oldRoot, err := connect.ParseCert(oldRootPEM)
 	require.NoError(err)
+	requireNotEncoded(t, oldRoot.SubjectKeyId)
+	requireNotEncoded(t, oldRoot.AuthorityKeyId)
 
 	// AuthorityKeyID should now be the signing root's, SubjectKeyId should be kept.
 	require.Equal(oldRoot.AuthorityKeyId, xc.AuthorityKeyId)
@@ -284,6 +307,8 @@ func testCrossSignProviders(t *testing.T, provider1, provider2 Provider) {
 
 	cert, err := connect.ParseCert(leafPEM)
 	require.NoError(err)
+	requireNotEncoded(t, cert.SubjectKeyId)
+	requireNotEncoded(t, cert.AuthorityKeyId)
 
 	// Check that the leaf signed by the new cert can be verified by either root
 	// certificate by using the new intermediate + cross-signed cert.
@@ -357,6 +382,8 @@ func testSignIntermediateCrossDC(t *testing.T, provider1, provider2 Provider) {
 
 	cert, err := connect.ParseCert(leafPEM)
 	require.NoError(err)
+	requireNotEncoded(t, cert.SubjectKeyId)
+	requireNotEncoded(t, cert.AuthorityKeyId)
 
 	// Check that the leaf signed by the new cert can be verified using the
 	// returned cert chain (signed intermediate + remote root).
@@ -380,7 +407,7 @@ func TestConsulCAProvider_MigrateOldID(t *testing.T) {
 	delegate := newMockDelegate(t, conf)
 
 	// Create an entry with an old-style ID.
-	err := delegate.ApplyCARequest(&structs.CARequest{
+	_, err := delegate.ApplyCARequest(&structs.CARequest{
 		Op: structs.CAOpSetProviderState,
 		ProviderState: &structs.CAConsulProviderState{
 			ID: ",",

@@ -49,9 +49,10 @@ func (fake *FakeDBStats) OpenConnections() int {
 	fake.openConnectionsArgsForCall = append(fake.openConnectionsArgsForCall, struct {
 	}{})
 	fake.recordInvocation("OpenConnections", []interface{}{})
+	openConnectionsStubCopy := fake.OpenConnectionsStub
 	fake.openConnectionsMutex.Unlock()
-	if fake.OpenConnectionsStub != nil {
-		return fake.OpenConnectionsStub()
+	if openConnectionsStubCopy != nil {
+		return openConnectionsStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -101,9 +102,10 @@ func (fake *FakeDBStats) WaitCount() int64 {
 	fake.waitCountArgsForCall = append(fake.waitCountArgsForCall, struct {
 	}{})
 	fake.recordInvocation("WaitCount", []interface{}{})
+	waitCountStubCopy := fake.WaitCountStub
 	fake.waitCountMutex.Unlock()
-	if fake.WaitCountStub != nil {
-		return fake.WaitCountStub()
+	if waitCountStubCopy != nil {
+		return waitCountStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -153,9 +155,10 @@ func (fake *FakeDBStats) WaitDuration() time.Duration {
 	fake.waitDurationArgsForCall = append(fake.waitDurationArgsForCall, struct {
 	}{})
 	fake.recordInvocation("WaitDuration", []interface{}{})
+	waitDurationStubCopy := fake.WaitDurationStub
 	fake.waitDurationMutex.Unlock()
-	if fake.WaitDurationStub != nil {
-		return fake.WaitDurationStub()
+	if waitDurationStubCopy != nil {
+		return waitDurationStubCopy()
 	}
 	if specificReturn {
 		return ret.result1

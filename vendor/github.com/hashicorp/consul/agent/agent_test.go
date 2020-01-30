@@ -20,6 +20,8 @@ import (
 
 	"github.com/hashicorp/consul/testrpc"
 
+	"github.com/hashicorp/consul/agent/cache"
+	cachetype "github.com/hashicorp/consul/agent/cache-types"
 	"github.com/hashicorp/consul/agent/checks"
 	"github.com/hashicorp/consul/agent/config"
 	"github.com/hashicorp/consul/agent/connect"
@@ -29,7 +31,7 @@ import (
 	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/hashicorp/consul/sdk/testutil/retry"
 	"github.com/hashicorp/consul/types"
-	uuid "github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/go-uuid"
 	"github.com/pascaldekloe/goe/verify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -332,10 +334,22 @@ func TestAgent_makeNodeID(t *testing.T) {
 }
 
 func TestAgent_AddService(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddService(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddService(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_AddService(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		node_name = "node1"
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	tests := []struct {
@@ -379,6 +393,7 @@ func TestAgent_AddService(t *testing.T) {
 					ServiceID:   "svcid1",
 					ServiceName: "svcname1",
 					ServiceTags: []string{"tag1"},
+					Type:        "ttl",
 				},
 			},
 		},
@@ -424,6 +439,7 @@ func TestAgent_AddService(t *testing.T) {
 					ServiceID:   "svcid2",
 					ServiceName: "svcname2",
 					ServiceTags: []string{"tag2"},
+					Type:        "ttl",
 				},
 				"check-noname": &structs.HealthCheck{
 					Node:        "node1",
@@ -433,6 +449,7 @@ func TestAgent_AddService(t *testing.T) {
 					ServiceID:   "svcid2",
 					ServiceName: "svcname2",
 					ServiceTags: []string{"tag2"},
+					Type:        "ttl",
 				},
 				"service:svcid2:3": &structs.HealthCheck{
 					Node:        "node1",
@@ -442,6 +459,7 @@ func TestAgent_AddService(t *testing.T) {
 					ServiceID:   "svcid2",
 					ServiceName: "svcname2",
 					ServiceTags: []string{"tag2"},
+					Type:        "ttl",
 				},
 				"service:svcid2:4": &structs.HealthCheck{
 					Node:        "node1",
@@ -451,6 +469,7 @@ func TestAgent_AddService(t *testing.T) {
 					ServiceID:   "svcid2",
 					ServiceName: "svcname2",
 					ServiceTags: []string{"tag2"},
+					Type:        "ttl",
 				},
 			},
 		},
@@ -504,10 +523,22 @@ func TestAgent_AddService(t *testing.T) {
 }
 
 func TestAgent_AddServices_AliasUpdateCheckNotReverted(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServices_AliasUpdateCheckNotReverted(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServices_AliasUpdateCheckNotReverted(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_AddServices_AliasUpdateCheckNotReverted(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		node_name = "node1"
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	// It's tricky to get an UpdateCheck call to be timed properly so it lands
@@ -560,10 +591,22 @@ func TestAgent_AddServices_AliasUpdateCheckNotReverted(t *testing.T) {
 }
 
 func TestAgent_AddServiceNoExec(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServiceNoExec(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServiceNoExec(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_AddServiceNoExec(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		node_name = "node1"
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 	testrpc.WaitForTestAgent(t, a.RPC, "dc1")
 
@@ -590,11 +633,23 @@ func TestAgent_AddServiceNoExec(t *testing.T) {
 }
 
 func TestAgent_AddServiceNoRemoteExec(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServiceNoRemoteExec(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddServiceNoRemoteExec(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_AddServiceNoRemoteExec(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		node_name = "node1"
 		enable_local_script_checks = true
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 	testrpc.WaitForTestAgent(t, a.RPC, "dc1")
 
@@ -616,17 +671,29 @@ func TestAgent_AddServiceNoRemoteExec(t *testing.T) {
 }
 
 func TestAgent_RemoveService(t *testing.T) {
-	t.Parallel()
-	a := NewTestAgent(t, t.Name(), "")
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_RemoveService(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_RemoveService(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_RemoveService(t *testing.T, extraHCL string) {
+	t.Helper()
+
+	a := NewTestAgent(t, t.Name(), extraHCL)
 	defer a.Shutdown()
 
 	// Remove a service that doesn't exist
-	if err := a.RemoveService("redis", false); err != nil {
+	if err := a.RemoveService("redis"); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// Remove without an ID
-	if err := a.RemoveService("", false); err == nil {
+	if err := a.RemoveService(""); err == nil {
 		t.Fatalf("should have errored")
 	}
 
@@ -655,7 +722,7 @@ func TestAgent_RemoveService(t *testing.T) {
 			t.Fatalf("err: %s", err)
 		}
 
-		if err := a.RemoveService("memcache", false); err != nil {
+		if err := a.RemoveService("memcache"); err != nil {
 			t.Fatalf("err: %s", err)
 		}
 		if _, ok := a.State.Checks()["service:memcache"]; ok {
@@ -697,7 +764,7 @@ func TestAgent_RemoveService(t *testing.T) {
 		}
 
 		// Remove the service
-		if err := a.RemoveService("redis", false); err != nil {
+		if err := a.RemoveService("redis"); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 
@@ -745,17 +812,44 @@ func TestAgent_RemoveService(t *testing.T) {
 }
 
 func TestAgent_RemoveServiceRemovesAllChecks(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_RemoveServiceRemovesAllChecks(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_RemoveServiceRemovesAllChecks(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_RemoveServiceRemovesAllChecks(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		node_name = "node1"
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	svc := &structs.NodeService{ID: "redis", Service: "redis", Port: 8000}
 	chk1 := &structs.CheckType{CheckID: "chk1", Name: "chk1", TTL: time.Minute}
 	chk2 := &structs.CheckType{CheckID: "chk2", Name: "chk2", TTL: 2 * time.Minute}
-	hchk1 := &structs.HealthCheck{Node: "node1", CheckID: "chk1", Name: "chk1", Status: "critical", ServiceID: "redis", ServiceName: "redis"}
-	hchk2 := &structs.HealthCheck{Node: "node1", CheckID: "chk2", Name: "chk2", Status: "critical", ServiceID: "redis", ServiceName: "redis"}
+	hchk1 := &structs.HealthCheck{
+		Node:        "node1",
+		CheckID:     "chk1",
+		Name:        "chk1",
+		Status:      "critical",
+		ServiceID:   "redis",
+		ServiceName: "redis",
+		Type:        "ttl",
+	}
+	hchk2 := &structs.HealthCheck{Node: "node1",
+		CheckID:     "chk2",
+		Name:        "chk2",
+		Status:      "critical",
+		ServiceID:   "redis",
+		ServiceName: "redis",
+		Type:        "ttl",
+	}
 
 	// register service with chk1
 	if err := a.AddService(svc, []*structs.CheckType{chk1}, false, "", ConfigSourceLocal); err != nil {
@@ -781,7 +875,7 @@ func TestAgent_RemoveServiceRemovesAllChecks(t *testing.T) {
 	}
 
 	// Remove service
-	if err := a.RemoveService("redis", false); err != nil {
+	if err := a.RemoveService("redis"); err != nil {
 		t.Fatal("Failed to remove service", err)
 	}
 
@@ -1229,8 +1323,11 @@ func TestAgent_RestoreServiceWithAliasCheck(t *testing.T) {
 	testCtx, testCancel := context.WithCancel(context.Background())
 	defer testCancel()
 
-	testHTTPServer := launchHTTPCheckServer(t, testCtx)
-	defer testHTTPServer.Close()
+	testHTTPServer, returnPort := launchHTTPCheckServer(t, testCtx)
+	defer func() {
+		testHTTPServer.Close()
+		returnPort()
+	}()
 
 	registerServicesAndChecks := func(t *testing.T, a *TestAgent) {
 		// add one persistent service with a simple check
@@ -1338,8 +1435,8 @@ node_name = "` + a.Config.NodeName + `"
 	}
 }
 
-func launchHTTPCheckServer(t *testing.T, ctx context.Context) *httptest.Server {
-	ports := freeport.GetT(t, 1)
+func launchHTTPCheckServer(t *testing.T, ctx context.Context) (srv *httptest.Server, returnPortsFn func()) {
+	ports := freeport.MustTake(1)
 	port := ports[0]
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
@@ -1353,12 +1450,12 @@ func launchHTTPCheckServer(t *testing.T, ctx context.Context) *httptest.Server {
 		_, _ = w.Write([]byte("OK\n"))
 	})
 
-	srv := &httptest.Server{
+	srv = &httptest.Server{
 		Listener: listener,
 		Config:   &http.Server{Handler: handler},
 	}
 	srv.Start()
-	return srv
+	return srv, func() { freeport.Return(ports) }
 }
 
 func TestAgent_AddCheck_Alias(t *testing.T) {
@@ -1685,15 +1782,28 @@ func TestAgent_updateTTLCheck(t *testing.T) {
 }
 
 func TestAgent_PersistService(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PersistService(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PersistService(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_PersistService(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	dataDir := testutil.TempDir(t, "agent") // we manage the data dir
+	defer os.RemoveAll(dataDir)
+
 	cfg := `
 		server = false
 		bootstrap = false
 		data_dir = "` + dataDir + `"
-	`
+	` + extraHCL
 	a := NewTestAgentWithFields(t, true, TestAgent{HCL: cfg, DataDir: dataDir})
-	defer os.RemoveAll(dataDir)
 	defer a.Shutdown()
 
 	svc := &structs.NodeService{
@@ -1723,6 +1833,7 @@ func TestAgent_PersistService(t *testing.T) {
 	expected, err := json.Marshal(persistedService{
 		Token:   "mytoken",
 		Service: svc,
+		Source:  "local",
 	})
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -1743,6 +1854,7 @@ func TestAgent_PersistService(t *testing.T) {
 	expected, err = json.Marshal(persistedService{
 		Token:   "mytoken",
 		Service: svc,
+		Source:  "local",
 	})
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -1773,9 +1885,21 @@ func TestAgent_PersistService(t *testing.T) {
 }
 
 func TestAgent_persistedService_compat(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_persistedService_compat(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_persistedService_compat(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_persistedService_compat(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	// Tests backwards compatibility of persisted services from pre-0.5.1
-	a := NewTestAgent(t, t.Name(), "")
+	a := NewTestAgent(t, t.Name(), extraHCL)
 	defer a.Shutdown()
 
 	svc := &structs.NodeService{
@@ -1817,8 +1941,20 @@ func TestAgent_persistedService_compat(t *testing.T) {
 }
 
 func TestAgent_PurgeService(t *testing.T) {
-	t.Parallel()
-	a := NewTestAgent(t, t.Name(), "")
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PurgeService(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PurgeService(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_PurgeService(t *testing.T, extraHCL string) {
+	t.Helper()
+
+	a := NewTestAgent(t, t.Name(), extraHCL)
 	defer a.Shutdown()
 
 	svc := &structs.NodeService{
@@ -1832,9 +1968,13 @@ func TestAgent_PurgeService(t *testing.T) {
 	if err := a.AddService(svc, nil, true, "", ConfigSourceLocal); err != nil {
 		t.Fatalf("err: %v", err)
 	}
+	// Exists
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("err: %s", err)
+	}
 
 	// Not removed
-	if err := a.RemoveService(svc.ID, false); err != nil {
+	if err := a.removeService(svc.ID, false); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 	if _, err := os.Stat(file); err != nil {
@@ -1847,7 +1987,7 @@ func TestAgent_PurgeService(t *testing.T) {
 	}
 
 	// Removed
-	if err := a.RemoveService(svc.ID, true); err != nil {
+	if err := a.removeService(svc.ID, true); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 	if _, err := os.Stat(file); !os.IsNotExist(err) {
@@ -1856,16 +1996,29 @@ func TestAgent_PurgeService(t *testing.T) {
 }
 
 func TestAgent_PurgeServiceOnDuplicate(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PurgeServiceOnDuplicate(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_PurgeServiceOnDuplicate(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_PurgeServiceOnDuplicate(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	dataDir := testutil.TempDir(t, "agent") // we manage the data dir
+	defer os.RemoveAll(dataDir)
+
 	cfg := `
 		data_dir = "` + dataDir + `"
 		server = false
 		bootstrap = false
-	`
+	` + extraHCL
 	a := NewTestAgentWithFields(t, true, TestAgent{HCL: cfg, DataDir: dataDir})
 	defer a.Shutdown()
-	defer os.RemoveAll(dataDir)
 
 	svc1 := &structs.NodeService{
 		ID:      "redis",
@@ -1950,6 +2103,7 @@ func TestAgent_PersistCheck(t *testing.T) {
 		Check:   check,
 		ChkType: chkType,
 		Token:   "mytoken",
+		Source:  "local",
 	})
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -1971,6 +2125,7 @@ func TestAgent_PersistCheck(t *testing.T) {
 		Check:   check,
 		ChkType: chkType,
 		Token:   "mytoken",
+		Source:  "local",
 	})
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -2182,7 +2337,19 @@ func TestAgent_unloadChecks(t *testing.T) {
 }
 
 func TestAgent_loadServices_token(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_token(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_token(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_loadServices_token(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		service = {
 			id = "rabbitmq"
@@ -2190,7 +2357,7 @@ func TestAgent_loadServices_token(t *testing.T) {
 			port = 5672
 			token = "abc123"
 		}
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	services := a.State.Services()
@@ -2203,7 +2370,19 @@ func TestAgent_loadServices_token(t *testing.T) {
 }
 
 func TestAgent_loadServices_sidecar(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecar(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecar(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_loadServices_sidecar(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		service = {
 			id = "rabbitmq"
@@ -2214,7 +2393,7 @@ func TestAgent_loadServices_sidecar(t *testing.T) {
 				sidecar_service {}
 			}
 		}
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	services := a.State.Services()
@@ -2237,7 +2416,19 @@ func TestAgent_loadServices_sidecar(t *testing.T) {
 }
 
 func TestAgent_loadServices_sidecarSeparateToken(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarSeparateToken(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarSeparateToken(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_loadServices_sidecarSeparateToken(t *testing.T, extraHCL string) {
+	t.Helper()
+
 	a := NewTestAgent(t, t.Name(), `
 		service = {
 			id = "rabbitmq"
@@ -2250,7 +2441,7 @@ func TestAgent_loadServices_sidecarSeparateToken(t *testing.T) {
 				}
 			}
 		}
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	services := a.State.Services()
@@ -2269,7 +2460,18 @@ func TestAgent_loadServices_sidecarSeparateToken(t *testing.T) {
 }
 
 func TestAgent_loadServices_sidecarInheritMeta(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarInheritMeta(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarInheritMeta(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_loadServices_sidecarInheritMeta(t *testing.T, extraHCL string) {
+	t.Helper()
 
 	a := NewTestAgent(t, t.Name(), `
 		service = {
@@ -2286,7 +2488,7 @@ func TestAgent_loadServices_sidecarInheritMeta(t *testing.T) {
 				}
 			}
 		}
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	services := a.State.Services()
@@ -2306,7 +2508,18 @@ func TestAgent_loadServices_sidecarInheritMeta(t *testing.T) {
 }
 
 func TestAgent_loadServices_sidecarOverrideMeta(t *testing.T) {
-	t.Parallel()
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarOverrideMeta(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_loadServices_sidecarOverrideMeta(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_loadServices_sidecarOverrideMeta(t *testing.T, extraHCL string) {
+	t.Helper()
 
 	a := NewTestAgent(t, t.Name(), `
 		service = {
@@ -2326,7 +2539,7 @@ func TestAgent_loadServices_sidecarOverrideMeta(t *testing.T) {
 				}
 			}
 		}
-	`)
+	`+extraHCL)
 	defer a.Shutdown()
 
 	services := a.State.Services()
@@ -2347,8 +2560,20 @@ func TestAgent_loadServices_sidecarOverrideMeta(t *testing.T) {
 }
 
 func TestAgent_unloadServices(t *testing.T) {
-	t.Parallel()
-	a := NewTestAgent(t, t.Name(), "")
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_unloadServices(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_unloadServices(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_unloadServices(t *testing.T, extraHCL string) {
+	t.Helper()
+
+	a := NewTestAgent(t, t.Name(), extraHCL)
 	defer a.Shutdown()
 
 	svc := &structs.NodeService{
@@ -2575,8 +2800,20 @@ func TestAgent_Service_NoReap(t *testing.T) {
 }
 
 func TestAgent_AddService_restoresSnapshot(t *testing.T) {
-	t.Parallel()
-	a := NewTestAgent(t, t.Name(), "")
+	t.Run("normal", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddService_restoresSnapshot(t, "")
+	})
+	t.Run("service manager", func(t *testing.T) {
+		t.Parallel()
+		testAgent_AddService_restoresSnapshot(t, "enable_central_service_config = true")
+	})
+}
+
+func testAgent_AddService_restoresSnapshot(t *testing.T, extraHCL string) {
+	t.Helper()
+
+	a := NewTestAgent(t, t.Name(), extraHCL)
 	defer a.Shutdown()
 
 	// First register a service
@@ -2772,7 +3009,7 @@ func TestAgent_loadChecks_checkFails(t *testing.T) {
 		Status:    api.HealthPassing,
 		ServiceID: "nope",
 	}
-	if err := a.persistCheck(check, nil); err != nil {
+	if err := a.persistCheck(check, nil, ConfigSourceLocal); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
@@ -3321,4 +3558,574 @@ func TestAgent_consulConfig_RaftTrailingLogs(t *testing.T) {
 	a := NewTestAgent(t, t.Name(), hcl)
 	defer a.Shutdown()
 	require.Equal(t, uint64(812345), a.consulConfig().RaftConfig.TrailingLogs)
+}
+
+func TestAgent_grpcInjectAddr(t *testing.T) {
+	tt := []struct {
+		name string
+		grpc string
+		ip   string
+		port int
+		want string
+	}{
+		{
+			name: "localhost web svc",
+			grpc: "localhost:8080/web",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090/web",
+		},
+		{
+			name: "localhost no svc",
+			grpc: "localhost:8080",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090",
+		},
+		{
+			name: "ipv4 web svc",
+			grpc: "127.0.0.1:8080/web",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090/web",
+		},
+		{
+			name: "ipv4 no svc",
+			grpc: "127.0.0.1:8080",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090",
+		},
+		{
+			name: "ipv6 no svc",
+			grpc: "2001:db8:1f70::999:de8:7648:6e8:5000",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090",
+		},
+		{
+			name: "ipv6 web svc",
+			grpc: "2001:db8:1f70::999:de8:7648:6e8:5000/web",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090/web",
+		},
+		{
+			name: "zone ipv6 web svc",
+			grpc: "::FFFF:C0A8:1%1:5000/web",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090/web",
+		},
+		{
+			name: "ipv6 literal web svc",
+			grpc: "::FFFF:192.168.0.1:5000/web",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "192.168.0.0:9090/web",
+		},
+		{
+			name: "ipv6 injected into ipv6 url",
+			grpc: "2001:db8:1f70::999:de8:7648:6e8:5000",
+			ip:   "::FFFF:C0A8:1",
+			port: 9090,
+			want: "::FFFF:C0A8:1:9090",
+		},
+		{
+			name: "ipv6 injected into ipv6 url with svc",
+			grpc: "2001:db8:1f70::999:de8:7648:6e8:5000/web",
+			ip:   "::FFFF:C0A8:1",
+			port: 9090,
+			want: "::FFFF:C0A8:1:9090/web",
+		},
+		{
+			name: "ipv6 injected into ipv6 url with special",
+			grpc: "2001:db8:1f70::999:de8:7648:6e8:5000/service-$name:with@special:Chars",
+			ip:   "::FFFF:C0A8:1",
+			port: 9090,
+			want: "::FFFF:C0A8:1:9090/service-$name:with@special:Chars",
+		},
+	}
+	for _, tt := range tt {
+		t.Run(tt.name, func(t *testing.T) {
+			got := grpcInjectAddr(tt.grpc, tt.ip, tt.port)
+			if got != tt.want {
+				t.Errorf("httpInjectAddr() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAgent_httpInjectAddr(t *testing.T) {
+	tt := []struct {
+		name string
+		url  string
+		ip   string
+		port int
+		want string
+	}{
+		{
+			name: "localhost health",
+			url:  "http://localhost:8080/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "http://192.168.0.0:9090/health",
+		},
+		{
+			name: "https localhost health",
+			url:  "https://localhost:8080/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090/health",
+		},
+		{
+			name: "https ipv4 health",
+			url:  "https://127.0.0.1:8080/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090/health",
+		},
+		{
+			name: "https ipv4 without path",
+			url:  "https://127.0.0.1:8080",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090",
+		},
+		{
+			name: "https ipv6 health",
+			url:  "https://[2001:db8:1f70::999:de8:7648:6e8]:5000/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090/health",
+		},
+		{
+			name: "https ipv6 with zone",
+			url:  "https://[::FFFF:C0A8:1%1]:5000/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090/health",
+		},
+		{
+			name: "https ipv6 literal",
+			url:  "https://[::FFFF:192.168.0.1]:5000/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090/health",
+		},
+		{
+			name: "https ipv6 without path",
+			url:  "https://[2001:db8:1f70::999:de8:7648:6e8]:5000",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "https://192.168.0.0:9090",
+		},
+		{
+			name: "ipv6 injected into ipv6 url",
+			url:  "https://[2001:db8:1f70::999:de8:7648:6e8]:5000",
+			ip:   "::FFFF:C0A8:1",
+			port: 9090,
+			want: "https://[::FFFF:C0A8:1]:9090",
+		},
+		{
+			name: "ipv6 with brackets injected into ipv6 url",
+			url:  "https://[2001:db8:1f70::999:de8:7648:6e8]:5000",
+			ip:   "[::FFFF:C0A8:1]",
+			port: 9090,
+			want: "https://[::FFFF:C0A8:1]:9090",
+		},
+		{
+			name: "short domain health",
+			url:  "http://i.co:8080/health",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "http://192.168.0.0:9090/health",
+		},
+		{
+			name: "nested url in query",
+			url:  "http://my.corp.com:8080/health?from=http://google.com:8080",
+			ip:   "192.168.0.0",
+			port: 9090,
+			want: "http://192.168.0.0:9090/health?from=http://google.com:8080",
+		},
+	}
+	for _, tt := range tt {
+		t.Run(tt.name, func(t *testing.T) {
+			got := httpInjectAddr(tt.url, tt.ip, tt.port)
+			if got != tt.want {
+				t.Errorf("httpInjectAddr() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDefaultIfEmpty(t *testing.T) {
+	require.Equal(t, "", defaultIfEmpty("", ""))
+	require.Equal(t, "foo", defaultIfEmpty("", "foo"))
+	require.Equal(t, "bar", defaultIfEmpty("bar", "foo"))
+	require.Equal(t, "bar", defaultIfEmpty("bar", ""))
+}
+
+func TestConfigSourceFromName(t *testing.T) {
+	cases := []struct {
+		in     string
+		expect configSource
+		bad    bool
+	}{
+		{in: "local", expect: ConfigSourceLocal},
+		{in: "remote", expect: ConfigSourceRemote},
+		{in: "", expect: ConfigSourceLocal},
+		{in: "LOCAL", bad: true},
+		{in: "REMOTE", bad: true},
+		{in: "garbage", bad: true},
+		{in: " ", bad: true},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.in, func(t *testing.T) {
+			got, ok := ConfigSourceFromName(tc.in)
+			if tc.bad {
+				require.False(t, ok)
+				require.Empty(t, got)
+			} else {
+				require.True(t, ok)
+				require.Equal(t, tc.expect, got)
+			}
+		})
+	}
+}
+
+func TestAgentCache_serviceInConfigFile_initialFetchErrors_Issue6521(t *testing.T) {
+	t.Parallel()
+
+	// Ensure that initial failures to fetch the discovery chain via the agent
+	// cache using the notify API for a service with no config entries
+	// correctly recovers when those RPCs resume working. The key here is that
+	// the lack of config entries guarantees that the RPC will come back with a
+	// synthetic index of 1.
+	//
+	// The bug in the Cache.notifyBlockingQuery used to incorrectly "fix" the
+	// index for the next query from 0 to 1 for all queries, when it should
+	// have not done so for queries that errored.
+
+	a1 := NewTestAgent(t, t.Name()+"-a1", "")
+	defer a1.Shutdown()
+	testrpc.WaitForLeader(t, a1.RPC, "dc1")
+
+	a2 := NewTestAgent(t, t.Name()+"-a2", `
+		server = false
+		bootstrap = false
+services {
+  name = "echo-client"
+  port = 8080
+  connect {
+    sidecar_service {
+      proxy {
+        upstreams {
+          destination_name = "echo"
+          local_bind_port  = 9191
+        }
+      }
+    }
+  }
+}
+
+services {
+  name = "echo"
+  port = 9090
+  connect {
+    sidecar_service {}
+  }
+}
+	`)
+	defer a2.Shutdown()
+
+	// Starting a client agent disconnected from a server with services.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan cache.UpdateEvent, 1)
+	require.NoError(t, a2.cache.Notify(ctx, cachetype.CompiledDiscoveryChainName, &structs.DiscoveryChainRequest{
+		Datacenter:           "dc1",
+		Name:                 "echo",
+		EvaluateInDatacenter: "dc1",
+		EvaluateInNamespace:  "default",
+	}, "foo", ch))
+
+	{ // The first event is an error because we are not joined yet.
+		evt := <-ch
+		require.Equal(t, "foo", evt.CorrelationID)
+		require.Nil(t, evt.Result)
+		require.Error(t, evt.Err)
+		require.Equal(t, evt.Err, structs.ErrNoServers)
+	}
+
+	t.Logf("joining client to server")
+
+	// Now connect to server
+	_, err := a1.JoinLAN([]string{
+		fmt.Sprintf("127.0.0.1:%d", a2.Config.SerfPortLAN),
+	})
+	require.NoError(t, err)
+
+	t.Logf("joined client to server")
+
+	deadlineCh := time.After(10 * time.Second)
+	start := time.Now()
+LOOP:
+	for {
+		select {
+		case evt := <-ch:
+			// We may receive several notifications of an error until we get the
+			// first successful reply.
+			require.Equal(t, "foo", evt.CorrelationID)
+			if evt.Err != nil {
+				break LOOP
+			}
+			require.NoError(t, evt.Err)
+			require.NotNil(t, evt.Result)
+			t.Logf("took %s to get first success", time.Since(start))
+		case <-deadlineCh:
+			t.Fatal("did not get notified successfully")
+		}
+	}
+}
+
+func TestAgent_RerouteExistingHTTPChecks(t *testing.T) {
+	t.Parallel()
+
+	a := NewTestAgent(t, t.Name(), "")
+	defer a.Shutdown()
+
+	testrpc.WaitForTestAgent(t, a.RPC, "dc1")
+
+	// Register a service without a ProxyAddr
+	svc := &structs.NodeService{
+		ID:      "web",
+		Service: "web",
+		Address: "localhost",
+		Port:    8080,
+	}
+	chks := []*structs.CheckType{
+		{
+			CheckID:       "http",
+			HTTP:          "http://localhost:8080/mypath?query",
+			Interval:      20 * time.Millisecond,
+			TLSSkipVerify: true,
+		},
+		{
+			CheckID:       "grpc",
+			GRPC:          "localhost:8080/myservice",
+			Interval:      20 * time.Millisecond,
+			TLSSkipVerify: true,
+		},
+	}
+	if err := a.AddService(svc, chks, false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add svc: %v", err)
+	}
+
+	// Register a proxy and expose HTTP checks
+	// This should trigger setting ProxyHTTP and ProxyGRPC in the checks
+	proxy := &structs.NodeService{
+		Kind:    "connect-proxy",
+		ID:      "web-proxy",
+		Service: "web-proxy",
+		Address: "localhost",
+		Port:    21500,
+		Proxy: structs.ConnectProxyConfig{
+			DestinationServiceName: "web",
+			DestinationServiceID:   "web",
+			LocalServiceAddress:    "localhost",
+			LocalServicePort:       8080,
+			MeshGateway:            structs.MeshGatewayConfig{},
+			Expose: structs.ExposeConfig{
+				Checks: true,
+			},
+		},
+	}
+	if err := a.AddService(proxy, nil, false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add svc: %v", err)
+	}
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		got := chks[0].ProxyHTTP
+		if got == "" {
+			r.Fatal("proxyHTTP addr not set in check")
+		}
+
+		want := "http://localhost:21500/mypath?query"
+		if got != want {
+			r.Fatalf("unexpected proxy addr in check, want: %s, got: %s", want, got)
+		}
+	})
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		// Will be at a later index than HTTP check because of the fetching order in ServiceHTTPBasedChecks
+		got := chks[1].ProxyGRPC
+		if got == "" {
+			r.Fatal("ProxyGRPC addr not set in check")
+		}
+
+		// Node that this relies on listener ports auto-incrementing in a.listenerPortLocked
+		want := "localhost:21501/myservice"
+		if got != want {
+			r.Fatalf("unexpected proxy addr in check, want: %s, got: %s", want, got)
+		}
+	})
+
+	// Re-register a proxy and disable exposing HTTP checks
+	// This should trigger resetting ProxyHTTP and ProxyGRPC to empty strings
+	proxy = &structs.NodeService{
+		Kind:    "connect-proxy",
+		ID:      "web-proxy",
+		Service: "web-proxy",
+		Address: "localhost",
+		Port:    21500,
+		Proxy: structs.ConnectProxyConfig{
+			DestinationServiceName: "web",
+			DestinationServiceID:   "web",
+			LocalServiceAddress:    "localhost",
+			LocalServicePort:       8080,
+			MeshGateway:            structs.MeshGatewayConfig{},
+			Expose: structs.ExposeConfig{
+				Checks: false,
+			},
+		},
+	}
+	if err := a.AddService(proxy, nil, false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add svc: %v", err)
+	}
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		got := chks[0].ProxyHTTP
+		if got != "" {
+			r.Fatal("ProxyHTTP addr was not reset")
+		}
+	})
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		// Will be at a later index than HTTP check because of the fetching order in ServiceHTTPBasedChecks
+		got := chks[1].ProxyGRPC
+		if got != "" {
+			r.Fatal("ProxyGRPC addr was not reset")
+		}
+	})
+}
+
+func TestAgent_RerouteNewHTTPChecks(t *testing.T) {
+	t.Parallel()
+
+	a := NewTestAgent(t, t.Name(), "")
+	defer a.Shutdown()
+
+	testrpc.WaitForTestAgent(t, a.RPC, "dc1")
+
+	// Register a service without a ProxyAddr
+	svc := &structs.NodeService{
+		ID:      "web",
+		Service: "web",
+		Address: "localhost",
+		Port:    8080,
+	}
+	if err := a.AddService(svc, nil, false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add svc: %v", err)
+	}
+
+	// Register a proxy and expose HTTP checks
+	proxy := &structs.NodeService{
+		Kind:    "connect-proxy",
+		ID:      "web-proxy",
+		Service: "web-proxy",
+		Address: "localhost",
+		Port:    21500,
+		Proxy: structs.ConnectProxyConfig{
+			DestinationServiceName: "web",
+			DestinationServiceID:   "web",
+			LocalServiceAddress:    "localhost",
+			LocalServicePort:       8080,
+			MeshGateway:            structs.MeshGatewayConfig{},
+			Expose: structs.ExposeConfig{
+				Checks: true,
+			},
+		},
+	}
+	if err := a.AddService(proxy, nil, false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add svc: %v", err)
+	}
+
+	checks := []*structs.HealthCheck{
+		{
+			CheckID:   "http",
+			Name:      "http",
+			ServiceID: "web",
+			Status:    api.HealthCritical,
+		},
+		{
+			CheckID:   "grpc",
+			Name:      "grpc",
+			ServiceID: "web",
+			Status:    api.HealthCritical,
+		},
+	}
+	chkTypes := []*structs.CheckType{
+		{
+			CheckID:       "http",
+			HTTP:          "http://localhost:8080/mypath?query",
+			Interval:      20 * time.Millisecond,
+			TLSSkipVerify: true,
+		},
+		{
+			CheckID:       "grpc",
+			GRPC:          "localhost:8080/myservice",
+			Interval:      20 * time.Millisecond,
+			TLSSkipVerify: true,
+		},
+	}
+
+	// ProxyGRPC and ProxyHTTP should be set when creating check
+	// since proxy.expose.checks is enabled on the proxy
+	if err := a.AddCheck(checks[0], chkTypes[0], false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add check: %v", err)
+	}
+	if err := a.AddCheck(checks[1], chkTypes[1], false, "", ConfigSourceLocal); err != nil {
+		t.Fatalf("failed to add check: %v", err)
+	}
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		got := chks[0].ProxyHTTP
+		if got == "" {
+			r.Fatal("ProxyHTTP addr not set in check")
+		}
+
+		want := "http://localhost:21500/mypath?query"
+		if got != want {
+			r.Fatalf("unexpected proxy addr in http check, want: %s, got: %s", want, got)
+		}
+	})
+
+	retry.Run(t, func(r *retry.R) {
+		chks := a.ServiceHTTPBasedChecks("web")
+
+		// Will be at a later index than HTTP check because of the fetching order in ServiceHTTPBasedChecks
+		got := chks[1].ProxyGRPC
+		if got == "" {
+			r.Fatal("ProxyGRPC addr not set in check")
+		}
+
+		want := "localhost:21501/myservice"
+		if got != want {
+			r.Fatalf("unexpected proxy addr in grpc check, want: %s, got: %s", want, got)
+		}
+	})
 }

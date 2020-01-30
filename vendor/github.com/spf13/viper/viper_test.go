@@ -118,6 +118,24 @@ var remoteExample = []byte(`{
 "newkey":"remote"
 }`)
 
+var iniExample = []byte(`; Package name
+NAME        = ini
+; Package version
+VERSION     = v1
+; Package import path
+IMPORT_PATH = gopkg.in/%(NAME)s.%(VERSION)s
+
+# Information about package author
+# Bio can be written in multiple lines.
+[author]
+NAME   = Unknown  ; Succeeding comment
+E-MAIL = fake@localhost
+GITHUB = https://github.com/%(NAME)s
+BIO    = """Gopher.
+Coding addict.
+Good man.
+"""  # Succeeding comment`)
+
 func initConfigs() {
 	Reset()
 	var r io.Reader
@@ -148,6 +166,10 @@ func initConfigs() {
 	SetConfigType("json")
 	remote := bytes.NewReader(remoteExample)
 	unmarshalReader(remote, v.kvstore)
+
+	SetConfigType("ini")
+	r = bytes.NewReader(iniExample)
+	unmarshalReader(r, v.config)
 }
 
 func initConfig(typ, config string) {
@@ -204,9 +226,16 @@ func initHcl() {
 	unmarshalReader(r, v.config)
 }
 
+func initIni() {
+	Reset()
+	SetConfigType("ini")
+	r := bytes.NewReader(iniExample)
+
+	unmarshalReader(r, v.config)
+}
+
 // make directories for testing
 func initDirs(t *testing.T) (string, string, func()) {
-
 	var (
 		testDirs = []string{`a a`, `b`, `C_`}
 		config   = `improbable`
@@ -275,6 +304,60 @@ func TestBasics(t *testing.T) {
 	SetConfigFile("/tmp/config.yaml")
 	filename, err := v.getConfigFile()
 	assert.Equal(t, "/tmp/config.yaml", filename)
+	assert.NoError(t, err)
+}
+
+func TestSearchInPath_WithoutConfigTypeSet(t *testing.T) {
+	filename := ".dotfilenoext"
+	path := "/tmp"
+	file := filepath.Join(path, filename)
+	SetConfigName(filename)
+	AddConfigPath(path)
+	_, createErr := v.fs.Create(file)
+	defer func() {
+		_ = v.fs.Remove(file)
+	}()
+	assert.NoError(t, createErr)
+	_, err := v.getConfigFile()
+	// unless config type is set, files without extension
+	// are not considered
+	assert.Error(t, err)
+}
+
+func TestSearchInPath(t *testing.T) {
+	filename := ".dotfilenoext"
+	path := "/tmp"
+	file := filepath.Join(path, filename)
+	SetConfigName(filename)
+	SetConfigType("yaml")
+	AddConfigPath(path)
+	_, createErr := v.fs.Create(file)
+	defer func() {
+		_ = v.fs.Remove(file)
+	}()
+	assert.NoError(t, createErr)
+	filename, err := v.getConfigFile()
+	assert.Equal(t, file, filename)
+	assert.NoError(t, err)
+}
+
+func TestSearchInPath_FilesOnly(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	err := fs.Mkdir("/tmp/config", 0777)
+	require.NoError(t, err)
+
+	_, err = fs.Create("/tmp/config/config.yaml")
+	require.NoError(t, err)
+
+	v := New()
+
+	v.SetFs(fs)
+	v.AddConfigPath("/tmp")
+	v.AddConfigPath("/tmp/config")
+
+	filename, err := v.getConfigFile()
+	assert.Equal(t, "/tmp/config/config.yaml", filename)
 	assert.NoError(t, err)
 }
 
@@ -380,6 +463,11 @@ func TestHCL(t *testing.T) {
 	assert.NotEqual(t, "cronut", Get("type"))
 }
 
+func TestIni(t *testing.T) {
+	initIni()
+	assert.Equal(t, "ini", Get("default.name"))
+}
+
 func TestRemotePrecedence(t *testing.T) {
 	initJSON()
 
@@ -412,7 +500,6 @@ func TestEnv(t *testing.T) {
 	AutomaticEnv()
 
 	assert.Equal(t, "crunk", Get("name"))
-
 }
 
 func TestEmptyEnv(t *testing.T) {
@@ -500,11 +587,24 @@ func TestSetEnvKeyReplacer(t *testing.T) {
 	assert.Equal(t, "30s", Get("refresh-interval"))
 }
 
+func TestEnvKeyReplacer(t *testing.T) {
+	v := NewWithOptions(EnvKeyReplacer(strings.NewReplacer("-", "_")))
+
+	v.AutomaticEnv()
+	_ = os.Setenv("REFRESH_INTERVAL", "30s")
+
+	assert.Equal(t, "30s", v.Get("refresh-interval"))
+}
+
 func TestAllKeys(t *testing.T) {
 	initConfigs()
 
 	ks := sort.StringSlice{
 		"title",
+		"author.bio",
+		"author.e-mail",
+		"author.github",
+		"author.name",
 		"newkey",
 		"owner.organization",
 		"owner.dob",
@@ -516,6 +616,9 @@ func TestAllKeys(t *testing.T) {
 		"hobbies",
 		"clothing.jacket",
 		"clothing.trousers",
+		"default.import_path",
+		"default.name",
+		"default.version",
 		"clothing.pants.size",
 		"age",
 		"hacker",
@@ -540,12 +643,23 @@ func TestAllKeys(t *testing.T) {
 			"dob":          dob,
 		},
 		"title": "TOML Example",
-		"ppu":   0.55,
-		"eyes":  "brown",
+		"author": map[string]interface{}{
+			"e-mail": "fake@localhost",
+			"github": "https://github.com/Unknown",
+			"name":   "Unknown",
+			"bio":    "Gopher.\nCoding addict.\nGood man.\n",
+		},
+		"ppu":  0.55,
+		"eyes": "brown",
 		"clothing": map[string]interface{}{
 			"trousers": "denim",
 			"jacket":   "leather",
 			"pants":    map[string]interface{}{"size": "large"},
+		},
+		"default": map[string]interface{}{
+			"import_path": "gopkg.in/ini.v1",
+			"name":        "ini",
+			"version":     "v1",
 		},
 		"id": "0001",
 		"batters": map[string]interface{}{
@@ -743,7 +857,6 @@ func TestBindPFlags(t *testing.T) {
 	for name, expected := range mutatedTestValues {
 		assert.Equal(t, expected, v.Get(name))
 	}
-
 }
 
 func TestBindPFlagsStringSlice(t *testing.T) {
@@ -855,7 +968,6 @@ func TestBindPFlag(t *testing.T) {
 	flag.Changed = true // hack for pflag usage
 
 	assert.Equal(t, "testing_mutate", Get("testvalue"))
-
 }
 
 func TestBoundCaseSensitivity(t *testing.T) {
@@ -877,7 +989,6 @@ func TestBoundCaseSensitivity(t *testing.T) {
 
 	BindPFlag("eYEs", flag)
 	assert.Equal(t, "green", Get("eyes"))
-
 }
 
 func TestSizeInBytes(t *testing.T) {
@@ -980,18 +1091,18 @@ func TestFindsNestedKeys(t *testing.T) {
 		"owner.dob":           dob,
 		"beard":               true,
 		"foos": []map[string]interface{}{
-			map[string]interface{}{
+			{
 				"foo": []map[string]interface{}{
-					map[string]interface{}{
+					{
 						"key": 1,
 					},
-					map[string]interface{}{
+					{
 						"key": 2,
 					},
-					map[string]interface{}{
+					{
 						"key": 3,
 					},
-					map[string]interface{}{
+					{
 						"key": 4,
 					},
 				},
@@ -1000,10 +1111,8 @@ func TestFindsNestedKeys(t *testing.T) {
 	}
 
 	for key, expectedValue := range expected {
-
 		assert.Equal(t, expectedValue, v.Get(key))
 	}
-
 }
 
 func TestReadBufConfig(t *testing.T) {
@@ -1023,16 +1132,50 @@ func TestReadBufConfig(t *testing.T) {
 func TestIsSet(t *testing.T) {
 	v := New()
 	v.SetConfigType("yaml")
+
+	/* config and defaults */
 	v.ReadConfig(bytes.NewBuffer(yamlExample))
+	v.SetDefault("clothing.shoes", "sneakers")
+
+	assert.True(t, v.IsSet("clothing"))
 	assert.True(t, v.IsSet("clothing.jacket"))
 	assert.False(t, v.IsSet("clothing.jackets"))
+	assert.True(t, v.IsSet("clothing.shoes"))
+
+	/* state change */
 	assert.False(t, v.IsSet("helloworld"))
 	v.Set("helloworld", "fubar")
 	assert.True(t, v.IsSet("helloworld"))
+
+	/* env */
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.BindEnv("eyes")
+	v.BindEnv("foo")
+	v.BindEnv("clothing.hat")
+	v.BindEnv("clothing.hats")
+	os.Setenv("FOO", "bar")
+	os.Setenv("CLOTHING_HAT", "bowler")
+
+	assert.True(t, v.IsSet("eyes"))           // in the config file
+	assert.True(t, v.IsSet("foo"))            // in the environment
+	assert.True(t, v.IsSet("clothing.hat"))   // in the environment
+	assert.False(t, v.IsSet("clothing.hats")) // not defined
+
+	/* flags */
+	flagset := pflag.NewFlagSet("testisset", pflag.ContinueOnError)
+	flagset.Bool("foobaz", false, "foobaz")
+	flagset.Bool("barbaz", false, "barbaz")
+	foobaz, barbaz := flagset.Lookup("foobaz"), flagset.Lookup("barbaz")
+	v.BindPFlag("foobaz", foobaz)
+	v.BindPFlag("barbaz", barbaz)
+	barbaz.Value.Set("true")
+	barbaz.Changed = true // hack for pflag usage
+
+	assert.False(t, v.IsSet("foobaz"))
+	assert.True(t, v.IsSet("barbaz"))
 }
 
 func TestDirsSearch(t *testing.T) {
-
 	root, config, cleanup := initDirs(t)
 	defer cleanup()
 
@@ -1055,7 +1198,6 @@ func TestDirsSearch(t *testing.T) {
 }
 
 func TestWrongDirsSearchNotFound(t *testing.T) {
-
 	_, config, cleanup := initDirs(t)
 	defer cleanup()
 
@@ -1075,7 +1217,6 @@ func TestWrongDirsSearchNotFound(t *testing.T) {
 }
 
 func TestWrongDirsSearchNotFoundForMerge(t *testing.T) {
-
 	_, config, cleanup := initDirs(t)
 	defer cleanup()
 
@@ -1333,6 +1474,68 @@ func TestWriteConfigYAML(t *testing.T) {
 	assert.Equal(t, yamlWriteExpected, read)
 }
 
+func TestSafeWriteConfig(t *testing.T) {
+	v := New()
+	fs := afero.NewMemMapFs()
+	v.SetFs(fs)
+	v.AddConfigPath("/test")
+	v.SetConfigName("c")
+	v.SetConfigType("yaml")
+	require.NoError(t, v.ReadConfig(bytes.NewBuffer(yamlExample)))
+	require.NoError(t, v.SafeWriteConfig())
+	read, err := afero.ReadFile(fs, "/test/c.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, yamlWriteExpected, read)
+}
+
+func TestSafeWriteConfigWithMissingConfigPath(t *testing.T) {
+	v := New()
+	fs := afero.NewMemMapFs()
+	v.SetFs(fs)
+	v.SetConfigName("c")
+	v.SetConfigType("yaml")
+	require.EqualError(t, v.SafeWriteConfig(), "missing configuration for 'configPath'")
+}
+
+func TestSafeWriteConfigWithExistingFile(t *testing.T) {
+	v := New()
+	fs := afero.NewMemMapFs()
+	fs.Create("/test/c.yaml")
+	v.SetFs(fs)
+	v.AddConfigPath("/test")
+	v.SetConfigName("c")
+	v.SetConfigType("yaml")
+	err := v.SafeWriteConfig()
+	require.Error(t, err)
+	_, ok := err.(ConfigFileAlreadyExistsError)
+	assert.True(t, ok, "Expected ConfigFileAlreadyExistsError")
+}
+
+func TestSafeWriteAsConfig(t *testing.T) {
+	v := New()
+	fs := afero.NewMemMapFs()
+	v.SetFs(fs)
+	err := v.ReadConfig(bytes.NewBuffer(yamlExample))
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.NoError(t, v.SafeWriteConfigAs("/test/c.yaml"))
+	if _, err = afero.ReadFile(fs, "/test/c.yaml"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSafeWriteConfigAsWithExistingFile(t *testing.T) {
+	v := New()
+	fs := afero.NewMemMapFs()
+	fs.Create("/test/c.yaml")
+	v.SetFs(fs)
+	err := v.SafeWriteConfigAs("/test/c.yaml")
+	require.Error(t, err)
+	_, ok := err.(ConfigFileAlreadyExistsError)
+	assert.True(t, ok, "Expected ConfigFileAlreadyExistsError")
+}
+
 var yamlMergeExampleTgt = []byte(`
 hello:
     pop: 37890
@@ -1513,7 +1716,6 @@ func TestMergeConfigMap(t *testing.T) {
 	}
 
 	assert(1234)
-
 }
 
 func TestUnmarshalingWithAliases(t *testing.T) {
@@ -1552,7 +1754,6 @@ func TestSetConfigNameClearsFileCache(t *testing.T) {
 }
 
 func TestShadowedNestedValue(t *testing.T) {
-
 	config := `name: steve
 clothing:
   jacket: leather
@@ -1732,7 +1933,6 @@ func doTestCaseInsensitive(t *testing.T, typ, config string) {
 	assert.Equal(t, 3, cast.ToInt(Get("ef.ijk")))
 	assert.Equal(t, 4, cast.ToInt(Get("ef.lm.no")))
 	assert.Equal(t, 5, cast.ToInt(Get("ef.lm.p.q")))
-
 }
 
 func newViperWithConfigFile(t *testing.T) (*Viper, string, func()) {
@@ -1837,7 +2037,6 @@ func TestWatchFile(t *testing.T) {
 		require.Nil(t, err)
 		assert.Equal(t, "baz", v.Get("foo"))
 	})
-
 }
 
 func TestUnmarshal_DotSeparatorBackwardCompatibility(t *testing.T) {
@@ -1855,6 +2054,73 @@ func TestUnmarshal_DotSeparatorBackwardCompatibility(t *testing.T) {
 
 	assert.NoError(t, v.Unmarshal(config))
 	assert.Equal(t, "cobra_flag", config.Foo.Bar)
+}
+
+var yamlExampleWithDot = []byte(`Hacker: true
+name: steve
+hobbies:
+  - skateboarding
+  - snowboarding
+  - go
+clothing:
+  jacket: leather
+  trousers: denim
+  pants:
+    size: large
+age: 35
+eyes : brown
+beard: true
+emails:
+  steve@hacker.com:
+    created: 01/02/03
+    active: true
+`)
+
+func TestKeyDelimiter(t *testing.T) {
+	v := NewWithOptions(KeyDelimiter("::"))
+	v.SetConfigType("yaml")
+	r := strings.NewReader(string(yamlExampleWithDot))
+
+	err := v.unmarshalReader(r, v.config)
+	require.NoError(t, err)
+
+	values := map[string]interface{}{
+		"image": map[string]interface{}{
+			"repository": "someImage",
+			"tag":        "1.0.0",
+		},
+		"ingress": map[string]interface{}{
+			"annotations": map[string]interface{}{
+				"traefik.frontend.rule.type":                 "PathPrefix",
+				"traefik.ingress.kubernetes.io/ssl-redirect": "true",
+			},
+		},
+	}
+
+	v.SetDefault("charts::values", values)
+
+	assert.Equal(t, "leather", v.GetString("clothing::jacket"))
+	assert.Equal(t, "01/02/03", v.GetString("emails::steve@hacker.com::created"))
+
+	type config struct {
+		Charts struct {
+			Values map[string]interface{}
+		}
+	}
+
+	expected := config{
+		Charts: struct {
+			Values map[string]interface{}
+		}{
+			Values: values,
+		},
+	}
+
+	var actual config
+
+	assert.NoError(t, v.Unmarshal(&actual))
+
+	assert.Equal(t, expected, actual)
 }
 
 func BenchmarkGetBool(b *testing.B) {

@@ -24,7 +24,7 @@ func TestClientOverrideDefaultHTTPClientTimeout(t *testing.T) {
 		t.Errorf("expect %v, not to equal %v", e, a)
 	}
 
-	if e, a := 5*time.Second, svc.Config.HTTPClient.Timeout; e != a {
+	if e, a := 1*time.Second, svc.Config.HTTPClient.Timeout; e != a {
 		t.Errorf("expect %v to be %v", e, a)
 	}
 }
@@ -65,7 +65,7 @@ func TestClientOverrideDefaultHTTPClientTimeoutRace(t *testing.T) {
 	defer server.Close()
 
 	cfg := aws.NewConfig().WithEndpoint(server.URL)
-	runEC2MetadataClients(t, cfg, 100)
+	runEC2MetadataClients(t, cfg, 50)
 }
 
 func TestClientOverrideDefaultHTTPClientTimeoutRaceWithTransport(t *testing.T) {
@@ -75,10 +75,12 @@ func TestClientOverrideDefaultHTTPClientTimeoutRaceWithTransport(t *testing.T) {
 	defer server.Close()
 
 	cfg := aws.NewConfig().WithEndpoint(server.URL).WithHTTPClient(&http.Client{
-		Transport: http.DefaultTransport,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
 	})
 
-	runEC2MetadataClients(t, cfg, 100)
+	runEC2MetadataClients(t, cfg, 50)
 }
 
 func TestClientDisableIMDS(t *testing.T) {
@@ -90,7 +92,7 @@ func TestClientDisableIMDS(t *testing.T) {
 	svc := ec2metadata.New(unit.Session, &aws.Config{
 		LogLevel: aws.LogLevel(aws.LogDebugWithHTTPBody),
 	})
-	resp, err := svc.Region()
+	resp, err := svc.GetUserData()
 	if err == nil {
 		t.Fatalf("expect error, got none")
 	}
@@ -110,14 +112,14 @@ func TestClientDisableIMDS(t *testing.T) {
 func runEC2MetadataClients(t *testing.T, cfg *aws.Config, atOnce int) {
 	var wg sync.WaitGroup
 	wg.Add(atOnce)
+	svc := ec2metadata.New(unit.Session, cfg)
 	for i := 0; i < atOnce; i++ {
 		go func() {
-			svc := ec2metadata.New(unit.Session, cfg)
-			_, err := svc.Region()
+			defer wg.Done()
+			_, err := svc.GetUserData()
 			if err != nil {
-				t.Fatalf("expect no error, got %v", err)
+				t.Errorf("expect no error, got %v", err)
 			}
-			wg.Done()
 		}()
 	}
 	wg.Wait()

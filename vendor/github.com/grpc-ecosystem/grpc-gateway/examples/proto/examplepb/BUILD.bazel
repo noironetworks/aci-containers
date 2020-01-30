@@ -1,16 +1,28 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@grpc_ecosystem_grpc_gateway//protoc-gen-swagger:defs.bzl", "protoc_gen_swagger")
 
 package(default_visibility = ["//visibility:public"])
 
+# TODO(yannic): Add examples/tests that use import_prefix/strip_import_prefix.
+
 # gazelle:exclude a_bit_of_everything.pb.gw.go
 # gazelle:exclude echo_service.pb.gw.go
 # gazelle:exclude flow_combination.pb.gw.go
+# gazelle:exclude generated_input.proto
 # gazelle:exclude non_standard_names.pb.gw.go
-# gazelle:exclude stream.pb.gw.go
-# gazelle:exclude wrappers.pb.gw.go
 # gazelle:exclude response_body_service.pb.gw.go
+# gazelle:exclude stream.pb.gw.go
+# gazelle:exclude use_go_template.pb.gw.go
+# gazelle:exclude wrappers.pb.gw.go
+
+genrule(
+    name = "generated_proto",
+    srcs = ["generated_input.proto"],
+    outs = ["generated_output.proto"],
+    cmd = "cp $< $@",  # A simple copy simulates a generated proto file.
+)
 
 proto_library(
     name = "examplepb_proto",
@@ -18,10 +30,12 @@ proto_library(
         "a_bit_of_everything.proto",
         "echo_service.proto",
         "flow_combination.proto",
+        "generated_output.proto",
         "non_standard_names.proto",
         "response_body_service.proto",
         "stream.proto",
         "unannotated_echo_service.proto",
+        "use_go_template.proto",
         "wrappers.proto",
     ],
     deps = [

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/mitchellh/hashstructure"
@@ -24,7 +23,7 @@ import (
 	"github.com/hashicorp/consul/lib/file"
 	"github.com/hashicorp/consul/logger"
 	"github.com/hashicorp/consul/types"
-	bexpr "github.com/hashicorp/go-bexpr"
+	"github.com/hashicorp/go-bexpr"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/serf/coordinate"
 	"github.com/hashicorp/serf/serf"
@@ -262,7 +261,7 @@ func (s *HTTPServer) AgentService(resp http.ResponseWriter, req *http.Request) (
 	// in QueryOptions but I didn't want to make very general changes right away.
 	hash := req.URL.Query().Get("hash")
 
-	return s.agentLocalBlockingQuery(resp, hash, &queryOpts,
+	resultHash, service, err := s.agent.LocalBlockingQuery(false, hash, queryOpts.MaxQueryTime,
 		func(ws memdb.WatchSet) (string, interface{}, error) {
 
 			svcState := s.agent.State.ServiceState(id)
@@ -299,7 +298,12 @@ func (s *HTTPServer) AgentService(resp http.ResponseWriter, req *http.Request) (
 			reply.ContentHash = fmt.Sprintf("%x", rawHash)
 
 			return reply.ContentHash, reply, nil
-		})
+		},
+	)
+	if resultHash != "" {
+		resp.Header().Set("X-Consul-ContentHash", resultHash)
+	}
+	return service, err
 }
 
 func (s *HTTPServer) AgentChecks(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
@@ -434,8 +438,11 @@ func (s *HTTPServer) AgentForceLeave(resp http.ResponseWriter, req *http.Request
 		return nil, acl.ErrPermissionDenied
 	}
 
+	//Check the value of the prune query
+	_, prune := req.URL.Query()["prune"]
+
 	addr := strings.TrimPrefix(req.URL.Path, "/v1/agent/force-leave/")
-	return nil, s.agent.ForceLeave(addr)
+	return nil, s.agent.ForceLeave(addr, prune)
 }
 
 // syncChanges is a helper function which wraps a blocking call to sync
@@ -449,11 +456,8 @@ func (s *HTTPServer) syncChanges() {
 
 func (s *HTTPServer) AgentRegisterCheck(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var args structs.CheckDefinition
-	// Fixup the type decode of TTL or Interval.
-	decodeCB := func(raw interface{}) error {
-		return FixupCheckType(raw)
-	}
-	if err := decodeBody(req, &args, decodeCB); err != nil {
+
+	if err := decodeBody(req.Body, &args); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
@@ -483,6 +487,9 @@ func (s *HTTPServer) AgentRegisterCheck(resp http.ResponseWriter, req *http.Requ
 		fmt.Fprint(resp, fmt.Errorf("Invalid check: %v", err))
 		return nil, nil
 	}
+
+	// Store the type of check based on the definition
+	health.Type = chkType.Type()
 
 	if health.ServiceID != "" {
 		// fixup the service name so that vetCheckRegister requires the right ACLs
@@ -595,7 +602,7 @@ type checkUpdate struct {
 // APIs.
 func (s *HTTPServer) AgentCheckUpdate(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var update checkUpdate
-	if err := decodeBody(req, &update, nil); err != nil {
+	if err := decodeBody(req.Body, &update); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
@@ -676,9 +683,21 @@ func (s *HTTPServer) AgentHealthServiceByID(resp http.ResponseWriter, req *http.
 	if serviceID == "" {
 		return nil, &BadRequestError{Reason: "Missing serviceID"}
 	}
+
+	var token string
+	s.parseToken(req, &token)
+
+	rule, err := s.agent.resolveToken(token)
+	if err != nil {
+		return nil, err
+	}
+
 	services := s.agent.State.Services()
 	for _, service := range services {
 		if service.ID == serviceID {
+			if rule != nil && !rule.ServiceRead(service.Service) {
+				return nil, acl.ErrPermissionDenied
+			}
 			code, status, healthChecks := agentHealthService(serviceID, s)
 			if returnTextPlain(req) {
 				return status, CodeWithPayloadError{StatusCode: code, Reason: status, ContentType: "text/plain"}
@@ -710,6 +729,18 @@ func (s *HTTPServer) AgentHealthServiceByName(resp http.ResponseWriter, req *htt
 	if serviceName == "" {
 		return nil, &BadRequestError{Reason: "Missing service Name"}
 	}
+
+	var token string
+	s.parseToken(req, &token)
+
+	rule, err := s.agent.resolveToken(token)
+	if err != nil {
+		return nil, err
+	}
+	if rule != nil && !rule.ServiceRead(serviceName) {
+		return nil, acl.ErrPermissionDenied
+	}
+
 	code := http.StatusNotFound
 	status := fmt.Sprintf("ServiceName %s Not Found", serviceName)
 	services := s.agent.State.Services()
@@ -746,72 +777,8 @@ func (s *HTTPServer) AgentHealthServiceByName(resp http.ResponseWriter, req *htt
 func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var args structs.ServiceDefinition
 	// Fixup the type decode of TTL or Interval if a check if provided.
-	decodeCB := func(raw interface{}) error {
-		rawMap, ok := raw.(map[string]interface{})
-		if !ok {
-			return nil
-		}
 
-		// see https://github.com/hashicorp/consul/pull/3557 why we need this
-		// and why we should get rid of it.
-		lib.TranslateKeys(rawMap, map[string]string{
-			"enable_tag_override": "EnableTagOverride",
-			// Proxy Upstreams
-			"destination_name":      "DestinationName",
-			"destination_type":      "DestinationType",
-			"destination_namespace": "DestinationNamespace",
-			"local_bind_port":       "LocalBindPort",
-			"local_bind_address":    "LocalBindAddress",
-			// Proxy Config
-			"destination_service_name": "DestinationServiceName",
-			"destination_service_id":   "DestinationServiceID",
-			"local_service_port":       "LocalServicePort",
-			"local_service_address":    "LocalServiceAddress",
-			// SidecarService
-			"sidecar_service": "SidecarService",
-
-			// DON'T Recurse into these opaque config maps or we might mangle user's
-			// keys. Note empty canonical is a special sentinel to prevent recursion.
-			"Meta": "",
-
-			"tagged_addresses": "TaggedAddresses",
-
-			// upstreams is an array but this prevents recursion into config field of
-			// any item in the array.
-			"Proxy.Config":                   "",
-			"Proxy.Upstreams.Config":         "",
-			"Connect.Proxy.Config":           "",
-			"Connect.Proxy.Upstreams.Config": "",
-
-			// Same exceptions as above, but for a nested sidecar_service note we use
-			// the canonical form SidecarService since that is translated by the time
-			// the lookup here happens.
-			"Connect.SidecarService.Meta":                   "",
-			"Connect.SidecarService.Proxy.Config":           "",
-			"Connect.SidecarService.Proxy.Upstreams.config": "",
-		})
-
-		for k, v := range rawMap {
-			switch strings.ToLower(k) {
-			case "check":
-				if err := FixupCheckType(v); err != nil {
-					return err
-				}
-			case "checks":
-				chkTypes, ok := v.([]interface{})
-				if !ok {
-					continue
-				}
-				for _, chkType := range chkTypes {
-					if err := FixupCheckType(chkType); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		return nil
-	}
-	if err := decodeBody(req, &args, decodeCB); err != nil {
+	if err := decodeBody(req.Body, &args); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
@@ -933,8 +900,14 @@ func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Re
 	}
 	// Add sidecar.
 	if sidecar != nil {
-		if err := s.agent.AddService(sidecar, sidecarChecks, true, sidecarToken, ConfigSourceRemote); err != nil {
-			return nil, err
+		if replaceExistingChecks {
+			if err := s.agent.AddServiceAndReplaceChecks(sidecar, sidecarChecks, true, sidecarToken, ConfigSourceRemote); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := s.agent.AddService(sidecar, sidecarChecks, true, sidecarToken, ConfigSourceRemote); err != nil {
+				return nil, err
+			}
 		}
 	}
 	s.syncChanges()
@@ -951,7 +924,7 @@ func (s *HTTPServer) AgentDeregisterService(resp http.ResponseWriter, req *http.
 		return nil, err
 	}
 
-	if err := s.agent.RemoveService(serviceID, true); err != nil {
+	if err := s.agent.RemoveService(serviceID); err != nil {
 		return nil, err
 	}
 
@@ -1156,7 +1129,7 @@ func (s *HTTPServer) AgentToken(resp http.ResponseWriter, req *http.Request) (in
 	// The body is just the token, but it's in a JSON object so we can add
 	// fields to this later if needed.
 	var args api.AgentToken
-	if err := decodeBody(req, &args, nil); err != nil {
+	if err := decodeBody(req.Body, &args); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
@@ -1176,12 +1149,19 @@ func (s *HTTPServer) AgentToken(resp http.ResponseWriter, req *http.Request) (in
 
 	// Figure out the target token.
 	target := strings.TrimPrefix(req.URL.Path, "/v1/agent/token/")
+	triggerAntiEntropySync := false
 	switch target {
 	case "acl_token", "default":
-		s.agent.tokens.UpdateUserToken(args.Token, token_store.TokenSourceAPI)
+		changed := s.agent.tokens.UpdateUserToken(args.Token, token_store.TokenSourceAPI)
+		if changed {
+			triggerAntiEntropySync = true
+		}
 
 	case "acl_agent_token", "agent":
-		s.agent.tokens.UpdateAgentToken(args.Token, token_store.TokenSourceAPI)
+		changed := s.agent.tokens.UpdateAgentToken(args.Token, token_store.TokenSourceAPI)
+		if changed {
+			triggerAntiEntropySync = true
+		}
 
 	case "acl_agent_master_token", "agent_master":
 		s.agent.tokens.UpdateAgentMasterToken(args.Token, token_store.TokenSourceAPI)
@@ -1193,6 +1173,10 @@ func (s *HTTPServer) AgentToken(resp http.ResponseWriter, req *http.Request) (in
 		resp.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(resp, "Token %q is unknown", target)
 		return nil, nil
+	}
+
+	if triggerAntiEntropySync {
+		s.agent.sync.SyncFull.Trigger()
 	}
 
 	if s.agent.config.ACLEnableTokenPersistence {
@@ -1291,68 +1275,6 @@ func (s *HTTPServer) AgentConnectCALeafCert(resp http.ResponseWriter, req *http.
 	return reply, nil
 }
 
-type agentLocalBlockingFunc func(ws memdb.WatchSet) (string, interface{}, error)
-
-// agentLocalBlockingQuery performs a blocking query in a generic way against
-// local agent state that has no RPC or raft to back it. It uses `hash` parameter
-// instead of an `index`. The resp is needed to write the `X-Consul-ContentHash`
-// header back on return no Status nor body content is ever written to it.
-func (s *HTTPServer) agentLocalBlockingQuery(resp http.ResponseWriter, hash string,
-	queryOpts *structs.QueryOptions, fn agentLocalBlockingFunc) (interface{}, error) {
-
-	// If we are not blocking we can skip tracking and allocating - nil WatchSet
-	// is still valid to call Add on and will just be a no op.
-	var ws memdb.WatchSet
-	var timeout *time.Timer
-
-	if hash != "" {
-		// TODO(banks) at least define these defaults somewhere in a const. Would be
-		// nice not to duplicate the ones in consul/rpc.go too...
-		wait := queryOpts.MaxQueryTime
-		if wait == 0 {
-			wait = 5 * time.Minute
-		}
-		if wait > 10*time.Minute {
-			wait = 10 * time.Minute
-		}
-		// Apply a small amount of jitter to the request.
-		wait += lib.RandomStagger(wait / 16)
-		timeout = time.NewTimer(wait)
-	}
-
-	for {
-		// Must reset this every loop in case the Watch set is already closed but
-		// hash remains same. In that case we'll need to re-block on ws.Watch()
-		// again.
-		ws = memdb.NewWatchSet()
-		curHash, curResp, err := fn(ws)
-		if err != nil {
-			return curResp, err
-		}
-		// Return immediately if there is no timeout, the hash is different or the
-		// Watch returns true (indicating timeout fired). Note that Watch on a nil
-		// WatchSet immediately returns false which would incorrectly cause this to
-		// loop and repeat again, however we rely on the invariant that ws == nil
-		// IFF timeout == nil in which case the Watch call is never invoked.
-		if timeout == nil || hash != curHash || ws.Watch(timeout.C) {
-			resp.Header().Set("X-Consul-ContentHash", curHash)
-			return curResp, err
-		}
-		// Watch returned false indicating a change was detected, loop and repeat
-		// the callback to load the new value. If agent sync is paused it means
-		// local state is currently being bulk-edited e.g. config reload. In this
-		// case it's likely that local state just got unloaded and may or may not be
-		// reloaded yet. Wait a short amount of time for Sync to resume to ride out
-		// typical config reloads.
-		if syncPauseCh := s.agent.syncPausedCh(); syncPauseCh != nil {
-			select {
-			case <-syncPauseCh:
-			case <-timeout.C:
-			}
-		}
-	}
-}
-
 // AgentConnectAuthorize
 //
 // POST /v1/agent/connect/authorize
@@ -1366,7 +1288,7 @@ func (s *HTTPServer) AgentConnectAuthorize(resp http.ResponseWriter, req *http.R
 
 	// Decode the request from the request body
 	var authReq structs.ConnectAuthorizeRequest
-	if err := decodeBody(req, &authReq, nil); err != nil {
+	if err := decodeBody(req.Body, &authReq); err != nil {
 		return nil, BadRequestError{fmt.Sprintf("Request decode failed: %v", err)}
 	}
 

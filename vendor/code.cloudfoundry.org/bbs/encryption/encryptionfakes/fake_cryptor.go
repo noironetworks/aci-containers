@@ -45,9 +45,10 @@ func (fake *FakeCryptor) Decrypt(arg1 encryption.Encrypted) ([]byte, error) {
 		arg1 encryption.Encrypted
 	}{arg1})
 	fake.recordInvocation("Decrypt", []interface{}{arg1})
+	decryptStubCopy := fake.DecryptStub
 	fake.decryptMutex.Unlock()
-	if fake.DecryptStub != nil {
-		return fake.DecryptStub(arg1)
+	if decryptStubCopy != nil {
+		return decryptStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -113,9 +114,10 @@ func (fake *FakeCryptor) Encrypt(arg1 []byte) (encryption.Encrypted, error) {
 		arg1 []byte
 	}{arg1Copy})
 	fake.recordInvocation("Encrypt", []interface{}{arg1Copy})
+	encryptStubCopy := fake.EncryptStub
 	fake.encryptMutex.Unlock()
-	if fake.EncryptStub != nil {
-		return fake.EncryptStub(arg1)
+	if encryptStubCopy != nil {
+		return encryptStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

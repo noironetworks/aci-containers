@@ -186,9 +186,10 @@ func (fake *FakeTaskController) CancelTask(arg1 context.Context, arg2 lager.Logg
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("CancelTask", []interface{}{arg1, arg2, arg3})
+	cancelTaskStubCopy := fake.CancelTaskStub
 	fake.cancelTaskMutex.Unlock()
-	if fake.CancelTaskStub != nil {
-		return fake.CancelTaskStub(arg1, arg2, arg3)
+	if cancelTaskStubCopy != nil {
+		return cancelTaskStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -252,9 +253,10 @@ func (fake *FakeTaskController) CompleteTask(arg1 context.Context, arg2 lager.Lo
 		arg7 string
 	}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
 	fake.recordInvocation("CompleteTask", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
+	completeTaskStubCopy := fake.CompleteTaskStub
 	fake.completeTaskMutex.Unlock()
-	if fake.CompleteTaskStub != nil {
-		return fake.CompleteTaskStub(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+	if completeTaskStubCopy != nil {
+		return completeTaskStubCopy(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 	}
 	if specificReturn {
 		return ret.result1
@@ -316,9 +318,10 @@ func (fake *FakeTaskController) ConvergeTasks(arg1 context.Context, arg2 lager.L
 		arg5 time.Duration
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("ConvergeTasks", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	convergeTasksStubCopy := fake.ConvergeTasksStub
 	fake.convergeTasksMutex.Unlock()
-	if fake.ConvergeTasksStub != nil {
-		return fake.ConvergeTasksStub(arg1, arg2, arg3, arg4, arg5)
+	if convergeTasksStubCopy != nil {
+		return convergeTasksStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -378,9 +381,10 @@ func (fake *FakeTaskController) DeleteTask(arg1 context.Context, arg2 lager.Logg
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("DeleteTask", []interface{}{arg1, arg2, arg3})
+	deleteTaskStubCopy := fake.DeleteTaskStub
 	fake.deleteTaskMutex.Unlock()
-	if fake.DeleteTaskStub != nil {
-		return fake.DeleteTaskStub(arg1, arg2, arg3)
+	if deleteTaskStubCopy != nil {
+		return deleteTaskStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -442,9 +446,10 @@ func (fake *FakeTaskController) DesireTask(arg1 context.Context, arg2 lager.Logg
 		arg5 string
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("DesireTask", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	desireTaskStubCopy := fake.DesireTaskStub
 	fake.desireTaskMutex.Unlock()
-	if fake.DesireTaskStub != nil {
-		return fake.DesireTaskStub(arg1, arg2, arg3, arg4, arg5)
+	if desireTaskStubCopy != nil {
+		return desireTaskStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -505,9 +510,10 @@ func (fake *FakeTaskController) FailTask(arg1 context.Context, arg2 lager.Logger
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("FailTask", []interface{}{arg1, arg2, arg3, arg4})
+	failTaskStubCopy := fake.FailTaskStub
 	fake.failTaskMutex.Unlock()
-	if fake.FailTaskStub != nil {
-		return fake.FailTaskStub(arg1, arg2, arg3, arg4)
+	if failTaskStubCopy != nil {
+		return failTaskStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1
@@ -568,9 +574,10 @@ func (fake *FakeTaskController) RejectTask(arg1 context.Context, arg2 lager.Logg
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("RejectTask", []interface{}{arg1, arg2, arg3, arg4})
+	rejectTaskStubCopy := fake.RejectTaskStub
 	fake.rejectTaskMutex.Unlock()
-	if fake.RejectTaskStub != nil {
-		return fake.RejectTaskStub(arg1, arg2, arg3, arg4)
+	if rejectTaskStubCopy != nil {
+		return rejectTaskStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1
@@ -630,9 +637,10 @@ func (fake *FakeTaskController) ResolvingTask(arg1 context.Context, arg2 lager.L
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("ResolvingTask", []interface{}{arg1, arg2, arg3})
+	resolvingTaskStubCopy := fake.ResolvingTaskStub
 	fake.resolvingTaskMutex.Unlock()
-	if fake.ResolvingTaskStub != nil {
-		return fake.ResolvingTaskStub(arg1, arg2, arg3)
+	if resolvingTaskStubCopy != nil {
+		return resolvingTaskStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -693,9 +701,10 @@ func (fake *FakeTaskController) StartTask(arg1 context.Context, arg2 lager.Logge
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("StartTask", []interface{}{arg1, arg2, arg3, arg4})
+	startTaskStubCopy := fake.StartTaskStub
 	fake.startTaskMutex.Unlock()
-	if fake.StartTaskStub != nil {
-		return fake.StartTaskStub(arg1, arg2, arg3, arg4)
+	if startTaskStubCopy != nil {
+		return startTaskStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -758,9 +767,10 @@ func (fake *FakeTaskController) TaskByGuid(arg1 context.Context, arg2 lager.Logg
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("TaskByGuid", []interface{}{arg1, arg2, arg3})
+	taskByGuidStubCopy := fake.TaskByGuidStub
 	fake.taskByGuidMutex.Unlock()
-	if fake.TaskByGuidStub != nil {
-		return fake.TaskByGuidStub(arg1, arg2, arg3)
+	if taskByGuidStubCopy != nil {
+		return taskByGuidStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -824,9 +834,10 @@ func (fake *FakeTaskController) Tasks(arg1 context.Context, arg2 lager.Logger, a
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("Tasks", []interface{}{arg1, arg2, arg3, arg4})
+	tasksStubCopy := fake.TasksStub
 	fake.tasksMutex.Unlock()
-	if fake.TasksStub != nil {
-		return fake.TasksStub(arg1, arg2, arg3, arg4)
+	if tasksStubCopy != nil {
+		return tasksStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

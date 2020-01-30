@@ -1,6 +1,7 @@
 package structs
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -8,11 +9,15 @@ import (
 	"github.com/hashicorp/consul/types"
 )
 
+type CheckTypes []*CheckType
+
 // CheckType is used to create either the CheckMonitor or the CheckTTL.
 // The following types are supported: Script, HTTP, TCP, Docker, TTL, GRPC, Alias. Script,
 // HTTP, Docker, TCP and GRPC all require Interval. Only one of the types may
 // to be provided: TTL or Script/Interval or HTTP/Interval or TCP/Interval or
 // Docker/Interval or GRPC/Interval or AliasService.
+// Since types like CheckHTTP and CheckGRPC derive from CheckType, there are
+// helper conversion methods that do the reverse conversion. ie. checkHTTP.CheckType()
 type CheckType struct {
 	// fields already embedded in CheckDefinition
 	// Note: CheckType.CheckID == CheckDefinition.ID
@@ -41,13 +46,101 @@ type CheckType struct {
 	Timeout           time.Duration
 	TTL               time.Duration
 
+	// Definition fields used when exposing checks through a proxy
+	ProxyHTTP string
+	ProxyGRPC string
+
 	// DeregisterCriticalServiceAfter, if >0, will cause the associated
 	// service, if any, to be deregistered if this check is critical for
 	// longer than this duration.
 	DeregisterCriticalServiceAfter time.Duration
 	OutputMaxSize                  int
 }
-type CheckTypes []*CheckType
+
+func (t *CheckType) UnmarshalJSON(data []byte) (err error) {
+	type Alias CheckType
+	aux := &struct {
+		Interval                       interface{}
+		Timeout                        interface{}
+		TTL                            interface{}
+		DeregisterCriticalServiceAfter interface{}
+
+		// Translate fields
+
+		// "args" -> ScriptArgs
+		Args                                []string    `json:"args"`
+		ScriptArgsSnake                     []string    `json:"script_args"`
+		DeregisterCriticalServiceAfterSnake interface{} `json:"deregister_critical_service_after"`
+		DockerContainerIDSnake              string      `json:"docker_container_id"`
+		TLSSkipVerifySnake                  bool        `json:"tls_skip_verify"`
+
+		*Alias
+	}{
+		Alias: (*Alias)(t),
+	}
+	if err = json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	if aux.DeregisterCriticalServiceAfter == nil {
+		aux.DeregisterCriticalServiceAfter = aux.DeregisterCriticalServiceAfterSnake
+	}
+	if len(t.ScriptArgs) == 0 {
+		t.ScriptArgs = aux.Args
+	}
+	if len(t.ScriptArgs) == 0 {
+		t.ScriptArgs = aux.ScriptArgsSnake
+	}
+	if t.DockerContainerID == "" {
+		t.DockerContainerID = aux.DockerContainerIDSnake
+	}
+	if aux.TLSSkipVerifySnake {
+		t.TLSSkipVerify = aux.TLSSkipVerifySnake
+	}
+
+	if aux.Interval != nil {
+		switch v := aux.Interval.(type) {
+		case string:
+			if t.Interval, err = time.ParseDuration(v); err != nil {
+				return err
+			}
+		case float64:
+			t.Interval = time.Duration(v)
+		}
+	}
+	if aux.Timeout != nil {
+		switch v := aux.Timeout.(type) {
+		case string:
+			if t.Timeout, err = time.ParseDuration(v); err != nil {
+				return err
+			}
+		case float64:
+			t.Timeout = time.Duration(v)
+		}
+	}
+	if aux.TTL != nil {
+		switch v := aux.TTL.(type) {
+		case string:
+			if t.TTL, err = time.ParseDuration(v); err != nil {
+				return err
+			}
+		case float64:
+			t.TTL = time.Duration(v)
+		}
+	}
+	if aux.DeregisterCriticalServiceAfter != nil {
+		switch v := aux.DeregisterCriticalServiceAfter.(type) {
+		case string:
+			if t.DeregisterCriticalServiceAfter, err = time.ParseDuration(v); err != nil {
+				return err
+			}
+		case float64:
+			t.DeregisterCriticalServiceAfter = time.Duration(v)
+		}
+	}
+
+	return nil
+
+}
 
 // Validate returns an error message if the check is invalid
 func (c *CheckType) Validate() error {
@@ -117,4 +210,25 @@ func (c *CheckType) IsDocker() bool {
 // IsGRPC checks if this is a GRPC type
 func (c *CheckType) IsGRPC() bool {
 	return c.GRPC != "" && c.Interval > 0
+}
+
+func (c *CheckType) Type() string {
+	switch {
+	case c.IsGRPC():
+		return "grpc"
+	case c.IsHTTP():
+		return "http"
+	case c.IsTTL():
+		return "ttl"
+	case c.IsTCP():
+		return "tcp"
+	case c.IsAlias():
+		return "alias"
+	case c.IsDocker():
+		return "docker"
+	case c.IsScript():
+		return "script"
+	default:
+		return ""
+	}
 }

@@ -39,6 +39,8 @@ documented below in the
 [reload command](/docs/commands/reload.html) can also be used to trigger a
 configuration reload.
 
+You can test the following configuration options by following the [Getting Started](https://learn.hashicorp.com/consul/getting-started/install?utm_source=consul.io&utm_medium=docs) guides to install a local agent. 
+
 ## <a name="commandline_options"></a>Command-line Options
 
 The options below are all specified on the command-line.
@@ -780,6 +782,9 @@ default will automatically work with some tooling.
       the maximum number of log entries that a server can trail the leader by before being considered unhealthy. Defaults
       to 250.
 
+    * <a name="min_quorum"></a><a href="#min_quorum">`min_quorum`</a> - Sets the minimum number of servers necessary in a cluster
+      before autopilot can prune dead servers. There is no default.
+
     * <a name="server_stabilization_time"></a><a href="#server_stabilization_time">`server_stabilization_time`</a> -
       Controls the minimum amount of time a server must be stable in the 'healthy' state before being added to the
       cluster. Only takes effect if all servers are running Raft protocol version 3 or higher. Must be a duration value
@@ -1283,21 +1288,79 @@ default will automatically work with some tooling.
   value was unconditionally set to `false`). On agents in client-mode, this defaults to `true`
   and for agents in server-mode, this defaults to `false`.
 
-* <a name="limits"></a><a href="#limits">`limits`</a> Available in Consul 0.9.3 and later, this
-  is a nested object that configures limits that are enforced by the agent. Currently, this only
-  applies to agents in client mode, not Consul servers. The following parameters are available:
+* <a name="limits"></a><a href="#limits">`limits`</a> Available in Consul 0.9.3
+  and later, this is a nested object that configures limits that are enforced by
+  the agent. The following parameters are available:
 
-    *   <a name="rpc_rate"></a><a href="#rpc_rate">`rpc_rate`</a> - Configures the RPC rate
-        limiter by setting the maximum request rate that this agent is allowed to make for RPC
-        requests to Consul servers, in requests per second. Defaults to infinite, which disables
+    *   <a name="http_max_conns_per_client"></a><a
+        href="#http_max_conns_per_client">`http_max_conns_per_client`</a> -
+        Configures a limit of how many concurrent TCP connections a single
+        client IP address is allowed to open to the agent's HTTP(S) server. This
+        affects the HTTP(S) servers in both client and server agents. Default
+        value is `100`.
+    *   <a name="https_handshake_timeout"></a><a
+        href="#https_handshake_timeout">`https_handshake_timeout`</a> -
+        Configures the limit for how long the HTTPS server in both client and
+        server agents will wait for a client to complete a TLS handshake. This
+        should be kept conservative as it limits how many connections an
+        unauthenticated attacker can open if `verify_incoming` is being using to
+        authenticate clients (strongly recommended in production). Default value
+        is `5s`.
+    *   <a name="rpc_handshake_timeout"></a><a
+        href="#rpc_handshake_timeout">`rpc_handshake_timeout`</a> - Configures
+        the limit for how long servers will wait after a client TCP connection
+        is established before they complete the connection handshake. When TLS
+        is used, the same timeout applies to the TLS handshake separately from
+        the initial protocol negotiation. All Consul clients should perform this
+        immediately on establishing a new connection. This should be kept
+        conservative as it limits how many connections an unauthenticated
+        attacker can open if `verify_incoming` is being using to authenticate
+        clients (strongly recommended in production). When `verify_incoming` is
+        true on servers, this limits how long the connection socket and
+        associated goroutines will be held open before the client successfully
+        authenticates. Default value is `5s`.
+    *   <a name="rpc_max_conns_per_client"></a><a
+        href="#rpc_max_conns_per_client">`rpc_max_conns_per_client`</a> -
+        Configures a limit of how many concurrent TCP connections a single
+        source IP address is allowed to open to a single server. It affects both
+        clients connections and other server connections. In general Consul
+        clients multiplex many RPC calls over a single TCP connection so this
+        can typically be kept low. It needs to be more than one though since
+        servers open at least one additional connection for raft RPC, possibly
+        more for WAN federation when using network areas, and snapshot requests
+        from clients run over a separate TCP conn. A reasonably low limit
+        significantly reduces the ability of an unauthenticated attacker to
+        consume unbounded resources by holding open many connections. You may
+        need to increase this if WAN federated servers connect via proxies or
+        NAT gateways or similar causing many legitimate connections from a
+        single source IP. Default value is `100` which is designed to be
+        extremely conservative to limit issues with certain deployment patterns.
+        Most deployments can probably reduce this safely. 100 connections on
+        modern server hardware should not cause a significant impact on resource
+        usage from an unauthenticated attacker though.
+    *   <a name="rpc_rate"></a><a href="#rpc_rate">`rpc_rate`</a> - Configures
+        the RPC rate limiter on Consul _clients_ by setting the maximum request
+        rate that this agent is allowed to make for RPC requests to Consul
+        servers, in requests per second. Defaults to infinite, which disables
         rate limiting.
-    *   <a name="rpc_rate"></a><a href="#rpc_max_burst">`rpc_max_burst`</a> - The size of the token
-        bucket used to recharge the RPC rate limiter. Defaults to 1000 tokens, and each token is
-        good for a single RPC call to a Consul server. See https://en.wikipedia.org/wiki/Token_bucket
-        for more details about how token bucket rate limiters operate.
+    *   <a name="rpc_max_burst"></a><a href="#rpc_max_burst">`rpc_max_burst`</a> -
+        The size of the token bucket used to recharge the RPC rate limiter on
+        Consul _clients_ . Defaults to 1000 tokens, and each token is good for a
+        single RPC call to a Consul server. See
+        https://en.wikipedia.org/wiki/Token_bucket for more details about how
+        token bucket rate limiters operate.
 
 * <a name="log_file"></a><a href="#log_file">`log_file`</a> Equivalent to the
   [`-log-file` command-line flag](#_log_file).
+
+* <a name="log_rotate_duration"></a><a href="#log_rotate_duration">`log_rotate_duration`</a> Equivalent to the
+  [`-log-rotate-duration` command-line flag](#_log_rotate_duration).
+
+* <a name="log_rotate_bytes"></a><a href="#log_rotate_bytes">`log_rotate_bytes`</a> Equivalent to the
+  [`-log-rotate-bytes` command-line flag](#_log_rotate_bytes).
+
+* <a name="log_rotate_max_files"></a><a href="#log_rotate_max_files">`log_rotate_max_files`</a> Equivalent to the
+  [`-log-rotate-max-files` command-line flag](#_log_rotate_max_files).
 
 * <a name="log_level"></a><a href="#log_level">`log_level`</a> Equivalent to the
   [`-log-level` command-line flag](#_log_level).
@@ -1381,6 +1444,16 @@ default will automatically work with some tooling.
       number to use for automatically assigned [sidecar service
       registrations](/docs/connect/registration/sidecar-service.html). Default 21255.
       Set to `0` to disable automatic port assignment.
+    * <a name="expose_min_port"></a><a
+      href="#expose_min_port">`expose_min_port`</a> - Inclusive minimum port
+      number to use for automatically assigned 
+      [exposed check listeners](/docs/connect/registration/service-registration.html#expose-paths-configuration-reference). 
+      Default 21500. Set to `0` to disable automatic port assignment.
+    * <a name="expose_max_port"></a><a
+      href="#expose_max_port">`expose_max_port`</a> - Inclusive maximum port
+      number to use for automatically assigned 
+      [exposed check listeners](/docs/connect/registration/service-registration.html#expose-paths-configuration-reference). 
+      Default 21755. Set to `0` to disable automatic port assignment.
 
 * <a name="protocol"></a><a href="#protocol">`protocol`</a> Equivalent to the
   [`-protocol` command-line flag](#_protocol).
@@ -1705,12 +1778,17 @@ to the old fragment -->
       currently only supports numeric IDs.
     - `mode` - The permission bits to set on the file.
 
-* <a name="verify_incoming"></a><a href="#verify_incoming">`verify_incoming`</a> - If
-  set to true, Consul requires that all incoming
-  connections make use of TLS and that the client provides a certificate signed
-  by a Certificate Authority from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path).
-  This applies to both server RPC and to the HTTPS API. By default, this is false, and
-  Consul will not enforce the use of TLS or verify a client's authenticity.
+* <a name="verify_incoming"></a><a href="#verify_incoming">`verify_incoming`</a> 
+  - If set to true, Consul requires that all incoming connections make use of TLS
+  and that the client provides a certificate signed by a Certificate Authority
+  from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path).  This applies to
+  both server RPC and to the HTTPS API. By default, this is false, and Consul
+  will not enforce the use of TLS or verify a client's authenticity. Turning
+  on `verify_incoming` on consul clients protects the HTTPS endpoint, by ensuring
+  that the certificate that is presented by a 3rd party tool to the HTTPS
+  endpoint was created by the CA that the consul client was setup with. If the
+  UI is served, the same checks are performed.
+
 
 * <a name="verify_incoming_rpc"></a><a href="#verify_incoming_rpc">`verify_incoming_rpc`</a> - If
   set to true, Consul requires that all incoming RPC
@@ -1743,7 +1821,7 @@ to the old fragment -->
 * <a name="verify_server_hostname"></a><a
   href="#verify_server_hostname">`verify_server_hostname`</a> - If set to true,
   Consul verifies for all outgoing TLS connections that the TLS certificate
-  presented by the servers matches "server.&lt;datacenter&gt;.&lt;domain&gt;"
+  presented by the servers matches `server.<datacenter>.<domain>`
   hostname. By default, this is false, and Consul does not verify the hostname
   of the certificate, only that it is signed by a trusted CA. This setting is
   _critical_ to prevent a compromised client from being restarted as a server

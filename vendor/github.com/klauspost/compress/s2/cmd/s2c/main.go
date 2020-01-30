@@ -17,12 +17,13 @@ import (
 	"unicode"
 
 	"github.com/klauspost/compress/s2"
+	"github.com/klauspost/compress/s2/cmd/internal/readahead"
 )
 
 var (
 	faster    = flag.Bool("faster", false, "Compress faster, but with a minor compression loss")
 	cpu       = flag.Int("cpu", runtime.GOMAXPROCS(0), "Compress using this amount of threads")
-	blockSize = flag.String("blocksize", "1M", "Max  block size. Examples: 64K, 256K, 1M, 4M. Must be power of two and <= 4MB")
+	blockSize = flag.String("blocksize", "4M", "Max  block size. Examples: 64K, 256K, 1M, 4M. Must be power of two and <= 4MB")
 	safe      = flag.Bool("safe", false, "Do not overwrite output files")
 	padding   = flag.String("pad", "1", "Pad size to a multiple of this value, Examples: 500, 64K, 256K, 1M, 4M, etc")
 	stdout    = flag.Bool("c", false, "Write all output to stdout. Multiple input files will be concatenated")
@@ -30,6 +31,9 @@ var (
 	quiet     = flag.Bool("q", false, "Don't write any output to terminal, except errors")
 	bench     = flag.Int("bench", 0, "Run benchmark n times. No output will be written")
 	help      = flag.Bool("help", false, "Display help")
+
+	version = "(dev)"
+	date    = "(unknown)"
 )
 
 func main() {
@@ -41,6 +45,7 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 || *help {
+		_, _ = fmt.Fprintf(os.Stderr, "s2 compress v%v, built at %v.\n\n", version, date)
 		_, _ = fmt.Fprintln(os.Stderr, `Usage: s2c [options] file1 file2
 
 Compresses all files supplied as input separately.
@@ -88,6 +93,9 @@ Options:`)
 		func() {
 			var closeOnce sync.Once
 			dstFilename := fmt.Sprintf("%s%s", filename, ".s2")
+			if *bench > 0 {
+				dstFilename = "(discarded)"
+			}
 			if !*quiet {
 				fmt.Println("Compressing", filename, "->", dstFilename)
 			}
@@ -95,7 +103,9 @@ Options:`)
 			file, err := os.Open(filename)
 			exitErr(err)
 			defer closeOnce.Do(func() { file.Close() })
-			src := bufio.NewReaderSize(file, int(sz)*2)
+			src, err := readahead.NewReaderSize(file, *cpu, int(sz))
+			exitErr(err)
+			defer src.Close()
 			finfo, err := file.Stat()
 			exitErr(err)
 			var out io.Writer

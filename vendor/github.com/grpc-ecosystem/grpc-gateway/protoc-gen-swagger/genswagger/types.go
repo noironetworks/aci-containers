@@ -59,12 +59,11 @@ type swaggerObject struct {
 	Info                swaggerInfoObject                   `json:"info"`
 	Host                string                              `json:"host,omitempty"`
 	BasePath            string                              `json:"basePath,omitempty"`
-	Schemes             []string                            `json:"schemes"`
+	Schemes             []string                            `json:"schemes,omitempty"`
 	Consumes            []string                            `json:"consumes"`
 	Produces            []string                            `json:"produces"`
 	Paths               swaggerPathsObject                  `json:"paths"`
 	Definitions         swaggerDefinitionsObject            `json:"definitions"`
-	StreamDefinitions   swaggerDefinitionsObject            `json:"x-stream-definitions,omitempty"`
 	SecurityDefinitions swaggerSecurityDefinitionsObject    `json:"securityDefinitions,omitempty"`
 	Security            []swaggerSecurityRequirementObject  `json:"security,omitempty"`
 	ExternalDocs        *swaggerExternalDocumentationObject `json:"externalDocs,omitempty"`

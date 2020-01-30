@@ -41,9 +41,10 @@ func (fake *FakeTaskController) ConvergeTasks(arg1 context.Context, arg2 lager.L
 		arg5 time.Duration
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("ConvergeTasks", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	convergeTasksStubCopy := fake.ConvergeTasksStub
 	fake.convergeTasksMutex.Unlock()
-	if fake.ConvergeTasksStub != nil {
-		return fake.ConvergeTasksStub(arg1, arg2, arg3, arg4, arg5)
+	if convergeTasksStubCopy != nil {
+		return convergeTasksStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1

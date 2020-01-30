@@ -4,10 +4,6 @@
     "title": "examples/proto/examplepb/stream.proto",
     "version": "version not set"
   },
-  "schemes": [
-    "http",
-    "https"
-  ],
   "consumes": [
     "application/json"
   ],
@@ -22,7 +18,16 @@
           "200": {
             "description": "A successful response.(streaming responses)",
             "schema": {
-              "$ref": "#/x-stream-definitions/examplepbABitOfEverything"
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/examplepbABitOfEverything"
+                },
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                }
+              },
+              "title": "Stream result of examplepbABitOfEverything"
             }
           }
         },
@@ -65,7 +70,16 @@
           "200": {
             "description": "A successful response.(streaming responses)",
             "schema": {
-              "$ref": "#/x-stream-definitions/subStringMessage"
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/subStringMessage"
+                },
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                }
+              },
+              "title": "Stream result of subStringMessage"
             }
           }
         },
@@ -377,32 +391,6 @@
           "type": "string"
         }
       }
-    }
-  },
-  "x-stream-definitions": {
-    "examplepbABitOfEverything": {
-      "type": "object",
-      "properties": {
-        "result": {
-          "$ref": "#/definitions/examplepbABitOfEverything"
-        },
-        "error": {
-          "$ref": "#/definitions/runtimeStreamError"
-        }
-      },
-      "title": "Stream result of examplepbABitOfEverything"
-    },
-    "subStringMessage": {
-      "type": "object",
-      "properties": {
-        "result": {
-          "$ref": "#/definitions/subStringMessage"
-        },
-        "error": {
-          "$ref": "#/definitions/runtimeStreamError"
-        }
-      },
-      "title": "Stream result of subStringMessage"
     }
   }
 }

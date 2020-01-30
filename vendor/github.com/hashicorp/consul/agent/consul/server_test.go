@@ -42,7 +42,17 @@ func testServerConfig(t *testing.T) (string, *Config) {
 	dir := testutil.TempDir(t, "consul")
 	config := DefaultConfig()
 
-	ports := freeport.Get(3)
+	ports := freeport.MustTake(3)
+
+	returnPortsFn := func() {
+		// The method of plumbing this into the server shutdown hook doesn't
+		// cover all exit points, so we insulate this against multiple
+		// invocations and then it's safe to call it a bunch of times.
+		freeport.Return(ports)
+		config.NotifyShutdown = nil // self-erasing
+	}
+	config.NotifyShutdown = returnPortsFn
+
 	config.NodeName = uniqueNodeName(t.Name())
 	config.Bootstrap = true
 	config.Datacenter = "dc1"
@@ -56,6 +66,7 @@ func testServerConfig(t *testing.T) (string, *Config) {
 
 	nodeID, err := uuid.GenerateUUID()
 	if err != nil {
+		returnPortsFn()
 		t.Fatal(err)
 	}
 	config.NodeID = types.NodeID(nodeID)
@@ -111,6 +122,8 @@ func testServerConfig(t *testing.T) (string, *Config) {
 			"LeafCertTTL":    "72h",
 		},
 	}
+
+	config.NotifyShutdown = returnPortsFn
 
 	return dir, config
 }
@@ -168,6 +181,7 @@ func testServerWithConfig(t *testing.T, cb func(*Config)) (string, *Server) {
 
 		srv, err = newServer(config)
 		if err != nil {
+			config.NotifyShutdown()
 			os.RemoveAll(dir)
 			r.Fatalf("err: %v", err)
 		}
@@ -231,6 +245,48 @@ func TestServer_StartStop(t *testing.T) {
 	if err := s1.Shutdown(); err != nil {
 		t.Fatalf("err: %v", err)
 	}
+}
+
+func TestServer_fixupACLDatacenter(t *testing.T) {
+	t.Parallel()
+
+	dir1, s1 := testServerWithConfig(t, func(c *Config) {
+		c.Datacenter = "aye"
+		c.PrimaryDatacenter = "aye"
+		c.ACLsEnabled = true
+	})
+	defer os.RemoveAll(dir1)
+	defer s1.Shutdown()
+
+	dir2, s2 := testServerWithConfig(t, func(c *Config) {
+		c.Datacenter = "bee"
+		c.PrimaryDatacenter = "aye"
+		c.ACLsEnabled = true
+	})
+	defer os.RemoveAll(dir2)
+	defer s2.Shutdown()
+
+	// Try to join
+	joinWAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(s1.WANMembers()), 2; got != want {
+			r.Fatalf("got %d s1 WAN members want %d", got, want)
+		}
+		if got, want := len(s2.WANMembers()), 2; got != want {
+			r.Fatalf("got %d s2 WAN members want %d", got, want)
+		}
+	})
+
+	testrpc.WaitForLeader(t, s1.RPC, "aye")
+	testrpc.WaitForLeader(t, s2.RPC, "bee")
+
+	require.Equal(t, "aye", s1.config.Datacenter)
+	require.Equal(t, "aye", s1.config.ACLDatacenter)
+	require.Equal(t, "aye", s1.config.PrimaryDatacenter)
+
+	require.Equal(t, "bee", s2.config.Datacenter)
+	require.Equal(t, "aye", s2.config.ACLDatacenter)
+	require.Equal(t, "aye", s2.config.PrimaryDatacenter)
 }
 
 func TestServer_JoinLAN(t *testing.T) {

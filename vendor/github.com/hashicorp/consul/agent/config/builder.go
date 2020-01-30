@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/consul/lib"
 	"github.com/hashicorp/consul/tlsutil"
 	"github.com/hashicorp/consul/types"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-sockaddr/template"
 	"golang.org/x/time/rate"
 )
@@ -369,6 +369,8 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 	proxyMaxPort := b.portVal("ports.proxy_max_port", c.Ports.ProxyMaxPort)
 	sidecarMinPort := b.portVal("ports.sidecar_min_port", c.Ports.SidecarMinPort)
 	sidecarMaxPort := b.portVal("ports.sidecar_max_port", c.Ports.SidecarMaxPort)
+	exposeMinPort := b.portVal("ports.expose_min_port", c.Ports.ExposeMinPort)
+	exposeMaxPort := b.portVal("ports.expose_max_port", c.Ports.ExposeMaxPort)
 	if proxyMaxPort < proxyMinPort {
 		return RuntimeConfig{}, fmt.Errorf(
 			"proxy_min_port must be less than proxy_max_port. To disable, set both to zero.")
@@ -376,6 +378,10 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 	if sidecarMaxPort < sidecarMinPort {
 		return RuntimeConfig{}, fmt.Errorf(
 			"sidecar_min_port must be less than sidecar_max_port. To disable, set both to zero.")
+	}
+	if exposeMaxPort < exposeMinPort {
+		return RuntimeConfig{}, fmt.Errorf(
+			"expose_min_port must be less than expose_max_port. To disable, set both to zero.")
 	}
 
 	// determine the default bind and advertise address
@@ -722,6 +728,7 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		AutopilotDisableUpgradeMigration: b.boolVal(c.Autopilot.DisableUpgradeMigration),
 		AutopilotLastContactThreshold:    b.durationVal("autopilot.last_contact_threshold", c.Autopilot.LastContactThreshold),
 		AutopilotMaxTrailingLogs:         b.intVal(c.Autopilot.MaxTrailingLogs),
+		AutopilotMinQuorum:               b.uintVal(c.Autopilot.MinQuorum),
 		AutopilotRedundancyZoneTag:       b.stringVal(c.Autopilot.RedundancyZoneTag),
 		AutopilotServerStabilizationTime: b.durationVal("autopilot.server_stabilization_time", c.Autopilot.ServerStabilizationTime),
 		AutopilotUpgradeVersionTag:       b.stringVal(c.Autopilot.UpgradeVersionTag),
@@ -804,6 +811,8 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		ConnectCAConfig:                  connectCAConfig,
 		ConnectSidecarMinPort:            sidecarMinPort,
 		ConnectSidecarMaxPort:            sidecarMaxPort,
+		ExposeMinPort:                    exposeMinPort,
+		ExposeMaxPort:                    exposeMaxPort,
 		DataDir:                          b.stringVal(c.DataDir),
 		Datacenter:                       datacenter,
 		DevMode:                          b.boolVal(b.Flags.DevMode),
@@ -828,6 +837,8 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		EncryptVerifyOutgoing:            b.boolVal(c.EncryptVerifyOutgoing),
 		GRPCPort:                         grpcPort,
 		GRPCAddrs:                        grpcAddrs,
+		HTTPMaxConnsPerClient:            b.intVal(c.Limits.HTTPMaxConnsPerClient),
+		HTTPSHandshakeTimeout:            b.durationVal("limits.https_handshake_timeout", c.Limits.HTTPSHandshakeTimeout),
 		KeyFile:                          b.stringVal(c.KeyFile),
 		KVMaxValueSize:                   b.uint64Val(c.Limits.KVMaxValueSize),
 		LeaveDrainTime:                   b.durationVal("performance.leave_drain_time", c.Performance.LeaveDrainTime),
@@ -845,8 +856,10 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		PrimaryDatacenter:                primaryDatacenter,
 		RPCAdvertiseAddr:                 rpcAdvertiseAddr,
 		RPCBindAddr:                      rpcBindAddr,
+		RPCHandshakeTimeout:              b.durationVal("limits.rpc_handshake_timeout", c.Limits.RPCHandshakeTimeout),
 		RPCHoldTimeout:                   b.durationVal("performance.rpc_hold_timeout", c.Performance.RPCHoldTimeout),
 		RPCMaxBurst:                      b.intVal(c.Limits.RPCMaxBurst),
+		RPCMaxConnsPerClient:             b.intVal(c.Limits.RPCMaxConnsPerClient),
 		RPCProtocol:                      b.intVal(c.RPCProtocol),
 		RPCRateLimit:                     rate.Limit(b.float64Val(c.Limits.RPCRate)),
 		RaftProtocol:                     b.intVal(c.RaftProtocol),
@@ -1104,7 +1117,7 @@ func (b *Builder) Validate(rt RuntimeConfig) error {
 
 	if rt.AutoEncryptAllowTLS {
 		if !rt.VerifyIncoming && !rt.VerifyIncomingRPC {
-			return fmt.Errorf("if auto_encrypt.allow_tls is turned on, either verify_incoming or verify_incoming_rpc must be enabled.")
+			b.warn("if auto_encrypt.allow_tls is turned on, either verify_incoming or verify_incoming_rpc should be enabled. It is necessary to turn it off during a migration to TLS, but it should definitely be turned on afterwards.")
 		}
 	}
 
@@ -1305,6 +1318,7 @@ func (b *Builder) serviceProxyVal(v *ServiceProxy) *structs.ConnectProxyConfig {
 		Config:                 v.Config,
 		Upstreams:              b.upstreamsVal(v.Upstreams),
 		MeshGateway:            b.meshGatewayConfVal(v.MeshGateway),
+		Expose:                 b.exposeConfVal(v.Expose),
 	}
 }
 
@@ -1343,6 +1357,30 @@ func (b *Builder) meshGatewayConfVal(mgConf *MeshGatewayConfig) structs.MeshGate
 
 	cfg.Mode = mode
 	return cfg
+}
+
+func (b *Builder) exposeConfVal(v *ExposeConfig) structs.ExposeConfig {
+	var out structs.ExposeConfig
+	if v == nil {
+		return out
+	}
+
+	out.Checks = b.boolVal(v.Checks)
+	out.Paths = b.pathsVal(v.Paths)
+	return out
+}
+
+func (b *Builder) pathsVal(v []ExposePath) []structs.ExposePath {
+	paths := make([]structs.ExposePath, len(v))
+	for i, p := range v {
+		paths[i] = structs.ExposePath{
+			ListenerPort:  b.intVal(p.ListenerPort),
+			Path:          b.stringVal(p.Path),
+			LocalPathPort: b.intVal(p.LocalPathPort),
+			Protocol:      b.stringVal(p.Protocol),
+		}
+	}
+	return paths
 }
 
 func (b *Builder) serviceConnectVal(v *ServiceConnect) *structs.ServiceConnect {
@@ -1407,6 +1445,17 @@ func (b *Builder) intValWithDefault(v *int, defaultVal int) int {
 
 func (b *Builder) intVal(v *int) int {
 	return b.intValWithDefault(v, 0)
+}
+
+func (b *Builder) uintVal(v *uint) uint {
+	return b.uintValWithDefault(v, 0)
+}
+
+func (b *Builder) uintValWithDefault(v *uint, defaultVal uint) uint {
+	if v == nil {
+		return defaultVal
+	}
+	return *v
 }
 
 func (b *Builder) uint64ValWithDefault(v *uint64, defaultVal uint64) uint64 {

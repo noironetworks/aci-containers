@@ -314,9 +314,10 @@ func (fake *FakeLRPDB) ActualLRPs(arg1 context.Context, arg2 lager.Logger, arg3 
 		arg3 models.ActualLRPFilter
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("ActualLRPs", []interface{}{arg1, arg2, arg3})
+	actualLRPsStubCopy := fake.ActualLRPsStub
 	fake.actualLRPsMutex.Unlock()
-	if fake.ActualLRPsStub != nil {
-		return fake.ActualLRPsStub(arg1, arg2, arg3)
+	if actualLRPsStubCopy != nil {
+		return actualLRPsStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -381,9 +382,10 @@ func (fake *FakeLRPDB) ChangeActualLRPPresence(arg1 context.Context, arg2 lager.
 		arg5 models.ActualLRP_Presence
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("ChangeActualLRPPresence", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	changeActualLRPPresenceStubCopy := fake.ChangeActualLRPPresenceStub
 	fake.changeActualLRPPresenceMutex.Unlock()
-	if fake.ChangeActualLRPPresenceStub != nil {
-		return fake.ChangeActualLRPPresenceStub(arg1, arg2, arg3, arg4, arg5)
+	if changeActualLRPPresenceStubCopy != nil {
+		return changeActualLRPPresenceStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -451,9 +453,10 @@ func (fake *FakeLRPDB) ClaimActualLRP(arg1 context.Context, arg2 lager.Logger, a
 		arg5 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("ClaimActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	claimActualLRPStubCopy := fake.ClaimActualLRPStub
 	fake.claimActualLRPMutex.Unlock()
-	if fake.ClaimActualLRPStub != nil {
-		return fake.ClaimActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if claimActualLRPStubCopy != nil {
+		return claimActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -519,9 +522,10 @@ func (fake *FakeLRPDB) ConvergeLRPs(arg1 context.Context, arg2 lager.Logger, arg
 		arg3 models.CellSet
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("ConvergeLRPs", []interface{}{arg1, arg2, arg3})
+	convergeLRPsStubCopy := fake.ConvergeLRPsStub
 	fake.convergeLRPsMutex.Unlock()
-	if fake.ConvergeLRPsStub != nil {
-		return fake.ConvergeLRPsStub(arg1, arg2, arg3)
+	if convergeLRPsStubCopy != nil {
+		return convergeLRPsStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -580,9 +584,10 @@ func (fake *FakeLRPDB) CountActualLRPsByState(arg1 context.Context, arg2 lager.L
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("CountActualLRPsByState", []interface{}{arg1, arg2})
+	countActualLRPsByStateStubCopy := fake.CountActualLRPsByStateStub
 	fake.countActualLRPsByStateMutex.Unlock()
-	if fake.CountActualLRPsByStateStub != nil {
-		return fake.CountActualLRPsByStateStub(arg1, arg2)
+	if countActualLRPsByStateStubCopy != nil {
+		return countActualLRPsByStateStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3, ret.result4, ret.result5
@@ -653,9 +658,10 @@ func (fake *FakeLRPDB) CountDesiredInstances(arg1 context.Context, arg2 lager.Lo
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("CountDesiredInstances", []interface{}{arg1, arg2})
+	countDesiredInstancesStubCopy := fake.CountDesiredInstancesStub
 	fake.countDesiredInstancesMutex.Unlock()
-	if fake.CountDesiredInstancesStub != nil {
-		return fake.CountDesiredInstancesStub(arg1, arg2)
+	if countDesiredInstancesStubCopy != nil {
+		return countDesiredInstancesStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
@@ -717,9 +723,10 @@ func (fake *FakeLRPDB) CrashActualLRP(arg1 context.Context, arg2 lager.Logger, a
 		arg5 string
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("CrashActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	crashActualLRPStubCopy := fake.CrashActualLRPStub
 	fake.crashActualLRPMutex.Unlock()
-	if fake.CrashActualLRPStub != nil {
-		return fake.CrashActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if crashActualLRPStubCopy != nil {
+		return crashActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3, ret.result4
@@ -788,9 +795,10 @@ func (fake *FakeLRPDB) CreateUnclaimedActualLRP(arg1 context.Context, arg2 lager
 		arg3 *models.ActualLRPKey
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("CreateUnclaimedActualLRP", []interface{}{arg1, arg2, arg3})
+	createUnclaimedActualLRPStubCopy := fake.CreateUnclaimedActualLRPStub
 	fake.createUnclaimedActualLRPMutex.Unlock()
-	if fake.CreateUnclaimedActualLRPStub != nil {
-		return fake.CreateUnclaimedActualLRPStub(arg1, arg2, arg3)
+	if createUnclaimedActualLRPStubCopy != nil {
+		return createUnclaimedActualLRPStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -853,9 +861,10 @@ func (fake *FakeLRPDB) DesireLRP(arg1 context.Context, arg2 lager.Logger, arg3 *
 		arg3 *models.DesiredLRP
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("DesireLRP", []interface{}{arg1, arg2, arg3})
+	desireLRPStubCopy := fake.DesireLRPStub
 	fake.desireLRPMutex.Unlock()
-	if fake.DesireLRPStub != nil {
-		return fake.DesireLRPStub(arg1, arg2, arg3)
+	if desireLRPStubCopy != nil {
+		return desireLRPStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -915,9 +924,10 @@ func (fake *FakeLRPDB) DesiredLRPByProcessGuid(arg1 context.Context, arg2 lager.
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("DesiredLRPByProcessGuid", []interface{}{arg1, arg2, arg3})
+	desiredLRPByProcessGuidStubCopy := fake.DesiredLRPByProcessGuidStub
 	fake.desiredLRPByProcessGuidMutex.Unlock()
-	if fake.DesiredLRPByProcessGuidStub != nil {
-		return fake.DesiredLRPByProcessGuidStub(arg1, arg2, arg3)
+	if desiredLRPByProcessGuidStubCopy != nil {
+		return desiredLRPByProcessGuidStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -980,9 +990,10 @@ func (fake *FakeLRPDB) DesiredLRPSchedulingInfos(arg1 context.Context, arg2 lage
 		arg3 models.DesiredLRPFilter
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("DesiredLRPSchedulingInfos", []interface{}{arg1, arg2, arg3})
+	desiredLRPSchedulingInfosStubCopy := fake.DesiredLRPSchedulingInfosStub
 	fake.desiredLRPSchedulingInfosMutex.Unlock()
-	if fake.DesiredLRPSchedulingInfosStub != nil {
-		return fake.DesiredLRPSchedulingInfosStub(arg1, arg2, arg3)
+	if desiredLRPSchedulingInfosStubCopy != nil {
+		return desiredLRPSchedulingInfosStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -1045,9 +1056,10 @@ func (fake *FakeLRPDB) DesiredLRPs(arg1 context.Context, arg2 lager.Logger, arg3
 		arg3 models.DesiredLRPFilter
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("DesiredLRPs", []interface{}{arg1, arg2, arg3})
+	desiredLRPsStubCopy := fake.DesiredLRPsStub
 	fake.desiredLRPsMutex.Unlock()
-	if fake.DesiredLRPsStub != nil {
-		return fake.DesiredLRPsStub(arg1, arg2, arg3)
+	if desiredLRPsStubCopy != nil {
+		return desiredLRPsStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -1111,9 +1123,10 @@ func (fake *FakeLRPDB) FailActualLRP(arg1 context.Context, arg2 lager.Logger, ar
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("FailActualLRP", []interface{}{arg1, arg2, arg3, arg4})
+	failActualLRPStubCopy := fake.FailActualLRPStub
 	fake.failActualLRPMutex.Unlock()
-	if fake.FailActualLRPStub != nil {
-		return fake.FailActualLRPStub(arg1, arg2, arg3, arg4)
+	if failActualLRPStubCopy != nil {
+		return failActualLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -1181,9 +1194,10 @@ func (fake *FakeLRPDB) RemoveActualLRP(arg1 context.Context, arg2 lager.Logger, 
 		arg5 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("RemoveActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	removeActualLRPStubCopy := fake.RemoveActualLRPStub
 	fake.removeActualLRPMutex.Unlock()
-	if fake.RemoveActualLRPStub != nil {
-		return fake.RemoveActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if removeActualLRPStubCopy != nil {
+		return removeActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -1243,9 +1257,10 @@ func (fake *FakeLRPDB) RemoveDesiredLRP(arg1 context.Context, arg2 lager.Logger,
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("RemoveDesiredLRP", []interface{}{arg1, arg2, arg3})
+	removeDesiredLRPStubCopy := fake.RemoveDesiredLRPStub
 	fake.removeDesiredLRPMutex.Unlock()
-	if fake.RemoveDesiredLRPStub != nil {
-		return fake.RemoveDesiredLRPStub(arg1, arg2, arg3)
+	if removeDesiredLRPStubCopy != nil {
+		return removeDesiredLRPStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -1307,9 +1322,10 @@ func (fake *FakeLRPDB) StartActualLRP(arg1 context.Context, arg2 lager.Logger, a
 		arg5 *models.ActualLRPNetInfo
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("StartActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	startActualLRPStubCopy := fake.StartActualLRPStub
 	fake.startActualLRPMutex.Unlock()
-	if fake.StartActualLRPStub != nil {
-		return fake.StartActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if startActualLRPStubCopy != nil {
+		return startActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -1375,9 +1391,10 @@ func (fake *FakeLRPDB) UnclaimActualLRP(arg1 context.Context, arg2 lager.Logger,
 		arg3 *models.ActualLRPKey
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("UnclaimActualLRP", []interface{}{arg1, arg2, arg3})
+	unclaimActualLRPStubCopy := fake.UnclaimActualLRPStub
 	fake.unclaimActualLRPMutex.Unlock()
-	if fake.UnclaimActualLRPStub != nil {
-		return fake.UnclaimActualLRPStub(arg1, arg2, arg3)
+	if unclaimActualLRPStubCopy != nil {
+		return unclaimActualLRPStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
@@ -1444,9 +1461,10 @@ func (fake *FakeLRPDB) UpdateDesiredLRP(arg1 context.Context, arg2 lager.Logger,
 		arg4 *models.DesiredLRPUpdate
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("UpdateDesiredLRP", []interface{}{arg1, arg2, arg3, arg4})
+	updateDesiredLRPStubCopy := fake.UpdateDesiredLRPStub
 	fake.updateDesiredLRPMutex.Unlock()
-	if fake.UpdateDesiredLRPStub != nil {
-		return fake.UpdateDesiredLRPStub(arg1, arg2, arg3, arg4)
+	if updateDesiredLRPStubCopy != nil {
+		return updateDesiredLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

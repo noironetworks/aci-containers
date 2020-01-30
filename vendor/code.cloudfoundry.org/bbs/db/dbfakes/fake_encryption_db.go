@@ -61,9 +61,10 @@ func (fake *FakeEncryptionDB) EncryptionKeyLabel(arg1 context.Context, arg2 lage
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("EncryptionKeyLabel", []interface{}{arg1, arg2})
+	encryptionKeyLabelStubCopy := fake.EncryptionKeyLabelStub
 	fake.encryptionKeyLabelMutex.Unlock()
-	if fake.EncryptionKeyLabelStub != nil {
-		return fake.EncryptionKeyLabelStub(arg1, arg2)
+	if encryptionKeyLabelStubCopy != nil {
+		return encryptionKeyLabelStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -125,9 +126,10 @@ func (fake *FakeEncryptionDB) PerformEncryption(arg1 context.Context, arg2 lager
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("PerformEncryption", []interface{}{arg1, arg2})
+	performEncryptionStubCopy := fake.PerformEncryptionStub
 	fake.performEncryptionMutex.Unlock()
-	if fake.PerformEncryptionStub != nil {
-		return fake.PerformEncryptionStub(arg1, arg2)
+	if performEncryptionStubCopy != nil {
+		return performEncryptionStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
@@ -187,9 +189,10 @@ func (fake *FakeEncryptionDB) SetEncryptionKeyLabel(arg1 context.Context, arg2 l
 		arg3 string
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("SetEncryptionKeyLabel", []interface{}{arg1, arg2, arg3})
+	setEncryptionKeyLabelStubCopy := fake.SetEncryptionKeyLabelStub
 	fake.setEncryptionKeyLabelMutex.Unlock()
-	if fake.SetEncryptionKeyLabelStub != nil {
-		return fake.SetEncryptionKeyLabelStub(arg1, arg2, arg3)
+	if setEncryptionKeyLabelStubCopy != nil {
+		return setEncryptionKeyLabelStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1

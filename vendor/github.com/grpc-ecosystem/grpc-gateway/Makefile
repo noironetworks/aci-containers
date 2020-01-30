@@ -64,6 +64,7 @@ SWAGGER_EXAMPLES=examples/proto/examplepb/echo_service.proto \
 	 examples/proto/examplepb/wrappers.proto \
 	 examples/proto/examplepb/stream.proto \
 	 examples/proto/examplepb/unannotated_echo_service.proto \
+	 examples/proto/examplepb/use_go_template.proto \
 	 examples/proto/examplepb/response_body_service.proto
 
 EXAMPLES=examples/proto/examplepb/echo_service.proto \
@@ -73,6 +74,7 @@ EXAMPLES=examples/proto/examplepb/echo_service.proto \
 	 examples/proto/examplepb/non_standard_names.proto \
 	 examples/proto/examplepb/wrappers.proto \
 	 examples/proto/examplepb/unannotated_echo_service.proto \
+	 examples/proto/examplepb/use_go_template.proto \
 	 examples/proto/examplepb/response_body_service.proto
 
 EXAMPLE_SVCSRCS=$(EXAMPLES:.proto=.pb.go)
@@ -83,38 +85,46 @@ EXAMPLE_DEPSRCS=$(EXAMPLE_DEPS:.proto=.pb.go)
 
 EXAMPLE_CLIENT_DIR=examples/clients
 ECHO_EXAMPLE_SPEC=examples/proto/examplepb/echo_service.swagger.json
-ECHO_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/echo/api_client.go \
-		  $(EXAMPLE_CLIENT_DIR)/echo/api_response.go \
+ECHO_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/echo/client.go \
+		  $(EXAMPLE_CLIENT_DIR)/echo/response.go \
 		  $(EXAMPLE_CLIENT_DIR)/echo/configuration.go \
-		  $(EXAMPLE_CLIENT_DIR)/echo/echo_service_api.go \
-		  $(EXAMPLE_CLIENT_DIR)/echo/examplepb_simple_message.go \
-		  $(EXAMPLE_CLIENT_DIR)/echo/examplepb_embedded.go
+		  $(EXAMPLE_CLIENT_DIR)/echo/api_echo_service.go \
+		  $(EXAMPLE_CLIENT_DIR)/echo/model_examplepb_simple_message.go \
+		  $(EXAMPLE_CLIENT_DIR)/echo/model_examplepb_embedded.go
 ABE_EXAMPLE_SPEC=examples/proto/examplepb/a_bit_of_everything.swagger.json
-ABE_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/abe/a_bit_of_everything_nested.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/a_bit_of_everything_service_api.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/api_client.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/api_response.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/camel_case_service_name_api.go \
+ABE_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/abe/model_a_bit_of_everything_nested.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/api_a_bit_of_everything_service.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/client.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/api_camel_case_service_name.go \
 		 $(EXAMPLE_CLIENT_DIR)/abe/configuration.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/echo_rpc_api.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/echo_service_api.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/examplepb_a_bit_of_everything.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/examplepb_body.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/examplepb_numeric_enum.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/nested_deep_enum.go \
-		 $(EXAMPLE_CLIENT_DIR)/abe/sub_string_message.go
+		 $(EXAMPLE_CLIENT_DIR)/abe/api_echo_rpc.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_examplepb_a_bit_of_everything.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_examplepb_a_bit_of_everything_repeated.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_examplepb_body.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_examplepb_numeric_enum.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_examplepb_update_v2_request.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_message_path_enum_nested_path_enum.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_nested_deep_enum.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_pathenum_path_enum.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/model_protobuf_field_mask.go \
+		 $(EXAMPLE_CLIENT_DIR)/abe/response.go
 UNANNOTATED_ECHO_EXAMPLE_SPEC=examples/proto/examplepb/unannotated_echo_service.swagger.json
-UNANNOTATED_ECHO_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/unannotatedecho/api_client.go \
-		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/api_response.go \
+UNANNOTATED_ECHO_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/unannotatedecho/client.go \
+		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/response.go \
 		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/configuration.go \
-		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/examplepb_unannotated_simple_message.go \
-		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/unannotated_echo_service_api.go
+		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/model_examplepb_unannotated_simple_message.go \
+		 $(EXAMPLE_CLIENT_DIR)/unannotatedecho/api_unannotated_echo_service.go
 RESPONSE_BODY_EXAMPLE_SPEC=examples/proto/examplepb/response_body_service.swagger.json
-RESPONSE_BODY_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/responsebody/api_client.go \
-		 $(EXAMPLE_CLIENT_DIR)/responsebody/api_response.go \
+RESPONSE_BODY_EXAMPLE_SRCS=$(EXAMPLE_CLIENT_DIR)/responsebody/client.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/response.go \
 		 $(EXAMPLE_CLIENT_DIR)/responsebody/configuration.go \
-		 $(EXAMPLE_CLIENT_DIR)/responsebody/examplepb_response_body.go \
-		 $(EXAMPLE_CLIENT_DIR)/responsebody/response_body_service_api.go
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_examplepb_repeated_response_body_out.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_examplepb_repeated_response_body_out_response.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_examplepb_repeated_response_strings.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_examplepb_response_body_out.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_examplepb_response_body_out_response.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/model_response_response_type.go \
+		 $(EXAMPLE_CLIENT_DIR)/responsebody/api_response_body_service.go
 
 EXAMPLE_CLIENT_SRCS=$(ECHO_EXAMPLE_SRCS) $(ABE_EXAMPLE_SRCS) $(UNANNOTATED_ECHO_EXAMPLE_SRCS) $(RESPONSE_BODY_EXAMPLE_SRCS)
 SWAGGER_CODEGEN=swagger-codegen
@@ -129,8 +139,7 @@ $(GO_PLUGIN):
 	go build -o $(GO_PLUGIN) $(GO_PLUGIN_PKG)
 
 $(RUNTIME_GO): $(RUNTIME_PROTO) $(GO_PLUGIN)
-	go mod vendor
-	protoc -I $(PROTOC_INC_PATH) --plugin=$(GO_PLUGIN) -I ./vendor/$(GO_PTYPES_ANY_PKG) -I. --go_out=$(PKGMAP),paths=source_relative:. $(RUNTIME_PROTO)
+	protoc -I $(PROTOC_INC_PATH) --plugin=$(GO_PLUGIN) -I. --go_out=$(PKGMAP),paths=source_relative:. $(RUNTIME_PROTO)
 
 $(OPENAPIV2_GO): $(OPENAPIV2_PROTO) $(GO_PLUGIN)
 	protoc -I $(PROTOC_INC_PATH) --plugin=$(GO_PLUGIN) -I. --go_out=$(PKGMAP),paths=source_relative:. $(OPENAPIV2_PROTO)
@@ -154,7 +163,7 @@ $(EXAMPLE_GWSRCS): $(GATEWAY_PLUGIN) $(EXAMPLES)
 
 $(EXAMPLE_SWAGGERSRCS): ADDITIONAL_SWG_FLAGS:=$(ADDITIONAL_SWG_FLAGS),grpc_api_configuration=examples/proto/examplepb/unannotated_echo_service.yaml
 $(EXAMPLE_SWAGGERSRCS): $(SWAGGER_PLUGIN) $(SWAGGER_EXAMPLES)
-	protoc -I $(PROTOC_INC_PATH) -I. -I$(GOOGLEAPIS_DIR) --plugin=$(SWAGGER_PLUGIN) --swagger_out=logtostderr=true,allow_repeated_fields_in_body=true,$(PKGMAP)$(ADDITIONAL_SWG_FLAGS):. $(SWAGGER_EXAMPLES)
+	protoc -I $(PROTOC_INC_PATH) -I. -I$(GOOGLEAPIS_DIR) --plugin=$(SWAGGER_PLUGIN) --swagger_out=logtostderr=true,allow_repeated_fields_in_body=true,use_go_templates=true,$(PKGMAP)$(ADDITIONAL_SWG_FLAGS):. $(SWAGGER_EXAMPLES)
 
 $(ECHO_EXAMPLE_SRCS): $(ECHO_EXAMPLE_SPEC)
 	$(SWAGGER_CODEGEN) generate -i $(ECHO_EXAMPLE_SPEC) \
@@ -178,10 +187,9 @@ $(RESPONSE_BODY_EXAMPLE_SRCS): $(RESPONSE_BODY_EXAMPLE_SPEC)
 		$(EXAMPLE_CLIENT_DIR)/responsebody/git_push.sh
 
 examples: $(EXAMPLE_DEPSRCS) $(EXAMPLE_SVCSRCS) $(EXAMPLE_GWSRCS) $(EXAMPLE_SWAGGERSRCS) $(EXAMPLE_CLIENT_SRCS)
-	find . -type f -name *.go -exec sed -s -i 's;github.com/go-resty/resty;gopkg.in/resty.v1;g' {} +
 test: examples
-	go test -race ...
-	go test -race examples/integration -args -network=unix -endpoint=test.sock
+	go test -short -race ./...
+	go test -race ./examples/integration -args -network=unix -endpoint=test.sock
 changelog:
 	docker run --rm \
 		--interactive \
@@ -195,7 +203,7 @@ changelog:
 				--compare-link \
 				--github-site=https://github.com \
 				--unreleased-label "**Next release**" \
-				--future-release=v1.11.3
+				--future-release=v1.12.2
 lint:
 	golint --set_exit_status ./runtime
 	golint --set_exit_status ./utilities/...

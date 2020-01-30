@@ -6,6 +6,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/doc"
 	"go/token"
@@ -27,27 +28,15 @@ type ParameterInformation struct {
 	Label string
 }
 
-func SignatureHelp(ctx context.Context, view View, f File, pos protocol.Position) (*SignatureInformation, error) {
+func SignatureHelp(ctx context.Context, snapshot Snapshot, fh FileHandle, pos protocol.Position) (*SignatureInformation, error) {
 	ctx, done := trace.StartSpan(ctx, "source.SignatureHelp")
 	defer done()
 
-	_, cphs, err := view.CheckPackageHandles(ctx, f)
+	pkg, pgh, err := getParsedFile(ctx, snapshot, fh, NarrowestPackageHandle)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting file for SignatureHelp: %v", err)
 	}
-	cph, err := NarrowestCheckPackageHandle(cphs)
-	if err != nil {
-		return nil, err
-	}
-	pkg, err := cph.Check(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ph, err := pkg.File(f.URI())
-	if err != nil {
-		return nil, err
-	}
-	file, m, _, err := ph.Cached()
+	file, m, _, err := pgh.Cached()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +86,7 @@ FindCall:
 
 	// Handle builtin functions separately.
 	if obj, ok := obj.(*types.Builtin); ok {
-		return builtinSignature(ctx, view, callExpr, obj.Name(), rng.Start)
+		return builtinSignature(ctx, snapshot.View(), callExpr, obj.Name(), rng.Start)
 	}
 
 	// Get the type information for the function being called.
@@ -112,20 +101,20 @@ FindCall:
 	}
 
 	qf := qualifier(file, pkg.GetTypes(), pkg.GetTypesInfo())
-	params := formatParams(sig.Params(), sig.Variadic(), qf)
+	params := formatParams(ctx, snapshot, pkg, sig, qf)
 	results, writeResultParens := formatResults(sig.Results(), qf)
-	activeParam := activeParameter(callExpr, sig.Params().Len(), sig.Variadic(), rng.Start)
+	activeParam := activeParameter(callExpr.Args, sig.Params().Len(), sig.Variadic(), rng.Start)
 
 	var (
 		name    string
 		comment *ast.CommentGroup
 	)
 	if obj != nil {
-		node, err := objToNode(ctx, pkg, obj)
+		node, err := objToNode(snapshot.View(), pkg, obj)
 		if err != nil {
 			return nil, err
 		}
-		rng, err := objToMappedRange(ctx, pkg, obj)
+		rng, err := objToMappedRange(snapshot.View(), pkg, obj)
 		if err != nil {
 			return nil, err
 		}
@@ -147,11 +136,11 @@ FindCall:
 }
 
 func builtinSignature(ctx context.Context, v View, callExpr *ast.CallExpr, name string, pos token.Pos) (*SignatureInformation, error) {
-	obj := v.BuiltinPackage().Lookup(name)
-	if obj == nil {
-		return nil, errors.Errorf("no object for %s", name)
+	astObj, err := v.LookupBuiltin(ctx, name)
+	if err != nil {
+		return nil, err
 	}
-	decl, ok := obj.Decl.(*ast.FuncDecl)
+	decl, ok := astObj.Decl.(*ast.FuncDecl)
 	if !ok {
 		return nil, errors.Errorf("no function declaration for builtin: %s", name)
 	}
@@ -169,7 +158,7 @@ func builtinSignature(ctx context.Context, v View, callExpr *ast.CallExpr, name 
 			variadic = true
 		}
 	}
-	activeParam := activeParameter(callExpr, numParams, variadic, pos)
+	activeParam := activeParameter(callExpr.Args, numParams, variadic, pos)
 	return signatureInformation(name, nil, params, results, writeResultParens, activeParam), nil
 }
 
@@ -191,11 +180,16 @@ func signatureInformation(name string, comment *ast.CommentGroup, params, result
 	}
 }
 
-func activeParameter(callExpr *ast.CallExpr, numParams int, variadic bool, pos token.Pos) int {
-	// Determine the query position relative to the number of parameters in the function.
-	var activeParam int
-	var start, end token.Pos
-	for _, expr := range callExpr.Args {
+func activeParameter(args []ast.Expr, numParams int, variadic bool, pos token.Pos) (activeParam int) {
+	if len(args) == 0 {
+		return 0
+	}
+	// First, check if the position is even in the range of the arguments.
+	start, end := args[0].Pos(), args[len(args)-1].End()
+	if !(start <= pos && pos <= end) {
+		return 0
+	}
+	for _, expr := range args {
 		if start == token.NoPos {
 			start = expr.Pos()
 		}
@@ -203,7 +197,6 @@ func activeParameter(callExpr *ast.CallExpr, numParams int, variadic bool, pos t
 		if start <= pos && pos <= end {
 			break
 		}
-
 		// Don't advance the active parameter for the last parameter of a variadic function.
 		if !variadic || activeParam < numParams-1 {
 			activeParam++

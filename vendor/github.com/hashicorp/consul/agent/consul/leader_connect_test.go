@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/agent/connect"
+	ca "github.com/hashicorp/consul/agent/connect/ca"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/token"
 	tokenStore "github.com/hashicorp/consul/agent/token"
@@ -23,14 +24,12 @@ import (
 func TestLeader_SecondaryCA_Initialize(t *testing.T) {
 	t.Parallel()
 
-	require := require.New(t)
-
 	masterToken := "8a85f086-dd95-4178-b128-e10902767c5c"
 
 	// Initialize primary as the primary DC
 	dir1, s1 := testServerWithConfig(t, func(c *Config) {
 		c.Datacenter = "primary"
-		c.PrimaryDatacenter = "primary"
+		c.ACLDatacenter = "primary"
 		c.Build = "1.6.0"
 		c.ACLsEnabled = true
 		c.ACLMasterToken = masterToken
@@ -46,10 +45,11 @@ func TestLeader_SecondaryCA_Initialize(t *testing.T) {
 	// secondary as a secondary DC
 	dir2, s2 := testServerWithConfig(t, func(c *Config) {
 		c.Datacenter = "secondary"
-		c.PrimaryDatacenter = "primary"
+		c.ACLDatacenter = "primary"
 		c.Build = "1.6.0"
 		c.ACLsEnabled = true
 		c.ACLDefaultPolicy = "deny"
+		c.ACLTokenReplication = true
 	})
 	defer os.RemoveAll(dir2)
 	defer s2.Shutdown()
@@ -57,29 +57,45 @@ func TestLeader_SecondaryCA_Initialize(t *testing.T) {
 	s2.tokens.UpdateAgentToken(masterToken, token.TokenSourceConfig)
 	s2.tokens.UpdateReplicationToken(masterToken, token.TokenSourceConfig)
 
-	// Create the WAN link
-	joinWAN(t, s2, s1)
 	testrpc.WaitForLeader(t, s2.RPC, "secondary")
 
-	_, caRoot := s1.getCAProvider()
-	secondaryProvider, _ := s2.getCAProvider()
-	intermediatePEM, err := secondaryProvider.ActiveIntermediate()
-	require.NoError(err)
+	// Create the WAN link
+	joinWAN(t, s2, s1)
 
-	// Verify the root lists are equal in each DC's state store.
-	state1 := s1.fsm.State()
-	_, roots1, err := state1.CARoots(nil)
-	require.NoError(err)
+	waitForNewACLs(t, s1)
+	waitForNewACLs(t, s2)
 
-	state2 := s2.fsm.State()
-	_, roots2, err := state2.CARoots(nil)
-	require.NoError(err)
-	require.Equal(roots1[0].ID, roots2[0].ID)
-	require.Equal(roots1[0].RootCert, roots2[0].RootCert)
-	require.Equal(1, len(roots1))
-	require.Equal(len(roots1), len(roots2))
-	require.Empty(roots1[0].IntermediateCerts)
-	require.NotEmpty(roots2[0].IntermediateCerts)
+	// Ensure s2 is authoritative.
+	waitForNewACLReplication(t, s2, structs.ACLReplicateTokens, 1, 1, 0)
+
+	// Wait until the providers are fully bootstrapped.
+	var (
+		caRoot            *structs.CARoot
+		secondaryProvider ca.Provider
+		intermediatePEM   string
+		err               error
+	)
+	retry.Run(t, func(r *retry.R) {
+		_, caRoot = s1.getCAProvider()
+		secondaryProvider, _ = s2.getCAProvider()
+		intermediatePEM, err = secondaryProvider.ActiveIntermediate()
+		require.NoError(r, err)
+
+		// Verify the root lists are equal in each DC's state store.
+		state1 := s1.fsm.State()
+		_, roots1, err := state1.CARoots(nil)
+		require.NoError(r, err)
+
+		state2 := s2.fsm.State()
+		_, roots2, err := state2.CARoots(nil)
+		require.NoError(r, err)
+		require.Len(r, roots1, 1)
+		require.Len(r, roots2, 1)
+		require.Equal(r, roots1[0].ID, roots2[0].ID)
+		require.Equal(r, roots1[0].RootCert, roots2[0].RootCert)
+		require.Empty(r, roots1[0].IntermediateCerts)
+		require.NotEmpty(r, roots2[0].IntermediateCerts)
+	})
 
 	// Have secondary sign a leaf cert and make sure the chain is correct.
 	spiffeService := &connect.SpiffeIDService{
@@ -91,13 +107,13 @@ func TestLeader_SecondaryCA_Initialize(t *testing.T) {
 	raw, _ := connect.TestCSR(t, spiffeService)
 
 	leafCsr, err := connect.ParseCSR(raw)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	leafPEM, err := secondaryProvider.Sign(leafCsr)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	cert, err := connect.ParseCert(leafPEM)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	// Check that the leaf signed by the new cert can be verified using the
 	// returned cert chain (signed intermediate + remote root).
@@ -110,7 +126,7 @@ func TestLeader_SecondaryCA_Initialize(t *testing.T) {
 		Intermediates: intermediatePool,
 		Roots:         rootPool,
 	})
-	require.NoError(err)
+	require.NoError(t, err)
 }
 
 func TestLeader_SecondaryCA_IntermediateRefresh(t *testing.T) {
@@ -145,13 +161,18 @@ func TestLeader_SecondaryCA_IntermediateRefresh(t *testing.T) {
 	require.NoError(err)
 	require.NotEmpty(oldIntermediatePEM)
 
-	// Store the current root
-	rootReq := &structs.DCSpecificRequest{
-		Datacenter: "dc1",
+	// Capture the current root
+	var originalRoot *structs.CARoot
+	{
+		rootList, activeRoot, err := getTestRoots(s1, "dc1")
+		require.NoError(err)
+		require.Len(rootList.Roots, 1)
+		originalRoot = activeRoot
 	}
-	var rootList structs.IndexedCARoots
-	require.NoError(s1.RPC("ConnectCA.Roots", rootReq, &rootList))
-	require.Len(rootList.Roots, 1)
+
+	// Wait for current state to be reflected in both datacenters.
+	waitForActiveCARoot(t, s1, "dc1", originalRoot)
+	waitForActiveCARoot(t, s2, "dc2", originalRoot)
 
 	// Update the provider config to use a new private key, which should
 	// cause a rotation.
@@ -175,6 +196,14 @@ func TestLeader_SecondaryCA_IntermediateRefresh(t *testing.T) {
 		require.NoError(s1.RPC("ConnectCA.ConfigurationSet", args, &reply))
 	}
 
+	var updatedRoot *structs.CARoot
+	{
+		rootList, activeRoot, err := getTestRoots(s1, "dc1")
+		require.NoError(err)
+		require.Len(rootList.Roots, 2)
+		updatedRoot = activeRoot
+	}
+
 	// Wait for dc2's intermediate to be refreshed.
 	var intermediatePEM string
 	retry.Run(t, func(r *retry.R) {
@@ -185,6 +214,9 @@ func TestLeader_SecondaryCA_IntermediateRefresh(t *testing.T) {
 		}
 	})
 	require.NoError(err)
+
+	waitForActiveCARoot(t, s1, "dc1", updatedRoot)
+	waitForActiveCARoot(t, s2, "dc2", updatedRoot)
 
 	// Verify the root lists have been rotated in each DC's state store.
 	state1 := s1.fsm.State()
@@ -241,6 +273,105 @@ func TestLeader_SecondaryCA_IntermediateRefresh(t *testing.T) {
 		Roots:         rootPool,
 	})
 	require.NoError(err)
+}
+
+func TestLeader_SecondaryCA_FixSigningKeyID_via_IntermediateRefresh(t *testing.T) {
+	t.Parallel()
+
+	dir1, s1 := testServerWithConfig(t, func(c *Config) {
+		c.Build = "1.6.0"
+	})
+	defer os.RemoveAll(dir1)
+	defer s1.Shutdown()
+
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+
+	// dc2 as a secondary DC
+	dir2pre, s2pre := testServerWithConfig(t, func(c *Config) {
+		c.Datacenter = "dc2"
+		c.PrimaryDatacenter = "dc1"
+		c.Build = "1.6.0"
+	})
+	defer os.RemoveAll(dir2pre)
+	defer s2pre.Shutdown()
+
+	// Create the WAN link
+	joinWAN(t, s2pre, s1)
+	testrpc.WaitForLeader(t, s2pre.RPC, "dc2")
+
+	// Restore the pre-1.6.1 behavior of the SigningKeyID not being derived
+	// from the intermediates.
+	var secondaryRootSigningKeyID string
+	{
+		state := s2pre.fsm.State()
+
+		// Get the highest index
+		idx, activeSecondaryRoot, err := state.CARootActive(nil)
+		require.NoError(t, err)
+		require.NotNil(t, activeSecondaryRoot)
+
+		rootCert, err := connect.ParseCert(activeSecondaryRoot.RootCert)
+		require.NoError(t, err)
+
+		// Force this to be derived just from the root, not the intermediate.
+		secondaryRootSigningKeyID = connect.EncodeSigningKeyID(rootCert.SubjectKeyId)
+		activeSecondaryRoot.SigningKeyID = secondaryRootSigningKeyID
+
+		// Store the root cert in raft
+		resp, err := s2pre.raftApply(structs.ConnectCARequestType, &structs.CARequest{
+			Op:    structs.CAOpSetRoots,
+			Index: idx,
+			Roots: []*structs.CARoot{activeSecondaryRoot},
+		})
+		require.NoError(t, err)
+		if respErr, ok := resp.(error); ok {
+			t.Fatalf("respErr: %v", respErr)
+		}
+	}
+
+	// Shutdown s2pre and restart it to trigger the secondary CA init to correct
+	// the SigningKeyID.
+	s2pre.Shutdown()
+
+	dir2, s2 := testServerWithConfig(t, func(c *Config) {
+		c.DataDir = s2pre.config.DataDir
+		c.Datacenter = "dc2"
+		c.PrimaryDatacenter = "dc1"
+		c.NodeName = s2pre.config.NodeName
+		c.NodeID = s2pre.config.NodeID
+	})
+	defer os.RemoveAll(dir2)
+	defer s2.Shutdown()
+
+	testrpc.WaitForLeader(t, s2.RPC, "dc2")
+
+	// Retry since it will take some time to init the secondary CA fully and there
+	// isn't a super clean way to watch specifically until it's done than polling
+	// the CA provider anyway.
+	retry.Run(t, func(r *retry.R) {
+		// verify that the root is now corrected
+		provider, activeRoot := s2.getCAProvider()
+		require.NotNil(r, provider)
+		require.NotNil(r, activeRoot)
+
+		activeIntermediate, err := provider.ActiveIntermediate()
+		require.NoError(r, err)
+
+		intermediateCert, err := connect.ParseCert(activeIntermediate)
+		require.NoError(r, err)
+
+		// Force this to be derived just from the root, not the intermediate.
+		expect := connect.EncodeSigningKeyID(intermediateCert.SubjectKeyId)
+
+		// The in-memory representation was saw the correction via a setCAProvider call.
+		require.Equal(r, expect, activeRoot.SigningKeyID)
+
+		// The state store saw the correction, too.
+		_, activeSecondaryRoot, err := s2.fsm.State().CARootActive(nil)
+		require.NoError(r, err)
+		require.NotNil(r, activeSecondaryRoot)
+		require.Equal(r, expect, activeSecondaryRoot.SigningKeyID)
+	})
 }
 
 func TestLeader_SecondaryCA_TransitionFromPrimary(t *testing.T) {
@@ -461,6 +592,52 @@ func TestLeader_SecondaryCA_UpgradeBeforePrimary(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func waitForActiveCARoot(t *testing.T, s *Server, datacenter string, expect *structs.CARoot) {
+	retry.Run(t, func(r *retry.R) {
+		args := &structs.DCSpecificRequest{
+			Datacenter: datacenter,
+		}
+		var reply structs.IndexedCARoots
+		if err := s.RPC("ConnectCA.Roots", args, &reply); err != nil {
+			r.Fatalf("err: %v", err)
+		}
+
+		var root *structs.CARoot
+		for _, r := range reply.Roots {
+			if r.ID == reply.ActiveRootID {
+				root = r
+				break
+			}
+		}
+		if root == nil {
+			r.Fatal("no active root")
+		}
+		if root.ID != expect.ID {
+			r.Fatalf("current active root is %s; waiting for %s", root.ID, expect.ID)
+		}
+	})
+}
+
+func getTestRoots(s *Server, datacenter string) (*structs.IndexedCARoots, *structs.CARoot, error) {
+	rootReq := &structs.DCSpecificRequest{
+		Datacenter: datacenter,
+	}
+	var rootList structs.IndexedCARoots
+	if err := s.RPC("ConnectCA.Roots", rootReq, &rootList); err != nil {
+		return nil, nil, err
+	}
+
+	var active *structs.CARoot
+	for _, root := range rootList.Roots {
+		if root.Active {
+			active = root
+			break
+		}
+	}
+
+	return &rootList, active, nil
+}
+
 func TestLeader_ReplicateIntentions(t *testing.T) {
 	t.Parallel()
 
@@ -468,7 +645,6 @@ func TestLeader_ReplicateIntentions(t *testing.T) {
 	require := require.New(t)
 	dir1, s1 := testServerWithConfig(t, func(c *Config) {
 		c.Datacenter = "dc1"
-		c.PrimaryDatacenter = "dc1"
 		c.ACLDatacenter = "dc1"
 		c.ACLsEnabled = true
 		c.ACLMasterToken = "root"
@@ -495,7 +671,6 @@ func TestLeader_ReplicateIntentions(t *testing.T) {
 	// dc2 as a secondary DC
 	dir2, s2 := testServerWithConfig(t, func(c *Config) {
 		c.Datacenter = "dc2"
-		c.PrimaryDatacenter = "dc1"
 		c.ACLDatacenter = "dc1"
 		c.ACLsEnabled = true
 		c.ACLDefaultPolicy = "deny"
@@ -1066,7 +1241,7 @@ h1IHCbxWsUT3AiARwj5/D/CUppy6BHIFkvcpOCQoVyo=
 			// just to make sure these two are not the same
 			require.NotEqual(t, rootCert.AuthorityKeyId, rootCert.SubjectKeyId)
 
-			require.Equal(t, connect.HexString(rootCert.SubjectKeyId), root.SigningKeyID)
+			require.Equal(t, connect.EncodeSigningKeyID(rootCert.SubjectKeyId), root.SigningKeyID)
 		}
 	}
 }

@@ -38,9 +38,10 @@ func (fake *FakeTx) Commit() error {
 	fake.commitArgsForCall = append(fake.commitArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Commit", []interface{}{})
+	commitStubCopy := fake.CommitStub
 	fake.commitMutex.Unlock()
-	if fake.CommitStub != nil {
-		return fake.CommitStub()
+	if commitStubCopy != nil {
+		return commitStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -90,9 +91,10 @@ func (fake *FakeTx) Rollback() error {
 	fake.rollbackArgsForCall = append(fake.rollbackArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Rollback", []interface{}{})
+	rollbackStubCopy := fake.RollbackStub
 	fake.rollbackMutex.Unlock()
-	if fake.RollbackStub != nil {
-		return fake.RollbackStub()
+	if rollbackStubCopy != nil {
+		return rollbackStubCopy()
 	}
 	if specificReturn {
 		return ret.result1

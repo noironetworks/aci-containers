@@ -30,9 +30,10 @@ func (fake *FakeGUIDProvider) NextGUID() (string, error) {
 	fake.nextGUIDArgsForCall = append(fake.nextGUIDArgsForCall, struct {
 	}{})
 	fake.recordInvocation("NextGUID", []interface{}{})
+	nextGUIDStubCopy := fake.NextGUIDStub
 	fake.nextGUIDMutex.Unlock()
-	if fake.NextGUIDStub != nil {
-		return fake.NextGUIDStub()
+	if nextGUIDStubCopy != nil {
+		return nextGUIDStubCopy()
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

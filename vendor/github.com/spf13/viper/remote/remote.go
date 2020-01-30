@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/spf13/viper"
+
 	crypt "github.com/xordataexchange/crypt/config"
 )
 
@@ -63,9 +64,7 @@ func (rc remoteConfigProvider) WatchChannel(rp viper.RemoteProvider) (<-chan *vi
 					Error: resp.Error,
 					Value: resp.Value,
 				}
-
 			}
-
 		}
 	}(cryptoResponseCh, viperResponsCh, quitwc, quit)
 

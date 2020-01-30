@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/consul/lib"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/mitchellh/mapstructure"
 )
@@ -89,14 +89,20 @@ func Parse(data string, format string) (c Config, err error) {
 		"services.connect.proxy.config.upstreams", // Deprecated
 		"service.connect.proxy.upstreams",
 		"services.connect.proxy.upstreams",
+		"service.connect.proxy.expose.paths",
+		"services.connect.proxy.expose.paths",
 		"service.proxy.upstreams",
 		"services.proxy.upstreams",
+		"service.proxy.expose.paths",
+		"services.proxy.expose.paths",
 
 		// Need all the service(s) exceptions also for nested sidecar service.
 		"service.connect.sidecar_service.checks",
 		"services.connect.sidecar_service.checks",
 		"service.connect.sidecar_service.proxy.upstreams",
 		"services.connect.sidecar_service.proxy.upstreams",
+		"service.connect.sidecar_service.proxy.expose.paths",
+		"services.connect.sidecar_service.proxy.expose.paths",
 	}, []string{
 		"config_entries.bootstrap", // completely ignore this tree (fixed elsewhere)
 	})
@@ -356,6 +362,7 @@ type Autopilot struct {
 	DisableUpgradeMigration *bool   `json:"disable_upgrade_migration,omitempty" hcl:"disable_upgrade_migration" mapstructure:"disable_upgrade_migration"`
 	LastContactThreshold    *string `json:"last_contact_threshold,omitempty" hcl:"last_contact_threshold" mapstructure:"last_contact_threshold"`
 	MaxTrailingLogs         *int    `json:"max_trailing_logs,omitempty" hcl:"max_trailing_logs" mapstructure:"max_trailing_logs"`
+	MinQuorum               *uint   `json:"min_quorum,omitempty" hcl:"min_quorum" mapstructure:"min_quorum"`
 	RedundancyZoneTag       *string `json:"redundancy_zone_tag,omitempty" hcl:"redundancy_zone_tag" mapstructure:"redundancy_zone_tag"`
 	ServerStabilizationTime *string `json:"server_stabilization_time,omitempty" hcl:"server_stabilization_time" mapstructure:"server_stabilization_time"`
 	UpgradeVersionTag       *string `json:"upgrade_version_tag,omitempty" hcl:"upgrade_version_tag" mapstructure:"upgrade_version_tag"`
@@ -468,6 +475,9 @@ type ServiceProxy struct {
 
 	// Mesh Gateway Configuration
 	MeshGateway *MeshGatewayConfig `json:"mesh_gateway,omitempty" hcl:"mesh_gateway" mapstructure:"mesh_gateway"`
+
+	// Expose defines whether checks or paths are exposed through the proxy
+	Expose *ExposeConfig `json:"expose,omitempty" hcl:"expose" mapstructure:"expose"`
 }
 
 // Upstream represents a single upstream dependency for a service or proxy. It
@@ -511,6 +521,34 @@ type Upstream struct {
 type MeshGatewayConfig struct {
 	// Mesh Gateway Mode
 	Mode *string `json:"mode,omitempty" hcl:"mode" mapstructure:"mode"`
+}
+
+// ExposeConfig describes HTTP paths to expose through Envoy outside of Connect.
+// Users can expose individual paths and/or all HTTP/GRPC paths for checks.
+type ExposeConfig struct {
+	// Checks defines whether paths associated with Consul checks will be exposed.
+	// This flag triggers exposing all HTTP and GRPC check paths registered for the service.
+	Checks *bool `json:"checks,omitempty" hcl:"checks" mapstructure:"checks"`
+
+	// Port defines the port of the proxy's listener for exposed paths.
+	Port *int `json:"port,omitempty" hcl:"port" mapstructure:"port"`
+
+	// Paths is the list of paths exposed through the proxy.
+	Paths []ExposePath `json:"paths,omitempty" hcl:"paths" mapstructure:"paths"`
+}
+
+type ExposePath struct {
+	// ListenerPort defines the port of the proxy's listener for exposed paths.
+	ListenerPort *int `json:"listener_port,omitempty" hcl:"listener_port" mapstructure:"listener_port"`
+
+	// Path is the path to expose through the proxy, ie. "/metrics."
+	Path *string `json:"path,omitempty" hcl:"path" mapstructure:"path"`
+
+	// Protocol describes the upstream's service protocol.
+	Protocol *string `json:"protocol,omitempty" hcl:"protocol" mapstructure:"protocol"`
+
+	// LocalPathPort is the port that the service is listening on for the given path.
+	LocalPathPort *int `json:"local_path_port,omitempty" hcl:"local_path_port" mapstructure:"local_path_port"`
 }
 
 // AutoEncrypt is the agent-global auto_encrypt configuration.
@@ -571,7 +609,7 @@ type Performance struct {
 
 type Telemetry struct {
 	CirconusAPIApp                     *string  `json:"circonus_api_app,omitempty" hcl:"circonus_api_app" mapstructure:"circonus_api_app"`
-	CirconusAPIToken                   *string  `json:"circonus_api_token,omitempty" json:"-" hcl:"circonus_api_token" mapstructure:"circonus_api_token" json:"-"`
+	CirconusAPIToken                   *string  `json:"circonus_api_token,omitempty" hcl:"circonus_api_token" mapstructure:"circonus_api_token"`
 	CirconusAPIURL                     *string  `json:"circonus_api_url,omitempty" hcl:"circonus_api_url" mapstructure:"circonus_api_url"`
 	CirconusBrokerID                   *string  `json:"circonus_broker_id,omitempty" hcl:"circonus_broker_id" mapstructure:"circonus_broker_id"`
 	CirconusBrokerSelectTag            *string  `json:"circonus_broker_select_tag,omitempty" hcl:"circonus_broker_select_tag" mapstructure:"circonus_broker_select_tag"`
@@ -606,6 +644,8 @@ type Ports struct {
 	ProxyMaxPort   *int `json:"proxy_max_port,omitempty" hcl:"proxy_max_port" mapstructure:"proxy_max_port"`
 	SidecarMinPort *int `json:"sidecar_min_port,omitempty" hcl:"sidecar_min_port" mapstructure:"sidecar_min_port"`
 	SidecarMaxPort *int `json:"sidecar_max_port,omitempty" hcl:"sidecar_max_port" mapstructure:"sidecar_max_port"`
+	ExposeMinPort  *int `json:"expose_min_port,omitempty" hcl:"expose_min_port" mapstructure:"expose_min_port"`
+	ExposeMaxPort  *int `json:"expose_max_port,omitempty" hcl:"expose_max_port" mapstructure:"expose_max_port"`
 }
 
 type UnixSocket struct {
@@ -615,9 +655,13 @@ type UnixSocket struct {
 }
 
 type Limits struct {
-	RPCMaxBurst    *int     `json:"rpc_max_burst,omitempty" hcl:"rpc_max_burst" mapstructure:"rpc_max_burst"`
-	RPCRate        *float64 `json:"rpc_rate,omitempty" hcl:"rpc_rate" mapstructure:"rpc_rate"`
-	KVMaxValueSize *uint64  `json:"kv_max_value_size,omitempty" hcl:"kv_max_value_size" mapstructure:"kv_max_value_size"`
+	HTTPMaxConnsPerClient *int     `json:"http_max_conns_per_client,omitempty" hcl:"http_max_conns_per_client" mapstructure:"http_max_conns_per_client"`
+	HTTPSHandshakeTimeout *string  `json:"https_handshake_timeout,omitempty" hcl:"https_handshake_timeout" mapstructure:"https_handshake_timeout"`
+	RPCHandshakeTimeout   *string  `json:"rpc_handshake_timeout,omitempty" hcl:"rpc_handshake_timeout" mapstructure:"rpc_handshake_timeout"`
+	RPCMaxBurst           *int     `json:"rpc_max_burst,omitempty" hcl:"rpc_max_burst" mapstructure:"rpc_max_burst"`
+	RPCMaxConnsPerClient  *int     `json:"rpc_max_conns_per_client,omitempty" hcl:"rpc_max_conns_per_client" mapstructure:"rpc_max_conns_per_client"`
+	RPCRate               *float64 `json:"rpc_rate,omitempty" hcl:"rpc_rate" mapstructure:"rpc_rate"`
+	KVMaxValueSize        *uint64  `json:"kv_max_value_size,omitempty" hcl:"kv_max_value_size" mapstructure:"kv_max_value_size"`
 }
 
 type Segment struct {

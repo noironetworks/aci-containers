@@ -20,12 +20,13 @@ import (
 // TestCacheTypes encapsulates all the different cache types proxycfg.State will
 // watch/request for controlling one during testing.
 type TestCacheTypes struct {
-	roots         *ControllableCacheType
-	leaf          *ControllableCacheType
-	intentions    *ControllableCacheType
-	health        *ControllableCacheType
-	query         *ControllableCacheType
-	compiledChain *ControllableCacheType
+	roots             *ControllableCacheType
+	leaf              *ControllableCacheType
+	intentions        *ControllableCacheType
+	health            *ControllableCacheType
+	query             *ControllableCacheType
+	compiledChain     *ControllableCacheType
+	serviceHTTPChecks *ControllableCacheType
 }
 
 // NewTestCacheTypes creates a set of ControllableCacheTypes for all types that
@@ -33,12 +34,13 @@ type TestCacheTypes struct {
 func NewTestCacheTypes(t testing.T) *TestCacheTypes {
 	t.Helper()
 	ct := &TestCacheTypes{
-		roots:         NewControllableCacheType(t),
-		leaf:          NewControllableCacheType(t),
-		intentions:    NewControllableCacheType(t),
-		health:        NewControllableCacheType(t),
-		query:         NewControllableCacheType(t),
-		compiledChain: NewControllableCacheType(t),
+		roots:             NewControllableCacheType(t),
+		leaf:              NewControllableCacheType(t),
+		intentions:        NewControllableCacheType(t),
+		health:            NewControllableCacheType(t),
+		query:             NewControllableCacheType(t),
+		compiledChain:     NewControllableCacheType(t),
+		serviceHTTPChecks: NewControllableCacheType(t),
 	}
 	ct.query.blocking = false
 	return ct
@@ -76,6 +78,7 @@ func TestCacheWithTypes(t testing.T, types *TestCacheTypes) *cache.Cache {
 		RefreshTimer:   0,
 		RefreshTimeout: 10 * time.Minute,
 	})
+	c.RegisterType(cachetype.ServiceHTTPChecksName, types.serviceHTTPChecks, &cache.RegisterOptions{})
 
 	return c
 }
@@ -103,7 +106,7 @@ func TestLeafForCA(t testing.T, ca *structs.CARoot) *structs.IssuedCert {
 	require.NoError(t, err)
 
 	return &structs.IssuedCert{
-		SerialNumber:  connect.HexString(leafCert.SerialNumber.Bytes()),
+		SerialNumber:  connect.EncodeSerialNumber(leafCert.SerialNumber),
 		CertPEM:       leafPEM,
 		PrivateKeyPEM: pkPEM,
 		Service:       "web",
@@ -964,8 +967,16 @@ func testConfigSnapshotDiscoveryChain(t testing.T, variation string, additionalE
 }
 
 func TestConfigSnapshotMeshGateway(t testing.T) *ConfigSnapshot {
+	return testConfigSnapshotMeshGateway(t, true)
+}
+
+func TestConfigSnapshotMeshGatewayNoServices(t testing.T) *ConfigSnapshot {
+	return testConfigSnapshotMeshGateway(t, false)
+}
+
+func testConfigSnapshotMeshGateway(t testing.T, populateServices bool) *ConfigSnapshot {
 	roots, _ := TestCerts(t)
-	return &ConfigSnapshot{
+	snap := &ConfigSnapshot{
 		Kind:    structs.ServiceKindMeshGateway,
 		Service: "mesh-gateway",
 		ProxyID: "mesh-gateway",
@@ -987,10 +998,17 @@ func TestConfigSnapshotMeshGateway(t testing.T) *ConfigSnapshot {
 		Roots:      roots,
 		Datacenter: "dc1",
 		MeshGateway: configSnapshotMeshGateway{
+			WatchedServicesSet: true,
+		},
+	}
+
+	if populateServices {
+		snap.MeshGateway = configSnapshotMeshGateway{
 			WatchedServices: map[string]context.CancelFunc{
 				"foo": nil,
 				"bar": nil,
 			},
+			WatchedServicesSet: true,
 			WatchedDatacenters: map[string]context.CancelFunc{
 				"dc2": nil,
 			},
@@ -1001,7 +1019,38 @@ func TestConfigSnapshotMeshGateway(t testing.T) *ConfigSnapshot {
 			GatewayGroups: map[string]structs.CheckServiceNodes{
 				"dc2": TestGatewayNodesDC2(t),
 			},
+		}
+	}
+
+	return snap
+}
+
+func TestConfigSnapshotExposeConfig(t testing.T) *ConfigSnapshot {
+	return &ConfigSnapshot{
+		Kind:    structs.ServiceKindConnectProxy,
+		Service: "web-proxy",
+		ProxyID: "web-proxy",
+		Address: "1.2.3.4",
+		Port:    8080,
+		Proxy: structs.ConnectProxyConfig{
+			LocalServicePort: 8080,
+			Expose: structs.ExposeConfig{
+				Checks: false,
+				Paths: []structs.ExposePath{
+					{
+						LocalPathPort: 8080,
+						Path:          "/health1",
+						ListenerPort:  21500,
+					},
+					{
+						LocalPathPort: 8080,
+						Path:          "/health2",
+						ListenerPort:  21501,
+					},
+				},
+			},
 		},
+		Datacenter: "dc1",
 	}
 }
 

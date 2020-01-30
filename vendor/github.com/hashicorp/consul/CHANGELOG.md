@@ -1,3 +1,61 @@
+## 1.6.3 (January 30, 2020)
+
+SECURITY
+
+* agent: mitigate potential DoS vector allowing unbounded server resource usage from unauthenticated connections [[GH-7159](https://github.com/hashicorp/consul/issues/7159)]
+* acl: add ACL enforcement to the `v1/agent/health/service/*` endpoints [[GH-7160](https://github.com/hashicorp/consul/issues/7160)]
+
+IMPROVEMENTS
+
+* tls: `auto_encrypt` and `verify_incoming` [[GH-6811](https://github.com/hashicorp/consul/pull/6811)]
+
+BUG FIXES
+
+* agent: output proper HTTP status codes for Txn requests that are too large [[GH-7158](https://github.com/hashicorp/consul/pull/7158)]
+* connect: derive connect certificate serial numbers from a memdb index instead of the provider table max index [[GH-7011](https://github.com/hashicorp/consul/pull/7011)]
+* connect: ensure that updates to the secondary root CA configuration use the correct signing key ID values for comparison [[GH-7012](https://github.com/hashicorp/consul/pull/7012)]
+
+## 1.6.2 (November 13, 2019)
+
+SECURITY
+
+* Updated to compile with Go 1.12.13 which includes a fix for CVE-2019-17596 in [[Go 1.12.11](https://groups.google.com/forum/#!msg/golang-announce/lVEm7llp0w0/VbafyRkgCgAJ)] [[GH-6319](https://github.com/hashicorp/consul/pull/6759)]
+
+FEATURES
+* agent: store check type in catalog [[GH-6561](https://github.com/hashicorp/consul/pull/6561)]
+* agent: update force-leave to allow for complete removal of members [[GH-6571](https://github.com/hashicorp/consul/issues/6571)]
+* agent: updates to the agent token trigger anti-entropy full syncs [[GH-6577](https://github.com/hashicorp/consul/issues/6577)]
+* snapshot agent (Consul Enterprise): Added support for saving snapshots to Google Cloud Storage.
+* connect: Added proxy config stanza to allow exposing HTTP paths through Envoy for non-Connect-enabled services [[GH-5396](https://github.com/hashicorp/consul/issues/5396)]
+
+IMPROVEMENTS
+
+* licensing (Consul Enterprise): Increase initial server temporary license duration to 6 hours to allow for longer upgrades/migrations.
+* server: ensure the primary datacenter and ACL datacenter match [[GH-6634](https://github.com/hashicorp/consul/issues/6634)]
+* sdk: ignore panics due to stray goroutines logging after a test completes [[GH-6632](https://github.com/hashicorp/consul/issues/6632)]
+* agent: allow mesh gateways to initialize even if there are no connect services registered yet [[GH-6576](https://github.com/hashicorp/consul/issues/6576)]
+* agent: endpoint performance improvements, Txn endpoint in particular. [[GH-6680](https://github.com/hashicorp/consul/pull/6680)]
+* sdk: add NewTestServerT, deprecate NewTestServer in testutil to prevent nil point dereference [[GH-6761](https://github.com/hashicorp/consul/pull/6761)]
+* agent: auto_encrypt provided TLS certificates can now be used to enable HTTPS on clients [[GH-6489](https://github.com/hashicorp/consul/pull/6489)]
+
+BUG FIXES
+
+* ARM release binaries: Starting with v1.6.2, Consul will ship three separate versions of ARM builds. The previous ARM binaries of Consul could potentially crash due to the way the Go runtime manages internal pointers to its Go routine management constructs and how it keeps track of them especially during signal handling. From v1.6.2 forward, it is recommended to use:
+  * consul_{version}_linux_armelv5.zip for all 32-bit armel systems
+  * consul_{version}_linux_armhfv6.zip for all armhf systems with v6+ architecture
+  * consul_{version}_linux_arm64.zip for all v8 64-bit architectures
+* agent: Parse the HTTP Authorization header as case-insensitive. [[GH-6568](https://github.com/hashicorp/consul/issues/6568)]
+* agent: minimum quorum check added to Autopilot with minQuorum option [[GH-6654](https://github.com/hashicorp/consul/issues/6654)]
+* agent: cache notifications work after error if the underlying RPC returns index=1 [[GH-6547](https://github.com/hashicorp/consul/issues/6547)]
+* agent: tolerate more failure scenarios during service registration with central config enabled [[GH-6472](https://github.com/hashicorp/consul/issues/6472)]
+* cache: remove data race in agent cache [[GH-6470](https://github.com/hashicorp/consul/issues/6470)]
+* connect: connect CA Roots in secondary datacenters should use a SigningKeyID derived from their local intermediate [[GH-6513](https://github.com/hashicorp/consul/issues/6513)]
+* connect: don't colon-hex-encode the AuthorityKeyId and SubjectKeyId fields in connect certs [[GH-6492](https://github.com/hashicorp/consul/issues/6492)]
+* connect: intermediate CA certs generated with the vault provider lack URI SANs [[GH-6491](https://github.com/hashicorp/consul/issues/6491)]
+* debug: Fix a bug in sync.WaitGroup usage. [[GH-6649](https://github.com/hashicorp/consul/pull/6649)]
+* xds: tcp services using the discovery chain should not assume RDS during LDS [[GH-6623](https://github.com/hashicorp/consul/issues/6623)]
+* ui: Fix a bug where switching datacenters using the datacenter menu would lead to an empty service listing [[GH-6555](https://github.com/hashicorp/consul/pull/6555)]
+
 ## 1.6.1 (September 12, 2019)
 
 IMPROVEMENTS

@@ -73,9 +73,10 @@ func (fake *FakeMigration) SetClock(arg1 clock.Clock) {
 		arg1 clock.Clock
 	}{arg1})
 	fake.recordInvocation("SetClock", []interface{}{arg1})
+	setClockStubCopy := fake.SetClockStub
 	fake.setClockMutex.Unlock()
-	if fake.SetClockStub != nil {
-		fake.SetClockStub(arg1)
+	if setClockStubCopy != nil {
+		setClockStubCopy(arg1)
 	}
 }
 
@@ -104,9 +105,10 @@ func (fake *FakeMigration) SetCryptor(arg1 encryption.Cryptor) {
 		arg1 encryption.Cryptor
 	}{arg1})
 	fake.recordInvocation("SetCryptor", []interface{}{arg1})
+	setCryptorStubCopy := fake.SetCryptorStub
 	fake.setCryptorMutex.Unlock()
-	if fake.SetCryptorStub != nil {
-		fake.SetCryptorStub(arg1)
+	if setCryptorStubCopy != nil {
+		setCryptorStubCopy(arg1)
 	}
 }
 
@@ -135,9 +137,10 @@ func (fake *FakeMigration) SetDBFlavor(arg1 string) {
 		arg1 string
 	}{arg1})
 	fake.recordInvocation("SetDBFlavor", []interface{}{arg1})
+	setDBFlavorStubCopy := fake.SetDBFlavorStub
 	fake.setDBFlavorMutex.Unlock()
-	if fake.SetDBFlavorStub != nil {
-		fake.SetDBFlavorStub(arg1)
+	if setDBFlavorStubCopy != nil {
+		setDBFlavorStubCopy(arg1)
 	}
 }
 
@@ -166,9 +169,10 @@ func (fake *FakeMigration) SetRawSQLDB(arg1 *sql.DB) {
 		arg1 *sql.DB
 	}{arg1})
 	fake.recordInvocation("SetRawSQLDB", []interface{}{arg1})
+	setRawSQLDBStubCopy := fake.SetRawSQLDBStub
 	fake.setRawSQLDBMutex.Unlock()
-	if fake.SetRawSQLDBStub != nil {
-		fake.SetRawSQLDBStub(arg1)
+	if setRawSQLDBStubCopy != nil {
+		setRawSQLDBStubCopy(arg1)
 	}
 }
 
@@ -197,9 +201,10 @@ func (fake *FakeMigration) String() string {
 	fake.stringArgsForCall = append(fake.stringArgsForCall, struct {
 	}{})
 	fake.recordInvocation("String", []interface{}{})
+	stringStubCopy := fake.StringStub
 	fake.stringMutex.Unlock()
-	if fake.StringStub != nil {
-		return fake.StringStub()
+	if stringStubCopy != nil {
+		return stringStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -250,9 +255,10 @@ func (fake *FakeMigration) Up(arg1 lager.Logger) error {
 		arg1 lager.Logger
 	}{arg1})
 	fake.recordInvocation("Up", []interface{}{arg1})
+	upStubCopy := fake.UpStub
 	fake.upMutex.Unlock()
-	if fake.UpStub != nil {
-		return fake.UpStub(arg1)
+	if upStubCopy != nil {
+		return upStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1
@@ -309,9 +315,10 @@ func (fake *FakeMigration) Version() int64 {
 	fake.versionArgsForCall = append(fake.versionArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Version", []interface{}{})
+	versionStubCopy := fake.VersionStub
 	fake.versionMutex.Unlock()
-	if fake.VersionStub != nil {
-		return fake.VersionStub()
+	if versionStubCopy != nil {
+		return versionStubCopy()
 	}
 	if specificReturn {
 		return ret.result1

@@ -96,9 +96,9 @@ type ConnectCALeaf struct {
 // since all times we get from our wall clock should point to the same Location
 // anyway.
 type fetchState struct {
-	// authorityKeyID is the key ID of the CA root that signed the current cert.
-	// This is just to save parsing the whole cert everytime we have to check if
-	// the root changed.
+	// authorityKeyId is the ID of the CA key (whether root or intermediate) that signed
+	// the current cert.  This is just to save parsing the whole cert everytime
+	// we have to check if the root changed.
 	authorityKeyID string
 
 	// forceExpireAfter is used to coordinate renewing certs after a CA rotation
@@ -298,6 +298,10 @@ func (c *ConnectCALeaf) Fetch(opts cache.FetchOptions, req cache.Request) (cache
 			"Internal cache failure: request wrong type: %T", req)
 	}
 
+	// Lightweight copy this object so that manipulating QueryOptions doesn't race.
+	dup := *reqReal
+	reqReal = &dup
+
 	// Do we already have a cert in the cache?
 	var existing *structs.IssuedCert
 	// Really important this is not a pointer type since otherwise we would set it
@@ -358,7 +362,7 @@ func (c *ConnectCALeaf) Fetch(opts cache.FetchOptions, req cache.Request) (cache
 		expiresAt = state.forceExpireAfter
 	}
 
-	if expiresAt == now || expiresAt.Before(now) {
+	if expiresAt.Equal(now) || expiresAt.Before(now) {
 		// Already expired, just make a new one right away
 		return c.generateNewLeaf(reqReal, lastResultWithNewState())
 	}
@@ -595,7 +599,7 @@ func (c *ConnectCALeaf) generateNewLeaf(req *ConnectCALeafRequest,
 		return result, err
 	}
 	// Set the CA key ID so we can easily tell when a active root has changed.
-	state.authorityKeyID = connect.HexString(cert.AuthorityKeyId)
+	state.authorityKeyID = connect.EncodeSigningKeyID(cert.AuthorityKeyId)
 
 	result.Value = &reply
 	// Store value not pointer so we don't accidentally mutate the cache entry
