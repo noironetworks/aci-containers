@@ -158,9 +158,9 @@ dist-static/acikubectl: ${ACIKUBECTL_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acikubectl
 
 dist/aci-containers-operator:
-	${BUILD_CMD} -o $@ ${BASE}/cmd/acioperator
+	${BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
 dist-static/aci-containers-operator:
-	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acioperator
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
 
 dist/ovsresync: ${OVSRESYNC_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
