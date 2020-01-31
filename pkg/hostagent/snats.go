@@ -243,20 +243,45 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	}
 	agent.snatPolicyCache[newpolicyinfo.ObjectMeta.Name] = newpolicyinfo
 	setDestIp(agent.snatPolicyCache[newpolicyinfo.ObjectMeta.Name].Spec.DestIp)
-	agent.handleSnatUpdate(newpolicyinfo)
+	update := true
+	// updateEpFile
+	//TODO need to revisit the code is it  good to update first and then delete
+	if !reflect.DeepEqual(oldpolicyinfo.Spec.Selector,
+		newpolicyinfo.Spec.Selector) {
+		// remove poduids matching the policy
+		var poduids []string
+		for uuid, res := range agent.snatPods[newpolicyinfo.ObjectMeta.Name] {
+			agent.deleteSnatLocalInfo(uuid, res, newpolicyinfo.ObjectMeta.Name)
+			poduids = append(poduids, uuid)
+		}
+		agent.updateEpFiles(poduids)
+		agent.handleSnatUpdate(newpolicyinfo)
+		// this trigger handles if handle snatUpdate don't match any pod
+		if len(poduids) > 0 {
+			agent.scheduleSyncNodeInfo()
+		}
+		update = false
+	}
+	// destination update can be ignored  if labels also changed
+	if !reflect.DeepEqual(oldpolicyinfo.Spec.DestIp,
+		newpolicyinfo.Spec.DestIp) && update {
+		// updateEpFile
+		// SyncSnatFile
+		var poduids []string
+		for uid := range agent.snatPods[newpolicyinfo.ObjectMeta.Name] {
+			poduids = append(poduids, uid)
+		}
+		agent.updateEpFiles(poduids)
+		agent.scheduleSyncSnats()
+	}
 }
 
 func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
-	policyinfokey, err := cache.MetaNamespaceKeyFunc(policyinfo)
-	if err != nil {
-		return
-	}
-	agent.log.Info("Policy Info Deleted: ", policyinfokey)
+	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)
-	agent.handleSnatUpdate(policyinfo)
 }
 
 func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
@@ -265,10 +290,6 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 	agent.log.Debug("Handle snatUpdate: ", policy)
 	_, err := cache.MetaNamespaceKeyFunc(policy)
 	if err != nil {
-		return
-	}
-	if _, ok := agent.snatPolicyCache[policy.ObjectMeta.Name]; !ok {
-		agent.deletePolicy(policy)
 		return
 	}
 	// 1.List the targets matching the policy based on policy config

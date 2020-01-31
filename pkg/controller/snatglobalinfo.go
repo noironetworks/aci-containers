@@ -92,9 +92,6 @@ func (cont *AciController) queueNodeInfoUpdateByKey(key string) {
 func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interface{}) {
 	oldnodeinfo := oldobj.(*nodeinfo.NodeInfo)
 	newnodeinfo := newobj.(*nodeinfo.NodeInfo)
-	if reflect.DeepEqual(oldnodeinfo.Spec, newnodeinfo.Spec) {
-		return
-	}
 	nodeinfokey, err := cache.MetaNamespaceKeyFunc(newnodeinfo)
 	if err != nil {
 		return
@@ -132,6 +129,9 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 	if !ok || len(nodeinfo.Spec.SnatPolicyNames) == 0 {
 		snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return false
+			}
 			return true
 		}
 		if _, ok := snatglobalInfo.Spec.GlobalInfos[nodename]; ok {
