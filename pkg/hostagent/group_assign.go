@@ -186,9 +186,26 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 	var namespace *v1.Namespace
 	if exists && namespaceobj != nil {
 		namespace = namespaceobj.(*v1.Namespace)
+                var temp metadata.OpflexGroup
+                decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.EgAnnotation], &temp, logger, "namespace[EpgAnnotation]")
 
-		decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.EgAnnotation], &egval, logger, "namespace[EpgAnnotation]")
-		decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "namespace[SgAnnotation]")
+                // For OpenShift installations <= 3.11, we want to offset
+                // the namespace annotation applied in this PR:
+                // openshift/openshift-ansible@0ad7479. The pods
+                // belonging to the four namespaces (i.e.
+                // kube-service-catalog,kube-service-catalog,
+                // openshift-console, openshift-monitoring and
+                // openshift-web-console) need to go into the system
+                // EPG, which we do in acc-provision:
+                // noironetworks/acc-provision@f93a132
+                if (agent.config.AciVmmDomainType == "OpenShift" && temp.Name == "kubernetes|kube-system" &&
+                           (namespace.ObjectMeta.Name == "kube-service-catalog" || namespace.ObjectMeta.Name == "openshift-console" ||
+                                    namespace.ObjectMeta.Name == "openshift-monitoring" || namespace.ObjectMeta.Name == "openshift-web-console")){
+                                        agent.log.Debug("Ignoring annotation set on ", namespace.ObjectMeta.Name)
+                } else {
+                        egval = temp
+                }
+                decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "namespace[SgAnnotation]")
 	}
 
 	// annotation on parent deployment or rc is next-highest priority
