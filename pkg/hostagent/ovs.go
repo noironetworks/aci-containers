@@ -251,14 +251,14 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 						bridges[agent.config.AccessBridgeName].uuid,
 						bridges[agent.config.IntBridgeName].uuid,
 						strconv.Itoa(opid))
-				agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{"pi-veth_host_ac"}
-				agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pa-veth_host_ac"}
 				opid++
 				if err != nil {
 					agent.log.Error(err)
 				}
 				ops = append(ops, adds...)
 			}
+			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{"pi-veth_host_ac"}
+			agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pa-veth_host_ac"}
 		}
 	}
 
