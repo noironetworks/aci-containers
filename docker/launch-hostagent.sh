@@ -73,24 +73,33 @@ fi
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
 
     set +e
-    # Allow pod traffic to go out of veth_host
-    iptables -A FORWARD -i veth_host -j ACCEPT
-    retval=$?
-    if [ $retval -ne 0 ]; then
-        echo "command failed, trying with nftables"
-        nft add table ip filter
-        nft add chain ip filter FORWARD
-        nft add rule ip filter FORWARD iifname veth_host counter accept
-    fi
 
-    # SNAT outgoing traffic from pod to external world
-    iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+    iptables-save
     retval=$?
     if [ $retval -ne 0 ]; then
-        echo "command failed, trying with nftables"
-        nft add table ip nat
-        nft add chain ip nat POSTROUTING
-        nft add rule ip nat POSTROUTING oif $VTEP_IFACE masquerade
+        echo "iptables not installed, trying nftables"
+        nft list ruleset | grep  veth_host
+        retval=$?
+        if [ $retval -ne 0 ]; then
+            # Allow pod traffic to go out of veth_host
+            nft add table ip filter
+            nft add chain ip filter FORWARD
+            nft add rule ip filter FORWARD iifname veth_host counter accept
+
+            # SNAT outgoing traffic from pod to external world
+            nft add table ip nat
+            nft add chain ip nat POSTROUTING
+            nft add rule ip nat POSTROUTING oif $VTEP_IFACE masquerade
+        fi
+    else
+        iptables-save | grep veth_host
+        retval=$?
+        if [ $retval -ne 0 ]; then
+            # Allow pod traffic to go out of veth_host
+            iptables -A FORWARD -i veth_host -j ACCEPT
+            # SNAT outgoing traffic from pod to external world
+            iptables -t nat -A POSTROUTING -o $VTEP_IFACE -j MASQUERADE
+        fi
     fi
 
     set -e
