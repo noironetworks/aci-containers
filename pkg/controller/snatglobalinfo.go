@@ -33,13 +33,6 @@ import (
 
 type set map[string]bool
 
-type ContSnatGlobalInfo struct {
-	SnatIp        string
-	MacAddress    string
-	SnatPortRange snatglobalinfo.PortRange
-	SnatIpUid     string
-}
-
 func (cont *AciController) initSnatNodeInformerFromClient(
 	snatClient *nodeinfoclset.Clientset) {
 	cont.initSnatNodeInformerBase(
@@ -102,8 +95,8 @@ func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interf
 	cont.indexMutex.Lock()
 	cont.updateSnatIpandPorts(oldnodeinfo.Spec.SnatPolicyNames,
 		newnodeinfo.Spec.SnatPolicyNames, newnodeinfo.ObjectMeta.Name)
-	cont.indexMutex.Unlock()
 	cont.snatNodeInfoCache[newnodeinfo.ObjectMeta.Name] = newnodeinfo
+	cont.indexMutex.Unlock()
 	cont.queueNodeInfoUpdateByKey(nodeinfokey)
 }
 
@@ -120,28 +113,12 @@ func (cont *AciController) snatNodeInfoDeleted(obj interface{}) {
 func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool {
 	nodename := nodeinfo.ObjectMeta.Name
 	nodeinfocache, ok := cont.snatNodeInfoCache[nodename]
-	env := cont.env.(*K8sEnvironment)
-	globalcl := env.snatGlobalClient
 	cont.log.Debug("handle Node Info: ", nodeinfo)
 	updated := false
 	// Cache needs to be updated
-	var globalInfos []snatglobalinfo.GlobalInfo
 	if !ok || len(nodeinfo.Spec.SnatPolicyNames) == 0 {
-		snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return false
-			}
-			return true
-		}
-		if _, ok := snatglobalInfo.Spec.GlobalInfos[nodename]; ok {
-			cont.deleteNodeinfoFromGlInfoCache(nodename, snatglobalInfo.Spec.GlobalInfos[nodename])
-			delete(snatglobalInfo.Spec.GlobalInfos, nodename)
-			err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
-			if err != nil {
-				return true
-			}
-		}
+		cont.deleteNodeinfoFromGlInfoCache(nodename)
+		updated = true
 	} else {
 		for name, _ := range nodeinfo.Spec.SnatPolicyNames {
 			snatpolicy, ok := cont.snatPolicyCache[name]
@@ -157,10 +134,8 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					cont.log.Error("Port Range Exhausted: ", name)
 					continue
 				}
-				if cont.updateGlobalInfoforPolicy(&globalInfos, portrange, snatIp, nodename,
-					nodeinfo.Spec.Macaddress, name) {
-					return true
-				}
+				cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
+					nodeinfo.Spec.Macaddress, name)
 				updated = true
 			} else {
 				snatIps := cont.getServiceIps(snatpolicy)
@@ -172,95 +147,87 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 						cont.log.Error("Port Range Exhausted: ", name)
 						continue
 					}
-					if cont.updateGlobalInfoforPolicy(&globalInfos, portrange, snatIp, nodename,
-						nodeinfo.Spec.Macaddress, name) {
-						return true
-					}
+					cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
+						nodeinfo.Spec.Macaddress, name)
 					updated = true
 				}
 			}
 		}
-		if updated {
-			if globalcl == nil {
-				return false
-			}
-			snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
-			if err != nil {
-				return true
-			}
-			if reflect.DeepEqual(snatglobalInfo.Spec.GlobalInfos[nodename], globalInfos) {
-				return false
-			}
-			if snatglobalInfo.Spec.GlobalInfos == nil {
-				tempMap := make(map[string][]snatglobalinfo.GlobalInfo)
-				tempMap[nodename] = globalInfos
-				snatglobalInfo.Spec.GlobalInfos = tempMap
-			} else {
-				snatglobalInfo.Spec.GlobalInfos[nodename] = globalInfos
-			}
-			cont.log.Debug("Update GlobalInfo: ", globalInfos)
-			err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
-			if err != nil {
-				cont.log.Debug("Update Failed: ", globalInfos)
-				return true
-			}
-		}
+	}
+	if updated {
+		cont.scheduleSyncGlobalInfo()
 	}
 	cont.log.Debug("nodeinfocache", nodeinfocache)
 	return false
 }
 
-func (cont *AciController) updateGlobalInfoforPolicy(globalInfos *[]snatglobalinfo.GlobalInfo,
-	portrange snatglobalinfo.PortRange, snatIp, nodename, macaddr, plcyname string) (status bool) {
+func (cont *AciController) syncSnatGlobalInfo() bool {
 	env := cont.env.(*K8sEnvironment)
 	globalcl := env.snatGlobalClient
-	cont.log.Debug("SnatIP and Port range: ", snatIp, portrange)
+	if globalcl == nil {
+		return false
+	}
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	cont.log.Debug("syncSnatGlobalInfo")
+	glInfoCache := make(map[string][]snatglobalinfo.GlobalInfo)
+	for _, glinfos := range cont.snatGlobalInfoCache {
+		for name, v := range glinfos {
+			glInfoCache[name] = append(glInfoCache[name], *v)
+		}
+	}
+	snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
+	if errors.IsNotFound(err) {
+		spec := snatglobalinfo.SnatGlobalInfoSpec{
+			GlobalInfos: glInfoCache,
+		}
+		if globalcl != nil {
+			err := util.CreateSnatGlobalInfoCR(*globalcl, spec)
+			if err != nil {
+				cont.log.Info("Create failed requeue the request")
+				return true
+			}
+		}
+		return false
+	} else if err != nil {
+		return true
+	}
+	if reflect.DeepEqual(snatglobalInfo.Spec.GlobalInfos, glInfoCache) {
+		return false
+	}
+	snatglobalInfo.Spec.GlobalInfos = glInfoCache
+	cont.log.Debug("Update GlobalInfo: ", glInfoCache)
+	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
+	if err != nil {
+		cont.log.Debug("Update Failed: ", glInfoCache)
+		return true
+	}
+	return false
+}
+
+func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.PortRange,
+	snatIp, nodename, macaddr, plcyname string) {
 	portlist := []snatglobalinfo.PortRange{}
 	portlist = append(portlist, portrange)
 	ip := net.ParseIP(snatIp)
 	snatIpUuid, _ := uuid.FromBytes(ip)
-	temp := snatglobalinfo.GlobalInfo{
+	cont.log.Debug("SnatIP and Port range: ", snatIp, portrange)
+	glinfo := snatglobalinfo.GlobalInfo{
 		MacAddress:     macaddr,
 		PortRanges:     portlist,
 		SnatIp:         snatIp,
 		SnatIpUid:      snatIpUuid.String(),
 		SnatPolicyName: plcyname,
 	}
-	if globalcl != nil {
-		_, err := util.GetGlobalInfoCR(*globalcl)
-		if errors.IsNotFound(err) {
-			var glinfo []snatglobalinfo.GlobalInfo
-			glinfo = append(glinfo, temp)
-			tempMap := make(map[string][]snatglobalinfo.GlobalInfo)
-			tempMap[nodename] = glinfo
-			spec := snatglobalinfo.SnatGlobalInfoSpec{
-				GlobalInfos: tempMap,
-			}
-			if globalcl != nil {
-				err := util.CreateSnatGlobalInfoCR(*globalcl, spec)
-				if err != nil {
-					cont.log.Info("Create failed requeue the request")
-					return true
-				}
-			}
-		}
+	if _, ok := cont.snatGlobalInfoCache[snatIp]; !ok {
+		cont.snatGlobalInfoCache[snatIp] = make(map[string]*snatglobalinfo.GlobalInfo)
 	}
-	*globalInfos = append(*globalInfos, temp)
-	cont.UpdateGlobalInfoCache(snatIp, nodename, portrange)
-	return false
-}
-
-func (cont *AciController) UpdateGlobalInfoCache(snatip string, nodename string, portrange snatglobalinfo.PortRange) {
 	cont.indexMutex.Lock()
-	if _, ok := cont.snatGlobalInfoCache[snatip]; !ok {
-		cont.snatGlobalInfoCache[snatip] = make(map[string]*ContSnatGlobalInfo)
-	}
-	var glinfo ContSnatGlobalInfo
-	glinfo.SnatIp = snatip
-	glinfo.SnatPortRange = portrange
-	cont.snatGlobalInfoCache[snatip][nodename] = &glinfo
+	cont.snatGlobalInfoCache[snatIp][nodename] = &glinfo
+	cont.log.Debug("Node name and globalinfo: ", nodename, glinfo)
 	cont.indexMutex.Unlock()
 }
+
 func (cont *AciController) getIpAndPortRange(nodename string, snatpolicy *ContSnatPolicy, serviceIp string) (string,
 	snatglobalinfo.PortRange, bool) {
 	expandedsnatports := snatpolicy.ExpandedSnatPorts
@@ -288,7 +255,7 @@ func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename st
 			if _, ok := globalInfo[nodename]; !ok {
 				seen := make(map[int]int)
 				for _, val := range globalInfo {
-					seen[val.SnatPortRange.Start] = val.SnatPortRange.End
+					seen[val.PortRanges[0].Start] = val.PortRanges[0].End
 				}
 				for _, val := range expandedsnatports {
 					if _, ok := seen[val.Start]; !ok {
@@ -296,28 +263,30 @@ func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename st
 					}
 				}
 			} else {
-				return globalInfo[nodename].SnatIp, globalInfo[nodename].SnatPortRange, true
+				return globalInfo[nodename].SnatIp, globalInfo[nodename].PortRanges[0], true
 			}
 		}
 	}
 	return "", snatglobalinfo.PortRange{}, false
 }
 
-func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string, globalinfos []snatglobalinfo.GlobalInfo) {
+func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) {
 	cont.indexMutex.Lock()
-	for _, glinfo := range globalinfos {
-		delete(cont.snatGlobalInfoCache[glinfo.SnatIp], nodename)
-		if len(cont.snatGlobalInfoCache[glinfo.SnatIp]) == 0 {
-			delete(cont.snatGlobalInfoCache, glinfo.SnatIp)
+	for snatip, glinfos := range cont.snatGlobalInfoCache {
+		if _, ok := glinfos[nodename]; ok {
+			delete(glinfos, nodename)
+			if len(glinfos) == 0 {
+				delete(cont.snatGlobalInfoCache, snatip)
+			}
 		}
 	}
 	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []string) {
-        services := cont.getServicesBySelector(labels.SelectorFromSet(
-                            labels.Set(policy.Selector.Labels)),
-                                    policy.Selector.Namespace)
+	services := cont.getServicesBySelector(labels.SelectorFromSet(
+		labels.Set(policy.Selector.Labels)),
+		policy.Selector.Namespace)
 	for _, service := range services {
 		serviceIps = append(serviceIps, service.Status.LoadBalancer.Ingress[0].IP)
 	}
@@ -353,6 +322,18 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 			}
 		} else {
 			break
+		}
+	}
+}
+
+func (cont *AciController) handleSnatIpUpdate(policyName string) {
+	for _, nodeinfo := range cont.snatNodeInfoCache {
+		if _, ok := nodeinfo.Spec.SnatPolicyNames[policyName]; ok {
+			nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
+			if err != nil {
+				continue
+			}
+			cont.queueNodeInfoUpdateByKey(nodeinfokey)
 		}
 	}
 }

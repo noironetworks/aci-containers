@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
+	"reflect"
 )
 
 const snatGraphName = "svcgraph"
@@ -71,10 +72,10 @@ func (cont *AciController) initSnatInformerBase(listWatch *cache.ListWatch) {
 		&snatpolicy.SnatPolicy{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				cont.snatUpdated(obj)
+				cont.snatPolicyUpdated(obj)
 			},
-			UpdateFunc: func(_ interface{}, obj interface{}) {
-				cont.snatUpdated(obj)
+			UpdateFunc: func(_, obj interface{}) {
+				cont.snatPolicyUpdated(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.snatPolicyDelete(obj)
@@ -86,11 +87,11 @@ func (cont *AciController) initSnatInformerBase(listWatch *cache.ListWatch) {
 
 }
 
-func (cont *AciController) snatUpdated(obj interface{}) {
-	snat := obj.(*snatpolicy.SnatPolicy)
-	key, err := cache.MetaNamespaceKeyFunc(snat)
+func (cont *AciController) snatPolicyUpdated(obj interface{}) {
+	snatPolicy := obj.(*snatpolicy.SnatPolicy)
+	key, err := cache.MetaNamespaceKeyFunc(snatPolicy)
 	if err != nil {
-		SnatPolicyLogger(cont.log, snat).
+		SnatPolicyLogger(cont.log, snatPolicy).
 			Error("Could not create key:" + err.Error())
 		return
 	}
@@ -141,29 +142,29 @@ func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) b
 }
 
 func (cont *AciController) getServicesBySelector(selector labels.Selector, ns string) []*v1.Service {
-        var services []*v1.Service
-        cache.ListAll(cont.serviceIndexer, selector,
-                      func(servobj interface{}) {
-                              service := servobj.(*v1.Service)
-                              if len(ns) == 0 || (len(ns) > 0 && ns == service.ObjectMeta.Namespace) {
-                                      if len(service.Status.LoadBalancer.Ingress) != 0 {
-                                              services = append(services, service)
-                                      }
-                              }
-                      })
-        return services
+	var services []*v1.Service
+	cache.ListAll(cont.serviceIndexer, selector,
+		func(servobj interface{}) {
+			service := servobj.(*v1.Service)
+			if len(ns) == 0 || (len(ns) > 0 && ns == service.ObjectMeta.Namespace) {
+				if len(service.Status.LoadBalancer.Ingress) != 0 {
+					services = append(services, service)
+				}
+			}
+		})
+	return services
 }
 
-func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy ) error {
-        ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
-                            labels.Set(snatpolicy.Spec.Selector.Labels)),
-                                       snatpolicy.Spec.Selector.Namespace)
+func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.SnatPolicy) error {
+	ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
+		labels.Set(snatpolicy.Spec.Selector.Labels)),
+		snatpolicy.Spec.Selector.Namespace)
 
 	if len(ServiceList) == 0 {
 		return nil
 	}
 	for _, service := range ServiceList {
-	        servicekey, err := cache.MetaNamespaceKeyFunc(service)
+		servicekey, err := cache.MetaNamespaceKeyFunc(service)
 		if err != nil {
 			servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
 		}
@@ -172,7 +173,7 @@ func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.Sn
 			cont.snatServices[servicekey] = true
 			cont.queueServiceUpdateByKey(servicekey)
 		}
-			cont.indexMutex.Unlock()
+		cont.indexMutex.Unlock()
 	}
 	return nil
 }
@@ -192,7 +193,17 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 	currPortRange = append(currPortRange, portRange)
 	policy.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
 	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
+	snatIpUpdated := false
+	if snatInfo, ok := cont.snatPolicyCache[key]; ok {
+		if !reflect.DeepEqual(policy.SnatIp, snatInfo.SnatIp) {
+			cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
+			snatIpUpdated = true
+		}
+	}
 	cont.snatPolicyCache[key] = &policy
+	if snatIpUpdated {
+		cont.handleSnatIpUpdate(snatpolicy.ObjectMeta.Name)
+	}
 	cont.indexMutex.Unlock()
 }
 
@@ -203,15 +214,15 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
 
 	if len(snatpolicy.Spec.SnatIp) == 0 {
-                ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
-                         labels.Set(snatpolicy.Spec.Selector.Labels)),
-                                snatpolicy.Spec.Selector.Namespace)
+		ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
+			labels.Set(snatpolicy.Spec.Selector.Labels)),
+			snatpolicy.Spec.Selector.Namespace)
 		if len(ServiceList) > 0 {
 			for _, service := range ServiceList {
 				servicekey, err1 := cache.MetaNamespaceKeyFunc(service)
 				if err1 != nil {
 					servicekey = service.ObjectMeta.Namespace + "/" + service.ObjectMeta.Name
-			        }
+				}
 				delete(cont.snatServices, servicekey)
 				cont.queueServiceUpdateByKey(servicekey)
 			}
