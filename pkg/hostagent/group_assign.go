@@ -203,7 +203,7 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
                                     namespace.ObjectMeta.Name == "openshift-monitoring" || namespace.ObjectMeta.Name == "openshift-web-console")){
                                         agent.log.Debug("Ignoring annotation set on ", namespace.ObjectMeta.Name)
                 } else {
-                        egval = temp
+                        decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.EgAnnotation], &egval, logger, "namespace[EpgAnnotation]")
                 }
                 decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "namespace[SgAnnotation]")
 	}
