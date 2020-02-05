@@ -187,7 +187,7 @@ container-cnideploy:
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 container-operator: dist-static/aci-containers-operator
-	${DOCKER_BUILD_CMD} -t noiro/aci-containers-operator -f ./docker/Dockerfile-operator .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-operator -f ./docker/Dockerfile-operator .
 
 check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
 check-ipam:
