@@ -74,7 +74,7 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
 
     set +e
 
-    iptables-save
+    iptables -A FORWARD -i veth_host -j ACCEPT
     retval=$?
     if [ $retval -ne 0 ]; then
         echo "iptables not installed, trying nftables"
@@ -92,6 +92,8 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
             nft add rule ip nat POSTROUTING oif $VTEP_IFACE masquerade
         fi
     else
+	# delete the rule we added to deterime if iptables or nftables
+	iptables -D FORWARD -i veth_host -j ACCEPT
         iptables-save | grep veth_host
         retval=$?
         if [ $retval -ne 0 ]; then
