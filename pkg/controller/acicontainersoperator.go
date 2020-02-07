@@ -15,15 +15,14 @@
 package controller
 
 import (
-    //"sigs.k8s.io/controller-runtime/pkg/client"
-	//"context"
-	//"sigs.k8s.io/controller-runtime/pkg/client/config"
-	//configv1 "github.com/openshift/api/config/v1"
-	//networkv1 "github.com/openshift/api/network/v1"
+    "sigs.k8s.io/controller-runtime/pkg/client"
+	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	configv1 "github.com/openshift/api/config/v1"
+    "reflect"
 	"encoding/base64"
 	"fmt"
-	//"github.com/eapache/queue"
-	//"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
 	log "github.com/Sirupsen/logrus"
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
@@ -241,9 +240,9 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 	log.Info("OperatorHandler.ObjectCreated")
 
 	acicontainersoperator := obj.(*operators.AciContainersOperator)
-	log.Info(acicontainersoperator.Spec.Config)
+	log.Debug(acicontainersoperator.Spec.Config)
 	if (acicontainersoperator.Spec.Config == ""){
-		log.Info("ACI CNI CR Config is Nil")
+		log.Error("ACI CNI CR Config is Nil")
 		return
 	}
 	
@@ -285,18 +284,18 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
 	k8sclient := getk8sClient()
 	if k8sclient == nil{
-		log.Info("Error in Fetching k8sClient...")
+		log.Error("Error in Fetching k8sClient...")
 		return
 	}
 
 	deploymentsClient := k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE"))
 	if deploymentsClient == nil{
-		log.Info("Error in Fetching deploymentsClient...")
+		log.Error("Error in Fetching deploymentsClient...")
 		return
 	}
 	t.Deployment, _ = deploymentsClient.Get("aci-containers-controller",metav1.GetOptions{})
 	if t.Deployment == nil {
-		log.Info("aci-containers-controller deployment is nil..returning")
+		log.Error("aci-containers-controller deployment is nil..returning")
 		return
 	}
 
@@ -312,12 +311,12 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
 	hostdaemonsetclient := k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE"))
 	if hostdaemonsetclient == nil{
-		log.Info("Error in Fetching hostdaemonsetclient...")
+		log.Error("Error in Fetching hostdaemonsetclient...")
 		return
 	}
 	t.HostDaemonset, _ = hostdaemonsetclient.Get("aci-containers-host",metav1.GetOptions{})
 	if t.HostDaemonset == nil {
-		log.Info("aci-containers-host daemonset is nil.....returning")
+		log.Error("aci-containers-host daemonset is nil.....returning")
 		return
 	}
 
@@ -332,13 +331,13 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
 	ovsdaemonsetclient := k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE"))
 	if ovsdaemonsetclient == nil{
-		log.Info("Error in Fetching ovsdaemonsetclient...")
+		log.Error("Error in Fetching ovsdaemonsetclient...")
 		return
 	}
 
 	t.OvsDaemonset, _ = hostdaemonsetclient.Get("aci-containers-openvswitch",metav1.GetOptions{})
 	if t.OvsDaemonset == nil {
-		log.Info("aci-containers-openvswitch daemonset is nil.....returning")
+		log.Error("aci-containers-openvswitch daemonset is nil.....returning")
 		return
 	}
 
@@ -353,47 +352,59 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
 	log.Info("Platform flavor is ",acicontainersoperator.Spec.Flavor)
 
-	//if (acicontainersoperator.Spec.Flavor == "openshift-4.3") {
-	//
-	//	log.Info("Updating Network Status of the Openshift Object....")
-	//	cfg, err := config.GetConfig()
-	//	scheme := runtime.NewScheme()
-	//	err = networkv1.Install(scheme)
-	//	if err != nil {
-	//		log.Error(err)
-	//		return
-	//	}
-	//
-	//	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
-	//	if err != nil {
-	//		return
-	//	}
-	//
-	//	clusterConfig := &configv1.Network{
-	//		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Network"},
-	//		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-	//	}
-	//
-	//	err = rclient.Get(context.TODO(), types.NamespacedName{
-	//		Name: "cluster",
-	//	}, clusterConfig)
-	//	if err != nil {
-	//		log.Info(err)
-	//	}
-	//	log.Info("Config Spec is  ", clusterConfig.Spec)
-	//	clusterConfig.Status.ClusterNetwork = clusterConfig.Spec.ClusterNetwork
-	//	clusterConfig.Status.NetworkType = clusterConfig.Spec.NetworkType
-	//	clusterConfig.Status.ServiceNetwork = clusterConfig.Spec.ServiceNetwork
-	//
-	//	log.Info("Status is ", clusterConfig.Status)
-	//
-	//	ctx := context.TODO()
-	//	err = rclient.Update(ctx, clusterConfig)
-	//	if err != nil {
-	//		log.Info(err)
-	//		return
-	//	}
-	//}
+	if (acicontainersoperator.Spec.Flavor >= "openshift-4.3") {
+
+		clusterConfig := &configv1.Network{
+			TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Network"},
+			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		}
+
+		cfg, err := config.GetConfig()
+		scheme := runtime.NewScheme()
+		err = configv1.Install(scheme)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		rclient, err := client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			return
+		}
+
+		err = rclient.Get(context.TODO(), types.NamespacedName{
+			Name: "cluster",
+		}, clusterConfig)
+		if err != nil {
+			log.Error(err)
+		}
+
+		log.Info("Network type Config Spec is  ", clusterConfig.Spec)
+
+		status  := &configv1.NetworkStatus{}
+
+
+		log.Debug("Current clusterConfig.Status is ", clusterConfig.Status)
+
+		if !reflect.DeepEqual(clusterConfig.Status,status){
+			log.Info("Updating Network Status of the network Object....")
+
+			clusterConfig.Status.ClusterNetwork = clusterConfig.Spec.ClusterNetwork
+			clusterConfig.Status.NetworkType = clusterConfig.Spec.NetworkType
+			clusterConfig.Status.ServiceNetwork = clusterConfig.Spec.ServiceNetwork
+
+			log.Debug("Updated clusterConfig.Status is ", clusterConfig.Status)
+
+			ctx := context.TODO()
+			err = rclient.Update(ctx, clusterConfig)
+			if err != nil {
+				log.Info(err)
+				return
+			}
+		}
+
+
+	}
 
 }
 

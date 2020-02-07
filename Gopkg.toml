@@ -47,6 +47,11 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   version = "1.0.0"
 
 [[constraint]]
+  name = "sigs.k8s.io/controller-runtime"
+  branch = "release-0.4"
+
+
+[[constraint]]
   name = "github.com/socketplane/libovsdb"
   branch = "master"
 
@@ -130,6 +135,10 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 [[constraint]]
   name = "github.com/yl2chen/cidranger"
   branch = "master"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/openshift/api"
 
 [[override]]
   name = "github.com/cenkalti/hub"
