@@ -930,9 +930,6 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 	if err != nil {
 		return
 	}
-	if metadata.GetDeletionTimestamp() != nil {
-		return
-	}
 	namespace := metadata.GetNamespace()
 	label := metadata.GetLabels()
 	res := getResourceType(obj)
@@ -958,16 +955,14 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 			if (item.Spec.Selector.Namespace != "" &&
 				item.Spec.Selector.Namespace == namespace) ||
 				(item.Spec.Selector.Namespace == "") {
-				if util.MatchLabels(item.Spec.Selector.Labels, label) &&
-					len(item.Spec.SnatIp) > 0 {
+				if util.MatchLabels(item.Spec.Selector.Labels, label) {
 					snatPolicyNames[item.ObjectMeta.Name] =
 						append(snatPolicyNames[item.ObjectMeta.Name], res)
 				}
 				if res == POD {
 					if len(item.Spec.SnatIp) == 0 {
 						var services []*v1.Service
-						selector := labels.SelectorFromSet(labels.Set(label))
-						cache.ListAll(agent.serviceInformer.GetIndexer(), selector,
+						cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
 							func(servobj interface{}) {
 								services = append(services, servobj.(*v1.Service))
 							})

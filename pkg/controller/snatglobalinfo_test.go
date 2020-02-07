@@ -85,6 +85,20 @@ var snatTests = []policy{
 		map[string]string{"key": "value"},
 	},
 }
+var snatTestsupdated = []policy{
+	{
+		"testns",
+		"policy1",
+		[]string{"10.1.1.20"},
+		map[string]string{"key": "value"},
+	},
+	{
+		"testns",
+		"policy2",
+		[]string{"10.1.1.30"},
+		map[string]string{"key": "value"},
+	},
+}
 
 var nodeTests = []nodedata{
 	{
@@ -107,12 +121,13 @@ var nodeTests = []nodedata{
 	},
 }
 
-func snatWait(t *testing.T, desc string, expected map[string]ContSnatGlobalInfo, actual map[string]*ContSnatGlobalInfo) {
-	tu.WaitFor(t, desc, 500*time.Millisecond, func(last bool) (bool, error) {
+func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.GlobalInfo,
+	actual map[string]*snatglobalinfo.GlobalInfo) {
+	tu.WaitFor(t, desc, 1000*time.Millisecond, func(last bool) (bool, error) {
 		for key, v := range expected {
 			val, ok := actual[key]
 			if ok {
-				if v.SnatIp != val.SnatIp && v.SnatPortRange != val.SnatPortRange {
+				if v.SnatIp != val.SnatIp && v.PortRanges[0] != val.PortRanges[0] {
 					return false, nil
 				}
 			} else {
@@ -123,7 +138,15 @@ func snatWait(t *testing.T, desc string, expected map[string]ContSnatGlobalInfo,
 	})
 
 }
+func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
+	tu.WaitFor(t, desc, 1000*time.Millisecond, func(last bool) (bool, error) {
+		if len(actual) > 0 {
+			return false, nil
+		}
+		return true, nil
+	})
 
+}
 func TestSnatnodeInfo(t *testing.T) {
 	cont := testController()
 	cont.run()
@@ -143,16 +166,31 @@ func TestSnatnodeInfo(t *testing.T) {
 			cont.fakeNodeInfoSource.Modify(nodeobj)
 		}
 	}
-	time.Sleep(2 * time.Second)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
-	expected := map[string]ContSnatGlobalInfo{
-		"node-1": ContSnatGlobalInfo{SnatIp: "10.1.1.8", SnatPortRange: snatglobalinfo.PortRange{Start: 5000, End: 7999}},
-		"node-2": ContSnatGlobalInfo{SnatIp: "10.1.1.8", SnatPortRange: snatglobalinfo.PortRange{Start: 8000, End: 10999}},
+	time.Sleep(2 * time.Second)
+	expected := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
 	}
-	expected1 := map[string]ContSnatGlobalInfo{
-		"node-1": ContSnatGlobalInfo{SnatIp: "10.1.1.9", SnatPortRange: snatglobalinfo.PortRange{Start: 5000, End: 7999}},
+	expected1 := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"])
 	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
+	for _, pt := range snatTestsupdated {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Modify(snatObj)
+	}
+	time.Sleep(2 * time.Second)
+	expected3 := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.20", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.20", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
+	}
+	snatWait(t, "snat test", expected3, cont.AciController.snatGlobalInfoCache["10.1.1.20"])
+	for _, pt := range snatTests {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Delete(snatObj)
+	}
+	snatdeleted(t, "snat test", cont.AciController.snatGlobalInfoCache)
 	cont.stop()
 }

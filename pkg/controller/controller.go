@@ -38,6 +38,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
+	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
@@ -80,9 +81,9 @@ type AciController struct {
 	snatNodeInfoIndexer   cache.Indexer
 	snatNodeInformer      cache.Controller
 
-	updatePod              podUpdateFunc
-	updateNode             nodeUpdateFunc
-	updateServiceStatus    serviceUpdateFunc
+	updatePod           podUpdateFunc
+	updateNode          nodeUpdateFunc
+	updateServiceStatus serviceUpdateFunc
 
 	indexMutex sync.Mutex
 
@@ -118,11 +119,13 @@ type AciController struct {
 	snatServices         map[string]bool
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
 	// Node Name and Policy Name
-	snatGlobalInfoCache map[string]map[string]*ContSnatGlobalInfo
+	snatGlobalInfoCache map[string]map[string]*snatglobalinfo.GlobalInfo
 	nodeSyncEnabled     bool
 	serviceSyncEnabled  bool
 	snatSyncEnabled     bool
 	tunnelGetter        *tunnelState
+	syncQueue           workqueue.RateLimitingInterface
+	syncProcessors      map[string]func() bool
 }
 
 type nodeServiceMeta struct {
@@ -185,7 +188,7 @@ func createQueue(name string) workqueue.RateLimitingInterface {
 }
 
 func NewController(config *ControllerConfig, env Environment, log *logrus.Logger) *AciController {
-	return &AciController{
+	cont := &AciController{
 		log:       log,
 		config:    config,
 		env:       env,
@@ -197,6 +200,10 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
+		syncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+			}, "sync"),
 
 		configuredPodNetworkIps: newNetIps(),
 		podNetworkIps:           newNetIps(),
@@ -213,8 +220,13 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatServices:         make(map[string]bool),
 		tunnelIdBase:         defTunnelIdBase,
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
-		snatGlobalInfoCache:  make(map[string]map[string]*ContSnatGlobalInfo),
+		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 	}
+	cont.syncProcessors = map[string]func() bool{
+		"snatGlobalInfo": cont.syncSnatGlobalInfo,
+	}
+	return cont
+
 }
 
 func (cont *AciController) Init() {
@@ -462,4 +474,37 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.opflexDeviceDeleted(dn)
 		})
 	go cont.apicConn.Run(stopCh)
+}
+
+func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterface,
+	queueStop <-chan struct{}) {
+
+	go wait.Until(func() {
+		for {
+			syncType, quit := queue.Get()
+			if quit {
+				break
+			}
+			var requeue bool
+			switch syncType := syncType.(type) {
+			case string:
+				if f, ok := cont.syncProcessors[syncType]; ok {
+					requeue = f()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(syncType)
+			} else {
+				queue.Forget(syncType)
+			}
+			queue.Done(syncType)
+
+		}
+	}, time.Second, queueStop)
+	<-queueStop
+	queue.ShutDown()
+}
+
+func (cont *AciController) scheduleSyncGlobalInfo() {
+	cont.syncQueue.AddRateLimited("snatGlobalInfo")
 }

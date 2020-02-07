@@ -227,7 +227,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
-
+	go cont.processSyncQueue(cont.syncQueue, stopCh)
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
