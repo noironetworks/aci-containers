@@ -57,12 +57,12 @@ VENDOR_BUILD_CMD ?= dep ensure -v
 
 all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
-        dist/gbpserver \
-        dist/aci-containers-operator
+    dist/gbpserver \
+    dist/aci-containers-operator
 all-static: vendor dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync dist-static/gbpserver \
-        dist-static/aci-containers-operator
+    dist-static/aci-containers-operator
 
 go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:

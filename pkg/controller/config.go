@@ -188,11 +188,14 @@ type ControllerConfig struct {
 	SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
 	SnatDefaultPortRangeEnd   int `json:"snat-default-port-range-end,omitempty"`
 
-        // Contract scope used for SNAT svc graph
-        SnatSvcContractScope string `json:"snat-contract-scope,omitempty"`
+    // Contract scope used for SNAT svc graph
+    SnatSvcContractScope string `json:"snat-contract-scope,omitempty"`
 
 	// Maximum number of nodes permitted in a svc graph
 	MaxSvcGraphNodes int `json:"max-nodes-svc-graph,omitempty"`
+
+    // Install Istio ControlPlane components
+	InstallIstio bool `json:"install-istio,omitempty"`
 }
 
 type netIps struct {
