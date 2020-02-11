@@ -168,10 +168,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: accLogCmdArgs(systemNamespace),
 		},
 		{
-                        name: "cluster-report/logs/controller/snat.log",
-                        args: snatLogCmdArgs(systemNamespace),
-                },
-		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
 		},
@@ -255,6 +251,20 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			argFunc:  inspectArgs,
 			args:     []string{"-urq", "DmtreeRoot"},
 		},
+                {
+			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-int.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  ovsOfCtlArgs,
+			args:     []string{"show", "br-int"},
+		},
+                {
+			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-access.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  ovsOfCtlArgs,
+			args:     []string{"show", "br-access"},
+		},
 		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-dump-flows-int.log",
 			cont:     "aci-containers-openvswitch",
@@ -289,6 +299,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			selector: openvswitchSelector,
 			argFunc:  otherNodeArgs,
 			args:     []string{"ip", "r"},
+		},
+		{
+			path:     "cluster-report/cmds/node-%s/ovs-conf-db.log",
+			cont:     "aci-containers-openvswitch",
+			selector: openvswitchSelector,
+			argFunc:  otherNodeArgs,
+			args:     []string{"cat", "/etc/openvswitch/conf.db"},
 		},
 	}
 
@@ -403,12 +420,6 @@ func accLogCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
-}
-
-func snatLogCmdArgs(systemNamespace string) []string {
-        return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
-                "deployment/aci-containers-controller",
-                "-c", "snat-operator"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
