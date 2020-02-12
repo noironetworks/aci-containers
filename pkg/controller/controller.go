@@ -379,6 +379,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.SnatDefaultPortRangeStart = defStart
 		cont.config.SnatDefaultPortRangeEnd = defEnd
 	}
+
+        // Set contract scope for snat svc graph to global by default
+        if cont.config.SnatSvcContractScope == "" {
+                cont.config.SnatSvcContractScope = "global"
+        }
 	if cont.config.MaxSvcGraphNodes == 0 {
 		cont.config.MaxSvcGraphNodes = 32
 	}

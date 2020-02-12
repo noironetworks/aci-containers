@@ -652,7 +652,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	sort.Strings(nodes)
 	name := cont.aciNameForKey("snat", key)
 	var conScope string
-	conScope = "global"
+	conScope = cont.config.SnatSvcContractScope
 	sharedSecurity := true
 
 	graphName := cont.aciNameForKey("svc", "global")
