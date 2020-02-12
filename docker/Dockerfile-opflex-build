@@ -24,6 +24,8 @@ RUN for p in `find /usr/local/lib/ /usr/local/bin/ -type f \(\
     -name 'libopenvswitch*so*' -o \
     -name 'libsflow*so*' -o \
     -name 'libprometheus-cpp-*so*' -o \
+    -name 'libgrpc*so*' -o \
+    -name 'libgpr*so*' -o \
     -name 'libofproto*so*' \
     \)`; do \
        objcopy --only-keep-debug "$p" "$p.debug"; \
