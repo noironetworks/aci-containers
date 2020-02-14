@@ -15,31 +15,31 @@
 package controller
 
 import (
-    //"sigs.k8s.io/controller-runtime/pkg/client"
-	//"context"
-	//"sigs.k8s.io/controller-runtime/pkg/client/config"
-	//configv1 "github.com/openshift/api/config/v1"
-	//networkv1 "github.com/openshift/api/network/v1"
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	//"github.com/eapache/queue"
-	//"k8s.io/apimachinery/pkg/types"
 	log "github.com/Sirupsen/logrus"
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
+	configv1 "github.com/openshift/api/config/v1"
 	"io/ioutil"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/apimachinery/pkg/watch"
 	"os"
 	"os/exec"
+	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"time"
 )
 
@@ -71,6 +71,9 @@ type OperatorHandler struct{
 	OvsDaemonset *appsv1.DaemonSet
 }
 
+var Version  = map[string]bool {
+	"openshift-4.3" : true,
+}
 
 func NewAciContainersOperator(
 	acicnioperatorclient operatorclientset.Interface) *Controller {
@@ -130,6 +133,54 @@ func NewAciContainersOperator(
 	return controller
 }
 
+
+func (c *Controller) GetAciContainersOperatorCR() error{
+	var options metav1.GetOptions
+	_,er := c.Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Get("acicnioperator",options)
+	if er != nil{
+		return er
+	}
+	return nil
+}
+
+func (c *Controller) CreateAciContainersOperatorCR() error{
+	log.Info("Reading the Config Map providing CR")
+
+	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+	if err != nil{
+		log.Error(err)
+		return err
+	}
+
+	log.Debug("acicnioperator CR is ",string(raw))
+
+	obj := &operators.AciContainersOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "acicnioperator",
+			Namespace: os.Getenv("SYSTEM_NAMESPACE")},
+	}
+
+	log.Info("Unmarshalling the Config-Map...")
+	err = json.Unmarshal(raw, &obj.Spec)
+	if err != nil{
+		log.Error(err)
+		return err
+	}
+	log.Info("Unmarshalling Successful....")
+	log.Debug("acicnioperator CR recieved is",(obj.Spec))
+	if err = wait.Poll(time.Second*2, time.Second*30, func() (bool, error){
+		_,er := c.Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(obj)
+		if er != nil{
+			log.Info("Waiting for CRD to get registered to etcd....")
+			return false, nil
+		}
+		return true, nil
+	});err != nil{
+		return err
+	}
+	return nil
+}
+
 func (c *Controller) Run(stopCh <-chan struct{}) {
 	// Handling Panic gracefully
 	defer utilruntime.HandleCrash()
@@ -137,6 +188,21 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	defer c.Queue.ShutDown()
 
 	c.Logger.Info("Controller.Run: initiating")
+
+	log.Info("Checking if acicnioperator CR already present")
+	err := c.GetAciContainersOperatorCR()
+	if err != nil {
+		log.Info("Not Present ..Creating acicnioperator CR")
+		er := c.CreateAciContainersOperatorCR()
+		if er != nil {
+			log.Error(err)
+			return
+		}
+	}
+	if err == nil {
+
+		log.Info("acicnioperator CR already present")
+	}
 
 	// Run informer to start watching and listening
 	go c.Informer.Run(stopCh)
@@ -211,7 +277,6 @@ func (c *Controller) processNextItem() bool {
 		c.Handlers.ObjectCreated(item)
 		c.Queue.Forget(key)
 	}
-
 	// run.worker is continued by returning true
 	return true
 }
@@ -241,9 +306,11 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 	log.Info("OperatorHandler.ObjectCreated")
 
 	acicontainersoperator := obj.(*operators.AciContainersOperator)
-	log.Info(acicontainersoperator.Spec.Config)
+
+	log.Debug(acicontainersoperator.Spec.Config)
+
 	if (acicontainersoperator.Spec.Config == ""){
-		log.Info("ACI CNI CR Config is Nil")
+		log.Info("acicnioperator CR config is Nil")
 		return
 	}
 	
@@ -253,7 +320,7 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 		return
 	}
 
-	f, err := os.Create("manifests")
+	f, err := os.Create("aci-deployment.yaml")
 	if err != nil {
 		panic(err)
 		return
@@ -270,15 +337,10 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 		return
 	}
 	log.Info("Applying Deployment")
-	token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-	if err != nil {
-		log.Error(err)
-		return
-	}
 
 	//Currently the Kubectl version is v.1.14. This will be updated by the acc-provision according
 	//to the platform specification
-	cmd := exec.Command("kubectl","--token=" + string(token),"apply","-f","manifests")
+	cmd := exec.Command("kubectl","apply","-f","aci-deployment.yaml")
 	log.Debug(cmd)
 	_, _ = cmd.Output()
 
@@ -353,55 +415,66 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
 	log.Info("Platform flavor is ",acicontainersoperator.Spec.Flavor)
 
-	//if (acicontainersoperator.Spec.Flavor == "openshift-4.3") {
-	//
-	//	log.Info("Updating Network Status of the Openshift Object....")
-	//	cfg, err := config.GetConfig()
-	//	scheme := runtime.NewScheme()
-	//	err = networkv1.Install(scheme)
-	//	if err != nil {
-	//		log.Error(err)
-	//		return
-	//	}
-	//
-	//	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
-	//	if err != nil {
-	//		return
-	//	}
-	//
-	//	clusterConfig := &configv1.Network{
-	//		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Network"},
-	//		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-	//	}
-	//
-	//	err = rclient.Get(context.TODO(), types.NamespacedName{
-	//		Name: "cluster",
-	//	}, clusterConfig)
-	//	if err != nil {
-	//		log.Info(err)
-	//	}
-	//	log.Info("Config Spec is  ", clusterConfig.Spec)
-	//	clusterConfig.Status.ClusterNetwork = clusterConfig.Spec.ClusterNetwork
-	//	clusterConfig.Status.NetworkType = clusterConfig.Spec.NetworkType
-	//	clusterConfig.Status.ServiceNetwork = clusterConfig.Spec.ServiceNetwork
-	//
-	//	log.Info("Status is ", clusterConfig.Status)
-	//
-	//	ctx := context.TODO()
-	//	err = rclient.Update(ctx, clusterConfig)
-	//	if err != nil {
-	//		log.Info(err)
-	//		return
-	//	}
-	//}
+	if (Version[acicontainersoperator.Spec.Flavor]) {
 
+		clusterConfig := &configv1.Network{
+			TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Network"},
+			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		}
+
+		cfg, err := config.GetConfig()
+		scheme := runtime.NewScheme()
+		err = configv1.Install(scheme)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		rclient, err := client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			return
+		}
+
+		err = rclient.Get(context.TODO(), types.NamespacedName{
+			Name: "cluster",
+		}, clusterConfig)
+
+		if err != nil {
+			log.Info(err)
+			return
+		}
+
+		log.Info("Current Configuration Spec of type Network is  ", clusterConfig.Spec)
+		
+		log.Info("Current status of type Network is ", clusterConfig.Status)
+
+		if !reflect.DeepEqual(clusterConfig.Status.ClusterNetwork,clusterConfig.Spec.ClusterNetwork) ||
+			!reflect.DeepEqual(clusterConfig.Status.NetworkType,clusterConfig.Spec.NetworkType) ||
+			!reflect.DeepEqual(clusterConfig.Status.NetworkType,clusterConfig.Spec.NetworkType){
+
+			log.Info("Updating status field of openshift resource of type network  ....")
+
+			clusterConfig.Status.ClusterNetwork = clusterConfig.Spec.ClusterNetwork
+			clusterConfig.Status.NetworkType = clusterConfig.Spec.NetworkType
+			clusterConfig.Status.ServiceNetwork = clusterConfig.Spec.ServiceNetwork
+
+			log.Info("Updated clusterConfig.Status is ", clusterConfig.Status)
+
+			ctx := context.TODO()
+			err = rclient.Update(ctx, clusterConfig)
+			if err != nil {
+				log.Info(err)
+				return
+			}
+		}
+	}
 }
 
 
 func (t *OperatorHandler) ObjectDeleted(obj interface{}) {
-	log.Info("OperatorHandler.ObjectDeleted")
+	log.Info("ACI CNI OperatorHandler.ObjectDeleted")
 }
 
 func (t *OperatorHandler) ObjectUpdated(objOld, objNew interface{}) {
-	log.Info("OperatorHandler.Updated")
+	log.Info("ACI CNI OperatorHandler.Updated")
 }
