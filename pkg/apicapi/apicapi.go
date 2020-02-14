@@ -29,6 +29,7 @@ import (
 	"net/http/cookiejar"
 	"regexp"
 	"strings"
+	"sort"
 	"time"
 	"strconv"
 
@@ -744,6 +745,61 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 			"status": resp.StatusCode,
 		}).Error(message)
 	}
+}
+
+// To make sure cluster's POD/NodeBDs and L3OUT are all mapped
+// to same and correct VRF.
+func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedVrfRelations []string) error {
+    var aciVrfBdL3OuttDns []string
+	args := []string{
+		"query-target=subtree",
+		"target-subtree-class=fvRtCtx,fvRtEctx",
+	}
+
+	uri := fmt.Sprintf("/api/mo/%s.json?%s", acivrfdn, strings.Join(args, "&"))
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return err
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not get subtree for ", acivrfdn, ": ", err)
+		return err
+	}
+	defer complete(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		conn.logErrorResp("Could not get subtree for "+acivrfdn, resp)
+		return err
+	}
+
+	var apicresp ApicResponse
+	err = json.NewDecoder(resp.Body).Decode(&apicresp)
+	if err != nil {
+		conn.log.Error("Could not parse APIC response: ", err)
+		return err
+	}
+
+    for _, obj := range apicresp.Imdata {
+        for _, body := range obj {
+			tDn,ok := body.Attributes["tDn"].(string)
+			if !ok {
+				continue
+			}
+			aciVrfBdL3OuttDns = append(aciVrfBdL3OuttDns, tDn)
+		}
+    }
+	conn.log.Debug("aciVrfBdL3OuttDns:", aciVrfBdL3OuttDns)
+    for _, expectedDn := range expectedVrfRelations {
+		i := sort.SearchStrings(aciVrfBdL3OuttDns, expectedDn)
+		if !(i < len(aciVrfBdL3OuttDns) && aciVrfBdL3OuttDns[i] == expectedDn) {
+			conn.log.Debug("Missing Vrf assciation:", expectedDn)
+			return errors.New("Incorrect Pod/NodeBD/L3OUT VRF Assoication")
+		}
+	}
+	return nil
 }
 
 func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
