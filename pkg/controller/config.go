@@ -129,6 +129,12 @@ type ControllerConfig struct {
 	// is enabled for snat
 	AciPbrTrackingNonSnat bool `json:"aci-pbr-tracking-non-snat,omitempty"`
 
+	// ACI Pod-BD for this kubernetes instance
+	AciPodBdDn string `json:"aci-podbd-dn,omitempty"`
+
+	// ACI Node-BD for this kubernetes instance
+	AciNodeBdDn string `json:"aci-nodebd-dn,omitempty"`
+
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
 
