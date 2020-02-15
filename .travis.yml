@@ -7,7 +7,6 @@ matrix:
       install:
         - go get -v -u github.com/golang/dep/cmd/dep
         - export PATH=$PATH:$GOPATH/bin
-        - make vendor
       script:
         - make goinstall
         - make check >& /tmp/check.log
