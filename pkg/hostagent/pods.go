@@ -65,10 +65,15 @@ type opflexEndpoint struct {
 	registered  bool
 }
 
-func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
+func (agent *HostAgent) getPodIFName(ns, podName string) string {
+	return fmt.Sprintf("%s.%s.%s", ns, podName, agent.vtepIP)
+}
+
+func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 
 	if agent.crdClient == nil {
-		return // crd not used
+		ep.registered = true
+		return false // crd not used
 	}
 
 	remEP := &aciv1.PodIF{
@@ -83,7 +88,7 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 			IFName:      ep.IfaceName,
 		},
 	}
-	remEP.ObjectMeta.Name = fmt.Sprintf("%s.%s", ep.Attributes["namespace"], ep.Attributes["vm-name"])
+	remEP.ObjectMeta.Name = agent.getPodIFName(ep.Attributes["namespace"], ep.Attributes["vm-name"])
 
 	podif, err := agent.crdClient.PodIFs("kube-system").Get(remEP.ObjectMeta.Name, metav1.GetOptions{})
 	if err != nil {
@@ -91,7 +96,7 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 		_, err := agent.crdClient.PodIFs("kube-system").Create(remEP)
 		if err != nil {
 			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
-			return
+			return true
 		}
 
 	} else {
@@ -100,10 +105,12 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) {
 		_, err := agent.crdClient.PodIFs("kube-system").Update(podif)
 		if err != nil {
 			logrus.Errorf("Update error %v, podif: %+v", err, remEP)
-			return
+			return true
 		}
 	}
 	ep.registered = true
+	opflexEpLogger(agent.log, ep).Info("Updated endpoint")
+	return false
 }
 func (agent *HostAgent) EPRegDelEP(name string) {
 	if agent.crdClient == nil {
@@ -121,7 +128,7 @@ func (agent *HostAgent) EPRegDel(obj interface{}) {
 		agent.log.Errorf("Bad object -- expected Pod")
 		return
 	}
-	k := fmt.Sprintf("%s.%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	k := agent.getPodIFName(pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	agent.EPRegDelEP(k)
 }
 
@@ -279,6 +286,8 @@ func (agent *HostAgent) syncEps() bool {
 		).Error("Could not read directory ", err)
 		return true
 	}
+
+	needRetry := false
 	seen := make(map[string]bool)
 	nullMacFile := false
 	for _, f := range files {
@@ -325,10 +334,8 @@ func (agent *HostAgent) syncEps() bool {
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
-				} else if wrote {
-					agent.EPRegAdd(ep)
-					opflexEpLogger(agent.log, ep).
-						Info("Updated endpoint")
+				} else if wrote || !ep.registered {
+					needRetry = agent.EPRegAdd(ep)
 				}
 				seen[epidstr] = true
 			}
@@ -352,8 +359,9 @@ func (agent *HostAgent) syncEps() bool {
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
+				needRetry = true
 			} else {
-				agent.EPRegAdd(ep)
+				needRetry = agent.EPRegAdd(ep)
 			}
 		}
 	}
@@ -361,7 +369,7 @@ func (agent *HostAgent) syncEps() bool {
 		agent.creatNullMacEp()
 	}
 	agent.log.Debug("Finished endpoint sync")
-	return false
+	return needRetry
 }
 
 func (agent *HostAgent) creatNullMacEp() {
