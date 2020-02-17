@@ -791,12 +791,13 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 			aciVrfBdL3OuttDns = append(aciVrfBdL3OuttDns, tDn)
 		}
     }
+	sort.Strings(aciVrfBdL3OuttDns)
 	conn.log.Debug("aciVrfBdL3OuttDns:", aciVrfBdL3OuttDns)
     for _, expectedDn := range expectedVrfRelations {
 		i := sort.SearchStrings(aciVrfBdL3OuttDns, expectedDn)
 		if !(i < len(aciVrfBdL3OuttDns) && aciVrfBdL3OuttDns[i] == expectedDn) {
-			conn.log.Debug("Missing Vrf assciation:", expectedDn)
-			return errors.New("Incorrect Pod/NodeBD/L3OUT VRF Assoication")
+			conn.log.Debug("Missing (or) Incorrect Vrf association: ", expectedDn)
+			return errors.New("Incorrect Pod/NodeBD/L3OUT VRF association")
 		}
 	}
 	return nil
