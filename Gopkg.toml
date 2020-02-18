@@ -31,6 +31,20 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   version = "0.6.0"
 
 [[constraint]]
+  branch = "master"
+  name = "github.com/openshift/api"
+
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/xerrors"
+
+
+[[constraint]]
+  name = "github.com/go-logr/logr"
+  version = "0.1.0"
+
+[[constraint]]
   name = "github.com/containernetworking/plugins"
   version = "0.6.0"
 
@@ -45,6 +59,10 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 [[constraint]]
   name = "github.com/natefinch/pie"
   version = "1.0.0"
+
+[[constraint]]
+  name = "sigs.k8s.io/controller-runtime"
+  branch = "release-0.4"
 
 [[constraint]]
   name = "github.com/socketplane/libovsdb"
