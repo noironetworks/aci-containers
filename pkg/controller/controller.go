@@ -357,12 +357,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
-    // Build Pod/NodeBD Dn's if not defined.
-    if cont.config.AciPodBdDn == "" || cont.config.AciNodeBdDn == "" {
-		cont.config.AciPodBdDn = "uni/tn-"+cont.config.AciPolicyTenant+"/BD-"+cont.config.AciPolicyTenant+"-pod-bd"
-		cont.config.AciNodeBdDn = "uni/tn-"+cont.config.AciPolicyTenant+"/BD-"+cont.config.AciPolicyTenant+"-node-bd"
-	}
-
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
@@ -422,7 +416,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
 
     // Make sure Pod/NodeBDs and AciL3Out are assoicated to same VRF.
-	if len(cont.config.ApicHosts) != 0 {
+	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
 		acivrfdn := "uni/tn-"+cont.config.AciVrfTenant+"/ctx-"+cont.config.AciVrf
 		acil3outdn := "uni/tn-"+cont.config.AciVrfTenant+"/out-"+cont.config.AciL3Out
 		var expectedVrfRelations []string
