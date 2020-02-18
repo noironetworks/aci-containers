@@ -50,8 +50,8 @@ func testAgent() *testHostAgent {
 	hcf := &HostAgentConfig{
 		NodeName:  nodename,
 		NetConfig: []cniNetConfig{ncf},
+                GroupDefaults: GroupDefaults{DefaultEg: metadata.OpflexGroup{Name: "aci-containers-test|aci-contianers-default"}},
 	}
-
 	return testAgentWithConf(hcf)
 }
 func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
