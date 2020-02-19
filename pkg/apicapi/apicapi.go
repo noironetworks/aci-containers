@@ -238,6 +238,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		cachedState:        make(map[string]ApicSlice),
 		cacheDnSubIds:      make(map[string]map[string]bool),
 		pendingSubDnUpdate: make(map[string]pendingChange),
+		CachedSubnetDns:    make(map[string]string),
 	}
 	return conn, nil
 }
@@ -1094,6 +1095,37 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 		s.deleteHook = deleteHook
 	}
 	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
+	conn.log.Debug("apicIndex: ", conn.apic[conn.apicIndex], " uri: ",uri)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+    var apicresp ApicResponse
+	conn.log.Debug("Apic Get url: ", url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return apicresp,err
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not get response for ", url, ": ", err)
+		return apicresp,err
+	}
+	defer complete(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		conn.logErrorResp("Could not get subtree for "+url, resp)
+		return apicresp,err
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&apicresp)
+	if err != nil {
+		conn.log.Error("Could not parse APIC response: ", err)
+		return apicresp,err
+	}
+	complete(resp)
+	return apicresp, nil	
 }
 
 func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {

@@ -60,7 +60,14 @@ type subscription struct {
 	updateHook    ApicObjectHandler
 	deleteHook    ApicDnHandler
 }
-
+/*
+type subnetRelatives struct {
+	subnetDns	 map[string]string
+    vrfBdDns   	[]string
+    vrfEpgDns 	[]string
+    vrfTenants	[]string
+}
+*/
 type subIndex struct {
 	subs map[string]*subscription
 	ids  map[string]string
@@ -113,6 +120,7 @@ type ApicConnection struct {
 	cachedState        map[string]ApicSlice
 	cacheDnSubIds      map[string]map[string]bool
 	pendingSubDnUpdate map[string]pendingChange
+    CachedSubnetDns    map[string]string 
 
 	deltaQueue workqueue.RateLimitingInterface
 }
