@@ -23,15 +23,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
+	"os"
 	"regexp"
-	"strings"
 	"sort"
-	"time"
 	"strconv"
+	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -216,17 +216,17 @@ func New(log *logrus.Logger, apic []string, user string,
 	}
 
 	conn := &ApicConnection{
-		ReconnectInterval:	time.Duration(5) * time.Second,
-		RefreshInterval:	time.Duration(refresh) * time.Second,
-		RefreshTickerAdjust:	time.Duration(refreshTickerAdjust) * time.Second,
-		signer:            signer,
-		dialer:            dialer,
-		log:               log,
-		apic:              apic,
-		user:              user,
-		password:          password,
-		prefix:            prefix,
-		client:            client,
+		ReconnectInterval:   time.Duration(5) * time.Second,
+		RefreshInterval:     time.Duration(refresh) * time.Second,
+		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
+		signer:              signer,
+		dialer:              dialer,
+		log:                 log,
+		apic:                apic,
+		user:                user,
+		password:            password,
+		prefix:              prefix,
+		client:              client,
 		subscriptions: subIndex{
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
@@ -238,6 +238,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		cachedState:        make(map[string]ApicSlice),
 		cacheDnSubIds:      make(map[string]map[string]bool),
 		pendingSubDnUpdate: make(map[string]pendingChange),
+		CachedSubnetDns:    make(map[string]string),
 	}
 	return conn, nil
 }
@@ -272,8 +273,8 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					}).Debug("Processing websocket notification for:")
 
 					conn.pendingSubDnUpdate[dn] = pendingChange{
-						kind:   pendingKind,
-						subIds: subIds,
+						kind:    pendingKind,
+						subIds:  subIds,
 						isDirty: false,
 					}
 					if conn.deltaQueue != nil {
@@ -323,7 +324,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var requeue bool
 	conn.indexMutex.Lock()
 	pending, hasPendingChange := conn.pendingSubDnUpdate[dn]
-	conn.pendingSubDnUpdate[dn] = pendingChange{ isDirty: true }
+	conn.pendingSubDnUpdate[dn] = pendingChange{isDirty: true}
 	obj, hasDesiredState := conn.desiredStateDn[dn]
 	conn.indexMutex.Unlock()
 
@@ -460,7 +461,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}()
 	}
 
-    // Get APIC version if connection restarts
+	// Get APIC version if connection restarts
 	// Unsupported scenario: Exit if APIC downgrades from >=3.2 to <=3.1
 	if conn.version == 0 {
 		go func() {
@@ -470,7 +471,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
 				ApicVersion = version
-				if version <=3.1 && conn.CachedVersion >=3.2 {
+				if version <= 3.1 && conn.CachedVersion >= 3.2 {
 					conn.log.Debug("APIC is downgraded from >=3.2 to a lower version, Exiting ")
 					os.Exit(1) //K8S shall restart the container and fallback to tagInst
 				}
@@ -533,7 +534,7 @@ loop:
 }
 
 func (conn *ApicConnection) GetVersion() (float64, error) {
-    versionMo := "firmwareCtrlrRunning"
+	versionMo := "firmwareCtrlrRunning"
 
 	if len(conn.apic) == 0 {
 		return 0, errors.New("No APIC configuration")
@@ -553,7 +554,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 		"host": conn.apic[conn.apicIndex],
 	}).Info("Connecting to APIC to determine the Version")
 
-    for conn.version == 0 {
+	for conn.version == 0 {
 		// Wait before Retry.
 		time.Sleep(conn.ReconnectInterval)
 
@@ -594,7 +595,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 			if !ok {
 				conn.log.Debug("No version attribute in the response??!")
 				conn.log.WithFields(logrus.Fields{
-					"firmwareCtrlrRunning": vresp,
+					"firmwareCtrlrRunning":           vresp,
 					"firmwareCtrlRunning Attributes": vresp.Attributes,
 				}).Debug("Response:")
 			} else {
@@ -603,7 +604,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 				case string:
 					version_split := strings.Split(version, "(")
 					version_number, err := strconv.ParseFloat(version_split[0], 64)
-					conn.log.Debug("Actual APIC version:", version," Stripped out version:", version_number)
+					conn.log.Debug("Actual APIC version:", version, " Stripped out version:", version_number)
 					if err == nil {
 						conn.version = version_number
 					}
@@ -750,7 +751,7 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 // To make sure cluster's POD/NodeBDs and L3OUT are all mapped
 // to same and correct VRF.
 func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedVrfRelations []string) error {
-    var aciVrfBdL3OuttDns []string
+	var aciVrfBdL3OuttDns []string
 	args := []string{
 		"query-target=subtree",
 		"target-subtree-class=fvRtCtx,fvRtEctx",
@@ -782,18 +783,18 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 		return err
 	}
 
-    for _, obj := range apicresp.Imdata {
-        for _, body := range obj {
-			tDn,ok := body.Attributes["tDn"].(string)
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			tDn, ok := body.Attributes["tDn"].(string)
 			if !ok {
 				continue
 			}
 			aciVrfBdL3OuttDns = append(aciVrfBdL3OuttDns, tDn)
 		}
-    }
+	}
 	sort.Strings(aciVrfBdL3OuttDns)
 	conn.log.Debug("aciVrfBdL3OuttDns:", aciVrfBdL3OuttDns)
-    for _, expectedDn := range expectedVrfRelations {
+	for _, expectedDn := range expectedVrfRelations {
 		i := sort.SearchStrings(aciVrfBdL3OuttDns, expectedDn)
 		if !(i < len(aciVrfBdL3OuttDns) && aciVrfBdL3OuttDns[i] == expectedDn) {
 			conn.log.Debug("Missing (or) Incorrect Vrf association: ", expectedDn)
@@ -1094,6 +1095,35 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 		s.deleteHook = deleteHook
 	}
 	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
+	conn.log.Debug("apicIndex: ", conn.apic[conn.apicIndex], " uri: ", uri)
+	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	var apicresp ApicResponse
+	conn.log.Debug("Apic Get url: ", url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return apicresp, err
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not get response for ", url, ": ", err)
+		return apicresp, err
+	}
+	defer complete(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		conn.logErrorResp("Could not get subtree for "+url, resp)
+		return apicresp, err
+	}
+	err = json.NewDecoder(resp.Body).Decode(&apicresp)
+	if err != nil {
+		conn.log.Error("Could not parse APIC response: ", err)
+		return apicresp, err
+	}
+	return apicresp, nil
 }
 
 func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {

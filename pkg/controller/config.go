@@ -129,6 +129,10 @@ type ControllerConfig struct {
 	// is enabled for snat
 	AciPbrTrackingNonSnat bool `json:"aci-pbr-tracking-non-snat,omitempty"`
 
+	// The tenants related to AciVrf where BDs/EPGs/Subnets could exist.
+	// Usually AciVrfTenant and AciPolicyTenant
+	AciVrfRelatedTenants []string `json:"aci-vrf-related-tenants,omitempty"`
+
 	// ACI Pod-BD for this kubernetes instance
 	AciPodBdDn string `json:"aci-podbd-dn,omitempty"`
 
@@ -137,6 +141,9 @@ type ControllerConfig struct {
 
 	// ACI VRF for this kubernetes instance
 	AciVrf string `json:"aci-vrf,omitempty"`
+
+	// ACI VRF for this kubernetes instance
+	AciVrfDn string `json:"aci-vrf-dn,omitempty"`
 
 	// Tenant containing the ACI VRF for this kubernetes instance
 	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`

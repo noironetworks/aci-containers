@@ -24,8 +24,14 @@ import (
 	"reflect"
 )
 
-func (cont *AciController) SyncRdConfig() bool {
+func (cont *AciController) syncRdConfig() bool {
 	var options metav1.GetOptions
+	var discoveredSubnets []string
+	cont.indexMutex.Lock()
+	for _,v := range cont.apicConn.CachedSubnetDns {
+		discoveredSubnets = append(discoveredSubnets, v)
+	}
+	cont.indexMutex.Unlock()
 	env := cont.env.(*K8sEnvironment)
 	rdConfigClient := env.rdConfigClient
 	if rdConfigClient == nil {
@@ -42,7 +48,7 @@ func (cont *AciController) SyncRdConfig() bool {
 					Namespace: ns,
 				},
 				Spec: rdConfigv1.RdConfigSpec{
-					DiscoveredSubnets: cont.discoveredSubnets,
+					DiscoveredSubnets: discoveredSubnets,
 				},
 			}
 			_, err = rdConfigClient.AciV1().RdConfigs(ns).Create(rdConfigInstance)
@@ -52,13 +58,13 @@ func (cont *AciController) SyncRdConfig() bool {
 			cont.log.Debug("RdConfig Created: ", rdConfigInstance, err)
 		}
 	} else {
-		if !reflect.DeepEqual(rdConfig.Spec.DiscoveredSubnets, cont.discoveredSubnets) {
-			rdConfig.Spec.DiscoveredSubnets = cont.discoveredSubnets
+		if !reflect.DeepEqual(rdConfig.Spec.DiscoveredSubnets, discoveredSubnets) {
+			rdConfig.Spec.DiscoveredSubnets = discoveredSubnets
 			_, err = rdConfigClient.AciV1().RdConfigs(ns).Update(rdConfig)
 			if err != nil {
 				return true
 			}
-			cont.log.Debug("RdConfig Updated: ", cont.discoveredSubnets)
+			cont.log.Debug("RdConfig Updated: ", discoveredSubnets)
 		}
 	}
 	return false
