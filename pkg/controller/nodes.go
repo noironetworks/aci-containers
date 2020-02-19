@@ -277,7 +277,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
 	tunnelID := cont.getTunnelID(node)
-	cont.log.Infof("=>  Node: %s, tunnelID: %v", node.Name, tunnelID)
+	//cont.log.Infof("=>  Node: %s, tunnelID: %v", node.Name, tunnelID)
 	key := cont.aciNameForKey("node-vmm", node.Name)
 	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,

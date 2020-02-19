@@ -60,10 +60,10 @@ type HostAgent struct {
 	netPolInformer     cache.SharedIndexInformer
 	depInformer        cache.SharedIndexInformer
 	rcInformer         cache.SharedIndexInformer
-	snatLocalInformer  cache.SharedIndexInformer
 	snatGlobalInformer cache.SharedIndexInformer
 	controllerInformer cache.SharedIndexInformer
 	snatPolicyInformer cache.SharedIndexInformer
+	rdConfigInformer   cache.SharedIndexInformer
 	netPolPods         *index.PodSelectorIndex
 	depPods            *index.PodSelectorIndex
 	rcPods             *index.PodSelectorIndex
@@ -81,13 +81,14 @@ type HostAgent struct {
 	vtepIP                string
 	vtepIface             string
 	gbpServerIP           string
-	opflexSnatGlobalInfos map[string][]*OpflexSnatGlobalInfo
-	opflexSnatLocalInfos  map[string]*OpflexSnatLocalInfo
+	opflexSnatGlobalInfos map[string][]*opflexSnatGlobalInfo
+	opflexSnatLocalInfos  map[string]*opflexSnatLocalInfo
 	//snatpods per snat policy
 	snatPods map[string]map[string]ResourceType
 	//Object Key and list of labels active for snatpolicy
 	snatPolicyLabels map[string]map[string]ResourceType
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
+	rdConfig         *opflexRdConfig
 }
 
 type Vtep struct {
@@ -110,8 +111,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		ignoreOvsPorts: make(map[string][]string),
 
 		netNsFuncChan:         make(chan func()),
-		opflexSnatGlobalInfos: make(map[string][]*OpflexSnatGlobalInfo),
-		opflexSnatLocalInfos:  make(map[string]*OpflexSnatLocalInfo),
+		opflexSnatGlobalInfos: make(map[string][]*opflexSnatGlobalInfo),
+		opflexSnatLocalInfos:  make(map[string]*opflexSnatLocalInfo),
 		snatPods:              make(map[string]map[string]ResourceType),
 		snatPolicyLabels:      make(map[string]map[string]ResourceType),
 		snatPolicyCache:       make(map[string]*snatpolicy.SnatPolicy),
@@ -126,7 +127,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"services":     ha.syncServices,
 		"opflexServer": ha.syncOpflexServer,
 		"snat":         ha.syncSnat,
-		"snatnodeInfo": ha.syncSnatNodeInfo}
+		"snatnodeInfo": ha.syncSnatNodeInfo,
+		"rdconfig":     ha.syncRdConfig}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -232,6 +234,9 @@ func (agent *HostAgent) scheduleSyncOpflexServer() {
 }
 func (agent *HostAgent) scheduleSyncNodeInfo() {
 	agent.ScheduleSync("snatnodeInfo")
+}
+func (agent *HostAgent) scheduleSyncRdConfig() {
+	agent.ScheduleSync("rdconfig")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {

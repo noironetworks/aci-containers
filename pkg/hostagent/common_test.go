@@ -43,6 +43,7 @@ type testHostAgent struct {
 	fakeNetworkPolicySource *framework.FakeControllerSource
 	fakeSnatPolicySource    *framework.FakeControllerSource
 	fakeSnatGlobalSource    *framework.FakeControllerSource
+	fakeRdConfigSource      *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -50,8 +51,8 @@ func testAgent() *testHostAgent {
 	hcf := &HostAgentConfig{
 		NodeName:  nodename,
 		NetConfig: []cniNetConfig{ncf},
+                GroupDefaults: GroupDefaults{DefaultEg: metadata.OpflexGroup{Name: "aci-containers-test|aci-contianers-default"}},
 	}
-
 	return testAgentWithConf(hcf)
 }
 func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
@@ -137,6 +138,12 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 		&cache.ListWatch{
 			ListFunc:  agent.fakeSnatGlobalSource.List,
 			WatchFunc: agent.fakeSnatGlobalSource.Watch,
+		})
+	agent.fakeRdConfigSource = framework.NewFakeControllerSource()
+	agent.initRdConfigInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeRdConfigSource.List,
+			WatchFunc: agent.fakeRdConfigSource.Watch,
 		})
 	agent.initNetPolPodIndex()
 	agent.initNetPolPodIndex()

@@ -86,7 +86,7 @@ type OpflexSnatIpRemoteInfo struct {
 	Refcount   int               `json:"ref,omitempty"`
 }
 
-type OpflexSnatGlobalInfo struct {
+type opflexSnatGlobalInfo struct {
 	SnatIp         string
 	MacAddress     string
 	PortRange      []OpflexPortRange
@@ -94,7 +94,7 @@ type OpflexSnatGlobalInfo struct {
 	SnatPolicyName string
 }
 
-type OpflexSnatLocalInfo struct {
+type opflexSnatLocalInfo struct {
 	Snatpolicies map[ResourceType][]string //Each resource can represent multiple entries
 	PlcyUuids    []string                  //sorted policy uuids
 }
@@ -396,7 +396,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 	for _, uid := range poduids {
 		_, ok := agent.opflexSnatLocalInfos[uid]
 		if !ok {
-			var localinfo OpflexSnatLocalInfo
+			var localinfo opflexSnatLocalInfo
 			localinfo.Snatpolicies = make(map[ResourceType][]string)
 			localinfo.Snatpolicies[res] = append(localinfo.Snatpolicies[res], snatPolicyName)
 			agent.opflexSnatLocalInfos[uid] = &localinfo
@@ -503,6 +503,9 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 				agent.log.Debug("Res:  ", agent.snatPods[plcyname][poduid])
 				if agent.snatPods[plcyname][poduid] == 0 { // delete the pod if no resource is pointing for the policy
 					delete(agent.snatPods[plcyname], poduid)
+					if len(agent.snatPods[plcyname]) == 0 {
+						delete(agent.snatPods, plcyname)
+					}
 				}
 			}
 		}
@@ -566,12 +569,12 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		}
 	}
 	for nodename, val := range globalInfo {
-		var newglobalinfos []*OpflexSnatGlobalInfo
+		var newglobalinfos []*opflexSnatGlobalInfo
 		for _, v := range val {
 			portrange := make([]OpflexPortRange, 1)
 			portrange[0].Start = v.PortRanges[0].Start
 			portrange[0].End = v.PortRanges[0].End
-			nodeInfo := &OpflexSnatGlobalInfo{
+			nodeInfo := &opflexSnatGlobalInfo{
 				SnatIp:         v.SnatIp,
 				MacAddress:     v.MacAddress,
 				PortRange:      portrange,

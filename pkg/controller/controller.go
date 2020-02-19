@@ -126,7 +126,6 @@ type AciController struct {
 	tunnelGetter        *tunnelState
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
-	discoveredSubnets   []string
 }
 
 type nodeServiceMeta struct {
@@ -225,6 +224,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
+		"rdConfig":       cont.syncRdConfig,
 	}
 	return cont
 
@@ -321,8 +321,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	var privKey []byte
 	var apicCert []byte
 
-	
-	cont.config.AciVrfDn = "uni/tn-"+cont.config.AciVrfTenant+"/ctx-"+cont.config.AciVrf
+	cont.config.AciVrfDn = "uni/tn-" + cont.config.AciVrfTenant + "/ctx-" + cont.config.AciVrf
 
 	if cont.config.ApicPrivateKeyPath != "" {
 		privKey, err = ioutil.ReadFile(cont.config.ApicPrivateKeyPath)
@@ -384,10 +383,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.SnatDefaultPortRangeEnd = defEnd
 	}
 
-        // Set contract scope for snat svc graph to global by default
-        if cont.config.SnatSvcContractScope == "" {
-                cont.config.SnatSvcContractScope = "global"
-        }
+	// Set contract scope for snat svc graph to global by default
+	if cont.config.SnatSvcContractScope == "" {
+		cont.config.SnatSvcContractScope = "global"
+	}
 	if cont.config.MaxSvcGraphNodes == 0 {
 		cont.config.MaxSvcGraphNodes = 32
 	}
@@ -419,9 +418,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
 
-    // Make sure Pod/NodeBDs and AciL3Out are assoicated to same VRF.
+	// Make sure Pod/NodeBDs and AciL3Out are assoicated to same VRF.
 	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
-		acil3outdn := "uni/tn-"+cont.config.AciVrfTenant+"/out-"+cont.config.AciL3Out
+		acil3outdn := "uni/tn-" + cont.config.AciVrfTenant + "/out-" + cont.config.AciL3Out
 		var expectedVrfRelations []string
 		expectedVrfRelations = append(expectedVrfRelations, acil3outdn, cont.config.AciPodBdDn, cont.config.AciNodeBdDn)
 		cont.log.Debug("expectedVrfRelations:", expectedVrfRelations)
@@ -431,7 +430,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			panic(err)
 		}
 	}
-    
+
 	if cont.config.LBType == lbTypeAci {
 		cont.initStaticObjs()
 	}
@@ -466,9 +465,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.log.Debug("Checkpoint complete")
 	}
 
-    if len(cont.config.ApicHosts) != 0 {
+	if len(cont.config.ApicHosts) != 0 {
 		cont.BuildSubnetDnCache(cont.config.AciVrfDn, cont.config.AciVrfDn)
-		cont.triggerSyncRdConfig()
+		cont.scheduleRdConfig()
 	}
 
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
@@ -476,7 +475,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
 		[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
 			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
-			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol",})
+			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
 	cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
 		cont.config.AciVrfTenant, cont.config.AciL3Out),
 		[]string{"fvRsCons"})
@@ -488,17 +487,17 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			"vmmInjectedContGrp", "vmmInjectedDepl",
 			"vmmInjectedSvc", "vmmInjectedReplSet",
 			"vmmInjectedOrg", "vmmInjectedOrgUnit"})
-    
+
 	var tnTargetFilter string
-    if len(cont.config.AciVrfRelatedTenants) > 0 {
-		for _,tn := range cont.config.AciVrfRelatedTenants {
-			tnTargetFilter += fmt.Sprintf("tn-%s|",tn)
+	if len(cont.config.AciVrfRelatedTenants) > 0 {
+		for _, tn := range cont.config.AciVrfRelatedTenants {
+			tnTargetFilter += fmt.Sprintf("tn-%s|", tn)
 		}
 	} else {
-	 	tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
+		tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
 			cont.config.AciPolicyTenant, cont.config.AciVrfTenant)
 	}
-    subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
+	subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
 		tnTargetFilter)
 	cont.apicConn.AddSubscriptionClass("fvSubnet",
 		[]string{"fvSubnet"}, subnetTargetFilter)
@@ -557,4 +556,7 @@ func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterfac
 
 func (cont *AciController) scheduleSyncGlobalInfo() {
 	cont.syncQueue.AddRateLimited("snatGlobalInfo")
+}
+func (cont *AciController) scheduleRdConfig() {
+	cont.syncQueue.AddRateLimited("rdConfig")
 }

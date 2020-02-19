@@ -290,13 +290,14 @@ func (agent *HostAgent) syncEps() bool {
 	needRetry := false
 	seen := make(map[string]bool)
 	nullMacFile := false
+        nullMacCheck := agent.getEpFileName(agent.config.DefaultEg.Name)
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".ep") ||
 			strings.Contains(f.Name(), "veth_host_ac") {
 			continue
 		}
 
-		if strings.Contains(f.Name(), NullMac) {
+		if f.Name() == nullMacCheck {
 			nullMacFile = true
 			continue
 		}
@@ -372,15 +373,20 @@ func (agent *HostAgent) syncEps() bool {
 	return needRetry
 }
 
+func (agent *HostAgent) getEpFileName(epGroupName string) string {
+        temp := strings.Split(epGroupName, "|")
+        var EpFileName string
+        if len(temp) == 1 {
+                EpFileName = epGroupName + "_" + NullMac + ".ep"
+        } else {
+                EpFileName = temp[1] + "_" + NullMac + ".ep"
+        }
+        return EpFileName
+}
+
 func (agent *HostAgent) creatNullMacEp() {
 	epGroup := agent.config.DefaultEg
-	temp := strings.Split(epGroup.Name, "|")
-	var EpFileName string
-	if len(temp) == 1 {
-		EpFileName = epGroup.Name + "_" + NullMac + ".ep"
-	} else {
-		EpFileName = temp[1] + "_" + NullMac + ".ep"
-	}
+        EpFileName := agent.getEpFileName(epGroup.Name)
 	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
 	ep_file_exists := fileExists(EpFilePath)
 	if ep_file_exists {

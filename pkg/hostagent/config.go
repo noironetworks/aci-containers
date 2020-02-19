@@ -196,7 +196,7 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
-	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
+	flag.StringVar(&config.KubeConfig, "kube-config", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 
 	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
