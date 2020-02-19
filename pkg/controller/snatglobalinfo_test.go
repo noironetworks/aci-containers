@@ -127,9 +127,9 @@ func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.Glob
 		for key, v := range expected {
 			val, ok := actual[key]
 			if ok {
-				if v.SnatIp != val.SnatIp && v.PortRanges[0] != val.PortRanges[0] {
-					return false, nil
-				}
+				result := tu.WaitEqual(t, last, v.SnatIp, val.SnatIp, "snatIp does not match") &&
+					tu.WaitEqual(t, last, v.PortRanges[0], val.PortRanges[0], "Portrange does not match")
+				return result, nil
 			} else {
 				return false, nil
 			}
@@ -139,8 +139,18 @@ func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.Glob
 
 }
 func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
-	tu.WaitFor(t, desc, 1000*time.Millisecond, func(last bool) (bool, error) {
+	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
 		if len(actual) > 0 {
+			return false, nil
+		}
+		return true, nil
+	})
+
+}
+func snatWaitForIpUpdated(t *testing.T, desc string, snatIp string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
+	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
+		_, ok := actual[snatIp]
+		if !ok {
 			return false, nil
 		}
 		return true, nil
@@ -149,11 +159,11 @@ func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatgl
 }
 func TestSnatnodeInfo(t *testing.T) {
 	cont := testController()
-	cont.run()
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Add(snatObj)
 	}
+	cont.run()
 	nodinfo := make(map[string]bool)
 	for _, pt := range nodeTests {
 		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
@@ -165,9 +175,9 @@ func TestSnatnodeInfo(t *testing.T) {
 			cont.log.Debug("NodeInfo Modified: ", nodeobj)
 			cont.fakeNodeInfoSource.Modify(nodeobj)
 		}
+		time.Sleep(time.Second)
 	}
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
-	time.Sleep(2 * time.Second)
 	expected := map[string]snatglobalinfo.GlobalInfo{
 		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
 		"node-2": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
@@ -181,12 +191,8 @@ func TestSnatnodeInfo(t *testing.T) {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Modify(snatObj)
 	}
-	time.Sleep(2 * time.Second)
-	expected3 := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.20", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
-		"node-2": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.20", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
-	}
-	snatWait(t, "snat test", expected3, cont.AciController.snatGlobalInfoCache["10.1.1.20"])
+	time.Sleep(time.Second)
+	snatWaitForIpUpdated(t, "snat test", "10.1.1.20", cont.AciController.snatGlobalInfoCache)
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Delete(snatObj)

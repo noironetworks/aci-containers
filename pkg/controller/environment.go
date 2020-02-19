@@ -20,6 +20,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
@@ -48,6 +49,7 @@ type K8sEnvironment struct {
 	snatClient       *snatclientset.Clientset
 	snatGlobalClient *snatglobalclset.Clientset
 	nodeInfoClient   *nodeinfoclientset.Clientset
+	rdConfigClient   *rdconfigclientset.Clientset
 	cont             *AciController
 }
 
@@ -90,13 +92,18 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		return nil, err
 	}
 	nodeInfoClient, err := nodeinfoclientset.NewForConfig(restconfig)
-	log.Debug("Initializing kubernetes client", nodeInfoClient)
 	if err != nil {
 		log.Debug("Failed to intialize node info client")
 		return nil, err
 	}
+	rdConfigClient, err := rdconfigclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize rdconfig client")
+		return nil, err
+	}
 	return &K8sEnvironment{kubeClient: kubeClient, snatClient: snatClient,
-		snatGlobalClient: snatGlobalClient, nodeInfoClient: nodeInfoClient}, nil
+		snatGlobalClient: snatGlobalClient, nodeInfoClient: nodeInfoClient,
+		rdConfigClient: rdConfigClient}, nil
 }
 
 func (env *K8sEnvironment) VmmPolicy() string {

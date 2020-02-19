@@ -27,6 +27,7 @@ import (
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 )
@@ -46,6 +47,7 @@ type K8sEnvironment struct {
 	snatGlobalClient  *snatglobalclset.Clientset
 	snatPolicyClient  *snatpolicyclset.Clientset
 	nodeInfo          *nodeinfoclientset.Clientset
+	rdConfig          *rdconfigclset.Clientset
 	agent             *HostAgent
 	podInformer       cache.SharedIndexInformer
 	endpointsInformer cache.SharedIndexInformer
@@ -108,7 +110,13 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize snatpolicy info client")
 		return nil, err
 	}
-	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient, nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient}, nil
+	rdConfig, err := rdconfigclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize snatpolicy info client")
+		return nil, err
+	}
+	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, rdConfig: rdConfig}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -125,6 +133,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initRCInformerFromClient(env.kubeClient)
 	env.agent.initSnatGlobalInformerFromClient(env.snatGlobalClient)
 	env.agent.initSnatPolicyInformerFromClient(env.snatPolicyClient)
+	env.agent.initRdConfigInformerFromClient(env.rdConfig)
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
 	env.agent.initRCPodIndex()
@@ -154,15 +163,15 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.rcInformer.Run(stopCh)
 	go env.agent.snatGlobalInformer.Run(stopCh)
 	go env.agent.snatPolicyInformer.Run(stopCh)
+	go env.agent.rdConfigInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		env.agent.podInformer.HasSynced, env.agent.endpointsInformer.HasSynced,
 		env.agent.serviceInformer.HasSynced, env.agent.snatGlobalInformer.HasSynced,
-		env.agent.snatPolicyInformer.HasSynced)
+		env.agent.snatPolicyInformer.HasSynced, env.agent.rdConfigInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }
-
 func (env *K8sEnvironment) CniDeviceChanged(metadataKey *string, id *md.ContainerId) {
 	env.agent.podChanged(metadataKey)
 }

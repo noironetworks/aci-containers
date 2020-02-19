@@ -126,6 +126,7 @@ type AciController struct {
 	tunnelGetter        *tunnelState
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
+	discoveredSubnets   []string
 }
 
 type nodeServiceMeta struct {
@@ -224,6 +225,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
+		"rdConfig":       cont.SyncRdConfig,
 	}
 	return cont
 
@@ -526,4 +528,7 @@ func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterfac
 
 func (cont *AciController) scheduleSyncGlobalInfo() {
 	cont.syncQueue.AddRateLimited("snatGlobalInfo")
+}
+func (cont *AciController) scheduleRdConfig() {
+	cont.syncQueue.AddRateLimited("rdConfig")
 }
