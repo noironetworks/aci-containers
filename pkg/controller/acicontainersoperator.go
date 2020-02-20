@@ -300,6 +300,15 @@ func getk8sClient() kubernetes.Interface {
 	return kubeClient
 }
 
+func (t *OperatorHandler) CheckOwnerReference(reference []metav1.OwnerReference) bool{
+	for _,ownerRef := range reference{
+		if ownerRef.Kind == "AciContainersOperator"{
+			log.Debug("OwnerReference Already Present")
+			return true
+		}
+	}
+	return false
+}
 
 func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 
@@ -356,19 +365,21 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 		log.Info("Error in Fetching deploymentsClient...")
 		return
 	}
+
 	t.Deployment, _ = deploymentsClient.Get("aci-containers-controller",metav1.GetOptions{})
 	if t.Deployment == nil {
 		log.Info("aci-containers-controller deployment is nil..returning")
 		return
 	}
 
-	t.Deployment.OwnerReferences = []metav1.OwnerReference{
-					*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
-				}
-
-	_, err = deploymentsClient.Update(t.Deployment)
-	if err != nil {
-		log.Error(err.Error())
+	if  !t.CheckOwnerReference(t.Deployment.ObjectMeta.OwnerReferences){
+		t.Deployment.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
+		}
+		_, err = deploymentsClient.Update(t.Deployment)
+		if err != nil {
+			log.Error(err.Error())
+		}
 	}
 
 
@@ -377,19 +388,22 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 		log.Info("Error in Fetching hostdaemonsetclient...")
 		return
 	}
+
 	t.HostDaemonset, _ = hostdaemonsetclient.Get("aci-containers-host",metav1.GetOptions{})
 	if t.HostDaemonset == nil {
 		log.Info("aci-containers-host daemonset is nil.....returning")
 		return
 	}
 
-	t.HostDaemonset.OwnerReferences = []metav1.OwnerReference{
-		*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
-	}
+	if  !t.CheckOwnerReference(t.HostDaemonset.OwnerReferences){
+		t.HostDaemonset.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
+		}
 
-	_, err = hostdaemonsetclient.Update(t.HostDaemonset)
-	if err != nil {
-		log.Error(err.Error())
+		_, err = hostdaemonsetclient.Update(t.HostDaemonset)
+		if err != nil {
+			log.Error(err.Error())
+		}
 	}
 
 	ovsdaemonsetclient := k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE"))
@@ -404,13 +418,15 @@ func (t *OperatorHandler) ObjectCreated(obj interface{}) {
 		return
 	}
 
-	t.OvsDaemonset.OwnerReferences = []metav1.OwnerReference{
-		*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
-	}
+	if  !t.CheckOwnerReference(t.OvsDaemonset.OwnerReferences){
+		t.OvsDaemonset.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
+		}
 
-	_, err = ovsdaemonsetclient.Update(t.OvsDaemonset)
-	if err != nil {
-		log.Error(err.Error())
+		_, err = ovsdaemonsetclient.Update(t.OvsDaemonset)
+		if err != nil {
+			log.Error(err.Error())
+		}
 	}
 
 	log.Info("Platform flavor is ",acicontainersoperator.Spec.Flavor)
