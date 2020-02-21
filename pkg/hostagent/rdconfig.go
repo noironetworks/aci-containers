@@ -32,9 +32,9 @@ import (
 )
 
 type opflexRdConfig struct {
-	InternalSubnets   []string `json:""internal-subnets",omitempty"`
-	DomainPolicySpace string   `json:""domain-policy-space",omitempty"`
-	DomainName        string   `json:""domain-name",omitempty"`
+	InternalSubnets   []string `json:"internal-subnets",omitempty"`
+	DomainPolicySpace string   `json:"domain-policy-space",omitempty"`
+	DomainName        string   `json:"domain-name",omitempty"`
 }
 
 func (agent *HostAgent) initRdConfigInformerFromClient(
