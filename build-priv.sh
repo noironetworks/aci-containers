@@ -43,7 +43,7 @@ docker build -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG -f docker/Dockerfile-opfl
 
 mkdir -p build/opflex/dist
 docker run $DOCKER_HUB_ID/opflex-build$DOCKER_TAG tar -c -C /usr/local \
-	bin/opflex_agent bin/gbp_inspect bin/mcast_daemon bin/mock_server \
+	bin/opflex_agent bin/gbp_inspect bin/mcast_daemon bin/opflex_server \
 	| tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
 	 -name '\''libopflex*.so*'\'' -o \

@@ -4,7 +4,7 @@ set -e
 set -x
 
 PREFIX=/usr/local
-OPFLEXSERVER=${PREFIX}/bin/mock_server
+OPFLEXSERVER=${PREFIX}/bin/opflex_server
 OPFLEXSERVER_POL_PATH=/usr/local/var/lib/opflex-server
 OPFLEXSERVER_POL=${OPFLEXSERVER_POL_PATH}/policy.json
 OPFLEXSERVER_CONF=${OPFLEXSERVER_POL_PATH}/config.json
