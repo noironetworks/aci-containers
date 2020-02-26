@@ -238,6 +238,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			argFunc:  nodeLogCmdArgs,
 		},
 		{
+			path:     "cluster-report/cmds/node-%s/agent-version-githash.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  inspectArgs,
+			args:     []string{"-v"},
+		},
+		{
 			path:     "cluster-report/cmds/node-%s/gbp-inspect.log",
 			cont:     "opflex-agent",
 			selector: opflexAgentSelector,
