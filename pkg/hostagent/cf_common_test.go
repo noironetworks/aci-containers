@@ -21,7 +21,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/stretchr/testify/assert"
 	"github.com/vishvananda/netlink"

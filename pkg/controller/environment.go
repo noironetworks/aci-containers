@@ -17,7 +17,6 @@ package controller
 import (
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
@@ -26,6 +25,7 @@ import (
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
+	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"

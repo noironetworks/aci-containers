@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 
 	v1 "k8s.io/api/core/v1"

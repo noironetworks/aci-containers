@@ -25,7 +25,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/api/core/v1"

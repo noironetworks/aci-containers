@@ -17,7 +17,7 @@ package watchers
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"

@@ -18,7 +18,7 @@ package watchers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"

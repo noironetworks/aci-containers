@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"testing"
 	"time"
-	//log "github.com/Sirupsen/logrus"
+	//log "github.com/sirupsen/logrus"
 )
 
 func injectSvcUpdate(obj *PodStatsObj, ns, name, clusterIP string, port, epPort int32, epAddr []string) {

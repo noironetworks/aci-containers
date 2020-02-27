@@ -24,7 +24,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/noironetworks/aci-containers/pkg/controller"

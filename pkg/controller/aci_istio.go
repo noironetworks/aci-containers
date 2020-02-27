@@ -15,9 +15,9 @@
 package controller
 
 import (
-	log "github.com/Sirupsen/logrus"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
+	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -161,7 +161,7 @@ func (cont *AciController) istioSpecDeleted(obj interface{}) {
 	if err != nil {
 		cont.log.Info("Failed to delete istio-system NS:", err)
 		return
-	} 
+	}
 	log.Debug("Success:", string(out))
 	delete(cont.istioCache, istiospeckey)
 }

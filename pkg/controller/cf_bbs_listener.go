@@ -23,7 +23,7 @@ import (
 	"code.cloudfoundry.org/bbs"
 	"code.cloudfoundry.org/bbs/events"
 	"code.cloudfoundry.org/bbs/models"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
 )

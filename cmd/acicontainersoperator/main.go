@@ -15,7 +15,7 @@
 package main
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/controller"
 	restclient "k8s.io/client-go/rest"

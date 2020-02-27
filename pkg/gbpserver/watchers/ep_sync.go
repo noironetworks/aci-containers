@@ -17,13 +17,13 @@ package watchers
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	restclient "k8s.io/client-go/rest"
 	"strings"

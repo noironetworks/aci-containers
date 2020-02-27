@@ -23,8 +23,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/embed"
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"

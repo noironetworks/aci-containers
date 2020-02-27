@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 
 	"github.com/noironetworks/aci-containers/pkg/ipam"

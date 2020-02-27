@@ -26,7 +26,7 @@ import (
 	"code.cloudfoundry.org/bbs/fake_bbs"
 	"code.cloudfoundry.org/bbs/models"
 	"code.cloudfoundry.org/lager"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"

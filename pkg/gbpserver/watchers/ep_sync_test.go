@@ -18,11 +18,11 @@ package watchers
 import (
 	"encoding/pem"
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fakev1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/fake"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"

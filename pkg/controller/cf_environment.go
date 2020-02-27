@@ -37,7 +37,7 @@ import (
 	"code.cloudfoundry.org/locket/lock"
 	locketmodels "code.cloudfoundry.org/locket/models"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	cfclient "github.com/cloudfoundry-community/go-cfclient"
 	"golang.org/x/net/context"
 	"k8s.io/apimachinery/pkg/util/wait"

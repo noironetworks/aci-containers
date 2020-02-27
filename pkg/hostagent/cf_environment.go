@@ -24,7 +24,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
 

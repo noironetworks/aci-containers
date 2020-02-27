@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/time/rate"

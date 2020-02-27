@@ -24,7 +24,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
@@ -284,10 +284,12 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	return nil
 }
-
+func cmdcheck(args *skel.CmdArgs) error {
+	return nil
+}
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel,
-		version.PluginSupports("0.3.0", "0.3.1"))
+	skel.PluginMain(cmdAdd, cmdDel, cmdcheck,
+		version.PluginSupports("0.3.0", "0.3.1"), "cni")
 
 	if logFile != "" {
 		logFd.Close()

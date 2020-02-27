@@ -17,7 +17,7 @@ package watchers
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
