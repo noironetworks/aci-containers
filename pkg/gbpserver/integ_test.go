@@ -32,7 +32,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"google.golang.org/grpc"
 	//etcd_integ "github.com/etcd-io/etcd/integration"

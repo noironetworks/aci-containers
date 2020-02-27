@@ -28,7 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
 	"github.com/noironetworks/aci-containers/pkg/ipam"

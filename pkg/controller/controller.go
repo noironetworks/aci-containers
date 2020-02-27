@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 	"golang.org/x/time/rate"
 

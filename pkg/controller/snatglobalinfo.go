@@ -269,7 +269,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 			}
 		}
 	}
-	cont.log.Debug("nodeinfocache: ", nodeinfocache)
+	cont.log.Debug("Nodeinfocache", nodeinfocache)
 	return false
 }
 

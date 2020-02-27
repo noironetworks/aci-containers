@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"

@@ -22,7 +22,7 @@ if [ -w /mnt/cni-conf ]; then
     cat <<EOF > /mnt/cni-conf/cni/net.d/10-opflex-cni.conf
 {
    "cniVersion": "0.3.1",
-   "supportedVersions": [ "0.3.0", "0.3.1" ],
+   "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],
    "name": "k8s-pod-network",
    "type": "opflex-agent-cni",
    "ipam": {"type": "opflex-agent-cni-ipam"}
