@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
+	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
+	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
@@ -50,6 +52,7 @@ type K8sEnvironment struct {
 	snatGlobalClient *snatglobalclset.Clientset
 	nodeInfoClient   *nodeinfoclientset.Clientset
 	rdConfigClient   *rdconfigclientset.Clientset
+	istioClient      *istioclientset.Clientset
 	cont             *AciController
 }
 
@@ -101,9 +104,14 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize rdconfig client")
 		return nil, err
 	}
+	istioClient, err := istioclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize AciIstio client")
+		return nil, err
+	}
 	return &K8sEnvironment{kubeClient: kubeClient, snatClient: snatClient,
 		snatGlobalClient: snatGlobalClient, nodeInfoClient: nodeInfoClient,
-		rdConfigClient: rdConfigClient}, nil
+		rdConfigClient: rdConfigClient, istioClient: istioClient}, nil
 }
 
 func (env *K8sEnvironment) VmmPolicy() string {
@@ -149,6 +157,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+	cont.initIstioInformerFromClient(env.istioClient)
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
@@ -235,13 +244,23 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
+	go cont.istioInformer.Run(stopCh)
+	go cont.processQueue(cont.istioQueue, cont.istioIndexer,
+		func(obj interface{}) bool {
+			return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
+		}, stopCh)
+	cont.log.Debug("Waiting for AciIstio cache sync")
+	cache.WaitForCacheSync(stopCh,
+		cont.istioInformer.HasSynced)
+	cont.scheduleCreateIstioCR()
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.networkPolicyInformer.HasSynced, cont.snatNodeInformer.HasSynced)
+		cont.networkPolicyInformer.HasSynced,
+		cont.snatNodeInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	return nil
 }

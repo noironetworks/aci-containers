@@ -39,6 +39,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
+	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
@@ -59,6 +60,7 @@ type AciController struct {
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
 	snatNodeInfoQueue workqueue.RateLimitingInterface
+	istioQueue        workqueue.RateLimitingInterface
 
 	namespaceIndexer      cache.Indexer
 	namespaceInformer     cache.Controller
@@ -80,6 +82,8 @@ type AciController struct {
 	snatInformer          cache.Controller
 	snatNodeInfoIndexer   cache.Indexer
 	snatNodeInformer      cache.Controller
+	istioIndexer          cache.Indexer
+	istioInformer         cache.Controller
 
 	updatePod           podUpdateFunc
 	updateNode          nodeUpdateFunc
@@ -118,6 +122,7 @@ type AciController struct {
 	snatPolicyCache      map[string]*ContSnatPolicy
 	snatServices         map[string]bool
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
+	istioCache           map[string]*istiov1.AciIstioOperator
 	// Node Name and Policy Name
 	snatGlobalInfoCache map[string]map[string]*snatglobalinfo.GlobalInfo
 	nodeSyncEnabled     bool
@@ -200,6 +205,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
+        istioQueue:        createQueue("istio"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -221,13 +227,14 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		tunnelIdBase:         defTunnelIdBase,
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:           make(map[string]*istiov1.AciIstioOperator),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
 		"rdConfig":       cont.syncRdConfig,
+		"istioCR":        cont.createIstioCR,
 	}
 	return cont
-
 }
 
 func (cont *AciController) Init() {
@@ -559,4 +566,7 @@ func (cont *AciController) scheduleSyncGlobalInfo() {
 }
 func (cont *AciController) scheduleRdConfig() {
 	cont.syncQueue.AddRateLimited("rdConfig")
+}
+func (cont *AciController) scheduleCreateIstioCR() {
+	cont.syncQueue.AddRateLimited("istioCR")
 }

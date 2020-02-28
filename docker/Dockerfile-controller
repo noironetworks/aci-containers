@@ -1,5 +1,12 @@
 FROM alpine:3.10.2
 RUN apk upgrade --no-cache
+RUN apk update && apk add curl git
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+RUN chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl
+RUN curl -LO https://istio.io/operator.yaml
+RUN mkdir -p /usr/local/var/lib/aci-cni
+RUN mv operator.yaml /usr/local/var/lib/aci-cni/upstream-istio-operator.yaml 
+RUN echo -e "apiVersion: install.istio.io/v1alpha2\nkind: IstioControlPlane\nmetadata:\n  namespace: istio-operator\n  name: example-istiocontrolplane\nspec:\n  profile: demo\n---" >> /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
 COPY dist-static/aci-containers-controller /usr/local/bin/
 ENV AWS_SUBNETS="None"
 ENV AWS_VPCID="None"
