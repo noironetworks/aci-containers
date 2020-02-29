@@ -499,12 +499,16 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 				if len(localinfo.Snatpolicies[res]) == 0 {
 					delete(localinfo.Snatpolicies, res)
 				}
-				agent.snatPods[plcyname][poduid] &= ^(res) // clear the bit
-				agent.log.Debug("Res:  ", agent.snatPods[plcyname][poduid])
-				if agent.snatPods[plcyname][poduid] == 0 { // delete the pod if no resource is pointing for the policy
-					delete(agent.snatPods[plcyname], poduid)
-					if len(agent.snatPods[plcyname]) == 0 {
-						delete(agent.snatPods, plcyname)
+				if v, ok := agent.snatPods[plcyname]; ok {
+					if _, ok := v[poduid]; ok {
+						agent.snatPods[plcyname][poduid] &= ^(res) // clear the bit
+						agent.log.Debug("Res:  ", agent.snatPods[plcyname][poduid])
+						if agent.snatPods[plcyname][poduid] == 0 { // delete the pod if no resource is pointing for the policy
+							delete(agent.snatPods[plcyname], poduid)
+							if len(agent.snatPods[plcyname]) == 0 {
+								delete(agent.snatPods, plcyname)
+							}
+						}
 					}
 				}
 			}
