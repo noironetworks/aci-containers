@@ -60,6 +60,8 @@ else
     ip link set veth_host up
     ip link set veth_host_ac up
 fi
+ip link set mtu 1600 dev veth_host
+ip link set mtu 1600 dev veth_host_ac
 ACC_MAC=$(get_mac veth_host)
 
 if check_eth enp0s8; then
