@@ -157,7 +157,9 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
-	cont.initIstioInformerFromClient(env.istioClient)
+	if cont.config.InstallIstio {
+		cont.initIstioInformerFromClient(env.istioClient)
+	}
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
@@ -244,15 +246,17 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
-	go cont.istioInformer.Run(stopCh)
-	go cont.processQueue(cont.istioQueue, cont.istioIndexer,
-		func(obj interface{}) bool {
-			return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
-		}, stopCh)
-	cont.log.Debug("Waiting for AciIstio cache sync")
-	cache.WaitForCacheSync(stopCh,
-		cont.istioInformer.HasSynced)
-	cont.scheduleCreateIstioCR()
+	if cont.config.InstallIstio {
+		go cont.istioInformer.Run(stopCh)
+		go cont.processQueue(cont.istioQueue, cont.istioIndexer,
+			func(obj interface{}) bool {
+				return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
+			}, stopCh)
+		cont.log.Debug("Waiting for AciIstio cache sync")
+		cache.WaitForCacheSync(stopCh,
+			cont.istioInformer.HasSynced)
+		cont.scheduleCreateIstioCR()
+	}
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
