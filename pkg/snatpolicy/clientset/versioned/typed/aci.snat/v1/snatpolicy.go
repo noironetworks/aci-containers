@@ -31,13 +31,14 @@ import (
 // SnatPoliciesGetter has a method to return a SnatPolicyInterface.
 // A group's client should implement this interface.
 type SnatPoliciesGetter interface {
-	SnatPolicies(namespace string) SnatPolicyInterface
+	SnatPolicies() SnatPolicyInterface
 }
 
 // SnatPolicyInterface has methods to work with SnatPolicy resources.
 type SnatPolicyInterface interface {
 	Create(*v1.SnatPolicy) (*v1.SnatPolicy, error)
 	Update(*v1.SnatPolicy) (*v1.SnatPolicy, error)
+	UpdateStatus(*v1.SnatPolicy) (*v1.SnatPolicy, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions) (*v1.SnatPolicy, error)
@@ -50,14 +51,12 @@ type SnatPolicyInterface interface {
 // snatPolicies implements SnatPolicyInterface
 type snatPolicies struct {
 	client rest.Interface
-	ns     string
 }
 
 // newSnatPolicies returns a SnatPolicies
-func newSnatPolicies(c *AciV1Client, namespace string) *snatPolicies {
+func newSnatPolicies(c *AciV1Client) *snatPolicies {
 	return &snatPolicies{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -65,7 +64,6 @@ func newSnatPolicies(c *AciV1Client, namespace string) *snatPolicies {
 func (c *snatPolicies) Get(name string, options metav1.GetOptions) (result *v1.SnatPolicy, err error) {
 	result = &v1.SnatPolicy{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -82,7 +80,6 @@ func (c *snatPolicies) List(opts metav1.ListOptions) (result *v1.SnatPolicyList,
 	}
 	result = &v1.SnatPolicyList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -99,7 +96,6 @@ func (c *snatPolicies) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -110,7 +106,6 @@ func (c *snatPolicies) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 func (c *snatPolicies) Create(snatPolicy *v1.SnatPolicy) (result *v1.SnatPolicy, err error) {
 	result = &v1.SnatPolicy{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		Body(snatPolicy).
 		Do().
@@ -122,9 +117,23 @@ func (c *snatPolicies) Create(snatPolicy *v1.SnatPolicy) (result *v1.SnatPolicy,
 func (c *snatPolicies) Update(snatPolicy *v1.SnatPolicy) (result *v1.SnatPolicy, err error) {
 	result = &v1.SnatPolicy{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		Name(snatPolicy.Name).
+		Body(snatPolicy).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *snatPolicies) UpdateStatus(snatPolicy *v1.SnatPolicy) (result *v1.SnatPolicy, err error) {
+	result = &v1.SnatPolicy{}
+	err = c.client.Put().
+		Resource("snatpolicies").
+		Name(snatPolicy.Name).
+		SubResource("status").
 		Body(snatPolicy).
 		Do().
 		Into(result)
@@ -134,7 +143,6 @@ func (c *snatPolicies) Update(snatPolicy *v1.SnatPolicy) (result *v1.SnatPolicy,
 // Delete takes name of the snatPolicy and deletes it. Returns an error if one occurs.
 func (c *snatPolicies) Delete(name string, options *metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		Name(name).
 		Body(options).
@@ -149,7 +157,6 @@ func (c *snatPolicies) DeleteCollection(options *metav1.DeleteOptions, listOptio
 		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -162,7 +169,6 @@ func (c *snatPolicies) DeleteCollection(options *metav1.DeleteOptions, listOptio
 func (c *snatPolicies) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.SnatPolicy, err error) {
 	result = &v1.SnatPolicy{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("snatpolicies").
 		SubResource(subresources...).
 		Name(name).
