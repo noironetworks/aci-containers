@@ -50,15 +50,6 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				continue
 			}
 
-			if link.MTU < 1600 {
-				agent.log.WithFields(logrus.Fields{
-					"name": link.Name,
-					"vlan": agent.config.AciInfraVlan,
-					"mtu":  link.MTU,
-				}).Error("OpFlex link MTU must be >= 1600")
-				return
-			}
-
 			// find parent link
 			var parent netlink.Link
 			for _, plink := range links {
@@ -67,14 +58,6 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				}
 
 				parent = plink
-				if parent.Attrs().MTU < 1600 {
-					agent.log.WithFields(logrus.Fields{
-						"name": parent.Attrs().Name,
-						"vlan": agent.config.AciInfraVlan,
-						"mtu":  parent.Attrs().MTU,
-					}).Error("Uplink MTU must be >= 1600")
-					return
-				}
 			}
 			if parent == nil {
 				agent.log.WithFields(logrus.Fields{
