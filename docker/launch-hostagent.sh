@@ -119,6 +119,7 @@ cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
     "$VTEP_IP"
   ],
   "mac": "$ACC_MAC",
+  "disable-adv": true,
   "access-interface": "veth_host_ac",
   "access-uplink-interface": "pa-veth_host_ac",
   "interface-name": "pi-veth_host_ac",
