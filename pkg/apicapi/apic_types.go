@@ -46,6 +46,8 @@ type ApicDnHandler func(string)
 
 type ApicSlice []ApicObject
 
+const ApicNameAliasLength = 64
+
 const (
 	apicSubClass = iota
 	apicSubDn    = iota
@@ -60,14 +62,7 @@ type subscription struct {
 	updateHook    ApicObjectHandler
 	deleteHook    ApicDnHandler
 }
-/*
-type subnetRelatives struct {
-	subnetDns	 map[string]string
-    vrfBdDns   	[]string
-    vrfEpgDns 	[]string
-    vrfTenants	[]string
-}
-*/
+
 type subIndex struct {
 	subs map[string]*subscription
 	ids  map[string]string
@@ -136,6 +131,14 @@ func (conn *ApicConnection) GetDesiredState(key string) ApicSlice {
 	conn.indexMutex.Lock()
 	defer conn.indexMutex.Unlock()
 	return conn.desiredState[key]
+}
+
+func truncatedName(name string) string {
+	nameAlias := name
+	if len(name) > (ApicNameAliasLength - 1) {
+		nameAlias = name[0:(ApicNameAliasLength-4)] + "..."
+	}
+	return nameAlias
 }
 
 func cmpAttr(a *ApicObjectBody, b *ApicObjectBody, attr string) int {
@@ -868,7 +871,7 @@ func NewVmmInjectedContGrp(vendor string, domain string, controller string,
 	namespace string, name string) ApicObject {
 	ret := newApicObject("vmmInjectedContGrp")
 	ret["vmmInjectedContGrp"].Attributes["name"] = name
-	ret["vmmInjectedContGrp"].Attributes["nameAlias"] = name
+	ret["vmmInjectedContGrp"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedContGrp"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/grp-[%s]",
 			vendor, domain, controller, namespace, name)
@@ -880,7 +883,7 @@ func NewVmmInjectedDepl(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedDepl")
 	ret["vmmInjectedDepl"].Attributes["name"] = name
-	ret["vmmInjectedDepl"].Attributes["nameAlias"] = name
+	ret["vmmInjectedDepl"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedDepl"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/depl-[%s]",
 			vendor, domain, controller, namespace, name)
@@ -892,7 +895,7 @@ func NewVmmInjectedReplSet(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedReplSet")
 	ret["vmmInjectedReplSet"].Attributes["name"] = name
-	ret["vmmInjectedReplSet"].Attributes["nameAlias"] = name
+	ret["vmmInjectedReplSet"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedReplSet"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/rs-[%s]",
 			vendor, domain, controller, namespace, name)
@@ -904,7 +907,7 @@ func NewVmmInjectedSvc(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedSvc")
 	ret["vmmInjectedSvc"].Attributes["name"] = name
-	ret["vmmInjectedSvc"].Attributes["nameAlias"] = name
+	ret["vmmInjectedSvc"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedSvc"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/svc-[%s]",
 			vendor, domain, controller, namespace, name)
@@ -939,7 +942,7 @@ func NewVmmInjectedHost(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedHost")
 	ret["vmmInjectedHost"].Attributes["name"] = name
-	ret["vmmInjectedHost"].Attributes["nameAlias"] = name
+	ret["vmmInjectedHost"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedHost"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/host-[%s]",
 			vendor, domain, controller, name)
@@ -951,7 +954,7 @@ func NewVmmInjectedNs(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedNs")
 	ret["vmmInjectedNs"].Attributes["name"] = name
-	ret["vmmInjectedNs"].Attributes["nameAlias"] = name
+	ret["vmmInjectedNs"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedNs"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]",
 			vendor, domain, controller, name)
@@ -963,7 +966,7 @@ func NewVmmInjectedNwPol(vendor string, domain string, controller string,
 
 	ret := newApicObject("vmmInjectedNwPol")
 	ret["vmmInjectedNwPol"].Attributes["name"] = name
-	ret["vmmInjectedNwPol"].Attributes["nameAlias"] = name
+	ret["vmmInjectedNwPol"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedNwPol"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/nwpol-[%s]",
 			vendor, domain, controller, ns, name)
@@ -973,7 +976,7 @@ func NewVmmInjectedNwPol(vendor string, domain string, controller string,
 func NewVmmInjectedOrg(vendor, domain, controller, name string) ApicObject {
 	ret := newApicObject("vmmInjectedOrg")
 	ret["vmmInjectedOrg"].Attributes["name"] = name
-	ret["vmmInjectedOrg"].Attributes["nameAlias"] = name
+	ret["vmmInjectedOrg"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedOrg"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]",
 			vendor, domain, controller, name)
@@ -983,7 +986,7 @@ func NewVmmInjectedOrg(vendor, domain, controller, name string) ApicObject {
 func NewVmmInjectedOrgUnit(vendor, domain, controller, org, name string) ApicObject {
 	ret := newApicObject("vmmInjectedOrgUnit")
 	ret["vmmInjectedOrgUnit"].Attributes["name"] = name
-	ret["vmmInjectedOrgUnit"].Attributes["nameAlias"] = name
+	ret["vmmInjectedOrgUnit"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedOrgUnit"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]",
 			vendor, domain, controller, org, name)
@@ -993,7 +996,7 @@ func NewVmmInjectedOrgUnit(vendor, domain, controller, org, name string) ApicObj
 func NewVmmInjectedOrgUnitContGrp(vendor, domain, controller, org, unit, name string) ApicObject {
 	ret := newApicObject("vmmInjectedContGrp")
 	ret["vmmInjectedContGrp"].Attributes["name"] = name
-	ret["vmmInjectedContGrp"].Attributes["nameAlias"] = name
+	ret["vmmInjectedContGrp"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedContGrp"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]/grp-[%s]",
 			vendor, domain, controller, org, unit, name)
@@ -1003,7 +1006,7 @@ func NewVmmInjectedOrgUnitContGrp(vendor, domain, controller, org, unit, name st
 func NewVmmInjectedOrgUnitDepl(vendor, domain, controller, org, unit, name string) ApicObject {
 	ret := newApicObject("vmmInjectedDepl")
 	ret["vmmInjectedDepl"].Attributes["name"] = name
-	ret["vmmInjectedDepl"].Attributes["nameAlias"] = name
+	ret["vmmInjectedDepl"].Attributes["nameAlias"] = truncatedName(name)
 	ret["vmmInjectedDepl"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/org-[%s]/unit-[%s]/depl-[%s]",
 			vendor, domain, controller, org, unit, name)
