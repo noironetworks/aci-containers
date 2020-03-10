@@ -313,7 +313,7 @@
             }
         ],
         "children": [
-            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fANY--0-0%2f/",
+            "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fall-all-ANY--0-0%2f/",
             "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToActionRSrc/286/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpAllowDenyAction%2fallow%2f/"
         ],
         "parent_subject": "GbpSubject",
@@ -338,13 +338,13 @@
     },
     {
         "subject": "GbpRuleToClassifierRSrc",
-        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fANY--0-0%2f/",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpContract/all-all/GbpSubject/all-all-subj/GbpRule/all-all-filter/GbpRuleToClassifierRSrc/178/%2fPolicyUniverse%2fPolicySpace%2fgbpKubeTenant%2fGbpeL24Classifier%2fall-all-ANY--0-0%2f/",
         "properties": [
             {
                 "name": "target",
                 "data": {
                     "subject": "GbpeL24Classifier",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/ANY--0-0/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/all-all-ANY--0-0/"
                 }
             }
         ],
@@ -888,11 +888,11 @@
     },
     {
         "subject": "GbpeL24Classifier",
-        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/ANY--0-0/",
+        "uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpeL24Classifier/all-all-ANY--0-0/",
         "properties": [
             {
                 "name": "name",
-                "data": "ANY--0-0"
+                "data": "all-all-ANY--0-0"
             },
             {
                 "name": "connectionTracking",

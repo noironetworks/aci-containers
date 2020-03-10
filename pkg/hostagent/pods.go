@@ -59,10 +59,9 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	SnatUuid    []string          `json:"snat-uuids,omitempty"`
-	registryKey string            // TODO - export for persistence after verifying opflx can ignore it
-	registered  bool
+	Attributes map[string]string `json:"attributes,omitempty"`
+	SnatUuid   []string          `json:"snat-uuids,omitempty"`
+	registered bool
 }
 
 func (agent *HostAgent) getPodIFName(ns, podName string) string {
@@ -290,7 +289,7 @@ func (agent *HostAgent) syncEps() bool {
 	needRetry := false
 	seen := make(map[string]bool)
 	nullMacFile := false
-        nullMacCheck := agent.getEpFileName(agent.config.DefaultEg.Name)
+	nullMacCheck := agent.getEpFileName(agent.config.DefaultEg.Name)
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".ep") ||
 			strings.Contains(f.Name(), "veth_host_ac") {
@@ -374,19 +373,19 @@ func (agent *HostAgent) syncEps() bool {
 }
 
 func (agent *HostAgent) getEpFileName(epGroupName string) string {
-        temp := strings.Split(epGroupName, "|")
-        var EpFileName string
-        if len(temp) == 1 {
-                EpFileName = epGroupName + "_" + NullMac + ".ep"
-        } else {
-                EpFileName = temp[1] + "_" + NullMac + ".ep"
-        }
-        return EpFileName
+	temp := strings.Split(epGroupName, "|")
+	var EpFileName string
+	if len(temp) == 1 {
+		EpFileName = epGroupName + "_" + NullMac + ".ep"
+	} else {
+		EpFileName = temp[1] + "_" + NullMac + ".ep"
+	}
+	return EpFileName
 }
 
 func (agent *HostAgent) creatNullMacEp() {
 	epGroup := agent.config.DefaultEg
-        EpFileName := agent.getEpFileName(epGroup.Name)
+	EpFileName := agent.getEpFileName(epGroup.Name)
 	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
 	ep_file_exists := fileExists(EpFilePath)
 	if ep_file_exists {
@@ -582,19 +581,29 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 
 func (agent *HostAgent) cniEpDelete(cniKey string) {
 	agent.indexMutex.Lock()
-	defer agent.indexMutex.Unlock()
 	epUuid, ok := agent.cniToPodID[cniKey]
 	if !ok {
 		agent.log.Warnf("cniEpDelete: PodID not found for %s", cniKey)
-		return
+		goto unlock_exit
 	}
 	delete(agent.cniToPodID, cniKey)
 
-	if _, ok := agent.opflexEps[epUuid]; ok {
+	if eps, ok := agent.opflexEps[epUuid]; ok {
 		agent.log.Infof("cniEpDelete: delete %s", cniKey)
 		delete(agent.opflexEps, epUuid)
 		agent.scheduleSyncEps()
+		// delete remote podif
+		agent.indexMutex.Unlock()
+		for _, ep := range eps {
+			k := agent.getPodIFName(ep.Attributes["namespace"], ep.Attributes["vm-name"])
+			agent.EPRegDelEP(k)
+		}
+		return
+
 	}
+
+unlock_exit:
+	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
