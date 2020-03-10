@@ -115,6 +115,12 @@ func addActionRef(p *gbpCommonMo) {
 	linkParentChild(p, &aRef.gbpCommonMo)
 }
 func (c *Contract) makeClassifiers() error {
+	// if AllowList is empty, add an empty rule.
+	if len(c.AllowList) == 0 {
+		emptyRule := v1.WLRule{}
+		c.AllowList = append(c.AllowList, emptyRule)
+	}
+
 	for _, wRule := range c.AllowList {
 		err := c.addRule(wRule, "")
 		if err != nil {
@@ -136,7 +142,7 @@ func (c *Contract) makeClassifiers() error {
 }
 
 func (c *Contract) addRule(r v1.WLRule, dir string) error {
-	uri, cname := getClassifierURI(c.Tenant, dir, &r)
+	uri, cname := c.getClassifierURI(dir, &r)
 	log.Infof("uri: %s, name: %s", uri, cname)
 	c.classifierUris = append(c.classifierUris, uri)
 	moDB := getMoDB()
@@ -272,14 +278,14 @@ func (c *Contract) pushTocAPIC() error {
 	return nil
 }
 
-func getClassifierURI(tenant, dir string, wr *v1.WLRule) (string, string) {
+func (c *Contract) getClassifierURI(dir string, wr *v1.WLRule) (string, string) {
 	un := wr.Protocol
 	if un == "" {
 		un = "ANY"
 	}
-	un = fmt.Sprintf("%s-%s-%d-%d", un, dir, wr.Ports.Start, wr.Ports.End)
+	un = fmt.Sprintf("%s-%s-%s-%d-%d", c.Name, un, dir, wr.Ports.Start, wr.Ports.End)
 
-	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", tenant, un), un
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeL24Classifier/%s/", c.Tenant, un), un
 }
 
 func (c *Contract) FromMo(mo *gbpBaseMo) error {
