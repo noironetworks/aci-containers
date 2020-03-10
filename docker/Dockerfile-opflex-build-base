@@ -10,6 +10,7 @@ ARG make_args=-j4
 RUN git clone https://github.com/noironetworks/3rdparty-debian.git
 RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
   && cd prometheus-cpp \
+  && git checkout 9effb90b0c266316358680cbf862a8564eb2c2d4 \
   && git submodule init \
   && git submodule update \
   && git apply ../3rdparty-debian/prometheus/prometheus-cpp.patch \
