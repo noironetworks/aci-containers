@@ -55,7 +55,6 @@ func TestDiffPorts(t *testing.T) {
 			uuid: "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{
 				"vethf3323b92": "640a7740-d51e-4579-86e2-609d38b38e11",
-				"veth_host_ac": "640a7740-d51e-4579-86e2-609d38b38000",
 			},
 		},
 		"br-int": {
@@ -69,18 +68,6 @@ func TestDiffPorts(t *testing.T) {
 		"br-access": {
 			uuid:  "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{},
-		},
-		"br-int": {
-			uuid:  "aba85930-00f9-4665-9917-40beff731d87",
-			ports: map[string]string{},
-		},
-	}
-	emptyBrWhostac := map[string]ovsBridge{
-		"br-access": {
-			uuid: "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
-			ports: map[string]string{
-				"veth_host_ac": "640a7740-d51e-4579-86e2-609d38b38000",
-			},
 		},
 		"br-int": {
 			uuid:  "aba85930-00f9-4665-9917-40beff731d87",
@@ -104,10 +91,6 @@ func TestDiffPorts(t *testing.T) {
 		},
 	}
 
-	addHost_ac0, _ := addIfaceOps("veth_host_ac", "pi-veth_host_ac", "pa-veth_host_ac",
-		"86d9e696-00d0-43dd-9fd2-d43f7f6a883d", "aba85930-00f9-4665-9917-40beff731d87", "0")
-	addHost_ac1, _ := addIfaceOps("veth_host_ac", "pi-veth_host_ac", "pa-veth_host_ac",
-		"86d9e696-00d0-43dd-9fd2-d43f7f6a883d", "aba85930-00f9-4665-9917-40beff731d87", "1")
 	addOnePod, _ := addIfaceOps("vethf3323b92", "pi-vethf3323b92",
 		"pa-vethf3323b92", "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 		"aba85930-00f9-4665-9917-40beff731d87", "0")
@@ -132,13 +115,13 @@ func TestDiffPorts(t *testing.T) {
 		{
 			bridges:  emptyBr,
 			metadata: onepodMeta,
-			expected: append(addOnePod, addHost_ac1...),
+			expected: addOnePod,
 			desc:     "simple add",
 		},
 		{
 			bridges:  onepodBr,
 			metadata: onepodMeta,
-			expected: addHost_ac0,
+			expected: nil,
 			desc:     "no change",
 		},
 		{
@@ -169,5 +152,4 @@ func TestDiffPorts(t *testing.T) {
 	addUplinks = append(addUplinks, addVxlan...)
 
 	agent.epMetadata = emptyMeta
-	assert.Equal(t, addUplinks, agent.diffPorts(emptyBrWhostac), "uplinks")
 }
