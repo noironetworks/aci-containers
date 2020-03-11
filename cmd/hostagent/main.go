@@ -106,5 +106,6 @@ func main() {
 	agent := hostagent.NewHostAgent(config, env, log)
 	agent.Init()
 	agent.Run(wait.NeverStop)
+	agent.RunPacketEventListener(wait.NeverStop)
 	agent.RunStatus()
 }

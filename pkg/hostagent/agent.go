@@ -49,6 +49,7 @@ type HostAgent struct {
 	opflexEps          map[string][]*opflexEndpoint
 	opflexServices     map[string]*opflexService
 	epMetadata         map[string]map[string]*md.ContainerMetadata
+	podIpToName        map[string]string
 	cniToPodID         map[string]string
 	serviceEp          md.ServiceEndpoint
 	crdClient          aciv1.AciV1Interface
@@ -89,6 +90,7 @@ type HostAgent struct {
 	snatPolicyLabels map[string]map[string]ResourceType
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 	rdConfig         *opflexRdConfig
+        poster           *EventPoster
 }
 
 type Vtep struct {
@@ -104,6 +106,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexEps:      make(map[string][]*opflexEndpoint),
 		opflexServices: make(map[string]*opflexService),
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
+	        podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
 
 		podIps: ipam.NewIpCache(),

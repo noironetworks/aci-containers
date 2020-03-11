@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
+	"reflect"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/socketplane/libovsdb"
 )
@@ -238,6 +238,23 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 				ops = append(ops, adds...)
 			}
 		}
+		if agent.config.EnableDropLogging {
+			if _, pok := intbr.ports[agent.config.DropLogIntInterface]; pok {
+				found[agent.config.IntBridgeName][agent.config.DropLogIntInterface] = true
+			} else {
+				agent.log.Debug("Adding drop log integration port ", agent.config.DropLogIntInterface)
+				adds, err := addDropLogIfaceOps(agent,
+								"int_",
+								bridges[agent.config.IntBridgeName].uuid,
+								"1",
+								agent.config.DropLogIntInterface)
+				if err != nil {
+					agent.log.Error(err)
+				}
+				ops = append(ops, adds...)
+			}
+
+		}
 		// check if acc bridge exists and add host veth if needed
 		accbr, ok := bridges[agent.config.AccessBridgeName]
 		if ok {
@@ -259,6 +276,26 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			}
 			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{"pi-veth_host_ac"}
 			agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pa-veth_host_ac"}
+			if agent.config.EnableDropLogging {
+				if _, dlpok := accbr.ports[agent.config.DropLogAccessInterface]; dlpok {
+					found[agent.config.AccessBridgeName][agent.config.DropLogAccessInterface] = true
+				} else {
+					agent.log.Debug("Adding drop log access port ", agent.config.DropLogAccessInterface)
+					adds, err := addDropLogIfaceOps(agent,
+                                                                        "access_",
+						                        bridges[agent.config.AccessBridgeName].uuid,
+						                        "2",
+						                        agent.config.DropLogAccessInterface)
+					if err != nil {
+						agent.log.Error(err)
+					}
+					ops = append(ops, adds...)
+				}
+				agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{agent.config.DropLogAccessInterface}
+			}
+		}
+		if agent.config.EnableDropLogging {
+			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{agent.config.DropLogIntInterface}
 		}
 	}
 
@@ -356,6 +393,59 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 				"interfaces": libovsdb.UUID{GoUUID: uuidVxlanI},
 			},
 			UUIDName: uuidVxlanP,
+		},
+		{
+			Op:        "mutate",
+			Table:     "Bridge",
+			Mutations: mibridge,
+			Where:     cibridge,
+		},
+	}
+	return ops, nil
+}
+
+func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, encapKey string,
+	ifaceName string) ([]libovsdb.Operation, error) {
+	uuidDropLogI := bridgeType + "genv_iface"
+	uuidDropLogP := bridgeType + "genv_port"
+        agent.log.Debug(reflect.TypeOf(uuidDropLogI))
+	opti, err := libovsdb.NewOvsMap(map[string]interface{}{
+		"key":       encapKey,
+		"remote_ip": "flow",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	iports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
+		{GoUUID: uuidDropLogP},
+	})
+	if err != nil {
+		return nil, err
+	}
+	mibridge := []interface{}{libovsdb.NewMutation("ports", "insert", iports)}
+	cibridge := []interface{}{libovsdb.NewCondition("_uuid", "==",
+		libovsdb.UUID{GoUUID: intBrUuid})}
+
+	ops := []libovsdb.Operation{
+		{
+			Op:    "insert",
+			Table: "Interface",
+			Row: map[string]interface{}{
+				"name":    ifaceName,
+				"type":    "geneve",
+				"options": opti,
+			},
+			UUIDName: uuidDropLogI,
+		},
+		{
+			Op:    "insert",
+			Table: "Port",
+			Row: map[string]interface{}{
+				"name":       ifaceName,
+				"interfaces": libovsdb.UUID{GoUUID: uuidDropLogI},
+			},
+			UUIDName: uuidDropLogP,
 		},
 		{
 			Op:        "mutate",

@@ -72,6 +72,7 @@ type HostAgentNodeConfig struct {
 
 	// Registry Server URL -- for updating remote EP information
 	RegistryURL string `json:"registry-url,omitempty"`
+
 }
 
 // Configuration for the host agent
@@ -127,6 +128,9 @@ type HostAgentConfig struct {
 
 	// File for writing Opflex server configuration
 	OpFlexServerConfigFile string `json:"opflex-server-config-file,omitempty"`
+
+	// Location of the packet event notification socket which listens to opflex-agent packet events
+	PacketEventNotificationSock string `json:"packet-event-notification-socket,omitempty"`
 
 	// Location of the OVS DB socket
 	OvsDbSock string `json:"ovs-db-sock,omitempty"`
@@ -189,6 +193,21 @@ type HostAgentConfig struct {
 
 	//Namespace for SNAT CRDs
 	AciSnatNamespace string `json:"aci-snat-namespace,omitempty"`
+
+        //DropLogging enabled
+	EnableDropLogging bool `json:"enable-drop-log,omitempty"`
+
+	// DropLog Interface connecting to access bridge
+	DropLogAccessInterface string `json:"drop-log-access-iface,omitempty"`
+
+	// DropLog Interface connecting to access bridge
+	DropLogIntInterface string `json:"drop-log-int-iface,omitempty"`
+
+	// Droplogs older than the expiry-time will be discarded if not published
+	DropLogExpiryTime uint `json:"drop-log-expiry,omitempty"`
+
+	// More than one droplog within the repeat interval for the same event is suppressed
+	DropLogRepeatIntervalTime uint `json:"drop-log-repeat-intvl,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -221,6 +240,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.OpFlexServerConfigFile, "opflex-server-config-file",
 		"/usr/local/var/lib/opflex-server/config.json",
 		"Config file for opflex server")
+	flag.StringVar(&config.PacketEventNotificationSock, "packet-event-notification-socket", "/usr/local/var/run/aci-containers-packet-event-notification.sock", "Location of the packet event notification socket")
 	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
 	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")
 	flag.StringVar(&config.EpRpcSockPerms, "ep-rpc-sock-perms", "", "Permissions to set for endpoint RPC socket file. Octal string")
@@ -247,4 +267,9 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
 	flag.UintVar(&config.Zone, "zone", 8191, "Zone Id for snat flows")
 	flag.StringVar(&config.AciSnatNamespace, "aci-snat-namespace", "aci-containers-system", "Namespace for SNAT CRDs")
+	flag.BoolVar(&config.EnableDropLogging, "enable-drop-log", false, "Allow dropped packets to be logged")
+	flag.StringVar(&config.DropLogAccessInterface, "drop-log-access-iface", "gen2", "Interface in Access bridge to send dropped packets")
+	flag.StringVar(&config.DropLogIntInterface, "drop-log-int-iface", "gen1", "Interface in Integration bridge to send dropped packets")
+	flag.UintVar(&config.DropLogExpiryTime, "drop-log-expiry", 10, "Expiry time for droplogs in the pipeline in minutes")
+	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
 }
