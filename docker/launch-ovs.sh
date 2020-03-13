@@ -26,6 +26,8 @@ done
 # Signal the host agent to resync OVS port configuration
 ovsresync /usr/local/var/run/aci-containers-ep-rpc.sock
 
+# create this dir if opflex agent has not started yet
+mkdir -p /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d
 # Signal the opflex-agent to reload
 echo $(date) >> /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf
 
