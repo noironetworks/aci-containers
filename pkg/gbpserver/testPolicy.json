@@ -29,7 +29,7 @@
                 "name": "target",
                 "data": {
                     "subject": "PlatformConfig",
-                    "reference_uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/"
+                    "reference_uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5btestDom%5d-testDom%2fsw-InsiemeLSOid/"
                 }
             }
         ],
@@ -81,7 +81,7 @@
         "subject": "PolicyUniverse",
         "uri": "/PolicyUniverse/",
         "children": [
-            "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/"
+            "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5btestDom%5d-testDom%2fsw-InsiemeLSOid/"
         ],
         "parent_subject": "DmtreeRoot",
         "parent_uri": "/",
@@ -89,7 +89,7 @@
     },
     {
         "subject": "PlatformConfig",
-        "uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5bgbpKubeTenant%5d-gbpKubeTenant%2fsw-InsiemeLSOid/",
+        "uri": "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5btestDom%5d-testDom%2fsw-InsiemeLSOid/",
         "properties": [
             {
                 "name": "multicastGroupIP",
@@ -109,7 +109,7 @@
             },
             {
                 "name": "name",
-                "data": "comp/prov-Kubernetes/ctrlr-[gbpKubeTenant]-gbpKubeTenant/sw-InsiemeLSOid"
+                "data": "comp/prov-Kubernetes/ctrlr-[testDom]-testDom/sw-InsiemeLSOid"
             }
         ],
         "parent_subject": "PolicyUniverse",

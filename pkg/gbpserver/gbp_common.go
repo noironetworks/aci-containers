@@ -130,8 +130,20 @@ func getTenantName() string {
 	return "undefined"
 }
 
+func getVrfName() string {
+	if theServer != nil {
+		return theServer.config.AciVrf
+	}
+
+	return "undefined"
+}
+
 func getTenantUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/", getTenantName())
+}
+
+func getVrfUri() string {
+	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpRoutingDomain/%s/", getTenantName(), getVrfName())
 }
 
 func cctxProfName() string {
@@ -452,8 +464,8 @@ func escapeName(n string, undo bool) string {
 	return n
 }
 
-func getDefPConfigName(tenant string) string {
-	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/sw-InsiemeLSOid", tenant, tenant)
+func getDefPConfigName(domain string) string {
+	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/sw-InsiemeLSOid", domain, domain)
 }
 
 func CreateRoot(config *GBPServerConfig) {
@@ -511,7 +523,7 @@ func CreateRoot(config *GBPServerConfig) {
 		log.Fatal("PolicyUniverse not found")
 	}
 
-	pConfigName := getDefPConfigName(config.AciPolicyTenant)
+	pConfigName := getDefPConfigName(config.AciVmmDomain)
 	pcMo := createChild(puMo, "PlatformConfig", pConfigName)
 	pcProps := []struct {
 		Name string
