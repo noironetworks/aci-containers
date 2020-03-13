@@ -150,6 +150,8 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	gCfg.PodSubnet = "10.2.56.1/21"
 	gCfg.NodeSubnet = "1.100.201.0/24"
 	gCfg.AciPolicyTenant = testTenant
+	gCfg.AciVmmDomain = "testDom"
+	gCfg.AciVrf = "defaultVrf"
 
 	s, err := StartNewServer(gCfg, ts.sd, etcdClientURLs)
 	if err != nil {

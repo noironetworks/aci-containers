@@ -48,6 +48,12 @@ type GBPServerConfig struct {
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
 
+	// The name of the ACI VMM domain
+	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
+
+	// ACI VRF for this kubernetes instance
+	AciVrf string `json:"aci-vrf,omitempty"`
+
 	// APIC info
 	Apic         *ApicInfo `json:"apic,omitempty"`
 	PushJsonFile bool      `json:"push-json-file,omitempty"`
@@ -77,12 +83,6 @@ type ApicInfo struct {
 	// enable secure TLS server verifification
 	CertPath string `json:"apic-cert-path,omitempty"`
 
-	// The name of the ACI VMM domain
-	VmmDomain string `json:"aci-vmm-domain,omitempty"`
-
-	// ACI VRF for this kubernetes instance
-	AciVrf string `json:"aci-vrf,omitempty"`
-
 	// Cloud Info
 	Cloud *kafkac.CloudInfo `json:"cloud-info,omitempty"`
 
@@ -97,8 +97,9 @@ func InitConfig(config *GBPServerConfig) {
 	flag.IntVar(&config.StatusPort, "status-port", 8092, "TCP port to run status server on (or 0 to disable)")
 	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port to run grpc server on")
 	flag.IntVar(&config.ProxyListenPort, "proxy-listen-port", 8899, "TCP port to run apic proxy listener on(0 to disable)")
-	//flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "apicless", "Tenant")
 	flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "kube", "Tenant")
+	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubedom", "VmmDomain")
+	flag.StringVar(&config.AciVrf, "aci-vrf", "defaultVrf", "Vrf")
 	flag.StringVar(&config.EtcdDir, "etcd-dir", "/var/gbpserver/etcd", "Etcd dir")
 	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")

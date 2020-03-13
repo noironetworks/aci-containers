@@ -255,7 +255,7 @@ func (bd *GBPBridgeDomain) Make(name, uri, subnetsUri string) error {
 	bdnw.Make("", bdnwUri+"/")
 	vrfRef := Reference{
 		Subject:      subjVRF,
-		ReferenceUri: getTenantUri() + defVrfURI,
+		ReferenceUri: getVrfUri(),
 	}
 	bdnw.AddProperty(propTarget, vrfRef)
 	bdnw.SetParent(bd.Subject, bdnw.Subject, bd.Uri)
@@ -613,7 +613,7 @@ func CreateDefSubnet(subnet string) {
 func CreateDefVrf() {
 	vrf := &GBPRoutingDomain{}
 	// TODO: add subnet ref if necessary
-	vrf.Make(defVrfName, getTenantUri()+defVrfURI)
+	vrf.Make(getVrfName(), getVrfUri())
 }
 
 func CreateDefFD() {
