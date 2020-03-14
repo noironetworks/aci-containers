@@ -89,6 +89,7 @@ type HostAgent struct {
 	snatPolicyLabels map[string]map[string]ResourceType
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 	rdConfig         *opflexRdConfig
+	ocServices       []opflexOcService // OpenShiftservices
 }
 
 type Vtep struct {
@@ -120,6 +121,12 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
+		ocServices: []opflexOcService{
+			{
+				Name:      RouterInternalDefult,
+				Namespace: OpenShiftIngress,
+			},
+		},
 	}
 
 	ha.syncProcessors = map[string]func() bool{
