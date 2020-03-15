@@ -15,6 +15,7 @@
 package hostagent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -24,15 +25,17 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
-
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
 	"k8s.io/kubernetes/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 type opflexServiceMapping struct {
@@ -61,6 +64,28 @@ type opflexService struct {
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+// type of Openshift Infrastructure Ip's
+const (
+	IngressIp string = "IngressIp"
+	DnsIp     string = "DnsIp"
+)
+
+// Name of the Openshift Service
+const (
+	RouterInternalDefult string = "router-internal-default"
+)
+
+// Namespace of Openshift Service
+const (
+	OpenShiftIngress string = "openshift-ingress"
+)
+
+// Represent the Openshift services
+type opflexOcService struct {
+	Name      string
+	Namespace string
 }
 
 func (agent *HostAgent) initEndpointsInformerFromClient(
@@ -270,7 +295,6 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
-
 	hasValidMapping := false
 	for _, sp := range as.Spec.Ports {
 		for _, e := range endpoints.Subsets {
@@ -326,8 +350,41 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	if hasValidMapping {
 		if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {
 			agent.opflexServices[ofas.Uuid] = ofas
-			return true
+			if agent.config.AciVmmDomainType == "OpenShift" {
+				if !external {
+					for _, v := range agent.ocServices {
+						if v.Name != as.ObjectMeta.Name &&
+							v.Namespace != as.ObjectMeta.Namespace {
+							continue
+						}
+						var ingressIp string
+						if v.Name == RouterInternalDefult {
+							ingressIp = agent.getInfrastucreIp(IngressIp)
+						}
+						agent.log.Debug("IngresIP####: ", ingressIp)
+						if ingressIp == "" {
+							continue
+						}
+						ocas := &opflexService{
+							Uuid:              string(as.ObjectMeta.UID),
+							DomainPolicySpace: agent.config.AciVrfTenant,
+							DomainName:        agent.config.AciVrf,
+							ServiceMode:       "loadbalancer",
+							ServiceMappings:   make([]opflexServiceMapping, 0),
+						}
+						ocas.Uuid = ocas.Uuid + "-" + as.ObjectMeta.Name
+						for _, val := range ofas.ServiceMappings {
+							val.ServiceIp = ingressIp
+							ocas.ServiceMappings = append(ocas.ServiceMappings, val)
+						}
+						ocas.Attributes = ofas.Attributes
+						agent.opflexServices[ocas.Uuid] = ocas
+					}
+				}
+			}
 		}
+		agent.log.Debug("service name and Namespace: ", ofas)
+		return true
 	} else {
 		if ok {
 			delete(agent.opflexServices, ofas.Uuid)
@@ -348,6 +405,7 @@ func (agent *HostAgent) doUpdateService(key string) {
 		return
 	}
 	if !exists || endpointsobj == nil {
+		agent.log.Debug("no endpoints: ")
 		return
 	}
 	asobj, exists, err := agent.serviceInformer.GetStore().GetByKey(key)
@@ -362,7 +420,6 @@ func (agent *HostAgent) doUpdateService(key string) {
 
 	endpoints := endpointsobj.(*v1.Endpoints)
 	as := asobj.(*v1.Service)
-
 	doSync := false
 	doSync = agent.updateServiceDesc(false, as, endpoints) || doSync
 	doSync = agent.updateServiceDesc(true, as, endpoints) || doSync
@@ -412,6 +469,12 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 	if _, ok := agent.opflexServices[u]; ok {
 		delete(agent.opflexServices, u)
 		delete(agent.opflexServices, u+"-external")
+		for _, v := range agent.ocServices {
+			if v.Name == as.ObjectMeta.Name &&
+				v.Namespace == as.ObjectMeta.Namespace {
+				delete(agent.opflexServices, u+"-"+v.Name)
+			}
+		}
 		agent.scheduleSyncServices()
 	}
 	agent.handleObjectDeleteForSnat(obj)
@@ -435,4 +498,45 @@ func (agent *HostAgent) updateAllServices() {
 	for _, key := range keys {
 		agent.doUpdateService(key)
 	}
+}
+
+func (agent *HostAgent) getInfrastucreIp(ipType string) string {
+	infraStructureInfo := &configv1.Infrastructure{
+		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+	}
+	cfg, err := config.GetConfig()
+	scheme := runtime.NewScheme()
+	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &configv1.Infrastructure{})
+	err = configv1.Install(scheme)
+	if err != nil {
+		agent.log.Error("failed to Install: ", err)
+		return ""
+	}
+	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return ""
+	}
+	if rclient == nil {
+		return ""
+	}
+	err = rclient.Get(context.TODO(), types.NamespacedName{
+		Name: "cluster"}, infraStructureInfo)
+	agent.log.Debug("infraStructureInfo####: ", infraStructureInfo, err)
+	if err != nil {
+		return ""
+	}
+	if infraStructureInfo.Status.Platform == configv1.OpenStackPlatformType {
+		if infraStructureInfo.Status.PlatformStatus != nil &&
+			infraStructureInfo.Status.PlatformStatus.OpenStack != nil {
+			agent.log.Debug("IngressIP: ", infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP)
+			switch ipType {
+			case IngressIp:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP
+			case DnsIp:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.NodeDNSIP
+			}
+		}
+	}
+	return ""
 }
