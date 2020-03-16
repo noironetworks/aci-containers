@@ -66,20 +66,18 @@ type opflexService struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-// type of Openshift Infrastructure Ip's
-const (
-	IngressIp string = "IngressIp"
-	DnsIp     string = "DnsIp"
-)
-
 // Name of the Openshift Service
 const (
-	RouterInternalDefult string = "router-internal-default"
+	RouterInternalDefault string = "router-internal-default"
+	DnsDefault            string = "dns-default"
+	ApiServer             string = "kubernetes"
 )
 
 // Namespace of Openshift Service
 const (
-	OpenShiftIngress string = "openshift-ingress"
+	OpenShiftIngressNs string = "openshift-ingress"
+	OpenShiftDnsNs     string = "openshift-dns"
+	DefaultNs          string = "default"
 )
 
 // Represent the Openshift services
@@ -357,12 +355,9 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 							v.Namespace != as.ObjectMeta.Namespace {
 							continue
 						}
-						var ingressIp string
-						if v.Name == RouterInternalDefult {
-							ingressIp = agent.getInfrastucreIp(IngressIp)
-						}
-						agent.log.Debug("IngresIP####: ", ingressIp)
-						if ingressIp == "" {
+						InfraIp := agent.getInfrastucreIp(v.Name)
+						agent.log.Debug("InfraIp####: ", InfraIp)
+						if InfraIp == "" {
 							continue
 						}
 						ocas := &opflexService{
@@ -374,7 +369,7 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 						}
 						ocas.Uuid = ocas.Uuid + "-" + as.ObjectMeta.Name
 						for _, val := range ofas.ServiceMappings {
-							val.ServiceIp = ingressIp
+							val.ServiceIp = InfraIp
 							ocas.ServiceMappings = append(ocas.ServiceMappings, val)
 						}
 						ocas.Attributes = ofas.Attributes
@@ -500,7 +495,8 @@ func (agent *HostAgent) updateAllServices() {
 	}
 }
 
-func (agent *HostAgent) getInfrastucreIp(ipType string) string {
+// This API is get the OpenShift InfrastructreIp's
+func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 	infraStructureInfo := &configv1.Infrastructure{
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
@@ -508,11 +504,6 @@ func (agent *HostAgent) getInfrastucreIp(ipType string) string {
 	cfg, err := config.GetConfig()
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &configv1.Infrastructure{})
-	err = configv1.Install(scheme)
-	if err != nil {
-		agent.log.Error("failed to Install: ", err)
-		return ""
-	}
 	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return ""
@@ -522,19 +513,19 @@ func (agent *HostAgent) getInfrastucreIp(ipType string) string {
 	}
 	err = rclient.Get(context.TODO(), types.NamespacedName{
 		Name: "cluster"}, infraStructureInfo)
-	agent.log.Debug("infraStructureInfo####: ", infraStructureInfo, err)
 	if err != nil {
 		return ""
 	}
 	if infraStructureInfo.Status.Platform == configv1.OpenStackPlatformType {
 		if infraStructureInfo.Status.PlatformStatus != nil &&
 			infraStructureInfo.Status.PlatformStatus.OpenStack != nil {
-			agent.log.Debug("IngressIP: ", infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP)
-			switch ipType {
-			case IngressIp:
+			switch serviceName {
+			case RouterInternalDefault:
 				return infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP
-			case DnsIp:
+			case DnsDefault:
 				return infraStructureInfo.Status.PlatformStatus.OpenStack.NodeDNSIP
+			case ApiServer:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.APIServerInternalIP
 			}
 		}
 	}
