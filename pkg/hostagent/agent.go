@@ -123,8 +123,16 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			}, "sync"),
 		ocServices: []opflexOcService{
 			{
-				Name:      RouterInternalDefult,
-				Namespace: OpenShiftIngress,
+				RouterInternalDefault,
+				OpenShiftIngressNs,
+			},
+			{
+				DnsDefault,
+				OpenShiftDnsNs,
+			},
+			{
+				ApiServer,
+				DefaultNs,
 			},
 		},
 	}
