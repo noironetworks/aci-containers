@@ -1,0 +1,61 @@
+#
+# Configuration for ACI Fabric
+#
+aci_config:
+  system_id: gui_test_cluster             # Every opflex cluster must have a distinct ID
+  #apic-refreshtime: 1200       # Subscrption refresh-interval in seconds; Max=43200
+  apic_hosts:                   # List of cAPIC hosts to connect for APIC API
+  - APIC_IP
+  tenant:
+    name: TENANT
+  vrf:                          # This VRF used to create all kubernetes EPs
+    name: UNDERLAY_VRF
+    tenant: TENANT
+    cloud_account: CLOUD_ACCOUNT       # Cloud Account ID
+    region: CLOUD_REGION                    # REQUIRED -- your aws region
+  custom_epgs:                 # List of additional endpoint-group names
+    - epg-a            # to configure for use with annotations
+  #  - custom_group2
+
+#
+# Networks used by ACI containers
+#
+net_config:
+  pod_subnet: 14.3.0.1/16       # Subnet to use for Kubernetes
+                                #   Pods/CloudFoundry containers
+  extern_dynamic: 10.3.0.1/24   # Subnet to use for dynamic external IPs
+  extern_static: 10.4.0.1/24    # Subnet to use for static external IPs
+  node_svc_subnet: 10.5.0.1/24  # remove
+  node_subnet: 10.6.0.1/24  # remove
+  opflex_server_port: 19999 # remove
+  #interface_mtu: 1600          # min = 1280 for ipv6, max = 8900 for VXLAN
+  #service_monitor_interval: 5  # IPSLA interval probe time for PBR tracking
+                                # default is 5, set to 0 to disable, max: 65535
+  #pbr_tracking_non_snat: true  # Default is false, set to true for IPSLA to
+                                # be effective with non-snat services
+
+#
+# Configuration for container registry
+# Update if a custom container registry has been setup
+#
+registry:
+  image_prefix: noirolabs                   # e.g: registry.example.com/noiro
+  aci_containers_host_version: gui_test
+  opflex_agent_version: gui_test
+  opflex_server_version: gui_test
+  openvswitch_version: gui_test
+  gbp_version: gui_test
+  aci_containers_controller_version: gui_test
+  
+  # image_pull_secret: secret_name      # (if needed)
+
+kube_config:
+  run_snat_container: false
+  run_gbp_container: true
+  ep_registry: k8s
+  opflex_mode: overlay
+  # ovs_memory_limit: "20Gi"            # override if needed, default is "1Gi"
+  # reboot_opflex_with_ovs: "false"     # override if needed, default is "true"
+
+istio_config:
+  install_istio: False          # default is True
