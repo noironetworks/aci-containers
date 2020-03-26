@@ -84,11 +84,9 @@ type CapicEPMsg struct {
 	EpgDN       string `json:"epg-dn,omitempty"`
 	ContainerID string `json:"containerid,omitempty"`
 	SubnetDN    string `json:"subnet-dn,omitempty"`
-	//	CIDR        string `json:"cidr,omitempty"`
-	VrfDN string `json:"vrf-dn,omitempty"`
-	//	Region      string `json:"region,omitempty"`
-	//	Account     string `json:"account,omitempty"`
-	PodDN       string `json:"pod-dn,omitempty"`
+	VrfDN       string `json:"vrf-dn,omitempty"`
+	// this needs to be the DN of the pod, for gui
+	PodNameDN   string `json:"pod-name,omitempty"`
 	ClusterName string `json:"cluster-name,omitempty"`
 	delete      bool   // internal use
 }
@@ -139,7 +137,12 @@ func (kc *KafkaClient) getEpgDN(name string) string {
 	}
 	logrus.Warnf("epg %s dn not found, generating", name)
 	tenant := dnToTenant(kc.cloudInfo.VRF)
-	return fmt.Sprintf("uni/tn-%s/cloudapp-%s/cloudepg-%s", tenant, tenant, name)
+	return fmt.Sprintf("uni/tn-%s/cloudapp-%s/cloudepg-%s", tenant, kc.cloudInfo.ClusterName, name)
+}
+
+func (kc *KafkaClient) getPodDN(ep *v1.PodIFStatus) string {
+	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/ns-%s/grp-%s",
+		kc.cloudInfo.ClusterName, kc.cloudInfo.ClusterName, ep.PodNS, ep.PodName)
 }
 
 func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
@@ -152,7 +155,7 @@ func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
 		SubnetDN:    kc.cloudInfo.Subnet,
 		VrfDN:       kc.cloudInfo.VRF,
 		ContainerID: ep.ContainerID,
-		//PodDN: tbd,
+		PodNameDN:   kc.getPodDN(ep),
 		ClusterName: kc.cloudInfo.ClusterName,
 	}
 
@@ -325,8 +328,8 @@ func (kc *KafkaClient) sendOneMsg(key string, val *CapicEPMsg, delay time.Durati
 }
 
 func dnToTenant(dn string) string {
-	s := strings.TrimPrefix(dn, "uni/tn-")
-	parts := strings.Split(s, "/")
+	s := strings.TrimPrefix(dn, "acct-[")
+	parts := strings.Split(s, "]")
 	if len(parts) > 1 {
 		return parts[0]
 	}

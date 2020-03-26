@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-a
+  annotations:
+        "opflex.cisco.com/endpoint-group": '{"policy-space":"defaultTenant","name":"epg-a"}'
+spec:
+  containers:
+  - name: pod-a
+    image: alpine
+    command: ["sleep"]
+    args: ["7200"]
