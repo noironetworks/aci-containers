@@ -351,11 +351,15 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 			if agent.config.AciVmmDomainType == "OpenShift" {
 				if !external {
 					for _, v := range agent.ocServices {
-						if v.Name != as.ObjectMeta.Name &&
-							v.Namespace != as.ObjectMeta.Namespace {
+						// Check for Namespace is equal
+						if v.Namespace != as.ObjectMeta.Namespace {
 							continue
 						}
-						InfraIp := agent.getInfrastucreIp(v.Name)
+						// Check Service Name is equal
+						if v.Name != as.ObjectMeta.Name {
+							continue
+						}
+						InfraIp := agent.getInfrastucreIp(as.ObjectMeta.Name)
 						agent.log.Debug("InfraIp####: ", InfraIp)
 						if InfraIp == "" {
 							continue
@@ -378,7 +382,6 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 				}
 			}
 		}
-		agent.log.Debug("service name and Namespace: ", ofas)
 		return true
 	} else {
 		if ok {
