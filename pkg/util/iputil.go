@@ -37,7 +37,12 @@ func GetIPsFromCIDR(cidr string) []string {
 	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 		output = append(output, ip.String())
 	}
-	return output[0:len(output)]
+	length := len(output)
+	if length == 1 {
+		return output
+	} else {
+		return output[1 : length-1]
+	}
 }
 
 // Given two slices of IP addresses, finds the difference of two sets
