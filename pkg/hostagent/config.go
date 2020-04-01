@@ -132,6 +132,15 @@ type HostAgentConfig struct {
 	// Location of the packet event notification socket which listens to opflex-agent packet events
 	PacketEventNotificationSock string `json:"packet-event-notification-socket,omitempty"`
 
+	// Directory for drop log config
+	OpFlexDropLogConfigDir string `json:"opflex-drop-log-config-dir,omitempty"`
+
+	// Drop log network namespace
+	OpFlexDropLogNetNamespace string `json:"opflex-drop-log-net-ns,omitempty"`
+
+	// RemoteIp for opflex drop logger
+	OpFlexDropLogRemoteIp string `json:"opflex-drop-log-remote-ip,omitempty"`
+
 	// Location of the OVS DB socket
 	OvsDbSock string `json:"ovs-db-sock,omitempty"`
 
@@ -241,6 +250,9 @@ func (config *HostAgentConfig) InitFlags() {
 		"/usr/local/var/lib/opflex-server/config.json",
 		"Config file for opflex server")
 	flag.StringVar(&config.PacketEventNotificationSock, "packet-event-notification-socket", "/usr/local/var/run/aci-containers-packet-event-notification.sock", "Location of the packet event notification socket")
+	flag.StringVar(&config.OpFlexDropLogConfigDir, "opflex-drop-log-config-dir", "/usr/local/var/lib/opflex-agent-ovs/droplog", "Directory for writing OpFlex drop logging configuration")
+	flag.StringVar(&config.OpFlexDropLogNetNamespace, "opflex-drop-log-net-ns", "/usr/local/var/run/netns/DropLog", "Network namespace path for OpFlex Drop Logger")
+	flag.StringVar(&config.OpFlexDropLogRemoteIp, "opflex-drop-log-remote-ip", "192.168.1.2", "Listening IPv4 address for OpFlex Drop Logger")
 	flag.StringVar(&config.OvsDbSock, "ovs-db-sock", "/usr/local/var/run/openvswitch/db.sock", "Location of the OVS DB socket")
 	flag.StringVar(&config.EpRpcSock, "ep-rpc-sock", "/usr/local/var/run/aci-containers-ep-rpc.sock", "Location of the endpoint RPC socket used for communicating with the CNI plugin")
 	flag.StringVar(&config.EpRpcSockPerms, "ep-rpc-sock-perms", "", "Permissions to set for endpoint RPC socket file. Octal string")
