@@ -90,7 +90,8 @@ type HostAgent struct {
 	snatPolicyLabels map[string]map[string]ResourceType
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 	rdConfig         *opflexRdConfig
-        poster           *EventPoster
+	poster           *EventPoster
+	ocServices       []opflexOcService // OpenShiftservices
 }
 
 type Vtep struct {
@@ -106,7 +107,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexEps:      make(map[string][]*opflexEndpoint),
 		opflexServices: make(map[string]*opflexService),
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
-	        podIpToName:    make(map[string]string),
+		podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
 
 		podIps: ipam.NewIpCache(),
@@ -123,6 +124,20 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
+		ocServices: []opflexOcService{
+			{
+				RouterInternalDefault,
+				OpenShiftIngressNs,
+			},
+			{
+				DnsDefault,
+				OpenShiftDnsNs,
+			},
+			{
+				ApiServer,
+				DefaultNs,
+			},
+		},
 	}
 
 	ha.syncProcessors = map[string]func() bool{

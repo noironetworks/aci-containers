@@ -15,6 +15,7 @@
 package hostagent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -24,15 +25,17 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
-
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
 	"k8s.io/kubernetes/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 type opflexServiceMapping struct {
@@ -61,6 +64,26 @@ type opflexService struct {
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+// Name of the Openshift Service
+const (
+	RouterInternalDefault string = "router-internal-default"
+	DnsDefault            string = "dns-default"
+	ApiServer             string = "kubernetes"
+)
+
+// Namespace of Openshift Service
+const (
+	OpenShiftIngressNs string = "openshift-ingress"
+	OpenShiftDnsNs     string = "openshift-dns"
+	DefaultNs          string = "default"
+)
+
+// Represent the Openshift services
+type opflexOcService struct {
+	Name      string
+	Namespace string
 }
 
 func (agent *HostAgent) initEndpointsInformerFromClient(
@@ -270,7 +293,6 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
 		ofas.Uuid = ofas.Uuid + "-external"
 	}
-
 	hasValidMapping := false
 	for _, sp := range as.Spec.Ports {
 		for _, e := range endpoints.Subsets {
@@ -326,8 +348,41 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	if hasValidMapping {
 		if (ok && !reflect.DeepEqual(existing, ofas)) || !ok {
 			agent.opflexServices[ofas.Uuid] = ofas
-			return true
+			if agent.config.AciVmmDomainType == "OpenShift" {
+				if !external {
+					for _, v := range agent.ocServices {
+						// Check for Namespace is equal
+						if v.Namespace != as.ObjectMeta.Namespace {
+							continue
+						}
+						// Check Service Name is equal
+						if v.Name != as.ObjectMeta.Name {
+							continue
+						}
+						InfraIp := agent.getInfrastucreIp(as.ObjectMeta.Name)
+						agent.log.Debug("InfraIp####: ", InfraIp)
+						if InfraIp == "" {
+							continue
+						}
+						ocas := &opflexService{
+							Uuid:              string(as.ObjectMeta.UID),
+							DomainPolicySpace: agent.config.AciVrfTenant,
+							DomainName:        agent.config.AciVrf,
+							ServiceMode:       "loadbalancer",
+							ServiceMappings:   make([]opflexServiceMapping, 0),
+						}
+						ocas.Uuid = ocas.Uuid + "-" + as.ObjectMeta.Name
+						for _, val := range ofas.ServiceMappings {
+							val.ServiceIp = InfraIp
+							ocas.ServiceMappings = append(ocas.ServiceMappings, val)
+						}
+						ocas.Attributes = ofas.Attributes
+						agent.opflexServices[ocas.Uuid] = ocas
+					}
+				}
+			}
 		}
+		return true
 	} else {
 		if ok {
 			delete(agent.opflexServices, ofas.Uuid)
@@ -348,6 +403,7 @@ func (agent *HostAgent) doUpdateService(key string) {
 		return
 	}
 	if !exists || endpointsobj == nil {
+		agent.log.Debug("no endpoints: ")
 		return
 	}
 	asobj, exists, err := agent.serviceInformer.GetStore().GetByKey(key)
@@ -362,7 +418,6 @@ func (agent *HostAgent) doUpdateService(key string) {
 
 	endpoints := endpointsobj.(*v1.Endpoints)
 	as := asobj.(*v1.Service)
-
 	doSync := false
 	doSync = agent.updateServiceDesc(false, as, endpoints) || doSync
 	doSync = agent.updateServiceDesc(true, as, endpoints) || doSync
@@ -412,6 +467,12 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 	if _, ok := agent.opflexServices[u]; ok {
 		delete(agent.opflexServices, u)
 		delete(agent.opflexServices, u+"-external")
+		for _, v := range agent.ocServices {
+			if v.Name == as.ObjectMeta.Name &&
+				v.Namespace == as.ObjectMeta.Namespace {
+				delete(agent.opflexServices, u+"-"+v.Name)
+			}
+		}
 		agent.scheduleSyncServices()
 	}
 	agent.handleObjectDeleteForSnat(obj)
@@ -435,4 +496,41 @@ func (agent *HostAgent) updateAllServices() {
 	for _, key := range keys {
 		agent.doUpdateService(key)
 	}
+}
+
+// This API is get the OpenShift InfrastructreIp's
+func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
+	infraStructureInfo := &configv1.Infrastructure{
+		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+	}
+	cfg, err := config.GetConfig()
+	scheme := runtime.NewScheme()
+	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &configv1.Infrastructure{})
+	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return ""
+	}
+	if rclient == nil {
+		return ""
+	}
+	err = rclient.Get(context.TODO(), types.NamespacedName{
+		Name: "cluster"}, infraStructureInfo)
+	if err != nil {
+		return ""
+	}
+	if infraStructureInfo.Status.Platform == configv1.OpenStackPlatformType {
+		if infraStructureInfo.Status.PlatformStatus != nil &&
+			infraStructureInfo.Status.PlatformStatus.OpenStack != nil {
+			switch serviceName {
+			case RouterInternalDefault:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP
+			case DnsDefault:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.NodeDNSIP
+			case ApiServer:
+				return infraStructureInfo.Status.PlatformStatus.OpenStack.APIServerInternalIP
+			}
+		}
+	}
+	return ""
 }
