@@ -17,6 +17,7 @@ package watchers
 
 import (
 	"fmt"
+	"github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
@@ -37,11 +38,13 @@ func (s *k8s_suite) setup() {
 	gCfg.PodSubnet = "10.2.56.1/21"
 	gCfg.NodeSubnet = "1.100.201.0/24"
 	gCfg.AciPolicyTenant = "defaultTenant"
+	log := logrus.WithField("mod", "test")
 	s.s = gbpserver.NewServer(gCfg)
 
 	s.kw = &K8sWatcher{
+		log: log,
 		gs:  s.s,
-		idb: newIntentDB(s.s),
+		idb: newIntentDB(s.s, log),
 	}
 }
 

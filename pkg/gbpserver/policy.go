@@ -129,7 +129,7 @@ func (c *Contract) makeClassifiers() error {
 
 		if wRule.Ports.Start != 0 || wRule.Ports.End != 0 {
 			// add a reverse rule
-			log.Infof("Adding revserse rule for %+v", wRule)
+			log.Debugf("Adding revserse rule for %+v", wRule)
 			err := c.addRule(wRule, revClassify)
 			if err != nil {
 				return err
@@ -143,13 +143,13 @@ func (c *Contract) makeClassifiers() error {
 
 func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	uri, cname := c.getClassifierURI(dir, &r)
-	log.Infof("uri: %s, name: %s", uri, cname)
+	log.Debugf("uri: %s, name: %s", uri, cname)
 	c.classifierUris = append(c.classifierUris, uri)
 	moDB := getMoDB()
 	baseMo := moDB[uri]
 
 	if baseMo != nil {
-		log.Infof("==> Mo exists")
+		log.Debugf("==> Mo exists")
 		return nil
 	}
 
@@ -604,7 +604,7 @@ func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	e := &EPG{}
 	e.FromMo(eMo)
 
-	log.Infof("Key: %s", uri)
+	log.Debugf("Key: %s", uri)
 	return e, nil
 }
 
@@ -668,7 +668,7 @@ func getContract(w http.ResponseWriter, r *http.Request, vars map[string]string)
 	c := &Contract{}
 	c.FromMo(cMo)
 
-	log.Infof("Key: %s", uri)
+	log.Debugf("Key: %s", uri)
 	return c, nil
 }
 
@@ -684,7 +684,7 @@ func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string
 
 	k := strings.Replace(uri[0], "|", "%7c", -1)
 	delete(getMoDB(), k)
-	log.Infof("%s deleted", k)
+	log.Debugf("%s deleted", k)
 	DoAll()
 	return nil, nil
 }
@@ -739,7 +739,7 @@ func (np *NetworkPolicy) Make() error {
 	hpp.Subject = subjSecGroup
 	hpp.Uri = np.getURI()
 	hpp.AddProperty(propName, np.HostprotPol.Attributes[propName])
-	log.Infof("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.Uri)
+	log.Debugf("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.Uri)
 	hpp.save()
 	c := np.HostprotPol.getChild("hostprotSubj")
 	if c == nil {
@@ -909,7 +909,7 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	//		log.Infof("No subnets in network policy")
 	//		return
 	//	}
-	log.Infof("Subnets are: %v", ipSet)
+	log.Debugf("Subnets are: %v", ipSet)
 	ss := &GBPSubnetSet{}
 	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), escapeName(name, false))
 	ss.Make(name, ssUri)

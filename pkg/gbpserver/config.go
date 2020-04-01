@@ -21,8 +21,14 @@ import (
 
 // Configuration for the gbpserver
 type GBPServerConfig struct {
-	// Log level
+	// General log level
 	LogLevel string `json:"log-level,omitempty"`
+
+	// GRPC log level
+	GRPCLogLevel string `json:"grpc-log-level,omitempty"`
+
+	// Watch log level
+	WatchLogLevel string `json:"watch-log-level,omitempty"`
 
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
@@ -92,7 +98,8 @@ type ApicInfo struct {
 
 func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
-
+	flag.StringVar(&config.GRPCLogLevel, "grpc-log-level", "info", "Log level")
+	flag.StringVar(&config.WatchLogLevel, "watch-log-level", "info", "Log level")
 	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
 	flag.IntVar(&config.StatusPort, "status-port", 8092, "TCP port to run status server on (or 0 to disable)")
 	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port to run grpc server on")

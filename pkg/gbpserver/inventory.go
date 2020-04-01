@@ -458,7 +458,7 @@ func deleteEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]stri
 		return nil, err
 	}
 
-	log.Infof("deleteEndpoint - VTEP: %s", ep.VTEP)
+	log.Debugf("deleteEndpoint - VTEP: %s", ep.VTEP)
 	err = ep.Delete()
 	DoAll()
 	return nil, err

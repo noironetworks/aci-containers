@@ -212,6 +212,7 @@ func TestNew(t *testing.T) {
 	ts := &suite{}
 	ts.setup() // empty kafka
 
+	loge := log.WithField("mod", "test")
 	cfg := &KafkaCfg{
 		Topic: "clusterA",
 	}
@@ -224,6 +225,7 @@ func TestNew(t *testing.T) {
 
 	// setup an empty cni cache
 	cCache := &podIFCache{
+		log:       loge,
 		cache:     make(map[string]*CapicEPMsg),
 		state:     markerSet,
 		markerID:  testMarkerID,
@@ -235,12 +237,13 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, cCache.state, markerReceived)
 
 	kc := &KafkaClient{
+		log:        loge,
 		cfg:        cfg,
 		cloudInfo:  cloud,
 		producer:   ts,
 		consumer:   ts,
 		cniCache:   cCache,
-		kafkaCache: &epCache{},
+		kafkaCache: &epCache{log: loge},
 		inbox:      make(chan *CapicEPMsg, inboxSize),
 	}
 
@@ -288,6 +291,7 @@ func TestExisting(t *testing.T) {
 	ts := &suite{}
 	ts.setup() // empty kafka
 
+	loge := log.WithField("mod", "test")
 	cfg := &KafkaCfg{
 		Topic: "clusterA",
 	}
@@ -300,6 +304,7 @@ func TestExisting(t *testing.T) {
 
 	// setup an cni cache
 	cCache := &podIFCache{
+		log:       loge,
 		cache:     make(map[string]*CapicEPMsg),
 		state:     markerSet,
 		markerID:  testMarkerID,
@@ -361,12 +366,13 @@ func TestExisting(t *testing.T) {
 	}
 
 	kc := &KafkaClient{
+		log:        loge,
 		cfg:        cfg,
 		cloudInfo:  cloud,
 		producer:   ts,
 		consumer:   ts,
 		cniCache:   cCache,
-		kafkaCache: &epCache{},
+		kafkaCache: &epCache{log: loge},
 		inbox:      make(chan *CapicEPMsg, inboxSize),
 	}
 

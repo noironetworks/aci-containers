@@ -118,7 +118,7 @@ func (g *gbpBaseMo) preOrder(moList []*GBPObject) []*GBPObject {
 // delete children and then self from the DB
 func (g *gbpBaseMo) delRecursive() {
 	if g.permanent {
-		log.Infof("delRecursive: %s - permanent", g.Uri)
+		log.Debugf("delRecursive: %s - permanent", g.Uri)
 		return
 	}
 
