@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
@@ -40,6 +40,7 @@ const (
 
 // implements the k8s side sync cache
 type podIFCache struct {
+	log       *logrus.Entry
 	cache     map[string]*CapicEPMsg
 	crdClient aciv1.AciV1Interface
 	state     int
@@ -78,7 +79,7 @@ func (pc *podIFCache) Init() error {
 					break
 				}
 
-				log.Errorf("Create podif marker - %v, will retry", err)
+				pc.log.Errorf("Create podif marker - %v, will retry", err)
 				time.Sleep(retryTime)
 				continue
 			}
@@ -90,9 +91,9 @@ func (pc *podIFCache) Init() error {
 				break
 			}
 
-			log.Errorf("Update podif marker - %v, will retry", err)
+			pc.log.Errorf("Update podif marker - %v, will retry", err)
 		}
-		log.Infof("Marker with ID: %s set", pc.markerID)
+		pc.log.Infof("Marker with ID: %s set", pc.markerID)
 	}()
 
 	pc.readyChan = make(chan bool)
@@ -108,7 +109,7 @@ func (pc *podIFCache) ReadyToFwd(key string, msg *CapicEPMsg) bool {
 	if msg.ContainerID == pc.markerID {
 		if pc.state == markerSet { // ignore duplicates
 			pc.state = markerReceived
-			log.Infof("PodIF marker received")
+			pc.log.Infof("PodIF marker received")
 			close(pc.readyChan)
 		}
 
@@ -129,6 +130,7 @@ func (pc *podIFCache) Read() map[string]*CapicEPMsg {
 }
 
 type epCache struct {
+	log          *logrus.Entry
 	cache        map[string]*CapicEPMsg
 	consumer     sarama.PartitionConsumer
 	markerOffset int64
@@ -147,26 +149,26 @@ func (ec *epCache) Init(markerOffset int64, consumer sarama.PartitionConsumer) c
 
 			m, ok := <-consChan
 			if !ok {
-				log.Infof("Consumer closed")
+				ec.log.Infof("Consumer closed")
 				return
 			}
 
 			if m.Offset == markerOffset {
-				log.Infof("Marker received")
+				ec.log.Infof("Marker received")
 				close(ec.readyChan)
 				return
 			}
 
 			if m.Value == nil { // delete
 				delete(ec.cache, string(m.Key))
-				log.Infof(">>>> epCache: Received delete: %s", m.Key)
+				ec.log.Debugf(">>>> epCache: Received delete: %s", m.Key)
 				continue
 			}
 
 			epMsg := new(CapicEPMsg)
 			err := json.Unmarshal(m.Value, epMsg)
 			if err != nil {
-				log.Errorf("epcache.Init : %v, unmarshaling %s", err, m.Value)
+				ec.log.Errorf("epcache.Init : %v, unmarshaling %s", err, m.Value)
 				continue
 			}
 
@@ -187,7 +189,7 @@ func (ec *epCache) MsgDiff(desired map[string]*CapicEPMsg) map[string]*CapicEPMs
 		_, present := desired[k]
 		if !present {
 			diff[k] = nil
-			log.Infof("Delete %s", k)
+			ec.log.Debugf("Delete %s", k)
 		}
 	}
 
@@ -197,14 +199,14 @@ func (ec *epCache) MsgDiff(desired map[string]*CapicEPMsg) map[string]*CapicEPMs
 	for k, v := range desired {
 		currV := curr[k]
 		if reflect.DeepEqual(v, currV) {
-			log.Infof("%s already exists", k)
+			ec.log.Debugf("%s already exists", k)
 			continue
 		}
 
 		diff[k] = v
-		log.Infof("%s added", k)
+		ec.log.Debugf("%s added", k)
 	}
 
-	log.Infof(">>>> Diff: %+v", diff)
+	ec.log.Debugf(">>>> Diff: %+v", diff)
 	return diff
 }

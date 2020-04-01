@@ -33,6 +33,9 @@ type suite struct {
 
 func (s *suite) setup() {
 	gCfg := &gbpserver.GBPServerConfig{}
+	gCfg.LogLevel = "info"
+	gCfg.GRPCLogLevel = "info"
+	gCfg.WatchLogLevel = "info"
 	gCfg.GRPCPort = 19999
 	gCfg.ProxyListenPort = 8899
 	gCfg.PodSubnet = "10.2.56.1/21"

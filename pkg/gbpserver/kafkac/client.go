@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -37,6 +35,7 @@ const (
 )
 
 type KafkaClient struct {
+	log       *logrus.Entry
 	cfg       *KafkaCfg
 	cloudInfo *CloudInfo
 	producer  sarama.SyncProducer
@@ -68,6 +67,7 @@ type CloudInfo struct {
 }
 
 type KafkaCfg struct {
+	KafkaLogLevel  string   `json:"kafka-log-level,omitempty"`
 	Brokers        []string `json:"brokers,omitempty"`
 	ClientKeyPath  string   `json:"client-key-path,omitempty"`
 	ClientCertPath string   `json:"client-cert-path,omitempty"`
@@ -92,17 +92,25 @@ type CapicEPMsg struct {
 }
 
 func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
-	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+	level, err := logrus.ParseLevel(cfg.KafkaLogLevel)
+	if err != nil {
+		level = logrus.InfoLevel
+	}
+	logger := logrus.New()
+	logger.Level = level
+	log := logger.WithField("mod", "KAFKA")
+	sarama.Logger = log
 	c := &KafkaClient{
+		log:        log,
 		cfg:        cfg,
 		cloudInfo:  ci,
-		cniCache:   &podIFCache{},
-		kafkaCache: &epCache{},
+		cniCache:   &podIFCache{log: log},
+		kafkaCache: &epCache{log: log},
 		inbox:      make(chan *CapicEPMsg, inboxSize),
 		epgToDn:    make(map[string]string),
 	}
 
-	err := c.cniCache.Init()
+	err = c.cniCache.Init()
 	if err != nil {
 		return nil, errors.Wrap(err, "cniCache.Init()")
 	}
@@ -111,7 +119,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 		for {
 			err = c.kafkaSetup()
 			if err != nil {
-				logrus.Errorf("kafkaSetup(): %v -- will retry", err)
+				log.Errorf("kafkaSetup(): %v -- will retry", err)
 				time.Sleep(retryTime)
 				continue
 			}
@@ -119,7 +127,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 			break
 		}
 
-		logrus.Infof("kafkaSetup succeeded, running...")
+		log.Infof("kafkaSetup succeeded, running...")
 		c.run()
 	}()
 
@@ -135,7 +143,7 @@ func (kc *KafkaClient) getEpgDN(name string) string {
 	if found {
 		return dn
 	}
-	logrus.Warnf("epg %s dn not found, generating", name)
+	kc.log.Warnf("epg %s dn not found, generating", name)
 	tenant := dnToTenant(kc.cloudInfo.VRF)
 	return fmt.Sprintf("uni/tn-%s/cloudapp-%s/cloudepg-%s", tenant, kc.cloudInfo.ClusterName, name)
 }
@@ -147,7 +155,7 @@ func (kc *KafkaClient) getPodDN(ep *v1.PodIFStatus) string {
 
 func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
 	epName := getEPName(ep)
-	logrus.Infof("kc.AddEP: %s", epName)
+	kc.log.Debugf("kc.AddEP: %s", epName)
 	msg := &CapicEPMsg{
 		Name:        epName,
 		IPAddr:      ep.IPAddr,
@@ -159,7 +167,7 @@ func (kc *KafkaClient) AddEP(ep *v1.PodIFStatus) error {
 		ClusterName: kc.cloudInfo.ClusterName,
 	}
 
-	logrus.Infof("kc.AddEP: %+v", msg)
+	kc.log.Debugf("kc.AddEP: %+v", msg)
 
 	key := epName
 	if !kc.cniCache.ReadyToFwd(key, msg) {
@@ -217,7 +225,7 @@ func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config
 
 func (kc *KafkaClient) kafkaSetup() error {
 
-	logrus.Infof("cfg is: %+v", kc.cfg)
+	kc.log.Infof("cfg is: %+v", kc.cfg)
 	producerConfig := sarama.NewConfig()
 	if kc.cfg.ClientKeyPath != "" {
 		tlsConfig, err := newTLSConfig(kc.cfg.ClientCertPath,
@@ -269,7 +277,7 @@ func (kc *KafkaClient) run() {
 	// wait for cniCache to sync
 	<-kc.cniCache.Ready()
 
-	logrus.Infof("cniCache is ready")
+	kc.log.Infof("cniCache is ready")
 
 	// send a marker msg
 	offset := kc.sendOneMsg(markerName, nil, 2*time.Second)
@@ -280,11 +288,11 @@ func (kc *KafkaClient) run() {
 
 	// apply the diff to bring kafka into sync. the order is
 	// irrelevant here, so we walk the map.
-	logrus.Infof("Applying diff")
+	kc.log.Debugf("Applying diff")
 	for k, v := range diff {
 		kc.sendOneMsg(k, v, time.Second)
 	}
-	logrus.Infof("Sync complete")
+	kc.log.Infof("Sync complete")
 
 	// process inbox -- forever
 	for m := range kc.inbox {
@@ -318,7 +326,7 @@ func (kc *KafkaClient) sendOneMsg(key string, val *CapicEPMsg, delay time.Durati
 	for {
 		_, offset, err := kc.producer.SendMessage(msg)
 		if err != nil {
-			logrus.Infof("producer.SendMessage - %v, will retry", err)
+			kc.log.Infof("producer.SendMessage - %v, will retry", err)
 			time.Sleep(delay)
 			continue
 		}

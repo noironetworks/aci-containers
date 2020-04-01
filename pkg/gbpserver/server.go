@@ -222,17 +222,14 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) (*Server, error) {
-	// init inventory
-	//InitInvDB()
-
 	// create an etcd client
-	log.Infof("=> Creating new client ..")
+	log.Debugf("=> Creating new client ..")
 	ec, err := objdb.NewClient(etcdURLs, root)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("=> New client created..")
+	log.Debugf("=> New client created..")
 	s := NewServer(config)
 	s.InitState(sd)
 	s.InitDB()
@@ -375,7 +372,7 @@ func (s *Server) getEncapClass(instURL string) (uint, uint) {
 
 func (s *Server) freeEncapClass(instURL string) {
 	class := s.instToClassID[instURL]
-	log.Infof("Freeing class: %v, uri: %s", class, instURL)
+	log.Debugf("Freeing class: %v, uri: %s", class, instURL)
 	delete(s.instToClassID, instURL)
 	delete(s.usedClassIDs, class)
 	s.writeState()
@@ -519,7 +516,7 @@ func (s *Server) handleMsgs() {
 				continue
 			}
 
-			log.Infof("OpaddEP: %+v", ep)
+			log.Debugf("OpaddEP: %+v", ep)
 			if ep.IPAddr != "" {
 				ep.Add()
 				for _, fn := range s.listeners {
@@ -549,7 +546,7 @@ func (s *Server) handleMsgs() {
 				continue
 			}
 
-			log.Infof("Got epg: %+v", epg)
+			log.Debugf("Got epg: %+v", epg)
 			epg.Make()
 			for _, fn := range s.listeners {
 				fn(GBPOperation_REPLACE, []string{epg.getURI()})
@@ -588,7 +585,7 @@ func (s *Server) handleMsgs() {
 			}
 
 			key := c.getURI()
-			log.Infof("delete contract: %s", key)
+			log.Debugf("delete contract: %s", key)
 			for _, fn := range s.listeners {
 				fn(GBPOperation_DELETE, []string{key})
 			}
@@ -684,7 +681,7 @@ func (s *Server) kafkaEPDel(ep *Endpoint) {
 
 func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 	uri := r.URL.RequestURI()
-	log.Infof("handleWrite: %s", uri)
+	log.Debugf("handleWrite: %s", uri)
 	content, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -703,7 +700,7 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	uri := r.URL.RequestURI()
 
-	log.Infof("handleRead: %s", uri)
+	log.Debugf("handleRead: %s", uri)
 	if strings.Contains(uri, versionPath) {
 		vR := &versionResp{}
 		vR.ServeHTTP(w, r)

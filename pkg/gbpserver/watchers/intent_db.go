@@ -17,7 +17,7 @@ package watchers
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
@@ -29,14 +29,16 @@ import (
 // updates can be generated when one of them changes.
 type intentDB struct {
 	sync.Mutex
+	log       *logrus.Entry
 	gs        *gbpserver.Server
 	filters   map[string]*filterNode
 	contracts map[string]*contractNode
 	epgs      map[string]*epgNode
 }
 
-func newIntentDB(gs *gbpserver.Server) *intentDB {
+func newIntentDB(gs *gbpserver.Server, log *logrus.Entry) *intentDB {
 	return &intentDB{
+		log:       log,
 		gs:        gs,
 		filters:   make(map[string]*filterNode),
 		contracts: make(map[string]*contractNode),
@@ -51,7 +53,7 @@ func (idb *intentDB) saveEPG(e *gbpserver.EPG) {
 	// if nothing changed, just ignore
 	curr := idb.epgs[en.name()]
 	if reflect.DeepEqual(en, curr) {
-		log.Infof("saveEPG: %s unchanged", en.name())
+		idb.log.Debugf("saveEPG: %s unchanged", en.name())
 		return
 	}
 
@@ -84,7 +86,7 @@ func (idb *intentDB) deleteEPG(e *gbpserver.EPG) {
 	en := &epgNode{epg: e}
 	curr := idb.epgs[en.name()]
 	if curr == nil {
-		log.Infof("Epg %s not found", en.name())
+		idb.log.Debugf("Epg %s not found", en.name())
 		return
 	}
 	delete(idb.epgs, en.name())
@@ -153,7 +155,7 @@ func (idb *intentDB) saveContract(cn *contractNode) {
 	}
 
 	if reflect.DeepEqual(cn, curr) {
-		log.Infof("saveContract: %s unchanged", cn.name())
+		idb.log.Debugf("saveContract: %s unchanged", cn.name())
 		return
 	}
 
@@ -180,7 +182,7 @@ func (idb *intentDB) saveFilter(name string, rules []v1.WLRule) {
 	}
 
 	if reflect.DeepEqual(curr, fn) {
-		log.Infof("Filter %s unchanged", name)
+		idb.log.Debugf("Filter %s unchanged", name)
 		return
 	}
 
@@ -194,7 +196,7 @@ func (idb *intentDB) deleteFilter(name string) {
 	defer idb.Unlock()
 	curr := idb.filters[name]
 	if curr == nil {
-		log.Infof("Filter %s not found", name)
+		idb.log.Debugf("Filter %s not found", name)
 		return
 	}
 
@@ -281,7 +283,7 @@ func (c *contractNode) delRef(to string) {
 func (c *contractNode) trickle(idb *intentDB, add bool) {
 	// resolve the contract
 	if c.a == nil && c.g == nil {
-		log.Infof("Contract not present yet")
+		idb.log.Debugf("Contract not present yet")
 		return
 	}
 
@@ -316,13 +318,13 @@ func (a *apicContract) genGbpContract(idb *intentDB) (*gbpserver.Contract, bool)
 	for _, f := range a.Filters {
 		r, ok := idb.filters[f]
 		if !ok {
-			log.Infof("%s unresolved Filter %s not found", a.Name, f)
+			idb.log.Infof("%s unresolved Filter %s not found", a.Name, f)
 			resolved = false
 			break
 		}
 
 		if r.rules == nil {
-			log.Infof("%s unresolved Rule for %s not found", a.Name, f)
+			idb.log.Infof("%s unresolved Rule for %s not found", a.Name, f)
 			resolved = false
 		}
 

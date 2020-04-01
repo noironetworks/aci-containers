@@ -17,7 +17,7 @@ package watchers
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -33,12 +33,20 @@ const (
 )
 
 type K8sWatcher struct {
+	log *logrus.Entry
 	gs  *gbpserver.Server
 	idb *intentDB
 	rc  restclient.Interface
 }
 
 func NewK8sWatcher(gs *gbpserver.Server) (*K8sWatcher, error) {
+	level, err := logrus.ParseLevel(gs.Config().WatchLogLevel)
+	if err != nil {
+		panic(err.Error())
+	}
+	logger := logrus.New()
+	logger.Level = level
+	log := logger.WithField("mod", "K8S-W")
 	cfg, err := restclient.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -50,9 +58,10 @@ func NewK8sWatcher(gs *gbpserver.Server) (*K8sWatcher, error) {
 	}
 	restClient := aciawClient.AciV1().RESTClient()
 	return &K8sWatcher{
+		log: log,
 		rc:  restClient,
 		gs:  gs,
-		idb: newIntentDB(gs),
+		idb: newIntentDB(gs, log),
 	}, nil
 }
 
@@ -124,11 +133,11 @@ func (kw *K8sWatcher) watchPodIFs(stopCh <-chan struct{}) {
 func (kw *K8sWatcher) epgAdded(obj interface{}) {
 	epgv1, ok := obj.(*aciv1.Epg)
 	if !ok {
-		log.Errorf("epgAdded: Bad object type")
+		kw.log.Errorf("epgAdded: Bad object type")
 		return
 	}
 
-	log.Infof("epgAdded - %s", epgv1.Spec.Name)
+	kw.log.Infof("epgAdded - %s", epgv1.Spec.Name)
 	e := &gbpserver.EPG{
 		Tenant:        kw.gs.Config().AciPolicyTenant,
 		Name:          epgv1.Spec.Name,
@@ -153,11 +162,11 @@ func (kw *K8sWatcher) epgAdded(obj interface{}) {
 func (kw *K8sWatcher) epgDeleted(obj interface{}) {
 	epgv1, ok := obj.(*aciv1.Epg)
 	if !ok {
-		log.Errorf("epgAdded: Bad object type")
+		kw.log.Errorf("epgAdded: Bad object type")
 		return
 	}
 
-	log.Infof("epgDeleted - %s", epgv1.Spec.Name)
+	kw.log.Infof("epgDeleted - %s", epgv1.Spec.Name)
 	e := &gbpserver.EPG{
 		Tenant: kw.gs.Config().AciPolicyTenant,
 		Name:   epgv1.Spec.Name,
@@ -169,11 +178,11 @@ func (kw *K8sWatcher) epgDeleted(obj interface{}) {
 func (kw *K8sWatcher) contractAdded(obj interface{}) {
 	contractv1, ok := obj.(*aciv1.Contract)
 	if !ok {
-		log.Errorf("contractAdded: Bad object type")
+		kw.log.Errorf("contractAdded: Bad object type")
 		return
 	}
 
-	log.Infof("contractAdded - %s", contractv1.Spec.Name)
+	kw.log.Infof("contractAdded - %s", contractv1.Spec.Name)
 	c := &gbpserver.Contract{
 		Tenant:    kw.gs.Config().AciPolicyTenant,
 		Name:      contractv1.Spec.Name,
@@ -186,10 +195,10 @@ func (kw *K8sWatcher) contractAdded(obj interface{}) {
 func (kw *K8sWatcher) contractDeleted(obj interface{}) {
 	contractv1, ok := obj.(*aciv1.Contract)
 	if !ok {
-		log.Errorf("contractDeleted: Bad object type")
+		kw.log.Errorf("contractDeleted: Bad object type")
 		return
 	}
-	log.Infof("contractDeleted - %s", contractv1.Spec.Name)
+	kw.log.Infof("contractDeleted - %s", contractv1.Spec.Name)
 	c := &gbpserver.Contract{
 		Tenant:    kw.gs.Config().AciPolicyTenant,
 		Name:      contractv1.Spec.Name,
@@ -202,11 +211,11 @@ func (kw *K8sWatcher) contractDeleted(obj interface{}) {
 func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 	podif, ok := obj.(*aciv1.PodIF)
 	if !ok {
-		log.Errorf("podIFAdded: Bad object type")
+		kw.log.Errorf("podIFAdded: Bad object type")
 		return
 	}
 
-	log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
+	kw.log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	ep := gbpserver.Endpoint{
 		Uuid:      uid,
@@ -225,11 +234,11 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 	podif, ok := obj.(*aciv1.PodIF)
 	if !ok {
-		log.Errorf("podIFDeleted: Bad object type")
+		kw.log.Errorf("podIFDeleted: Bad object type")
 		return
 	}
 
-	log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
+	kw.log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
 	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	ep := gbpserver.Endpoint{
 		Uuid:      uid,

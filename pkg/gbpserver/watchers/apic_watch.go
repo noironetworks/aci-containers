@@ -33,6 +33,8 @@ const (
 
 type ApicWatcher struct {
 	sync.Mutex
+	logger   *logrus.Logger
+	log      *logrus.Entry
 	apicConn *apicapi.ApicConnection
 	gs       *gbpserver.Server
 	idb      *intentDB
@@ -48,9 +50,19 @@ type ApicInfo struct {
 }
 
 func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
+	level, err := logrus.ParseLevel(gs.Config().WatchLogLevel)
+	if err != nil {
+		panic(err.Error())
+	}
+	logger := logrus.New()
+	logger.Level = level
+	log := logger.WithField("mod", "cAPIC-W")
+
 	return &ApicWatcher{
-		gs:  gs,
-		idb: newIntentDB(gs),
+		logger: logger,
+		log:    log,
+		gs:     gs,
+		idb:    newIntentDB(gs, log),
 		apicInfo: ApicInfo{
 			user:     gs.Config().Apic.Username,
 			password: gs.Config().Apic.Password,
@@ -62,8 +74,7 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 	// eventually, the url and credentials will come from the crd
 	ai := aw.apicInfo
-	log := logrus.New()
-	conn, err := apicapi.New(log, apicUrl, ai.user, ai.password,
+	conn, err := apicapi.New(aw.logger, apicUrl, ai.user, ai.password,
 		ai.privKey, ai.cert, ai.prefix, refreshTime, 5)
 
 	if err != nil {
@@ -107,12 +118,12 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 		[]string{"hostprotPol"})
 	aw.apicConn.SetSubscriptionHooks(protPolDn,
 		func(obj apicapi.ApicObject) bool {
-			logrus.Infof("Received hostprotPol")
+			aw.log.Infof("Received hostprotPol")
 			aw.NetPolChanged(obj)
 			return true
 		},
 		func(dn string) {
-			logrus.Infof("Received delete hostprotPol: %s", dn)
+			aw.log.Infof("Received delete hostprotPol: %s", dn)
 			aw.NetPolDeleted(dn)
 		})
 
@@ -125,7 +136,7 @@ func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
 	aw.Lock()
 	defer aw.Unlock()
 	epgDn := obj.GetAttrStr("dn")
-	logrus.Infof("== epg: %s ==", epgDn)
+	aw.log.Infof("== epg: %s ==", epgDn)
 	// construct the EPG
 	epg := gbpserver.EPG{
 		Tenant: dnToTenant(epgDn),
@@ -141,14 +152,14 @@ func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
 					if cname, err := xtractContract(cc); err == nil {
 						epg.ProvContracts = append(epg.ProvContracts, cname)
 					} else {
-						logrus.Errorf("epg: %s error: %v", epg.Name, err)
+						aw.log.Errorf("epg: %s error: %v", epg.Name, err)
 					}
 
 				case "fvRsCons":
 					if cname, err := xtractContract(cc); err == nil {
 						epg.ConsContracts = append(epg.ConsContracts, cname)
 					} else {
-						logrus.Errorf("epg: %s error: %v", epg.Name, err)
+						aw.log.Errorf("epg: %s error: %v", epg.Name, err)
 					}
 				}
 			}
@@ -156,7 +167,7 @@ func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
 	}
 
 	aw.idb.saveEPG(&epg)
-	logrus.Infof("epgAdded: %v", epg)
+	aw.log.Debugf("epgAdded: %v", epg)
 }
 
 func getEpgKey(e *gbpserver.EPG) string {
@@ -209,7 +220,7 @@ func dnToEpgName(dn string) string {
 func (aw *ApicWatcher) ContractChanged(obj apicapi.ApicObject) {
 	dn := obj.GetAttrStr("dn")
 	name := obj.GetAttrStr("name")
-	logrus.Infof("== contract: %s", dn)
+	aw.log.Infof("== contract: %s", dn)
 	contract := &apicContract{
 		Tenant: dnToTenant(dn),
 		Name:   name,
@@ -226,7 +237,7 @@ func (aw *ApicWatcher) ContractChanged(obj apicapi.ApicObject) {
 		}
 	}
 
-	logrus.Infof("== apic-contract: %s", dn)
+	aw.log.Debugf("== apic-contract: %s", dn)
 	aw.idb.saveApicContract(contract)
 }
 
@@ -255,7 +266,7 @@ func dnToCN(dn string) string {
 func (aw *ApicWatcher) ContractDeleted(dn string) {
 	parts := strings.Split(dn, "/")
 	if len(parts) != 3 {
-		logrus.Errorf("Bad contract dn: %s", dn)
+		aw.log.Errorf("Bad contract dn: %s", dn)
 		return
 	}
 
@@ -270,7 +281,7 @@ func (aw *ApicWatcher) FilterChanged(obj apicapi.ApicObject) {
 	var ruleset []v1.WLRule
 	dn := obj.GetAttrStr("dn")
 	name := dnToCN(dn)
-	logrus.Infof("== filter: %s", dn)
+	aw.log.Infof("== filter: %s", dn)
 	for _, body := range obj {
 		for _, cc := range body.Children {
 			for class := range cc {
@@ -294,7 +305,7 @@ func (aw *ApicWatcher) FilterChanged(obj apicapi.ApicObject) {
 					ruleset = append(ruleset, *r)
 				}
 			}
-			logrus.Infof("Filter: %s, %+v", name, cc)
+			aw.log.Debugf("Filter: %s, %+v", name, cc)
 		}
 	}
 
@@ -313,18 +324,18 @@ func (aw *ApicWatcher) NetPolChanged(obj apicapi.ApicObject) {
 	dn := obj.GetAttrStr("dn")
 	jsonStr, err := json.Marshal(obj)
 	if err != nil {
-		logrus.Errorf("Error marshaling %v", err)
+		aw.log.Errorf("Error marshaling %v", err)
 		return
 	}
 
 	np := gbpserver.NetworkPolicy{}
 	err = json.Unmarshal(jsonStr, &np)
 	if err != nil {
-		logrus.Errorf("Error unmarshaling %v", err)
+		aw.log.Errorf("Error unmarshaling %v", err)
 		return
 	}
 	aw.gs.AddNetPol(np)
-	logrus.Infof("NetPol Added: %s", dn)
+	aw.log.Infof("NetPol Added: %s", dn)
 }
 
 func (aw *ApicWatcher) NetPolDeleted(dn string) {
@@ -332,5 +343,5 @@ func (aw *ApicWatcher) NetPolDeleted(dn string) {
 	aw.Lock()
 	defer aw.Unlock()
 	aw.gs.DelNetPol(dn)
-	logrus.Infof("NetPol Added: %s", dn)
+	aw.log.Infof("NetPol Deleted: %s", dn)
 }

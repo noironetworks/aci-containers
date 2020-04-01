@@ -20,7 +20,7 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
@@ -31,19 +31,31 @@ const (
 
 // gbpWatch implements the GBPServer interface
 type gbpWatch struct {
+	log     *logrus.Entry
 	gs      *Server
 	l       net.Listener
 	stopped bool
 }
 
 func StartGRPC(port string, gs *Server) (*gbpWatch, error) {
+	level, err := logrus.ParseLevel(gs.config.GRPCLogLevel)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	logger := logrus.New()
+	logger.Level = level
+	log := logger.WithField("mod", "GRPC-S")
+
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Infof("Listening on %s", port)
+
 	s := grpc.NewServer()
-	gw := &gbpWatch{gs: gs, l: lis}
+	gw := &gbpWatch{log: log, gs: gs, l: lis}
 	RegisterGBPServer(s, gw)
 	go func() {
 		if err := s.Serve(lis); err != nil {
@@ -71,13 +83,13 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 	// extract peer ip from context
 	peer, ok := peer.FromContext(ss.Context())
 	if !ok {
-		log.Errorf("Peer information unavailable")
+		gw.log.Errorf("Peer information unavailable")
 		return fmt.Errorf("Peer information unavailable")
 	}
 
-	log.Infof("peerAddr %s", peer.Addr.String())
+	gw.log.Debugf("peerAddr %s", peer.Addr.String())
 	peerVtep := strings.Split(peer.Addr.String(), ":")[0]
-	log.Infof("ListObjects from %s", peerVtep)
+	gw.log.Infof("ListObjects from %s", peerVtep)
 	inbox := make(chan *GBPOperation, inboxSize)
 
 	updateFn := func(op GBPOperation_OpCode, urls []string) {
@@ -92,11 +104,11 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 		}
 
 		if len(moList) == 0 {
-			log.Infof("grpc: Nothing to send to %s", peerVtep)
+			gw.log.Debugf("grpc: Nothing to send to %s", peerVtep)
 			return
 		}
 
-		log.Infof("Sending to %s URIs: %+v", peerVtep, urls)
+		gw.log.Debugf("Sending to %s URIs: %+v", peerVtep, urls)
 
 		gbpOp := &GBPOperation{
 			Opcode:     op,
@@ -127,6 +139,7 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 
 		case <-ss.Context().Done():
 			gw.gs.RemoveCallBack(peer.Addr.String())
+			gw.log.Infof("ListObjects Exit %s", peerVtep)
 			return ss.Context().Err()
 		}
 	}

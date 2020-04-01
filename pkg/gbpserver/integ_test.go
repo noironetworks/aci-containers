@@ -145,6 +145,9 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	assert.Equal(t, err, nil)
 
 	gCfg := &GBPServerConfig{}
+	gCfg.LogLevel = "info"
+	gCfg.GRPCLogLevel = "info"
+	gCfg.WatchLogLevel = "info"
 	gCfg.GRPCPort = 19999
 	gCfg.ProxyListenPort = 8899
 	gCfg.PodSubnet = "10.2.56.1/21"
