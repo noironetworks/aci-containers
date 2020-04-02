@@ -701,6 +701,7 @@ func (agent *HostAgent) syncSnat() bool {
 			// set the local portrange
 			snatinfo.InterfaceName = agent.config.UplinkIface
 			snatinfo.InterfaceVlan = agent.config.ServiceVlan
+			snatinfo.InterfaceMac = agent.config.UplinkMacAdress
 			snatinfo.Local = false
 			if _, ok := localportrange[ginfo.SnatIp]; ok {
 				snatinfo.PortRange = localportrange[ginfo.SnatIp]
