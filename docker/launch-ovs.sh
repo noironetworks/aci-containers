@@ -19,7 +19,8 @@ for i in br-int br-access; do
     if ! ${VSCTL} br-exists ${i}; then
 	${VSCTL} add-br ${i} -- set-fail-mode ${i} secure \
 	    -- set bridge ${i} \
-	    other-config:datapath-id=000000000000000$dpid
+	    other-config:datapath-id=000000000000000$dpid \
+	    other-config:mac-table-size="${OVS_MAC_TABLE_SIZE:=50000}"
     fi
 done
 
