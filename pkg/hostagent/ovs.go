@@ -257,7 +257,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 		}
 		// check if acc bridge exists and add host veth if needed
 		accbr, ok := bridges[agent.config.AccessBridgeName]
-		if ok {
+		if agent.config.OpflexMode == "overlay" && ok {
 			if _, pok := accbr.ports["veth_host_ac"]; pok {
 				found[agent.config.AccessBridgeName]["veth_host_ac"] = true
 			} else {

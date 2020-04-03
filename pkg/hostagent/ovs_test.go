@@ -34,6 +34,7 @@ func TestDiffPorts(t *testing.T) {
 	agent := testAgent()
 	agent.config.AccessBridgeName = "br-access"
 	agent.config.IntBridgeName = "br-int"
+        agent.config.OpflexMode = "overlay"
 
 	onepodBr := map[string]ovsBridge{
 		"br-access": {
