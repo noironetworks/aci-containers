@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -678,7 +679,7 @@ func (it *integ) checkEpSnatUids(id int, uids []string, sg string) {
 	epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)
 	epfile := it.ta.FormEPFilePath(epid)
 	var ep opflexEndpoint
-	tu.WaitFor(it.t, "checking epg in epfile", 500*time.Millisecond,
+	tu.WaitFor(it.t, "checking epg in epfile", 2000*time.Millisecond,
 		func(last bool) (bool, error) {
 			epRaw, err := getEp(epfile)
 			if !tu.WaitNil(it.t, last, err, "create", "Epfile", "read pod") {
@@ -687,6 +688,9 @@ func (it *integ) checkEpSnatUids(id int, uids []string, sg string) {
 			log.Infof("EP Raw Data %v", epRaw)
 			log.Infof("EP Raw Data %v", err)
 			err = json.Unmarshal([]byte(epRaw), &ep)
+			if !reflect.DeepEqual(uids, ep.SnatUuid) {
+				return false, nil
+			}
 			return tu.WaitNil(it.t, last, err, "create", "Epfile", "unmarshal snat"), nil
 		})
 	assert.Equal(it.t, uids, ep.SnatUuid, "create", "Epfile", "uids")
@@ -734,12 +738,11 @@ func TestSnatPolicy(t *testing.T) {
 	it.addPodObj(2, "annNS", "", "", p2Labels)
 
 	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.10.0/24"}, map[string]string{"foo": "rod"})
-	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.0/16"}, map[string]string{"tier": "sample-tier"})
+	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.0.0/16"}, map[string]string{"tier": "sample-tier"})
 	it.ta.fakeSnatPolicySource.Add(snatobj1)
 	it.ta.fakeSnatPolicySource.Add(snatobj2)
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
-	time.Sleep(1000 * time.Millisecond)
 	var uids []string
 	uids = append(uids, "uid-policy1")
 	uids = append(uids, "uid-policy2")
@@ -792,25 +795,18 @@ func TestSnatPolicyDep(t *testing.T) {
 	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.10/31", "10.10.10.0/24"}, map[string]string{"deer": "dear"})
 	it.ta.fakeSnatPolicySource.Add(snatobj1)
 	it.ta.fakeSnatPolicySource.Add(snatobj2)
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
-	time.Sleep(1000 * time.Millisecond)
 	var uids []string
 	uids = append(uids, "uid-policy2")
 	uids = append(uids, "uid-policy1")
 	it.checkEpSnatUids(6, uids, emptyJSON)
-	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatPolicySource.Delete(snatobj1)
-	time.Sleep(1000 * time.Millisecond)
-	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
-	time.Sleep(1000 * time.Millisecond)
-	var uids1 []string
-	uids1 = append(uids1, "uid-policy2")
-	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.ta.fakeSnatPolicySource.Delete(snatobj2)
-	time.Sleep(1000 * time.Millisecond)
-	var uids2 []string
-	it.checkEpSnatUids(6, uids2, emptyJSON)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
+	var uids1 []string
+	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.cniDelParallel(5, 10)
 	it.cniDelParallel(6, 10)
 }

@@ -141,7 +141,7 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 	var raw []byte
 	snat := &OpflexSnatIp{}
 
-	tu.WaitFor(t, pt.name, 100*time.Millisecond,
+	tu.WaitFor(t, pt.name, 2000*time.Millisecond,
 		func(last bool) (bool, error) {
 			var err error
 			snatfile := filepath.Join(tempdir,
@@ -198,14 +198,14 @@ func TestSnatSync(t *testing.T) {
 			}
 		agent.fakePodSource.Add(pod)
 	}
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	for _, pt := range snatpolices {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.destip, pt.labels)
 		agent.fakeSnatPolicySource.Add(snatObj)
 		agent.log.Info("Snat Obj Created #### ", snatObj)
 
 	}
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	var newglobal []snatglobal.GlobalInfo
 	var snatglobalinfo *snatglobal.SnatGlobalInfo
 	for i, pt := range snatGlobals {
@@ -235,9 +235,7 @@ func TestSnatSync(t *testing.T) {
 		snatglobalinfo = snatglobaldata(pt.uuid, pt.name, pt.nodename, pt.namespace, newglobal)
 		agent.fakeSnatGlobalSource.Add(snatglobalinfo)
 		agent.log.Info("Complete Globale Info #### ", snatglobalinfo)
-		time.Sleep(3000 * time.Millisecond)
 		agent.doTestSnat(t, tempdir, &pt, "create")
 	}
-	time.Sleep(3000 * time.Millisecond)
 	agent.stop()
 }
