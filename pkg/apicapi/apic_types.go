@@ -51,6 +51,7 @@ const ApicNameAliasLength = 64
 const (
 	apicSubClass = iota
 	apicSubDn    = iota
+	apicSubTree
 )
 
 type subscription struct {
@@ -74,39 +75,41 @@ const (
 )
 
 type pendingChange struct {
-	kind   int
-	subIds []string
+	kind    int
+	subIds  []string
 	isDirty bool
 }
 
 type ApicConnection struct {
-	apic      			[]string
-	apicIndex 			int
-	user      			string
-	password  			string
-	prefix    			string
-	version   			float64 // APIC version
+	apic      []string
+	apicIndex int
+	user      string
+	password  string
+	prefix    string
+	version   float64 // APIC version
 
-    CachedVersion 		float64
-	ReconnectInterval 	time.Duration
-	RefreshInterval   	time.Duration
-	RefreshTickerAdjust 	time.Duration
-	RetryInterval     	time.Duration
-	UseAPICInstTag    	bool // use old-style APIC tags rather than annotations
-	FullSyncHook      	func()
+	CachedVersion       float64
+	ReconnectInterval   time.Duration
+	RefreshInterval     time.Duration
+	RefreshTickerAdjust time.Duration
+	RetryInterval       time.Duration
+	UseAPICInstTag      bool // use old-style APIC tags rather than annotations
+	FullSyncHook        func()
 
 	dialer        *websocket.Dialer
 	connection    *websocket.Conn
 	client        *http.Client
 	restartCh     chan struct{}
 	subscriptions subIndex
-	log           *logrus.Logger
+	logger        *logrus.Logger
+	log           *logrus.Entry
 	signer        *signer
 	token         string
 
-	indexMutex  sync.Mutex
-	syncEnabled bool
-	stopped     bool
+	indexMutex   sync.Mutex
+	syncEnabled  bool
+	stopped      bool
+	checkVersion bool
 
 	desiredState       map[string]ApicSlice
 	desiredStateDn     map[string]ApicObject
@@ -115,7 +118,7 @@ type ApicConnection struct {
 	cachedState        map[string]ApicSlice
 	cacheDnSubIds      map[string]map[string]bool
 	pendingSubDnUpdate map[string]pendingChange
-    CachedSubnetDns    map[string]string 
+	CachedSubnetDns    map[string]string
 
 	deltaQueue workqueue.RateLimitingInterface
 }
@@ -501,7 +504,7 @@ func NewTagAnnotation(parentDn string, key string) ApicObject {
 	dn := ""
 	ret := newApicObject("tagAnnotation")
 	ret["tagAnnotation"].Attributes["key"] = key
-	if ApicVersion >=4.1 {
+	if ApicVersion >= 4.1 {
 		dn = fmt.Sprintf("%s/annotationKey-[%s]", parentDn, key)
 	} else {
 		dn = fmt.Sprintf("%s/annotationKey-%s", parentDn, key)

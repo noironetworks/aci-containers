@@ -187,13 +187,13 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	sort.Strings(deletes)
 
 	for _, delete := range deletes {
-		conn.log.WithFields(logrus.Fields{"DN": delete, "context": context}).
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
 		conn.queueDn(delete)
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
-		conn.log.WithFields(logrus.Fields{"DN": dn, "context": context}).
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
 			Debug("Applying APIC object update")
 		conn.queueDn(dn)
 	}
@@ -281,6 +281,7 @@ func (conn *ApicConnection) fullSync() {
 
 	conn.applyDiff(updates, deletes, "sync")
 	conn.log.WithFields(logrus.Fields{
+		"mod":     "APICAPI",
 		"updates": len(updates),
 		"deletes": len(deletes),
 	}).Info("APIC full sync completed")
@@ -401,6 +402,7 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 			if !conn.apicCntCmp(aci, eobj) {
 				updates = ApicSlice{eobj}
 				conn.log.WithFields(logrus.Fields{
+					"mod":      "APICAPI",
 					"DN":       dn,
 					"expected": eobj,
 					"actual":   aci,
@@ -415,6 +417,7 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 
 			if update || len(odels) != 0 {
 				conn.log.WithFields(logrus.Fields{
+					"mod":      "APICAPI",
 					"DN":       dn,
 					"expected": eobj,
 					"actual":   aci,
@@ -424,7 +427,7 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 	} else {
 		tag := aci.GetTag()
 		if conn.isSyncTag(tag) {
-			conn.log.WithFields(logrus.Fields{"DN": dn}).
+			conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
 				Warning("Deleting unexpected ACI object")
 			deletes = append(deletes, dn)
 		}

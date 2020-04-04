@@ -36,6 +36,13 @@ var portNormalizations = map[string]string{
 	"554": "rtsp",
 }
 
+var classDepth = map[string]int {
+	"cloudEPg": 4,
+	"vzBrCP": 3,
+	"vzFilter": 3,
+	"hostprotPol": 3,
+}
+
 var protoNormalizations = map[string]string{
 	"0":   "unspecified",
 	"1":   "icmp",

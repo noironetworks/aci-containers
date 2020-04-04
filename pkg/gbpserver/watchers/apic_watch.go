@@ -84,7 +84,7 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 	aw.apicConn = conn
 
 	// add subscriptions
-	aw.apicConn.AddSubscriptionClass("cloudEPg", []string{"cloudEPg"}, "")
+	aw.apicConn.AddSubscriptionTree("cloudEPg", []string{"cloudEPg", "fvRsCons", "fvRsProv"}, "")
 	aw.apicConn.SetSubscriptionHooks("cloudEPg",
 		func(obj apicapi.ApicObject) bool {
 			aw.EpgChanged(obj)
@@ -93,7 +93,7 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 		func(dn string) {
 			aw.EpgDeleted(dn)
 		})
-	aw.apicConn.AddSubscriptionClass("vzBrCP", []string{"vzBrCP"}, "")
+	aw.apicConn.AddSubscriptionTree("vzBrCP", []string{"vzBrCP"}, "")
 	aw.apicConn.SetSubscriptionHooks("vzBrCP",
 		func(obj apicapi.ApicObject) bool {
 			aw.ContractChanged(obj)
@@ -103,7 +103,7 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 			aw.ContractDeleted(dn)
 		})
 
-	aw.apicConn.AddSubscriptionClass("vzFilter", []string{"vzFilter"}, "")
+	aw.apicConn.AddSubscriptionTree("vzFilter", []string{"vzFilter"}, "")
 	aw.apicConn.SetSubscriptionHooks("vzFilter",
 		func(obj apicapi.ApicObject) bool {
 			aw.FilterChanged(obj)
