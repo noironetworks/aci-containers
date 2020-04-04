@@ -221,7 +221,8 @@ func New(log *logrus.Logger, apic []string, user string,
 		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
 		signer:              signer,
 		dialer:              dialer,
-		log:                 log,
+		logger:              log,
+		log:                 log.WithField("mod", "APICAPI"),
 		apic:                apic,
 		user:                user,
 		password:            password,
@@ -253,6 +254,7 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 			subIds = append(subIds, id.(string))
 		}
 	}
+
 	for _, obj := range apicresp.Imdata {
 		for _, body := range obj {
 			switch dn := body.Attributes["dn"].(type) {
@@ -267,7 +269,8 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					}
 					conn.indexMutex.Lock()
 
-					conn.log.WithFields(logrus.Fields{
+					conn.logger.WithFields(logrus.Fields{
+						"mod": "APICAPI",
 						"dn":  obj.GetDn(),
 						"obj": obj,
 					}).Debug("Processing websocket notification for:")
@@ -301,6 +304,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var respClasses []string
 	var updateHandlers []ApicObjectHandler
 	var deleteHandlers []ApicDnHandler
+	var rootDn string
 
 	handleId := func(id string) {
 		conn.indexMutex.Lock()
@@ -313,6 +317,10 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 				}
 				if sub.deleteHook != nil {
 					deleteHandlers = append(deleteHandlers, sub.deleteHook)
+				}
+
+				if sub.kind == apicSubTree {
+					rootDn = getRootDn(dn, value)
 				}
 			}
 		} else {
@@ -334,16 +342,20 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		}
 	}
 
+	if rootDn == "" {
+		rootDn = dn
+	}
+
 	if hasDesiredState {
 		if hasPendingChange {
 			if pending.kind == pendingChangeDelete {
-				conn.log.WithFields(logrus.Fields{"DN": dn}).
+				conn.logger.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
 					Warning("Restoring unexpectedly deleted" +
 						" ACI object")
 				requeue = conn.postDn(dn, obj)
-			} else if len(respClasses) > 0 {
-				conn.log.Debug("getSubtreeDn for:", dn)
-				conn.getSubtreeDn(dn, respClasses, updateHandlers)
+			} else {
+				conn.log.Debug("getSubtreeDn for:", rootDn)
+				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
 			requeue = conn.postDn(dn, obj)
@@ -354,9 +366,11 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 				for _, handler := range deleteHandlers {
 					handler(dn)
 				}
-			} else if len(respClasses) > 0 {
-				conn.log.Debug("getSubtreeDn for:", dn)
-				conn.getSubtreeDn(dn, respClasses, updateHandlers)
+			}
+
+			if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
+				conn.log.Debug("getSubtreeDn for:", rootDn)
+				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
 			requeue = conn.deleteDn(dn)
@@ -463,7 +477,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	// Get APIC version if connection restarts
 	// Unsupported scenario: Exit if APIC downgrades from >=3.2 to <=3.1
-	if conn.version == 0 {
+	if conn.version == 0 && conn.checkVersion {
 		go func() {
 			version, err := conn.GetVersion()
 			if err != nil {
@@ -540,6 +554,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 		return 0, errors.New("No APIC configuration")
 	}
 
+	conn.checkVersion = true // enable version check on websocket reconnect
 	// To Handle unit-tests
 	if strings.Contains(conn.apic[conn.apicIndex], "127.0.0.1") {
 		conn.version = 3.2
@@ -550,7 +565,8 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 
-	conn.log.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
+		"mod":  "APICAPI",
 		"host": conn.apic[conn.apicIndex],
 	}).Info("Connecting to APIC to determine the Version")
 
@@ -594,7 +610,8 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 			version, ok := vresp.Attributes["version"]
 			if !ok {
 				conn.log.Debug("No version attribute in the response??!")
-				conn.log.WithFields(logrus.Fields{
+				conn.logger.WithFields(logrus.Fields{
+					"mod":                            "APICAPI",
 					"firmwareCtrlrRunning":           vresp,
 					"firmwareCtrlRunning Attributes": vresp.Attributes,
 				}).Debug("Response:")
@@ -629,7 +646,8 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 
 			}()
 
-			conn.log.WithFields(logrus.Fields{
+			conn.logger.WithFields(logrus.Fields{
+				"mod":  "APICAPI",
 				"host": conn.apic[conn.apicIndex],
 			}).Info("Connecting to APIC")
 
@@ -690,6 +708,7 @@ func (conn *ApicConnection) refresh() {
 			return
 		}
 		complete(resp)
+		conn.log.Debugf("Refresh: url %v", url)
 	}
 
 	for _, sub := range conn.subscriptions.subs {
@@ -714,6 +733,7 @@ func (conn *ApicConnection) refresh() {
 			return
 		}
 		complete(resp)
+		conn.log.Debugf("Refresh sub: url %v", url)
 	}
 }
 
@@ -739,7 +759,8 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 				}
 			}
 		}
-		conn.log.WithFields(logrus.Fields{
+		conn.logger.WithFields(logrus.Fields{
+			"mod":    "APICAPI",
 			"text":   text,
 			"code":   code,
 			"url":    resp.Request.URL,
@@ -809,11 +830,15 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 
 	args := []string{
 		"rsp-subtree=full",
-		"rsp-subtree-class=" + strings.Join(respClasses, ","),
+	}
+
+	if len(respClasses) > 0 {
+		args = append(args, "rsp-subtree-class="+strings.Join(respClasses, ","))
 	}
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	conn.log.Debugf("URL: %v", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
@@ -839,11 +864,16 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		conn.log.Error("Could not parse APIC response: ", err)
 		return
 	}
+	if len(apicresp.Imdata) == 0 {
+		conn.log.Debugf("No subtree found for dn %s", dn)
+	}
+
 	for _, obj := range apicresp.Imdata {
-		//conn.log.WithFields(logrus.Fields{
-		//	"dn":  obj.GetDn(),
-		//	"obj": obj,
-		//}).Debug("Object updated on APIC")
+		conn.logger.WithFields(logrus.Fields{
+			"mod": "APICAPI",
+			"dn":  obj.GetDn(),
+			"obj": obj,
+		}).Debug("Object updated on APIC")
 
 		prepareApicCache("", obj)
 
@@ -966,8 +996,9 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 }
 
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
-	conn.log.WithFields(logrus.Fields{
-		"dn": dn,
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
 		//"obj": obj,
 	}).Debug("Posting update")
 
@@ -1061,6 +1092,25 @@ func computeRespClasses(targetClasses []string,
 	return respClasses
 }
 
+// AddSubscriptionTree subscribe at a subtree level. class specifies
+// the root. Changes will cause entire subtree of the rootdn to be fetched
+func (conn *ApicConnection) AddSubscriptionTree(class string,
+	targetClasses []string, targetFilter string) {
+
+	if _, ok := classDepth[class]; !ok {
+		errStr := fmt.Sprintf("classDepth not for class %s", class)
+		panic(errStr)
+	}
+
+	conn.indexMutex.Lock()
+	conn.subscriptions.subs[class] = &subscription{
+		kind:          apicSubTree,
+		targetClasses: targetClasses,
+		targetFilter:  targetFilter,
+	}
+	conn.indexMutex.Unlock()
+}
+
 func (conn *ApicConnection) AddSubscriptionClass(class string,
 	targetClasses []string, targetFilter string) {
 
@@ -1131,14 +1181,16 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		"query-target=subtree",
 		"rsp-subtree=full",
 		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
-		"rsp-subtree-class=" + strings.Join(sub.respClasses, ","),
+	}
+	if sub.respClasses != nil {
+		args = append(args, "rsp-subtree-class="+strings.Join(sub.respClasses, ","))
 	}
 	if sub.targetFilter != "" {
 		args = append(args, "query-target-filter="+sub.targetFilter)
 	}
 
 	kind := "mo"
-	if sub.kind == apicSubClass {
+	if sub.kind == apicSubClass || sub.kind == apicSubTree {
 		kind = "class"
 	}
 
@@ -1187,7 +1239,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		subId = id
 	}
 
-	conn.log.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
+		"mod":   "APICAPI",
 		"value": value,
 		"kind":  kind,
 		"id":    subId,
@@ -1223,7 +1276,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			continue
 		}
 
-		conn.log.WithFields(logrus.Fields{
+		conn.logger.WithFields(logrus.Fields{
+			"mod": "APICAPI",
 			"dn":  dn,
 			"tag": tag,
 			//"obj": obj,
@@ -1243,4 +1297,11 @@ var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
 func (conn *ApicConnection) isSyncTag(tag string) bool {
 	return tagRegexp.MatchString(tag) &&
 		strings.HasPrefix(tag, conn.prefix+"-")
+}
+
+func getRootDn(dn, rootClass string) string {
+	depth := classDepth[rootClass]
+	parts := strings.Split(dn, "/")
+	parts = parts[:depth]
+	return strings.Join(parts, "/")
 }
