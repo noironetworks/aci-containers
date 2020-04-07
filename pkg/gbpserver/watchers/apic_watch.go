@@ -28,17 +28,21 @@ import (
 )
 
 const (
-	refreshTime = 30
+	refreshTime  = 0 // cAPIC folks recommend 0
+	commonTenant = "common"
 )
 
 type ApicWatcher struct {
 	sync.Mutex
-	logger   *logrus.Logger
-	log      *logrus.Entry
-	apicConn *apicapi.ApicConnection
-	gs       *gbpserver.Server
-	idb      *intentDB
-	apicInfo ApicInfo
+	logger         *logrus.Logger
+	log            *logrus.Entry
+	apicConn       *apicapi.ApicConnection
+	gs             *gbpserver.Server
+	idb            *intentDB
+	tenant         string
+	apName         string
+	hostProtPrefix string
+	apicInfo       ApicInfo
 }
 
 type ApicInfo struct {
@@ -58,11 +62,15 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 	logger.Level = level
 	log := logger.WithField("mod", "cAPIC-W")
 
+	vmmDomain := gs.Config().AciVmmDomain
 	return &ApicWatcher{
-		logger: logger,
-		log:    log,
-		gs:     gs,
-		idb:    newIntentDB(gs, log),
+		logger:         logger,
+		log:            log,
+		gs:             gs,
+		idb:            newIntentDB(gs, log),
+		tenant:         gs.Config().AciPolicyTenant,
+		apName:         vmmDomain,
+		hostProtPrefix: fmt.Sprintf("uni/tn-%s/pol-%s", gs.Config().AciPolicyTenant, vmmDomain),
 		apicInfo: ApicInfo{
 			user:     gs.Config().Apic.Username,
 			password: gs.Config().Apic.Password,
@@ -113,18 +121,18 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 			aw.FilterDeleted(dn)
 		})
 
-	protPolDn := "uni/tn-" + aw.gs.Config().AciPolicyTenant
-	aw.apicConn.AddSubscriptionDn(protPolDn,
-		[]string{"hostprotPol"})
-	aw.apicConn.SetSubscriptionHooks(protPolDn,
+	aw.apicConn.AddSubscriptionTree("hostprotPol",
+		[]string{"hostprotPol", "hostprotSubj", "hostprotRule", "hostprotRemoteIp"}, "")
+	aw.apicConn.SetSubscriptionHooks("hostprotPol",
 		func(obj apicapi.ApicObject) bool {
-			aw.log.Infof("Received hostprotPol")
 			aw.NetPolChanged(obj)
 			return true
 		},
 		func(dn string) {
-			aw.log.Infof("Received delete hostprotPol: %s", dn)
-			aw.NetPolDeleted(dn)
+			if strings.Contains(dn, aw.hostProtPrefix) {
+				aw.log.Infof("Received delete hostprotPol: %s", dn)
+				aw.NetPolDeleted(dn)
+			}
 		})
 
 	go aw.apicConn.Run(stopCh)
@@ -136,10 +144,15 @@ func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
 	aw.Lock()
 	defer aw.Unlock()
 	epgDn := obj.GetAttrStr("dn")
+	tenant := dnToTenant(epgDn)
+	if tenant != aw.tenant && tenant != commonTenant {
+		aw.log.Debugf("== epg: %s ignored tenant: %s", epgDn, tenant)
+		return
+	}
 	aw.log.Infof("== epg: %s ==", epgDn)
 	// construct the EPG
 	epg := gbpserver.EPG{
-		Tenant: dnToTenant(epgDn),
+		Tenant: tenant,
 		Name:   obj.GetAttrStr("name"),
 		ApicDN: epgDn,
 	}
@@ -190,9 +203,14 @@ func xtractContract(c apicapi.ApicObject) (string, error) {
 }
 
 func (aw *ApicWatcher) EpgDeleted(dn string) {
+	tenant := dnToTenant(dn)
+	if tenant != aw.tenant && tenant != commonTenant {
+		aw.log.Debugf("== contract: %s ignored tenant: %s", dn, tenant)
+		return
+	}
 	epg := gbpserver.EPG{
-		Tenant: dnToTenant(dn),
-		Name:   dnToEpgName(dn),
+		Tenant: tenant,
+		Name:   aw.dnToEpgName(dn),
 	}
 
 	aw.idb.deleteEPG(&epg)
@@ -208,10 +226,16 @@ func dnToTenant(dn string) string {
 	return ""
 }
 
-func dnToEpgName(dn string) string {
+func (aw *ApicWatcher) dnToEpgName(dn string) string {
 	parts := strings.Split(dn, "/")
 	if len(parts) > 3 {
-		return strings.TrimPrefix(parts[3], "cloudepg-")
+		apName := strings.TrimPrefix(parts[2], "cloudapp-")
+		epgName := strings.TrimPrefix(parts[3], "cloudepg-")
+		if apName == aw.apName {
+			return epgName
+		}
+
+		return fmt.Sprintf("%s|%s", apName, epgName)
 	}
 
 	return ""
@@ -219,10 +243,16 @@ func dnToEpgName(dn string) string {
 
 func (aw *ApicWatcher) ContractChanged(obj apicapi.ApicObject) {
 	dn := obj.GetAttrStr("dn")
+	tenant := dnToTenant(dn)
+	if tenant != aw.tenant && tenant != commonTenant {
+		aw.log.Debugf("== contract: %s ignored tenant: %s", dn, tenant)
+		return
+	}
+
 	name := obj.GetAttrStr("name")
 	aw.log.Infof("== contract: %s", dn)
 	contract := &apicContract{
-		Tenant: dnToTenant(dn),
+		Tenant: tenant,
 		Name:   name,
 	}
 	for _, body := range obj {
@@ -270,8 +300,13 @@ func (aw *ApicWatcher) ContractDeleted(dn string) {
 		return
 	}
 
+	tenant := dnToTenant(dn)
+	if tenant != aw.tenant && tenant != commonTenant {
+		aw.log.Debugf("== contract: %s ignored tenant: %s", dn, tenant)
+		return
+	}
 	contract := &apicContract{
-		Tenant: dnToTenant(dn),
+		Tenant: tenant,
 		Name:   parts[2],
 	}
 	aw.idb.deleteApicContract(contract)
@@ -280,6 +315,11 @@ func (aw *ApicWatcher) ContractDeleted(dn string) {
 func (aw *ApicWatcher) FilterChanged(obj apicapi.ApicObject) {
 	var ruleset []v1.WLRule
 	dn := obj.GetAttrStr("dn")
+	tenant := dnToTenant(dn)
+	if tenant != aw.tenant && tenant != commonTenant {
+		aw.log.Debugf("== filter: %s ignored tenant: %s", dn, tenant)
+		return
+	}
 	name := dnToCN(dn)
 	aw.log.Infof("== filter: %s", dn)
 	for _, body := range obj {
@@ -322,6 +362,11 @@ func (aw *ApicWatcher) NetPolChanged(obj apicapi.ApicObject) {
 	aw.Lock()
 	defer aw.Unlock()
 	dn := obj.GetAttrStr("dn")
+	if !strings.Contains(dn, aw.hostProtPrefix) {
+		return
+	}
+
+	aw.log.Infof("Received hostprotPol")
 	jsonStr, err := json.Marshal(obj)
 	if err != nil {
 		aw.log.Errorf("Error marshaling %v", err)
