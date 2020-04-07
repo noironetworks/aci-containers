@@ -1,10 +1,11 @@
-FROM alpine:3.10.2
+FROM alpine:3.11.5
 ARG ROOT=/usr/local
-COPY ovs-musl.patch /
+#COPY ovs-musl.patch /
+COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
-    libtool pkgconfig autoconf automake cmake doxygen file py-six \
+    libtool pkgconfig autoconf automake cmake file py3-six \
     linux-headers libuv-dev boost-dev openssl-dev git \
-    libnetfilter_conntrack-dev rapidjson-dev python-dev bzip2-dev \
+    libnetfilter_conntrack-dev rapidjson-dev python3-dev bzip2-dev \
     curl libcurl curl-dev zlib-dev
 ARG make_args=-j4
 RUN git clone https://github.com/noironetworks/3rdparty-debian.git
@@ -31,7 +32,7 @@ ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buff
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.12.0 --depth 1 \
-  && cd ovs \
+  && cd ovs && patch -p1 < /ovsdb-idlc.in-fix-dict-change-during-iteration.patch \
   && ./boot.sh && ./configure --disable-ssl --disable-libcapng --enable-shared \
   && make $make_args && make install \
   && mkdir -p $ROOT/include/openvswitch/openvswitch \
