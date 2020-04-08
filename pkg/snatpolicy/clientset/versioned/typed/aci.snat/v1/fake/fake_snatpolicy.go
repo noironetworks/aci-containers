@@ -30,7 +30,6 @@ import (
 // FakeSnatPolicies implements SnatPolicyInterface
 type FakeSnatPolicies struct {
 	Fake *FakeAciV1
-	ns   string
 }
 
 var snatpoliciesResource = schema.GroupVersionResource{Group: "aci.snat", Version: "v1", Resource: "snatpolicies"}
@@ -40,8 +39,7 @@ var snatpoliciesKind = schema.GroupVersionKind{Group: "aci.snat", Version: "v1",
 // Get takes name of the snatPolicy, and returns the corresponding snatPolicy object, and an error if there is any.
 func (c *FakeSnatPolicies) Get(name string, options v1.GetOptions) (result *acisnatv1.SnatPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(snatpoliciesResource, c.ns, name), &acisnatv1.SnatPolicy{})
-
+		Invokes(testing.NewRootGetAction(snatpoliciesResource, name), &acisnatv1.SnatPolicy{})
 	if obj == nil {
 		return nil, err
 	}
@@ -51,8 +49,7 @@ func (c *FakeSnatPolicies) Get(name string, options v1.GetOptions) (result *acis
 // List takes label and field selectors, and returns the list of SnatPolicies that match those selectors.
 func (c *FakeSnatPolicies) List(opts v1.ListOptions) (result *acisnatv1.SnatPolicyList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(snatpoliciesResource, snatpoliciesKind, c.ns, opts), &acisnatv1.SnatPolicyList{})
-
+		Invokes(testing.NewRootListAction(snatpoliciesResource, snatpoliciesKind, opts), &acisnatv1.SnatPolicyList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -73,15 +70,13 @@ func (c *FakeSnatPolicies) List(opts v1.ListOptions) (result *acisnatv1.SnatPoli
 // Watch returns a watch.Interface that watches the requested snatPolicies.
 func (c *FakeSnatPolicies) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(snatpoliciesResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(snatpoliciesResource, opts))
 }
 
 // Create takes the representation of a snatPolicy and creates it.  Returns the server's representation of the snatPolicy, and an error, if there is any.
 func (c *FakeSnatPolicies) Create(snatPolicy *acisnatv1.SnatPolicy) (result *acisnatv1.SnatPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(snatpoliciesResource, c.ns, snatPolicy), &acisnatv1.SnatPolicy{})
-
+		Invokes(testing.NewRootCreateAction(snatpoliciesResource, snatPolicy), &acisnatv1.SnatPolicy{})
 	if obj == nil {
 		return nil, err
 	}
@@ -91,8 +86,18 @@ func (c *FakeSnatPolicies) Create(snatPolicy *acisnatv1.SnatPolicy) (result *aci
 // Update takes the representation of a snatPolicy and updates it. Returns the server's representation of the snatPolicy, and an error, if there is any.
 func (c *FakeSnatPolicies) Update(snatPolicy *acisnatv1.SnatPolicy) (result *acisnatv1.SnatPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(snatpoliciesResource, c.ns, snatPolicy), &acisnatv1.SnatPolicy{})
+		Invokes(testing.NewRootUpdateAction(snatpoliciesResource, snatPolicy), &acisnatv1.SnatPolicy{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*acisnatv1.SnatPolicy), err
+}
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeSnatPolicies) UpdateStatus(snatPolicy *acisnatv1.SnatPolicy) (*acisnatv1.SnatPolicy, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateSubresourceAction(snatpoliciesResource, "status", snatPolicy), &acisnatv1.SnatPolicy{})
 	if obj == nil {
 		return nil, err
 	}
@@ -102,14 +107,13 @@ func (c *FakeSnatPolicies) Update(snatPolicy *acisnatv1.SnatPolicy) (result *aci
 // Delete takes name of the snatPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeSnatPolicies) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(snatpoliciesResource, c.ns, name), &acisnatv1.SnatPolicy{})
-
+		Invokes(testing.NewRootDeleteAction(snatpoliciesResource, name), &acisnatv1.SnatPolicy{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSnatPolicies) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(snatpoliciesResource, c.ns, listOptions)
+	action := testing.NewRootDeleteCollectionAction(snatpoliciesResource, listOptions)
 
 	_, err := c.Fake.Invokes(action, &acisnatv1.SnatPolicyList{})
 	return err
@@ -118,8 +122,7 @@ func (c *FakeSnatPolicies) DeleteCollection(options *v1.DeleteOptions, listOptio
 // Patch applies the patch and returns the patched snatPolicy.
 func (c *FakeSnatPolicies) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acisnatv1.SnatPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(snatpoliciesResource, c.ns, name, pt, data, subresources...), &acisnatv1.SnatPolicy{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(snatpoliciesResource, name, pt, data, subresources...), &acisnatv1.SnatPolicy{})
 	if obj == nil {
 		return nil, err
 	}

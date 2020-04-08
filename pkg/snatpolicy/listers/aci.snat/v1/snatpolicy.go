@@ -28,8 +28,8 @@ import (
 type SnatPolicyLister interface {
 	// List lists all SnatPolicies in the indexer.
 	List(selector labels.Selector) (ret []*v1.SnatPolicy, err error)
-	// SnatPolicies returns an object that can list and get SnatPolicies.
-	SnatPolicies(namespace string) SnatPolicyNamespaceLister
+	// Get retrieves the SnatPolicy from the index for a given name.
+	Get(name string) (*v1.SnatPolicy, error)
 	SnatPolicyListerExpansion
 }
 
@@ -51,38 +51,9 @@ func (s *snatPolicyLister) List(selector labels.Selector) (ret []*v1.SnatPolicy,
 	return ret, err
 }
 
-// SnatPolicies returns an object that can list and get SnatPolicies.
-func (s *snatPolicyLister) SnatPolicies(namespace string) SnatPolicyNamespaceLister {
-	return snatPolicyNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// SnatPolicyNamespaceLister helps list and get SnatPolicies.
-type SnatPolicyNamespaceLister interface {
-	// List lists all SnatPolicies in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1.SnatPolicy, err error)
-	// Get retrieves the SnatPolicy from the indexer for a given namespace and name.
-	Get(name string) (*v1.SnatPolicy, error)
-	SnatPolicyNamespaceListerExpansion
-}
-
-// snatPolicyNamespaceLister implements the SnatPolicyNamespaceLister
-// interface.
-type snatPolicyNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all SnatPolicies in the indexer for a given namespace.
-func (s snatPolicyNamespaceLister) List(selector labels.Selector) (ret []*v1.SnatPolicy, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.SnatPolicy))
-	})
-	return ret, err
-}
-
-// Get retrieves the SnatPolicy from the indexer for a given namespace and name.
-func (s snatPolicyNamespaceLister) Get(name string) (*v1.SnatPolicy, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the SnatPolicy from the index for a given name.
+func (s *snatPolicyLister) Get(name string) (*v1.SnatPolicy, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

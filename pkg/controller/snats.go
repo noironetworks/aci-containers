@@ -95,7 +95,11 @@ func (cont *AciController) snatPolicyUpdated(obj interface{}) {
 			Error("Could not create key:" + err.Error())
 		return
 	}
+	if snatPolicy.Status.State == snatpolicy.IpPortsExhausted {
+		return
+	}
 	cont.queueSnatUpdateByKey(key)
+
 }
 
 func (cont *AciController) queueSnatUpdateByKey(key string) {
@@ -193,16 +197,18 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 	currPortRange = append(currPortRange, portRange)
 	policy.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
 	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
-	snatIpUpdated := false
+	Update := false
 	if snatInfo, ok := cont.snatPolicyCache[key]; ok {
 		if !reflect.DeepEqual(policy.SnatIp, snatInfo.SnatIp) {
 			cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
-			snatIpUpdated = true
+			Update = true
 		}
+	} else {
+		Update = true
 	}
 	cont.snatPolicyCache[key] = &policy
-	if snatIpUpdated {
-		cont.handleSnatIpUpdate(snatpolicy.ObjectMeta.Name)
+	if Update {
+		cont.handleSnatPoilcyUpdate(snatpolicy.ObjectMeta.Name)
 	}
 	cont.indexMutex.Unlock()
 }

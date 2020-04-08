@@ -16,7 +16,6 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // SnatPolicySpec defines the desired state of SnatPolicy
-// +k8s:openapi-gen=true
 type SnatPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
@@ -30,7 +29,6 @@ type SnatPolicySpec struct {
 }
 
 // SnatPolicyStatus defines the observed state of SnatPolicy
-// +k8s:openapi-gen=true
 type SnatPolicyStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file7
@@ -38,11 +36,11 @@ type SnatPolicyStatus struct {
 	State PolicyState `json:"state"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // SnatPolicy is the Schema for the snatpolicies API
-// +k8s:openapi-gen=true
-// +kubebuilder:subresource:status
 type SnatPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

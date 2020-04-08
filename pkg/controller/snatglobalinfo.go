@@ -20,6 +20,7 @@ import (
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
+	snatv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,11 +111,33 @@ func (cont *AciController) snatNodeInfoDeleted(obj interface{}) {
 	cont.queueNodeInfoUpdateByKey(nodeinfokey)
 }
 
+func (cont *AciController) setSnatPolicyStaus(snatPolicyName string) bool {
+	obj, exists, err := cont.snatIndexer.GetByKey(snatPolicyName)
+	if err == nil && exists && obj != nil {
+		snatpolicy := obj.(*snatv1.SnatPolicy)
+		snatpolicy.Status.State = snatv1.IpPortsExhausted
+		env := cont.env.(*K8sEnvironment)
+		policycl := env.snatClient
+		if policycl != nil {
+			if snatpolicy.Status.State != snatv1.IpPortsExhausted {
+				err = util.UpdateSnatPolicyCR(*policycl, snatpolicy)
+				if err != nil {
+					cont.log.Info("Policy status update failed queue the request again: ", err)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool {
 	nodename := nodeinfo.ObjectMeta.Name
 	nodeinfocache, ok := cont.snatNodeInfoCache[nodename]
 	cont.log.Debug("handle Node Info: ", nodeinfo)
 	updated := false
+	var allocfailed []string
+	ret := false
 	// Cache needs to be updated
 	if !ok || len(nodeinfo.Spec.SnatPolicyNames) == 0 {
 		cont.deleteNodeinfoFromGlInfoCache(nodename)
@@ -132,6 +155,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 				//TODO need to handle Port Exhaustion case
 				if alloc == false {
 					cont.log.Error("Port Range Exhausted: ", name)
+					allocfailed = append(allocfailed, name)
 					continue
 				}
 				cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
@@ -145,6 +169,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					cont.log.Debug("SnatIP and Port range: ", snatIp, portrange)
 					if alloc == false {
 						cont.log.Error("Port Range Exhausted: ", name)
+						allocfailed = append(allocfailed, name)
 						continue
 					}
 					cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
@@ -157,8 +182,11 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 	if updated {
 		cont.scheduleSyncGlobalInfo()
 	}
+	for _, name := range allocfailed {
+		ret = cont.setSnatPolicyStaus(name)
+	}
 	cont.log.Debug("nodeinfocache", nodeinfocache)
-	return false
+	return ret
 }
 
 func (cont *AciController) syncSnatGlobalInfo() bool {
@@ -326,7 +354,7 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 	}
 }
 
-func (cont *AciController) handleSnatIpUpdate(policyName string) {
+func (cont *AciController) handleSnatPoilcyUpdate(policyName string) {
 	for _, nodeinfo := range cont.snatNodeInfoCache {
 		if _, ok := nodeinfo.Spec.SnatPolicyNames[policyName]; ok {
 			nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
