@@ -220,7 +220,7 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 	ep := gbpserver.Endpoint{
 		Uuid:      uid,
 		MacAddr:   podif.Status.MacAddr,
-		IPAddr:    podif.Status.IPAddr,
+		IPAddr:    []string{podif.Status.IPAddr},
 		EPG:       podif.Status.EPG,
 		VTEP:      podif.Status.VTEP,
 		IFName:    podif.Status.IFName,
@@ -243,7 +243,7 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 	ep := gbpserver.Endpoint{
 		Uuid:      uid,
 		MacAddr:   podif.Status.MacAddr,
-		IPAddr:    podif.Status.IPAddr,
+		IPAddr:    []string{podif.Status.IPAddr},
 		EPG:       podif.Status.EPG,
 		VTEP:      podif.Status.VTEP,
 		IFName:    podif.Status.IFName,

@@ -517,7 +517,7 @@ func (s *Server) handleMsgs() {
 			}
 
 			log.Debugf("OpaddEP: %+v", ep)
-			if ep.IPAddr != "" {
+			if ep.IPAddr[0] != "" {
 				ep.Add()
 				for _, fn := range s.listeners {
 					fn(GBPOperation_REPLACE, []string{ep.getURI()})
@@ -644,12 +644,16 @@ func (s *Server) kafkaEPAdd(ep *Endpoint) {
 		return
 	}
 
+	if ep.PodName == "" { // not a real pod, don't report to kafka
+		return
+	}
+
 	ps := &crdv1.PodIFStatus{
 		PodName:     ep.PodName,
 		PodNS:       ep.Namespace,
 		IFName:      ep.IFName,
 		EPG:         ep.EPG,
-		IPAddr:      ep.IPAddr,
+		IPAddr:      ep.IPAddr[0],
 		ContainerID: UuidToCid(ep.Uuid),
 	}
 
@@ -669,12 +673,16 @@ func (s *Server) kafkaEPDel(ep *Endpoint) {
 		return
 	}
 
+	if ep.PodName == "" { // not a real pod, don't report to kafka
+		return
+	}
+
 	ps := &crdv1.PodIFStatus{
 		PodName: ep.PodName,
 		PodNS:   ep.Namespace,
 		IFName:  ep.IFName,
 		EPG:     ep.EPG,
-		IPAddr:  ep.IPAddr,
+		IPAddr:  ep.IPAddr[0],
 	}
 	s.kc.DeleteEP(ps)
 }

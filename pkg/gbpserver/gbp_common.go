@@ -268,6 +268,7 @@ type GBPMo interface {
 	WriteJSON() []byte
 	Validate() error
 	GetStringProperty(name string) string
+	GetIntProperty(name string) int
 	GetRefURIs(subject string) (map[string]string, error)
 }
 
@@ -410,6 +411,16 @@ func (g *gbpCommonMo) GetStringProperty(name string) string {
 	}
 
 	return ""
+}
+
+func (g *gbpCommonMo) GetIntProperty(name string) int {
+	for _, p := range g.Properties {
+		if p.Name == name {
+			return int(p.GetIntVal())
+		}
+	}
+
+	return -1
 }
 
 func (g *gbpCommonMo) getTarget() (string, error) {

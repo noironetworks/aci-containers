@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	osexec "os/exec"
+	"strconv"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -189,14 +190,41 @@ func GetInvMoMap(vtep string) map[string]*gbpCommonMo {
 }
 
 type Endpoint struct {
-	Uuid      string `json:"uuid,omitempty"`
-	MacAddr   string `json:"macaddr,omitempty"`
-	IPAddr    string `json:"ipaddr,omitempty"`
-	EPG       string `json:"epg,omitempty"`
-	VTEP      string `json:"vtep,omitempty"`
-	IFName    string `json:"ifname,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	PodName   string `json:"podname,omitempty"`
+	Uuid      string   `json:"uuid,omitempty"`
+	MacAddr   string   `json:"macaddr,omitempty"`
+	IPAddr    []string `json:"ipaddr,omitempty"`
+	EPG       string   `json:"epg,omitempty"`
+	VTEP      string   `json:"vtep,omitempty"`
+	IFName    string   `json:"ifname,omitempty"`
+	Namespace string   `json:"namespace,omitempty"`
+	PodName   string   `json:"podname,omitempty"`
+}
+
+type parsedIP struct {
+	Addr      string
+	PrefixLen int
+}
+
+func parseIPs(ips []string) []parsedIP {
+	var result []parsedIP
+	var parsed parsedIP
+	for _, ip := range ips {
+		parts := strings.Split(ip, "/")
+		parsed.Addr = parts[0]
+		parsed.PrefixLen = 32 // default
+		if len(parts) > 1 {
+			pLen, err := strconv.Atoi(parts[1])
+			if err != nil {
+				log.Warnf("Parse error: %+v", ips)
+			} else {
+				parsed.PrefixLen = pLen
+			}
+		}
+
+		result = append(result, parsed)
+	}
+
+	return result
 }
 
 func (ep *Endpoint) Add() (string, error) {
@@ -247,8 +275,12 @@ func (ep *Endpoint) Add() (string, error) {
 		epMo.AddProperty(v.Name, v.Data)
 	}
 
-	ipMo := createChild(&epMo.gbpCommonMo, "InvRemoteIp", ep.IPAddr)
-	ipMo.AddProperty("ip", ep.IPAddr)
+	ipList := parseIPs(ep.IPAddr)
+	for _, ip := range ipList {
+		ipMo := createChild(&epMo.gbpCommonMo, "InvRemoteIp", ip.Addr)
+		ipMo.AddProperty("ip", ip.Addr)
+		ipMo.AddProperty(propPrefix, ip.PrefixLen)
+	}
 
 	epgRefMo := createChild(&epMo.gbpCommonMo, "InvRemoteInventoryEpToGroupRSrc", "")
 	epgURI := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpEpGroup/%s/", getTenantName(), strings.Replace(ep.EPG, "|", "%7c", -1))
@@ -277,7 +309,7 @@ func (ep *Endpoint) pushTocAPIC(add bool) error {
 	epName := string(ep.Uuid[len(ep.Uuid)-12:])
 	epName = fmt.Sprintf("%s.%s", epName, ep.VTEP)
 	cEP["hcloudEndPoint"].Attributes["name"] = epName
-	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr
+	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr[0]
 	if !add {
 		cEP["hcloudEndPoint"].Attributes["status"] = "deleted"
 	}
@@ -327,7 +359,12 @@ func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
 		}
 
 		if cMo.Subject == "InvRemoteIp" {
-			ep.IPAddr = cMo.GetStringProperty("ip")
+			pLen := cMo.GetIntProperty(propPrefix)
+			addr := cMo.GetStringProperty("ip")
+			if pLen != -1 {
+				addr = fmt.Sprintf("%s/%d", addr, pLen)
+			}
+			ep.IPAddr = append(ep.IPAddr, addr)
 		}
 
 		if cMo.Subject == "InvRemoteInventoryEpToGroupRSrc" {
