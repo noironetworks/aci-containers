@@ -84,6 +84,7 @@ func (c *Contract) Make() error {
 	smo.AddChild(fmo.Uri)
 	err := c.makeClassifiers()
 	if err != nil {
+		log.Errorf("makeClassifiers returned %v", err)
 		return err
 	}
 
@@ -146,12 +147,6 @@ func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	log.Debugf("uri: %s, name: %s", uri, cname)
 	c.classifierUris = append(c.classifierUris, uri)
 	moDB := getMoDB()
-	baseMo := moDB[uri]
-
-	if baseMo != nil {
-		log.Debugf("==> Mo exists")
-		return nil
-	}
 
 	furi := c.getFilterURI()
 	fMo := moDB[furi]
@@ -167,6 +162,7 @@ func (c *Contract) addRule(r v1.WLRule, dir string) error {
 	cfMo.AddProperty(propOrder, 1)
 
 	prot, ether, err := protToValues(r.Protocol)
+	log.Debugf("Contract: %s, prot: %d, err: %v", c.Name, prot, err)
 	if err == nil {
 		cfMo.AddProperty(propProt, prot)
 		cfMo.AddProperty(propEther, ether)

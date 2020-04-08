@@ -228,9 +228,9 @@ func TestBasic(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Second)
-	addContract(t)
-	addEPGs(t)
-	addEPs(t)
+	addContract(t, nil)
+	addEPGs(t, nil)
+	addEPs(t, nil)
 	verifyRest(t, cli)
 	close(stopCh)
 	DoAll()
@@ -257,7 +257,7 @@ func getClient(cert []byte) (*http.Client, error) {
 	}, nil
 }
 
-func addContract(t *testing.T) {
+func addContract(t *testing.T, srv *Server) {
 
 	rule := v1.WLRule{
 		Protocol: "tcp",
@@ -275,10 +275,14 @@ func addContract(t *testing.T) {
 		},
 	}
 
-	err := c.Make()
-	if err != nil {
-		log.Errorf("Contract make - %v", err)
-		t.FailNow()
+	if srv != nil {
+		srv.AddContract(*c)
+	} else {
+		err := c.Make()
+		if err != nil {
+			log.Errorf("Contract make - %v", err)
+			t.FailNow()
+		}
 	}
 
 	emptyRule := v1.WLRule{}
@@ -289,14 +293,14 @@ func addContract(t *testing.T) {
 			emptyRule,
 		},
 	}
-	err = emptyC.Make()
+	err := emptyC.Make()
 	if err != nil {
 		log.Errorf("Contract make - %v", err)
 		t.FailNow()
 	}
 }
 
-func addEPGs(t *testing.T) {
+func addEPGs(t *testing.T, srv *Server) {
 	epgList := []*EPG{
 		{
 			Name:   "epgA",
@@ -341,15 +345,19 @@ func addEPGs(t *testing.T) {
 	}
 
 	for _, e := range epgList {
-		err := e.Make()
-		if err != nil {
-			log.Errorf("%s make - %v", e.Name, err)
-			t.FailNow()
+		if srv != nil {
+			srv.AddEPG(*e)
+		} else {
+			err := e.Make()
+			if err != nil {
+				log.Errorf("%s make - %v", e.Name, err)
+				t.FailNow()
+			}
 		}
 	}
 }
 
-func addEPs(t *testing.T) {
+func addEPs(t *testing.T, srv *Server) {
 	epList := []Endpoint{
 		{EPG: "epgA", VTEP: "101.10.1.1"},
 		{EPG: "epgC", VTEP: "101.10.1.1"},
@@ -363,13 +371,33 @@ func addEPs(t *testing.T) {
 	for ix, ep := range epList {
 		ep.Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
 		ep.MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
-		ep.IPAddr = fmt.Sprintf("10.2.52.%d", ix)
-		_, err := ep.Add()
-		if err != nil {
-			log.Errorf("ep make - %v", err)
-			t.FailNow()
+		ep.IPAddr = []string{fmt.Sprintf("10.2.52.%d", ix)}
+		if srv != nil {
+			srv.AddEP(ep)
+		} else {
+			_, err := ep.Add()
+			if err != nil {
+				log.Errorf("ep make - %v", err)
+				t.FailNow()
+			}
 		}
 
+	}
+
+	extEPList := []Endpoint{
+		{EPG: "epgD", Uuid: "extNet1", IPAddr: []string{"33.33.0.0/16"}},
+		{EPG: "epgE", Uuid: "extNets2", IPAddr: []string{"34.1.1.0/24", "34.1.2.1/32", "35.1.1.1/32"}},
+	}
+	for _, ep := range extEPList {
+		if srv != nil {
+			srv.AddEP(ep)
+		} else {
+			_, err := ep.Add()
+			if err != nil {
+				log.Errorf("ep make - %v", err)
+				t.FailNow()
+			}
+		}
 	}
 }
 
@@ -390,7 +418,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 	testEP := &Endpoint{
 		Uuid:    "testEP-xxx-yyy-zzz",
 		MacAddr: "58:ef:68:e2:71:0d",
-		IPAddr:  "10.2.50.55",
+		IPAddr:  []string{"10.2.50.55"},
 		EPG:     "Roses",
 		VTEP:    "8.8.8.8",
 	}
@@ -652,6 +680,9 @@ func TestGRPC(t *testing.T) {
 	s := suite.setupGBPServer(t)
 	defer s.Stop()
 	defer suite.tearDown()
+	addContract(t, s)
+	addEPGs(t, s)
+	addEPs(t, s)
 
 	// setup a connection to grpc server
 
@@ -772,6 +803,9 @@ func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
 			t.Fatal(fmt.Errorf("Object %s not found in received policy", m.Uri))
 		}
 
+		if strings.Contains(m.Uri, subjEIC) {
+			continue // skip comparison because of randomness ofIDs
+		}
 		if !reflect.DeepEqual(m, n) {
 			log.Infof("%+v  not equal to %+v", m, n)
 			t.Fatal(fmt.Errorf("Object %s did not match in received policy", m.Uri))
