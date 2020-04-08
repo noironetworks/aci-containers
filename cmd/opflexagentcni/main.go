@@ -285,9 +285,40 @@ func cmdDel(args *skel.CmdArgs) error {
 	return nil
 }
 
+func cmdCheck(args *skel.CmdArgs) error {
+	n, _, id, err := loadConf(args)
+	if err != nil {
+		return err
+	}
+
+	logger := log.WithFields(logrus.Fields{
+		"id": id,
+	})
+
+	// run the IPAM plugin and get back the config to apply
+	var result *current.Result
+	if n.IPAM.Type != "opflex-agent-cni-ipam" {
+		logger.Debug("Executing IPAM check")
+		err := ipam.ExecCheck(n.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	} else {
+		result = &current.Result{}
+		result.DNS = n.DNS
+	}
+	if n.WaitForNetwork {
+		logger.Debug("Waiting for network connectivity")
+		waitForAllNetwork(result, id, 10*time.Second)
+	}
+
+	logger.Debug("Check result: ", result)
+    return nil
+}
+
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel,
-		version.PluginSupports("0.3.0", "0.3.1"))
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel,
+		version.PluginSupports("0.3.0", "0.3.1", "0.4.0"), "aci-cni")
 
 	if logFile != "" {
 		logFd.Close()
