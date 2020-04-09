@@ -10,7 +10,6 @@ import (
 
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	_ "google.golang.org/genproto/googleapis/longrunning"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -27,6 +26,240 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+// Request for the `ListInsights` method.
+type ListInsightsRequest struct {
+	// Required. The container resource on which to execute the request.
+	// Acceptable formats:
+	//
+	// 1.
+	// "projects/[PROJECT_NUMBER]/locations/[LOCATION]/insightTypes/[INSIGHT_TYPE_ID]",
+	//
+	// LOCATION here refers to GCP Locations:
+	// https://cloud.google.com/about/locations/
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Optional. The maximum number of results to return from this request.  Non-positive
+	// values are ignored. If not specified, the server will determine the number
+	// of results to return.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optional. If present, retrieves the next batch of results from the preceding call to
+	// this method. `page_token` must be the value of `next_page_token` from the
+	// previous response. The values of other method parameters must be identical
+	// to those in the previous call.
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Optional. Filter expression to restrict the insights returned. Supported
+	// filter fields: state
+	// Eg: `state:"DISMISSED" or state:"ACTIVE"
+	Filter               string   `protobuf:"bytes,4,opt,name=filter,proto3" json:"filter,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListInsightsRequest) Reset()         { *m = ListInsightsRequest{} }
+func (m *ListInsightsRequest) String() string { return proto.CompactTextString(m) }
+func (*ListInsightsRequest) ProtoMessage()    {}
+func (*ListInsightsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{0}
+}
+
+func (m *ListInsightsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListInsightsRequest.Unmarshal(m, b)
+}
+func (m *ListInsightsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListInsightsRequest.Marshal(b, m, deterministic)
+}
+func (m *ListInsightsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListInsightsRequest.Merge(m, src)
+}
+func (m *ListInsightsRequest) XXX_Size() int {
+	return xxx_messageInfo_ListInsightsRequest.Size(m)
+}
+func (m *ListInsightsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListInsightsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListInsightsRequest proto.InternalMessageInfo
+
+func (m *ListInsightsRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
+func (m *ListInsightsRequest) GetPageSize() int32 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+func (m *ListInsightsRequest) GetPageToken() string {
+	if m != nil {
+		return m.PageToken
+	}
+	return ""
+}
+
+func (m *ListInsightsRequest) GetFilter() string {
+	if m != nil {
+		return m.Filter
+	}
+	return ""
+}
+
+// Response to the `ListInsights` method.
+type ListInsightsResponse struct {
+	// The set of insights for the `parent` resource.
+	Insights []*Insight `protobuf:"bytes,1,rep,name=insights,proto3" json:"insights,omitempty"`
+	// A token that can be used to request the next page of results. This field is
+	// empty if there are no additional results.
+	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListInsightsResponse) Reset()         { *m = ListInsightsResponse{} }
+func (m *ListInsightsResponse) String() string { return proto.CompactTextString(m) }
+func (*ListInsightsResponse) ProtoMessage()    {}
+func (*ListInsightsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{1}
+}
+
+func (m *ListInsightsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListInsightsResponse.Unmarshal(m, b)
+}
+func (m *ListInsightsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListInsightsResponse.Marshal(b, m, deterministic)
+}
+func (m *ListInsightsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListInsightsResponse.Merge(m, src)
+}
+func (m *ListInsightsResponse) XXX_Size() int {
+	return xxx_messageInfo_ListInsightsResponse.Size(m)
+}
+func (m *ListInsightsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListInsightsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListInsightsResponse proto.InternalMessageInfo
+
+func (m *ListInsightsResponse) GetInsights() []*Insight {
+	if m != nil {
+		return m.Insights
+	}
+	return nil
+}
+
+func (m *ListInsightsResponse) GetNextPageToken() string {
+	if m != nil {
+		return m.NextPageToken
+	}
+	return ""
+}
+
+// Request to the `GetInsight` method.
+type GetInsightRequest struct {
+	// Required. Name of the insight.
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetInsightRequest) Reset()         { *m = GetInsightRequest{} }
+func (m *GetInsightRequest) String() string { return proto.CompactTextString(m) }
+func (*GetInsightRequest) ProtoMessage()    {}
+func (*GetInsightRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{2}
+}
+
+func (m *GetInsightRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetInsightRequest.Unmarshal(m, b)
+}
+func (m *GetInsightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetInsightRequest.Marshal(b, m, deterministic)
+}
+func (m *GetInsightRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetInsightRequest.Merge(m, src)
+}
+func (m *GetInsightRequest) XXX_Size() int {
+	return xxx_messageInfo_GetInsightRequest.Size(m)
+}
+func (m *GetInsightRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetInsightRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetInsightRequest proto.InternalMessageInfo
+
+func (m *GetInsightRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// Request for the `MarkInsightAccepted` method.
+type MarkInsightAcceptedRequest struct {
+	// Required. Name of the insight.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Optional. State properties user wish to include with this state.  Full replace of the
+	// current state_metadata.
+	StateMetadata map[string]string `protobuf:"bytes,2,rep,name=state_metadata,json=stateMetadata,proto3" json:"state_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Required. Fingerprint of the Insight. Provides optimistic locking.
+	Etag                 string   `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MarkInsightAcceptedRequest) Reset()         { *m = MarkInsightAcceptedRequest{} }
+func (m *MarkInsightAcceptedRequest) String() string { return proto.CompactTextString(m) }
+func (*MarkInsightAcceptedRequest) ProtoMessage()    {}
+func (*MarkInsightAcceptedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{3}
+}
+
+func (m *MarkInsightAcceptedRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MarkInsightAcceptedRequest.Unmarshal(m, b)
+}
+func (m *MarkInsightAcceptedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MarkInsightAcceptedRequest.Marshal(b, m, deterministic)
+}
+func (m *MarkInsightAcceptedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MarkInsightAcceptedRequest.Merge(m, src)
+}
+func (m *MarkInsightAcceptedRequest) XXX_Size() int {
+	return xxx_messageInfo_MarkInsightAcceptedRequest.Size(m)
+}
+func (m *MarkInsightAcceptedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_MarkInsightAcceptedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MarkInsightAcceptedRequest proto.InternalMessageInfo
+
+func (m *MarkInsightAcceptedRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *MarkInsightAcceptedRequest) GetStateMetadata() map[string]string {
+	if m != nil {
+		return m.StateMetadata
+	}
+	return nil
+}
+
+func (m *MarkInsightAcceptedRequest) GetEtag() string {
+	if m != nil {
+		return m.Etag
+	}
+	return ""
+}
+
 // Request for the `ListRecommendations` method.
 type ListRecommendationsRequest struct {
 	// Required. The container resource on which to execute the request.
@@ -38,14 +271,14 @@ type ListRecommendationsRequest struct {
 	// LOCATION here refers to GCP Locations:
 	// https://cloud.google.com/about/locations/
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	// Optional. The maximum number of results to return from this request.
-	// Non-positive values are ignored. If not specified, the server will
-	// determine the number of results to return.
+	// Optional. The maximum number of results to return from this request.  Non-positive
+	// values are ignored. If not specified, the server will determine the number
+	// of results to return.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// Optional. If present, retrieves the next batch of results from the
-	// preceding call to this method. `page_token` must be the value of
-	// `next_page_token` from the previous response. The values of other method
-	// parameters must be identical to those in the previous call.
+	// Optional. If present, retrieves the next batch of results from the preceding call to
+	// this method. `page_token` must be the value of `next_page_token` from the
+	// previous response. The values of other method parameters must be identical
+	// to those in the previous call.
 	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Filter expression to restrict the recommendations returned. Supported
 	// filter fields: state_info.state
@@ -60,7 +293,7 @@ func (m *ListRecommendationsRequest) Reset()         { *m = ListRecommendationsR
 func (m *ListRecommendationsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListRecommendationsRequest) ProtoMessage()    {}
 func (*ListRecommendationsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{0}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{4}
 }
 
 func (m *ListRecommendationsRequest) XXX_Unmarshal(b []byte) error {
@@ -125,7 +358,7 @@ func (m *ListRecommendationsResponse) Reset()         { *m = ListRecommendations
 func (m *ListRecommendationsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListRecommendationsResponse) ProtoMessage()    {}
 func (*ListRecommendationsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{1}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{5}
 }
 
 func (m *ListRecommendationsResponse) XXX_Unmarshal(b []byte) error {
@@ -162,7 +395,7 @@ func (m *ListRecommendationsResponse) GetNextPageToken() string {
 
 // Request to the `GetRecommendation` method.
 type GetRecommendationRequest struct {
-	// Name of the recommendation.
+	// Required. Name of the recommendation.
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -173,7 +406,7 @@ func (m *GetRecommendationRequest) Reset()         { *m = GetRecommendationReque
 func (m *GetRecommendationRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRecommendationRequest) ProtoMessage()    {}
 func (*GetRecommendationRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{2}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{6}
 }
 
 func (m *GetRecommendationRequest) XXX_Unmarshal(b []byte) error {
@@ -203,12 +436,14 @@ func (m *GetRecommendationRequest) GetName() string {
 
 // Request for the `MarkRecommendationClaimed` Method.
 type MarkRecommendationClaimedRequest struct {
-	// Name of the recommendation.
+	// Required. Name of the recommendation.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// State properties to include with this state. Overwrites any existing
 	// `state_metadata`.
+	// Keys must match the regex /^[a-z0-9][a-z0-9_.-]{0,62}$/.
+	// Values must match the regex /^[a-zA-Z0-9_./-]{0,255}$/.
 	StateMetadata map[string]string `protobuf:"bytes,2,rep,name=state_metadata,json=stateMetadata,proto3" json:"state_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Fingerprint of the Recommendation. Provides optimistic locking.
+	// Required. Fingerprint of the Recommendation. Provides optimistic locking.
 	Etag                 string   `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -219,7 +454,7 @@ func (m *MarkRecommendationClaimedRequest) Reset()         { *m = MarkRecommenda
 func (m *MarkRecommendationClaimedRequest) String() string { return proto.CompactTextString(m) }
 func (*MarkRecommendationClaimedRequest) ProtoMessage()    {}
 func (*MarkRecommendationClaimedRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{3}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{7}
 }
 
 func (m *MarkRecommendationClaimedRequest) XXX_Unmarshal(b []byte) error {
@@ -263,12 +498,14 @@ func (m *MarkRecommendationClaimedRequest) GetEtag() string {
 
 // Request for the `MarkRecommendationSucceeded` Method.
 type MarkRecommendationSucceededRequest struct {
-	// Name of the recommendation.
+	// Required. Name of the recommendation.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// State properties to include with this state. Overwrites any existing
 	// `state_metadata`.
+	// Keys must match the regex /^[a-z0-9][a-z0-9_.-]{0,62}$/.
+	// Values must match the regex /^[a-zA-Z0-9_./-]{0,255}$/.
 	StateMetadata map[string]string `protobuf:"bytes,2,rep,name=state_metadata,json=stateMetadata,proto3" json:"state_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Fingerprint of the Recommendation. Provides optimistic locking.
+	// Required. Fingerprint of the Recommendation. Provides optimistic locking.
 	Etag                 string   `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -279,7 +516,7 @@ func (m *MarkRecommendationSucceededRequest) Reset()         { *m = MarkRecommen
 func (m *MarkRecommendationSucceededRequest) String() string { return proto.CompactTextString(m) }
 func (*MarkRecommendationSucceededRequest) ProtoMessage()    {}
 func (*MarkRecommendationSucceededRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{4}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{8}
 }
 
 func (m *MarkRecommendationSucceededRequest) XXX_Unmarshal(b []byte) error {
@@ -323,12 +560,14 @@ func (m *MarkRecommendationSucceededRequest) GetEtag() string {
 
 // Request for the `MarkRecommendationFailed` Method.
 type MarkRecommendationFailedRequest struct {
-	// Name of the recommendation.
+	// Required. Name of the recommendation.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// State properties to include with this state. Overwrites any existing
 	// `state_metadata`.
+	// Keys must match the regex /^[a-z0-9][a-z0-9_.-]{0,62}$/.
+	// Values must match the regex /^[a-zA-Z0-9_./-]{0,255}$/.
 	StateMetadata map[string]string `protobuf:"bytes,2,rep,name=state_metadata,json=stateMetadata,proto3" json:"state_metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Fingerprint of the Recommendation. Provides optimistic locking.
+	// Required. Fingerprint of the Recommendation. Provides optimistic locking.
 	Etag                 string   `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -339,7 +578,7 @@ func (m *MarkRecommendationFailedRequest) Reset()         { *m = MarkRecommendat
 func (m *MarkRecommendationFailedRequest) String() string { return proto.CompactTextString(m) }
 func (*MarkRecommendationFailedRequest) ProtoMessage()    {}
 func (*MarkRecommendationFailedRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0ca265e4ecfbc6d8, []int{5}
+	return fileDescriptor_0ca265e4ecfbc6d8, []int{9}
 }
 
 func (m *MarkRecommendationFailedRequest) XXX_Unmarshal(b []byte) error {
@@ -382,6 +621,11 @@ func (m *MarkRecommendationFailedRequest) GetEtag() string {
 }
 
 func init() {
+	proto.RegisterType((*ListInsightsRequest)(nil), "google.cloud.recommender.v1beta1.ListInsightsRequest")
+	proto.RegisterType((*ListInsightsResponse)(nil), "google.cloud.recommender.v1beta1.ListInsightsResponse")
+	proto.RegisterType((*GetInsightRequest)(nil), "google.cloud.recommender.v1beta1.GetInsightRequest")
+	proto.RegisterType((*MarkInsightAcceptedRequest)(nil), "google.cloud.recommender.v1beta1.MarkInsightAcceptedRequest")
+	proto.RegisterMapType((map[string]string)(nil), "google.cloud.recommender.v1beta1.MarkInsightAcceptedRequest.StateMetadataEntry")
 	proto.RegisterType((*ListRecommendationsRequest)(nil), "google.cloud.recommender.v1beta1.ListRecommendationsRequest")
 	proto.RegisterType((*ListRecommendationsResponse)(nil), "google.cloud.recommender.v1beta1.ListRecommendationsResponse")
 	proto.RegisterType((*GetRecommendationRequest)(nil), "google.cloud.recommender.v1beta1.GetRecommendationRequest")
@@ -398,92 +642,125 @@ func init() {
 }
 
 var fileDescriptor_0ca265e4ecfbc6d8 = []byte{
-	// 787 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x56, 0x4f, 0x4f, 0x1b, 0x47,
-	0x1c, 0xd5, 0x2c, 0x7f, 0x54, 0x06, 0x51, 0xe8, 0xb4, 0x6a, 0xb7, 0x4b, 0xab, 0xba, 0xdb, 0xaa,
-	0x42, 0x96, 0xba, 0x53, 0xa8, 0x2a, 0x55, 0x6e, 0x91, 0x8a, 0x5d, 0x82, 0xa2, 0x84, 0x04, 0xad,
-	0x21, 0x44, 0x48, 0x89, 0x33, 0xac, 0x7f, 0x2c, 0x1b, 0xef, 0xce, 0x6c, 0x76, 0xc7, 0x10, 0x20,
-	0xe4, 0x90, 0x13, 0xca, 0x21, 0x97, 0x7c, 0x82, 0xe4, 0x98, 0x63, 0x3e, 0x46, 0x8e, 0xe4, 0x23,
-	0x24, 0xe7, 0x48, 0x39, 0x71, 0x8d, 0xf6, 0x0f, 0xb0, 0xb6, 0xb1, 0x4d, 0x8c, 0x25, 0x6e, 0xbb,
-	0xbf, 0xd9, 0xf7, 0x7e, 0xef, 0x3d, 0x5b, 0x4f, 0x83, 0x0b, 0xb6, 0x10, 0xb6, 0x0b, 0xd4, 0x72,
-	0x45, 0xbd, 0x4a, 0x03, 0xb0, 0x84, 0xe7, 0x01, 0xaf, 0x42, 0x40, 0xb7, 0xa6, 0xd7, 0x41, 0xb2,
-	0xe9, 0xec, 0xac, 0x12, 0x42, 0xb0, 0xe5, 0x58, 0x60, 0xf8, 0x81, 0x90, 0x82, 0xe4, 0x12, 0xac,
-	0x11, 0x63, 0x8d, 0xcc, 0x77, 0x46, 0x8a, 0xd5, 0x7e, 0x48, 0xd9, 0x99, 0xef, 0x50, 0xc6, 0xb9,
-	0x90, 0x4c, 0x3a, 0x82, 0x87, 0x09, 0x5e, 0xfb, 0xeb, 0xfc, 0xbb, 0x63, 0x5c, 0x0a, 0xfb, 0x25,
-	0x85, 0xb9, 0x82, 0xdb, 0x41, 0x9d, 0x73, 0x87, 0xdb, 0x54, 0xf8, 0x10, 0x34, 0x70, 0x7f, 0x97,
-	0xd9, 0x6c, 0xb9, 0x0e, 0x70, 0x99, 0x1c, 0xe8, 0x07, 0x08, 0x6b, 0xd7, 0x9d, 0x50, 0x9a, 0x0d,
-	0xd4, 0xa1, 0x09, 0x0f, 0xea, 0x10, 0x4a, 0xf2, 0x2d, 0x1e, 0xf6, 0x59, 0x00, 0x5c, 0xaa, 0x28,
-	0x87, 0xa6, 0x46, 0xcc, 0xf4, 0x8d, 0x4c, 0xe2, 0x11, 0x9f, 0xd9, 0x50, 0x09, 0x9d, 0x5d, 0x50,
-	0x95, 0x1c, 0x9a, 0x1a, 0x32, 0xbf, 0x88, 0x06, 0x65, 0x67, 0x17, 0xc8, 0x8f, 0x18, 0xc7, 0x87,
-	0x52, 0xd4, 0x80, 0xab, 0x03, 0x31, 0x30, 0xfe, 0x7c, 0x39, 0x1a, 0x44, 0x9c, 0x1b, 0x8e, 0x2b,
-	0x21, 0x50, 0x87, 0x12, 0xce, 0xe4, 0x4d, 0x7f, 0x81, 0xf0, 0xe4, 0x99, 0x52, 0x42, 0x5f, 0xf0,
-	0x10, 0xc8, 0x1a, 0x1e, 0x6f, 0x0c, 0x20, 0x54, 0x51, 0x6e, 0x60, 0x6a, 0x74, 0xe6, 0x0f, 0xa3,
-	0x5b, 0xf2, 0x46, 0x23, 0xa7, 0xd9, 0x4c, 0x44, 0x7e, 0xc3, 0xe3, 0x1c, 0x1e, 0xca, 0x4a, 0x46,
-	0xb7, 0x12, 0x8b, 0x1b, 0x8b, 0xc6, 0x4b, 0xc7, 0xda, 0x75, 0x03, 0xab, 0x0b, 0xd0, 0xa4, 0xf0,
-	0x38, 0x2b, 0x82, 0x07, 0x39, 0xf3, 0x20, 0x4d, 0x2a, 0x7e, 0xd6, 0x9f, 0x2a, 0x38, 0xb7, 0xc8,
-	0x82, 0x5a, 0x23, 0xa2, 0xe4, 0x32, 0xc7, 0x83, 0x6a, 0x07, 0x20, 0x79, 0x84, 0xbf, 0x0c, 0x25,
-	0x93, 0x50, 0xf1, 0x40, 0xb2, 0x2a, 0x93, 0x4c, 0x55, 0x62, 0xaf, 0x2b, 0xdd, 0xbd, 0x76, 0xdb,
-	0x67, 0x94, 0x23, 0xe2, 0xc5, 0x94, 0x77, 0x9e, 0xcb, 0x60, 0xc7, 0x1c, 0x0b, 0xb3, 0xb3, 0x48,
-	0x11, 0x48, 0x66, 0xa7, 0xbf, 0x5d, 0xfc, 0xac, 0xfd, 0x87, 0x49, 0x2b, 0x90, 0x4c, 0xe0, 0x81,
-	0x1a, 0xec, 0xa4, 0xd2, 0xa3, 0x47, 0xf2, 0x0d, 0x1e, 0xda, 0x62, 0x6e, 0x1d, 0xd2, 0x00, 0x93,
-	0x97, 0x82, 0xf2, 0x37, 0xd2, 0x9f, 0x29, 0x58, 0x6f, 0x15, 0x57, 0xae, 0x5b, 0x16, 0x40, 0xb5,
-	0x73, 0x1c, 0x8f, 0xdb, 0xc4, 0xb1, 0xda, 0x4b, 0x1c, 0xcd, 0x1b, 0x2f, 0x2d, 0x90, 0x03, 0x05,
-	0xff, 0xd4, 0x2a, 0xef, 0x0a, 0x73, 0xdc, 0xce, 0x69, 0xec, 0xb5, 0x49, 0x63, 0xb9, 0x97, 0x34,
-	0x1a, 0xd6, 0x5d, 0x56, 0x14, 0x33, 0x47, 0x23, 0x78, 0xd4, 0x3c, 0xd5, 0x4b, 0xde, 0x21, 0xfc,
-	0xf5, 0x19, 0x65, 0x40, 0xfe, 0xed, 0x6e, 0xb1, 0x7d, 0x9d, 0x69, 0xb3, 0x3d, 0xa2, 0x93, 0x06,
-	0xd2, 0x6f, 0x3e, 0x79, 0xfb, 0xfe, 0xb9, 0x72, 0x95, 0x2c, 0x9c, 0x34, 0xf2, 0x5e, 0xd2, 0x87,
-	0xb3, 0x7e, 0x20, 0xee, 0x83, 0x25, 0x43, 0x9a, 0xa7, 0xae, 0xb0, 0x12, 0x18, 0xcd, 0x67, 0x4b,
-	0x3c, 0xa4, 0xf9, 0x7d, 0xda, 0x5c, 0x3b, 0x87, 0x08, 0x7f, 0xd5, 0xd2, 0x27, 0xa4, 0xd0, 0x5d,
-	0x65, 0xbb, 0x12, 0xd2, 0x3e, 0xbb, 0x0b, 0xcf, 0x32, 0x15, 0xfd, 0xc9, 0xce, 0x67, 0xa9, 0xd9,
-	0x11, 0xcd, 0xef, 0x93, 0x8f, 0x08, 0x7f, 0xdf, 0xb6, 0x83, 0x48, 0xf1, 0xe2, 0x05, 0xd6, 0x83,
-	0xc9, 0xbb, 0xb1, 0xc9, 0xdb, 0x7a, 0xb9, 0x4f, 0x26, 0x0b, 0x1e, 0x0b, 0x6a, 0xa9, 0xaa, 0x02,
-	0xca, 0x93, 0x23, 0x84, 0x27, 0x3b, 0x14, 0x0d, 0xf9, 0xbf, 0x1f, 0x3d, 0xd5, 0x83, 0xef, 0x7b,
-	0xb1, 0xef, 0x35, 0x7d, 0xa5, 0x9f, 0xbe, 0x4f, 0x74, 0x45, 0xce, 0x3f, 0x20, 0xac, 0xb6, 0x2b,
-	0x15, 0x32, 0x77, 0xe1, 0x42, 0xea, 0xc1, 0xf3, 0x9d, 0xd8, 0xf3, 0xaa, 0x6e, 0xf6, 0xd3, 0x73,
-	0x22, 0xaa, 0x80, 0xf2, 0xda, 0x8d, 0x37, 0x73, 0x5a, 0x56, 0x45, 0x22, 0x8f, 0xf9, 0x4e, 0x68,
-	0x58, 0xc2, 0x3b, 0x9c, 0x33, 0x36, 0xa5, 0xf4, 0xc3, 0x02, 0xa5, 0xdb, 0xdb, 0xdb, 0x4d, 0x87,
-	0x94, 0xd5, 0xe5, 0x66, 0x72, 0xbf, 0xfb, 0xdd, 0x77, 0x99, 0xdc, 0x10, 0x81, 0x57, 0x7c, 0x8d,
-	0xf0, 0xaf, 0x96, 0xf0, 0xba, 0xda, 0x2c, 0x4e, 0x64, 0xfa, 0x71, 0x29, 0xba, 0xbc, 0x2d, 0xa1,
-	0xb5, 0x6b, 0x29, 0xca, 0x16, 0x2e, 0xe3, 0xb6, 0x21, 0x02, 0x9b, 0xda, 0xc0, 0xe3, 0xab, 0x1d,
-	0x3d, 0xdd, 0xdd, 0xfe, 0x4a, 0xf9, 0x4f, 0x66, 0xf6, 0x52, 0x19, 0x2c, 0x99, 0xf3, 0xa5, 0x57,
-	0xca, 0xcf, 0x0b, 0x09, 0x69, 0x29, 0x96, 0x92, 0x6c, 0x4d, 0xb5, 0xdc, 0x9a, 0x2e, 0x46, 0xb0,
-	0xf5, 0xe1, 0x78, 0xc5, 0x9f, 0x9f, 0x02, 0x00, 0x00, 0xff, 0xff, 0xba, 0x70, 0xce, 0xac, 0x30,
-	0x0b, 0x00, 0x00,
+	// 1098 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x58, 0xcf, 0x6f, 0xdc, 0x44,
+	0x14, 0x96, 0x9d, 0x1f, 0x6a, 0x5e, 0x09, 0x29, 0xd3, 0x8a, 0x6e, 0x1d, 0xa4, 0xae, 0xac, 0xaa,
+	0x4a, 0x97, 0x60, 0x93, 0x56, 0x45, 0x68, 0xa1, 0xa8, 0xde, 0x90, 0x46, 0x15, 0x84, 0x06, 0x6f,
+	0xda, 0xa2, 0x5c, 0x56, 0x13, 0xef, 0x64, 0x63, 0xe2, 0xf5, 0x18, 0x7b, 0x36, 0x69, 0x1a, 0xca,
+	0x01, 0x89, 0x03, 0x12, 0x27, 0xf8, 0x0b, 0xe0, 0xc8, 0x0d, 0x89, 0x2b, 0x52, 0xd5, 0x03, 0x07,
+	0x4e, 0x08, 0x4e, 0xe4, 0xd4, 0x03, 0x07, 0xee, 0xdc, 0x38, 0x21, 0x8f, 0xc7, 0xbb, 0xf6, 0xfe,
+	0x88, 0x37, 0xbb, 0x56, 0x73, 0xdb, 0x7d, 0x33, 0xef, 0xbd, 0xef, 0x7d, 0xf3, 0xcd, 0xbc, 0x27,
+	0x43, 0xb9, 0x41, 0x69, 0xc3, 0x21, 0xba, 0xe5, 0xd0, 0x56, 0x5d, 0xf7, 0x89, 0x45, 0x9b, 0x4d,
+	0xe2, 0xd6, 0x89, 0xaf, 0xef, 0x2d, 0x6d, 0x11, 0x86, 0x97, 0x92, 0xb6, 0x5a, 0x40, 0xfc, 0x3d,
+	0xdb, 0x22, 0x9a, 0xe7, 0x53, 0x46, 0x51, 0x31, 0xf2, 0xd5, 0xb8, 0xaf, 0x96, 0xd8, 0xa7, 0x09,
+	0x5f, 0xe5, 0x35, 0x11, 0x1d, 0x7b, 0xb6, 0x8e, 0x5d, 0x97, 0x32, 0xcc, 0x6c, 0xea, 0x06, 0x91,
+	0xbf, 0x72, 0x31, 0xb1, 0x6a, 0x39, 0x36, 0x71, 0x99, 0x58, 0xb8, 0x9c, 0x58, 0xd8, 0xb6, 0x89,
+	0x53, 0xaf, 0x6d, 0x91, 0x1d, 0xbc, 0x67, 0x53, 0x5f, 0x6c, 0xb8, 0x94, 0xd8, 0xe0, 0x93, 0x80,
+	0xb6, 0xfc, 0x18, 0x94, 0xa2, 0x65, 0x16, 0x64, 0xbb, 0x81, 0xdd, 0xd8, 0x89, 0x73, 0xdd, 0x1c,
+	0x9e, 0x00, 0x0e, 0x3e, 0x72, 0x53, 0x9f, 0x4a, 0x70, 0xfe, 0x43, 0x3b, 0x60, 0x77, 0xa3, 0x60,
+	0x81, 0x49, 0x3e, 0x6b, 0x91, 0x80, 0xa1, 0x3b, 0x30, 0xed, 0x61, 0x9f, 0xb8, 0xac, 0x20, 0x15,
+	0xa5, 0x85, 0x99, 0x8a, 0xf6, 0xdc, 0x90, 0xff, 0x33, 0x16, 0xe0, 0x6a, 0x92, 0x9e, 0x28, 0x25,
+	0xf6, 0xec, 0x40, 0xb3, 0x68, 0x53, 0x17, 0x31, 0x36, 0x0e, 0x3c, 0x62, 0x0a, 0x6f, 0x54, 0x84,
+	0x19, 0x0f, 0x37, 0x48, 0x2d, 0xb0, 0x1f, 0x93, 0x82, 0x5c, 0x94, 0x16, 0xa6, 0x2a, 0x13, 0xcf,
+	0x0d, 0xc9, 0x3c, 0x13, 0x5a, 0xab, 0xf6, 0x63, 0x82, 0x54, 0x00, 0xbe, 0x83, 0xd1, 0x5d, 0xe2,
+	0x16, 0x26, 0x78, 0x36, 0xbe, 0x85, 0x3b, 0x6e, 0x84, 0x56, 0x34, 0x0f, 0xd3, 0xdb, 0xb6, 0xc3,
+	0x88, 0x5f, 0x98, 0xec, 0xac, 0x0b, 0x93, 0xfa, 0x95, 0x04, 0x17, 0xd2, 0x25, 0x04, 0x1e, 0x75,
+	0x03, 0x82, 0x56, 0xe0, 0x8c, 0xe0, 0x28, 0x28, 0x48, 0xc5, 0x89, 0x85, 0xb3, 0xd7, 0xaf, 0x69,
+	0x59, 0x47, 0xad, 0x89, 0x28, 0x66, 0xdb, 0x15, 0x5d, 0x85, 0x39, 0x97, 0x3c, 0x62, 0xb5, 0x04,
+	0xca, 0xb0, 0x90, 0x19, 0x73, 0x36, 0x34, 0xaf, 0xc7, 0x20, 0xd5, 0x2a, 0xbc, 0xb2, 0x4a, 0x62,
+	0x14, 0x31, 0x8f, 0xef, 0xc1, 0xa4, 0x8b, 0x9b, 0x44, 0xb0, 0x58, 0xe2, 0x2c, 0x5e, 0x01, 0x35,
+	0x9b, 0x45, 0x93, 0xfb, 0xa9, 0x3f, 0xcb, 0xa0, 0xac, 0x61, 0x7f, 0x57, 0x58, 0x0d, 0xcb, 0x22,
+	0x1e, 0x23, 0xf5, 0x9c, 0xc2, 0xa3, 0x43, 0x78, 0x39, 0x60, 0x98, 0x91, 0x5a, 0x93, 0x30, 0x5c,
+	0xc7, 0x0c, 0x17, 0x64, 0x4e, 0xd4, 0xbd, 0x6c, 0xa2, 0x06, 0xa3, 0xd2, 0xaa, 0x61, 0xc8, 0x35,
+	0x11, 0x71, 0xc5, 0x65, 0xfe, 0x41, 0x74, 0x62, 0xb3, 0x41, 0x72, 0x01, 0x5d, 0x84, 0x49, 0xc2,
+	0x70, 0xa3, 0x73, 0xe6, 0xb2, 0xc9, 0x0d, 0xca, 0x6d, 0x40, 0xbd, 0x21, 0xd0, 0x39, 0x98, 0xd8,
+	0x25, 0x07, 0x51, 0xa9, 0x66, 0xf8, 0x13, 0x5d, 0x80, 0xa9, 0x3d, 0xec, 0xb4, 0x88, 0x38, 0x8f,
+	0xe8, 0x4f, 0x59, 0x7e, 0x5b, 0x52, 0x9f, 0x49, 0xa0, 0x84, 0x9a, 0x30, 0x53, 0x9a, 0x1f, 0x4b,
+	0xdd, 0x66, 0x67, 0x29, 0x67, 0x75, 0xbf, 0xda, 0x56, 0xf7, 0x14, 0xaf, 0x23, 0x16, 0xf6, 0xf7,
+	0x12, 0xcc, 0xf7, 0x2d, 0x42, 0xe8, 0x7b, 0x13, 0xe6, 0xd2, 0x77, 0x3a, 0x96, 0xf9, 0x9b, 0xd9,
+	0xa7, 0x97, 0x8e, 0x69, 0x76, 0x07, 0x1a, 0x5a, 0xf4, 0x18, 0x0a, 0xab, 0xa4, 0x0b, 0x61, 0xcc,
+	0xf2, 0x4a, 0x4a, 0x9c, 0x4b, 0x9c, 0xe3, 0xd7, 0xe1, 0xda, 0x30, 0x1c, 0x47, 0x71, 0xa2, 0x2b,
+	0xf0, 0x4c, 0x86, 0x62, 0x28, 0xb6, 0xf4, 0xe2, 0xb2, 0x83, 0xed, 0x66, 0xe7, 0x22, 0xe4, 0x93,
+	0x0b, 0x7d, 0x3e, 0xe0, 0x3e, 0xdc, 0x1f, 0xee, 0x3e, 0x1c, 0x07, 0xb1, 0xcf, 0xad, 0x78, 0x81,
+	0x17, 0xe2, 0x57, 0x19, 0xd4, 0x5e, 0x84, 0xd5, 0x96, 0x65, 0x11, 0x52, 0xcf, 0x9d, 0xc6, 0x2f,
+	0x06, 0xd0, 0xf8, 0x70, 0x14, 0x1a, 0xbb, 0x41, 0x9e, 0x2e, 0x91, 0x4f, 0x65, 0xb8, 0xdc, 0x8b,
+	0xf1, 0x0e, 0xb6, 0x9d, 0xdc, 0x59, 0x1c, 0xf4, 0x38, 0x6f, 0x8c, 0xc2, 0x62, 0x0a, 0xe1, 0xa9,
+	0x52, 0x78, 0xfd, 0x9f, 0x39, 0x38, 0x9b, 0x78, 0x4d, 0xd1, 0xef, 0x12, 0xbc, 0x94, 0x6c, 0xe0,
+	0xe8, 0x66, 0x76, 0x81, 0x7d, 0x66, 0x16, 0xe5, 0xad, 0x93, 0xba, 0x45, 0xef, 0xa8, 0xfa, 0xf1,
+	0x91, 0x21, 0x1e, 0xf4, 0x2f, 0xff, 0xfc, 0xfb, 0x3b, 0xb9, 0x82, 0x6e, 0xb7, 0x67, 0xa6, 0xc3,
+	0xc8, 0x7e, 0xcb, 0xf3, 0xe9, 0xa7, 0xc4, 0x62, 0x81, 0x5e, 0xd2, 0x1d, 0x6a, 0x45, 0x6f, 0xa4,
+	0x5e, 0x8a, 0x47, 0xb0, 0x70, 0xe2, 0x09, 0xf4, 0xd2, 0x13, 0xbd, 0x3d, 0x33, 0xfc, 0x22, 0x01,
+	0x74, 0x86, 0x01, 0x74, 0x23, 0x1b, 0x59, 0xcf, 0xe8, 0xa0, 0x0c, 0x3f, 0xac, 0xa8, 0xf7, 0x8e,
+	0x0c, 0x2e, 0x99, 0x5e, 0xfc, 0xa1, 0x75, 0x38, 0xf4, 0x6d, 0xf0, 0x7a, 0xe9, 0x09, 0xfa, 0x57,
+	0x82, 0xf3, 0x7d, 0x1a, 0x3c, 0x7a, 0x77, 0x9c, 0xb9, 0xe0, 0x24, 0x15, 0x05, 0x47, 0x46, 0x21,
+	0xc4, 0xbe, 0x98, 0xbe, 0x01, 0x8b, 0xa1, 0x04, 0x79, 0x95, 0xa6, 0xba, 0x36, 0x6e, 0x95, 0xe5,
+	0x26, 0xf6, 0x77, 0x63, 0x8c, 0x65, 0xa9, 0xc4, 0xab, 0xee, 0xd3, 0x70, 0x87, 0xa9, 0x7a, 0xf0,
+	0xb0, 0xa1, 0xdc, 0x1a, 0xd1, 0x5b, 0xa8, 0xb3, 0x76, 0x64, 0xcc, 0x46, 0x2a, 0x5c, 0x8c, 0xe6,
+	0x02, 0x5e, 0xfe, 0x5d, 0xb4, 0x3a, 0xac, 0x48, 0x13, 0x09, 0xb9, 0x48, 0xbb, 0x5b, 0xfd, 0x5f,
+	0x12, 0x1f, 0x5c, 0xd3, 0xf9, 0x51, 0x79, 0x28, 0xc9, 0xf6, 0x6d, 0xfc, 0xca, 0x89, 0xe7, 0x0f,
+	0xf5, 0x41, 0x52, 0xc0, 0xa9, 0xda, 0x8e, 0x3b, 0xda, 0x74, 0x65, 0xdd, 0x85, 0x85, 0x3a, 0xfe,
+	0x46, 0x86, 0x4b, 0x03, 0x1b, 0x33, 0xaa, 0x8c, 0xdf, 0xd5, 0x47, 0xa8, 0xf5, 0x20, 0x4b, 0xda,
+	0x9f, 0xa8, 0xd5, 0x9c, 0xea, 0xe7, 0x0a, 0x17, 0x80, 0x43, 0x81, 0x7f, 0x2b, 0xc3, 0xfc, 0x31,
+	0x0d, 0x16, 0xbd, 0x9f, 0x47, 0x7f, 0x1e, 0x81, 0x92, 0xc3, 0x2c, 0x4a, 0x36, 0xd5, 0xfb, 0x79,
+	0x52, 0xd2, 0x86, 0x1c, 0x92, 0xf2, 0xb5, 0x0c, 0x85, 0x41, 0xfd, 0x12, 0x19, 0x63, 0xf7, 0xda,
+	0x11, 0xe8, 0x78, 0x94, 0x45, 0xc7, 0x43, 0xd5, 0xcc, 0x93, 0x8e, 0x08, 0x6f, 0x59, 0x2a, 0x29,
+	0x1f, 0xfd, 0x66, 0x28, 0x83, 0xc7, 0x94, 0x3f, 0x0c, 0x6d, 0x87, 0x31, 0x2f, 0x28, 0xeb, 0xfa,
+	0xfe, 0xfe, 0x7e, 0xf7, 0x0c, 0x83, 0x5b, 0x6c, 0x27, 0xfa, 0xfc, 0xf0, 0x86, 0xe7, 0x60, 0xb6,
+	0x4d, 0xfd, 0x66, 0xe5, 0x27, 0x09, 0xae, 0x58, 0xb4, 0x99, 0xc9, 0x40, 0xe5, 0x5c, 0x62, 0x20,
+	0x58, 0xf7, 0x29, 0xa3, 0xeb, 0xd2, 0xe6, 0x07, 0xc2, 0xab, 0x41, 0x1d, 0xec, 0x36, 0x34, 0xea,
+	0x37, 0xf4, 0x06, 0x71, 0xf9, 0x77, 0x0b, 0xbd, 0x93, 0x7b, 0xf0, 0x17, 0x8f, 0x77, 0x12, 0xb6,
+	0x1f, 0xe4, 0xc9, 0x65, 0x73, 0x65, 0xf9, 0x47, 0xb9, 0xb8, 0x1a, 0x05, 0x5d, 0xe6, 0x50, 0x12,
+	0x59, 0xb5, 0x07, 0x4b, 0x95, 0xd0, 0x6b, 0x6b, 0x9a, 0x67, 0xb8, 0xf1, 0x7f, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0x5b, 0x19, 0x55, 0x86, 0x53, 0x12, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // RecommenderClient is the client API for Recommender service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type RecommenderClient interface {
+	// Lists insights for a Cloud project. Requires the recommender.*.list IAM
+	// permission for the specified insight type.
+	ListInsights(ctx context.Context, in *ListInsightsRequest, opts ...grpc.CallOption) (*ListInsightsResponse, error)
+	// Gets the requested insight. Requires the recommender.*.get IAM permission
+	// for the specified insight type.
+	GetInsight(ctx context.Context, in *GetInsightRequest, opts ...grpc.CallOption) (*Insight, error)
+	// Marks the Insight State as Accepted. Users can use this method to
+	// indicate to the Recommender API that they have applied some action based
+	// on the insight. This stops the insight content from being updated.
+	//
+	// MarkInsightAccepted can be applied to insights in ACTIVE state. Requires
+	// the recommender.*.update IAM permission for the specified insight.
+	MarkInsightAccepted(ctx context.Context, in *MarkInsightAcceptedRequest, opts ...grpc.CallOption) (*Insight, error)
 	// Lists recommendations for a Cloud project. Requires the recommender.*.list
 	// IAM permission for the specified recommender.
 	ListRecommendations(ctx context.Context, in *ListRecommendationsRequest, opts ...grpc.CallOption) (*ListRecommendationsResponse, error)
 	// Gets the requested recommendation. Requires the recommender.*.get
 	// IAM permission for the specified recommender.
 	GetRecommendation(ctx context.Context, in *GetRecommendationRequest, opts ...grpc.CallOption) (*Recommendation, error)
-	// Mark the Recommendation State as Claimed. Users can use this method to
+	// Marks the Recommendation State as Claimed. Users can use this method to
 	// indicate to the Recommender API that they are starting to apply the
 	// recommendation themselves. This stops the recommendation content from being
-	// updated.
+	// updated. Associated insights are frozen and placed in the ACCEPTED state.
 	//
-	// MarkRecommendationClaimed can be applied to recommendations in CLAIMED,
-	// SUCCEEDED, FAILED, or ACTIVE state.
+	// MarkRecommendationClaimed can be applied to recommendations in CLAIMED or
+	// ACTIVE state.
 	//
 	// Requires the recommender.*.update IAM permission for the specified
 	// recommender.
 	MarkRecommendationClaimed(ctx context.Context, in *MarkRecommendationClaimedRequest, opts ...grpc.CallOption) (*Recommendation, error)
-	// Mark the Recommendation State as Succeeded. Users can use this method to
+	// Marks the Recommendation State as Succeeded. Users can use this method to
 	// indicate to the Recommender API that they have applied the recommendation
 	// themselves, and the operation was successful. This stops the recommendation
-	// content from being updated.
+	// content from being updated. Associated insights are frozen and placed in
+	// the ACCEPTED state.
 	//
 	// MarkRecommendationSucceeded can be applied to recommendations in ACTIVE,
 	// CLAIMED, SUCCEEDED, or FAILED state.
@@ -491,10 +768,11 @@ type RecommenderClient interface {
 	// Requires the recommender.*.update IAM permission for the specified
 	// recommender.
 	MarkRecommendationSucceeded(ctx context.Context, in *MarkRecommendationSucceededRequest, opts ...grpc.CallOption) (*Recommendation, error)
-	// Mark the Recommendation State as Failed. Users can use this method to
+	// Marks the Recommendation State as Failed. Users can use this method to
 	// indicate to the Recommender API that they have applied the recommendation
 	// themselves, and the operation failed. This stops the recommendation content
-	// from being updated.
+	// from being updated. Associated insights are frozen and placed in the
+	// ACCEPTED state.
 	//
 	// MarkRecommendationFailed can be applied to recommendations in ACTIVE,
 	// CLAIMED, SUCCEEDED, or FAILED state.
@@ -505,11 +783,38 @@ type RecommenderClient interface {
 }
 
 type recommenderClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewRecommenderClient(cc *grpc.ClientConn) RecommenderClient {
+func NewRecommenderClient(cc grpc.ClientConnInterface) RecommenderClient {
 	return &recommenderClient{cc}
+}
+
+func (c *recommenderClient) ListInsights(ctx context.Context, in *ListInsightsRequest, opts ...grpc.CallOption) (*ListInsightsResponse, error) {
+	out := new(ListInsightsResponse)
+	err := c.cc.Invoke(ctx, "/google.cloud.recommender.v1beta1.Recommender/ListInsights", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recommenderClient) GetInsight(ctx context.Context, in *GetInsightRequest, opts ...grpc.CallOption) (*Insight, error) {
+	out := new(Insight)
+	err := c.cc.Invoke(ctx, "/google.cloud.recommender.v1beta1.Recommender/GetInsight", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recommenderClient) MarkInsightAccepted(ctx context.Context, in *MarkInsightAcceptedRequest, opts ...grpc.CallOption) (*Insight, error) {
+	out := new(Insight)
+	err := c.cc.Invoke(ctx, "/google.cloud.recommender.v1beta1.Recommender/MarkInsightAccepted", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *recommenderClient) ListRecommendations(ctx context.Context, in *ListRecommendationsRequest, opts ...grpc.CallOption) (*ListRecommendationsResponse, error) {
@@ -559,27 +864,41 @@ func (c *recommenderClient) MarkRecommendationFailed(ctx context.Context, in *Ma
 
 // RecommenderServer is the server API for Recommender service.
 type RecommenderServer interface {
+	// Lists insights for a Cloud project. Requires the recommender.*.list IAM
+	// permission for the specified insight type.
+	ListInsights(context.Context, *ListInsightsRequest) (*ListInsightsResponse, error)
+	// Gets the requested insight. Requires the recommender.*.get IAM permission
+	// for the specified insight type.
+	GetInsight(context.Context, *GetInsightRequest) (*Insight, error)
+	// Marks the Insight State as Accepted. Users can use this method to
+	// indicate to the Recommender API that they have applied some action based
+	// on the insight. This stops the insight content from being updated.
+	//
+	// MarkInsightAccepted can be applied to insights in ACTIVE state. Requires
+	// the recommender.*.update IAM permission for the specified insight.
+	MarkInsightAccepted(context.Context, *MarkInsightAcceptedRequest) (*Insight, error)
 	// Lists recommendations for a Cloud project. Requires the recommender.*.list
 	// IAM permission for the specified recommender.
 	ListRecommendations(context.Context, *ListRecommendationsRequest) (*ListRecommendationsResponse, error)
 	// Gets the requested recommendation. Requires the recommender.*.get
 	// IAM permission for the specified recommender.
 	GetRecommendation(context.Context, *GetRecommendationRequest) (*Recommendation, error)
-	// Mark the Recommendation State as Claimed. Users can use this method to
+	// Marks the Recommendation State as Claimed. Users can use this method to
 	// indicate to the Recommender API that they are starting to apply the
 	// recommendation themselves. This stops the recommendation content from being
-	// updated.
+	// updated. Associated insights are frozen and placed in the ACCEPTED state.
 	//
-	// MarkRecommendationClaimed can be applied to recommendations in CLAIMED,
-	// SUCCEEDED, FAILED, or ACTIVE state.
+	// MarkRecommendationClaimed can be applied to recommendations in CLAIMED or
+	// ACTIVE state.
 	//
 	// Requires the recommender.*.update IAM permission for the specified
 	// recommender.
 	MarkRecommendationClaimed(context.Context, *MarkRecommendationClaimedRequest) (*Recommendation, error)
-	// Mark the Recommendation State as Succeeded. Users can use this method to
+	// Marks the Recommendation State as Succeeded. Users can use this method to
 	// indicate to the Recommender API that they have applied the recommendation
 	// themselves, and the operation was successful. This stops the recommendation
-	// content from being updated.
+	// content from being updated. Associated insights are frozen and placed in
+	// the ACCEPTED state.
 	//
 	// MarkRecommendationSucceeded can be applied to recommendations in ACTIVE,
 	// CLAIMED, SUCCEEDED, or FAILED state.
@@ -587,10 +906,11 @@ type RecommenderServer interface {
 	// Requires the recommender.*.update IAM permission for the specified
 	// recommender.
 	MarkRecommendationSucceeded(context.Context, *MarkRecommendationSucceededRequest) (*Recommendation, error)
-	// Mark the Recommendation State as Failed. Users can use this method to
+	// Marks the Recommendation State as Failed. Users can use this method to
 	// indicate to the Recommender API that they have applied the recommendation
 	// themselves, and the operation failed. This stops the recommendation content
-	// from being updated.
+	// from being updated. Associated insights are frozen and placed in the
+	// ACCEPTED state.
 	//
 	// MarkRecommendationFailed can be applied to recommendations in ACTIVE,
 	// CLAIMED, SUCCEEDED, or FAILED state.
@@ -604,6 +924,15 @@ type RecommenderServer interface {
 type UnimplementedRecommenderServer struct {
 }
 
+func (*UnimplementedRecommenderServer) ListInsights(ctx context.Context, req *ListInsightsRequest) (*ListInsightsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInsights not implemented")
+}
+func (*UnimplementedRecommenderServer) GetInsight(ctx context.Context, req *GetInsightRequest) (*Insight, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInsight not implemented")
+}
+func (*UnimplementedRecommenderServer) MarkInsightAccepted(ctx context.Context, req *MarkInsightAcceptedRequest) (*Insight, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MarkInsightAccepted not implemented")
+}
 func (*UnimplementedRecommenderServer) ListRecommendations(ctx context.Context, req *ListRecommendationsRequest) (*ListRecommendationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRecommendations not implemented")
 }
@@ -622,6 +951,60 @@ func (*UnimplementedRecommenderServer) MarkRecommendationFailed(ctx context.Cont
 
 func RegisterRecommenderServer(s *grpc.Server, srv RecommenderServer) {
 	s.RegisterService(&_Recommender_serviceDesc, srv)
+}
+
+func _Recommender_ListInsights_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInsightsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecommenderServer).ListInsights(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.recommender.v1beta1.Recommender/ListInsights",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecommenderServer).ListInsights(ctx, req.(*ListInsightsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Recommender_GetInsight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInsightRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecommenderServer).GetInsight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.recommender.v1beta1.Recommender/GetInsight",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecommenderServer).GetInsight(ctx, req.(*GetInsightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Recommender_MarkInsightAccepted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkInsightAcceptedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecommenderServer).MarkInsightAccepted(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.recommender.v1beta1.Recommender/MarkInsightAccepted",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecommenderServer).MarkInsightAccepted(ctx, req.(*MarkInsightAcceptedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Recommender_ListRecommendations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -718,6 +1101,18 @@ var _Recommender_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "google.cloud.recommender.v1beta1.Recommender",
 	HandlerType: (*RecommenderServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListInsights",
+			Handler:    _Recommender_ListInsights_Handler,
+		},
+		{
+			MethodName: "GetInsight",
+			Handler:    _Recommender_GetInsight_Handler,
+		},
+		{
+			MethodName: "MarkInsightAccepted",
+			Handler:    _Recommender_MarkInsightAccepted_Handler,
+		},
 		{
 			MethodName: "ListRecommendations",
 			Handler:    _Recommender_ListRecommendations_Handler,

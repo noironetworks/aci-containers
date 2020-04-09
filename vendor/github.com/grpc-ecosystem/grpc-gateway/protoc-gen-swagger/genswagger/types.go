@@ -59,12 +59,11 @@ type swaggerObject struct {
 	Info                swaggerInfoObject                   `json:"info"`
 	Host                string                              `json:"host,omitempty"`
 	BasePath            string                              `json:"basePath,omitempty"`
-	Schemes             []string                            `json:"schemes"`
+	Schemes             []string                            `json:"schemes,omitempty"`
 	Consumes            []string                            `json:"consumes"`
 	Produces            []string                            `json:"produces"`
 	Paths               swaggerPathsObject                  `json:"paths"`
 	Definitions         swaggerDefinitionsObject            `json:"definitions"`
-	StreamDefinitions   swaggerDefinitionsObject            `json:"x-stream-definitions,omitempty"`
 	SecurityDefinitions swaggerSecurityDefinitionsObject    `json:"securityDefinitions,omitempty"`
 	Security            []swaggerSecurityRequirementObject  `json:"security,omitempty"`
 	ExternalDocs        *swaggerExternalDocumentationObject `json:"externalDocs,omitempty"`
@@ -116,6 +115,7 @@ type swaggerOperationObject struct {
 	Parameters  swaggerParametersObject `json:"parameters,omitempty"`
 	Tags        []string                `json:"tags,omitempty"`
 	Deprecated  bool                    `json:"deprecated,omitempty"`
+	Produces    []string                `json:"produces,omitempty"`
 
 	Security     *[]swaggerSecurityRequirementObject `json:"security,omitempty"`
 	ExternalDocs *swaggerExternalDocumentationObject `json:"externalDocs,omitempty"`
@@ -168,8 +168,9 @@ type swaggerResponsesObject map[string]swaggerResponseObject
 
 // http://swagger.io/specification/#responseObject
 type swaggerResponseObject struct {
-	Description string              `json:"description"`
-	Schema      swaggerSchemaObject `json:"schema"`
+	Description string                 `json:"description"`
+	Schema      swaggerSchemaObject    `json:"schema"`
+	Examples    map[string]interface{} `json:"examples,omitempty"`
 
 	extensions []extension
 }

@@ -42,6 +42,7 @@ func TestSnappy_ConvertSimple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	decoded, err := dec.DecodeAll(dst.Bytes(), nil)
 	if err != nil {
 		t.Error(err, len(decoded))
@@ -62,6 +63,7 @@ func TestSnappy_ConvertXML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	in, err := ioutil.ReadAll(dec)
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +140,7 @@ func TestSnappy_ConvertSilesia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	decoded, err := dec.DecodeAll(dst.Bytes(), nil)
 	if err != nil {
 		t.Error(err, len(decoded))
@@ -213,6 +216,7 @@ func BenchmarkSnappy_ConvertXML(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer dec.Close()
 	in, err := ioutil.ReadAll(dec)
 	if err != nil {
 		b.Fatal(err)
@@ -248,12 +252,14 @@ func BenchmarkSnappy_ConvertXML(b *testing.B) {
 func BenchmarkSnappy_Enwik9(b *testing.B) {
 	f, err := os.Open("testdata/enwik9.zst")
 	if err != nil {
-		b.Fatal(err)
+		b.Skip(err)
+		return
 	}
 	dec, err := NewReader(f)
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer dec.Close()
 	in, err := ioutil.ReadAll(dec)
 	if err != nil {
 		b.Fatal(err)

@@ -202,10 +202,18 @@ func (n *lazyNode) equal(o *lazyNode) bool {
 			return false
 		}
 
+		if len(n.doc) != len(o.doc) {
+			return false
+		}
+
 		for k, v := range n.doc {
 			ov, ok := o.doc[k]
 
 			if !ok {
+				return false
+			}
+
+			if (v == nil) != (ov == nil) {
 				return false
 			}
 
@@ -384,13 +392,17 @@ func (d *partialDoc) add(key string, val *lazyNode) error {
 }
 
 func (d *partialDoc) get(key string) (*lazyNode, error) {
-	return (*d)[key], nil
+	v, ok := (*d)[key]
+	if !ok {
+		return v, errors.Wrapf(ErrMissing, "unable to get nonexistent key: %s", key)
+	}
+	return v, nil
 }
 
 func (d *partialDoc) remove(key string) error {
 	_, ok := (*d)[key]
 	if !ok {
-		return errors.Wrapf(ErrMissing, "Unable to remove nonexistent key: %s", key)
+		return errors.Wrapf(ErrMissing, "unable to remove nonexistent key: %s", key)
 	}
 
 	delete(*d, key)
@@ -429,14 +441,14 @@ func (d *partialArray) add(key string, val *lazyNode) error {
 		return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
 	}
 
-	if SupportNegativeIndices {
+	if idx < 0 {
+		if !SupportNegativeIndices {
+			return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
+		}
 		if idx < -len(ary) {
 			return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
 		}
-
-		if idx < 0 {
-			idx += len(ary)
-		}
+		idx += len(ary)
 	}
 
 	copy(ary[0:idx], cur[0:idx])
@@ -473,14 +485,14 @@ func (d *partialArray) remove(key string) error {
 		return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
 	}
 
-	if SupportNegativeIndices {
+	if idx < 0 {
+		if !SupportNegativeIndices {
+			return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
+		}
 		if idx < -len(cur) {
 			return errors.Wrapf(ErrInvalidIndex, "Unable to access invalid index: %d", idx)
 		}
-
-		if idx < 0 {
-			idx += len(cur)
-		}
+		idx += len(cur)
 	}
 
 	ary := make([]*lazyNode, len(cur)-1)
@@ -612,7 +624,7 @@ func (p Patch) test(doc *container, op Operation) error {
 	}
 
 	val, err := con.get(key)
-	if err != nil {
+	if err != nil && errors.Cause(err) != ErrMissing {
 		return errors.Wrapf(err, "error in test for path: '%s'", path)
 	}
 

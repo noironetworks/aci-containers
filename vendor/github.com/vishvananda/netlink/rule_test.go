@@ -29,6 +29,9 @@ func TestRuleAddDel(t *testing.T) {
 	rule.OifName = "lo"
 	rule.IifName = "lo"
 	rule.Invert = true
+	rule.Tos = 0x10
+	rule.Dport = NewRulePortRange(80, 80)
+	rule.Sport = NewRulePortRange(1000, 1024)
 	if err := RuleAdd(rule); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +54,8 @@ func TestRuleAddDel(t *testing.T) {
 			rules[i].OifName == rule.OifName &&
 			rules[i].Priority == rule.Priority &&
 			rules[i].IifName == rule.IifName &&
-			rules[i].Invert == rule.Invert {
+			rules[i].Invert == rule.Invert &&
+			rules[i].Tos == rule.Tos {
 			found = true
 			break
 		}

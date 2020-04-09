@@ -62,9 +62,10 @@ func (fake *FakeTaskStatMetronNotifier) RecordConvergenceDuration(arg1 time.Dura
 		arg1 time.Duration
 	}{arg1})
 	fake.recordInvocation("RecordConvergenceDuration", []interface{}{arg1})
+	recordConvergenceDurationStubCopy := fake.RecordConvergenceDurationStub
 	fake.recordConvergenceDurationMutex.Unlock()
-	if fake.RecordConvergenceDurationStub != nil {
-		fake.RecordConvergenceDurationStub(arg1)
+	if recordConvergenceDurationStubCopy != nil {
+		recordConvergenceDurationStubCopy(arg1)
 	}
 }
 
@@ -98,9 +99,10 @@ func (fake *FakeTaskStatMetronNotifier) RecordTaskCounts(arg1 int, arg2 int, arg
 		arg6 uint64
 	}{arg1, arg2, arg3, arg4, arg5, arg6})
 	fake.recordInvocation("RecordTaskCounts", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6})
+	recordTaskCountsStubCopy := fake.RecordTaskCountsStub
 	fake.recordTaskCountsMutex.Unlock()
-	if fake.RecordTaskCountsStub != nil {
-		fake.RecordTaskCountsStub(arg1, arg2, arg3, arg4, arg5, arg6)
+	if recordTaskCountsStubCopy != nil {
+		recordTaskCountsStubCopy(arg1, arg2, arg3, arg4, arg5, arg6)
 	}
 }
 
@@ -129,9 +131,10 @@ func (fake *FakeTaskStatMetronNotifier) RecordTaskFailed(arg1 string) {
 		arg1 string
 	}{arg1})
 	fake.recordInvocation("RecordTaskFailed", []interface{}{arg1})
+	recordTaskFailedStubCopy := fake.RecordTaskFailedStub
 	fake.recordTaskFailedMutex.Unlock()
-	if fake.RecordTaskFailedStub != nil {
-		fake.RecordTaskFailedStub(arg1)
+	if recordTaskFailedStubCopy != nil {
+		recordTaskFailedStubCopy(arg1)
 	}
 }
 
@@ -160,9 +163,10 @@ func (fake *FakeTaskStatMetronNotifier) RecordTaskStarted(arg1 string) {
 		arg1 string
 	}{arg1})
 	fake.recordInvocation("RecordTaskStarted", []interface{}{arg1})
+	recordTaskStartedStubCopy := fake.RecordTaskStartedStub
 	fake.recordTaskStartedMutex.Unlock()
-	if fake.RecordTaskStartedStub != nil {
-		fake.RecordTaskStartedStub(arg1)
+	if recordTaskStartedStubCopy != nil {
+		recordTaskStartedStubCopy(arg1)
 	}
 }
 
@@ -191,9 +195,10 @@ func (fake *FakeTaskStatMetronNotifier) RecordTaskSucceeded(arg1 string) {
 		arg1 string
 	}{arg1})
 	fake.recordInvocation("RecordTaskSucceeded", []interface{}{arg1})
+	recordTaskSucceededStubCopy := fake.RecordTaskSucceededStub
 	fake.recordTaskSucceededMutex.Unlock()
-	if fake.RecordTaskSucceededStub != nil {
-		fake.RecordTaskSucceededStub(arg1)
+	if recordTaskSucceededStubCopy != nil {
+		recordTaskSucceededStubCopy(arg1)
 	}
 }
 
@@ -224,9 +229,10 @@ func (fake *FakeTaskStatMetronNotifier) Run(arg1 <-chan os.Signal, arg2 chan<- s
 		arg2 chan<- struct{}
 	}{arg1, arg2})
 	fake.recordInvocation("Run", []interface{}{arg1, arg2})
+	runStubCopy := fake.RunStub
 	fake.runMutex.Unlock()
-	if fake.RunStub != nil {
-		return fake.RunStub(arg1, arg2)
+	if runStubCopy != nil {
+		return runStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1

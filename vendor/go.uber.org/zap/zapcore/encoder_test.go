@@ -67,14 +67,6 @@ func humanEncoderConfig() EncoderConfig {
 	return cfg
 }
 
-func withJSONEncoder(f func(Encoder)) {
-	f(NewJSONEncoder(testEncoderConfig()))
-}
-
-func withConsoleEncoder(f func(Encoder)) {
-	f(NewConsoleEncoder(humanEncoderConfig()))
-}
-
 func capitalNameEncoder(loggerName string, enc PrimitiveArrayEncoder) {
 	enc.AppendString(strings.ToUpper(loggerName))
 }
@@ -566,6 +558,7 @@ func TestDurationEncoders(t *testing.T) {
 	}{
 		{"string", "1.0000005s"},
 		{"nanos", int64(1000000500)},
+		{"ms", int64(1000)},
 		{"", 1.0000005},
 		{"something-random", 1.0000005},
 	}

@@ -13,41 +13,50 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+
+	"golang.org/x/tools/internal/lsp/debug/tag"
+	"golang.org/x/tools/internal/telemetry/event"
+)
+
+const (
+	// ErrIdleTimeout is returned when serving timed out waiting for new connections.
+	ErrIdleTimeout = constError("timed out waiting for new connections")
+
+	// ErrDisconnected signals that the stream or connection exited normally.
+	ErrDisconnected = constError("disconnected")
 )
 
 // Conn is a JSON RPC 2 client server connection.
 // Conn is bidirectional; it does not have a designated server or client end.
 type Conn struct {
-	seq        int64 // must only be accessed using atomic operations
-	handlers   []Handler
-	stream     Stream
-	err        error
-	pendingMu  sync.Mutex // protects the pending map
-	pending    map[ID]chan *WireResponse
-	handlingMu sync.Mutex // protects the handling map
-	handling   map[ID]*Request
+	seq         int64 // must only be accessed using atomic operations
+	stream      Stream
+	pendingMu   sync.Mutex // protects the pending map
+	pending     map[ID]chan *WireResponse
+	onCancelled CallCanceller
 }
-
-type requestState int
-
-const (
-	requestWaiting = requestState(iota)
-	requestSerial
-	requestParallel
-	requestReplied
-	requestDone
-)
 
 // Request is sent to a server to represent a Call or Notify operaton.
 type Request struct {
-	conn        *Conn
-	cancel      context.CancelFunc
-	state       requestState
-	nextRequest chan struct{}
+	conn *Conn
+	// done holds set of callbacks added by OnReply, and is set back to nil if
+	// Reply has been called.
+	done []func()
 
 	// The Wire values of the request.
 	WireRequest
 }
+
+// Canceller is the type for a function that can cancel an in progress request.
+type Canceller func(id ID)
+
+// CallCanceller is the type for a callback when an outgoing request is
+// has it's context cancelled.
+type CallCanceller func(context.Context, *Conn, ID)
+
+type constError string
+
+func (e constError) Error() string { return string(e) }
 
 // NewErrorf builds a Error struct for the supplied message and code.
 // If args is not empty, message and args will be passed to Sprintf.
@@ -62,35 +71,17 @@ func NewErrorf(code int64, format string, args ...interface{}) *Error {
 // You must call Run for the connection to be active.
 func NewConn(s Stream) *Conn {
 	conn := &Conn{
-		handlers: []Handler{defaultHandler{}},
-		stream:   s,
-		pending:  make(map[ID]chan *WireResponse),
-		handling: make(map[ID]*Request),
+		stream:  s,
+		pending: make(map[ID]chan *WireResponse),
 	}
 	return conn
 }
 
-// AddHandler adds a new handler to the set the connection will invoke.
-// Handlers are invoked in the reverse order of how they were added, this
-// allows the most recent addition to be the first one to attempt to handle a
-// message.
-func (c *Conn) AddHandler(handler Handler) {
-	// prepend the new handlers so we use them first
-	c.handlers = append([]Handler{handler}, c.handlers...)
-}
-
-// Cancel cancels a pending Call on the server side.
-// The call is identified by its id.
-// JSON RPC 2 does not specify a cancel message, so cancellation support is not
-// directly wired in. This method allows a higher level protocol to choose how
-// to propagate the cancel.
-func (c *Conn) Cancel(id ID) {
-	c.handlingMu.Lock()
-	handling, found := c.handling[id]
-	c.handlingMu.Unlock()
-	if found {
-		handling.cancel()
-	}
+// OnCancelled sets the callback used when an outgoing call request has
+// it's context cancelled when still in progress.
+// Only the last callback registered is used.
+func (c *Conn) OnCancelled(cancelled CallCanceller) {
+	c.onCancelled = cancelled
 }
 
 // Notify is called to send a notification request over the connection.
@@ -109,18 +100,19 @@ func (c *Conn) Notify(ctx context.Context, method string, params interface{}) (e
 	if err != nil {
 		return fmt.Errorf("marshalling notify request: %v", err)
 	}
-	for _, h := range c.handlers {
-		ctx = h.Request(ctx, c, Send, request)
-	}
+	ctx, done := event.StartSpan(ctx, request.Method,
+		tag.Method.Of(request.Method),
+		tag.RPCDirection.Of(tag.Outbound),
+		tag.RPCID.Of(request.ID.String()),
+	)
 	defer func() {
-		for _, h := range c.handlers {
-			h.Done(ctx, err)
-		}
+		recordStatus(ctx, err)
+		done()
 	}()
+
+	event.Record(ctx, tag.Started.Of(1))
 	n, err := c.stream.Write(ctx, data)
-	for _, h := range c.handlers {
-		ctx = h.Wrote(ctx, n)
-	}
+	event.Record(ctx, tag.SentBytes.Of(n))
 	return err
 }
 
@@ -144,29 +136,32 @@ func (c *Conn) Call(ctx context.Context, method string, params, result interface
 	if err != nil {
 		return fmt.Errorf("marshalling call request: %v", err)
 	}
-	for _, h := range c.handlers {
-		ctx = h.Request(ctx, c, Send, request)
-	}
-	// we have to add ourselves to the pending map before we send, otherwise we
-	// are racing the response
-	rchan := make(chan *WireResponse)
+	ctx, done := event.StartSpan(ctx, request.Method,
+		tag.Method.Of(request.Method),
+		tag.RPCDirection.Of(tag.Outbound),
+		tag.RPCID.Of(request.ID.String()),
+	)
+	defer func() {
+		recordStatus(ctx, err)
+		done()
+	}()
+	event.Record(ctx, tag.Started.Of(1))
+	// We have to add ourselves to the pending map before we send, otherwise we
+	// are racing the response. Also add a buffer to rchan, so that if we get a
+	// wire response between the time this call is cancelled and id is deleted
+	// from c.pending, the send to rchan will not block.
+	rchan := make(chan *WireResponse, 1)
 	c.pendingMu.Lock()
 	c.pending[id] = rchan
 	c.pendingMu.Unlock()
 	defer func() {
-		// clean up the pending response handler on the way out
 		c.pendingMu.Lock()
 		delete(c.pending, id)
 		c.pendingMu.Unlock()
-		for _, h := range c.handlers {
-			h.Done(ctx, err)
-		}
 	}()
 	// now we are ready to send
 	n, err := c.stream.Write(ctx, data)
-	for _, h := range c.handlers {
-		ctx = h.Wrote(ctx, n)
-	}
+	event.Record(ctx, tag.SentBytes.Of(n))
 	if err != nil {
 		// sending failed, we will never get a response, so don't leave it pending
 		return err
@@ -174,9 +169,6 @@ func (c *Conn) Call(ctx context.Context, method string, params, result interface
 	// now wait for the response
 	select {
 	case response := <-rchan:
-		for _, h := range c.handlers {
-			ctx = h.Response(ctx, c, Receive, response)
-		}
 		// is it an error response?
 		if response.Error != nil {
 			return response.Error
@@ -189,12 +181,9 @@ func (c *Conn) Call(ctx context.Context, method string, params, result interface
 		}
 		return nil
 	case <-ctx.Done():
-		// allow the handler to propagate the cancel
-		cancelled := false
-		for _, h := range c.handlers {
-			if h.Cancel(ctx, c, id, cancelled) {
-				cancelled = true
-			}
+		// Allow the handler to propagate the cancel.
+		if c.onCancelled != nil {
+			c.onCancelled(ctx, c, id)
 		}
 		return ctx.Err()
 	}
@@ -208,39 +197,27 @@ func (r *Request) IsNotify() bool {
 	return r.ID == nil
 }
 
-// Parallel indicates that the system is now allowed to process other requests
-// in parallel with this one.
-// It is safe to call any number of times, but must only be called from the
-// request handling go routine.
-// It is implied by both reply and by the handler returning.
-func (r *Request) Parallel() {
-	if r.state >= requestParallel {
-		return
-	}
-	r.state = requestParallel
-	close(r.nextRequest)
-}
-
 // Reply sends a reply to the given request.
-// It is an error to call this if request was not a call.
 // You must call this exactly once for any given request.
-// It should only be called from the handler go routine.
 // If err is set then result will be ignored.
-// If the request has not yet dropped into parallel mode
-// it will be before this function returns.
+// This will mark the request as done, triggering any done
+// handlers
 func (r *Request) Reply(ctx context.Context, result interface{}, err error) error {
-	if r.state >= requestReplied {
+	if r.done == nil {
 		return fmt.Errorf("reply invoked more than once")
 	}
+
+	defer func() {
+		recordStatus(ctx, err)
+		for i := len(r.done); i > 0; i-- {
+			r.done[i-1]()
+		}
+		r.done = nil
+	}()
+
 	if r.IsNotify() {
-		return fmt.Errorf("reply not invoked with a valid call")
+		return nil
 	}
-	// reply ends the handling phase of a call, so if we are not yet
-	// parallel we should be now. The go routine is allowed to continue
-	// to do work after replying, which is why it is important to unlock
-	// the rpc system at this point.
-	r.Parallel()
-	r.state = requestReplied
 
 	var raw *json.RawMessage
 	if err == nil {
@@ -261,13 +238,8 @@ func (r *Request) Reply(ctx context.Context, result interface{}, err error) erro
 	if err != nil {
 		return err
 	}
-	for _, h := range r.conn.handlers {
-		ctx = h.Response(ctx, r.conn, Send, response)
-	}
 	n, err := r.conn.stream.Write(ctx, data)
-	for _, h := range r.conn.handlers {
-		ctx = h.Wrote(ctx, n)
-	}
+	event.Record(ctx, tag.SentBytes.Of(n))
 
 	if err != nil {
 		// TODO(iancottrell): if a stream write fails, we really need to shut down
@@ -277,17 +249,15 @@ func (r *Request) Reply(ctx context.Context, result interface{}, err error) erro
 	return nil
 }
 
-func (c *Conn) setHandling(r *Request, active bool) {
-	if r.ID == nil {
-		return
-	}
-	r.conn.handlingMu.Lock()
-	defer r.conn.handlingMu.Unlock()
-	if active {
-		r.conn.handling[*r.ID] = r
-	} else {
-		delete(r.conn.handling, *r.ID)
-	}
+// OnReply adds a done callback to the request.
+// All added callbacks are invoked during the one required call to Reply, and
+// then dropped.
+// It is an error to call this after Reply.
+// This call is not safe for concurrent use, but should only be invoked by
+// handlers and in general only one handler should be working on a request
+// at any time.
+func (r *Request) OnReply(do func()) {
+	r.done = append(r.done, do)
 }
 
 // combined has all the fields of both Request and Response.
@@ -305,17 +275,13 @@ type combined struct {
 // caused the termination.
 // It must be called exactly once for each Conn.
 // It returns only when the reader is closed or there is an error in the stream.
-func (c *Conn) Run(runCtx context.Context) error {
-	// we need to make the next request "lock" in an unlocked state to allow
-	// the first incoming request to proceed. All later requests are unlocked
-	// by the preceding request going to parallel mode.
-	nextRequest := make(chan struct{})
-	close(nextRequest)
+func (c *Conn) Run(runCtx context.Context, handler Handler) error {
 	for {
 		// get the data for a message
 		data, n, err := c.stream.Read(runCtx)
 		if err != nil {
-			// the stream failed, we cannot continue
+			// The stream failed, we cannot continue. If the client disconnected
+			// normally, we should get ErrDisconnected here.
 			return err
 		}
 		// read a combined message
@@ -323,22 +289,23 @@ func (c *Conn) Run(runCtx context.Context) error {
 		if err := json.Unmarshal(data, msg); err != nil {
 			// a badly formed message arrived, log it and continue
 			// we trust the stream to have isolated the error to just this message
-			for _, h := range c.handlers {
-				h.Error(runCtx, fmt.Errorf("unmarshal failed: %v", err))
-			}
 			continue
 		}
-		// work out which kind of message we have
+		// Work out whether this is a request or response.
 		switch {
 		case msg.Method != "":
-			// if method is set it must be a request
-			reqCtx, cancelReq := context.WithCancel(runCtx)
-			thisRequest := nextRequest
-			nextRequest = make(chan struct{})
+			// If method is set it must be a request.
+			reqCtx, spanDone := event.StartSpan(runCtx, msg.Method,
+				tag.Method.Of(msg.Method),
+				tag.RPCDirection.Of(tag.Inbound),
+				tag.RPCID.Of(msg.ID.String()),
+			)
+			event.Record(reqCtx,
+				tag.Started.Of(1),
+				tag.ReceivedBytes.Of(n))
+
 			req := &Request{
-				conn:        c,
-				cancel:      cancelReq,
-				nextRequest: nextRequest,
+				conn: c,
 				WireRequest: WireRequest{
 					VersionTag: msg.VersionTag,
 					Method:     msg.Method,
@@ -346,52 +313,27 @@ func (c *Conn) Run(runCtx context.Context) error {
 					ID:         msg.ID,
 				},
 			}
-			for _, h := range c.handlers {
-				reqCtx = h.Request(reqCtx, c, Receive, &req.WireRequest)
-				reqCtx = h.Read(reqCtx, n)
+			req.OnReply(func() { spanDone() })
+
+			if err := handler(reqCtx, req); err != nil {
+				// delivery failed, not much we can do
+				event.Error(reqCtx, "jsonrpc2 message delivery failed", err)
 			}
-			c.setHandling(req, true)
-			go func() {
-				<-thisRequest
-				req.state = requestSerial
-				defer func() {
-					c.setHandling(req, false)
-					if !req.IsNotify() && req.state < requestReplied {
-						req.Reply(reqCtx, nil, NewErrorf(CodeInternalError, "method %q did not reply", req.Method))
-					}
-					req.Parallel()
-					for _, h := range c.handlers {
-						h.Done(reqCtx, err)
-					}
-					cancelReq()
-				}()
-				delivered := false
-				for _, h := range c.handlers {
-					if h.Deliver(reqCtx, req, delivered) {
-						delivered = true
-					}
-				}
-			}()
 		case msg.ID != nil:
-			// we have a response, get the pending entry from the map
+			// If method is not set, this should be a response, in which case we must
+			// have an id to send the response back to the caller.
 			c.pendingMu.Lock()
-			rchan := c.pending[*msg.ID]
-			if rchan != nil {
-				delete(c.pending, *msg.ID)
-			}
+			rchan, ok := c.pending[*msg.ID]
 			c.pendingMu.Unlock()
-			// and send the reply to the channel
-			response := &WireResponse{
-				Result: msg.Result,
-				Error:  msg.Error,
-				ID:     msg.ID,
+			if ok {
+				response := &WireResponse{
+					Result: msg.Result,
+					Error:  msg.Error,
+					ID:     msg.ID,
+				}
+				rchan <- response
 			}
-			rchan <- response
-			close(rchan)
 		default:
-			for _, h := range c.handlers {
-				h.Error(runCtx, fmt.Errorf("message not a call, notify or response, ignoring"))
-			}
 		}
 	}
 }
@@ -403,4 +345,12 @@ func marshalToRaw(obj interface{}) (*json.RawMessage, error) {
 	}
 	raw := json.RawMessage(data)
 	return &raw, nil
+}
+
+func recordStatus(ctx context.Context, err error) {
+	if err != nil {
+		event.Label(ctx, tag.StatusCode.Of("ERROR"))
+	} else {
+		event.Label(ctx, tag.StatusCode.Of("OK"))
+	}
 }

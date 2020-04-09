@@ -7,10 +7,10 @@ package protocol
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"golang.org/x/tools/internal/jsonrpc2"
-	"golang.org/x/tools/internal/telemetry/log"
-	"golang.org/x/tools/internal/telemetry/trace"
+	"golang.org/x/tools/internal/telemetry/event"
 	"golang.org/x/tools/internal/xcontext"
 )
 
@@ -19,63 +19,61 @@ const (
 	RequestCancelledError = -32800
 )
 
-type DocumentUri = string
-
-type canceller struct{ jsonrpc2.EmptyHandler }
-
-type clientHandler struct {
-	canceller
-	client Client
+// ClientDispatcher returns a Client that dispatches LSP requests across the
+// given jsonrpc2 connection.
+func ClientDispatcher(conn *jsonrpc2.Conn) Client {
+	conn.OnCancelled(cancelCall)
+	return &clientDispatcher{Conn: conn}
 }
 
-type serverHandler struct {
-	canceller
-	server Server
+// ServerDispatcher returns a Server that dispatches LSP requests across the
+// given jsonrpc2 connection.
+func ServerDispatcher(conn *jsonrpc2.Conn) Server {
+	conn.OnCancelled(cancelCall)
+	return &serverDispatcher{Conn: conn}
 }
 
-func (canceller) Request(ctx context.Context, conn *jsonrpc2.Conn, direction jsonrpc2.Direction, r *jsonrpc2.WireRequest) context.Context {
-	if direction == jsonrpc2.Receive && r.Method == "$/cancelRequest" {
-		var params CancelParams
-		if err := json.Unmarshal(*r.Params, &params); err != nil {
-			log.Error(ctx, "", err)
-		} else {
-			conn.Cancel(params.ID)
+func Handlers(handler jsonrpc2.Handler) jsonrpc2.Handler {
+	return CancelHandler(
+		CancelHandler(
+			jsonrpc2.AsyncHandler(
+				jsonrpc2.MustReply(handler))))
+}
+
+func CancelHandler(handler jsonrpc2.Handler) jsonrpc2.Handler {
+	handler, canceller := jsonrpc2.CancelHandler(handler)
+	return func(ctx context.Context, req *jsonrpc2.Request) error {
+		if req.Method != "$/cancelRequest" {
+			return handler(ctx, req)
 		}
+		var params CancelParams
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			return sendParseError(ctx, req, err)
+		}
+		v := jsonrpc2.ID{}
+		if n, ok := params.ID.(float64); ok {
+			v.Number = int64(n)
+		} else if s, ok := params.ID.(string); ok {
+			v.Name = s
+		} else {
+			return sendParseError(ctx, req, fmt.Errorf("Request ID %v malformed", params.ID))
+		}
+		canceller(v)
+		return req.Reply(ctx, nil, nil)
 	}
-	return ctx
 }
 
-func (canceller) Cancel(ctx context.Context, conn *jsonrpc2.Conn, id jsonrpc2.ID, cancelled bool) bool {
-	if cancelled {
-		return false
-	}
+func cancelCall(ctx context.Context, conn *jsonrpc2.Conn, id jsonrpc2.ID) {
 	ctx = xcontext.Detach(ctx)
-	ctx, done := trace.StartSpan(ctx, "protocol.canceller")
+	ctx, done := event.StartSpan(ctx, "protocol.canceller")
 	defer done()
-	conn.Notify(ctx, "$/cancelRequest", &CancelParams{ID: id})
-	return true
+	// Note that only *jsonrpc2.ID implements json.Marshaler.
+	conn.Notify(ctx, "$/cancelRequest", &CancelParams{ID: &id})
 }
 
-func NewClient(ctx context.Context, stream jsonrpc2.Stream, client Client) (context.Context, *jsonrpc2.Conn, Server) {
-	ctx = WithClient(ctx, client)
-	conn := jsonrpc2.NewConn(stream)
-	conn.AddHandler(&clientHandler{client: client})
-	return ctx, conn, &serverDispatcher{Conn: conn}
-}
-
-func NewServer(ctx context.Context, stream jsonrpc2.Stream, server Server) (context.Context, *jsonrpc2.Conn, Client) {
-	conn := jsonrpc2.NewConn(stream)
-	client := &clientDispatcher{Conn: conn}
-	ctx = WithClient(ctx, client)
-	conn.AddHandler(&serverHandler{server: server})
-	return ctx, conn, client
-}
-
-func sendParseError(ctx context.Context, req *jsonrpc2.Request, err error) {
+func sendParseError(ctx context.Context, req *jsonrpc2.Request, err error) error {
 	if _, ok := err.(*jsonrpc2.Error); !ok {
 		err = jsonrpc2.NewErrorf(jsonrpc2.CodeParseError, "%v", err)
 	}
-	if err := req.Reply(ctx, nil, err); err != nil {
-		log.Error(ctx, "", err)
-	}
+	return req.Reply(ctx, nil, err)
 }

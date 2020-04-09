@@ -33,9 +33,10 @@ func (fake *FakeDriver) Open(arg1 string) (driver.Conn, error) {
 		arg1 string
 	}{arg1})
 	fake.recordInvocation("Open", []interface{}{arg1})
+	openStubCopy := fake.OpenStub
 	fake.openMutex.Unlock()
-	if fake.OpenStub != nil {
-		return fake.OpenStub(arg1)
+	if openStubCopy != nil {
+		return openStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

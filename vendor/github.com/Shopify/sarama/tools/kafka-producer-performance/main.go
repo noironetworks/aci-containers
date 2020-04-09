@@ -3,15 +3,19 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	gosync "sync"
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/Shopify/sarama/tools/tls"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -36,6 +40,31 @@ var (
 		"",
 		"REQUIRED: A comma separated list of broker addresses.",
 	)
+	securityProtocol = flag.String(
+		"security-protocol",
+		"PLAINTEXT",
+		"The name of the security protocol to talk to Kafka (PLAINTEXT, SSL) (default: PLAINTEXT).",
+	)
+	tlsRootCACerts = flag.String(
+		"tls-ca-certs",
+		"",
+		"The path to a file that contains a set of root certificate authorities in PEM format "+
+			"to trust when verifying broker certificates when -security-protocol=SSL "+
+			"(leave empty to use the host's root CA set).",
+	)
+	tlsClientCert = flag.String(
+		"tls-client-cert",
+		"",
+		"The path to a file that contains the client certificate to send to the broker "+
+			"in PEM format if client authentication is required when -security-protocol=SSL "+
+			"(leave empty to disable client authentication).",
+	)
+	tlsClientKey = flag.String(
+		"tls-client-key",
+		"",
+		"The path to a file that contains the client private key linked to the client certificate "+
+			"in PEM format when -security-protocol=SSL (REQUIRED if tls-client-cert is provided).",
+	)
 	topic = flag.String(
 		"topic",
 		"",
@@ -50,6 +79,11 @@ var (
 		"throughput",
 		0,
 		"The maximum number of messages to send per second (0 for no limit).",
+	)
+	maxOpenRequests = flag.Int(
+		"max-open-requests",
+		5,
+		"The maximum number of unacknowledged requests the client will send on a single connection before blocking (default: 5).",
 	)
 	maxMessageBytes = flag.Int(
 		"max-message-bytes",
@@ -125,6 +159,11 @@ var (
 		"version",
 		"0.8.2.0",
 		"The assumed version of Kafka.",
+	)
+	verbose = flag.Bool(
+		"verbose",
+		false,
+		"Turn on sarama logging to stderr",
 	)
 )
 
@@ -205,9 +244,16 @@ func main() {
 	if *routines < 1 || *routines > *messageLoad {
 		printUsageErrorAndExit("-routines must be greater than 0 and less than or equal to -message-load")
 	}
+	if *securityProtocol != "PLAINTEXT" && *securityProtocol != "SSL" {
+		printUsageErrorAndExit(fmt.Sprintf("-security-protocol %q is not supported", *securityProtocol))
+	}
+	if *verbose {
+		sarama.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
 
 	config := sarama.NewConfig()
 
+	config.Net.MaxOpenRequests = *maxOpenRequests
 	config.Producer.MaxMessageBytes = *maxMessageBytes
 	config.Producer.RequiredAcks = sarama.RequiredAcks(*requiredAcks)
 	config.Producer.Timeout = *timeout
@@ -221,6 +267,30 @@ func main() {
 	config.ClientID = *clientID
 	config.ChannelBufferSize = *channelBufferSize
 	config.Version = parseVersion(*version)
+
+	if *securityProtocol == "SSL" {
+		tlsConfig, err := tls.NewConfig(*tlsClientCert, *tlsClientKey)
+		if err != nil {
+			printErrorAndExit(69, "failed to load client certificate from: %s and private key from: %s: %v",
+				*tlsClientCert, *tlsClientKey, err)
+		}
+
+		if *tlsRootCACerts != "" {
+			rootCAsBytes, err := ioutil.ReadFile(*tlsRootCACerts)
+			if err != nil {
+				printErrorAndExit(69, "failed to read root CA certificates: %v", err)
+			}
+			certPool := x509.NewCertPool()
+			if !certPool.AppendCertsFromPEM(rootCAsBytes) {
+				printErrorAndExit(69, "failed to load root CA certificates from file: %s", *tlsRootCACerts)
+			}
+			// Use specific root CA set vs the host's set
+			tlsConfig.RootCAs = certPool
+		}
+
+		config.Net.TLS.Enable = true
+		config.Net.TLS.Config = tlsConfig
+	}
 
 	if err := config.Validate(); err != nil {
 		printErrorAndExit(69, "Invalid configuration: %s", err)
@@ -363,18 +433,27 @@ func runSyncProducer(topic string, partition, messageLoad, messageSize, routines
 }
 
 func printMetrics(w io.Writer, r metrics.Registry) {
-	if r.Get("record-send-rate") == nil || r.Get("request-latency-in-ms") == nil {
+	recordSendRateMetric := r.Get("record-send-rate")
+	requestLatencyMetric := r.Get("request-latency-in-ms")
+	outgoingByteRateMetric := r.Get("outgoing-byte-rate")
+	requestsInFlightMetric := r.Get("requests-in-flight")
+
+	if recordSendRateMetric == nil || requestLatencyMetric == nil || outgoingByteRateMetric == nil ||
+		requestsInFlightMetric == nil {
 		return
 	}
-	recordSendRate := r.Get("record-send-rate").(metrics.Meter).Snapshot()
-	requestLatency := r.Get("request-latency-in-ms").(metrics.Histogram).Snapshot()
+	recordSendRate := recordSendRateMetric.(metrics.Meter).Snapshot()
+	requestLatency := requestLatencyMetric.(metrics.Histogram).Snapshot()
 	requestLatencyPercentiles := requestLatency.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
-	fmt.Fprintf(w, "%d records sent, %.1f records/sec (%.2f MB/sec), "+
+	outgoingByteRate := outgoingByteRateMetric.(metrics.Meter).Snapshot()
+	requestsInFlight := requestsInFlightMetric.(metrics.Counter).Count()
+	fmt.Fprintf(w, "%d records sent, %.1f records/sec (%.2f MiB/sec ingress, %.2f MiB/sec egress), "+
 		"%.1f ms avg latency, %.1f ms stddev, %.1f ms 50th, %.1f ms 75th, "+
-		"%.1f ms 95th, %.1f ms 99th, %.1f ms 99.9th\n",
+		"%.1f ms 95th, %.1f ms 99th, %.1f ms 99.9th, %d total req. in flight\n",
 		recordSendRate.Count(),
 		recordSendRate.RateMean(),
 		recordSendRate.RateMean()*float64(*messageSize)/1024/1024,
+		outgoingByteRate.RateMean()/1024/1024,
 		requestLatency.Mean(),
 		requestLatency.StdDev(),
 		requestLatencyPercentiles[0],
@@ -382,6 +461,7 @@ func printMetrics(w io.Writer, r metrics.Registry) {
 		requestLatencyPercentiles[2],
 		requestLatencyPercentiles[3],
 		requestLatencyPercentiles[4],
+		requestsInFlight,
 	)
 }
 

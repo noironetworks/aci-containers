@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/consul/agent/cache"
 	"github.com/hashicorp/consul/api"
@@ -402,6 +403,63 @@ func TestStructs_NodeService_ValidateMeshGateway(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			ns := TestNodeServiceMeshGateway(t)
+			tc.Modify(ns)
+
+			err := ns.Validate()
+			if tc.Err == "" {
+				require.NoError(t, err)
+			} else {
+				require.Contains(t, strings.ToLower(err.Error()), strings.ToLower(tc.Err))
+			}
+		})
+	}
+}
+
+func TestStructs_NodeService_ValidateExposeConfig(t *testing.T) {
+	type testCase struct {
+		Modify func(*NodeService)
+		Err    string
+	}
+	cases := map[string]testCase{
+		"valid": {
+			func(x *NodeService) {},
+			"",
+		},
+		"empty path": {
+			func(x *NodeService) { x.Proxy.Expose.Paths[0].Path = "" },
+			"empty path exposed",
+		},
+		"invalid port negative": {
+			func(x *NodeService) { x.Proxy.Expose.Paths[0].ListenerPort = -1 },
+			"invalid listener port",
+		},
+		"invalid port too large": {
+			func(x *NodeService) { x.Proxy.Expose.Paths[0].ListenerPort = 65536 },
+			"invalid listener port",
+		},
+		"duplicate paths": {
+			func(x *NodeService) {
+				x.Proxy.Expose.Paths[0].Path = "/metrics"
+				x.Proxy.Expose.Paths[1].Path = "/metrics"
+			},
+			"duplicate paths exposed",
+		},
+		"duplicate ports": {
+			func(x *NodeService) {
+				x.Proxy.Expose.Paths[0].ListenerPort = 21600
+				x.Proxy.Expose.Paths[1].ListenerPort = 21600
+			},
+			"duplicate listener ports exposed",
+		},
+		"protocol not supported": {
+			func(x *NodeService) { x.Proxy.Expose.Paths[0].Protocol = "foo" },
+			"protocol 'foo' not supported for path",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			ns := TestNodeServiceExpose(t)
 			tc.Modify(ns)
 
 			err := ns.Validate()
@@ -1757,4 +1815,151 @@ func TestServiceNode_JSON_Marshal(t *testing.T) {
 	var out ServiceNode
 	require.NoError(t, json.Unmarshal(buf, &out))
 	require.Equal(t, *sn, out)
+}
+
+// frankensteinStruct is an amalgamation of all of the different kinds of
+// fields you could have on struct defined in the agent/structs package that we
+// send through msgpack
+type frankensteinStruct struct {
+	Child      *monsterStruct
+	ChildSlice []*monsterStruct
+	ChildMap   map[string]*monsterStruct
+}
+type monsterStruct struct {
+	Bool    bool
+	Int     int
+	Uint8   uint8
+	Uint64  uint64
+	Float32 float32
+	Float64 float64
+	String  string
+
+	Hash         []byte
+	Uint32Slice  []uint32
+	Float64Slice []float64
+	StringSlice  []string
+
+	MapInt         map[string]int
+	MapString      map[string]string
+	MapStringSlice map[string][]string
+
+	// We explicitly DO NOT try to test the following types that involve
+	// interface{} as the TestMsgpackEncodeDecode test WILL fail.
+	//
+	// These are tested elsewhere for the very specific scenario in question,
+	// which usually takes a secondary trip through mapstructure during decode
+	// which papers over some of the additional conversions necessary to finish
+	// decoding.
+	// MapIface    map[string]interface{}
+	// MapMapIface map[string]map[string]interface{}
+
+	Dur     time.Duration
+	DurPtr  *time.Duration
+	Time    time.Time
+	TimePtr *time.Time
+
+	RaftIndex
+}
+
+func makeFrank() *frankensteinStruct {
+	return &frankensteinStruct{
+		Child: makeMonster(),
+		ChildSlice: []*monsterStruct{
+			makeMonster(),
+			makeMonster(),
+		},
+		ChildMap: map[string]*monsterStruct{
+			"one": makeMonster(), // only put one key in here so the map order is fixed
+		},
+	}
+}
+
+func makeMonster() *monsterStruct {
+	var d time.Duration = 9 * time.Hour
+	var t time.Time = time.Date(2008, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return &monsterStruct{
+		Bool:    true,
+		Int:     -8,
+		Uint8:   5,
+		Uint64:  9,
+		Float32: 5.25,
+		Float64: 99.5,
+		String:  "strval",
+
+		Hash:         []byte("hello"),
+		Uint32Slice:  []uint32{1, 2, 3, 4},
+		Float64Slice: []float64{9.2, 6.25},
+		StringSlice:  []string{"foo", "bar"},
+
+		// // MapIface will hold an amalgam of what AuthMethods and
+		// // CAConfigurations use in 'Config'
+		// MapIface: map[string]interface{}{
+		// 	"Name":  "inner",
+		// 	"Dur":   "5s",
+		// 	"Bool":  true,
+		// 	"Float": 15.25,
+		// 	"Int":   int64(94),
+		// 	"Nested": map[string]string{ // this doesn't survive
+		// 		"foo": "bar",
+		// 	},
+		// },
+		// // MapMapIface    map[string]map[string]interface{}
+
+		MapInt: map[string]int{
+			"int": 5,
+		},
+		MapString: map[string]string{
+			"aaa": "bbb",
+		},
+		MapStringSlice: map[string][]string{
+			"aaa": []string{"bbb"},
+		},
+
+		Dur:     5 * time.Second,
+		DurPtr:  &d,
+		Time:    t.Add(-5 * time.Hour),
+		TimePtr: &t,
+
+		RaftIndex: RaftIndex{
+			CreateIndex: 1,
+			ModifyIndex: 3,
+		},
+	}
+}
+
+func TestStructs_MsgpackEncodeDecode_Monolith(t *testing.T) {
+	t.Run("monster", func(t *testing.T) {
+		in := makeMonster()
+		TestMsgpackEncodeDecode(t, in, false)
+	})
+	t.Run("frankenstein", func(t *testing.T) {
+		in := makeFrank()
+		TestMsgpackEncodeDecode(t, in, false)
+	})
+}
+
+func TestSnapshotRequestResponse_MsgpackEncodeDecode(t *testing.T) {
+	t.Run("request", func(t *testing.T) {
+		in := &SnapshotRequest{
+			Datacenter: "foo",
+			Token:      "blah",
+			AllowStale: true,
+			Op:         SnapshotRestore,
+		}
+		TestMsgpackEncodeDecode(t, in, true)
+	})
+	t.Run("response", func(t *testing.T) {
+		in := &SnapshotResponse{
+			Error: "blah",
+			QueryMeta: QueryMeta{
+				Index:            3,
+				LastContact:      5 * time.Second,
+				KnownLeader:      true,
+				ConsistencyLevel: "default",
+			},
+		}
+		TestMsgpackEncodeDecode(t, in, true)
+	})
+
 }

@@ -601,6 +601,37 @@ var _ = Describe("LRP Convergence Controllers", func() {
 			))
 		})
 
+		Context("when the ordinary lrp does not exist", func() {
+			var (
+				ordinaryActualLRP            *models.ActualLRP
+				suspectActualLRP             *models.ActualLRP
+				suspectKeysWithExistingCells []*models.ActualLRPKey
+			)
+
+			BeforeEach(func() {
+				ordinaryActualLRP = model_helpers.NewValidActualLRP("suspect-1", 0)
+				suspectActualLRP = model_helpers.NewValidActualLRP("suspect-1", 0)
+				suspectActualLRP.Presence = models.ActualLRP_Suspect
+
+				suspectKeysWithExistingCells = []*models.ActualLRPKey{&suspectActualLRP.ActualLRPKey}
+
+				fakeLRPDB.RemoveActualLRPReturns(models.ErrResourceNotFound)
+				fakeLRPDB.ChangeActualLRPPresenceReturns(suspectActualLRP, ordinaryActualLRP, nil)
+				fakeLRPDB.ConvergeLRPsReturns(db.ConvergenceResult{
+					SuspectKeysWithExistingCells: suspectKeysWithExistingCells,
+				})
+			})
+
+			It("changes the suspect LRP presence to Ordinary", func() {
+				Eventually(fakeLRPDB.ChangeActualLRPPresenceCallCount).Should(Equal(1))
+				_, _, lrpKey, from, to := fakeLRPDB.ChangeActualLRPPresenceArgsForCall(0)
+
+				Expect(lrpKey).To(Equal(&suspectActualLRP.ActualLRPKey))
+				Expect(from).To(Equal(models.ActualLRP_Suspect))
+				Expect(to).To(Equal(models.ActualLRP_Ordinary))
+			})
+		})
+
 		Context("when the ordinary lrp cannot be removed", func() {
 			BeforeEach(func() {
 				fakeLRPDB.RemoveActualLRPReturns(errors.New("booom!"))

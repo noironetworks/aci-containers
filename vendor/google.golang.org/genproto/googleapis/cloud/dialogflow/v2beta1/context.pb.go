@@ -41,6 +41,13 @@ type Context struct {
 	//
 	// If `Environment ID` is not specified, we assume default 'draft'
 	// environment. If `User ID` is not specified, we assume default '-' user.
+	//
+	// The following context names are reserved for internal use by Dialogflow.
+	// You should not use these contexts or create contexts with these names:
+	//
+	// * `__system_counters__`
+	// * `*_id_dialog_context`
+	// * `*_dialog_params_size`
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Optional. The number of conversational query requests after which the
 	// context expires. If set to `0` (the default) the context expires
@@ -543,11 +550,11 @@ var fileDescriptor_ff2c900db64d4fc9 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // ContextsClient is the client API for Contexts service.
 //
@@ -570,10 +577,10 @@ type ContextsClient interface {
 }
 
 type contextsClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewContextsClient(cc *grpc.ClientConn) ContextsClient {
+func NewContextsClient(cc grpc.ClientConnInterface) ContextsClient {
 	return &contextsClient{cc}
 }
 

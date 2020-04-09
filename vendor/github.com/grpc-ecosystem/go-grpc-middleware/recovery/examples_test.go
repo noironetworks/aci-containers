@@ -7,6 +7,8 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -15,6 +17,10 @@ var (
 
 // Initialization shows an initialization sequence with a custom recovery handler func.
 func Example_initialization() {
+	// Define customfunc to handle panic
+	customFunc = func(p interface{}) (err error) {
+		return status.Errorf(codes.Unknown, "panic triggered: %v", p)
+	}
 	// Shared options for the logger, with a custom gRPC code to log level function.
 	opts := []grpc_recovery.Option{
 		grpc_recovery.WithRecoveryHandler(customFunc),

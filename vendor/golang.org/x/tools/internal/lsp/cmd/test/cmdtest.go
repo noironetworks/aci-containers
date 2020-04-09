@@ -8,34 +8,71 @@ package cmdtest
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"golang.org/x/tools/go/packages/packagestest"
+	"golang.org/x/tools/internal/lsp/cmd"
 	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/source"
 	"golang.org/x/tools/internal/lsp/tests"
 	"golang.org/x/tools/internal/span"
+	"golang.org/x/tools/internal/tool"
 )
 
 type runner struct {
-	exporter packagestest.Exporter
-	data     *tests.Data
-	ctx      context.Context
-	options  func(*source.Options)
+	exporter    packagestest.Exporter
+	data        *tests.Data
+	ctx         context.Context
+	options     func(*source.Options)
+	normalizers []normalizer
+	remote      string
 }
 
-func NewRunner(exporter packagestest.Exporter, data *tests.Data, ctx context.Context, options func(*source.Options)) tests.Tests {
-	return &runner{
-		exporter: exporter,
-		data:     data,
-		ctx:      ctx,
-		options:  options,
+type normalizer struct {
+	path     string
+	slashed  string
+	escaped  string
+	fragment string
+}
+
+func NewRunner(exporter packagestest.Exporter, data *tests.Data, ctx context.Context, remote string, options func(*source.Options)) *runner {
+	r := &runner{
+		exporter:    exporter,
+		data:        data,
+		ctx:         ctx,
+		options:     options,
+		normalizers: make([]normalizer, 0, len(data.Exported.Modules)),
+		remote:      remote,
 	}
+	// build the path normalizing patterns
+	for _, m := range data.Exported.Modules {
+		for fragment := range m.Files {
+			n := normalizer{
+				path:     data.Exported.File(m.Name, fragment),
+				fragment: fragment,
+			}
+			if n.slashed = filepath.ToSlash(n.path); n.slashed == n.path {
+				n.slashed = ""
+			}
+			quoted := strconv.Quote(n.path)
+			if n.escaped = quoted[1 : len(quoted)-1]; n.escaped == n.path {
+				n.escaped = ""
+			}
+			r.normalizers = append(r.normalizers, n)
+		}
+	}
+	return r
+}
+
+func (r *runner) CodeLens(t *testing.T, uri span.URI, want []protocol.CodeLens) {
+	//TODO: add command line completions tests when it works
 }
 
 func (r *runner) Completion(t *testing.T, src span.Span, test tests.Completion, items tests.CompletionItems) {
@@ -66,88 +103,93 @@ func (r *runner) RankCompletion(t *testing.T, src span.Span, test tests.Completi
 	//TODO: add command line completions tests when it works
 }
 
-func (r *runner) FoldingRange(t *testing.T, spn span.Span) {
-	//TODO: add command line folding range tests when it works
-}
-
-func (r *runner) Highlight(t *testing.T, name string, locations []span.Span) {
-	//TODO: add command line highlight tests when it works
-}
-
-func (r *runner) PrepareRename(t *testing.T, src span.Span, want *source.PrepareItem) {
-	//TODO: add command line prepare rename tests when it works
-}
-
-func (r *runner) Symbol(t *testing.T, uri span.URI, expectedSymbols []protocol.DocumentSymbol) {
-	//TODO: add command line symbol tests when it works
-}
-
-func (r *runner) SignatureHelp(t *testing.T, spn span.Span, expectedSignature *source.SignatureInformation) {
-	//TODO: add command line signature tests when it works
-}
-
-func (r *runner) Link(t *testing.T, uri span.URI, wantLinks []tests.Link) {
-	//TODO: add command line link tests when it works
-}
-
-func (r *runner) Import(t *testing.T, spn span.Span) {
-	//TODO: add command line imports tests when it works
-}
-
-func (r *runner) SuggestedFix(t *testing.T, spn span.Span) {
-	//TODO: add suggested fix tests when it works
-}
-
-func CaptureStdOut(t testing.TB, f func()) string {
-	r, out, err := os.Pipe()
+func (r *runner) runGoplsCmd(t testing.TB, args ...string) (string, string) {
+	rStdout, wStdout, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := os.Stdout
-	defer func() {
-		os.Stdout = old
-		out.Close()
-		r.Close()
+	oldStdout := os.Stdout
+	rStderr, wStderr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStderr := os.Stderr
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		io.Copy(stdout, rStdout)
+		wg.Done()
 	}()
-	os.Stdout = out
-	f()
-	out.Close()
-	data, err := ioutil.ReadAll(r)
+	go func() {
+		io.Copy(stderr, rStderr)
+		wg.Done()
+	}()
+	os.Stdout, os.Stderr = wStdout, wStderr
+	app := cmd.New("gopls-test", r.data.Config.Dir, r.data.Exported.Config.Env, r.options)
+	remote := r.remote
+	err = tool.Run(tests.Context(t),
+		app,
+		append([]string{fmt.Sprintf("-remote=internal@%s", remote)}, args...))
 	if err != nil {
-		t.Fatal(err)
+		fmt.Fprint(os.Stderr, err)
 	}
-	return string(data)
+	wStdout.Close()
+	wStderr.Close()
+	wg.Wait()
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+	rStdout.Close()
+	rStderr.Close()
+	return stdout.String(), stderr.String()
 }
 
-// normalizePaths replaces all paths present in s with just the fragment portion
+// NormalizeGoplsCmd runs the gopls command and normalizes its output.
+func (r *runner) NormalizeGoplsCmd(t testing.TB, args ...string) (string, string) {
+	stdout, stderr := r.runGoplsCmd(t, args...)
+	return r.Normalize(stdout), r.Normalize(stderr)
+}
+
+// NormalizePrefix normalizes a single path at the front of the input string.
+func (r *runner) NormalizePrefix(s string) string {
+	for _, n := range r.normalizers {
+		if t := strings.TrimPrefix(s, n.path); t != s {
+			return n.fragment + t
+		}
+		if t := strings.TrimPrefix(s, n.slashed); t != s {
+			return n.fragment + t
+		}
+		if t := strings.TrimPrefix(s, n.escaped); t != s {
+			return n.fragment + t
+		}
+	}
+	return s
+}
+
+// Normalize replaces all paths present in s with just the fragment portion
 // this is used to make golden files not depend on the temporary paths of the files
-func normalizePaths(data *tests.Data, s string) string {
+func (r *runner) Normalize(s string) string {
 	type entry struct {
 		path     string
 		index    int
 		fragment string
 	}
-	match := make([]entry, 0, len(data.Exported.Modules))
+	match := make([]entry, 0, len(r.normalizers))
 	// collect the initial state of all the matchers
-	for _, m := range data.Exported.Modules {
-		for fragment := range m.Files {
-			filename := data.Exported.File(m.Name, fragment)
-			index := strings.Index(s, filename)
+	for _, n := range r.normalizers {
+		index := strings.Index(s, n.path)
+		if index >= 0 {
+			match = append(match, entry{n.path, index, n.fragment})
+		}
+		if n.slashed != "" {
+			index := strings.Index(s, n.slashed)
 			if index >= 0 {
-				match = append(match, entry{filename, index, fragment})
+				match = append(match, entry{n.slashed, index, n.fragment})
 			}
-			if slash := filepath.ToSlash(filename); slash != filename {
-				index := strings.Index(s, slash)
-				if index >= 0 {
-					match = append(match, entry{slash, index, fragment})
-				}
-			}
-			quoted := strconv.Quote(filename)
-			if escaped := quoted[1 : len(quoted)-1]; escaped != filename {
-				index := strings.Index(s, escaped)
-				if index >= 0 {
-					match = append(match, entry{escaped, index, fragment})
-				}
+		}
+		if n.escaped != "" {
+			index := strings.Index(s, n.escaped)
+			if index >= 0 {
+				match = append(match, entry{n.escaped, index, n.fragment})
 			}
 		}
 	}

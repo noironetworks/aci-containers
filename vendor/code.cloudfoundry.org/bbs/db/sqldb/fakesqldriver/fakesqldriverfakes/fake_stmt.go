@@ -65,9 +65,10 @@ func (fake *FakeStmt) Close() error {
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Close", []interface{}{})
+	closeStubCopy := fake.CloseStub
 	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
-		return fake.CloseStub()
+	if closeStubCopy != nil {
+		return closeStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -123,9 +124,10 @@ func (fake *FakeStmt) Exec(arg1 []driver.Value) (driver.Result, error) {
 		arg1 []driver.Value
 	}{arg1Copy})
 	fake.recordInvocation("Exec", []interface{}{arg1Copy})
+	execStubCopy := fake.ExecStub
 	fake.execMutex.Unlock()
-	if fake.ExecStub != nil {
-		return fake.ExecStub(arg1)
+	if execStubCopy != nil {
+		return execStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -185,9 +187,10 @@ func (fake *FakeStmt) NumInput() int {
 	fake.numInputArgsForCall = append(fake.numInputArgsForCall, struct {
 	}{})
 	fake.recordInvocation("NumInput", []interface{}{})
+	numInputStubCopy := fake.NumInputStub
 	fake.numInputMutex.Unlock()
-	if fake.NumInputStub != nil {
-		return fake.NumInputStub()
+	if numInputStubCopy != nil {
+		return numInputStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -243,9 +246,10 @@ func (fake *FakeStmt) Query(arg1 []driver.Value) (driver.Rows, error) {
 		arg1 []driver.Value
 	}{arg1Copy})
 	fake.recordInvocation("Query", []interface{}{arg1Copy})
+	queryStubCopy := fake.QueryStub
 	fake.queryMutex.Unlock()
-	if fake.QueryStub != nil {
-		return fake.QueryStub(arg1)
+	if queryStubCopy != nil {
+		return queryStubCopy(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

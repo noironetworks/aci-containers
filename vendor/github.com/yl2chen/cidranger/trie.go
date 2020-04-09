@@ -42,6 +42,8 @@ type prefixTrie struct {
 
 	network rnet.Network
 	entry   RangerEntry
+
+	size int // This is only maintained in the root trie.
 }
 
 // newPrefixTree creates a new prefixTrie.
@@ -79,12 +81,20 @@ func newEntryTrie(network rnet.Network, entry RangerEntry) *prefixTrie {
 // Insert inserts a RangerEntry into prefix trie.
 func (p *prefixTrie) Insert(entry RangerEntry) error {
 	network := entry.Network()
-	return p.insert(rnet.NewNetwork(network), entry)
+	sizeIncreased, err := p.insert(rnet.NewNetwork(network), entry)
+	if sizeIncreased {
+		p.size++
+	}
+	return err
 }
 
 // Remove removes RangerEntry identified by given network from trie.
 func (p *prefixTrie) Remove(network net.IPNet) (RangerEntry, error) {
-	return p.remove(rnet.NewNetwork(network))
+	entry, err := p.remove(rnet.NewNetwork(network))
+	if entry != nil {
+		p.size--
+	}
+	return entry, err
 }
 
 // Contains returns boolean indicating whether given ip is contained in any
@@ -113,6 +123,11 @@ func (p *prefixTrie) ContainingNetworks(ip net.IP) ([]RangerEntry, error) {
 func (p *prefixTrie) CoveredNetworks(network net.IPNet) ([]RangerEntry, error) {
 	net := rnet.NewNetwork(network)
 	return p.coveredNetworks(net)
+}
+
+// Len returns number of networks in ranger.
+func (p *prefixTrie) Len() int {
+	return p.size
 }
 
 // String returns string representation of trie, mainly for visualization and
@@ -203,67 +218,69 @@ func (p *prefixTrie) coveredNetworks(network rnet.Network) ([]RangerEntry, error
 	return results, nil
 }
 
-func (p *prefixTrie) insert(network rnet.Network, entry RangerEntry) error {
+func (p *prefixTrie) insert(network rnet.Network, entry RangerEntry) (bool, error) {
 	if p.network.Equal(network) {
+		sizeIncreased := p.entry == nil
 		p.entry = entry
-		return nil
+		return sizeIncreased, nil
 	}
+
 	bit, err := p.targetBitFromIP(network.Number)
 	if err != nil {
-		return err
+		return false, err
 	}
-	child := p.children[bit]
-	if child == nil {
-		return p.insertPrefix(bit, newEntryTrie(network, entry))
+	existingChild := p.children[bit]
+
+	// No existing child, insert new leaf trie.
+	if existingChild == nil {
+		p.appendTrie(bit, newEntryTrie(network, entry))
+		return true, nil
 	}
 
-	lcb, err := network.LeastCommonBitPosition(child.network)
+	// Check whether it is necessary to insert additional path prefix between current trie and existing child,
+	// in the case that inserted network diverges on its path to existing child.
+	lcb, err := network.LeastCommonBitPosition(existingChild.network)
+	divergingBitPos := int(lcb) - 1
+	if divergingBitPos > existingChild.targetBitPosition() {
+		pathPrefix := newPathprefixTrie(network, p.totalNumberOfBits()-lcb)
+		err := p.insertPrefix(bit, pathPrefix, existingChild)
+		if err != nil {
+			return false, err
+		}
+		// Update new child
+		existingChild = pathPrefix
+	}
+	return existingChild.insert(network, entry)
+}
+
+func (p *prefixTrie) appendTrie(bit uint32, prefix *prefixTrie) {
+	p.children[bit] = prefix
+	prefix.parent = p
+}
+
+func (p *prefixTrie) insertPrefix(bit uint32, pathPrefix, child *prefixTrie) error {
+	// Set parent/child relationship between current trie and inserted pathPrefix
+	p.children[bit] = pathPrefix
+	pathPrefix.parent = p
+
+	// Set parent/child relationship between inserted pathPrefix and original child
+	pathPrefixBit, err := pathPrefix.targetBitFromIP(child.network.Number)
 	if err != nil {
 		return err
 	}
-	if int(lcb) > child.targetBitPosition()+1 {
-		child = newPathprefixTrie(network, p.totalNumberOfBits()-lcb)
-		err := p.insertPrefix(bit, child)
-		if err != nil {
-			return err
-		}
-	}
-	return child.insert(network, entry)
-}
-
-func (p *prefixTrie) insertPrefix(bits uint32, prefix *prefixTrie) error {
-	child := p.children[bits]
-	if child != nil {
-		prefixBit, err := prefix.targetBitFromIP(child.network.Number)
-		if err != nil {
-			return err
-		}
-		prefix.insertPrefix(prefixBit, child)
-	}
-	p.children[bits] = prefix
-	prefix.parent = p
+	pathPrefix.children[pathPrefixBit] = child
+	child.parent = pathPrefix
 	return nil
 }
 
 func (p *prefixTrie) remove(network rnet.Network) (RangerEntry, error) {
 	if p.hasEntry() && p.network.Equal(network) {
 		entry := p.entry
-		if p.childrenCount() > 1 {
-			p.entry = nil
-		} else {
-			// Has 0 or 1 child.
-			parentBits, err := p.parent.targetBitFromIP(network.Number)
-			if err != nil {
-				return nil, err
-			}
-			var skipChild *prefixTrie
-			for _, child := range p.children {
-				if child != nil {
-					skipChild = child
-					break
-				}
-			}
-			p.parent.children[parentBits] = skipChild
+		p.entry = nil
+
+		err := p.compressPathIfPossible()
+		if err != nil {
+			return nil, err
 		}
 		return entry, nil
 	}
@@ -276,6 +293,44 @@ func (p *prefixTrie) remove(network rnet.Network) (RangerEntry, error) {
 		return child.remove(network)
 	}
 	return nil, nil
+}
+
+func (p *prefixTrie) qualifiesForPathCompression() bool {
+	// Current prefix trie can be path compressed if it meets all following.
+	//		1. records no CIDR entry
+	//		2. has single or no child
+	//		3. is not root trie
+	return !p.hasEntry() && p.childrenCount() <= 1 && p.parent != nil
+}
+
+func (p *prefixTrie) compressPathIfPossible() error {
+	if !p.qualifiesForPathCompression() {
+		// Does not qualify to be compressed
+		return nil
+	}
+
+	// Find lone child.
+	var loneChild *prefixTrie
+	for _, child := range p.children {
+		if child != nil {
+			loneChild = child
+			break
+		}
+	}
+
+	// Find root of currnt single child lineage.
+	parent := p.parent
+	for ; parent.qualifiesForPathCompression(); parent = parent.parent {
+	}
+	parentBit, err := parent.targetBitFromIP(p.network.Number)
+	if err != nil {
+		return err
+	}
+	parent.children[parentBit] = loneChild
+
+	// Attempts to furthur apply path compression at current lineage parent, in case current lineage
+	// compressed into parent.
+	return parent.compressPathIfPossible()
 }
 
 func (p *prefixTrie) childrenCount() int {

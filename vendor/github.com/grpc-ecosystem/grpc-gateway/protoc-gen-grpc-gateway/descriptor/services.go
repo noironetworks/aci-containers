@@ -20,7 +20,7 @@ func (r *Registry) loadServices(file *File) error {
 	for _, sd := range file.GetService() {
 		glog.V(2).Infof("Registering %s", sd.GetName())
 		svc := &Service{
-			File: file,
+			File:                   file,
 			ServiceDescriptorProto: sd,
 		}
 		for _, md := range sd.GetMethod() {

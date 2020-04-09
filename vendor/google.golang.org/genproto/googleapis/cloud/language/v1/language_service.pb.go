@@ -1181,11 +1181,11 @@ type Document struct {
 	// The language of the document (if not specified, the language is
 	// automatically detected). Both ISO and BCP-47 language codes are
 	// accepted.<br>
-	// [Language Support](/natural-language/docs/languages)
-	// lists currently supported languages for each API method.
-	// If the language (either specified by the caller or automatically detected)
-	// is not supported by the called API method, an `INVALID_ARGUMENT` error
-	// is returned.
+	// [Language
+	// Support](https://cloud.google.com/natural-language/docs/languages) lists
+	// currently supported languages for each API method. If the language (either
+	// specified by the caller or automatically detected) is not supported by the
+	// called API method, an `INVALID_ARGUMENT` error is returned.
 	Language             string   `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1866,7 +1866,7 @@ func (m *TextSpan) GetBeginOffset() int32 {
 // Represents a category returned from the text classifier.
 type ClassificationCategory struct {
 	// The name of the category representing the document, from the [predefined
-	// taxonomy](/natural-language/docs/categories).
+	// taxonomy](https://cloud.google.com/natural-language/docs/categories).
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The classifier's confidence of the category. Number represents how certain
 	// the classifier is that this category represents the given text.
@@ -2905,11 +2905,11 @@ var fileDescriptor_dd647168a36bd604 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // LanguageServiceClient is the client API for LanguageService service.
 //
@@ -2936,10 +2936,10 @@ type LanguageServiceClient interface {
 }
 
 type languageServiceClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewLanguageServiceClient(cc *grpc.ClientConn) LanguageServiceClient {
+func NewLanguageServiceClient(cc grpc.ClientConnInterface) LanguageServiceClient {
 	return &languageServiceClient{cc}
 }
 

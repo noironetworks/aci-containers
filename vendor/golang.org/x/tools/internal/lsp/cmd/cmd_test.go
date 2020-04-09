@@ -5,6 +5,7 @@
 package cmd_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,11 +14,14 @@ import (
 	"testing"
 
 	"golang.org/x/tools/go/packages/packagestest"
+	"golang.org/x/tools/internal/jsonrpc2/servertest"
+	"golang.org/x/tools/internal/lsp/cache"
 	"golang.org/x/tools/internal/lsp/cmd"
 	cmdtest "golang.org/x/tools/internal/lsp/cmd/test"
+	"golang.org/x/tools/internal/lsp/debug"
+	"golang.org/x/tools/internal/lsp/lsprpc"
 	"golang.org/x/tools/internal/lsp/tests"
 	"golang.org/x/tools/internal/testenv"
-	"golang.org/x/tools/internal/tool"
 )
 
 func TestMain(m *testing.M) {
@@ -30,9 +34,23 @@ func TestCommandLine(t *testing.T) {
 }
 
 func testCommandLine(t *testing.T, exporter packagestest.Exporter) {
+	ctx := tests.Context(t)
+	ts := testServer(ctx)
 	data := tests.Load(t, exporter, "../testdata")
-	defer data.Exported.Cleanup()
-	tests.Run(t, cmdtest.NewRunner(exporter, data, tests.Context(t), nil), data)
+	for _, datum := range data {
+		defer datum.Exported.Cleanup()
+		t.Run(tests.FormatFolderName(datum.Folder), func(t *testing.T) {
+			t.Helper()
+			tests.Run(t, cmdtest.NewRunner(exporter, datum, ctx, ts.Addr, nil), datum)
+		})
+	}
+}
+
+func testServer(ctx context.Context) *servertest.TCPServer {
+	ctx = debug.WithInstance(ctx, "", "")
+	cache := cache.New(ctx, nil)
+	ss := lsprpc.NewStreamServer(cache)
+	return servertest.NewTCPServer(ctx, ss)
 }
 
 func TestDefinitionHelpExample(t *testing.T) {
@@ -46,6 +64,8 @@ func TestDefinitionHelpExample(t *testing.T) {
 		t.Errorf("could not get wd: %v", err)
 		return
 	}
+	ctx := tests.Context(t)
+	ts := testServer(ctx)
 	thisFile := filepath.Join(dir, "definition.go")
 	baseArgs := []string{"query", "definition"}
 	expect := regexp.MustCompile(`(?s)^[\w/\\:_-]+flag[/\\]flag.go:\d+:\d+-\d+: defined here as FlagSet struct {.*}$`)
@@ -53,9 +73,8 @@ func TestDefinitionHelpExample(t *testing.T) {
 		fmt.Sprintf("%v:%v:%v", thisFile, cmd.ExampleLine, cmd.ExampleColumn),
 		fmt.Sprintf("%v:#%v", thisFile, cmd.ExampleOffset)} {
 		args := append(baseArgs, query)
-		got := cmdtest.CaptureStdOut(t, func() {
-			_ = tool.Run(tests.Context(t), cmd.New("gopls-test", "", nil, nil), args)
-		})
+		r := cmdtest.NewRunner(nil, nil, ctx, ts.Addr, nil)
+		got, _ := r.NormalizeGoplsCmd(t, args...)
 		if !expect.MatchString(got) {
 			t.Errorf("test with %v\nexpected:\n%s\ngot:\n%s", args, expect, got)
 		}

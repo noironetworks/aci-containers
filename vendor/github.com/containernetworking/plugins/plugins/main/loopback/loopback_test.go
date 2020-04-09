@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/containernetworking/plugins/pkg/testutils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -29,31 +30,31 @@ import (
 
 var _ = Describe("Loopback", func() {
 	var (
-		networkNS   ns.NetNS
-		containerID string
-		command     *exec.Cmd
-		environ     []string
+		networkNS ns.NetNS
+		command   *exec.Cmd
+		environ   []string
 	)
 
 	BeforeEach(func() {
 		command = exec.Command(pathToLoPlugin)
 
 		var err error
-		networkNS, err = ns.NewNS()
+		networkNS, err = testutils.NewNS()
 		Expect(err).NotTo(HaveOccurred())
 
 		environ = []string{
-			fmt.Sprintf("CNI_CONTAINERID=%s", containerID),
+			fmt.Sprintf("CNI_CONTAINERID=%s", "dummy"),
 			fmt.Sprintf("CNI_NETNS=%s", networkNS.Path()),
 			fmt.Sprintf("CNI_IFNAME=%s", "this is ignored"),
 			fmt.Sprintf("CNI_ARGS=%s", "none"),
 			fmt.Sprintf("CNI_PATH=%s", "/some/test/path"),
 		}
-		command.Stdin = strings.NewReader(`{ "cniVersion": "0.1.0" }`)
+		command.Stdin = strings.NewReader(`{ "name": "loopback-test", "cniVersion": "0.1.0" }`)
 	})
 
 	AfterEach(func() {
 		Expect(networkNS.Close()).To(Succeed())
+		Expect(testutils.UnmountNS(networkNS)).To(Succeed())
 	})
 
 	Context("when given a network namespace", func() {

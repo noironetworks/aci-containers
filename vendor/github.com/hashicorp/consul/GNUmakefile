@@ -1,21 +1,15 @@
 SHELL = bash
+GOGOVERSION?=$(shell grep github.com/gogo/protobuf go.mod | awk '{print $$2}')
 GOTOOLS = \
-	github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs \
-	github.com/hashicorp/go-bindata/go-bindata \
-	github.com/mitchellh/gox \
+	github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@master \
+	github.com/hashicorp/go-bindata/go-bindata@master \
 	golang.org/x/tools/cmd/cover \
 	golang.org/x/tools/cmd/stringer \
-	github.com/gogo/protobuf/protoc-gen-gofast \
+	github.com/gogo/protobuf/protoc-gen-gofast@$(GOGOVERSION) \
+	github.com/hashicorp/protoc-gen-go-binary \
 	github.com/vektra/mockery/cmd/mockery
 
 GOTAGS ?=
-GOMODULES ?= ./... ./api/... ./sdk/...
-GOFILES ?= $(shell go list $(GOMODULES) | grep -v /vendor/)
-ifeq ($(origin GOTEST_PKGS_EXCLUDE), undefined)
-GOTEST_PKGS ?= $(GOMODULES)
-else
-GOTEST_PKGS=$(shell go list $(GOMODULES) | sed 's/github.com\/hashicorp\/consul/./' | egrep -v "^($(GOTEST_PKGS_EXCLUDE))$$")
-endif
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
 GOPATH=$(shell go env GOPATH)
@@ -24,10 +18,15 @@ MAIN_GOPATH=$(shell go env GOPATH | cut -d: -f1)
 ASSETFS_PATH?=agent/bindata_assetfs.go
 # Get the git commit
 GIT_COMMIT?=$(shell git rev-parse --short HEAD)
+GIT_COMMIT_YEAR?=$(shell git show -s --format=%cd --date=format:%Y HEAD)
 GIT_DIRTY?=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
 GIT_DESCRIBE?=$(shell git describe --tags --always --match "v*")
 GIT_IMPORT=github.com/hashicorp/consul/version
 GOLDFLAGS=-X $(GIT_IMPORT).GitCommit=$(GIT_COMMIT)$(GIT_DIRTY) -X $(GIT_IMPORT).GitDescribe=$(GIT_DESCRIBE)
+
+PROTOFILES?=$(shell find . -name '*.proto' | grep -v 'vendor/')
+PROTOGOFILES=$(PROTOFILES:.proto=.pb.go)
+PROTOGOBINFILES=$(PROTOFILES:.proto=.pb.binary.go)
 
 ifeq ($(FORCE_REBUILD),1)
 NOCACHE=--no-cache
@@ -117,13 +116,12 @@ else
 PUB_WEBSITE_ARG=
 endif
 
-NOGOX?=1
 
-export NOGOX
 export GO_BUILD_TAG
 export UI_BUILD_TAG
 export BUILD_CONTAINER_NAME
 export GIT_COMMIT
+export GIT_COMMIT_YEAR
 export GIT_DIRTY
 export GIT_DESCRIBE
 export GOTAGS
@@ -205,16 +203,24 @@ publish:
 dev-tree:
 	@$(SHELL) $(CURDIR)/build-support/scripts/dev.sh $(DEV_PUSH_ARG)
 
-cov:
-	go test $(GOMODULES) -coverprofile=coverage.out
+cover: cov
+cov: other-consul dev-build
+	go test -tags '$(GOTAGS)' ./... -coverprofile=coverage.out
+	cd sdk && go test -tags '$(GOTAGS)' ./... -coverprofile=../coverage.sdk.part
+	cd api && go test -tags '$(GOTAGS)' ./... -coverprofile=../coverage.api.part
+	grep -h -v "mode: set" coverage.{sdk,api}.part >> coverage.out
+	rm -f coverage.{sdk,api}.part
 	go tool cover -html=coverage.out
 
-test: other-consul dev-build vet test-install-deps test-internal
+test: other-consul dev-build vet test-internal
 
-test-install-deps:
-	go test -tags '$(GOTAGS)' -i $(GOTEST_PKGS)
+go-mod-tidy:
+	@echo "--> Running go mod tidy"
+	@cd sdk && go mod tidy
+	@cd api && go mod tidy
+	@go mod tidy
 
-update-vendor:
+update-vendor: go-mod-tidy
 	@echo "--> Running go mod vendor"
 	@go mod vendor
 	@echo "--> Removing vendoring of our own nested modules"
@@ -229,7 +235,14 @@ test-internal:
 	@# hide it from travis as it exceeds their log limits and causes job to be
 	@# terminated (over 4MB and over 10k lines in the UI). We need to output
 	@# _something_ to stop them terminating us due to inactivity...
-	{ go test -v $(GOTEST_FLAGS) -tags '$(GOTAGS)' $(GOTEST_PKGS) 2>&1 ; echo $$? > exit-code ; } | tee test.log | egrep '^(ok|FAIL|panic:|--- FAIL|--- PASS)'
+	@echo "===================== submodule: sdk =====================" | tee -a test.log
+	cd sdk && { go test -v $(GOTEST_FLAGS) -tags '$(GOTAGS)' ./... 2>&1 ; echo $$? >> ../exit-code ; } | tee -a ../test.log | egrep '^(ok|FAIL|panic:|--- FAIL|--- PASS)'
+	@echo "===================== submodule: api =====================" | tee -a test.log
+	cd api && { go test -v $(GOTEST_FLAGS) -tags '$(GOTAGS)' ./... 2>&1 ; echo $$? >> ../exit-code ; } | tee -a ../test.log | egrep '^(ok|FAIL|panic:|--- FAIL|--- PASS)'
+	@echo "===================== submodule: root =====================" | tee -a test.log
+	{           go test -v $(GOTEST_FLAGS) -tags '$(GOTAGS)' ./... 2>&1 ; echo $$? >> exit-code    ; } | tee -a test.log    | egrep '^(ok|FAIL|panic:|--- FAIL|--- PASS)'
+	@# if everything worked fine then all 3 zeroes will be collapsed to a single zero here
+	@exit_codes="$$(sort -u exit-code)" ; echo "$$exit_codes" > exit-code
 	@echo "Exit code: $$(cat exit-code)"
 	@# This prints all the race report between ====== lines
 	@awk '/^WARNING: DATA RACE/ {do_print=1; print "=================="} do_print==1 {print} /^={10,}/ {do_print=0}' test.log || true
@@ -248,7 +261,7 @@ test-race:
 	$(MAKE) GOTEST_FLAGS=-race
 
 # Run tests with config for CI so `make test` can still be local-dev friendly.
-test-ci: other-consul dev-build vet test-install-deps
+test-ci: other-consul dev-build vet
 	@ if ! GOTEST_FLAGS="-short -timeout 8m -p 3 -parallel 4" make test-internal; then \
 	    echo "    ============"; \
 	    echo "      Retrying 1/2"; \
@@ -261,7 +274,7 @@ test-ci: other-consul dev-build vet test-install-deps
 	    fi \
 	fi
 
-test-flake: other-consul vet test-install-deps
+test-flake: other-consul vet
 	@$(SHELL) $(CURDIR)/build-support/scripts/test-flake.sh --pkg "$(FLAKE_PKG)" --test "$(FLAKE_TEST)" --cpus "$(FLAKE_CPUS)" --n "$(FLAKE_N)"
 
 test-docker: linux go-build-image
@@ -278,9 +291,9 @@ test-docker: linux go-build-image
 	@echo "Running tests within a docker container"
 	@docker run -ti --rm \
 		-e 'GOTEST_FLAGS=$(GOTEST_FLAGS)' \
-		-e 'GOTEST_PKGS=$(GOTEST_PKGS)' \
 		-e 'GOTAGS=$(GOTAGS)' \
 		-e 'GIT_COMMIT=$(GIT_COMMIT)' \
+		-e 'GIT_COMMIT_YEAR=$(GIT_COMMIT_YEAR)' \
 		-e 'GIT_DIRTY=$(GIT_DIRTY)' \
 		-e 'GIT_DESCRIBE=$(GIT_DESCRIBE)' \
 		$(TEST_PARALLELIZATION) \
@@ -299,16 +312,18 @@ other-consul:
 		exit 1 ; \
 	fi
 
-cover:
-	go test $(GOFILES) --cover
 
 format:
 	@echo "--> Running go fmt"
-	@go fmt $(GOFILES)
+	@go fmt ./...
+	@cd api && go fmt ./... | sed 's@^@api/@'
+	@cd sdk && go fmt ./... | sed 's@^@sdk/@'
 
 vet:
 	@echo "--> Running go vet"
-	@go vet -tags '$(GOTAGS)' $(GOFILES); if [ $$? -eq 1 ]; then \
+	@go vet -tags '$(GOTAGS)' ./... && \
+		(cd api && go vet -tags '$(GOTAGS)' ./...) && \
+		(cd sdk && go vet -tags '$(GOTAGS)' ./...); if [ $$? -ne 0 ]; then \
 		echo ""; \
 		echo "Vet found suspicious constructs. Please check the reported constructs"; \
 		echo "and fix them if necessary before submitting the code for review."; \
@@ -327,7 +342,11 @@ static-assets:
 ui: ui-docker static-assets-docker
 
 tools:
-	go get -u -v $(GOTOOLS)
+	@mkdir -p .gotools
+	@cd .gotools && if [[ ! -f go.mod ]]; then \
+		go mod init consul-tools ; \
+	fi
+	cd .gotools && go get -v $(GOTOOLS)
 
 version:
 	@echo -n "Version:                    "
@@ -362,9 +381,32 @@ ui-docker: ui-build-image
 test-envoy-integ: $(ENVOY_INTEG_DEPS)
 	@$(SHELL) $(CURDIR)/test/integration/connect/envoy/run-tests.sh
 
-proto:
-	protoc agent/connect/ca/plugin/*.proto --gofast_out=plugins=grpc:../../..
+test-vault-ca-provider:
+ifeq ("$(CIRCLECI)","true")
+# Run in CI
+	gotestsum --format=short-verbose --junitfile "$(TEST_RESULTS_DIR)/gotestsum-report.xml" -- $(CURDIR)/agent/connect/ca/* -run 'TestVault(CA)?Provider'
+else
+# Run locally
+	@echo "Running /agent/connect/ca TestVault(CA)?Provider tests in verbose mode"
+	@go test $(CURDIR)/agent/connect/ca/* -run 'TestVault(CA)?Provider' -v
+endif
 
-.PHONY: all ci bin dev dist cov test test-ci test-internal test-install-deps cover format vet ui static-assets tools
+proto-delete:
+	@echo "Removing $(PROTOGOFILES)"
+	-@rm $(PROTOGOFILES)
+	@echo "Removing $(PROTOGOBINFILES)"
+	-@rm $(PROTOGOBINFILES)
+
+proto-rebuild: proto-delete proto
+
+proto: $(PROTOGOFILES) $(PROTOGOBINFILES)
+	@echo "Generated all protobuf Go files"
+
+
+%.pb.go %.pb.binary.go: %.proto
+	@$(SHELL) $(CURDIR)/build-support/scripts/proto-gen.sh --grpc --import-replace "$<"
+
+
+.PHONY: all ci bin dev dist cov test test-ci test-internal cover format vet ui static-assets tools
 .PHONY: docker-images go-build-image ui-build-image static-assets-docker consul-docker ui-docker
-.PHONY: version proto test-envoy-integ
+.PHONY: version proto proto-rebuild proto-delete test-envoy-integ

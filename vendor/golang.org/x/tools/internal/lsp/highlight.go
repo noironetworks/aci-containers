@@ -7,19 +7,20 @@ package lsp
 import (
 	"context"
 
+	"golang.org/x/tools/internal/lsp/debug/tag"
 	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/source"
-	"golang.org/x/tools/internal/lsp/telemetry"
-	"golang.org/x/tools/internal/span"
-	"golang.org/x/tools/internal/telemetry/log"
+	"golang.org/x/tools/internal/telemetry/event"
 )
 
 func (s *Server) documentHighlight(ctx context.Context, params *protocol.DocumentHighlightParams) ([]protocol.DocumentHighlight, error) {
-	uri := span.NewURI(params.TextDocument.URI)
-	view := s.session.ViewOf(uri)
-	rngs, err := source.Highlight(ctx, view, uri, params.Position)
+	snapshot, fh, ok, err := s.beginFileRequest(params.TextDocument.URI, source.Go)
+	if !ok {
+		return nil, err
+	}
+	rngs, err := source.Highlight(ctx, snapshot, fh, params.Position)
 	if err != nil {
-		log.Error(ctx, "no highlight", err, telemetry.URI.Of(uri))
+		event.Error(ctx, "no highlight", err, tag.URI.Of(params.TextDocument.URI))
 	}
 	return toProtocolHighlight(rngs), nil
 }
@@ -29,7 +30,7 @@ func toProtocolHighlight(rngs []protocol.Range) []protocol.DocumentHighlight {
 	kind := protocol.Text
 	for _, rng := range rngs {
 		result = append(result, protocol.DocumentHighlight{
-			Kind:  &kind,
+			Kind:  kind,
 			Range: rng,
 		})
 	}

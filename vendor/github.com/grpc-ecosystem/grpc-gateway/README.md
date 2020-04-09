@@ -36,13 +36,31 @@ manager or by downloading one of the releases from the official repository:
 
 https://github.com/protocolbuffers/protobuf/releases
 
+The following instructions assume you are using
+[Go Modules](https://github.com/golang/go/wiki/Modules) for dependency
+management. Use a
+[tool dependency](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module)
+to track the versions of the following executable packages:
 
-Then use `go get -u` to download the following packages:
+```go
+// +build tools
+
+package tools
+
+import (
+    _ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
+    _ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
+    _ "github.com/golang/protobuf/protoc-gen-go"
+)
+```
+
+Run `go mod tidy` to resolve the versions. Install by running
 
 ```sh
-go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-go get -u github.com/golang/protobuf/protoc-gen-go
+$ go install \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
+    github.com/golang/protobuf/protoc-gen-go
 ```
 
 This will place three binaries in your `$GOBIN`;
@@ -94,6 +112,10 @@ annotation to your .proto file
    +  }
     }
    ```
+
+   See [a_bit_of_everything.proto](examples/internal/proto/examplepb/a_bit_of_everything.proto)
+   for examples of more annotations you can add to customize gateway behavior
+   and generated Swagger output.
 
    If you do not want to modify the proto file for use with grpc-gateway you can
    alternatively use an external
@@ -210,6 +232,16 @@ annotation to your .proto file
    ```
 
 ## Parameters and flags
+
+During code generation with `protoc`, flags to grpc-gateway tools must be passed
+through protoc using the `--<tool_suffix>_out=<flags>:<path>` pattern, for
+example:
+
+```sh
+--grpc-gateway_out=logtostderr=true,repeated_path_param_separator=ssv:.
+--swagger_out=logtostderr=true,repeated_path_param_separator=ssv:.
+```
+
 `protoc-gen-grpc-gateway` supports custom mapping from Protobuf `import` to
 Golang import paths. They are compatible to
 [the parameters with same names in `protoc-gen-go`](https://github.com/golang/protobuf#parameters)
@@ -222,6 +254,15 @@ useful to pass request scoped context between the gateway and the gRPC service.
 `protoc-gen-grpc-gateway` also supports some more command line flags to control
 logging. You can give these flags together with parameters above. Run
 `protoc-gen-grpc-gateway --help` for more details about the flags.
+
+Similarly, `protoc-gen-swagger` supports command-line flags to control Swagger
+output (for example, `json_names_for_fields` to output JSON names for fields
+instead of protobuf names). Run `protoc-gen-swagger --help` for more flag
+details. Further Swagger customization is possible by annotating your `.proto`
+files with options from
+[openapiv2.proto](protoc-gen-swagger/options/openapiv2.proto) - see
+[a_bit_of_everything.proto](examples/internal/proto/examplepb/a_bit_of_everything.proto)
+for examples.
 
 ## More Examples
 More examples are available under `examples` directory.

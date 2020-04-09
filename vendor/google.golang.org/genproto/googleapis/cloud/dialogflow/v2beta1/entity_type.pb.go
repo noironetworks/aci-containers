@@ -35,10 +35,10 @@ type EntityType_Kind int32
 const (
 	// Not specified. This value should be never used.
 	EntityType_KIND_UNSPECIFIED EntityType_Kind = 0
-	// Map entity types allow mapping of a group of synonyms to a canonical
+	// Map entity types allow mapping of a group of synonyms to a reference
 	// value.
 	EntityType_KIND_MAP EntityType_Kind = 1
-	// List entity types contain a set of entries that do not map to canonical
+	// List entity types contain a set of entries that do not map to reference
 	// values. However, list entity types can contain references to other entity
 	// types (with or without aliases).
 	EntityType_KIND_LIST EntityType_Kind = 2
@@ -200,7 +200,7 @@ type EntityType_Entity struct {
 	//
 	// For `KIND_MAP` entity types:
 	//
-	// *   A canonical value to be used in place of synonyms.
+	// *   A reference value to be used in place of synonyms.
 	//
 	// For `KIND_LIST` entity types:
 	//
@@ -973,7 +973,7 @@ type BatchDeleteEntitiesRequest struct {
 	// Required. The name of the entity type to delete entries for. Format:
 	// `projects/<Project ID>/agent/entityTypes/<Entity Type ID>`.
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	// Required. The canonical `values` of the entities to delete. Note that
+	// Required. The reference `values` of the entities to delete. Note that
 	// these are not fully-qualified names, i.e. they don't start with
 	// `projects/<Project ID>`.
 	EntityValues []string `protobuf:"bytes,2,rep,name=entity_values,json=entityValues,proto3" json:"entity_values,omitempty"`
@@ -1197,11 +1197,11 @@ var fileDescriptor_270276916589f9d5 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // EntityTypesClient is the client API for EntityTypes service.
 //
@@ -1242,10 +1242,10 @@ type EntityTypesClient interface {
 }
 
 type entityTypesClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewEntityTypesClient(cc *grpc.ClientConn) EntityTypesClient {
+func NewEntityTypesClient(cc grpc.ClientConnInterface) EntityTypesClient {
 	return &entityTypesClient{cc}
 }
 

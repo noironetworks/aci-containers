@@ -368,7 +368,9 @@ func init() {
 	proto.RegisterType((*QueryWriteStatusResponse)(nil), "google.bytestream.QueryWriteStatusResponse")
 }
 
-func init() { proto.RegisterFile("google/bytestream/bytestream.proto", fileDescriptor_657cab877f44cd08) }
+func init() {
+	proto.RegisterFile("google/bytestream/bytestream.proto", fileDescriptor_657cab877f44cd08)
+}
 
 var fileDescriptor_657cab877f44cd08 = []byte{
 	// 446 bytes of a gzipped FileDescriptorProto
@@ -404,11 +406,11 @@ var fileDescriptor_657cab877f44cd08 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // ByteStreamClient is the client API for ByteStream service.
 //
@@ -459,10 +461,10 @@ type ByteStreamClient interface {
 }
 
 type byteStreamClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewByteStreamClient(cc *grpc.ClientConn) ByteStreamClient {
+func NewByteStreamClient(cc grpc.ClientConnInterface) ByteStreamClient {
 	return &byteStreamClient{cc}
 }
 

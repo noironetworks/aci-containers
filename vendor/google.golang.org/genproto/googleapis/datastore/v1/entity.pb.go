@@ -265,8 +265,8 @@ func (*Key_PathElement) XXX_OneofWrappers() []interface{} {
 // An array value.
 type ArrayValue struct {
 	// Values in the array.
-	// The order of this array may not be preserved if it contains a mix of
-	// indexed and unindexed values.
+	// The order of values in an array is preserved as long as all values have
+	// identical settings for 'exclude_from_indexes'.
 	Values               []*Value `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -617,7 +617,9 @@ func init() {
 	proto.RegisterMapType((map[string]*Value)(nil), "google.datastore.v1.Entity.PropertiesEntry")
 }
 
-func init() { proto.RegisterFile("google/datastore/v1/entity.proto", fileDescriptor_ecbfdafa45100300) }
+func init() {
+	proto.RegisterFile("google/datastore/v1/entity.proto", fileDescriptor_ecbfdafa45100300)
+}
 
 var fileDescriptor_ecbfdafa45100300 = []byte{
 	// 780 bytes of a gzipped FileDescriptorProto

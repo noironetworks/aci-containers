@@ -75,7 +75,7 @@ func TestValidateOvsSet(t *testing.T) {
 	}
 	// Negative condition test
 	integer := 5
-	oSet, err = NewOvsSet(integer)
+	_, err = NewOvsSet(integer)
 	if err == nil {
 		t.Error("OvsSet must fail for anything other than Slices")
 		t.Error("Expected: ", expected, "Got", string(data))
@@ -101,7 +101,7 @@ func TestValidateOvsMap(t *testing.T) {
 	}
 	// Negative condition test
 	integer := 5
-	oMap, err = NewOvsMap(integer)
+	_, err = NewOvsMap(integer)
 	if err == nil {
 		t.Error("OvsMap must fail for anything other than Maps")
 	}

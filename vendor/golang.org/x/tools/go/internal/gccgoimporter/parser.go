@@ -330,7 +330,7 @@ func (p *parser) parseConstValue(pkg *types.Package) (val constant.Value, typ ty
 	if p.tok == '$' {
 		p.next()
 		if p.tok != scanner.Ident {
-			p.errorf("expected identifer after '$', got %s (%q)", scanner.TokenString(p.tok), p.lit)
+			p.errorf("expected identifier after '$', got %s (%q)", scanner.TokenString(p.tok), p.lit)
 		}
 	}
 
@@ -1025,7 +1025,7 @@ func (p *parser) skipInlineBody() {
 func (p *parser) parseTypes(pkg *types.Package) {
 	maxp1 := p.parseInt()
 	exportedp1 := p.parseInt()
-	p.typeList = make([]types.Type, maxp1, maxp1)
+	p.typeList = make([]types.Type, maxp1)
 
 	type typeOffset struct {
 		offset int

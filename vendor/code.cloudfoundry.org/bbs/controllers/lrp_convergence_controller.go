@@ -252,7 +252,7 @@ func (h *LRPConvergenceController) ConvergeLRPs(ctx context.Context, logger lage
 		works = append(works, func() {
 			logger := logger.Session("suspect-keys-with-existing-cells")
 			err := h.lrpDB.RemoveActualLRP(ctx, logger, dereferencedKey.ProcessGuid, dereferencedKey.Index, nil)
-			if err != nil {
+			if err != nil && err != models.ErrResourceNotFound {
 				logger.Error("cannot-remove-lrp", err, lager.Data{"key": dereferencedKey})
 				return
 			}

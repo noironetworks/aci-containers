@@ -67,6 +67,10 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("failed to build server config: %v", err)
 	}
 
+	if serverConf.NameToCertificate == nil {
+		t.Error("tls.Config.NameToCertificate should not be nil")
+	}
+
 	clientConf, err := tlsconfig.Build(
 		tlsconfig.WithIdentity(clientTLSCrt),
 	).Client(
@@ -74,6 +78,10 @@ func TestE2E(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("failed to build client config: %v", err)
+	}
+
+	if clientConf.NameToCertificate == nil {
+		t.Error("tls.Config.NameToCertificate should not be nil")
 	}
 
 	testClientServerTLSConnection(t, clientConf, serverConf)
@@ -253,9 +261,79 @@ func TestInternalDefaults(t *testing.T) {
 				t.Errorf("expected TLS 1.2 to be the minimum version; want: %v, have: %v", want, have)
 			}
 
+			if have, want := config.MaxVersion, uint16(tls.VersionTLS12); have != want {
+				t.Errorf("expected TLS 1.2 to be the maximum version; want: %v, have: %v", want, have)
+			}
+
 			wantSuites := []uint16{
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			}
+			if have, want := config.CipherSuites, wantSuites; !reflect.DeepEqual(have, want) {
+				t.Errorf("expected a different set of ciphersuites; want: %v, have: %v", want, have)
+			}
+
+			h2Ciphersuite := tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+			if !contains(config.CipherSuites, h2Ciphersuite) {
+				// https://http2.github.io/http2-spec/#rfc.section.9.2.2
+				t.Errorf("expected the http2 required ciphersuite (%v) to be present; have: %v", h2Ciphersuite, config.CipherSuites)
+			}
+		})
+	}
+}
+
+func TestExternalDefaults(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	t.Parallel()
+
+	clientConfig, err := tlsconfig.Build(tlsconfig.WithExternalServiceDefaults()).Client()
+	if err != nil {
+		t.Fatalf("failed to build client config: %v", err)
+	}
+	serverConfig, err := tlsconfig.Build(tlsconfig.WithExternalServiceDefaults()).Server()
+	if err != nil {
+		t.Fatalf("failed to build server config: %v", err)
+	}
+
+	var tcs = []struct {
+		name   string
+		config *tls.Config
+	}{
+		{
+			name:   "external (client)",
+			config: clientConfig,
+		},
+		{
+			name:   "external (server)",
+			config: serverConfig,
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc // capture variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			config := tc.config
+
+			if have, want := config.PreferServerCipherSuites, false; have != want {
+				t.Errorf("expected server cipher suites not to be preferred; have: %t", have)
+			}
+
+			if have, want := config.MinVersion, uint16(tls.VersionTLS12); have != want {
+				t.Errorf("expected TLS 1.2 to be the minimum version; want: %v, have: %v", want, have)
+			}
+
+			if have, want := config.MaxVersion, uint16(tls.VersionTLS12); have != want {
+				t.Errorf("expected TLS 1.2 to be the maximum version; want: %v, have: %v", want, have)
+			}
+
+			wantSuites := []uint16{
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 			}
 			if have, want := config.CipherSuites, wantSuites; !reflect.DeepEqual(have, want) {
 				t.Errorf("expected a different set of ciphersuites; want: %v, have: %v", want, have)
@@ -319,7 +397,7 @@ func TestLoadKeypairFails(t *testing.T) {
 			name:      "cert expired",
 			certFile:  expiredCertFile,
 			keyFile:   expiredKeyFile,
-			errPrefix: "failed to load keypair: the certificate has expired or is not yet valid",
+			errPrefix: "failed to load keypair: certificate has expired",
 		},
 	}
 
@@ -350,7 +428,7 @@ func TestLoadKeypairFails(t *testing.T) {
 				t.Fatal("building config should have errored")
 			}
 			if !strings.HasPrefix(br.err.Error(), br.expectedErrPrefix) {
-				t.Fatalf("unexpected error prefix returned; have: %v, want: '%s'", br.err, br.expectedErrPrefix)
+				t.Fatalf("unexpected error prefix returned; have: %q, want: %q", br.err, br.expectedErrPrefix)
 			}
 		})
 	}
@@ -367,7 +445,7 @@ func TestLoadCAFails(t *testing.T) {
 		{name: "CA cert file missing (server)", err: serverCAErr},
 	}
 
-	errStr := "failed to read file"
+	errStr := "failed to read certificate(s) at path"
 	for _, br := range buildResults {
 		br := br // capture variable
 		t.Run(br.name, func(t *testing.T) {
@@ -397,15 +475,27 @@ func TestCAInvalidFails(t *testing.T) {
 	}
 	defer os.Remove(invalidCAFile.Name())
 
-	_, clientCAErr := tlsconfig.Build().Client(tlsconfig.WithAuthorityFromFile(invalidCAFile.Name()))
-	_, serverCAErr := tlsconfig.Build().Server(tlsconfig.WithClientAuthenticationFromFile(invalidCAFile.Name()))
+	_, clientCAErr := tlsconfig.Build().Client(
+		tlsconfig.WithAuthorityBuilder(
+			tlsconfig.FromEmptyPool(
+				tlsconfig.WithCertsFromFile(invalidCAFile.Name()),
+			),
+		),
+	)
+	_, serverCAErr := tlsconfig.Build().Server(
+		tlsconfig.WithClientAuthenticationBuilder(
+			tlsconfig.FromEmptyPool(
+				tlsconfig.WithCertsFromFile(invalidCAFile.Name()),
+			),
+		),
+	)
 
 	buildResults := []buildResult{
 		{name: "CA cert file invalid (client)", err: clientCAErr},
 		{name: "CA cert file invalid (server)", err: serverCAErr},
 	}
 
-	errStr := "unable to load CA certificate at"
+	errStr := "no valid certificates read from file"
 	for _, br := range buildResults {
 		br := br // capture variable
 		t.Run(br.name, func(t *testing.T) {

@@ -1,8 +1,40 @@
-Thank you for submitting a pull request to the bbs repository. We appreciate the contribution. To help us with getting better context for the pull request please follow these guidelines:
+Thank you for submitting a pull request to the bbs repository!
 
-1. If introducing a significant change please [open an issue](https://github.com/cloudfoundry/bbs/issues/new) first to discuss with the team potential solution and provide supporting documents if necessary.
-1. Please make sure you have signed the CLA(Contributor License Agreement). [Instructions here.](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#contributor-license-agreement)
-1. Please run all the tests. [Instructions here.](https://github.com/cloudfoundry/bbs/blob/master/README.md#run-tests)
-1. Make sure a pull request is done against the `master` branch.
+We appreciate the contribution. To help us understand the context for your pull request, please fill out this template to the best of your ability.
+
+## Please make sure to complete all of the following steps
+
+1. Check the [Contributing document](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md) on how to sign the CLA and run tests.
+1. Submit your PR to this repo.
+1. [**Submit an accompanying PR Review Request**](https://github.com/cloudfoundry/diego-release/issues/new?assignees=&labels=&template=pr-review-request.md&title=%5BBS+BPR+REVIEW%5D%3A) referencing this PR so the Diego Team knows to review your pull request. 
+* **Note: this PR will not be reviewed unless you submit the [PR Review Request](https://github.com/cloudfoundry/diego-release/issues/new?assignees=&labels=&template=pr-review-request.md&title=%5BBS+BPR+REVIEW%5D%3A)**.
+
+***************************
+
+## Please provide the following information:
+
+### What is this change about?
+
+> _Please describe._
+
+### What problem it is trying to solve?
+
+> _Please describe._
+
+### What is the impact if the change is not made?
+
+> _Please describe._
+
+### How should this change be described in diego-release release notes?
+
+> _Something brief that conveys the change. See [previous release notes](https://github.com/cloudfoundry/diego-release/releases) for examples._
+
+### Please provide any contextual information.
+
+> _Include any links to other PRs, stories, slack discussions, etc._
+
+### Tag your pair, your PM, and/or team!
+
+> _It's helpful to tag someone on your team or your team alias in case we need to follow up later._
 
 Thank you!

@@ -95,7 +95,10 @@ func TestNewLockArgs(t *testing.T) {
 func TestEcho(t *testing.T) {
 	req := []interface{}{"hi"}
 	var reply []interface{}
-	echo(nil, req, &reply)
+	err := echo(nil, req, &reply)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(req, reply) {
 		t.Error("Expected: ", req, " Got: ", reply)
 	}

@@ -173,7 +173,6 @@ func testProducingMessages(t *testing.T, config *Config) {
 				t.Fatalf("Unexpected message with index %d: %s", i, message.Value)
 			}
 		}
-
 	}
 	safeClose(t, consumer)
 	safeClose(t, client)
@@ -214,7 +213,6 @@ func validateMetrics(t *testing.T, client Client) {
 	metricValidators.register(minCountMeterValidator("request-rate", 3))
 	metricValidators.register(minCountHistogramValidator("request-size", 3))
 	metricValidators.register(minValHistogramValidator("request-size", 1))
-	metricValidators.register(minValHistogramValidator("request-latency-in-ms", minRequestLatencyInMs))
 	// and at least 2 requests to the registered broker (offset + produces)
 	metricValidators.registerForBroker(broker, minCountMeterValidator("request-rate", 2))
 	metricValidators.registerForBroker(broker, minCountHistogramValidator("request-size", 2))
@@ -248,7 +246,6 @@ func validateMetrics(t *testing.T, client Client) {
 		// in exactly 2 global responses (metadata + offset)
 		metricValidators.register(countMeterValidator("response-rate", 2))
 		metricValidators.register(minCountHistogramValidator("response-size", 2))
-		metricValidators.register(minValHistogramValidator("response-size", 1))
 		// and exactly 1 offset response for the registered broker
 		metricValidators.registerForBroker(broker, countMeterValidator("response-rate", 1))
 		metricValidators.registerForBroker(broker, minCountHistogramValidator("response-size", 1))
@@ -257,12 +254,14 @@ func validateMetrics(t *testing.T, client Client) {
 		// in at least 3 global responses (metadata + offset + produces)
 		metricValidators.register(minCountMeterValidator("response-rate", 3))
 		metricValidators.register(minCountHistogramValidator("response-size", 3))
-		metricValidators.register(minValHistogramValidator("response-size", 1))
 		// and at least 2 for the registered broker
 		metricValidators.registerForBroker(broker, minCountMeterValidator("response-rate", 2))
 		metricValidators.registerForBroker(broker, minCountHistogramValidator("response-size", 2))
 		metricValidators.registerForBroker(broker, minValHistogramValidator("response-size", 1))
 	}
+
+	// There should be no requests in flight anymore
+	metricValidators.registerForAllBrokers(broker, counterValidator("requests-in-flight", 0))
 
 	// Run the validators
 	metricValidators.run(t, client.Config().MetricRegistry)

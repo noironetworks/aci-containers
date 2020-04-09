@@ -1,17 +1,11 @@
-ovs:
-  image: socketplane/openvswitch:2.4.0
-  ports:
-    - "6640:6640"
-  command: "/usr/bin/supervisord -n"
-  privileged: true
+version: "3"
 
-test:
-  image: golang:1.6
-  links:
-    - ovs
-  volumes: 
-    - .:/go/src/github.com/socketplane/libovsdb
-  working_dir: /go/src/github.com/socketplane/libovsdb
-  environment:
-    DOCKER_IP: "ovs"
-  command: "make test-local"
+services:
+  ovs:
+    image: socketplane/openvswitch:2.4.0
+    volumes:
+      - ./run:/usr/local/var/run/openvswitch
+    ports:
+      - "6640/tcp"
+    cap_add:
+      - NET_ADMIN

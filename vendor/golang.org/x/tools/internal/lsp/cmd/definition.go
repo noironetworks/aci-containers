@@ -14,6 +14,7 @@ import (
 
 	guru "golang.org/x/tools/cmd/guru/serial"
 	"golang.org/x/tools/internal/lsp/protocol"
+	"golang.org/x/tools/internal/lsp/source"
 	"golang.org/x/tools/internal/span"
 	"golang.org/x/tools/internal/tool"
 	errors "golang.org/x/xerrors"
@@ -60,6 +61,17 @@ func (d *definition) Run(ctx context.Context, args ...string) error {
 	if len(args) != 1 {
 		return tool.CommandLineErrorf("definition expects 1 argument")
 	}
+	// Plaintext makes more sense for the command line.
+	opts := d.query.app.options
+	d.query.app.options = func(o *source.Options) {
+		if opts != nil {
+			opts(o)
+		}
+		o.PreferredContentFormat = protocol.PlainText
+		if d.query.MarkdownSupported {
+			o.PreferredContentFormat = protocol.Markdown
+		}
+	}
 	conn, err := d.query.app.connect(ctx)
 	if err != nil {
 		return err
@@ -99,7 +111,7 @@ func (d *definition) Run(ctx context.Context, args ...string) error {
 	if hover == nil {
 		return errors.Errorf("%v: not an identifier", from)
 	}
-	file = conn.AddFile(ctx, span.NewURI(locs[0].URI))
+	file = conn.AddFile(ctx, fileURI(locs[0].URI))
 	if file.err != nil {
 		return errors.Errorf("%v: %v", from, file.err)
 	}
@@ -123,9 +135,6 @@ func (d *definition) Run(ctx context.Context, args ...string) error {
 		}
 	default:
 		return errors.Errorf("unknown emulation for definition: %s", d.query.Emulate)
-	}
-	if err != nil {
-		return err
 	}
 	if d.query.JSON {
 		enc := json.NewEncoder(os.Stdout)

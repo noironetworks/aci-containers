@@ -33,24 +33,24 @@ type reverseBitsTest struct {
 }
 
 var deflateTests = []*deflateTest{
-	{[]byte{}, 0, []byte{1, 0, 0, 255, 255}},
-	{[]byte{0x11}, BestCompression, []byte{18, 4, 4, 0, 0, 255, 255}},
-	{[]byte{0x11}, BestCompression, []byte{18, 4, 4, 0, 0, 255, 255}},
-	{[]byte{0x11}, BestCompression, []byte{18, 4, 4, 0, 0, 255, 255}},
+	{[]byte{}, 0, []byte{0x3, 0x0}},
+	{[]byte{0x11}, BestCompression, []byte{0x12, 0x4, 0xc, 0x0}},
+	{[]byte{0x11}, BestCompression, []byte{0x12, 0x4, 0xc, 0x0}},
+	{[]byte{0x11}, BestCompression, []byte{0x12, 0x4, 0xc, 0x0}},
 
-	{[]byte{0x11}, 0, []byte{0, 1, 0, 254, 255, 17, 1, 0, 0, 255, 255}},
-	{[]byte{0x11, 0x12}, 0, []byte{0, 2, 0, 253, 255, 17, 18, 1, 0, 0, 255, 255}},
+	{[]byte{0x11}, 0, []byte{0x0, 0x1, 0x0, 0xfe, 0xff, 0x11, 0x3, 0x0}},
+	{[]byte{0x11, 0x12}, 0, []byte{0x0, 0x2, 0x0, 0xfd, 0xff, 0x11, 0x12, 0x3, 0x0}},
 	{[]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11}, 0,
-		[]byte{0, 8, 0, 247, 255, 17, 17, 17, 17, 17, 17, 17, 17, 1, 0, 0, 255, 255},
+		[]byte{0x0, 0x8, 0x0, 0xf7, 0xff, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x3, 0x0},
 	},
-	{[]byte{}, 1, []byte{1, 0, 0, 255, 255}},
-	{[]byte{0x11}, BestCompression, []byte{18, 4, 4, 0, 0, 255, 255}},
-	{[]byte{0x11, 0x12}, BestCompression, []byte{18, 20, 2, 4, 0, 0, 255, 255}},
-	{[]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11}, BestCompression, []byte{18, 132, 2, 64, 0, 0, 0, 255, 255}},
-	{[]byte{}, 9, []byte{1, 0, 0, 255, 255}},
-	{[]byte{0x11}, 9, []byte{18, 4, 4, 0, 0, 255, 255}},
-	{[]byte{0x11, 0x12}, 9, []byte{18, 20, 2, 4, 0, 0, 255, 255}},
-	{[]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11}, 9, []byte{18, 132, 2, 64, 0, 0, 0, 255, 255}},
+	{[]byte{}, 1, []byte{0x3, 0x0}},
+	{[]byte{0x11}, BestCompression, []byte{0x12, 0x4, 0xc, 0x0}},
+	{[]byte{0x11, 0x12}, BestCompression, []byte{0x12, 0x14, 0x2, 0xc, 0x0}},
+	{[]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11}, BestCompression, []byte{0x12, 0x84, 0x2, 0xc0, 0x0}},
+	{[]byte{}, 9, []byte{0x3, 0x0}},
+	{[]byte{0x11}, 9, []byte{0x12, 0x4, 0xc, 0x0}},
+	{[]byte{0x11, 0x12}, 9, []byte{0x12, 0x14, 0x2, 0xc, 0x0}},
+	{[]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11}, 9, []byte{0x12, 0x84, 0x2, 0xc0, 0x0}},
 }
 
 var deflateInflateTests = []*deflateInflateTest{
@@ -110,7 +110,7 @@ func TestBulkHash4(t *testing.T) {
 }
 
 func TestDeflate(t *testing.T) {
-	for _, h := range deflateTests {
+	for i, h := range deflateTests {
 		var buf bytes.Buffer
 		w, err := NewWriter(&buf, h.level)
 		if err != nil {
@@ -120,7 +120,7 @@ func TestDeflate(t *testing.T) {
 		w.Write(h.in)
 		w.Close()
 		if !bytes.Equal(buf.Bytes(), h.out) {
-			t.Errorf("Deflate(%d, %x) = \n%#v, want \n%#v", h.level, h.in, buf.Bytes(), h.out)
+			t.Errorf("%d: Deflate(%d, %x) = \n%#v, want \n%#v", i, h.level, h.in, buf.Bytes(), h.out)
 		}
 	}
 }
@@ -516,54 +516,65 @@ func TestWriterReset(t *testing.T) {
 			t.Errorf("level %d Writer not reset after Reset", level)
 		}
 	}
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriter(w, NoCompression) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriter(w, DefaultCompression) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriter(w, BestCompression) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriter(w, ConstantCompression) })
-	dict := []byte("we are the world")
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriterDict(w, NoCompression, dict) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriterDict(w, DefaultCompression, dict) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriterDict(w, BestCompression, dict) })
-	testResetOutput(t, func(w io.Writer) (*Writer, error) { return NewWriterDict(w, ConstantCompression, dict) })
+
+	for i := HuffmanOnly; i <= BestCompression; i++ {
+		testResetOutput(t, fmt.Sprint("level-", i), func(w io.Writer) (*Writer, error) { return NewWriter(w, i) })
+	}
+	dict := []byte(strings.Repeat("we are the world - how are you?", 3))
+	for i := HuffmanOnly; i <= BestCompression; i++ {
+		testResetOutput(t, fmt.Sprint("dict-level-", i), func(w io.Writer) (*Writer, error) { return NewWriterDict(w, i, dict) })
+	}
+	for i := HuffmanOnly; i <= BestCompression; i++ {
+		testResetOutput(t, fmt.Sprint("dict-reset-level-", i), func(w io.Writer) (*Writer, error) {
+			w2, err := NewWriter(nil, i)
+			if err != nil {
+				return w2, err
+			}
+			w2.ResetDict(w, dict)
+			return w2, nil
+		})
+	}
 }
 
-func testResetOutput(t *testing.T, newWriter func(w io.Writer) (*Writer, error)) {
-	buf := new(bytes.Buffer)
-	w, err := newWriter(buf)
-	if err != nil {
-		t.Fatalf("NewWriter: %v", err)
-	}
-	b := []byte("hello world")
-	for i := 0; i < 1024; i++ {
-		w.Write(b)
-	}
-	w.Close()
-	out1 := buf.Bytes()
+func testResetOutput(t *testing.T, name string, newWriter func(w io.Writer) (*Writer, error)) {
+	t.Run(name, func(t *testing.T) {
+		buf := new(bytes.Buffer)
+		w, err := newWriter(buf)
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		b := []byte("hello world - how are you doing?")
+		for i := 0; i < 1024; i++ {
+			w.Write(b)
+		}
+		w.Close()
+		out1 := buf.Bytes()
 
-	buf2 := new(bytes.Buffer)
-	w.Reset(buf2)
-	for i := 0; i < 1024; i++ {
-		w.Write(b)
-	}
-	w.Close()
-	out2 := buf2.Bytes()
+		buf2 := new(bytes.Buffer)
+		w.Reset(buf2)
+		for i := 0; i < 1024; i++ {
+			w.Write(b)
+		}
+		w.Close()
+		out2 := buf2.Bytes()
 
-	if len(out1) != len(out2) {
-		t.Errorf("got %d, expected %d bytes", len(out2), len(out1))
-	}
-	if bytes.Compare(out1, out2) != 0 {
-		mm := 0
-		for i, b := range out1[:len(out2)] {
-			if b != out2[i] {
-				t.Errorf("mismatch index %d: %02x, expected %02x", i, out2[i], b)
-			}
-			mm++
-			if mm == 10 {
-				t.Fatal("Stopping")
+		if len(out1) != len(out2) {
+			t.Errorf("got %d, expected %d bytes", len(out2), len(out1))
+		}
+		if bytes.Compare(out1, out2) != 0 {
+			mm := 0
+			for i, b := range out1[:len(out2)] {
+				if b != out2[i] {
+					t.Errorf("mismatch index %d: %02x, expected %02x", i, out2[i], b)
+				}
+				mm++
+				if mm == 10 {
+					t.Fatal("Stopping")
+				}
 			}
 		}
-	}
-	t.Logf("got %d bytes", len(out1))
+		t.Logf("got %d bytes", len(out1))
+	})
 }
 
 // TestBestSpeed tests that round-tripping through deflate and then inflate

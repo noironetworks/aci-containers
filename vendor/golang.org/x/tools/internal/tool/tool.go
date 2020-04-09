@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package tool is an opinionated harness for writing Go tools.
+// Package tool is a harness for writing Go tools.
 package tool
 
 import (
@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// This file is a very opinionated harness for writing your main function.
+// This file is a harness for writing your main function.
 // The original version of the file is in golang.org/x/tools/internal/tool.
 //
 // It adds a method to the Application type
@@ -102,6 +102,11 @@ func Main(ctx context.Context, app Application, args []string) {
 // error.
 func Run(ctx context.Context, app Application, args []string) error {
 	s := flag.NewFlagSet(app.Name(), flag.ExitOnError)
+	s.Usage = func() {
+		fmt.Fprint(s.Output(), app.ShortHelp())
+		fmt.Fprintf(s.Output(), "\n\nUsage: %v [flags] %v\n", app.Name(), app.Usage())
+		app.DetailedHelp(s)
+	}
 	p := addFlags(s, reflect.StructField{}, reflect.ValueOf(app))
 	s.Parse(args)
 

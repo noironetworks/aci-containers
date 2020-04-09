@@ -6,33 +6,44 @@ package cmdtest
 
 import (
 	"fmt"
-	"golang.org/x/tools/internal/lsp/cmd"
-	"golang.org/x/tools/internal/tool"
+	"sort"
 	"testing"
 
 	"golang.org/x/tools/internal/span"
 )
 
 func (r *runner) References(t *testing.T, spn span.Span, itemList []span.Span) {
-	var expect string
-	for _, i := range itemList {
-		expect += fmt.Sprintln(i)
-	}
+	for _, includeDeclaration := range []bool{true, false} {
+		t.Run(fmt.Sprintf("refs-declaration-%v", includeDeclaration), func(t *testing.T) {
+			var itemStrings []string
+			for i, s := range itemList {
+				// We don't want the first result if we aren't including the declaration.
+				if i == 0 && !includeDeclaration {
+					continue
+				}
+				itemStrings = append(itemStrings, fmt.Sprint(s))
+			}
+			sort.Strings(itemStrings)
+			var expect string
+			for _, s := range itemStrings {
+				expect += s + "\n"
+			}
+			expect = r.Normalize(expect)
 
-	uri := spn.URI()
-	filename := uri.Filename()
-	target := filename + fmt.Sprintf(":%v:%v", spn.Start().Line(), spn.Start().Column())
-
-	app := cmd.New("gopls-test", r.data.Config.Dir, r.data.Config.Env, r.options)
-	got := CaptureStdOut(t, func() {
-		err := tool.Run(r.ctx, app, append([]string{"-remote=internal", "references"}, target))
-		if err != nil {
-			fmt.Println(spn.Start().Line())
-			fmt.Println(err)
-		}
-	})
-
-	if expect != got {
-		t.Errorf("references failed for %s expected:\n%s\ngot:\n%s", target, expect, got)
+			uri := spn.URI()
+			filename := uri.Filename()
+			target := filename + fmt.Sprintf(":%v:%v", spn.Start().Line(), spn.Start().Column())
+			args := []string{"references"}
+			if includeDeclaration {
+				args = append(args, "-d")
+			}
+			args = append(args, target)
+			got, stderr := r.NormalizeGoplsCmd(t, args...)
+			if stderr != "" {
+				t.Errorf("references failed for %s: %s", target, stderr)
+			} else if expect != got {
+				t.Errorf("references failed for %s expected:\n%s\ngot:\n%s", target, expect, got)
+			}
+		})
 	}
 }

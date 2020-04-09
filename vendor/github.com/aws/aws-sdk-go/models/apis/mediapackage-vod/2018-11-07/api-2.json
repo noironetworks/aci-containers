@@ -436,6 +436,10 @@
           "locationName": "arn",
           "shape": "__string"
         },
+        "CreatedAt": {
+          "locationName": "createdAt",
+          "shape": "__string"
+        },
         "EgressEndpoints": {
           "locationName": "egressEndpoints",
           "shape": "__listOfEgressEndpoint"
@@ -511,6 +515,10 @@
       "members": {
         "Arn": {
           "locationName": "arn",
+          "shape": "__string"
+        },
+        "CreatedAt": {
+          "locationName": "createdAt",
           "shape": "__string"
         },
         "Id": {
@@ -603,6 +611,10 @@
       "members": {
         "Arn": {
           "locationName": "arn",
+          "shape": "__string"
+        },
+        "CreatedAt": {
+          "locationName": "createdAt",
           "shape": "__string"
         },
         "EgressEndpoints": {
@@ -716,6 +728,10 @@
           "locationName": "arn",
           "shape": "__string"
         },
+        "DomainName": {
+          "locationName": "domainName",
+          "shape": "__string"
+        },
         "Id": {
           "locationName": "id",
           "shape": "__string"
@@ -737,6 +753,10 @@
     },
     "DashManifest": {
       "members": {
+        "ManifestLayout": {
+          "locationName": "manifestLayout",
+          "shape": "ManifestLayout"
+        },
         "ManifestName": {
           "locationName": "manifestName",
           "shape": "__string"
@@ -766,9 +786,17 @@
           "locationName": "encryption",
           "shape": "DashEncryption"
         },
+        "PeriodTriggers": {
+          "locationName": "periodTriggers",
+          "shape": "__listOf__PeriodTriggersElement"
+        },
         "SegmentDurationSeconds": {
           "locationName": "segmentDurationSeconds",
           "shape": "__integer"
+        },
+        "SegmentTemplateFormat": {
+          "locationName": "segmentTemplateFormat",
+          "shape": "SegmentTemplateFormat"
         }
       },
       "required": [
@@ -844,6 +872,10 @@
       "members": {
         "Arn": {
           "locationName": "arn",
+          "shape": "__string"
+        },
+        "CreatedAt": {
+          "locationName": "createdAt",
           "shape": "__string"
         },
         "EgressEndpoints": {
@@ -936,6 +968,10 @@
       "members": {
         "Arn": {
           "locationName": "arn",
+          "shape": "__string"
+        },
+        "DomainName": {
+          "locationName": "domainName",
           "shape": "__string"
         },
         "Id": {
@@ -1158,6 +1194,13 @@
       },
       "type": "structure"
     },
+    "ManifestLayout": {
+      "enum": [
+        "FULL",
+        "COMPACT"
+      ],
+      "type": "string"
+    },
     "MaxResults": {
       "max": 1000,
       "min": 1,
@@ -1306,6 +1349,10 @@
           "locationName": "arn",
           "shape": "__string"
         },
+        "DomainName": {
+          "locationName": "domainName",
+          "shape": "__string"
+        },
         "Id": {
           "locationName": "id",
           "shape": "__string"
@@ -1342,6 +1389,14 @@
       "enum": [
         "NONE",
         "HBBTV_1_5"
+      ],
+      "type": "string"
+    },
+    "SegmentTemplateFormat": {
+      "enum": [
+        "NUMBER_WITH_TIMELINE",
+        "TIME_WITH_TIMELINE",
+        "NUMBER_WITH_DURATION"
       ],
       "type": "string"
     },
@@ -1431,6 +1486,12 @@
       },
       "type": "structure"
     },
+    "__PeriodTriggersElement": {
+      "enum": [
+        "ADS"
+      ],
+      "type": "string"
+    },
     "__boolean": {
       "type": "boolean"
     },
@@ -1479,6 +1540,12 @@
     "__listOfPackagingGroup": {
       "member": {
         "shape": "PackagingGroup"
+      },
+      "type": "list"
+    },
+    "__listOf__PeriodTriggersElement": {
+      "member": {
+        "shape": "__PeriodTriggersElement"
       },
       "type": "list"
     },

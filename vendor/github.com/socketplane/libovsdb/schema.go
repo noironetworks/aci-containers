@@ -44,19 +44,25 @@ func (schema DatabaseSchema) validateOperations(operations ...Operation) bool {
 		if ok {
 			for column := range op.Row {
 				if _, ok := table.Columns[column]; !ok {
-					return false
+					if column != "_uuid" && column != "_version" {
+						return false
+					}
 				}
 			}
 			for _, row := range op.Rows {
 				for column := range row {
 					if _, ok := table.Columns[column]; !ok {
-						return false
+						if column != "_uuid" && column != "_version" {
+							return false
+						}
 					}
 				}
 			}
 			for _, column := range op.Columns {
 				if _, ok := table.Columns[column]; !ok {
-					return false
+					if column != "_uuid" && column != "_version" {
+						return false
+					}
 				}
 			}
 		} else {

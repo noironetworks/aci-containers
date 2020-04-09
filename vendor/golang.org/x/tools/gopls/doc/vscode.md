@@ -5,21 +5,27 @@ Use the [VSCode-Go] plugin, with the following configuration:
 ```json5
 "go.useLanguageServer": true,
 "[go]": {
-    "editor.snippetSuggestions": "none",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": true,
-    }
+    },
+    // Optional: Disable snippets, as they conflict with completion ranking.
+    "editor.snippetSuggestions": "none",
+},
+"[go.mod]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+    },
 },
 "gopls": {
-    "usePlaceholders": true, // add parameter placeholders when completing a function
+     // Add parameter placeholders when completing a function.
+    "usePlaceholders": true,
 
-    // Experimental settings
-    "completeUnimported": true, // autocomplete unimported packages
-    "watchFileChanges": true,  // watch file changes outside of the editor
-    "deepCompletion": true,     // enable deep completion
-},
-"files.eol": "\n", // formatting only supports LF line endings
+    // If true, enable additional analyses with staticcheck.
+    // Warning: This will significantly increase memory usage.
+    "staticcheck": false,
+}
 ```
 
 VSCode will complain about the `"gopls"` settings, but they will still work. Once we have a consistent set of settings, we will make the changes in the VSCode plugin necessary to remove the errors.
@@ -44,7 +50,7 @@ To enable more detailed debug information, add the following to your VSCode sett
 
 See the section on [command line](command-line.md) arguments for more information about what these do, along with other things like `--logfile=auto` that you might want to use.
 
-You can disable features through the `"go.languageServerExperimentalFeatures"` section of the config. An example of a feature you may want to disable is `"documentLink"`, which opens [`godoc.org`](https://godoc.org) links when you click on import statements in your file.
+You can disable features through the `"go.languageServerExperimentalFeatures"` section of the config. An example of a feature you may want to disable is `"documentLink"`, which opens [`pkg.go.dev`](https://pkg.go.dev) links when you click on import statements in your file.
 
 
 [VSCode-Go]: https://github.com/microsoft/vscode-go

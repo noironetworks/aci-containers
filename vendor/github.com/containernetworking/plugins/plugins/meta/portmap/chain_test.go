@@ -1,4 +1,4 @@
-// Copyright 2017 CNI authors
+// Copyright 2017-2018 CNI authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"sync"
 
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/containernetworking/plugins/pkg/testutils"
 	"github.com/coreos/go-iptables/iptables"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,6 +33,7 @@ const TABLE = "filter" // We'll monkey around here
 var _ = Describe("chain tests", func() {
 	var testChain chain
 	var ipt *iptables.IPTables
+	var testNs ns.NetNS
 	var cleanup func()
 
 	BeforeEach(func() {
@@ -40,7 +43,7 @@ var _ = Describe("chain tests", func() {
 		currNs, err := ns.GetCurrentNS()
 		Expect(err).NotTo(HaveOccurred())
 
-		testNs, err := ns.NewNS()
+		testNs, err = testutils.NewNS()
 		Expect(err).NotTo(HaveOccurred())
 
 		tlChainName := fmt.Sprintf("cni-test-%d", rand.Intn(10000000))
@@ -49,8 +52,12 @@ var _ = Describe("chain tests", func() {
 		testChain = chain{
 			table:       TABLE,
 			name:        chainName,
-			entryRule:   []string{"-d", "203.0.113.1"},
 			entryChains: []string{tlChainName},
+			entryRules:  [][]string{{"-d", "203.0.113.1"}},
+			rules: [][]string{
+				{"-m", "comment", "--comment", "test 1", "-j", "RETURN"},
+				{"-m", "comment", "--comment", "test 2", "-j", "RETURN"},
+			},
 		}
 
 		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
@@ -90,11 +97,7 @@ var _ = Describe("chain tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create the chain
-		chainRules := [][]string{
-			{"-m", "comment", "--comment", "test 1", "-j", "RETURN"},
-			{"-m", "comment", "--comment", "test 2", "-j", "RETURN"},
-		}
-		err = testChain.setup(ipt, chainRules)
+		err = testChain.setup(ipt)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify the chain exists
@@ -116,8 +119,8 @@ var _ = Describe("chain tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(haveRules).To(Equal([]string{
 			"-N " + tlChainName,
-			"-A " + tlChainName + " -d 203.0.113.1/32 -j " + testChain.name,
 			"-A " + tlChainName + ` -m comment --comment "canary value" -j ACCEPT`,
+			"-A " + tlChainName + " -d 203.0.113.1/32 -j " + testChain.name,
 		}))
 
 		// Check that the chain and rule was created
@@ -151,15 +154,11 @@ var _ = Describe("chain tests", func() {
 	It("creates chains idempotently", func() {
 		defer cleanup()
 
-		// Create the chain
-		chainRules := [][]string{
-			{"-m", "comment", "--comment", "test", "-j", "RETURN"},
-		}
-		err := testChain.setup(ipt, chainRules)
+		err := testChain.setup(ipt)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create it again!
-		err = testChain.setup(ipt, chainRules)
+		err = testChain.setup(ipt)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Make sure there are only two rules
@@ -167,24 +166,21 @@ var _ = Describe("chain tests", func() {
 		rules, err := ipt.List(TABLE, testChain.name)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(len(rules)).To(Equal(2))
+		Expect(len(rules)).To(Equal(3))
 
 	})
 
 	It("deletes chains idempotently", func() {
 		defer cleanup()
 
-		// Create the chain
-		chainRules := [][]string{
-			{"-m", "comment", "--comment", "test", "-j", "RETURN"},
-		}
-		err := testChain.setup(ipt, chainRules)
+		err := testChain.setup(ipt)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = testChain.teardown(ipt)
 		Expect(err).NotTo(HaveOccurred())
 
 		chains, err := ipt.ListChains(TABLE)
+		Expect(err).NotTo(HaveOccurred())
 		for _, chain := range chains {
 			if chain == testChain.name {
 				Fail("Chain was not deleted")
@@ -194,10 +190,45 @@ var _ = Describe("chain tests", func() {
 		err = testChain.teardown(ipt)
 		Expect(err).NotTo(HaveOccurred())
 		chains, err = ipt.ListChains(TABLE)
+		Expect(err).NotTo(HaveOccurred())
 		for _, chain := range chains {
 			if chain == testChain.name {
 				Fail("Chain was not deleted")
 			}
 		}
+	})
+
+	It("deletes chains idempotently in parallel", func() {
+		defer cleanup()
+		// number of parallel executions
+		N := 10
+		var wg sync.WaitGroup
+		err := testChain.setup(ipt)
+		Expect(err).NotTo(HaveOccurred())
+		errCh := make(chan error, N)
+		for i := 0; i < N; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// teardown chain
+				errCh <- testNs.Do(func(ns.NetNS) error {
+					return testChain.teardown(ipt)
+				})
+			}()
+		}
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		chains, err := ipt.ListChains(TABLE)
+		Expect(err).NotTo(HaveOccurred())
+		for _, chain := range chains {
+			if chain == testChain.name {
+				Fail("Chain was not deleted")
+			}
+		}
+
 	})
 })

@@ -23,6 +23,8 @@ func NewActualLRPHandler(db db.ActualLRPDB, exitChan chan<- struct{}) *ActualLRP
 func (h *ActualLRPHandler) ActualLRPs(logger lager.Logger, w http.ResponseWriter, req *http.Request) {
 	var err error
 	logger = logger.Session("actual-lrps")
+	logger.Debug("starting")
+	defer logger.Debug("complete")
 
 	request := &models.ActualLRPsRequest{}
 	response := &models.ActualLRPsResponse{}

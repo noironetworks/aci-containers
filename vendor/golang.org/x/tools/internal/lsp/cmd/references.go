@@ -8,10 +8,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"sort"
+
 	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/span"
 	"golang.org/x/tools/internal/tool"
-	"sort"
 )
 
 // references implements the references verb for gopls
@@ -53,12 +54,10 @@ func (r *references) Run(ctx context.Context, args ...string) error {
 	if file.err != nil {
 		return file.err
 	}
-
 	loc, err := file.mapper.Location(from)
 	if err != nil {
 		return err
 	}
-
 	p := protocol.ReferenceParams{
 		Context: protocol.ReferenceContext{
 			IncludeDeclaration: r.IncludeDeclaration,
@@ -72,14 +71,9 @@ func (r *references) Run(ctx context.Context, args ...string) error {
 	if err != nil {
 		return err
 	}
-
-	if len(locations) == 0 {
-		return tool.CommandLineErrorf("%v: not an identifier", from)
-	}
-
 	var spans []string
 	for _, l := range locations {
-		f := conn.AddFile(ctx, span.NewURI(l.URI))
+		f := conn.AddFile(ctx, fileURI(l.URI))
 		// convert location to span for user-friendly 1-indexed line
 		// and column numbers
 		span, err := f.mapper.Span(l)
@@ -93,6 +87,5 @@ func (r *references) Run(ctx context.Context, args ...string) error {
 	for _, s := range spans {
 		fmt.Println(s)
 	}
-
 	return nil
 }

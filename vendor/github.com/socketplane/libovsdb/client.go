@@ -1,6 +1,8 @@
 package libovsdb
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,19 +42,30 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 
 // Would rather replace this connection map with an OvsdbClient Receiver scoped method
 // Unfortunately rpc2 package acts wierd with a receiver scoped method and needs some investigation.
-var connections map[*rpc2.Client]*OvsdbClient
-var connectionsMutex = &sync.RWMutex{}
+var (
+	connections      map[*rpc2.Client]*OvsdbClient
+	connectionsMutex = &sync.RWMutex{}
+)
 
-// DefaultAddress is the default IPV4 address that is used for a connection
-const DefaultAddress = "127.0.0.1"
+const (
+	// DefaultAddress is the default IPV4 address that is used for a connection
+	DefaultAddress = "127.0.0.1"
+	// DefaultPort is the default port used for a connection
+	DefaultPort = 6640
+	// DefaultSocket is the default socket usef for a connection
+	DefaultSocket = "/var/run/openvswitch/db.sock"
+)
 
-// DefaultPort is the default port used for a connection
-const DefaultPort = 6640
+// ConnectUsingProtocol creates an OVSDB connection over tcp/unix and returns and OvsdbClient
+func ConnectUsingProtocol(protocol string, target string, config *tls.Config) (*OvsdbClient, error) {
+	var conn net.Conn
+	var err error
 
-// ConnectUsingProtocol creates an OVSDB connection and returns and OvsdbClient
-func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) {
-	conn, err := net.Dial(protocol, target)
-
+	if config != nil {
+		conn, err = tls.Dial(protocol, target, config)
+	} else {
+		conn, err = net.Dial(protocol, target)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +93,33 @@ func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) 
 	return ovs, nil
 }
 
+// ConnectUsingSSL creates an OVSDB connection using SSL and returns and OvsdbClient
+func ConnectUsingSSL(protocol string, target string, insecure bool) (*OvsdbClient, error) {
+	cert, err := tls.LoadX509KeyPair(os.Getenv("CLIENT_CERT_CA_CERT"),
+		os.Getenv("CLIENT_PRIVKEY"))
+	if err != nil {
+		log.Fatalf("client: loadkeys: %s", err)
+		return nil, err
+	}
+	if len(cert.Certificate) != 2 {
+		log.Fatal("client.crt should have 2 concatenated certificates: client + CA")
+		return nil, err
+	}
+	ca, err := x509.ParseCertificate(cert.Certificate[1])
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	certPool.AddCert(ca)
+	config := tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            certPool,
+		InsecureSkipVerify: insecure,
+	}
+	return ConnectUsingProtocol("tcp", target, &config)
+}
+
 // Connect creates an OVSDB connection and returns and OvsdbClient
 func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	if ipAddr == "" {
@@ -91,17 +131,20 @@ func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	}
 
 	target := fmt.Sprintf("%s:%d", ipAddr, port)
-	return ConnectUsingProtocol("tcp", target)
+	return ConnectUsingProtocol("tcp", target, nil)
 }
 
 // ConnectWithUnixSocket makes a OVSDB Connection via a Unix Socket
 func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
+	if socketFile == "" {
+		socketFile = DefaultSocket
+	}
 
 	if _, err := os.Stat(socketFile); os.IsNotExist(err) {
 		return nil, errors.New("Invalid socket file")
 	}
 
-	return ConnectUsingProtocol("unix", socketFile)
+	return ConnectUsingProtocol("unix", socketFile, nil)
 }
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
@@ -196,7 +239,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 		connections[client].handlersMutex.Lock()
 		defer connections[client].handlersMutex.Unlock()
 		for _, handler := range connections[client].handlers {
-			handler.Update(params, tableUpdates)
+			handler.Update(params[0], tableUpdates)
 		}
 	}
 
@@ -205,7 +248,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 
 // GetSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
-func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
+func (ovs *OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	args := NewGetSchemaArgs(dbName)
 	var reply DatabaseSchema
 	err := ovs.rpcClient.Call("get_schema", args, &reply)
@@ -218,7 +261,7 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 
 // ListDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
-func (ovs OvsdbClient) ListDbs() ([]string, error) {
+func (ovs *OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
 	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
@@ -229,7 +272,7 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 
 // Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
+func (ovs *OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
@@ -249,7 +292,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
+func (ovs *OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
 		return nil, errors.New("invalid Database Schema")
@@ -273,9 +316,26 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 	return ovs.Monitor(database, jsonContext, requests)
 }
 
+// MonitorCancel will request cancel a previously issued monitor request
+// RFC 7047 : monitor_cancel
+func (ovs OvsdbClient) MonitorCancel(database string, jsonContext interface{}) error {
+	var reply OperationResult
+
+	args := NewMonitorCancelArgs(jsonContext)
+
+	err := ovs.rpcClient.Call("monitor_cancel", args, &reply)
+	if err != nil {
+		return err
+	}
+	if reply.Error != "" {
+		return fmt.Errorf("Error while executing transaction: %s", reply.Error)
+	}
+	return nil
+}
+
 // Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+func (ovs *OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
 	var reply TableUpdates
 
 	args := NewMonitorArgs(database, jsonContext, requests)
@@ -315,14 +375,11 @@ func clearConnection(c *rpc2.Client) {
 
 func handleDisconnectNotification(c *rpc2.Client) {
 	disconnected := c.DisconnectNotify()
-	select {
-	case <-disconnected:
-		clearConnection(c)
-	}
+	<-disconnected
+	clearConnection(c)
 }
 
 // Disconnect will close the OVSDB connection
-func (ovs OvsdbClient) Disconnect() {
+func (ovs *OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
-	clearConnection(ovs.rpcClient)
 }

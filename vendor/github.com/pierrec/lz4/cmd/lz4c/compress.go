@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync/atomic"
 
 	"code.cloudfoundry.org/bytefmt"
 	"github.com/schollz/progressbar"
@@ -23,6 +24,8 @@ func Compress(fs *flag.FlagSet) cmdflag.Handler {
 	fs.BoolVar(&streamChecksum, "sc", false, "disable stream checksum")
 	var level int
 	fs.IntVar(&level, "l", 0, "compression level (0=fastest)")
+	var concurrency int
+	fs.IntVar(&concurrency, "c", -1, "concurrency (default=all CPUs")
 
 	return func(args ...string) (int, error) {
 		sz, err := bytefmt.ToBytes(blockMaxSize)
@@ -37,6 +40,7 @@ func Compress(fs *flag.FlagSet) cmdflag.Handler {
 			NoChecksum:       streamChecksum,
 			CompressionLevel: level,
 		}
+		zw.WithConcurrency(concurrency)
 
 		// Use stdin/stdout if no file provided.
 		if len(args) == 0 {
@@ -62,7 +66,7 @@ func Compress(fs *flag.FlagSet) cmdflag.Handler {
 
 			// Accumulate compressed bytes num.
 			var (
-				zsize int
+				zsize int64
 				size  = finfo.Size()
 			)
 			if size > 0 {
@@ -77,7 +81,7 @@ func Compress(fs *flag.FlagSet) cmdflag.Handler {
 				)
 				zw.OnBlockDone = func(n int) {
 					_ = bar.Add(1)
-					zsize += n
+					atomic.AddInt64(&zsize, int64(n))
 				}
 			}
 

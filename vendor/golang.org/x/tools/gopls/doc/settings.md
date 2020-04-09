@@ -40,19 +40,48 @@ Authors of editor clients may wish to handle hover text differently, and so migh
 
 Default: `"SynopsisDocumentation"`.
 
-## **usePlaceholders** *boolean*
+### **usePlaceholders** *boolean*
 
 If true, then completion responses may contain placeholders for function parameters or struct fields.
 
 Default: `false`.
 
+### **linkTarget** *string*
+
+This controls where points documentation for given package in `textDocument/documentLink`.
+It might be one of:
+* `"godoc.org"`
+* `"pkg.go.dev"`
+If company chooses to use its own `godoc.org`, its address can be used as well.
+
+Default: `"pkg.go.dev"`.
+
+### **local** string
+
+This is the equivalent of the `goimports -local` flag, which puts imports beginning with this string after 3rd-party packages.
+It should be the prefix of the import path whose imports should be grouped separately.
+
+Default: `""`.
+
 ## Experimental
 
 The below settings are considered experimental. They may be deprecated or changed in the future. They are typically used to test experimental opt-in features or to disable features.
 
-### **experimentalDisabledAnalyses** *array of strings*
+### **analyses** *map[string]bool*
 
-A list of the names of analysis passes that should be disabled. You can use this to turn off analyses that you feel are not useful in the editor.
+Analyses specify analyses that the user would like to enable or disable.
+A map of the names of analysis passes that should be enabled/disabled.
+A full list of analyzers that gopls uses can be found [here](analyzers.md)
+
+Example Usage:
+```json5
+...
+"analyses": {
+  "unreachable": false, // Disable the unreachable analyzer.
+  "unusedparams": true  // Enable the unusedparams analyzer.
+}
+...
+```
 
 ### **staticcheck** *boolean*
 
@@ -64,7 +93,7 @@ If false, indicates that the user does not want documentation with completion re
 
 Default value: `true`.
 
-**completeUnimported** *boolean*
+### **completeUnimported** *boolean*
 
 If true, the completion engine is allowed to make suggestions for packages that you do not currently import.
 
@@ -72,7 +101,11 @@ Default: `false`.
 
 ### **deepCompletion** *boolean*
 
-If true, this turns on the ability to return completions from deep inside relevant entities, rather than just the locally accessible ones. Consider this example:
+If true, this turns on the ability to return completions from deep inside relevant entities, rather than just the locally accessible ones.
+
+Default: `true`.
+
+Consider this example:
 
 ```go
 package main
@@ -90,3 +123,9 @@ func main() {
 ```
 
 At the location of the `<>` in this program, deep completion would suggest the result `x.str`.
+
+### **fuzzyMatching** *boolean*
+
+If true, this enables server side fuzzy matching of completion candidates.
+
+Default: `true`.

@@ -51,9 +51,10 @@ func (fake *FakeVersionDB) SetVersion(arg1 context.Context, arg2 lager.Logger, a
 		arg3 *models.Version
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("SetVersion", []interface{}{arg1, arg2, arg3})
+	setVersionStubCopy := fake.SetVersionStub
 	fake.setVersionMutex.Unlock()
-	if fake.SetVersionStub != nil {
-		return fake.SetVersionStub(arg1, arg2, arg3)
+	if setVersionStubCopy != nil {
+		return setVersionStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -112,9 +113,10 @@ func (fake *FakeVersionDB) Version(arg1 context.Context, arg2 lager.Logger) (*mo
 		arg2 lager.Logger
 	}{arg1, arg2})
 	fake.recordInvocation("Version", []interface{}{arg1, arg2})
+	versionStubCopy := fake.VersionStub
 	fake.versionMutex.Unlock()
-	if fake.VersionStub != nil {
-		return fake.VersionStub(arg1, arg2)
+	if versionStubCopy != nil {
+		return versionStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2

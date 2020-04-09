@@ -7,7 +7,6 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/grpc-ecosystem/go-grpc-middleware/tags/zap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -37,7 +36,7 @@ func UnaryServerInterceptor(logger *zap.Logger, opts ...Option) grpc.UnaryServer
 		level := o.levelFunc(code)
 
 		// re-extract logger from newCtx, as it may have extra fields that changed in the holder.
-		ctx_zap.Extract(newCtx).Check(level, "finished unary call with code "+code.String()).Write(
+		ctxzap.Extract(newCtx).Check(level, "finished unary call with code "+code.String()).Write(
 			zap.Error(err),
 			zap.String("grpc.code", code.String()),
 			o.durationFunc(time.Since(startTime)),
@@ -64,7 +63,7 @@ func StreamServerInterceptor(logger *zap.Logger, opts ...Option) grpc.StreamServ
 		level := o.levelFunc(code)
 
 		// re-extract logger from newCtx, as it may have extra fields that changed in the holder.
-		ctx_zap.Extract(newCtx).Check(level, "finished streaming call with code "+code.String()).Write(
+		ctxzap.Extract(newCtx).Check(level, "finished streaming call with code "+code.String()).Write(
 			zap.Error(err),
 			zap.String("grpc.code", code.String()),
 			o.durationFunc(time.Since(startTime)),
@@ -86,7 +85,7 @@ func serverCallFields(fullMethodString string) []zapcore.Field {
 }
 
 func newLoggerForCall(ctx context.Context, logger *zap.Logger, fullMethodString string, start time.Time) context.Context {
-	f := ctxzap.TagsToFields(ctx)
+	var f []zapcore.Field
 	f = append(f, zap.String("grpc.start_time", start.Format(time.RFC3339)))
 	if d, ok := ctx.Deadline(); ok {
 		f = append(f, zap.String("grpc.request.deadline", d.Format(time.RFC3339)))

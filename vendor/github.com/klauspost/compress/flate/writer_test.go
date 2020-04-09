@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"runtime"
 	"strconv"
@@ -144,6 +145,9 @@ func BenchmarkEncodeDigitsDefault1e6(b *testing.B)  { benchmarkEncoder(b, digits
 func BenchmarkEncodeDigitsCompress1e4(b *testing.B) { benchmarkEncoder(b, digits, compress, 1e4) }
 func BenchmarkEncodeDigitsCompress1e5(b *testing.B) { benchmarkEncoder(b, digits, compress, 1e5) }
 func BenchmarkEncodeDigitsCompress1e6(b *testing.B) { benchmarkEncoder(b, digits, compress, 1e6) }
+func BenchmarkEncodeDigitsSL1e4(b *testing.B)       { benchmarkStatelessEncoder(b, digits, 1e4) }
+func BenchmarkEncodeDigitsSL1e5(b *testing.B)       { benchmarkStatelessEncoder(b, digits, 1e5) }
+func BenchmarkEncodeDigitsSL1e6(b *testing.B)       { benchmarkStatelessEncoder(b, digits, 1e6) }
 func BenchmarkEncodeTwainConstant1e4(b *testing.B)  { benchmarkEncoder(b, twain, constant, 1e4) }
 func BenchmarkEncodeTwainConstant1e5(b *testing.B)  { benchmarkEncoder(b, twain, constant, 1e5) }
 func BenchmarkEncodeTwainConstant1e6(b *testing.B)  { benchmarkEncoder(b, twain, constant, 1e6) }
@@ -156,6 +160,42 @@ func BenchmarkEncodeTwainDefault1e6(b *testing.B)   { benchmarkEncoder(b, twain,
 func BenchmarkEncodeTwainCompress1e4(b *testing.B)  { benchmarkEncoder(b, twain, compress, 1e4) }
 func BenchmarkEncodeTwainCompress1e5(b *testing.B)  { benchmarkEncoder(b, twain, compress, 1e5) }
 func BenchmarkEncodeTwainCompress1e6(b *testing.B)  { benchmarkEncoder(b, twain, compress, 1e6) }
+func BenchmarkEncodeTwainSL1e4(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e4) }
+func BenchmarkEncodeTwainSL1e5(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e5) }
+func BenchmarkEncodeTwainSL1e6(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e6) }
+
+func benchmarkStatelessEncoder(b *testing.B, testfile, n int) {
+	b.SetBytes(int64(n))
+	buf0, err := ioutil.ReadFile(testfiles[testfile])
+	if err != nil {
+		b.Fatal(err)
+	}
+	if len(buf0) == 0 {
+		b.Fatalf("test file %q has no data", testfiles[testfile])
+	}
+	buf1 := make([]byte, n)
+	for i := 0; i < n; i += len(buf0) {
+		if len(buf0) > n-i {
+			buf0 = buf0[:n-i]
+		}
+		copy(buf1[i:], buf0)
+	}
+	buf0 = nil
+	runtime.GC()
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		w := NewStatelessWriter(ioutil.Discard)
+		_, err = w.Write(buf1)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = w.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
 
 // A writer that fails after N writes.
 type errorWriter struct {
@@ -223,6 +263,75 @@ func TestWriteError(t *testing.T) {
 				return
 			}
 		}
+	}
+}
+
+// Test if errors from the underlying writer is passed upwards.
+func TestWriter_Reset(t *testing.T) {
+	buf := new(bytes.Buffer)
+	n := 65536
+	if !testing.Short() {
+		n *= 4
+	}
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(buf, "asdasfasf%d%dfghfgujyut%dyutyu\n", i, i, i)
+	}
+	in := buf.Bytes()
+	for l := 0; l < 10; l++ {
+		l := l
+		if testing.Short() && l > 1 {
+			continue
+		}
+		t.Run(fmt.Sprintf("level-%d", l), func(t *testing.T) {
+			t.Parallel()
+			offset := 1
+			if testing.Short() {
+				offset = 256
+			}
+			for ; offset <= 256; offset *= 2 {
+				// Fail after 'fail' writes
+				w, err := NewWriter(ioutil.Discard, l)
+				if err != nil {
+					t.Fatalf("NewWriter: level %d: %v", l, err)
+				}
+				if w.d.fast == nil {
+					t.Skip("Not Fast...")
+					return
+				}
+				for i := 0; i < (bufferReset-len(in)-offset-maxMatchOffset)/maxMatchOffset; i++ {
+					// skip ahead to where we are close to wrap around...
+					w.d.fast.Reset()
+				}
+				w.d.fast.Reset()
+				_, err = w.Write(in)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; i < 50; i++ {
+					// skip ahead again... This should wrap around...
+					w.d.fast.Reset()
+				}
+				w.d.fast.Reset()
+
+				_, err = w.Write(in)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; i < (math.MaxUint32-bufferReset)/maxMatchOffset; i++ {
+					// skip ahead to where we are close to wrap around...
+					w.d.fast.Reset()
+				}
+
+				_, err = w.Write(in)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = w.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
 

@@ -126,6 +126,8 @@ func (h *DesiredLRPHandler) DesiredLRPByProcessGuid_r2(logger lager.Logger, w ht
 func (h *DesiredLRPHandler) DesiredLRPSchedulingInfos(logger lager.Logger, w http.ResponseWriter, req *http.Request) {
 	var err error
 	logger = logger.Session("desired-lrp-scheduling-infos")
+	logger.Debug("starting")
+	defer logger.Debug("complete")
 
 	request := &models.DesiredLRPsRequest{}
 	response := &models.DesiredLRPSchedulingInfosResponse{}

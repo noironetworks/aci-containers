@@ -30,9 +30,10 @@ func (fake *FakeTaskCompletionClient) Submit(arg1 db.TaskDB, arg2 events.Hub, ar
 		arg3 *models.Task
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("Submit", []interface{}{arg1, arg2, arg3})
+	submitStubCopy := fake.SubmitStub
 	fake.submitMutex.Unlock()
-	if fake.SubmitStub != nil {
-		fake.SubmitStub(arg1, arg2, arg3)
+	if submitStubCopy != nil {
+		submitStubCopy(arg1, arg2, arg3)
 	}
 }
 

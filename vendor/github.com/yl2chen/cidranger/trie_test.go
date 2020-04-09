@@ -1,12 +1,23 @@
 package cidranger
 
 import (
+	"encoding/binary"
+	"math/rand"
 	"net"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	rnet "github.com/yl2chen/cidranger/net"
 )
+
+func getAllByVersion(version rnet.IPVersion) *net.IPNet {
+	if version == rnet.IPv6 {
+		return AllIPv6
+	}
+	return AllIPv4
+}
 
 func TestPrefixTrieInsert(t *testing.T) {
 	cases := []struct {
@@ -67,6 +78,13 @@ func TestPrefixTrieInsert(t *testing.T) {
 				err := trie.Insert(NewBasicRangerEntry(*network))
 				assert.NoError(t, err)
 			}
+
+			assert.Equal(t, len(tc.expectedNetworksInDepthOrder), trie.Len(), "trie size should match")
+
+			allNetworks, err := trie.CoveredNetworks(*getAllByVersion(tc.version))
+			assert.Nil(t, err)
+			assert.Equal(t, len(allNetworks), trie.Len(), "trie size should match")
+
 			walk := trie.walkDepth()
 			for _, network := range tc.expectedNetworksInDepthOrder {
 				_, ipnet, _ := net.ParseCIDR(network)
@@ -105,6 +123,7 @@ func TestPrefixTrieRemove(t *testing.T) {
 		removes                      []string
 		expectedRemoves              []string
 		expectedNetworksInDepthOrder []string
+		expectedTrieString           string
 		name                         string
 	}{
 		{
@@ -113,6 +132,7 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"192.168.0.1/24"},
 			[]string{"192.168.0.1/24"},
 			[]string{},
+			"0.0.0.0/0 (target_pos:31:has_entry:false)",
 			"basic remove",
 		},
 		{
@@ -121,6 +141,8 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"1.2.3.5/32"},
 			[]string{"1.2.3.5/32"},
 			[]string{"1.2.3.4/32"},
+			`0.0.0.0/0 (target_pos:31:has_entry:false)
+| 0--> 1.2.3.4/32 (target_pos:-1:has_entry:true)`,
 			"single ip IPv4 network remove",
 		},
 		{
@@ -129,6 +151,8 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"0::2/128"},
 			[]string{"0::2/128"},
 			[]string{"0::1/128"},
+			`0.0.0.0/0 (target_pos:31:has_entry:false)
+| 0--> ::1/128 (target_pos:-1:has_entry:true)`,
 			"single ip IPv6 network remove",
 		},
 		{
@@ -137,6 +161,9 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"192.168.0.1/25"},
 			[]string{"192.168.0.1/25"},
 			[]string{"192.168.0.1/24", "192.168.0.1/26"},
+			`0.0.0.0/0 (target_pos:31:has_entry:false)
+| 1--> 192.168.0.0/24 (target_pos:7:has_entry:true)
+| | 0--> 192.168.0.0/26 (target_pos:5:has_entry:true)`,
 			"remove path prefix",
 		},
 		{
@@ -145,6 +172,11 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"192.168.0.1/25"},
 			[]string{"192.168.0.1/25"},
 			[]string{"192.168.0.1/24", "192.168.0.1/26", "192.168.0.64/26"},
+			`0.0.0.0/0 (target_pos:31:has_entry:false)
+| 1--> 192.168.0.0/24 (target_pos:7:has_entry:true)
+| | 0--> 192.168.0.0/25 (target_pos:6:has_entry:false)
+| | | 0--> 192.168.0.0/26 (target_pos:5:has_entry:true)
+| | | 1--> 192.168.0.64/26 (target_pos:5:has_entry:true)`,
 			"remove path prefix with more than 1 children",
 		},
 		{
@@ -153,6 +185,9 @@ func TestPrefixTrieRemove(t *testing.T) {
 			[]string{"192.168.0.1/26"},
 			[]string{""},
 			[]string{"192.168.0.1/24", "192.168.0.1/25"},
+			`0.0.0.0/0 (target_pos:31:has_entry:false)
+| 1--> 192.168.0.0/24 (target_pos:7:has_entry:true)
+| | 0--> 192.168.0.0/25 (target_pos:6:has_entry:true)`,
 			"remove non existent",
 		},
 	}
@@ -177,6 +212,13 @@ func TestPrefixTrieRemove(t *testing.T) {
 					assert.Nil(t, removed)
 				}
 			}
+
+			assert.Equal(t, len(tc.expectedNetworksInDepthOrder), trie.Len(), "trie size should match after revmoval")
+
+			allNetworks, err := trie.CoveredNetworks(*getAllByVersion(tc.version))
+			assert.Nil(t, err)
+			assert.Equal(t, len(allNetworks), trie.Len(), "trie size should match")
+
 			walk := trie.walkDepth()
 			for _, network := range tc.expectedNetworksInDepthOrder {
 				_, ipnet, _ := net.ParseCIDR(network)
@@ -189,6 +231,8 @@ func TestPrefixTrieRemove(t *testing.T) {
 			for network := range walk {
 				assert.Nil(t, network)
 			}
+
+			assert.Equal(t, tc.expectedTrieString, trie.String())
 		})
 	}
 }
@@ -436,4 +480,83 @@ func TestPrefixTrieCoveredNetworks(t *testing.T) {
 			assert.Equal(t, expectedEntries, networks)
 		})
 	}
+}
+
+func TestTrieMemUsage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping memory test in `-short` mode")
+	}
+	numIPs := 100000
+	runs := 10
+
+	// Avg heap allocation over all runs should not be more than the heap allocation of first run multiplied
+	// by threshold, picking 1% as sane number for detecting memory leak.
+	thresh := 1.01
+
+	trie := newPrefixTree(rnet.IPv4)
+
+	var baseLineHeap, totalHeapAllocOverRuns uint64
+	for i := 0; i < runs; i++ {
+		t.Logf("Executing Run %d of %d", i+1, runs)
+
+		// Insert networks.
+		for n := 0; n < numIPs; n++ {
+			trie.Insert(NewBasicRangerEntry(GenLeafIPNet(GenIPV4())))
+		}
+		t.Logf("Inserted All (%d networks)", trie.Len())
+		assert.Less(t, 0, trie.Len(), "Len should > 0")
+		assert.LessOrEqualf(t, trie.Len(), numIPs, "Len should <= %d", numIPs)
+
+		allNetworks, err := trie.CoveredNetworks(*getAllByVersion(rnet.IPv4))
+		assert.Nil(t, err)
+		assert.Equal(t, len(allNetworks), trie.Len(), "trie size should match")
+
+		// Remove networks.
+		_, all, _ := net.ParseCIDR("0.0.0.0/0")
+		ll, _ := trie.CoveredNetworks(*all)
+		for i := 0; i < len(ll); i++ {
+			trie.Remove(ll[i].Network())
+		}
+		t.Logf("Removed All (%d networks)", len(ll))
+		assert.Equal(t, 0, trie.Len(), "Len after removal should == 0")
+
+		// Perform GC
+		runtime.GC()
+
+		// Get HeapAlloc stats.
+		heapAlloc := GetHeapAllocation()
+		totalHeapAllocOverRuns += heapAlloc
+		if i == 0 {
+			baseLineHeap = heapAlloc
+		}
+	}
+
+	// Assert that heap allocation from first loop is within set threshold of avg over all runs.
+	assert.Less(t, uint64(0), baseLineHeap)
+	assert.LessOrEqual(t, float64(baseLineHeap), float64(totalHeapAllocOverRuns/uint64(runs))*thresh)
+}
+
+func GenLeafIPNet(ip net.IP) net.IPNet {
+	return net.IPNet{
+		IP:   ip,
+		Mask: net.CIDRMask(32, 32),
+	}
+}
+
+// GenIPV4 generates an IPV4 address
+func GenIPV4() net.IP {
+	rand.Seed(time.Now().UnixNano())
+	var min, max int
+	min = 1
+	max = 4294967295
+	nn := rand.Intn(max-min) + min
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, uint32(nn))
+	return ip
+}
+
+func GetHeapAllocation() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.HeapAlloc
 }

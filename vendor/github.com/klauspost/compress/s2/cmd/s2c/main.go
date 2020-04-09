@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,12 +20,13 @@ import (
 	"unicode"
 
 	"github.com/klauspost/compress/s2"
+	"github.com/klauspost/compress/s2/cmd/internal/readahead"
 )
 
 var (
 	faster    = flag.Bool("faster", false, "Compress faster, but with a minor compression loss")
 	cpu       = flag.Int("cpu", runtime.GOMAXPROCS(0), "Compress using this amount of threads")
-	blockSize = flag.String("blocksize", "1M", "Max  block size. Examples: 64K, 256K, 1M, 4M. Must be power of two and <= 4MB")
+	blockSize = flag.String("blocksize", "4M", "Max  block size. Examples: 64K, 256K, 1M, 4M. Must be power of two and <= 4MB")
 	safe      = flag.Bool("safe", false, "Do not overwrite output files")
 	padding   = flag.String("pad", "1", "Pad size to a multiple of this value, Examples: 500, 64K, 256K, 1M, 4M, etc")
 	stdout    = flag.Bool("c", false, "Write all output to stdout. Multiple input files will be concatenated")
@@ -30,9 +34,19 @@ var (
 	quiet     = flag.Bool("q", false, "Don't write any output to terminal, except errors")
 	bench     = flag.Int("bench", 0, "Run benchmark n times. No output will be written")
 	help      = flag.Bool("help", false, "Display help")
+
+	cpuprofile, memprofile, traceprofile string
+
+	version = "(dev)"
+	date    = "(unknown)"
 )
 
 func main() {
+	if false {
+		flag.StringVar(&cpuprofile, "cpuprofile", "", "write cpu profile to file")
+		flag.StringVar(&memprofile, "memprofile", "", "write mem profile to file")
+		flag.StringVar(&traceprofile, "traceprofile", "", "write trace profile to file")
+	}
 	flag.Parse()
 	sz, err := toSize(*blockSize)
 	exitErr(err)
@@ -41,6 +55,9 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 || *help {
+		_, _ = fmt.Fprintf(os.Stderr, "s2 compress v%v, built at %v.\n\n", version, date)
+		_, _ = fmt.Fprintf(os.Stderr, "Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.\n"+
+			"Copyright (c) 2019 Klaus Post. All rights reserved.\n\n")
 		_, _ = fmt.Fprintln(os.Stderr, `Usage: s2c [options] file1 file2
 
 Compresses all files supplied as input separately.
@@ -78,6 +95,34 @@ Options:`)
 		}
 		files = append(files, found...)
 	}
+	if cpuprofile != "" {
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	if memprofile != "" {
+		f, err := os.Create(memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		defer pprof.WriteHeapProfile(f)
+	}
+	if traceprofile != "" {
+		f, err := os.Create(traceprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		err = trace.Start(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer trace.Stop()
+	}
 
 	*quiet = *quiet || *stdout
 	allFiles := files
@@ -88,6 +133,9 @@ Options:`)
 		func() {
 			var closeOnce sync.Once
 			dstFilename := fmt.Sprintf("%s%s", filename, ".s2")
+			if *bench > 0 {
+				dstFilename = "(discarded)"
+			}
 			if !*quiet {
 				fmt.Println("Compressing", filename, "->", dstFilename)
 			}
@@ -95,7 +143,9 @@ Options:`)
 			file, err := os.Open(filename)
 			exitErr(err)
 			defer closeOnce.Do(func() { file.Close() })
-			src := bufio.NewReaderSize(file, int(sz)*2)
+			src, err := readahead.NewReaderSize(file, *cpu+1, 1<<20)
+			exitErr(err)
+			defer src.Close()
 			finfo, err := file.Stat()
 			exitErr(err)
 			var out io.Writer

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/xds"
 	"github.com/hashicorp/consul/api"
 	proxyCmd "github.com/hashicorp/consul/command/connect/proxy"
@@ -54,6 +56,7 @@ type cmd struct {
 	bootstrap            bool
 	disableCentralConfig bool
 	grpcAddr             string
+	envoyVersion         string
 
 	// mesh gateway registration information
 	register           bool
@@ -72,7 +75,7 @@ func (c *cmd) init() {
 		"The proxy's ID on the local agent.")
 
 	c.flags.BoolVar(&c.meshGateway, "mesh-gateway", false,
-		"Generate the bootstrap.json but don't exec envoy")
+		"Configure Envoy as a Mesh Gateway.")
 
 	c.flags.StringVar(&c.sidecarFor, "sidecar-for", "",
 		"The ID of a service instance on the local agent that this proxy should "+
@@ -108,6 +111,9 @@ func (c *cmd) init() {
 		"Set the agent's gRPC address and port (in http(s)://host:port format). "+
 			"Alternatively, you can specify CONSUL_GRPC_ADDR in ENV.")
 
+	c.flags.StringVar(&c.envoyVersion, "envoy-version", "1.13.0",
+		"Sets the envoy-version that the envoy binary has.")
+
 	c.flags.BoolVar(&c.register, "register", false,
 		"Register a new Mesh Gateway service before configuring and starting Envoy")
 
@@ -129,6 +135,7 @@ func (c *cmd) init() {
 
 	c.http = &flags.HTTPFlags{}
 	flags.Merge(c.flags, c.http.ClientFlags())
+	flags.Merge(c.flags, c.http.NamespaceFlags())
 	c.help = flags.Usage(help, c.flags)
 }
 
@@ -243,7 +250,7 @@ func (c *cmd) Run(args []string) int {
 		taggedAddrs := make(map[string]api.ServiceAddress)
 
 		if lanAddr != "" {
-			taggedAddrs["lan"] = api.ServiceAddress{Address: lanAddr, Port: lanPort}
+			taggedAddrs[structs.TaggedAddressLAN] = api.ServiceAddress{Address: lanAddr, Port: lanPort}
 		}
 
 		wanAddr := ""
@@ -254,7 +261,7 @@ func (c *cmd) Run(args []string) int {
 				c.UI.Error(fmt.Sprintf("Failed to parse the -wan-address parameter: %v", err))
 				return 1
 			}
-			taggedAddrs["wan"] = api.ServiceAddress{Address: wanAddr, Port: wanPort}
+			taggedAddrs[structs.TaggedAddressWAN] = api.ServiceAddress{Address: wanAddr, Port: wanPort}
 		}
 
 		tcpCheckAddr := lanAddr
@@ -422,7 +429,7 @@ func (c *cmd) templateArgs() (*BootstrapTplArgs, error) {
 	if strings.HasPrefix(strings.ToLower(c.grpcAddr), "https://") {
 		useTLS = true
 	} else if useSSLEnv := os.Getenv(api.HTTPSSLEnvName); useSSLEnv != "" {
-		if enabled, err := strconv.ParseBool(useSSLEnv); err != nil {
+		if enabled, err := strconv.ParseBool(useSSLEnv); err == nil {
 			useTLS = enabled
 		}
 	} else if strings.HasPrefix(strings.ToLower(httpCfg.Address), "https://") {
@@ -493,6 +500,15 @@ func (c *cmd) templateArgs() (*BootstrapTplArgs, error) {
 		adminAccessLogPath = DefaultAdminAccessLogPath
 	}
 
+	var caPEM string
+	if httpCfg.TLSConfig.CAFile != "" {
+		content, err := ioutil.ReadFile(httpCfg.TLSConfig.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read CA file: %s", err)
+		}
+		caPEM = strings.Replace(string(content), "\n", "\\n", -1)
+	}
+
 	return &BootstrapTplArgs{
 		ProxyCluster:          cluster,
 		ProxyID:               c.proxyID,
@@ -500,12 +516,14 @@ func (c *cmd) templateArgs() (*BootstrapTplArgs, error) {
 		AgentPort:             agentPort,
 		AgentSocket:           agentSock,
 		AgentTLS:              useTLS,
-		AgentCAFile:           httpCfg.TLSConfig.CAFile,
+		AgentCAPEM:            caPEM,
 		AdminAccessLogPath:    adminAccessLogPath,
 		AdminBindAddress:      adminBindIP.String(),
 		AdminBindPort:         adminPort,
 		Token:                 httpCfg.Token,
 		LocalAgentClusterName: xds.LocalAgentClusterName,
+		Namespace:             httpCfg.Namespace,
+		EnvoyVersion:          c.envoyVersion,
 	}, nil
 }
 
@@ -594,7 +612,7 @@ Usage: consul connect envoy [options]
   arguments using -bootstrap.
 
   The proxy requires service:write permissions for the service it represents.
-  The token may be passed via the CLI or the CONSUL_TOKEN environment
+  The token may be passed via the CLI or the CONSUL_HTTP_TOKEN environment
   variable.
 
   The example below shows how to start a local proxy as a sidecar to a "web"

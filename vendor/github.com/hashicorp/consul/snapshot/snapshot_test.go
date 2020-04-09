@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
@@ -52,8 +52,7 @@ func (m *MockFSM) Restore(in io.ReadCloser) error {
 	m.Lock()
 	defer m.Unlock()
 	defer in.Close()
-	hd := codec.MsgpackHandle{}
-	dec := codec.NewDecoder(in, &hd)
+	dec := codec.NewDecoder(in, structs.MsgpackHandle)
 
 	m.logs = nil
 	return dec.Decode(&m.logs)
@@ -61,8 +60,7 @@ func (m *MockFSM) Restore(in io.ReadCloser) error {
 
 // See raft.SnapshotSink.
 func (m *MockSnapshot) Persist(sink raft.SnapshotSink) error {
-	hd := codec.MsgpackHandle{}
-	enc := codec.NewEncoder(sink, &hd)
+	enc := codec.NewEncoder(sink, structs.MsgpackHandle)
 	if err := enc.Encode(m.logs[:m.maxIndex]); err != nil {
 		sink.Cancel()
 		return err
@@ -150,7 +148,7 @@ func TestSnapshot(t *testing.T) {
 	}
 
 	// Take a snapshot.
-	logger := log.New(os.Stdout, "", 0)
+	logger := testutil.Logger(t)
 	snap, err := New(logger, before)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -253,7 +251,7 @@ func TestSnapshot_BadRestore(t *testing.T) {
 	}
 
 	// Take a snapshot.
-	logger := log.New(os.Stdout, "", 0)
+	logger := testutil.Logger(t)
 	snap, err := New(logger, before)
 	if err != nil {
 		t.Fatalf("err: %v", err)

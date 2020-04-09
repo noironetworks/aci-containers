@@ -9,11 +9,12 @@ import (
 	math "math"
 
 	proto "github.com/golang/protobuf/proto"
-	_ "github.com/golang/protobuf/ptypes/empty"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
-	_ "google.golang.org/genproto/protobuf/field_mask"
+	_ "google.golang.org/genproto/googleapis/type/expr"
+	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -78,10 +79,10 @@ type ExportAssetsRequest struct {
 	// or a folder number (such as "folders/123").
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Timestamp to take an asset snapshot. This can only be set to a timestamp
-	// between 2018-10-02 UTC (inclusive) and the current time. If not specified,
-	// the current time will be used. Due to delays in resource data collection
-	// and indexing, there is a volatile window during which running the same
-	// query may get different results.
+	// between the current time and the current time minus 35 days (inclusive).
+	// If not specified, the current time will be used. Due to delays in resource
+	// data collection and indexing, there is a volatile window during which
+	// running the same query may get different results.
 	ReadTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=read_time,json=readTime,proto3" json:"read_time,omitempty"`
 	// A list of asset types of which to take a snapshot for. For example:
 	// "compute.googleapis.com/Disk". If specified, only matching assets will be
@@ -233,11 +234,11 @@ type BatchGetAssetsHistoryRequest struct {
 	// Optional. The content type.
 	ContentType ContentType `protobuf:"varint,3,opt,name=content_type,json=contentType,proto3,enum=google.cloud.asset.v1.ContentType" json:"content_type,omitempty"`
 	// Optional. The time window for the asset history. Both start_time and
-	// end_time are optional and if set, it must be after 2018-10-02 UTC. If
-	// end_time is not set, it is default to current timestamp. If start_time is
-	// not set, the snapshot of the assets at end_time will be returned. The
-	// returned results contain all temporal assets whose time window overlap with
-	// read_time_window.
+	// end_time are optional and if set, it must be after the current time minus
+	// 35 days. If end_time is not set, it is default to current timestamp.
+	// If start_time is not set, the snapshot of the assets at end_time will be
+	// returned. The returned results contain all temporal assets whose time
+	// window overlap with read_time_window.
 	ReadTimeWindow       *TimeWindow `protobuf:"bytes,4,opt,name=read_time_window,json=readTimeWindow,proto3" json:"read_time_window,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -338,6 +339,300 @@ func (m *BatchGetAssetsHistoryResponse) GetAssets() []*TemporalAsset {
 	return nil
 }
 
+// Create asset feed request.
+type CreateFeedRequest struct {
+	// Required. The name of the project/folder/organization where this feed
+	// should be created in. It can only be an organization number (such as
+	// "organizations/123"), a folder number (such as "folders/123"), a project ID
+	// (such as "projects/my-project-id")", or a project number (such as
+	// "projects/12345").
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Required. This is the client-assigned asset feed identifier and it needs to
+	// be unique under a specific parent project/folder/organization.
+	FeedId string `protobuf:"bytes,2,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	// Required. The feed details. The field `name` must be empty and it will be generated
+	// in the format of:
+	// projects/project_number/feeds/feed_id
+	// folders/folder_number/feeds/feed_id
+	// organizations/organization_number/feeds/feed_id
+	Feed                 *Feed    `protobuf:"bytes,3,opt,name=feed,proto3" json:"feed,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateFeedRequest) Reset()         { *m = CreateFeedRequest{} }
+func (m *CreateFeedRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateFeedRequest) ProtoMessage()    {}
+func (*CreateFeedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{4}
+}
+
+func (m *CreateFeedRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateFeedRequest.Unmarshal(m, b)
+}
+func (m *CreateFeedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateFeedRequest.Marshal(b, m, deterministic)
+}
+func (m *CreateFeedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateFeedRequest.Merge(m, src)
+}
+func (m *CreateFeedRequest) XXX_Size() int {
+	return xxx_messageInfo_CreateFeedRequest.Size(m)
+}
+func (m *CreateFeedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateFeedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateFeedRequest proto.InternalMessageInfo
+
+func (m *CreateFeedRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
+func (m *CreateFeedRequest) GetFeedId() string {
+	if m != nil {
+		return m.FeedId
+	}
+	return ""
+}
+
+func (m *CreateFeedRequest) GetFeed() *Feed {
+	if m != nil {
+		return m.Feed
+	}
+	return nil
+}
+
+// Get asset feed request.
+type GetFeedRequest struct {
+	// Required. The name of the Feed and it must be in the format of:
+	// projects/project_number/feeds/feed_id
+	// folders/folder_number/feeds/feed_id
+	// organizations/organization_number/feeds/feed_id
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetFeedRequest) Reset()         { *m = GetFeedRequest{} }
+func (m *GetFeedRequest) String() string { return proto.CompactTextString(m) }
+func (*GetFeedRequest) ProtoMessage()    {}
+func (*GetFeedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{5}
+}
+
+func (m *GetFeedRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetFeedRequest.Unmarshal(m, b)
+}
+func (m *GetFeedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetFeedRequest.Marshal(b, m, deterministic)
+}
+func (m *GetFeedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetFeedRequest.Merge(m, src)
+}
+func (m *GetFeedRequest) XXX_Size() int {
+	return xxx_messageInfo_GetFeedRequest.Size(m)
+}
+func (m *GetFeedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetFeedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetFeedRequest proto.InternalMessageInfo
+
+func (m *GetFeedRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// List asset feeds request.
+type ListFeedsRequest struct {
+	// Required. The parent project/folder/organization whose feeds are to be
+	// listed. It can only be using project/folder/organization number (such as
+	// "folders/12345")", or a project ID (such as "projects/my-project-id").
+	Parent               string   `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListFeedsRequest) Reset()         { *m = ListFeedsRequest{} }
+func (m *ListFeedsRequest) String() string { return proto.CompactTextString(m) }
+func (*ListFeedsRequest) ProtoMessage()    {}
+func (*ListFeedsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{6}
+}
+
+func (m *ListFeedsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListFeedsRequest.Unmarshal(m, b)
+}
+func (m *ListFeedsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListFeedsRequest.Marshal(b, m, deterministic)
+}
+func (m *ListFeedsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListFeedsRequest.Merge(m, src)
+}
+func (m *ListFeedsRequest) XXX_Size() int {
+	return xxx_messageInfo_ListFeedsRequest.Size(m)
+}
+func (m *ListFeedsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListFeedsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListFeedsRequest proto.InternalMessageInfo
+
+func (m *ListFeedsRequest) GetParent() string {
+	if m != nil {
+		return m.Parent
+	}
+	return ""
+}
+
+type ListFeedsResponse struct {
+	// A list of feeds.
+	Feeds                []*Feed  `protobuf:"bytes,1,rep,name=feeds,proto3" json:"feeds,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListFeedsResponse) Reset()         { *m = ListFeedsResponse{} }
+func (m *ListFeedsResponse) String() string { return proto.CompactTextString(m) }
+func (*ListFeedsResponse) ProtoMessage()    {}
+func (*ListFeedsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{7}
+}
+
+func (m *ListFeedsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListFeedsResponse.Unmarshal(m, b)
+}
+func (m *ListFeedsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListFeedsResponse.Marshal(b, m, deterministic)
+}
+func (m *ListFeedsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListFeedsResponse.Merge(m, src)
+}
+func (m *ListFeedsResponse) XXX_Size() int {
+	return xxx_messageInfo_ListFeedsResponse.Size(m)
+}
+func (m *ListFeedsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListFeedsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListFeedsResponse proto.InternalMessageInfo
+
+func (m *ListFeedsResponse) GetFeeds() []*Feed {
+	if m != nil {
+		return m.Feeds
+	}
+	return nil
+}
+
+// Update asset feed request.
+type UpdateFeedRequest struct {
+	// Required. The new values of feed details. It must match an existing feed and the
+	// field `name` must be in the format of:
+	// projects/project_number/feeds/feed_id or
+	// folders/folder_number/feeds/feed_id or
+	// organizations/organization_number/feeds/feed_id.
+	Feed *Feed `protobuf:"bytes,1,opt,name=feed,proto3" json:"feed,omitempty"`
+	// Required. Only updates the `feed` fields indicated by this mask.
+	// The field mask must not be empty, and it must not contain fields that
+	// are immutable or only set by the server.
+	UpdateMask           *field_mask.FieldMask `protobuf:"bytes,2,opt,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *UpdateFeedRequest) Reset()         { *m = UpdateFeedRequest{} }
+func (m *UpdateFeedRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateFeedRequest) ProtoMessage()    {}
+func (*UpdateFeedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{8}
+}
+
+func (m *UpdateFeedRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateFeedRequest.Unmarshal(m, b)
+}
+func (m *UpdateFeedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateFeedRequest.Marshal(b, m, deterministic)
+}
+func (m *UpdateFeedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateFeedRequest.Merge(m, src)
+}
+func (m *UpdateFeedRequest) XXX_Size() int {
+	return xxx_messageInfo_UpdateFeedRequest.Size(m)
+}
+func (m *UpdateFeedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateFeedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateFeedRequest proto.InternalMessageInfo
+
+func (m *UpdateFeedRequest) GetFeed() *Feed {
+	if m != nil {
+		return m.Feed
+	}
+	return nil
+}
+
+func (m *UpdateFeedRequest) GetUpdateMask() *field_mask.FieldMask {
+	if m != nil {
+		return m.UpdateMask
+	}
+	return nil
+}
+
+type DeleteFeedRequest struct {
+	// Required. The name of the feed and it must be in the format of:
+	// projects/project_number/feeds/feed_id
+	// folders/folder_number/feeds/feed_id
+	// organizations/organization_number/feeds/feed_id
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteFeedRequest) Reset()         { *m = DeleteFeedRequest{} }
+func (m *DeleteFeedRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteFeedRequest) ProtoMessage()    {}
+func (*DeleteFeedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{9}
+}
+
+func (m *DeleteFeedRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteFeedRequest.Unmarshal(m, b)
+}
+func (m *DeleteFeedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteFeedRequest.Marshal(b, m, deterministic)
+}
+func (m *DeleteFeedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteFeedRequest.Merge(m, src)
+}
+func (m *DeleteFeedRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteFeedRequest.Size(m)
+}
+func (m *DeleteFeedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteFeedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteFeedRequest proto.InternalMessageInfo
+
+func (m *DeleteFeedRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
 // Output configuration for export assets destination.
 type OutputConfig struct {
 	// Asset export destination.
@@ -355,7 +650,7 @@ func (m *OutputConfig) Reset()         { *m = OutputConfig{} }
 func (m *OutputConfig) String() string { return proto.CompactTextString(m) }
 func (*OutputConfig) ProtoMessage()    {}
 func (*OutputConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5104159f18b2092a, []int{4}
+	return fileDescriptor_5104159f18b2092a, []int{10}
 }
 
 func (m *OutputConfig) XXX_Unmarshal(b []byte) error {
@@ -438,7 +733,7 @@ func (m *GcsDestination) Reset()         { *m = GcsDestination{} }
 func (m *GcsDestination) String() string { return proto.CompactTextString(m) }
 func (*GcsDestination) ProtoMessage()    {}
 func (*GcsDestination) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5104159f18b2092a, []int{5}
+	return fileDescriptor_5104159f18b2092a, []int{11}
 }
 
 func (m *GcsDestination) XXX_Unmarshal(b []byte) error {
@@ -509,7 +804,7 @@ type BigQueryDestination struct {
 	// Required. The BigQuery dataset in format
 	// "projects/projectId/datasets/datasetId", to which the snapshot result
 	// should be exported. If this dataset does not exist, the export call returns
-	// an error.
+	// an INVALID_ARGUMENT error.
 	Dataset string `protobuf:"bytes,1,opt,name=dataset,proto3" json:"dataset,omitempty"`
 	// Required. The BigQuery table to which the snapshot result should be
 	// written. If this table does not exist, a new table with the given name
@@ -517,8 +812,8 @@ type BigQueryDestination struct {
 	Table string `protobuf:"bytes,2,opt,name=table,proto3" json:"table,omitempty"`
 	// If the destination table already exists and this flag is `TRUE`, the
 	// table will be overwritten by the contents of assets snapshot. If the flag
-	// is not set and the destination table already exists, the export call
-	// returns an error.
+	// is `FALSE` or unset and the destination table already exists, the export
+	// call returns an INVALID_ARGUMEMT error.
 	Force                bool     `protobuf:"varint,3,opt,name=force,proto3" json:"force,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -529,7 +824,7 @@ func (m *BigQueryDestination) Reset()         { *m = BigQueryDestination{} }
 func (m *BigQueryDestination) String() string { return proto.CompactTextString(m) }
 func (*BigQueryDestination) ProtoMessage()    {}
 func (*BigQueryDestination) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5104159f18b2092a, []int{6}
+	return fileDescriptor_5104159f18b2092a, []int{12}
 }
 
 func (m *BigQueryDestination) XXX_Unmarshal(b []byte) error {
@@ -571,15 +866,237 @@ func (m *BigQueryDestination) GetForce() bool {
 	return false
 }
 
+// A Pub/Sub destination.
+type PubsubDestination struct {
+	// The name of the Pub/Sub topic to publish to.
+	// For example: `projects/PROJECT_ID/topics/TOPIC_ID`.
+	Topic                string   `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *PubsubDestination) Reset()         { *m = PubsubDestination{} }
+func (m *PubsubDestination) String() string { return proto.CompactTextString(m) }
+func (*PubsubDestination) ProtoMessage()    {}
+func (*PubsubDestination) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{13}
+}
+
+func (m *PubsubDestination) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_PubsubDestination.Unmarshal(m, b)
+}
+func (m *PubsubDestination) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_PubsubDestination.Marshal(b, m, deterministic)
+}
+func (m *PubsubDestination) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PubsubDestination.Merge(m, src)
+}
+func (m *PubsubDestination) XXX_Size() int {
+	return xxx_messageInfo_PubsubDestination.Size(m)
+}
+func (m *PubsubDestination) XXX_DiscardUnknown() {
+	xxx_messageInfo_PubsubDestination.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PubsubDestination proto.InternalMessageInfo
+
+func (m *PubsubDestination) GetTopic() string {
+	if m != nil {
+		return m.Topic
+	}
+	return ""
+}
+
+// Output configuration for asset feed destination.
+type FeedOutputConfig struct {
+	// Asset feed destination.
+	//
+	// Types that are valid to be assigned to Destination:
+	//	*FeedOutputConfig_PubsubDestination
+	Destination          isFeedOutputConfig_Destination `protobuf_oneof:"destination"`
+	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
+	XXX_unrecognized     []byte                         `json:"-"`
+	XXX_sizecache        int32                          `json:"-"`
+}
+
+func (m *FeedOutputConfig) Reset()         { *m = FeedOutputConfig{} }
+func (m *FeedOutputConfig) String() string { return proto.CompactTextString(m) }
+func (*FeedOutputConfig) ProtoMessage()    {}
+func (*FeedOutputConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{14}
+}
+
+func (m *FeedOutputConfig) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FeedOutputConfig.Unmarshal(m, b)
+}
+func (m *FeedOutputConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FeedOutputConfig.Marshal(b, m, deterministic)
+}
+func (m *FeedOutputConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FeedOutputConfig.Merge(m, src)
+}
+func (m *FeedOutputConfig) XXX_Size() int {
+	return xxx_messageInfo_FeedOutputConfig.Size(m)
+}
+func (m *FeedOutputConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_FeedOutputConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FeedOutputConfig proto.InternalMessageInfo
+
+type isFeedOutputConfig_Destination interface {
+	isFeedOutputConfig_Destination()
+}
+
+type FeedOutputConfig_PubsubDestination struct {
+	PubsubDestination *PubsubDestination `protobuf:"bytes,1,opt,name=pubsub_destination,json=pubsubDestination,proto3,oneof"`
+}
+
+func (*FeedOutputConfig_PubsubDestination) isFeedOutputConfig_Destination() {}
+
+func (m *FeedOutputConfig) GetDestination() isFeedOutputConfig_Destination {
+	if m != nil {
+		return m.Destination
+	}
+	return nil
+}
+
+func (m *FeedOutputConfig) GetPubsubDestination() *PubsubDestination {
+	if x, ok := m.GetDestination().(*FeedOutputConfig_PubsubDestination); ok {
+		return x.PubsubDestination
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*FeedOutputConfig) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*FeedOutputConfig_PubsubDestination)(nil),
+	}
+}
+
+// An asset feed used to export asset updates to a destinations.
+// An asset feed filter controls what updates are exported.
+// The asset feed must be created within a project, organization, or
+// folder. Supported destinations are:
+// Pub/Sub topics.
+type Feed struct {
+	// Required. The format will be
+	// projects/{project_number}/feeds/{client-assigned_feed_identifier} or
+	// folders/{folder_number}/feeds/{client-assigned_feed_identifier} or
+	// organizations/{organization_number}/feeds/{client-assigned_feed_identifier}
+	//
+	// The client-assigned feed identifier must be unique within the parent
+	// project/folder/organization.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// A list of the full names of the assets to receive updates. You must specify
+	// either or both of asset_names and asset_types. Only asset updates matching
+	// specified asset_names and asset_types are exported to the feed. For
+	// example:
+	// `//compute.googleapis.com/projects/my_project_123/zones/zone1/instances/instance1`.
+	// See [Resource
+	// Names](https://cloud.google.com/apis/design/resource_names#full_resource_name)
+	// for more info.
+	AssetNames []string `protobuf:"bytes,2,rep,name=asset_names,json=assetNames,proto3" json:"asset_names,omitempty"`
+	// A list of types of the assets to receive updates. You must specify either
+	// or both of asset_names and asset_types. Only asset updates matching
+	// specified asset_names and asset_types are exported to the feed.
+	// For example: `"compute.googleapis.com/Disk"`
+	//
+	// See [this
+	// topic](https://cloud.google.com/asset-inventory/docs/supported-asset-types)
+	// for a list of all supported asset types.
+	AssetTypes []string `protobuf:"bytes,3,rep,name=asset_types,json=assetTypes,proto3" json:"asset_types,omitempty"`
+	// Asset content type. If not specified, no content but the asset name and
+	// type will be returned.
+	ContentType ContentType `protobuf:"varint,4,opt,name=content_type,json=contentType,proto3,enum=google.cloud.asset.v1.ContentType" json:"content_type,omitempty"`
+	// Required. Feed output configuration defining where the asset updates are
+	// published to.
+	FeedOutputConfig     *FeedOutputConfig `protobuf:"bytes,5,opt,name=feed_output_config,json=feedOutputConfig,proto3" json:"feed_output_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *Feed) Reset()         { *m = Feed{} }
+func (m *Feed) String() string { return proto.CompactTextString(m) }
+func (*Feed) ProtoMessage()    {}
+func (*Feed) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5104159f18b2092a, []int{15}
+}
+
+func (m *Feed) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Feed.Unmarshal(m, b)
+}
+func (m *Feed) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Feed.Marshal(b, m, deterministic)
+}
+func (m *Feed) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Feed.Merge(m, src)
+}
+func (m *Feed) XXX_Size() int {
+	return xxx_messageInfo_Feed.Size(m)
+}
+func (m *Feed) XXX_DiscardUnknown() {
+	xxx_messageInfo_Feed.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Feed proto.InternalMessageInfo
+
+func (m *Feed) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *Feed) GetAssetNames() []string {
+	if m != nil {
+		return m.AssetNames
+	}
+	return nil
+}
+
+func (m *Feed) GetAssetTypes() []string {
+	if m != nil {
+		return m.AssetTypes
+	}
+	return nil
+}
+
+func (m *Feed) GetContentType() ContentType {
+	if m != nil {
+		return m.ContentType
+	}
+	return ContentType_CONTENT_TYPE_UNSPECIFIED
+}
+
+func (m *Feed) GetFeedOutputConfig() *FeedOutputConfig {
+	if m != nil {
+		return m.FeedOutputConfig
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("google.cloud.asset.v1.ContentType", ContentType_name, ContentType_value)
 	proto.RegisterType((*ExportAssetsRequest)(nil), "google.cloud.asset.v1.ExportAssetsRequest")
 	proto.RegisterType((*ExportAssetsResponse)(nil), "google.cloud.asset.v1.ExportAssetsResponse")
 	proto.RegisterType((*BatchGetAssetsHistoryRequest)(nil), "google.cloud.asset.v1.BatchGetAssetsHistoryRequest")
 	proto.RegisterType((*BatchGetAssetsHistoryResponse)(nil), "google.cloud.asset.v1.BatchGetAssetsHistoryResponse")
+	proto.RegisterType((*CreateFeedRequest)(nil), "google.cloud.asset.v1.CreateFeedRequest")
+	proto.RegisterType((*GetFeedRequest)(nil), "google.cloud.asset.v1.GetFeedRequest")
+	proto.RegisterType((*ListFeedsRequest)(nil), "google.cloud.asset.v1.ListFeedsRequest")
+	proto.RegisterType((*ListFeedsResponse)(nil), "google.cloud.asset.v1.ListFeedsResponse")
+	proto.RegisterType((*UpdateFeedRequest)(nil), "google.cloud.asset.v1.UpdateFeedRequest")
+	proto.RegisterType((*DeleteFeedRequest)(nil), "google.cloud.asset.v1.DeleteFeedRequest")
 	proto.RegisterType((*OutputConfig)(nil), "google.cloud.asset.v1.OutputConfig")
 	proto.RegisterType((*GcsDestination)(nil), "google.cloud.asset.v1.GcsDestination")
 	proto.RegisterType((*BigQueryDestination)(nil), "google.cloud.asset.v1.BigQueryDestination")
+	proto.RegisterType((*PubsubDestination)(nil), "google.cloud.asset.v1.PubsubDestination")
+	proto.RegisterType((*FeedOutputConfig)(nil), "google.cloud.asset.v1.FeedOutputConfig")
+	proto.RegisterType((*Feed)(nil), "google.cloud.asset.v1.Feed")
 }
 
 func init() {
@@ -587,79 +1104,109 @@ func init() {
 }
 
 var fileDescriptor_5104159f18b2092a = []byte{
-	// 1003 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0x4f, 0x6f, 0xe3, 0x44,
-	0x14, 0xaf, 0x9d, 0x6d, 0x69, 0x5f, 0xd2, 0xd2, 0x9d, 0xb6, 0x22, 0x0d, 0xad, 0x9a, 0xf5, 0xf2,
-	0x27, 0x1b, 0x09, 0x5b, 0xed, 0x22, 0x21, 0x15, 0x10, 0x4a, 0xb2, 0xa1, 0x2d, 0xa2, 0x4d, 0x70,
-	0xb2, 0xbb, 0x5a, 0x54, 0x64, 0x39, 0xce, 0xc4, 0x1d, 0x70, 0x3c, 0xde, 0xf1, 0xb8, 0xd9, 0x0a,
-	0x71, 0xd9, 0xaf, 0xc0, 0x09, 0x09, 0xf1, 0x01, 0x38, 0xf2, 0x21, 0x38, 0xf4, 0x84, 0xe0, 0x8e,
-	0xf6, 0xc0, 0x37, 0xe0, 0xc6, 0x09, 0x79, 0xc6, 0x6e, 0x9d, 0x90, 0xac, 0xba, 0x12, 0xb7, 0xcc,
-	0x6f, 0x7e, 0xef, 0x37, 0x3f, 0xbf, 0xf7, 0x66, 0x5e, 0xe0, 0x9e, 0x4b, 0xa9, 0xeb, 0x61, 0xc3,
-	0xf1, 0x68, 0xd4, 0x37, 0xec, 0x30, 0xc4, 0xdc, 0x38, 0xdf, 0x95, 0x3f, 0xac, 0x10, 0xb3, 0x73,
-	0xe2, 0x60, 0x3d, 0x60, 0x94, 0x53, 0xb4, 0x21, 0xa9, 0xba, 0xa0, 0xea, 0x82, 0xa1, 0x9f, 0xef,
-	0x96, 0xb6, 0x12, 0x05, 0x3b, 0x20, 0x86, 0xed, 0xfb, 0x94, 0xdb, 0x9c, 0x50, 0x3f, 0x94, 0x41,
-	0xa5, 0x37, 0x32, 0xbb, 0x8e, 0x47, 0xb0, 0xcf, 0x93, 0x8d, 0x9d, 0xcc, 0xc6, 0x80, 0x60, 0xaf,
-	0x6f, 0xf5, 0xf0, 0x99, 0x7d, 0x4e, 0x28, 0x4b, 0x08, 0x9b, 0x19, 0x02, 0xc3, 0x21, 0x8d, 0x58,
-	0xea, 0xa4, 0xa4, 0xbd, 0xc4, 0x74, 0x7a, 0xf0, 0xdd, 0x84, 0xe3, 0x51, 0xdf, 0x65, 0x91, 0xef,
-	0x13, 0xdf, 0x35, 0x68, 0x80, 0xd9, 0x98, 0xbb, 0x37, 0x13, 0x92, 0x58, 0xf5, 0xa2, 0x81, 0x81,
-	0x87, 0x01, 0xbf, 0x48, 0x36, 0xcb, 0x93, 0x9b, 0xd2, 0xe6, 0xd0, 0x0e, 0xbf, 0x99, 0xf8, 0x86,
-	0x2b, 0x06, 0x27, 0x43, 0x1c, 0x72, 0x7b, 0x18, 0x48, 0x82, 0xf6, 0xab, 0x0a, 0x6b, 0xcd, 0x67,
-	0x01, 0x65, 0xbc, 0x26, 0xbc, 0x99, 0xf8, 0x69, 0x84, 0x43, 0x8e, 0x3e, 0x81, 0x85, 0xc0, 0x66,
-	0xd8, 0xe7, 0x45, 0xa5, 0xac, 0x54, 0x96, 0xea, 0xef, 0xbe, 0xa8, 0xa9, 0xff, 0xd4, 0xee, 0xa0,
-	0x1d, 0xf1, 0x45, 0x32, 0xb5, 0x52, 0xdb, 0x0e, 0x48, 0xa8, 0x3b, 0x74, 0x68, 0x08, 0x01, 0x33,
-	0x09, 0x43, 0x1f, 0xc0, 0x12, 0xc3, 0x76, 0xdf, 0x8a, 0x0f, 0x2c, 0xaa, 0x65, 0xa5, 0x92, 0xdf,
-	0x2b, 0x25, 0x11, 0x7a, 0xea, 0x46, 0xef, 0xa6, 0x6e, 0xcc, 0xc5, 0x98, 0x1c, 0x2f, 0xd1, 0x0e,
-	0xe4, 0x65, 0x6d, 0xf9, 0x45, 0x80, 0xc3, 0x62, 0xae, 0x9c, 0xab, 0x2c, 0x99, 0x20, 0xa0, 0x6e,
-	0x8c, 0xa0, 0x26, 0x14, 0x1c, 0xea, 0x73, 0xec, 0x4b, 0x4a, 0xf1, 0x56, 0x59, 0xa9, 0xac, 0xec,
-	0x69, 0xfa, 0xd4, 0xe2, 0xeb, 0x0d, 0x49, 0x8d, 0x43, 0xcd, 0xbc, 0x73, 0xbd, 0x40, 0xc7, 0xb0,
-	0x4c, 0x23, 0x1e, 0x44, 0xdc, 0x72, 0xa8, 0x3f, 0x20, 0x6e, 0x71, 0x5e, 0x98, 0xbc, 0x3b, 0x43,
-	0xa7, 0x25, 0xb8, 0x0d, 0x41, 0xad, 0xe7, 0x5e, 0xd4, 0x54, 0xb3, 0x40, 0x33, 0x90, 0xf6, 0x83,
-	0x02, 0xeb, 0xe3, 0x89, 0x0c, 0x03, 0xea, 0x87, 0x78, 0x3c, 0x11, 0xca, 0x2b, 0x24, 0xe2, 0x70,
-	0xd2, 0xa0, 0x7a, 0x63, 0x83, 0x13, 0xde, 0x7e, 0x52, 0x61, 0xab, 0x6e, 0x73, 0xe7, 0xec, 0x00,
-	0x27, 0xee, 0x0e, 0x49, 0xc8, 0x29, 0xbb, 0xf8, 0xdf, 0xaa, 0x7d, 0x55, 0x34, 0xdf, 0x1e, 0xe2,
-	0xb0, 0xa8, 0x66, 0x8a, 0x76, 0x12, 0x23, 0xe8, 0xb3, 0x89, 0xa2, 0xe5, 0x6e, 0x5a, 0xb4, 0x38,
-	0xd7, 0xca, 0x78, 0xe5, 0xda, 0xb0, 0x7a, 0x95, 0x51, 0x6b, 0x44, 0xfc, 0x3e, 0x1d, 0x89, 0x26,
-	0xc8, 0xef, 0xdd, 0x99, 0xa1, 0x17, 0xe7, 0xf3, 0xb1, 0x20, 0x4a, 0xb9, 0x95, 0x34, 0xc9, 0x12,
-	0xd4, 0xbe, 0x82, 0xed, 0x19, 0xf9, 0x49, 0x8a, 0xf8, 0x11, 0x2c, 0xc8, 0xbb, 0x5b, 0x54, 0xca,
-	0xb9, 0x4a, 0x7e, 0xef, 0xad, 0x59, 0x07, 0xe1, 0x61, 0x40, 0x99, 0xed, 0x25, 0xd9, 0x91, 0x31,
-	0xda, 0x6f, 0x0a, 0x14, 0xb2, 0xe5, 0x41, 0x6d, 0x78, 0xdd, 0x75, 0x42, 0xab, 0x8f, 0x43, 0x4e,
-	0x7c, 0x71, 0xdf, 0x93, 0xce, 0x78, 0x7b, 0x86, 0xee, 0x81, 0x13, 0x3e, 0xb8, 0x26, 0x1f, 0xce,
-	0x99, 0x2b, 0xee, 0x18, 0x82, 0x2c, 0x58, 0xef, 0x11, 0xf7, 0x69, 0x84, 0xd9, 0xc5, 0x98, 0xac,
-	0xec, 0x99, 0xea, 0x0c, 0xd9, 0x3a, 0x71, 0xbf, 0x88, 0x43, 0xc6, 0xb5, 0xd7, 0x52, 0xa5, 0x0c,
-	0x5c, 0x5f, 0x86, 0x7c, 0x46, 0x57, 0xeb, 0xc0, 0xca, 0xb8, 0x27, 0x84, 0x20, 0x17, 0x31, 0x22,
-	0x1b, 0xe8, 0x70, 0xce, 0x8c, 0x17, 0x68, 0x07, 0x20, 0x62, 0xc4, 0x0a, 0x18, 0x1e, 0x90, 0x67,
-	0xc2, 0x4b, 0xbc, 0xb5, 0x14, 0x31, 0xd2, 0x16, 0x50, 0xbd, 0x00, 0x40, 0x7b, 0x5f, 0x63, 0x87,
-	0x5b, 0x11, 0x23, 0x1a, 0x86, 0xb5, 0x29, 0x8e, 0xd0, 0x36, 0xbc, 0xd6, 0xb7, 0xb9, 0x1d, 0xe2,
-	0xb4, 0x3d, 0xc5, 0xf5, 0x4b, 0x31, 0xb4, 0x09, 0xf3, 0xdc, 0xee, 0x79, 0xf2, 0x95, 0x49, 0x36,
-	0x25, 0x82, 0xd6, 0x61, 0x7e, 0x40, 0x99, 0x23, 0xdb, 0x6d, 0xd1, 0x94, 0x8b, 0xaa, 0x07, 0xf9,
-	0x4c, 0x83, 0xa1, 0x2d, 0x28, 0x36, 0x5a, 0x27, 0xdd, 0xe6, 0x49, 0xd7, 0xea, 0x3e, 0x69, 0x37,
-	0xad, 0x87, 0x27, 0x9d, 0x76, 0xb3, 0x71, 0xf4, 0xe9, 0x51, 0xf3, 0xc1, 0xea, 0x1c, 0x2a, 0xc0,
-	0xa2, 0xd9, 0xec, 0xb4, 0x1e, 0x9a, 0x8d, 0xe6, 0xaa, 0x82, 0x56, 0x00, 0x8e, 0x6a, 0xc7, 0x56,
-	0xbb, 0xf5, 0xf9, 0x51, 0xe3, 0xc9, 0xaa, 0x1a, 0xaf, 0x5b, 0xe6, 0x41, 0xba, 0xbe, 0x85, 0x6e,
-	0xc3, 0x72, 0xad, 0xd1, 0x68, 0x76, 0x3a, 0x29, 0x34, 0xbf, 0xf7, 0x77, 0x0e, 0x0a, 0xa2, 0x1d,
-	0x3a, 0x72, 0x56, 0xa1, 0x3f, 0x15, 0x28, 0x64, 0x5f, 0x0a, 0x34, 0xab, 0x3a, 0x53, 0xde, 0xe5,
-	0xd2, 0x76, 0xca, 0xcd, 0x4c, 0x0d, 0xbd, 0x95, 0x4e, 0x0d, 0xed, 0xb9, 0x72, 0x59, 0x7b, 0x0c,
-	0xd5, 0x9b, 0xe8, 0x25, 0x9d, 0x7d, 0xef, 0xc6, 0x67, 0x3f, 0xff, 0xe3, 0xaf, 0xef, 0x55, 0x4d,
-	0xdb, 0x8e, 0x07, 0xd9, 0xb7, 0xf2, 0xde, 0x7f, 0x5c, 0x35, 0xaa, 0xdf, 0xed, 0xe3, 0x0c, 0x77,
-	0x5f, 0xa9, 0xa2, 0x5f, 0x14, 0xd8, 0x98, 0x7a, 0x9d, 0xd0, 0xfd, 0x59, 0x7d, 0xf8, 0x92, 0xc7,
-	0xa9, 0xf4, 0xfe, 0xab, 0x05, 0xc9, 0xef, 0xd2, 0x74, 0x61, 0xb7, 0x82, 0xde, 0xf9, 0x8f, 0xdd,
-	0xde, 0xb4, 0xb8, 0xd2, 0xf1, 0x65, 0x6d, 0x73, 0xe6, 0x6b, 0xf7, 0x7b, 0x4d, 0x3f, 0xe3, 0x3c,
-	0x08, 0xf7, 0x0d, 0x63, 0x34, 0x1a, 0x4d, 0x3e, 0x85, 0x76, 0xc4, 0xcf, 0xe4, 0xa4, 0x7f, 0x2f,
-	0xf0, 0x6c, 0x3e, 0xa0, 0x6c, 0x58, 0xff, 0x51, 0x81, 0x4d, 0x87, 0x0e, 0xa7, 0x5b, 0xaf, 0xdf,
-	0xce, 0x36, 0x44, 0x3b, 0x1e, 0x02, 0x6d, 0xe5, 0xcb, 0xfd, 0x84, 0xeb, 0x52, 0xcf, 0xf6, 0x5d,
-	0x9d, 0x32, 0xd7, 0x70, 0xb1, 0x2f, 0x46, 0x84, 0x71, 0x7d, 0xe2, 0xc4, 0x5f, 0x8a, 0x0f, 0xc5,
-	0x8f, 0x9f, 0xd5, 0x8d, 0x03, 0x19, 0xdc, 0x10, 0x07, 0x09, 0x79, 0xfd, 0xd1, 0xee, 0x65, 0x8a,
-	0x9f, 0x0a, 0xfc, 0x54, 0xe0, 0xa7, 0x8f, 0x76, 0x7b, 0x0b, 0x42, 0xf6, 0xfe, 0xbf, 0x01, 0x00,
-	0x00, 0xff, 0xff, 0x30, 0xdc, 0x92, 0xd5, 0x5d, 0x09, 0x00, 0x00,
+	// 1476 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0xcf, 0x6f, 0x1b, 0xc5,
+	0x17, 0xcf, 0x3a, 0x49, 0x9b, 0x3c, 0xa7, 0xf9, 0xc6, 0xd3, 0xb4, 0x75, 0x9c, 0xe4, 0x1b, 0x77,
+	0x4b, 0x5b, 0xc7, 0x52, 0x77, 0x95, 0xb4, 0x12, 0x52, 0x00, 0x81, 0xed, 0x3a, 0x3f, 0x50, 0x93,
+	0x98, 0x4d, 0xda, 0xaa, 0x55, 0x91, 0xb5, 0xb6, 0xc7, 0x9b, 0xa5, 0xf6, 0xce, 0x76, 0x77, 0x36,
+	0x69, 0x08, 0x11, 0x52, 0x85, 0xc4, 0x01, 0x71, 0x40, 0x5c, 0x40, 0x42, 0xfc, 0x01, 0x1c, 0xf9,
+	0x23, 0x38, 0xf4, 0x84, 0xe0, 0xd6, 0x03, 0xea, 0x81, 0x13, 0x27, 0xce, 0x9c, 0xd0, 0xcc, 0xec,
+	0x26, 0xbb, 0x6b, 0x6f, 0x9a, 0x0a, 0xc4, 0xc9, 0x3b, 0x6f, 0x3e, 0xef, 0xbd, 0xcf, 0x7c, 0xde,
+	0xfc, 0x78, 0x86, 0x79, 0x83, 0x10, 0xa3, 0x83, 0xd5, 0x66, 0x87, 0x78, 0x2d, 0x55, 0x77, 0x5d,
+	0x4c, 0xd5, 0xdd, 0x05, 0xf1, 0x51, 0x77, 0xb1, 0xb3, 0x6b, 0x36, 0xb1, 0x62, 0x3b, 0x84, 0x12,
+	0x74, 0x41, 0x40, 0x15, 0x0e, 0x55, 0x38, 0x42, 0xd9, 0x5d, 0xc8, 0xcd, 0xf8, 0x11, 0x74, 0xdb,
+	0x54, 0x75, 0xcb, 0x22, 0x54, 0xa7, 0x26, 0xb1, 0x5c, 0xe1, 0x94, 0xbb, 0x14, 0x9a, 0x6d, 0x76,
+	0x4c, 0x6c, 0x51, 0x7f, 0x62, 0x2e, 0x34, 0xd1, 0x36, 0x71, 0xa7, 0x55, 0x6f, 0xe0, 0x1d, 0x7d,
+	0xd7, 0x24, 0x8e, 0x0f, 0x98, 0x0a, 0x01, 0x1c, 0xec, 0x12, 0xcf, 0x09, 0x98, 0xe4, 0xe4, 0x13,
+	0x48, 0x07, 0x89, 0xaf, 0xf8, 0x98, 0x0e, 0xb1, 0x0c, 0xc7, 0xb3, 0x2c, 0xd3, 0x32, 0x54, 0x62,
+	0x63, 0x27, 0xc2, 0x6e, 0xda, 0x07, 0xf1, 0x51, 0xc3, 0x6b, 0xab, 0xb8, 0x6b, 0xd3, 0x7d, 0x7f,
+	0x32, 0x1f, 0x9f, 0x14, 0x34, 0xbb, 0xba, 0xfb, 0x38, 0xb6, 0x86, 0x23, 0x04, 0x35, 0xbb, 0xd8,
+	0xa5, 0x7a, 0xd7, 0xf6, 0x01, 0x17, 0x7d, 0x00, 0xdd, 0xb7, 0xb1, 0x8a, 0x9f, 0xda, 0xfe, 0xda,
+	0xe4, 0x9f, 0x52, 0x70, 0xbe, 0xfa, 0xd4, 0x26, 0x0e, 0x2d, 0x71, 0xce, 0x1a, 0x7e, 0xe2, 0x61,
+	0x97, 0xa2, 0x77, 0xe1, 0x8c, 0xad, 0x3b, 0xd8, 0xa2, 0x59, 0x29, 0x2f, 0x15, 0x46, 0xcb, 0xd7,
+	0x5f, 0x96, 0x52, 0x7f, 0x95, 0x2e, 0xa3, 0x39, 0xbe, 0x52, 0x21, 0xb9, 0x08, 0xa9, 0xdb, 0xa6,
+	0xab, 0x34, 0x49, 0x57, 0xe5, 0x01, 0x34, 0xdf, 0x0d, 0xbd, 0x09, 0xa3, 0x0e, 0xd6, 0x5b, 0x75,
+	0x46, 0x24, 0x9b, 0xca, 0x4b, 0x85, 0xf4, 0x62, 0xce, 0xf7, 0x50, 0x02, 0x96, 0xca, 0x76, 0xc0,
+	0x52, 0x1b, 0x61, 0x60, 0x36, 0x44, 0x73, 0x90, 0x16, 0x35, 0x67, 0x54, 0xdd, 0xec, 0x60, 0x7e,
+	0xb0, 0x30, 0xaa, 0x01, 0x37, 0x6d, 0x33, 0x0b, 0xaa, 0xc2, 0x58, 0x93, 0x58, 0x14, 0x5b, 0x02,
+	0x92, 0x1d, 0xca, 0x4b, 0x85, 0xf1, 0x45, 0x59, 0xe9, 0xbb, 0x29, 0x94, 0x8a, 0x80, 0x32, 0x57,
+	0x2d, 0xdd, 0x3c, 0x1e, 0xa0, 0x75, 0x38, 0x47, 0x3c, 0x6a, 0x7b, 0xb4, 0xde, 0x24, 0x56, 0xdb,
+	0x34, 0xb2, 0xc3, 0x9c, 0xe4, 0x95, 0x84, 0x38, 0x9b, 0x1c, 0x5b, 0xe1, 0xd0, 0xf2, 0xe0, 0xcb,
+	0x52, 0x4a, 0x1b, 0x23, 0x21, 0x93, 0xfc, 0xad, 0x04, 0x93, 0x51, 0x21, 0x5d, 0x9b, 0x58, 0x2e,
+	0x8e, 0x0a, 0x21, 0xbd, 0x86, 0x10, 0xab, 0x71, 0x82, 0xa9, 0x53, 0x13, 0x8c, 0x71, 0xfb, 0x3e,
+	0x05, 0x33, 0x65, 0x9d, 0x36, 0x77, 0x56, 0xb0, 0xcf, 0x6e, 0xd5, 0x74, 0x29, 0x71, 0xf6, 0xff,
+	0xb5, 0x6a, 0x1f, 0x15, 0xcd, 0xd2, 0xbb, 0xd8, 0xcd, 0xa6, 0x42, 0x45, 0xdb, 0x60, 0x16, 0xf4,
+	0x7e, 0xac, 0x68, 0x83, 0xa7, 0x2d, 0x1a, 0xd3, 0x5a, 0x8a, 0x56, 0xae, 0x06, 0x13, 0x47, 0x8a,
+	0xd6, 0xf7, 0x4c, 0xab, 0x45, 0xf6, 0xf8, 0x26, 0x48, 0x2f, 0x5e, 0x4e, 0x88, 0xc7, 0xf4, 0xbc,
+	0xcf, 0x81, 0x22, 0xdc, 0x78, 0x20, 0xb2, 0x30, 0xca, 0x1f, 0xc2, 0x6c, 0x82, 0x3e, 0x7e, 0x11,
+	0xdf, 0x86, 0x33, 0xe2, 0x4c, 0x67, 0xa5, 0xfc, 0x60, 0x21, 0xbd, 0xf8, 0x46, 0x52, 0x22, 0xdc,
+	0xb5, 0x89, 0xa3, 0x77, 0x7c, 0x75, 0x84, 0x8f, 0xfc, 0x99, 0x04, 0x99, 0x8a, 0x83, 0x75, 0x8a,
+	0x97, 0x31, 0x6e, 0x05, 0xa2, 0x4f, 0xc7, 0x44, 0xe7, 0x9b, 0x2a, 0x10, 0x74, 0x06, 0xce, 0xb6,
+	0x31, 0x6e, 0xd5, 0xcd, 0x16, 0x2f, 0x7b, 0x30, 0xcb, 0x6c, 0x6b, 0x2d, 0x74, 0x0b, 0x86, 0xd8,
+	0x17, 0x57, 0x31, 0xbd, 0x38, 0x9d, 0x40, 0x86, 0x25, 0x13, 0x7e, 0x1c, 0x2d, 0xdf, 0x81, 0xf1,
+	0x15, 0x4c, 0xc3, 0x14, 0x96, 0x60, 0x88, 0x15, 0xcc, 0x27, 0x70, 0x8d, 0x57, 0x3d, 0x0f, 0xff,
+	0x4f, 0xae, 0x3a, 0x77, 0xe6, 0x3e, 0xb2, 0x0a, 0x13, 0x77, 0x4c, 0x97, 0x87, 0x73, 0x4f, 0xb3,
+	0x24, 0x79, 0x19, 0x32, 0x21, 0x07, 0x5f, 0xd8, 0x05, 0x18, 0x66, 0xdc, 0x02, 0x5d, 0x4f, 0x5a,
+	0x8a, 0x26, 0x90, 0xf2, 0x17, 0x12, 0x64, 0xee, 0xda, 0xad, 0x98, 0x9a, 0x81, 0x24, 0xd2, 0xeb,
+	0x48, 0x82, 0xde, 0x83, 0xb4, 0xc7, 0x43, 0xf1, 0xcb, 0x34, 0xf1, 0x9e, 0x5a, 0x66, 0xf7, 0xed,
+	0xba, 0xee, 0x3e, 0x16, 0xbe, 0x20, 0x7c, 0x98, 0x41, 0xde, 0x84, 0xcc, 0x6d, 0xdc, 0xc1, 0x51,
+	0x32, 0xff, 0x44, 0xd7, 0x9f, 0x25, 0x18, 0x0b, 0x9f, 0x65, 0x54, 0x83, 0xff, 0x19, 0x4d, 0xb7,
+	0xde, 0xc2, 0x2e, 0x35, 0x2d, 0xfe, 0x68, 0xf8, 0x8b, 0xbc, 0x9a, 0xb0, 0xc8, 0x95, 0xa6, 0x7b,
+	0xfb, 0x18, 0xbc, 0x3a, 0xa0, 0x8d, 0x1b, 0x11, 0x0b, 0xaa, 0xc3, 0x64, 0xc3, 0x34, 0x9e, 0x78,
+	0xd8, 0xd9, 0x8f, 0x84, 0x15, 0xcb, 0x2f, 0x26, 0x84, 0x2d, 0x9b, 0xc6, 0x07, 0xcc, 0x25, 0x1a,
+	0xfb, 0x7c, 0x10, 0x29, 0x64, 0x2e, 0x9f, 0x83, 0x74, 0x28, 0xae, 0xbc, 0x05, 0xe3, 0x51, 0x4e,
+	0x08, 0xc1, 0xa0, 0xe7, 0x98, 0x42, 0x9f, 0xd5, 0x01, 0x8d, 0x0d, 0xd0, 0x1c, 0x80, 0xe7, 0x98,
+	0x75, 0xdb, 0xc1, 0x6d, 0xf3, 0xa9, 0xd8, 0xf5, 0xab, 0x03, 0xda, 0xa8, 0xe7, 0x98, 0x35, 0x6e,
+	0x2a, 0x8f, 0x01, 0x90, 0xc6, 0x47, 0xb8, 0x49, 0xeb, 0x9e, 0x63, 0xca, 0x18, 0xce, 0xf7, 0x61,
+	0x84, 0x66, 0xe1, 0x6c, 0x4b, 0xa7, 0xba, 0x8b, 0x23, 0x7b, 0x30, 0xb0, 0xa1, 0x29, 0x18, 0xa6,
+	0x7a, 0xa3, 0x83, 0xc3, 0xa7, 0x4a, 0x58, 0xd0, 0x24, 0x0c, 0xb7, 0x89, 0xd3, 0x14, 0x77, 0xd3,
+	0x88, 0x26, 0x06, 0xf2, 0x3c, 0x64, 0x6a, 0x5e, 0xc3, 0xf5, 0x1a, 0xe1, 0x24, 0x93, 0x30, 0x4c,
+	0x89, 0x6d, 0x36, 0x45, 0x0a, 0x4d, 0x0c, 0xe4, 0x4f, 0x60, 0x82, 0xd5, 0x31, 0x52, 0xbc, 0x07,
+	0x80, 0x6c, 0xee, 0xde, 0xa7, 0x7e, 0x85, 0x04, 0xa1, 0x7b, 0xf2, 0xad, 0x0e, 0x68, 0x19, 0x3b,
+	0x6e, 0x8c, 0x8b, 0xfc, 0xcd, 0x20, 0x0c, 0xb1, 0xf4, 0xe8, 0x52, 0x64, 0xf3, 0x89, 0xcd, 0xce,
+	0x0c, 0xaf, 0xbe, 0xa4, 0xff, 0xab, 0xa7, 0xf7, 0x21, 0x20, 0x7e, 0xb9, 0xf5, 0x7b, 0x7f, 0xaf,
+	0x9f, 0x70, 0x72, 0x7b, 0xdf, 0xe0, 0x89, 0x76, 0xcc, 0xbc, 0xf4, 0x95, 0xf4, 0x47, 0xe9, 0x4b,
+	0xe9, 0x55, 0x67, 0x0d, 0xcd, 0xd9, 0x0e, 0x61, 0x5b, 0xc9, 0x55, 0x0f, 0xfc, 0xaf, 0x43, 0x95,
+	0x5f, 0x2f, 0xea, 0x01, 0xfb, 0x39, 0x44, 0xb3, 0x6d, 0xd2, 0x69, 0x61, 0x87, 0x8d, 0xf9, 0x47,
+	0x6c, 0x7a, 0x9e, 0x38, 0x86, 0x6e, 0x99, 0x1f, 0x8b, 0x26, 0x4e, 0x3d, 0x08, 0x0f, 0xa3, 0xd0,
+	0xbc, 0x54, 0xec, 0x40, 0x3a, 0xa4, 0x05, 0x9a, 0x81, 0x6c, 0x65, 0x73, 0x63, 0xbb, 0xba, 0xb1,
+	0x5d, 0xdf, 0x7e, 0x50, 0xab, 0xd6, 0xef, 0x6e, 0x6c, 0xd5, 0xaa, 0x95, 0xb5, 0xe5, 0xb5, 0xea,
+	0xed, 0x89, 0x01, 0x34, 0x06, 0x23, 0x5a, 0x75, 0x6b, 0xf3, 0xae, 0x56, 0xa9, 0x4e, 0x48, 0x68,
+	0x1c, 0x60, 0xad, 0xb4, 0x5e, 0xaf, 0x6d, 0xde, 0x59, 0xab, 0x3c, 0x98, 0x48, 0xb1, 0xf1, 0xa6,
+	0xb6, 0x12, 0x8c, 0x87, 0x50, 0x06, 0xce, 0x95, 0x2a, 0x95, 0xea, 0xd6, 0x56, 0x60, 0x1a, 0x5e,
+	0xfc, 0x73, 0x04, 0xc6, 0xf8, 0xfb, 0xb3, 0x25, 0x9a, 0x66, 0xf4, 0x9b, 0x04, 0x63, 0xe1, 0xd6,
+	0x04, 0x25, 0x9d, 0xf0, 0x3e, 0x8d, 0x60, 0x6e, 0x36, 0xc0, 0x86, 0xda, 0x57, 0x65, 0x33, 0x68,
+	0x5f, 0xe5, 0x67, 0xd2, 0xf3, 0xd2, 0x7d, 0x28, 0x9e, 0x26, 0x9e, 0x7f, 0xe3, 0xcf, 0x9f, 0x3a,
+	0xf7, 0xb3, 0x5f, 0x7f, 0xff, 0x3a, 0x25, 0xcb, 0xb3, 0xac, 0xa3, 0x3e, 0x10, 0x8f, 0xc8, 0x3b,
+	0x45, 0xb5, 0x78, 0xb8, 0x84, 0x43, 0xd8, 0x25, 0xa9, 0x88, 0x7e, 0x94, 0xe0, 0x42, 0xdf, 0xf7,
+	0x1b, 0xdd, 0x4c, 0xba, 0xcb, 0x4e, 0xe8, 0x86, 0x72, 0xb7, 0x5e, 0xcf, 0x49, 0xac, 0x4b, 0x56,
+	0x38, 0xdd, 0x02, 0xba, 0xd6, 0x43, 0xb7, 0xd1, 0x97, 0xda, 0xa7, 0x00, 0xc7, 0x3d, 0x01, 0x4a,
+	0xba, 0x0b, 0x7a, 0xda, 0x86, 0xdc, 0x49, 0x4f, 0x9b, 0x5c, 0x7c, 0x51, 0xf2, 0x9f, 0x5b, 0xce,
+	0x66, 0x5a, 0xbe, 0x18, 0x67, 0x23, 0xf6, 0x26, 0x53, 0x8d, 0xc2, 0x59, 0xbf, 0x1d, 0x40, 0x89,
+	0x2f, 0x49, 0xa4, 0x5d, 0x38, 0x39, 0xf5, 0xd5, 0x17, 0x25, 0x7e, 0xcd, 0xf0, 0xc4, 0x59, 0x24,
+	0x12, 0x33, 0x03, 0x4b, 0xeb, 0x9f, 0x88, 0xe2, 0x21, 0xfa, 0x5c, 0x82, 0xd1, 0xa3, 0x36, 0x00,
+	0x25, 0x9d, 0xf6, 0x78, 0x67, 0x91, 0x2b, 0xbc, 0x1a, 0xe8, 0xd7, 0xe1, 0x7a, 0x54, 0x82, 0x80,
+	0x49, 0x8f, 0x04, 0xe8, 0x99, 0x04, 0x70, 0xdc, 0x47, 0x24, 0x56, 0xa0, 0xa7, 0xd5, 0x38, 0x59,
+	0x86, 0x1b, 0x2f, 0x4a, 0xbc, 0xb5, 0xe0, 0xc9, 0xf3, 0x8b, 0xd3, 0x3c, 0x39, 0x33, 0x28, 0x3d,
+	0x5a, 0xb0, 0x22, 0x78, 0x00, 0xc7, 0xed, 0x43, 0x22, 0x87, 0x9e, 0x0e, 0x23, 0x77, 0xb1, 0xa7,
+	0x47, 0xa9, 0xb2, 0x3f, 0x8c, 0xb1, 0x2a, 0x14, 0x13, 0xaa, 0x90, 0x5b, 0x7f, 0x5e, 0x9a, 0x4a,
+	0xbc, 0x21, 0x7f, 0x29, 0x29, 0x3b, 0x94, 0xda, 0xee, 0x92, 0xaa, 0xee, 0xed, 0xed, 0xc5, 0xaf,
+	0x4f, 0xdd, 0xa3, 0x3b, 0xe2, 0xff, 0xee, 0x0d, 0xbb, 0xa3, 0xd3, 0x36, 0x71, 0xba, 0xe5, 0xef,
+	0x24, 0x98, 0x6a, 0x92, 0x6e, 0x7f, 0xf6, 0xe5, 0x4c, 0xf8, 0x36, 0xaa, 0x31, 0xbe, 0x35, 0xe9,
+	0xe1, 0x92, 0x8f, 0x35, 0x48, 0x47, 0xb7, 0x0c, 0x85, 0x38, 0x86, 0x6a, 0x60, 0x8b, 0xaf, 0x46,
+	0x3d, 0xce, 0x18, 0xfb, 0x63, 0xfd, 0x16, 0xff, 0xf8, 0x21, 0x75, 0x61, 0x45, 0x38, 0x57, 0x78,
+	0x22, 0x1e, 0x5e, 0xb9, 0xb7, 0xf0, 0x3c, 0xb0, 0x3f, 0xe2, 0xf6, 0x47, 0xdc, 0xfe, 0xe8, 0xde,
+	0x42, 0xe3, 0x0c, 0x0f, 0x7b, 0xf3, 0xef, 0x00, 0x00, 0x00, 0xff, 0xff, 0x2d, 0x59, 0x6b, 0x9a,
+	0x63, 0x10, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // AssetServiceClient is the client API for AssetService service.
 //
@@ -678,13 +1225,24 @@ type AssetServiceClient interface {
 	// If a specified asset does not exist, this API returns an INVALID_ARGUMENT
 	// error.
 	BatchGetAssetsHistory(ctx context.Context, in *BatchGetAssetsHistoryRequest, opts ...grpc.CallOption) (*BatchGetAssetsHistoryResponse, error)
+	// Creates a feed in a parent project/folder/organization to listen to its
+	// asset updates.
+	CreateFeed(ctx context.Context, in *CreateFeedRequest, opts ...grpc.CallOption) (*Feed, error)
+	// Gets details about an asset feed.
+	GetFeed(ctx context.Context, in *GetFeedRequest, opts ...grpc.CallOption) (*Feed, error)
+	// Lists all asset feeds in a parent project/folder/organization.
+	ListFeeds(ctx context.Context, in *ListFeedsRequest, opts ...grpc.CallOption) (*ListFeedsResponse, error)
+	// Updates an asset feed configuration.
+	UpdateFeed(ctx context.Context, in *UpdateFeedRequest, opts ...grpc.CallOption) (*Feed, error)
+	// Deletes an asset feed.
+	DeleteFeed(ctx context.Context, in *DeleteFeedRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
 type assetServiceClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewAssetServiceClient(cc *grpc.ClientConn) AssetServiceClient {
+func NewAssetServiceClient(cc grpc.ClientConnInterface) AssetServiceClient {
 	return &assetServiceClient{cc}
 }
 
@@ -706,6 +1264,51 @@ func (c *assetServiceClient) BatchGetAssetsHistory(ctx context.Context, in *Batc
 	return out, nil
 }
 
+func (c *assetServiceClient) CreateFeed(ctx context.Context, in *CreateFeedRequest, opts ...grpc.CallOption) (*Feed, error) {
+	out := new(Feed)
+	err := c.cc.Invoke(ctx, "/google.cloud.asset.v1.AssetService/CreateFeed", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assetServiceClient) GetFeed(ctx context.Context, in *GetFeedRequest, opts ...grpc.CallOption) (*Feed, error) {
+	out := new(Feed)
+	err := c.cc.Invoke(ctx, "/google.cloud.asset.v1.AssetService/GetFeed", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assetServiceClient) ListFeeds(ctx context.Context, in *ListFeedsRequest, opts ...grpc.CallOption) (*ListFeedsResponse, error) {
+	out := new(ListFeedsResponse)
+	err := c.cc.Invoke(ctx, "/google.cloud.asset.v1.AssetService/ListFeeds", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assetServiceClient) UpdateFeed(ctx context.Context, in *UpdateFeedRequest, opts ...grpc.CallOption) (*Feed, error) {
+	out := new(Feed)
+	err := c.cc.Invoke(ctx, "/google.cloud.asset.v1.AssetService/UpdateFeed", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assetServiceClient) DeleteFeed(ctx context.Context, in *DeleteFeedRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/google.cloud.asset.v1.AssetService/DeleteFeed", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AssetServiceServer is the server API for AssetService service.
 type AssetServiceServer interface {
 	// Exports assets with time and resource types to a given Cloud Storage
@@ -721,6 +1324,17 @@ type AssetServiceServer interface {
 	// If a specified asset does not exist, this API returns an INVALID_ARGUMENT
 	// error.
 	BatchGetAssetsHistory(context.Context, *BatchGetAssetsHistoryRequest) (*BatchGetAssetsHistoryResponse, error)
+	// Creates a feed in a parent project/folder/organization to listen to its
+	// asset updates.
+	CreateFeed(context.Context, *CreateFeedRequest) (*Feed, error)
+	// Gets details about an asset feed.
+	GetFeed(context.Context, *GetFeedRequest) (*Feed, error)
+	// Lists all asset feeds in a parent project/folder/organization.
+	ListFeeds(context.Context, *ListFeedsRequest) (*ListFeedsResponse, error)
+	// Updates an asset feed configuration.
+	UpdateFeed(context.Context, *UpdateFeedRequest) (*Feed, error)
+	// Deletes an asset feed.
+	DeleteFeed(context.Context, *DeleteFeedRequest) (*empty.Empty, error)
 }
 
 // UnimplementedAssetServiceServer can be embedded to have forward compatible implementations.
@@ -732,6 +1346,21 @@ func (*UnimplementedAssetServiceServer) ExportAssets(ctx context.Context, req *E
 }
 func (*UnimplementedAssetServiceServer) BatchGetAssetsHistory(ctx context.Context, req *BatchGetAssetsHistoryRequest) (*BatchGetAssetsHistoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetAssetsHistory not implemented")
+}
+func (*UnimplementedAssetServiceServer) CreateFeed(ctx context.Context, req *CreateFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) GetFeed(ctx context.Context, req *GetFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) ListFeeds(ctx context.Context, req *ListFeedsRequest) (*ListFeedsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFeeds not implemented")
+}
+func (*UnimplementedAssetServiceServer) UpdateFeed(ctx context.Context, req *UpdateFeedRequest) (*Feed, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateFeed not implemented")
+}
+func (*UnimplementedAssetServiceServer) DeleteFeed(ctx context.Context, req *DeleteFeedRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFeed not implemented")
 }
 
 func RegisterAssetServiceServer(s *grpc.Server, srv AssetServiceServer) {
@@ -774,6 +1403,96 @@ func _AssetService_BatchGetAssetsHistory_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AssetService_CreateFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssetServiceServer).CreateFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.asset.v1.AssetService/CreateFeed",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssetServiceServer).CreateFeed(ctx, req.(*CreateFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssetService_GetFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssetServiceServer).GetFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.asset.v1.AssetService/GetFeed",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssetServiceServer).GetFeed(ctx, req.(*GetFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssetService_ListFeeds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFeedsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssetServiceServer).ListFeeds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.asset.v1.AssetService/ListFeeds",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssetServiceServer).ListFeeds(ctx, req.(*ListFeedsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssetService_UpdateFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssetServiceServer).UpdateFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.asset.v1.AssetService/UpdateFeed",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssetServiceServer).UpdateFeed(ctx, req.(*UpdateFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssetService_DeleteFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssetServiceServer).DeleteFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.cloud.asset.v1.AssetService/DeleteFeed",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssetServiceServer).DeleteFeed(ctx, req.(*DeleteFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AssetService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "google.cloud.asset.v1.AssetService",
 	HandlerType: (*AssetServiceServer)(nil),
@@ -785,6 +1504,26 @@ var _AssetService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchGetAssetsHistory",
 			Handler:    _AssetService_BatchGetAssetsHistory_Handler,
+		},
+		{
+			MethodName: "CreateFeed",
+			Handler:    _AssetService_CreateFeed_Handler,
+		},
+		{
+			MethodName: "GetFeed",
+			Handler:    _AssetService_GetFeed_Handler,
+		},
+		{
+			MethodName: "ListFeeds",
+			Handler:    _AssetService_ListFeeds_Handler,
+		},
+		{
+			MethodName: "UpdateFeed",
+			Handler:    _AssetService_UpdateFeed_Handler,
+		},
+		{
+			MethodName: "DeleteFeed",
+			Handler:    _AssetService_DeleteFeed_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

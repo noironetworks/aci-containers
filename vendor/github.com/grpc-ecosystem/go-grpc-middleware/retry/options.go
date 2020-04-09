@@ -19,7 +19,7 @@ var (
 	DefaultRetriableCodes = []codes.Code{codes.ResourceExhausted, codes.Unavailable}
 
 	defaultOptions = &options{
-		max:            0, // disabed
+		max:            0, // disabled
 		perCallTimeout: 0, // disabled
 		includeHeader:  true,
 		codes:          DefaultRetriableCodes,
@@ -77,7 +77,7 @@ func WithBackoffContext(bf BackoffFuncContext) CallOption {
 
 // WithCodes sets which codes should be retried.
 //
-// Please *use with care*, as you may be retrying non-idempotend calls.
+// Please *use with care*, as you may be retrying non-idempotent calls.
 //
 // You cannot automatically retry on Cancelled and Deadline, please use `WithPerRetryTimeout` for these.
 func WithCodes(retryCodes ...codes.Code) CallOption {

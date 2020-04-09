@@ -32,6 +32,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -64,6 +67,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -131,6 +137,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -163,6 +172,46 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "CreateJourney": {
+      "name": "CreateJourney",
+      "http": {
+        "method": "POST",
+        "requestUri": "/v1/apps/{application-id}/journeys",
+        "responseCode": 201
+      },
+      "input": {
+        "shape": "CreateJourneyRequest"
+      },
+      "output": {
+        "shape": "CreateJourneyResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -209,6 +258,43 @@
         }
       ]
     },
+    "CreateRecommenderConfiguration": {
+      "name": "CreateRecommenderConfiguration",
+      "http": {
+        "method": "POST",
+        "requestUri": "/v1/recommenders",
+        "responseCode": 201
+      },
+      "input": {
+        "shape": "CreateRecommenderConfigurationRequest"
+      },
+      "output": {
+        "shape": "CreateRecommenderConfigurationResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
     "CreateSegment": {
       "name": "CreateSegment",
       "http": {
@@ -228,6 +314,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -274,6 +363,37 @@
         }
       ]
     },
+    "CreateVoiceTemplate": {
+      "name": "CreateVoiceTemplate",
+      "http": {
+        "method": "POST",
+        "requestUri": "/v1/templates/{template-name}/voice",
+        "responseCode": 201
+      },
+      "input": {
+        "shape": "CreateVoiceTemplateRequest"
+      },
+      "output": {
+        "shape": "CreateVoiceTemplateResponse"
+      },
+      "errors": [
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        },
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "ForbiddenException"
+        }
+      ]
+    },
     "DeleteAdmChannel": {
       "name": "DeleteAdmChannel",
       "http": {
@@ -293,6 +413,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -329,6 +452,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -361,6 +487,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -397,6 +526,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -429,6 +561,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -465,6 +600,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -497,6 +635,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -533,6 +674,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -565,6 +709,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -601,6 +748,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -633,6 +783,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -669,6 +822,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -701,6 +857,46 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "DeleteJourney": {
+      "name": "DeleteJourney",
+      "http": {
+        "method": "DELETE",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "DeleteJourneyRequest"
+      },
+      "output": {
+        "shape": "DeleteJourneyResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -737,6 +933,46 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "DeleteRecommenderConfiguration": {
+      "name": "DeleteRecommenderConfiguration",
+      "http": {
+        "method": "DELETE",
+        "requestUri": "/v1/recommenders/{recommender-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "DeleteRecommenderConfigurationRequest"
+      },
+      "output": {
+        "shape": "DeleteRecommenderConfigurationResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -769,6 +1005,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -805,6 +1044,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -837,6 +1079,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -873,6 +1118,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -905,6 +1153,46 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "DeleteVoiceTemplate": {
+      "name": "DeleteVoiceTemplate",
+      "http": {
+        "method": "DELETE",
+        "requestUri": "/v1/templates/{template-name}/voice",
+        "responseCode": 202
+      },
+      "input": {
+        "shape": "DeleteVoiceTemplateRequest"
+      },
+      "output": {
+        "shape": "DeleteVoiceTemplateResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -941,6 +1229,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -973,6 +1264,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1009,6 +1303,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1041,6 +1338,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1077,6 +1377,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1109,6 +1412,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1145,6 +1451,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1177,6 +1486,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1213,6 +1525,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1245,6 +1560,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1281,6 +1599,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1313,6 +1634,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1349,6 +1673,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1381,6 +1708,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1417,6 +1747,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1449,6 +1782,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1485,6 +1821,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1517,6 +1856,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1553,6 +1895,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1585,6 +1930,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1621,6 +1969,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1653,6 +2004,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1689,6 +2043,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1721,6 +2078,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1757,6 +2117,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1789,6 +2152,157 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetJourney": {
+      "name": "GetJourney",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetJourneyRequest"
+      },
+      "output": {
+        "shape": "GetJourneyResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetJourneyDateRangeKpi": {
+      "name": "GetJourneyDateRangeKpi",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}/kpis/daterange/{kpi-name}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetJourneyDateRangeKpiRequest"
+      },
+      "output": {
+        "shape": "GetJourneyDateRangeKpiResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetJourneyExecutionActivityMetrics": {
+      "name": "GetJourneyExecutionActivityMetrics",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}/activities/{journey-activity-id}/execution-metrics",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetJourneyExecutionActivityMetricsRequest"
+      },
+      "output": {
+        "shape": "GetJourneyExecutionActivityMetricsResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetJourneyExecutionMetrics": {
+      "name": "GetJourneyExecutionMetrics",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}/execution-metrics",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetJourneyExecutionMetricsRequest"
+      },
+      "output": {
+        "shape": "GetJourneyExecutionMetricsResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1825,6 +2339,83 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetRecommenderConfiguration": {
+      "name": "GetRecommenderConfiguration",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/recommenders/{recommender-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetRecommenderConfigurationRequest"
+      },
+      "output": {
+        "shape": "GetRecommenderConfigurationResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetRecommenderConfigurations": {
+      "name": "GetRecommenderConfigurations",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/recommenders",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetRecommenderConfigurationsRequest"
+      },
+      "output": {
+        "shape": "GetRecommenderConfigurationsResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1857,6 +2448,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1893,6 +2487,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1925,6 +2522,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -1961,6 +2561,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -1993,6 +2596,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2029,6 +2635,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2061,6 +2670,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2097,6 +2709,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2129,6 +2744,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2165,6 +2783,83 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "GetVoiceTemplate": {
+      "name": "GetVoiceTemplate",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/templates/{template-name}/voice",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "GetVoiceTemplateRequest"
+      },
+      "output": {
+        "shape": "GetVoiceTemplateResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "ListJourneys": {
+      "name": "ListJourneys",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/apps/{application-id}/journeys",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "ListJourneysRequest"
+      },
+      "output": {
+        "shape": "ListJourneysResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2191,8 +2886,43 @@
       "output": {
         "shape": "ListTagsForResourceResponse"
       },
+      "errors": []
+    },
+    "ListTemplateVersions": {
+      "name": "ListTemplateVersions",
+      "http": {
+        "method": "GET",
+        "requestUri": "/v1/templates/{template-name}/{template-type}/versions",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "ListTemplateVersionsRequest"
+      },
+      "output": {
+        "shape": "ListTemplateVersionsResponse"
+      },
       "errors": [
-
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
       ]
     },
     "ListTemplates": {
@@ -2247,6 +2977,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2279,6 +3012,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2315,6 +3051,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2347,6 +3086,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2383,6 +3125,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2417,6 +3162,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2440,9 +3188,7 @@
       "input": {
         "shape": "TagResourceRequest"
       },
-      "errors": [
-
-      ]
+      "errors": []
     },
     "UntagResource": {
       "name": "UntagResource",
@@ -2454,9 +3200,7 @@
       "input": {
         "shape": "UntagResourceRequest"
       },
-      "errors": [
-
-      ]
+      "errors": []
     },
     "UpdateAdmChannel": {
       "name": "UpdateAdmChannel",
@@ -2477,6 +3221,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2513,6 +3260,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2545,6 +3295,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2581,6 +3334,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2613,6 +3369,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2649,6 +3408,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2681,6 +3443,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2717,6 +3482,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2749,6 +3517,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2785,6 +3556,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2817,6 +3591,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2853,6 +3630,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2885,6 +3665,83 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "UpdateJourney": {
+      "name": "UpdateJourney",
+      "http": {
+        "method": "PUT",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "UpdateJourneyRequest"
+      },
+      "output": {
+        "shape": "UpdateJourneyResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "UpdateJourneyState": {
+      "name": "UpdateJourneyState",
+      "http": {
+        "method": "PUT",
+        "requestUri": "/v1/apps/{application-id}/journeys/{journey-id}/state",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "UpdateJourneyStateRequest"
+      },
+      "output": {
+        "shape": "UpdateJourneyStateResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2921,6 +3778,46 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "UpdateRecommenderConfiguration": {
+      "name": "UpdateRecommenderConfiguration",
+      "http": {
+        "method": "PUT",
+        "requestUri": "/v1/recommenders/{recommender-id}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "UpdateRecommenderConfigurationRequest"
+      },
+      "output": {
+        "shape": "UpdateRecommenderConfigurationResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -2953,6 +3850,9 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -2989,6 +3889,9 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -3023,6 +3926,46 @@
           "shape": "InternalServerErrorException"
         },
         {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "UpdateTemplateActiveVersion": {
+      "name": "UpdateTemplateActiveVersion",
+      "http": {
+        "method": "PUT",
+        "requestUri": "/v1/templates/{template-name}/{template-type}/active-version",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "UpdateTemplateActiveVersionRequest"
+      },
+      "output": {
+        "shape": "UpdateTemplateActiveVersionResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
           "shape": "ForbiddenException"
         },
         {
@@ -3055,6 +3998,46 @@
         },
         {
           "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
+        },
+        {
+          "shape": "ForbiddenException"
+        },
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "MethodNotAllowedException"
+        },
+        {
+          "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "UpdateVoiceTemplate": {
+      "name": "UpdateVoiceTemplate",
+      "http": {
+        "method": "PUT",
+        "requestUri": "/v1/templates/{template-name}/voice",
+        "responseCode": 202
+      },
+      "input": {
+        "shape": "UpdateVoiceTemplateRequest"
+      },
+      "output": {
+        "shape": "UpdateVoiceTemplateResponse"
+      },
+      "errors": [
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "PayloadTooLargeException"
         },
         {
           "shape": "ForbiddenException"
@@ -3257,6 +4240,9 @@
     "APNSMessage": {
       "type": "structure",
       "members": {
+        "APNSPushType": {
+          "shape": "__string"
+        },
         "Action": {
           "shape": "Action"
         },
@@ -3320,6 +4306,9 @@
           "shape": "__string"
         },
         "MediaUrl": {
+          "shape": "__string"
+        },
+        "RawContent": {
           "shape": "__string"
         },
         "Sound": {
@@ -3574,6 +4563,32 @@
         "Item"
       ]
     },
+    "Activity": {
+      "type": "structure",
+      "members": {
+        "ConditionalSplit": {
+          "shape": "ConditionalSplitActivity"
+        },
+        "Description": {
+          "shape": "__string"
+        },
+        "EMAIL": {
+          "shape": "EmailMessageActivity"
+        },
+        "Holdout": {
+          "shape": "HoldoutActivity"
+        },
+        "MultiCondition": {
+          "shape": "MultiConditionalSplitActivity"
+        },
+        "RandomSplit": {
+          "shape": "RandomSplitActivity"
+        },
+        "Wait": {
+          "shape": "WaitActivity"
+        }
+      }
+    },
     "ActivityResponse": {
       "type": "structure",
       "members": {
@@ -3659,6 +4674,9 @@
           "shape": "__string"
         },
         "ImageUrl": {
+          "shape": "__string"
+        },
+        "RawContent": {
           "shape": "__string"
         },
         "SmallImageIconUrl": {
@@ -3983,10 +5001,7 @@
         "Title": {
           "shape": "__string"
         }
-      },
-      "required": [
-        "Title"
-      ]
+      }
     },
     "CampaignEventFilter": {
       "type": "structure",
@@ -4224,6 +5239,34 @@
         "Channels"
       ]
     },
+    "Condition": {
+      "type": "structure",
+      "members": {
+        "Conditions": {
+          "shape": "ListOfSimpleCondition"
+        },
+        "Operator": {
+          "shape": "Operator"
+        }
+      }
+    },
+    "ConditionalSplitActivity": {
+      "type": "structure",
+      "members": {
+        "Condition": {
+          "shape": "Condition"
+        },
+        "EvaluationWaitTime": {
+          "shape": "WaitTime"
+        },
+        "FalseActivity": {
+          "shape": "__string"
+        },
+        "TrueActivity": {
+          "shape": "__string"
+        }
+      }
+    },
     "CreateAppRequest": {
       "type": "structure",
       "members": {
@@ -4383,6 +5426,36 @@
       ],
       "payload": "ImportJobResponse"
     },
+    "CreateJourneyRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "WriteJourneyRequest": {
+          "shape": "WriteJourneyRequest"
+        }
+      },
+      "required": [
+        "ApplicationId",
+        "WriteJourneyRequest"
+      ],
+      "payload": "WriteJourneyRequest"
+    },
+    "CreateJourneyResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyResponse": {
+          "shape": "JourneyResponse"
+        }
+      },
+      "required": [
+        "JourneyResponse"
+      ],
+      "payload": "JourneyResponse"
+    },
     "CreatePushTemplateRequest": {
       "type": "structure",
       "members": {
@@ -4412,6 +5485,66 @@
         "CreateTemplateMessageBody"
       ],
       "payload": "CreateTemplateMessageBody"
+    },
+    "CreateRecommenderConfiguration": {
+      "type": "structure",
+      "members": {
+        "Attributes": {
+          "shape": "MapOf__string"
+        },
+        "Description": {
+          "shape": "__string"
+        },
+        "Name": {
+          "shape": "__string"
+        },
+        "RecommendationProviderIdType": {
+          "shape": "__string"
+        },
+        "RecommendationProviderRoleArn": {
+          "shape": "__string"
+        },
+        "RecommendationProviderUri": {
+          "shape": "__string"
+        },
+        "RecommendationTransformerUri": {
+          "shape": "__string"
+        },
+        "RecommendationsDisplayName": {
+          "shape": "__string"
+        },
+        "RecommendationsPerMessage": {
+          "shape": "__integer"
+        }
+      },
+      "required": [
+        "RecommendationProviderUri",
+        "RecommendationProviderRoleArn"
+      ]
+    },
+    "CreateRecommenderConfigurationRequest": {
+      "type": "structure",
+      "members": {
+        "CreateRecommenderConfiguration": {
+          "shape": "CreateRecommenderConfiguration"
+        }
+      },
+      "required": [
+        "CreateRecommenderConfiguration"
+      ],
+      "payload": "CreateRecommenderConfiguration"
+    },
+    "CreateRecommenderConfigurationResponse": {
+      "type": "structure",
+      "members": {
+        "RecommenderConfigurationResponse": {
+          "shape": "RecommenderConfigurationResponse"
+        }
+      },
+      "required": [
+        "RecommenderConfigurationResponse"
+      ],
+      "payload": "RecommenderConfigurationResponse"
     },
     "CreateSegmentRequest": {
       "type": "structure",
@@ -4486,6 +5619,36 @@
           "shape": "__string"
         }
       }
+    },
+    "CreateVoiceTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "VoiceTemplateRequest": {
+          "shape": "VoiceTemplateRequest"
+        }
+      },
+      "required": [
+        "TemplateName",
+        "VoiceTemplateRequest"
+      ],
+      "payload": "VoiceTemplateRequest"
+    },
+    "CreateVoiceTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "CreateTemplateMessageBody": {
+          "shape": "CreateTemplateMessageBody"
+        }
+      },
+      "required": [
+        "CreateTemplateMessageBody"
+      ],
+      "payload": "CreateTemplateMessageBody"
     },
     "DefaultMessage": {
       "type": "structure",
@@ -4782,6 +5945,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -4881,6 +6049,37 @@
       ],
       "payload": "GCMChannelResponse"
     },
+    "DeleteJourneyRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        }
+      },
+      "required": [
+        "JourneyId",
+        "ApplicationId"
+      ]
+    },
+    "DeleteJourneyResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyResponse": {
+          "shape": "JourneyResponse"
+        }
+      },
+      "required": [
+        "JourneyResponse"
+      ],
+      "payload": "JourneyResponse"
+    },
     "DeletePushTemplateRequest": {
       "type": "structure",
       "members": {
@@ -4888,6 +6087,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -4905,6 +6109,31 @@
         "MessageBody"
       ],
       "payload": "MessageBody"
+    },
+    "DeleteRecommenderConfigurationRequest": {
+      "type": "structure",
+      "members": {
+        "RecommenderId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "recommender-id"
+        }
+      },
+      "required": [
+        "RecommenderId"
+      ]
+    },
+    "DeleteRecommenderConfigurationResponse": {
+      "type": "structure",
+      "members": {
+        "RecommenderConfigurationResponse": {
+          "shape": "RecommenderConfigurationResponse"
+        }
+      },
+      "required": [
+        "RecommenderConfigurationResponse"
+      ],
+      "payload": "RecommenderConfigurationResponse"
     },
     "DeleteSegmentRequest": {
       "type": "structure",
@@ -4969,6 +6198,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -5042,6 +6276,36 @@
         "VoiceChannelResponse"
       ],
       "payload": "VoiceChannelResponse"
+    },
+    "DeleteVoiceTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
+        }
+      },
+      "required": [
+        "TemplateName"
+      ]
+    },
+    "DeleteVoiceTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "MessageBody": {
+          "shape": "MessageBody"
+        }
+      },
+      "required": [
+        "MessageBody"
+      ],
+      "payload": "MessageBody"
     },
     "DeliveryStatus": {
       "type": "string",
@@ -5206,10 +6470,33 @@
         }
       }
     },
+    "EmailMessageActivity": {
+      "type": "structure",
+      "members": {
+        "MessageConfig": {
+          "shape": "JourneyEmailMessage"
+        },
+        "NextActivity": {
+          "shape": "__string"
+        },
+        "TemplateName": {
+          "shape": "__string"
+        },
+        "TemplateVersion": {
+          "shape": "__string"
+        }
+      }
+    },
     "EmailTemplateRequest": {
       "type": "structure",
       "members": {
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "HtmlPart": {
+          "shape": "__string"
+        },
+        "RecommenderId": {
           "shape": "__string"
         },
         "Subject": {
@@ -5218,6 +6505,9 @@
         "tags": {
           "shape": "MapOf__string",
           "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
         },
         "TextPart": {
           "shape": "__string"
@@ -5233,10 +6523,16 @@
         "CreationDate": {
           "shape": "__string"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "HtmlPart": {
           "shape": "__string"
         },
         "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "RecommenderId": {
           "shape": "__string"
         },
         "Subject": {
@@ -5246,6 +6542,9 @@
           "shape": "MapOf__string",
           "locationName": "tags"
         },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
         "TemplateName": {
           "shape": "__string"
         },
@@ -5253,6 +6552,9 @@
           "shape": "TemplateType"
         },
         "TextPart": {
+          "shape": "__string"
+        },
+        "Version": {
           "shape": "__string"
         }
       },
@@ -5572,6 +6874,20 @@
       "required": [
         "EventType",
         "Timestamp"
+      ]
+    },
+    "EventCondition": {
+      "type": "structure",
+      "members": {
+        "Dimensions": {
+          "shape": "EventDimensions"
+        },
+        "MessageActivity": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "Dimensions"
       ]
     },
     "EventDimensions": {
@@ -6527,6 +7843,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -6758,6 +8079,182 @@
       ],
       "payload": "ImportJobsResponse"
     },
+    "GetJourneyDateRangeKpiRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "EndTime": {
+          "shape": "__timestampIso8601",
+          "location": "querystring",
+          "locationName": "end-time"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        },
+        "KpiName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "kpi-name"
+        },
+        "NextToken": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "next-token"
+        },
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        },
+        "StartTime": {
+          "shape": "__timestampIso8601",
+          "location": "querystring",
+          "locationName": "start-time"
+        }
+      },
+      "required": [
+        "JourneyId",
+        "ApplicationId",
+        "KpiName"
+      ]
+    },
+    "GetJourneyDateRangeKpiResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyDateRangeKpiResponse": {
+          "shape": "JourneyDateRangeKpiResponse"
+        }
+      },
+      "required": [
+        "JourneyDateRangeKpiResponse"
+      ],
+      "payload": "JourneyDateRangeKpiResponse"
+    },
+    "GetJourneyExecutionActivityMetricsRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyActivityId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-activity-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        },
+        "NextToken": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "next-token"
+        },
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        }
+      },
+      "required": [
+        "JourneyActivityId",
+        "ApplicationId",
+        "JourneyId"
+      ]
+    },
+    "GetJourneyExecutionActivityMetricsResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyExecutionActivityMetricsResponse": {
+          "shape": "JourneyExecutionActivityMetricsResponse"
+        }
+      },
+      "required": [
+        "JourneyExecutionActivityMetricsResponse"
+      ],
+      "payload": "JourneyExecutionActivityMetricsResponse"
+    },
+    "GetJourneyExecutionMetricsRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        },
+        "NextToken": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "next-token"
+        },
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        }
+      },
+      "required": [
+        "ApplicationId",
+        "JourneyId"
+      ]
+    },
+    "GetJourneyExecutionMetricsResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyExecutionMetricsResponse": {
+          "shape": "JourneyExecutionMetricsResponse"
+        }
+      },
+      "required": [
+        "JourneyExecutionMetricsResponse"
+      ],
+      "payload": "JourneyExecutionMetricsResponse"
+    },
+    "GetJourneyRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        }
+      },
+      "required": [
+        "JourneyId",
+        "ApplicationId"
+      ]
+    },
+    "GetJourneyResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyResponse": {
+          "shape": "JourneyResponse"
+        }
+      },
+      "required": [
+        "JourneyResponse"
+      ],
+      "payload": "JourneyResponse"
+    },
     "GetPushTemplateRequest": {
       "type": "structure",
       "members": {
@@ -6765,6 +8262,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -6782,6 +8284,58 @@
         "PushNotificationTemplateResponse"
       ],
       "payload": "PushNotificationTemplateResponse"
+    },
+    "GetRecommenderConfigurationRequest": {
+      "type": "structure",
+      "members": {
+        "RecommenderId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "recommender-id"
+        }
+      },
+      "required": [
+        "RecommenderId"
+      ]
+    },
+    "GetRecommenderConfigurationResponse": {
+      "type": "structure",
+      "members": {
+        "RecommenderConfigurationResponse": {
+          "shape": "RecommenderConfigurationResponse"
+        }
+      },
+      "required": [
+        "RecommenderConfigurationResponse"
+      ],
+      "payload": "RecommenderConfigurationResponse"
+    },
+    "GetRecommenderConfigurationsRequest": {
+      "type": "structure",
+      "members": {
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        },
+        "Token": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "token"
+        }
+      }
+    },
+    "GetRecommenderConfigurationsResponse": {
+      "type": "structure",
+      "members": {
+        "ListRecommenderConfigurationsResponse": {
+          "shape": "ListRecommenderConfigurationsResponse"
+        }
+      },
+      "required": [
+        "ListRecommenderConfigurationsResponse"
+      ],
+      "payload": "ListRecommenderConfigurationsResponse"
     },
     "GetSegmentExportJobsRequest": {
       "type": "structure",
@@ -7041,6 +8595,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -7114,6 +8673,50 @@
         "VoiceChannelResponse"
       ],
       "payload": "VoiceChannelResponse"
+    },
+    "GetVoiceTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
+        }
+      },
+      "required": [
+        "TemplateName"
+      ]
+    },
+    "GetVoiceTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "VoiceTemplateResponse": {
+          "shape": "VoiceTemplateResponse"
+        }
+      },
+      "required": [
+        "VoiceTemplateResponse"
+      ],
+      "payload": "VoiceTemplateResponse"
+    },
+    "HoldoutActivity": {
+      "type": "structure",
+      "members": {
+        "NextActivity": {
+          "shape": "__string"
+        },
+        "Percentage": {
+          "shape": "__integer"
+        }
+      },
+      "required": [
+        "Percentage"
+      ]
     },
     "ImportJobRequest": {
       "type": "structure",
@@ -7287,12 +8890,265 @@
       "type": "string",
       "enum": [
         "CREATED",
+        "PREPARING_FOR_INITIALIZATION",
         "INITIALIZING",
         "PROCESSING",
+        "PENDING_JOB",
         "COMPLETING",
         "COMPLETED",
         "FAILING",
         "FAILED"
+      ]
+    },
+    "JourneyDateRangeKpiResponse": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string"
+        },
+        "EndTime": {
+          "shape": "__timestampIso8601"
+        },
+        "JourneyId": {
+          "shape": "__string"
+        },
+        "KpiName": {
+          "shape": "__string"
+        },
+        "KpiResult": {
+          "shape": "BaseKpiResult"
+        },
+        "NextToken": {
+          "shape": "__string"
+        },
+        "StartTime": {
+          "shape": "__timestampIso8601"
+        }
+      },
+      "required": [
+        "KpiResult",
+        "KpiName",
+        "JourneyId",
+        "EndTime",
+        "StartTime",
+        "ApplicationId"
+      ]
+    },
+    "JourneyEmailMessage": {
+      "type": "structure",
+      "members": {
+        "FromAddress": {
+          "shape": "__string"
+        }
+      }
+    },
+    "JourneyExecutionActivityMetricsResponse": {
+      "type": "structure",
+      "members": {
+        "ActivityType": {
+          "shape": "__string"
+        },
+        "ApplicationId": {
+          "shape": "__string"
+        },
+        "JourneyActivityId": {
+          "shape": "__string"
+        },
+        "JourneyId": {
+          "shape": "__string"
+        },
+        "LastEvaluatedTime": {
+          "shape": "__string"
+        },
+        "Metrics": {
+          "shape": "MapOf__string"
+        }
+      },
+      "required": [
+        "Metrics",
+        "JourneyId",
+        "LastEvaluatedTime",
+        "JourneyActivityId",
+        "ActivityType",
+        "ApplicationId"
+      ]
+    },
+    "JourneyExecutionMetricsResponse": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string"
+        },
+        "JourneyId": {
+          "shape": "__string"
+        },
+        "LastEvaluatedTime": {
+          "shape": "__string"
+        },
+        "Metrics": {
+          "shape": "MapOf__string"
+        }
+      },
+      "required": [
+        "Metrics",
+        "JourneyId",
+        "LastEvaluatedTime",
+        "ApplicationId"
+      ]
+    },
+    "JourneyLimits": {
+      "type": "structure",
+      "members": {
+        "DailyCap": {
+          "shape": "__integer"
+        },
+        "EndpointReentryCap": {
+          "shape": "__integer"
+        },
+        "MessagesPerSecond": {
+          "shape": "__integer"
+        }
+      }
+    },
+    "JourneyResponse": {
+      "type": "structure",
+      "members": {
+        "Activities": {
+          "shape": "MapOfActivity"
+        },
+        "ApplicationId": {
+          "shape": "__string"
+        },
+        "CreationDate": {
+          "shape": "__string"
+        },
+        "Id": {
+          "shape": "__string"
+        },
+        "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "Limits": {
+          "shape": "JourneyLimits"
+        },
+        "LocalTime": {
+          "shape": "__boolean"
+        },
+        "Name": {
+          "shape": "__string"
+        },
+        "QuietTime": {
+          "shape": "QuietTime"
+        },
+        "RefreshFrequency": {
+          "shape": "__string"
+        },
+        "Schedule": {
+          "shape": "JourneySchedule"
+        },
+        "StartActivity": {
+          "shape": "__string"
+        },
+        "StartCondition": {
+          "shape": "StartCondition"
+        },
+        "State": {
+          "shape": "State"
+        },
+        "tags": {
+          "shape": "MapOf__string",
+          "locationName": "tags"
+        }
+      },
+      "required": [
+        "Name",
+        "Id",
+        "ApplicationId"
+      ]
+    },
+    "JourneySchedule": {
+      "type": "structure",
+      "members": {
+        "EndTime": {
+          "shape": "__timestampIso8601"
+        },
+        "StartTime": {
+          "shape": "__timestampIso8601"
+        },
+        "Timezone": {
+          "shape": "__string"
+        }
+      }
+    },
+    "JourneyStateRequest": {
+      "type": "structure",
+      "members": {
+        "State": {
+          "shape": "State"
+        }
+      }
+    },
+    "JourneysResponse": {
+      "type": "structure",
+      "members": {
+        "Item": {
+          "shape": "ListOfJourneyResponse"
+        },
+        "NextToken": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "Item"
+      ]
+    },
+    "ListJourneysRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        },
+        "Token": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "token"
+        }
+      },
+      "required": [
+        "ApplicationId"
+      ]
+    },
+    "ListJourneysResponse": {
+      "type": "structure",
+      "members": {
+        "JourneysResponse": {
+          "shape": "JourneysResponse"
+        }
+      },
+      "required": [
+        "JourneysResponse"
+      ],
+      "payload": "JourneysResponse"
+    },
+    "ListRecommenderConfigurationsResponse": {
+      "type": "structure",
+      "members": {
+        "Item": {
+          "shape": "ListOfRecommenderConfigurationResponse"
+        },
+        "NextToken": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "Item"
       ]
     },
     "ListTagsForResourceRequest": {
@@ -7319,6 +9175,47 @@
         "TagsModel"
       ],
       "payload": "TagsModel"
+    },
+    "ListTemplateVersionsRequest": {
+      "type": "structure",
+      "members": {
+        "NextToken": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "next-token"
+        },
+        "PageSize": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "page-size"
+        },
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "TemplateType": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-type"
+        }
+      },
+      "required": [
+        "TemplateName",
+        "TemplateType"
+      ]
+    },
+    "ListTemplateVersionsResponse": {
+      "type": "structure",
+      "members": {
+        "TemplateVersionsResponse": {
+          "shape": "TemplateVersionsResponse"
+        }
+      },
+      "required": [
+        "TemplateVersionsResponse"
+      ],
+      "payload": "TemplateVersionsResponse"
     },
     "ListTemplatesRequest": {
       "type": "structure",
@@ -7549,6 +9446,31 @@
         "FILTER"
       ]
     },
+    "MultiConditionalBranch": {
+      "type": "structure",
+      "members": {
+        "Condition": {
+          "shape": "SimpleCondition"
+        },
+        "NextActivity": {
+          "shape": "__string"
+        }
+      }
+    },
+    "MultiConditionalSplitActivity": {
+      "type": "structure",
+      "members": {
+        "Branches": {
+          "shape": "ListOfMultiConditionalBranch"
+        },
+        "DefaultActivity": {
+          "shape": "__string"
+        },
+        "EvaluationWaitTime": {
+          "shape": "WaitTime"
+        }
+      }
+    },
     "NotFoundException": {
       "type": "structure",
       "members": {
@@ -7620,6 +9542,28 @@
         "ZipCode": {
           "shape": "__string"
         }
+      }
+    },
+    "Operator": {
+      "type": "string",
+      "enum": [
+        "ALL",
+        "ANY"
+      ]
+    },
+    "PayloadTooLargeException": {
+      "type": "structure",
+      "members": {
+        "Message": {
+          "shape": "__string"
+        },
+        "RequestID": {
+          "shape": "__string"
+        }
+      },
+      "exception": true,
+      "error": {
+        "httpStatusCode": 413
       }
     },
     "PhoneNumberValidateRequest": {
@@ -7699,12 +9643,21 @@
         "Default": {
           "shape": "DefaultPushNotificationTemplate"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "GCM": {
           "shape": "AndroidPushNotificationTemplate"
+        },
+        "RecommenderId": {
+          "shape": "__string"
         },
         "tags": {
           "shape": "MapOf__string",
           "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
         }
       }
     },
@@ -7729,28 +9682,40 @@
         "Default": {
           "shape": "DefaultPushNotificationTemplate"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "GCM": {
           "shape": "AndroidPushNotificationTemplate"
         },
         "LastModifiedDate": {
           "shape": "__string"
         },
+        "RecommenderId": {
+          "shape": "__string"
+        },
         "tags": {
           "shape": "MapOf__string",
           "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
         },
         "TemplateName": {
           "shape": "__string"
         },
         "TemplateType": {
           "shape": "TemplateType"
+        },
+        "Version": {
+          "shape": "__string"
         }
       },
       "required": [
         "LastModifiedDate",
         "CreationDate",
-        "TemplateName",
-        "TemplateType"
+        "TemplateType",
+        "TemplateName"
       ]
     },
     "PutEventStreamRequest": {
@@ -7824,6 +9789,25 @@
         }
       }
     },
+    "RandomSplitActivity": {
+      "type": "structure",
+      "members": {
+        "Branches": {
+          "shape": "ListOfRandomSplitEntry"
+        }
+      }
+    },
+    "RandomSplitEntry": {
+      "type": "structure",
+      "members": {
+        "NextActivity": {
+          "shape": "__string"
+        },
+        "Percentage": {
+          "shape": "__integer"
+        }
+      }
+    },
     "RawEmail": {
       "type": "structure",
       "members": {
@@ -7855,6 +9839,54 @@
       "enum": [
         "ACTIVE",
         "INACTIVE"
+      ]
+    },
+    "RecommenderConfigurationResponse": {
+      "type": "structure",
+      "members": {
+        "Attributes": {
+          "shape": "MapOf__string"
+        },
+        "CreationDate": {
+          "shape": "__string"
+        },
+        "Description": {
+          "shape": "__string"
+        },
+        "Id": {
+          "shape": "__string"
+        },
+        "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "Name": {
+          "shape": "__string"
+        },
+        "RecommendationProviderIdType": {
+          "shape": "__string"
+        },
+        "RecommendationProviderRoleArn": {
+          "shape": "__string"
+        },
+        "RecommendationProviderUri": {
+          "shape": "__string"
+        },
+        "RecommendationTransformerUri": {
+          "shape": "__string"
+        },
+        "RecommendationsDisplayName": {
+          "shape": "__string"
+        },
+        "RecommendationsPerMessage": {
+          "shape": "__integer"
+        }
+      },
+      "required": [
+        "RecommendationProviderUri",
+        "LastModifiedDate",
+        "CreationDate",
+        "RecommendationProviderRoleArn",
+        "Id"
       ]
     },
     "RemoveAttributesRequest": {
@@ -8000,6 +10032,9 @@
         "Keyword": {
           "shape": "__string"
         },
+        "MediaUrl": {
+          "shape": "__string"
+        },
         "MessageType": {
           "shape": "MessageType"
         },
@@ -8020,9 +10055,18 @@
         "Body": {
           "shape": "__string"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
+        "RecommenderId": {
+          "shape": "__string"
+        },
         "tags": {
           "shape": "MapOf__string",
           "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
         }
       }
     },
@@ -8038,18 +10082,30 @@
         "CreationDate": {
           "shape": "__string"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "RecommenderId": {
           "shape": "__string"
         },
         "tags": {
           "shape": "MapOf__string",
           "locationName": "tags"
         },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
         "TemplateName": {
           "shape": "__string"
         },
         "TemplateType": {
           "shape": "TemplateType"
+        },
+        "Version": {
+          "shape": "__string"
         }
       },
       "required": [
@@ -8095,6 +10151,17 @@
           "shape": "RecencyDimension"
         }
       }
+    },
+    "SegmentCondition": {
+      "type": "structure",
+      "members": {
+        "SegmentId": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "SegmentId"
+      ]
     },
     "SegmentDemographics": {
       "type": "structure",
@@ -8431,6 +10498,21 @@
         "Values"
       ]
     },
+    "SimpleCondition": {
+      "type": "structure",
+      "members": {
+        "EventCondition": {
+          "shape": "EventCondition"
+        },
+        "SegmentCondition": {
+          "shape": "SegmentCondition"
+        },
+        "SegmentDimensions": {
+          "shape": "SegmentDimensions",
+          "locationName": "segmentDimensions"
+        }
+      }
+    },
     "SimpleEmail": {
       "type": "structure",
       "members": {
@@ -8462,6 +10544,27 @@
         "ALL",
         "ANY",
         "NONE"
+      ]
+    },
+    "StartCondition": {
+      "type": "structure",
+      "members": {
+        "Description": {
+          "shape": "__string"
+        },
+        "SegmentStartCondition": {
+          "shape": "SegmentCondition"
+        }
+      }
+    },
+    "State": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "CANCELLED",
+        "CLOSED"
       ]
     },
     "TagResourceRequest": {
@@ -8499,6 +10602,17 @@
       "members": {
         "Name": {
           "shape": "__string"
+        },
+        "Version": {
+          "shape": "__string"
+        }
+      }
+    },
+    "TemplateActiveVersionRequest": {
+      "type": "structure",
+      "members": {
+        "Version": {
+          "shape": "__string"
         }
       }
     },
@@ -8513,6 +10627,9 @@
         },
         "SMSTemplate": {
           "shape": "Template"
+        },
+        "VoiceTemplate": {
+          "shape": "Template"
         }
       }
     },
@@ -8525,6 +10642,9 @@
         "CreationDate": {
           "shape": "__string"
         },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
         "LastModifiedDate": {
           "shape": "__string"
         },
@@ -8532,11 +10652,17 @@
           "shape": "MapOf__string",
           "locationName": "tags"
         },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
         "TemplateName": {
           "shape": "__string"
         },
         "TemplateType": {
           "shape": "TemplateType"
+        },
+        "Version": {
+          "shape": "__string"
         }
       },
       "required": [
@@ -8551,7 +10677,60 @@
       "enum": [
         "EMAIL",
         "SMS",
+        "VOICE",
         "PUSH"
+      ]
+    },
+    "TemplateVersionResponse": {
+      "type": "structure",
+      "members": {
+        "CreationDate": {
+          "shape": "__string"
+        },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
+        "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
+        "TemplateName": {
+          "shape": "__string"
+        },
+        "TemplateType": {
+          "shape": "__string"
+        },
+        "Version": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "LastModifiedDate",
+        "CreationDate",
+        "TemplateName",
+        "TemplateType"
+      ]
+    },
+    "TemplateVersionsResponse": {
+      "type": "structure",
+      "members": {
+        "Item": {
+          "shape": "ListOfTemplateVersionResponse"
+        },
+        "Message": {
+          "shape": "__string"
+        },
+        "NextToken": {
+          "shape": "__string"
+        },
+        "RequestID": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "Item"
       ]
     },
     "TemplatesResponse": {
@@ -8930,6 +11109,11 @@
     "UpdateEmailTemplateRequest": {
       "type": "structure",
       "members": {
+        "CreateNewVersion": {
+          "shape": "__boolean",
+          "location": "querystring",
+          "locationName": "create-new-version"
+        },
         "EmailTemplateRequest": {
           "shape": "EmailTemplateRequest"
         },
@@ -8937,6 +11121,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -9053,9 +11242,86 @@
       ],
       "payload": "GCMChannelResponse"
     },
+    "UpdateJourneyRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        },
+        "WriteJourneyRequest": {
+          "shape": "WriteJourneyRequest"
+        }
+      },
+      "required": [
+        "JourneyId",
+        "ApplicationId",
+        "WriteJourneyRequest"
+      ],
+      "payload": "WriteJourneyRequest"
+    },
+    "UpdateJourneyResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyResponse": {
+          "shape": "JourneyResponse"
+        }
+      },
+      "required": [
+        "JourneyResponse"
+      ],
+      "payload": "JourneyResponse"
+    },
+    "UpdateJourneyStateRequest": {
+      "type": "structure",
+      "members": {
+        "ApplicationId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "application-id"
+        },
+        "JourneyId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "journey-id"
+        },
+        "JourneyStateRequest": {
+          "shape": "JourneyStateRequest"
+        }
+      },
+      "required": [
+        "JourneyId",
+        "ApplicationId",
+        "JourneyStateRequest"
+      ],
+      "payload": "JourneyStateRequest"
+    },
+    "UpdateJourneyStateResponse": {
+      "type": "structure",
+      "members": {
+        "JourneyResponse": {
+          "shape": "JourneyResponse"
+        }
+      },
+      "required": [
+        "JourneyResponse"
+      ],
+      "payload": "JourneyResponse"
+    },
     "UpdatePushTemplateRequest": {
       "type": "structure",
       "members": {
+        "CreateNewVersion": {
+          "shape": "__boolean",
+          "location": "querystring",
+          "locationName": "create-new-version"
+        },
         "PushNotificationTemplateRequest": {
           "shape": "PushNotificationTemplateRequest"
         },
@@ -9063,6 +11329,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -9082,6 +11353,72 @@
         "MessageBody"
       ],
       "payload": "MessageBody"
+    },
+    "UpdateRecommenderConfiguration": {
+      "type": "structure",
+      "members": {
+        "Attributes": {
+          "shape": "MapOf__string"
+        },
+        "Description": {
+          "shape": "__string"
+        },
+        "Name": {
+          "shape": "__string"
+        },
+        "RecommendationProviderIdType": {
+          "shape": "__string"
+        },
+        "RecommendationProviderRoleArn": {
+          "shape": "__string"
+        },
+        "RecommendationProviderUri": {
+          "shape": "__string"
+        },
+        "RecommendationTransformerUri": {
+          "shape": "__string"
+        },
+        "RecommendationsDisplayName": {
+          "shape": "__string"
+        },
+        "RecommendationsPerMessage": {
+          "shape": "__integer"
+        }
+      },
+      "required": [
+        "RecommendationProviderUri",
+        "RecommendationProviderRoleArn"
+      ]
+    },
+    "UpdateRecommenderConfigurationRequest": {
+      "type": "structure",
+      "members": {
+        "RecommenderId": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "recommender-id"
+        },
+        "UpdateRecommenderConfiguration": {
+          "shape": "UpdateRecommenderConfiguration"
+        }
+      },
+      "required": [
+        "RecommenderId",
+        "UpdateRecommenderConfiguration"
+      ],
+      "payload": "UpdateRecommenderConfiguration"
+    },
+    "UpdateRecommenderConfigurationResponse": {
+      "type": "structure",
+      "members": {
+        "RecommenderConfigurationResponse": {
+          "shape": "RecommenderConfigurationResponse"
+        }
+      },
+      "required": [
+        "RecommenderConfigurationResponse"
+      ],
+      "payload": "RecommenderConfigurationResponse"
     },
     "UpdateSegmentRequest": {
       "type": "structure",
@@ -9152,6 +11489,11 @@
     "UpdateSmsTemplateRequest": {
       "type": "structure",
       "members": {
+        "CreateNewVersion": {
+          "shape": "__boolean",
+          "location": "querystring",
+          "locationName": "create-new-version"
+        },
         "SMSTemplateRequest": {
           "shape": "SMSTemplateRequest"
         },
@@ -9159,6 +11501,11 @@
           "shape": "__string",
           "location": "uri",
           "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
         }
       },
       "required": [
@@ -9168,6 +11515,42 @@
       "payload": "SMSTemplateRequest"
     },
     "UpdateSmsTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "MessageBody": {
+          "shape": "MessageBody"
+        }
+      },
+      "required": [
+        "MessageBody"
+      ],
+      "payload": "MessageBody"
+    },
+    "UpdateTemplateActiveVersionRequest": {
+      "type": "structure",
+      "members": {
+        "TemplateActiveVersionRequest": {
+          "shape": "TemplateActiveVersionRequest"
+        },
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "TemplateType": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-type"
+        }
+      },
+      "required": [
+        "TemplateName",
+        "TemplateType",
+        "TemplateActiveVersionRequest"
+      ],
+      "payload": "TemplateActiveVersionRequest"
+    },
+    "UpdateTemplateActiveVersionResponse": {
       "type": "structure",
       "members": {
         "MessageBody": {
@@ -9209,6 +11592,46 @@
       ],
       "payload": "VoiceChannelResponse"
     },
+    "UpdateVoiceTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "CreateNewVersion": {
+          "shape": "__boolean",
+          "location": "querystring",
+          "locationName": "create-new-version"
+        },
+        "TemplateName": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "template-name"
+        },
+        "Version": {
+          "shape": "__string",
+          "location": "querystring",
+          "locationName": "version"
+        },
+        "VoiceTemplateRequest": {
+          "shape": "VoiceTemplateRequest"
+        }
+      },
+      "required": [
+        "TemplateName",
+        "VoiceTemplateRequest"
+      ],
+      "payload": "VoiceTemplateRequest"
+    },
+    "UpdateVoiceTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "MessageBody": {
+          "shape": "MessageBody"
+        }
+      },
+      "required": [
+        "MessageBody"
+      ],
+      "payload": "MessageBody"
+    },
     "VoiceChannelRequest": {
       "type": "structure",
       "members": {
@@ -9244,9 +11667,6 @@
         "LastModifiedDate": {
           "shape": "__string"
         },
-        "OriginationNumber": {
-          "shape": "__string"
-        },
         "Platform": {
           "shape": "__string"
         },
@@ -9274,6 +11694,100 @@
           "shape": "MapOfListOf__string"
         },
         "VoiceId": {
+          "shape": "__string"
+        }
+      }
+    },
+    "VoiceTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "Body": {
+          "shape": "__string"
+        },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
+        "LanguageCode": {
+          "shape": "__string"
+        },
+        "tags": {
+          "shape": "MapOf__string",
+          "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
+        "VoiceId": {
+          "shape": "__string"
+        }
+      }
+    },
+    "VoiceTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "Arn": {
+          "shape": "__string"
+        },
+        "Body": {
+          "shape": "__string"
+        },
+        "CreationDate": {
+          "shape": "__string"
+        },
+        "DefaultSubstitutions": {
+          "shape": "__string"
+        },
+        "LanguageCode": {
+          "shape": "__string"
+        },
+        "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "tags": {
+          "shape": "MapOf__string",
+          "locationName": "tags"
+        },
+        "TemplateDescription": {
+          "shape": "__string"
+        },
+        "TemplateName": {
+          "shape": "__string"
+        },
+        "TemplateType": {
+          "shape": "TemplateType"
+        },
+        "Version": {
+          "shape": "__string"
+        },
+        "VoiceId": {
+          "shape": "__string"
+        }
+      },
+      "required": [
+        "LastModifiedDate",
+        "CreationDate",
+        "TemplateName",
+        "TemplateType"
+      ]
+    },
+    "WaitActivity": {
+      "type": "structure",
+      "members": {
+        "NextActivity": {
+          "shape": "__string"
+        },
+        "WaitTime": {
+          "shape": "WaitTime"
+        }
+      }
+    },
+    "WaitTime": {
+      "type": "structure",
+      "members": {
+        "WaitFor": {
+          "shape": "__string"
+        },
+        "WaitUntil": {
           "shape": "__string"
         }
       }
@@ -9359,6 +11873,50 @@
       "required": [
         "RoleArn",
         "DestinationStreamArn"
+      ]
+    },
+    "WriteJourneyRequest": {
+      "type": "structure",
+      "members": {
+        "Activities": {
+          "shape": "MapOfActivity"
+        },
+        "CreationDate": {
+          "shape": "__string"
+        },
+        "LastModifiedDate": {
+          "shape": "__string"
+        },
+        "Limits": {
+          "shape": "JourneyLimits"
+        },
+        "LocalTime": {
+          "shape": "__boolean"
+        },
+        "Name": {
+          "shape": "__string"
+        },
+        "QuietTime": {
+          "shape": "QuietTime"
+        },
+        "RefreshFrequency": {
+          "shape": "__string"
+        },
+        "Schedule": {
+          "shape": "JourneySchedule"
+        },
+        "StartActivity": {
+          "shape": "__string"
+        },
+        "StartCondition": {
+          "shape": "StartCondition"
+        },
+        "State": {
+          "shape": "State"
+        }
+      },
+      "required": [
+        "Name"
       ]
     },
     "WriteSegmentRequest": {
@@ -9456,6 +12014,30 @@
         "shape": "ImportJobResponse"
       }
     },
+    "ListOfJourneyResponse": {
+      "type": "list",
+      "member": {
+        "shape": "JourneyResponse"
+      }
+    },
+    "ListOfMultiConditionalBranch": {
+      "type": "list",
+      "member": {
+        "shape": "MultiConditionalBranch"
+      }
+    },
+    "ListOfRandomSplitEntry": {
+      "type": "list",
+      "member": {
+        "shape": "RandomSplitEntry"
+      }
+    },
+    "ListOfRecommenderConfigurationResponse": {
+      "type": "list",
+      "member": {
+        "shape": "RecommenderConfigurationResponse"
+      }
+    },
     "ListOfResultRow": {
       "type": "list",
       "member": {
@@ -9492,10 +12074,22 @@
         "shape": "SegmentResponse"
       }
     },
+    "ListOfSimpleCondition": {
+      "type": "list",
+      "member": {
+        "shape": "SimpleCondition"
+      }
+    },
     "ListOfTemplateResponse": {
       "type": "list",
       "member": {
         "shape": "TemplateResponse"
+      }
+    },
+    "ListOfTemplateVersionResponse": {
+      "type": "list",
+      "member": {
+        "shape": "TemplateVersionResponse"
       }
     },
     "ListOfTreatmentResource": {
@@ -9518,6 +12112,15 @@
     },
     "__long": {
       "type": "long"
+    },
+    "MapOfActivity": {
+      "type": "map",
+      "key": {
+        "shape": "__string"
+      },
+      "value": {
+        "shape": "Activity"
+      }
     },
     "MapOfAddressConfiguration": {
       "type": "map",

@@ -55,9 +55,10 @@ func (fake *FakeHub) Close() error {
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Close", []interface{}{})
+	closeStubCopy := fake.CloseStub
 	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
-		return fake.CloseStub()
+	if closeStubCopy != nil {
+		return closeStubCopy()
 	}
 	if specificReturn {
 		return ret.result1
@@ -107,9 +108,10 @@ func (fake *FakeHub) Emit(arg1 models.Event) {
 		arg1 models.Event
 	}{arg1})
 	fake.recordInvocation("Emit", []interface{}{arg1})
+	emitStubCopy := fake.EmitStub
 	fake.emitMutex.Unlock()
-	if fake.EmitStub != nil {
-		fake.EmitStub(arg1)
+	if emitStubCopy != nil {
+		emitStubCopy(arg1)
 	}
 }
 
@@ -138,9 +140,10 @@ func (fake *FakeHub) RegisterCallback(arg1 func(count int)) {
 		arg1 func(count int)
 	}{arg1})
 	fake.recordInvocation("RegisterCallback", []interface{}{arg1})
+	registerCallbackStubCopy := fake.RegisterCallbackStub
 	fake.registerCallbackMutex.Unlock()
-	if fake.RegisterCallbackStub != nil {
-		fake.RegisterCallbackStub(arg1)
+	if registerCallbackStubCopy != nil {
+		registerCallbackStubCopy(arg1)
 	}
 }
 
@@ -169,9 +172,10 @@ func (fake *FakeHub) Subscribe() (events.EventSource, error) {
 	fake.subscribeArgsForCall = append(fake.subscribeArgsForCall, struct {
 	}{})
 	fake.recordInvocation("Subscribe", []interface{}{})
+	subscribeStubCopy := fake.SubscribeStub
 	fake.subscribeMutex.Unlock()
-	if fake.SubscribeStub != nil {
-		return fake.SubscribeStub()
+	if subscribeStubCopy != nil {
+		return subscribeStubCopy()
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -223,9 +227,10 @@ func (fake *FakeHub) UnregisterCallback() {
 	fake.unregisterCallbackArgsForCall = append(fake.unregisterCallbackArgsForCall, struct {
 	}{})
 	fake.recordInvocation("UnregisterCallback", []interface{}{})
+	unregisterCallbackStubCopy := fake.UnregisterCallbackStub
 	fake.unregisterCallbackMutex.Unlock()
-	if fake.UnregisterCallbackStub != nil {
-		fake.UnregisterCallbackStub()
+	if unregisterCallbackStubCopy != nil {
+		unregisterCallbackStubCopy()
 	}
 }
 

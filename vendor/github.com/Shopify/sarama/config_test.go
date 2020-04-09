@@ -194,7 +194,6 @@ func TestNetConfigValidates(t *testing.T) {
 				cfg.Net.SASL.GSSAPI.Username = "sarama"
 				cfg.Net.SASL.GSSAPI.Password = "sarama"
 				cfg.Net.SASL.GSSAPI.KerberosConfigPath = "/etc/krb5.conf"
-
 			},
 			"Net.SASL.GSSAPI.Realm must not be empty when GSS-API mechanism is used"},
 	}
@@ -402,6 +401,18 @@ func TestLZ4ConfigValidation(t *testing.T) {
 	config.Version = V0_10_0_0
 	if err := config.Validate(); err != nil {
 		t.Error("Expected lz4 to work, got ", err)
+	}
+}
+
+func TestZstdConfigValidation(t *testing.T) {
+	config := NewConfig()
+	config.Producer.Compression = CompressionZSTD
+	if err := config.Validate(); string(err.(ConfigurationError)) != "zstd compression requires Version >= V2_1_0_0" {
+		t.Error("Expected invalid zstd/kafka version error, got ", err)
+	}
+	config.Version = V2_1_0_0
+	if err := config.Validate(); err != nil {
+		t.Error("Expected zstd to work, got ", err)
 	}
 }
 

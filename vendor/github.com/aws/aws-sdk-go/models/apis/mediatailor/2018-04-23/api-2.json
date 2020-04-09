@@ -210,13 +210,19 @@
                 }, 
                 "CdnConfiguration": {
                     "shape": "CdnConfiguration"
-                }, 
+                },
+                "PersonalizationThresholdSeconds" : {
+                    "shape" : "__integerMin1"
+                },
                 "DashConfiguration": {
                     "shape": "DashConfiguration"
                 }, 
                 "HlsConfiguration": {
                     "shape": "HlsConfiguration"
-                }, 
+                },
+                "LivePreRollConfiguration" : {
+                    "shape" : "LivePreRollConfiguration"
+                },
                 "Name": {
                     "shape": "__string"
                 }, 
@@ -315,7 +321,10 @@
                 }, 
                 "CdnConfiguration": {
                     "shape": "CdnConfiguration"
-                }, 
+                },
+                "PersonalizationThresholdSeconds" : {
+                    "shape" : "__integerMin1"
+                },
                 "DashConfiguration": {
                     "shape": "DashConfiguration"
                 }, 
@@ -349,7 +358,18 @@
                 }
             }, 
             "type": "structure"
-        }, 
+        },
+        "LivePreRollConfiguration" : {
+            "type" : "structure",
+            "members" : {
+                "AdDecisionServerUrl" : {
+                    "shape" : "__string"
+                },
+                "MaxDurationSeconds" : {
+                    "shape" : "__integer"
+                }
+            }
+        },
         "PutPlaybackConfigurationRequest": {
             "members": {
                 "AdDecisionServerUrl": {
@@ -357,10 +377,16 @@
                 }, 
                 "CdnConfiguration": {
                     "shape": "CdnConfiguration"
-                }, 
+                },
+                "PersonalizationThresholdSeconds" : {
+                    "shape" : "__integerMin1"
+                },
                 "DashConfiguration": {
                     "shape": "DashConfigurationForPut"
-                }, 
+                },
+                "LivePreRollConfiguration" : {
+                    "shape" : "LivePreRollConfiguration"
+                },
                 "Name": {
                     "shape": "__string"
                 }, 
@@ -393,7 +419,10 @@
                 }, 
                 "HlsConfiguration": {
                     "shape": "HlsConfiguration"
-                }, 
+                },
+                "LivePreRollConfiguration" : {
+                    "shape" : "LivePreRollConfiguration"
+                },
                 "Name": {
                     "shape": "__string"
                 }, 
@@ -479,6 +508,10 @@
         }, 
         "__integer": {
             "type": "integer"
+        },
+        "__integerMin1": {
+            "type": "integer",
+            "min": 1
         }, 
         "__integerMin1Max100": {
             "max": 100, 

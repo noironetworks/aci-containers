@@ -14,13 +14,17 @@ import (
 func updateAnalyzers(options *source.Options) {
 	if options.StaticCheck {
 		for _, a := range simple.Analyzers {
-			options.Analyzers = append(options.Analyzers, a)
+			options.AddDefaultAnalyzer(a)
 		}
 		for _, a := range staticcheck.Analyzers {
-			options.Analyzers = append(options.Analyzers, a)
+			// This check conflicts with the vet printf check (golang/go#34494).
+			if a.Name == "SA5009" {
+				continue
+			}
+			options.AddDefaultAnalyzer(a)
 		}
 		for _, a := range stylecheck.Analyzers {
-			options.Analyzers = append(options.Analyzers, a)
+			options.AddDefaultAnalyzer(a)
 		}
 	}
 }

@@ -14,6 +14,7 @@ If you use `gopls` with an editor that is not on this list, please let us know b
 * [Emacs](emacs.md)
 * [Acme](acme.md)
 * [Sublime Text](subl.md)
+* [Atom](atom.md)
 
 ## Installation
 
@@ -38,6 +39,19 @@ then run
 GO111MODULE=on go get golang.org/x/tools/gopls@latest
 ```
 
+### Unstable versions
+
+`go get` doesn't honor the `replace` directive in the `go.mod` of
+`gopls` when you are outside of the `gopls` module, so a simple `go get`
+with `@master` could fail.  To actually update your `gopls` to the
+latest **unstable** version, use:
+
+```sh
+$ go get golang.org/x/tools/gopls@master golang.org/x/tools@master
+```
+
+In general, you should use `@latest` instead, to prevent frequent
+breakages.
 
 ## Configurations
 

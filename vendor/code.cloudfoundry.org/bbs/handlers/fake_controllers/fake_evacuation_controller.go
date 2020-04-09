@@ -101,9 +101,10 @@ func (fake *FakeEvacuationController) EvacuateClaimedActualLRP(arg1 context.Cont
 		arg4 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("EvacuateClaimedActualLRP", []interface{}{arg1, arg2, arg3, arg4})
+	evacuateClaimedActualLRPStubCopy := fake.EvacuateClaimedActualLRPStub
 	fake.evacuateClaimedActualLRPMutex.Unlock()
-	if fake.EvacuateClaimedActualLRPStub != nil {
-		return fake.EvacuateClaimedActualLRPStub(arg1, arg2, arg3, arg4)
+	if evacuateClaimedActualLRPStubCopy != nil {
+		return evacuateClaimedActualLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -168,9 +169,10 @@ func (fake *FakeEvacuationController) EvacuateCrashedActualLRP(arg1 context.Cont
 		arg5 string
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("EvacuateCrashedActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	evacuateCrashedActualLRPStubCopy := fake.EvacuateCrashedActualLRPStub
 	fake.evacuateCrashedActualLRPMutex.Unlock()
-	if fake.EvacuateCrashedActualLRPStub != nil {
-		return fake.EvacuateCrashedActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if evacuateCrashedActualLRPStubCopy != nil {
+		return evacuateCrashedActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -232,9 +234,10 @@ func (fake *FakeEvacuationController) EvacuateRunningActualLRP(arg1 context.Cont
 		arg5 *models.ActualLRPNetInfo
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("EvacuateRunningActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	evacuateRunningActualLRPStubCopy := fake.EvacuateRunningActualLRPStub
 	fake.evacuateRunningActualLRPMutex.Unlock()
-	if fake.EvacuateRunningActualLRPStub != nil {
-		return fake.EvacuateRunningActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if evacuateRunningActualLRPStubCopy != nil {
+		return evacuateRunningActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -298,9 +301,10 @@ func (fake *FakeEvacuationController) EvacuateStoppedActualLRP(arg1 context.Cont
 		arg4 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("EvacuateStoppedActualLRP", []interface{}{arg1, arg2, arg3, arg4})
+	evacuateStoppedActualLRPStubCopy := fake.EvacuateStoppedActualLRPStub
 	fake.evacuateStoppedActualLRPMutex.Unlock()
-	if fake.EvacuateStoppedActualLRPStub != nil {
-		return fake.EvacuateStoppedActualLRPStub(arg1, arg2, arg3, arg4)
+	if evacuateStoppedActualLRPStubCopy != nil {
+		return evacuateStoppedActualLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1
@@ -361,9 +365,10 @@ func (fake *FakeEvacuationController) RemoveEvacuatingActualLRP(arg1 context.Con
 		arg4 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("RemoveEvacuatingActualLRP", []interface{}{arg1, arg2, arg3, arg4})
+	removeEvacuatingActualLRPStubCopy := fake.RemoveEvacuatingActualLRPStub
 	fake.removeEvacuatingActualLRPMutex.Unlock()
-	if fake.RemoveEvacuatingActualLRPStub != nil {
-		return fake.RemoveEvacuatingActualLRPStub(arg1, arg2, arg3, arg4)
+	if removeEvacuatingActualLRPStubCopy != nil {
+		return removeEvacuatingActualLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1

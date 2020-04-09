@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -86,6 +87,7 @@ func TestNewReaderMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	var tmp [8]byte
 	xx := xxhash.New()
 	var cHash int
@@ -95,7 +97,7 @@ func TestNewReaderMismatch(t *testing.T) {
 		n, err := io.ReadFull(dec, buf)
 		if err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
-				t.Fatal(err)
+				t.Fatal("block", cHash, "err:", err)
 			}
 		}
 		if n > 0 {
@@ -180,6 +182,7 @@ func TestNewReaderRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	_, err = dec.Read([]byte{0})
 	if err == nil {
 		t.Fatal("Wanted error on uninitialized read, got nil")
@@ -342,7 +345,7 @@ func TestNewDecoderFlushed(t *testing.T) {
 }
 
 func TestDecoderRegression(t *testing.T) {
-	defer timeout(60 * time.Second)()
+	defer timeout(160 * time.Second)()
 	data, err := ioutil.ReadFile("testdata/regression.zip")
 	if err != nil {
 		t.Fatal(err)
@@ -443,6 +446,44 @@ func TestDecoderRegression(t *testing.T) {
 				}
 			}
 		})
+		t.Run("Match-"+tt.Name, func(t *testing.T) {
+			r, err := tt.Open()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			in, err := ioutil.ReadAll(r)
+			if err != nil {
+				t.Error(err)
+			}
+			got, gotErr := dec.DecodeAll(in, nil)
+			t.Log("Received:", len(got), gotErr)
+
+			// Check a fresh instance
+			decL, err := NewReader(bytes.NewBuffer(in), WithDecoderConcurrency(1), WithDecoderLowmem(true), WithDecoderMaxMemory(1<<20))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer decL.Close()
+			got2, gotErr2 := ioutil.ReadAll(decL)
+			t.Log("Reader Reader received:", len(got2), gotErr2)
+			if gotErr != gotErr2 {
+				if gotErr != nil && gotErr2 != nil && gotErr.Error() != gotErr2.Error() {
+					t.Error(gotErr, "!=", gotErr2)
+				}
+				if (gotErr == nil) != (gotErr2 == nil) {
+					t.Error(gotErr, "!=", gotErr2)
+				}
+			}
+			if !bytes.Equal(got2, got) {
+				if gotErr != nil {
+					t.Log("Buffer mismatch")
+				} else {
+					t.Error("Buffer mismatch")
+				}
+			}
+		})
 	}
 }
 
@@ -463,6 +504,7 @@ func TestDecoder_Reset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dec.Close()
 	decoded, err := dec.DecodeAll(dst, nil)
 	if err != nil {
 		t.Error(err, len(decoded))
@@ -554,6 +596,9 @@ func TestDecoderMultiFrame(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := ioutil.ReadAll(dec)
+			if err != nil {
+				t.Fatal(err)
+			}
 			err = dec.Reset(bytes.NewBuffer(in))
 			if err != nil {
 				t.Fatal(err)
@@ -613,6 +658,9 @@ func TestDecoderMultiFrameReset(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := ioutil.ReadAll(dec)
+			if err != nil {
+				t.Fatal(err)
+			}
 			err = dec.Reset(bytes.NewBuffer(in))
 			if err != nil {
 				t.Fatal(err)
@@ -754,6 +802,9 @@ func BenchmarkDecoder_DecoderSmall(b *testing.B) {
 				b.Fatal(err)
 			}
 			got, err := ioutil.ReadAll(dec)
+			if err != nil {
+				b.Fatal(err)
+			}
 			b.SetBytes(int64(len(got)))
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -802,6 +853,9 @@ func BenchmarkDecoder_DecodeAll(b *testing.B) {
 				b.Fatal(err)
 			}
 			got, err := dec.DecodeAll(in, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
 			b.SetBytes(int64(len(got)))
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -1014,13 +1068,15 @@ func testDecoderDecodeAll(t *testing.T, fn string, dec *Decoder) {
 		}
 		want[tt.Name+".zst"], _ = ioutil.ReadAll(r)
 	}
-
+	var wg sync.WaitGroup
 	for i, tt := range zr.File {
 		tt := tt
 		if !strings.HasSuffix(tt.Name, ".zst") || (testing.Short() && i > 20) {
 			continue
 		}
+		wg.Add(1)
 		t.Run("DecodeAll-"+tt.Name, func(t *testing.T) {
+			defer wg.Done()
 			t.Parallel()
 			r, err := tt.Open()
 			if err != nil {
@@ -1058,6 +1114,10 @@ func testDecoderDecodeAll(t *testing.T, fn string, dec *Decoder) {
 			t.Log(len(got), "bytes returned, matches input, ok!")
 		})
 	}
+	go func() {
+		wg.Wait()
+		dec.Close()
+	}()
 }
 
 func testDecoderDecodeAllError(t *testing.T, fn string, dec *Decoder) {
@@ -1070,12 +1130,15 @@ func testDecoderDecodeAllError(t *testing.T, fn string, dec *Decoder) {
 		t.Fatal(err)
 	}
 
+	var wg sync.WaitGroup
 	for _, tt := range zr.File {
 		tt := tt
 		if !strings.HasSuffix(tt.Name, ".zst") {
 			continue
 		}
+		wg.Add(1)
 		t.Run("DecodeAll-"+tt.Name, func(t *testing.T) {
+			defer wg.Done()
 			t.Parallel()
 			r, err := tt.Open()
 			if err != nil {
@@ -1092,6 +1155,10 @@ func testDecoderDecodeAllError(t *testing.T, fn string, dec *Decoder) {
 			}
 		})
 	}
+	go func() {
+		wg.Wait()
+		dec.Close()
+	}()
 }
 
 // Test our predefined tables are correct.

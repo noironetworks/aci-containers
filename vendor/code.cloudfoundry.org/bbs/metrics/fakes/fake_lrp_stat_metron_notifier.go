@@ -63,9 +63,10 @@ func (fake *FakeLRPStatMetronNotifier) RecordCellCounts(arg1 int, arg2 int) {
 		arg2 int
 	}{arg1, arg2})
 	fake.recordInvocation("RecordCellCounts", []interface{}{arg1, arg2})
+	recordCellCountsStubCopy := fake.RecordCellCountsStub
 	fake.recordCellCountsMutex.Unlock()
-	if fake.RecordCellCountsStub != nil {
-		fake.RecordCellCountsStub(arg1, arg2)
+	if recordCellCountsStubCopy != nil {
+		recordCellCountsStubCopy(arg1, arg2)
 	}
 }
 
@@ -94,9 +95,10 @@ func (fake *FakeLRPStatMetronNotifier) RecordConvergenceDuration(arg1 time.Durat
 		arg1 time.Duration
 	}{arg1})
 	fake.recordInvocation("RecordConvergenceDuration", []interface{}{arg1})
+	recordConvergenceDurationStubCopy := fake.RecordConvergenceDurationStub
 	fake.recordConvergenceDurationMutex.Unlock()
-	if fake.RecordConvergenceDurationStub != nil {
-		fake.RecordConvergenceDurationStub(arg1)
+	if recordConvergenceDurationStubCopy != nil {
+		recordConvergenceDurationStubCopy(arg1)
 	}
 }
 
@@ -130,9 +132,10 @@ func (fake *FakeLRPStatMetronNotifier) RecordFreshDomains(arg1 []string) {
 		arg1 []string
 	}{arg1Copy})
 	fake.recordInvocation("RecordFreshDomains", []interface{}{arg1Copy})
+	recordFreshDomainsStubCopy := fake.RecordFreshDomainsStub
 	fake.recordFreshDomainsMutex.Unlock()
-	if fake.RecordFreshDomainsStub != nil {
-		fake.RecordFreshDomainsStub(arg1)
+	if recordFreshDomainsStubCopy != nil {
+		recordFreshDomainsStubCopy(arg1)
 	}
 }
 
@@ -170,9 +173,10 @@ func (fake *FakeLRPStatMetronNotifier) RecordLRPCounts(arg1 int, arg2 int, arg3 
 		arg10 int
 	}{arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10})
 	fake.recordInvocation("RecordLRPCounts", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10})
+	recordLRPCountsStubCopy := fake.RecordLRPCountsStub
 	fake.recordLRPCountsMutex.Unlock()
-	if fake.RecordLRPCountsStub != nil {
-		fake.RecordLRPCountsStub(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
+	if recordLRPCountsStubCopy != nil {
+		recordLRPCountsStubCopy(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
 	}
 }
 
@@ -203,9 +207,10 @@ func (fake *FakeLRPStatMetronNotifier) Run(arg1 <-chan os.Signal, arg2 chan<- st
 		arg2 chan<- struct{}
 	}{arg1, arg2})
 	fake.recordInvocation("Run", []interface{}{arg1, arg2})
+	runStubCopy := fake.RunStub
 	fake.runMutex.Unlock()
-	if fake.RunStub != nil {
-		return fake.RunStub(arg1, arg2)
+	if runStubCopy != nil {
+		return runStubCopy(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1

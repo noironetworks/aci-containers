@@ -113,9 +113,10 @@ func (fake *FakeActualLRPLifecycleController) ClaimActualLRP(arg1 context.Contex
 		arg5 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("ClaimActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	claimActualLRPStubCopy := fake.ClaimActualLRPStub
 	fake.claimActualLRPMutex.Unlock()
-	if fake.ClaimActualLRPStub != nil {
-		return fake.ClaimActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if claimActualLRPStubCopy != nil {
+		return claimActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -177,9 +178,10 @@ func (fake *FakeActualLRPLifecycleController) CrashActualLRP(arg1 context.Contex
 		arg5 string
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("CrashActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	crashActualLRPStubCopy := fake.CrashActualLRPStub
 	fake.crashActualLRPMutex.Unlock()
-	if fake.CrashActualLRPStub != nil {
-		return fake.CrashActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if crashActualLRPStubCopy != nil {
+		return crashActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -240,9 +242,10 @@ func (fake *FakeActualLRPLifecycleController) FailActualLRP(arg1 context.Context
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
 	fake.recordInvocation("FailActualLRP", []interface{}{arg1, arg2, arg3, arg4})
+	failActualLRPStubCopy := fake.FailActualLRPStub
 	fake.failActualLRPMutex.Unlock()
-	if fake.FailActualLRPStub != nil {
-		return fake.FailActualLRPStub(arg1, arg2, arg3, arg4)
+	if failActualLRPStubCopy != nil {
+		return failActualLRPStubCopy(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1
@@ -304,9 +307,10 @@ func (fake *FakeActualLRPLifecycleController) RemoveActualLRP(arg1 context.Conte
 		arg5 *models.ActualLRPInstanceKey
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("RemoveActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	removeActualLRPStubCopy := fake.RemoveActualLRPStub
 	fake.removeActualLRPMutex.Unlock()
-	if fake.RemoveActualLRPStub != nil {
-		return fake.RemoveActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if removeActualLRPStubCopy != nil {
+		return removeActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -366,9 +370,10 @@ func (fake *FakeActualLRPLifecycleController) RetireActualLRP(arg1 context.Conte
 		arg3 *models.ActualLRPKey
 	}{arg1, arg2, arg3})
 	fake.recordInvocation("RetireActualLRP", []interface{}{arg1, arg2, arg3})
+	retireActualLRPStubCopy := fake.RetireActualLRPStub
 	fake.retireActualLRPMutex.Unlock()
-	if fake.RetireActualLRPStub != nil {
-		return fake.RetireActualLRPStub(arg1, arg2, arg3)
+	if retireActualLRPStubCopy != nil {
+		return retireActualLRPStubCopy(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -430,9 +435,10 @@ func (fake *FakeActualLRPLifecycleController) StartActualLRP(arg1 context.Contex
 		arg5 *models.ActualLRPNetInfo
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("StartActualLRP", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	startActualLRPStubCopy := fake.StartActualLRPStub
 	fake.startActualLRPMutex.Unlock()
-	if fake.StartActualLRPStub != nil {
-		return fake.StartActualLRPStub(arg1, arg2, arg3, arg4, arg5)
+	if startActualLRPStubCopy != nil {
+		return startActualLRPStubCopy(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
