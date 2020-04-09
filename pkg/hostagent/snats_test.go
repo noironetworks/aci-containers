@@ -62,6 +62,9 @@ func snatpolicydata(name string, namespace string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
+		Status: snatpolicy.SnatPolicyStatus{
+			State: snatpolicy.Ready,
+		},
 	}
 	var podSelector snatpolicy.PodSelector
 	podSelector.Namespace = namespace
@@ -111,6 +114,7 @@ var snatGlobals = []snatGlobal{
 		"test",
 	},
 }
+
 var snatpolices = []policy{
 	{
 		"testns",
@@ -237,5 +241,76 @@ func TestSnatSync(t *testing.T) {
 		agent.log.Info("Complete Globale Info #### ", snatglobalinfo)
 		agent.doTestSnat(t, tempdir, &pt, "create")
 	}
+	agent.stop()
+}
+
+func TestSnatPortExhausted(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+	agent := testAgent()
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.UplinkIface = "eth10"
+	agent.config.NodeName = "test-node"
+	agent.config.ServiceVlan = 4003
+	agent.config.UplinkMacAdress = "5a:fd:16:e5:e7:c0"
+	agent.run()
+	for _, pt := range podTests {
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
+		agent.epMetadata[pt.namespace+"/"+pt.name] =
+			map[string]*metadata.ContainerMetadata{
+				cnimd.Id.ContId: cnimd,
+			}
+		agent.fakePodSource.Add(pod)
+	}
+	time.Sleep(1000 * time.Millisecond)
+	for _, pt := range snatpolices {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.destip, pt.labels)
+		agent.fakeSnatPolicySource.Add(snatObj)
+		agent.log.Info("Snat Obj Created #### ", snatObj)
+
+	}
+	time.Sleep(1000 * time.Millisecond)
+
+	policy := &snatpolicy.SnatPolicy{
+		Spec: snatpolicy.SnatPolicySpec{
+			SnatIp: []string{"172.12.12.11/24"},
+			DestIp: []string{"100.100.100.100/24"},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "policy1",
+		},
+		Status: snatpolicy.SnatPolicyStatus{
+			State: snatpolicy.IpPortsExhausted,
+		},
+	}
+	// set the globalinfo for other node, and port exhausted for policy1
+	var newglobal []snatglobal.GlobalInfo
+	var snatglobalinfo *snatglobal.SnatGlobalInfo
+	var globalinfo snatglobal.GlobalInfo
+	portrange := make([]snatglobal.PortRange, 1)
+	portrange[0].Start = 5000
+	portrange[0].End = 8000
+	globalinfo.MacAddress = "01:02:03:04"
+	globalinfo.SnatIp = "192.128.1.1"
+	globalinfo.SnatIpUid = "policy1-uid"
+	globalinfo.PortRanges = portrange
+	globalinfo.SnatPolicyName = "policy1"
+	newglobal = append(newglobal, globalinfo)
+	snatglobalinfo = snatglobaldata("policy1-uid", "snatglobalinfo", "test-node-1", "testns", newglobal)
+	agent.fakeSnatGlobalSource.Add(snatglobalinfo)
+	time.Sleep(1000 * time.Millisecond)
+	// modify the policy with port exhaused
+	agent.fakeSnatPolicySource.Modify(policy)
+	time.Sleep(1000 * time.Millisecond)
+	agent.log.Info("SnatLocal Info #### ", agent.snatPods)
+	// check the policy is deleted from local information as ip/port is not allocated
+	_, ok := agent.snatPods["policy1"]
+	assert.Equal(t, false, ok, "create", "Epfile", "uids")
 	agent.stop()
 }

@@ -157,6 +157,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+	cont.initSnatCfgFromClient(kubeClient)
 	if cont.config.InstallIstio {
 		cont.initIstioInformerFromClient(env.istioClient)
 	}
@@ -258,6 +259,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.scheduleCreateIstioCR()
 	}
 	cont.log.Info("Waiting for cache sync for remaining objects")
+	go cont.snatCfgInformer.Run(stopCh)
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,

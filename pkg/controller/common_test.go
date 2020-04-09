@@ -45,10 +45,10 @@ type testAciController struct {
 	fakeAimSource           *framework.FakeControllerSource
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
-
-	podUpdates     []*v1.Pod
-	nodeUpdates    []*v1.Node
-	serviceUpdates []*v1.Service
+	fakeSnatCfgSource       *framework.FakeControllerSource
+	podUpdates              []*v1.Pod
+	nodeUpdates             []*v1.Node
+	serviceUpdates          []*v1.Service
 }
 
 func testController() *testAciController {
@@ -138,6 +138,13 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeIstioSource.List,
 			WatchFunc: cont.fakeIstioSource.Watch,
+		})
+
+	cont.fakeSnatCfgSource = framework.NewFakeControllerSource()
+	cont.initSnatCfgInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeSnatCfgSource.List,
+			WatchFunc: cont.fakeSnatCfgSource.Watch,
 		})
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {

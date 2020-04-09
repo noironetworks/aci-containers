@@ -16,24 +16,27 @@ package controller
 
 import (
 	"fmt"
-	"testing"
-	"sort"
-	"net"
-	"time"
-	"github.com/noironetworks/aci-containers/pkg/metadata"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"net"
+	"sort"
+	"testing"
+	"time"
 )
 
 func testsnatpolicy(name string, namespace string, deploy string,
 	snatIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
 	policy := &snatpolicy.SnatPolicy{
-		Spec: snatpolicy.SnatPolicySpec {
-			SnatIp : snatIp,
+		Spec: snatpolicy.SnatPolicySpec{
+			SnatIp: snatIp,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+		},
+		Status: snatpolicy.SnatPolicyStatus{
+			State: snatpolicy.Ready,
 		},
 	}
 	var podSelector snatpolicy.PodSelector
@@ -79,13 +82,13 @@ func TestSnatGraph(t *testing.T) {
 	twoNodeRedirect := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
 			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
-			Mac:  "8a:35:a1:a6:e4:60",
-			Ipv4: net.ParseIP("10.6.1.1"),
+			Mac:           "8a:35:a1:a6:e4:60",
+			Ipv4:          net.ParseIP("10.6.1.1"),
 		},
 		"node2": &metadata.ServiceEndpoint{
 			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
-			Mac:  "a2:7e:45:57:a0:d4",
-			Ipv4: net.ParseIP("10.6.1.2"),
+			Mac:           "a2:7e:45:57:a0:d4",
+			Ipv4:          net.ParseIP("10.6.1.2"),
 		},
 	})
 	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20"}, true, true)
@@ -94,7 +97,7 @@ func TestSnatGraph(t *testing.T) {
 	portRanges := []portRangeSnat{
 		portRangeSnat{
 			start: 5000,
-			end: 65000,
+			end:   65000,
 		},
 	}
 	contract := apicContract(name, "common", graphName, "global")
@@ -104,13 +107,13 @@ func TestSnatGraph(t *testing.T) {
 
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
 	labels := map[string]string{
-			"lab_key" : "lab_value"}
+		"lab_key": "lab_value"}
 	policy := testsnatpolicy("testpolicy", "common", "deployment",
 		snatIp, labels)
 
 	snatIp2 := []string{"172.2.2.1/32"}
 	labels2 := map[string]string{
-			"lab_key2" : "lab_value2"}
+		"lab_key2": "lab_value2"}
 	policy2 := testsnatpolicy("testpolicy2", "common", "deployment2",
 		snatIp2, labels2)
 
@@ -137,8 +140,8 @@ func TestSnatGraph(t *testing.T) {
 	opflexDevice2.SetAttr("fabricPathDn",
 		"topology/pod-1/paths-301/pathep-[eth1/34]")
 	opflexDevice2.SetAttr("devType", "k8s")
-        opflexDevice2.SetAttr("domName", "kube")
-        opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("domName", "kube")
+	opflexDevice2.SetAttr("ctrlrName", "kube")
 
 	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
@@ -166,11 +169,11 @@ func TestSnatGraph(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	extNet2 := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20", "172.2.2.1/32"}, true, true)
 	expected2 := map[string]apicapi.ApicSlice{
-                graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
-                        graph}, "kube", graphName),
-                name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filter, cc},
-                        "kube", name),
-        }
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filter, cc},
+			"kube", name),
+	}
 	sgWait(t, "snat graph addition", cont, expected2)
 
 	cont.fakeSnatPolicySource.Delete(policy2)
@@ -186,11 +189,11 @@ func TestSnatGraph(t *testing.T) {
 	cont.fakeSnatPolicySource.Delete(policy)
 	time.Sleep(2 * time.Second)
 	expectedNoSnat := map[string]apicapi.ApicSlice{
-                graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
-                        graph}, "kube", graphName),
-                name: nil,
-        }
-        sgWait(t, "snat graph deleted", cont, expectedNoSnat)
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name: nil,
+	}
+	sgWait(t, "snat graph deleted", cont, expectedNoSnat)
 	cont.stop()
 
-	}
+}

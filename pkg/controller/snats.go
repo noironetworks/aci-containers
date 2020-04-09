@@ -96,6 +96,7 @@ func (cont *AciController) snatPolicyUpdated(obj interface{}) {
 		return
 	}
 	cont.queueSnatUpdateByKey(key)
+
 }
 
 func (cont *AciController) queueSnatUpdateByKey(key string) {
@@ -112,23 +113,30 @@ func (cont *AciController) queueSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) {
 	cont.snatQueue.Add(key)
 }
 
-func (cont *AciController) handleSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) bool {
-	_, err := cache.MetaNamespaceKeyFunc(snatpolicy)
+func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) bool {
+	_, err := cache.MetaNamespaceKeyFunc(snatPolicy)
 	if err != nil {
-		SnatPolicyLogger(cont.log, snatpolicy).
+		SnatPolicyLogger(cont.log, snatPolicy).
 			Error("Could not create key:" + err.Error())
 		return false
 	}
-
-	policyName := snatpolicy.ObjectMeta.Name
-	cont.updateSnatPolicyCache(policyName, snatpolicy)
+	policyName := snatPolicy.ObjectMeta.Name
+	if snatPolicy.Status.State != snatpolicy.Ready {
+		if snatPolicy.Status.State == snatpolicy.IpPortsExhausted {
+			return false
+		}
+		// @TODO Validate the Policy and then update the Status
+		cont.log.Debug("Update SnatPolicy Status Ready: ", policyName)
+		return cont.setSnatPolicyStaus(policyName, snatpolicy.Ready)
+	}
+	cont.updateSnatPolicyCache(policyName, snatPolicy)
 	var requeue bool
 	cont.indexMutex.Lock()
 	if cont.snatSyncEnabled {
 		cont.indexMutex.Unlock()
 
-		if len(snatpolicy.Spec.SnatIp) == 0 {
-			err = cont.handleSnatPolicyForServices(snatpolicy)
+		if len(snatPolicy.Spec.SnatIp) == 0 {
+			err = cont.handleSnatPolicyForServices(snatPolicy)
 		} else {
 			err = cont.updateServiceDeviceInstanceSnat(snatGraphName)
 		}
@@ -193,16 +201,16 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 	currPortRange = append(currPortRange, portRange)
 	policy.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
 	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
-	snatIpUpdated := false
+	Update := false
 	if snatInfo, ok := cont.snatPolicyCache[key]; ok {
 		if !reflect.DeepEqual(policy.SnatIp, snatInfo.SnatIp) {
 			cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
-			snatIpUpdated = true
+			Update = true
 		}
 	}
 	cont.snatPolicyCache[key] = &policy
-	if snatIpUpdated {
-		cont.handleSnatIpUpdate(snatpolicy.ObjectMeta.Name)
+	if Update {
+		cont.handleSnatPoilcyUpdate(snatpolicy.ObjectMeta.Name)
 	}
 	cont.indexMutex.Unlock()
 }
