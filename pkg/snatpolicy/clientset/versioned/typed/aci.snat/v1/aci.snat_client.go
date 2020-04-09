@@ -20,6 +20,7 @@ package v1
 import (
 	v1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned/scheme"
+	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -33,8 +34,8 @@ type AciV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *AciV1Client) SnatPolicies() SnatPolicyInterface {
-	return newSnatPolicies(c)
+func (c *AciV1Client) SnatPolicies(namespace string) SnatPolicyInterface {
+	return newSnatPolicies(c, namespace)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.
@@ -69,7 +70,7 @@ func setConfigDefaults(config *rest.Config) error {
 	gv := v1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

@@ -19,8 +19,6 @@ import (
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
-	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
-	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
@@ -158,13 +156,4 @@ func MatchLabels(policylabels map[string]string, reslabels map[string]string) bo
 		}
 	}
 	return true
-}
-
-// UpdateSnatPolicy Updates a UpdateSnatPolicy CR
-func UpdateSnatPolicyCR(c snatpolicyclset.Clientset, policy *snatpolicy.SnatPolicy) error {
-	_, err := c.AciV1().SnatPolicies().Update(policy)
-	if err != nil {
-		return err
-	}
-	return nil
 }

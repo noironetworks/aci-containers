@@ -117,10 +117,10 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 	agent.initSnatPolicyInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return snatClient.AciV1().SnatPolicies().List(options)
+				return snatClient.AciV1().SnatPolicies(metav1.NamespaceAll).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return snatClient.AciV1().SnatPolicies().Watch(options)
+				return snatClient.AciV1().SnatPolicies(metav1.NamespaceAll).Watch(options)
 			},
 		})
 }
@@ -239,25 +239,6 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	newpolicyinfo := newobj.(*snatpolicy.SnatPolicy)
 	agent.log.Info("Policy Info Updated: ", newpolicyinfo.ObjectMeta.Name)
 	if reflect.DeepEqual(oldpolicyinfo, newpolicyinfo) {
-		return
-	}
-	//1. check if the local nodename is  present in globalinfo
-	// 2. if it is not present then delete the policy from localInfo as the portinfo is not allocated  for node
-	if newpolicyinfo.Status.State == snatpolicy.IpPortsExhausted {
-		agent.log.Info("Ports exhausted: ", newpolicyinfo.ObjectMeta.Name)
-		ginfo, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
-		present := false
-		if ok {
-			for _, v := range ginfo {
-				if v.SnatPolicyName == newpolicyinfo.ObjectMeta.Name {
-					present = true
-				}
-			}
-		}
-		if !ok || !present {
-			agent.log.Info("Delete Policy: ", newpolicyinfo.ObjectMeta.Name)
-			agent.deletePolicy(newpolicyinfo)
-		}
 		return
 	}
 	agent.snatPolicyCache[newpolicyinfo.ObjectMeta.Name] = newpolicyinfo
@@ -703,7 +684,7 @@ func (agent *HostAgent) syncSnat() bool {
 			}
 		}
 	}
-	agent.log.Debug("RemoteInfo: ", remoteinfo)
+	agent.log.Debug("Remte: ", remoteinfo)
 	// set the Opflex Snat IP information
 	localportrange := make(map[string][]OpflexPortRange)
 	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]

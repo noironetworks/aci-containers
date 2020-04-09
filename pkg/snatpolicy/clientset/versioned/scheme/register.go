@@ -18,19 +18,19 @@ limitations under the License.
 package scheme
 
 import (
-	aciv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	snatv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	//utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 var Scheme = runtime.NewScheme()
 var Codecs = serializer.NewCodecFactory(Scheme)
 var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
-	aciv1.AddToScheme,
+	snatv1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition
@@ -51,5 +51,6 @@ var AddToScheme = localSchemeBuilder.AddToScheme
 
 func init() {
 	v1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
-	utilruntime.Must(AddToScheme(Scheme))
+	//utilruntime.Must(AddToScheme(Scheme))
+	AddToScheme(Scheme)
 }
