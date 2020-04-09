@@ -644,7 +644,7 @@ func (s *Server) kafkaEPAdd(ep *Endpoint) {
 		return
 	}
 
-	if ep.PodName == "" { // not a real pod, don't report to kafka
+	if ep.Uuid == "" { // not a real pod, don't report to kafka
 		return
 	}
 
