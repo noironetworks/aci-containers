@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"strings"
 
@@ -44,6 +45,7 @@ func main() {
 		"Absolute path to a host agent configuration file")
 	version := flag.Bool("version", false, "prints github commit ID and build time")
 	getIP := flag.Bool("get-node-ip", false, "prints IP address of this node")
+	getVtep := flag.Bool("get-vtep", false, "prints VTEP ip and interface for this node")
 	flag.Parse()
 
 	if *version {
@@ -65,6 +67,32 @@ func main() {
 
 		fmt.Println(ip)
 		os.Exit(0)
+	}
+
+	if *getVtep {
+		ip, err := getNodeIP()
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(-1)
+		}
+		ifaces, err := net.Interfaces()
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(-1)
+		}
+		for _, i := range ifaces {
+			addrs, err := i.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, a := range addrs {
+				if strings.HasPrefix(a.String(), ip) {
+					fmt.Println(i.Name, ip)
+					os.Exit(0)
+				}
+			}
+		}
+		os.Exit(-1)
 	}
 
 	if configPath != nil && *configPath != "" {

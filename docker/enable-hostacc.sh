@@ -5,6 +5,8 @@ set -x
 
 PREFIX=/usr/local
 VARDIR=${PREFIX}/var
+ACIBIN=${PREFIX}/bin
+HOSTAGENT=${ACIBIN}/aci-containers-host-agent
 
 function check_eth {
     ip link show "$1" | grep -q "$1"
@@ -30,13 +32,18 @@ else
 fi
 ACC_MAC=$(get_mac veth_host)
 
-if check_eth enp0s8; then
-    VTEP_IP=$(get_ip enp0s8)
-    VTEP_IFACE=enp0s8
+vtep=$($HOSTAGENT -get-vtep)
+retval=$?
+if [ $retval -ne 0 ]; then
+    echo "error getting vtep"
+    exit $retval
 else
-    VTEP_IFACE=$(ip -o route get 8.8.8.8 | sed -e 's/^.*dev \([^ ]*\) .*$/\1/')
-    VTEP_IP=$(get_ip ${VTEP_IFACE})
+read VTEP_IFACE VTEP_IP <<EOF
+    $vtep
+EOF
 fi
+
+echo "using vtep $VTEP_IFACE $VTEP_IP"
 
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
 
