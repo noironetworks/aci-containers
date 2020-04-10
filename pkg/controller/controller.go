@@ -36,10 +36,10 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
-	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
@@ -84,10 +84,10 @@ type AciController struct {
 	snatNodeInformer      cache.Controller
 	istioIndexer          cache.Indexer
 	istioInformer         cache.Controller
-
-	updatePod           podUpdateFunc
-	updateNode          nodeUpdateFunc
-	updateServiceStatus serviceUpdateFunc
+	snatCfgInformer       cache.Controller
+	updatePod             podUpdateFunc
+	updateNode            nodeUpdateFunc
+	updateServiceStatus   serviceUpdateFunc
 
 	indexMutex sync.Mutex
 
@@ -124,13 +124,14 @@ type AciController struct {
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
 	istioCache           map[string]*istiov1.AciIstioOperator
 	// Node Name and Policy Name
-	snatGlobalInfoCache map[string]map[string]*snatglobalinfo.GlobalInfo
-	nodeSyncEnabled     bool
-	serviceSyncEnabled  bool
-	snatSyncEnabled     bool
-	tunnelGetter        *tunnelState
-	syncQueue           workqueue.RateLimitingInterface
-	syncProcessors      map[string]func() bool
+	snatGlobalInfoCache       map[string]map[string]*snatglobalinfo.GlobalInfo
+	nodeSyncEnabled           bool
+	serviceSyncEnabled        bool
+	snatSyncEnabled           bool
+	tunnelGetter              *tunnelState
+	syncQueue                 workqueue.RateLimitingInterface
+	syncProcessors            map[string]func() bool
+	snatPortExhaustedPolicies map[string]map[string]bool
 }
 
 type nodeServiceMeta struct {
@@ -205,7 +206,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
-        istioQueue:        createQueue("istio"),
+		istioQueue:        createQueue("istio"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -219,15 +220,16 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
-		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-		serviceMetaCache:     make(map[string]*serviceMeta),
-		snatPolicyCache:      make(map[string]*ContSnatPolicy),
-		snatServices:         make(map[string]bool),
-		tunnelIdBase:         defTunnelIdBase,
-		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
-		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:           make(map[string]*istiov1.AciIstioOperator),
+		nodeServiceMetaCache:      make(map[string]*nodeServiceMeta),
+		nodePodNetCache:           make(map[string]*nodePodNetMeta),
+		serviceMetaCache:          make(map[string]*serviceMeta),
+		snatPolicyCache:           make(map[string]*ContSnatPolicy),
+		snatServices:              make(map[string]bool),
+		tunnelIdBase:              defTunnelIdBase,
+		snatNodeInfoCache:         make(map[string]*nodeinfo.NodeInfo),
+		snatGlobalInfoCache:       make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:                make(map[string]*istiov1.AciIstioOperator),
+		snatPortExhaustedPolicies: make(map[string]map[string]bool),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,

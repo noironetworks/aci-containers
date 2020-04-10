@@ -19,6 +19,8 @@ import (
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
+	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
@@ -44,7 +46,9 @@ func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglob
 	for _, item := range currPortRange {
 		temp := item.Start
 		for temp < item.End-1 {
-			expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
+			if temp+step-1 < item.End-1 {
+				expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
+			}
 			temp = temp + step
 		}
 	}
@@ -156,4 +160,13 @@ func MatchLabels(policylabels map[string]string, reslabels map[string]string) bo
 		}
 	}
 	return true
+}
+
+// UpdateSnatPolicy Updates a UpdateSnatPolicy CR
+func UpdateSnatPolicyCR(c snatpolicyclset.Clientset, policy *snatpolicy.SnatPolicy) error {
+	_, err := c.AciV1().SnatPolicies().UpdateStatus(policy)
+	if err != nil {
+		return err
+	}
+	return nil
 }

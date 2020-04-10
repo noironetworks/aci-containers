@@ -19,6 +19,7 @@ import (
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 	"time"
@@ -34,6 +35,9 @@ func snatpolicydata(name string, namespace string,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+		},
+		Status: snatpolicy.SnatPolicyStatus{
+			State: snatpolicy.Ready,
 		},
 	}
 	var podSelector snatpolicy.PodSelector
@@ -198,5 +202,49 @@ func TestSnatnodeInfo(t *testing.T) {
 		cont.fakeSnatPolicySource.Delete(snatObj)
 	}
 	snatdeleted(t, "snat test", cont.AciController.snatGlobalInfoCache)
+	cont.stop()
+}
+func TestSnatCfgChangeTest(t *testing.T) {
+	cont := testController()
+	for _, pt := range snatTests {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Add(snatObj)
+	}
+	cont.run()
+	nodinfo := make(map[string]bool)
+	configmap := &v1.ConfigMap{
+		Data: map[string]string{"start": "5000", "end": "65000", "ports-per-node": "3000"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "snat-operator-config",
+			Namespace: "aci-containers-system",
+		},
+	}
+	cont.fakeSnatCfgSource.Add(configmap)
+	for _, pt := range nodeTests {
+		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
+		if _, ok := nodinfo[pt.name]; !ok {
+			cont.fakeNodeInfoSource.Add(nodeobj)
+			cont.log.Debug("NodeInfo Added: ", nodeobj)
+			nodinfo[pt.name] = true
+		} else {
+			cont.log.Debug("NodeInfo Modified: ", nodeobj)
+			cont.fakeNodeInfoSource.Modify(nodeobj)
+		}
+		time.Sleep(time.Second)
+	}
+	modconfigmap := &v1.ConfigMap{
+		Data: map[string]string{"start": "10000", "end": "65000", "ports-per-node": "5000"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "snat-operator-config",
+			Namespace: "aci-containers-system",
+		},
+	}
+	cont.fakeSnatCfgSource.Modify(modconfigmap)
+	time.Sleep(time.Second)
+	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
+	expected := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
+	}
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
 	cont.stop()
 }

@@ -40,5 +40,5 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // SnatPolicies returns a SnatPolicyInformer.
 func (v *version) SnatPolicies() SnatPolicyInformer {
-	return &snatPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &snatPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
