@@ -20,3 +20,7 @@ package v1
 // SnatPolicyListerExpansion allows custom methods to be added to
 // SnatPolicyLister.
 type SnatPolicyListerExpansion interface{}
+
+// SnatPolicyNamespaceListerExpansion allows custom methods to be added to
+// SnatPolicyNamespaceLister.
+type SnatPolicyNamespaceListerExpansion interface{}
