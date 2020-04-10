@@ -15,14 +15,15 @@
 package hostagent
 
 import (
+	"fmt"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
+	"strings"
 	"time"
-	"fmt"
 )
 
 type EventPoster struct {
@@ -49,6 +50,18 @@ func (agent *HostAgent) initEventRecorder(kubeClient *kubernetes.Clientset) reco
 	return recorder
 }
 
+func (agent *HostAgent) translateDropReason(reason string) string {
+	switch {
+	case reason == "":
+		return "Unspecified"
+	case strings.Contains(reason, "POL_TABLE"):
+		return reason + "(Policy Drop)"
+	case (strings.Contains(reason, "PORT_SECURITY_TABLE") || strings.Contains(reason, "SEC_GROUP_IN_TABLE") || strings.Contains(reason, "SEC_GROUP_OUT_TABLE")):
+		return reason + "(Security Drop)"
+	}
+	return reason + "(Networking Drop)"
+}
+
 // Submit an event using kube API with message attached
 func (agent *HostAgent) submitEvent(pod *v1.Pod, message string, dropReason string) error {
 	agent.log.Info("Posting event ", message)
@@ -57,9 +70,7 @@ func (agent *HostAgent) submitEvent(pod *v1.Pod, message string, dropReason stri
 		agent.log.Error("Returning ", err)
 		return err
 	}
-	if dropReason == "" {
-		dropReason = "Unspecified"
-	}
+	dropReason = agent.translateDropReason(dropReason)
 	if agent.poster != nil && agent.poster.recorder != nil {
 		agent.poster.recorder.Event(ref, v1.EventTypeWarning, dropReason, message)
 	}
@@ -86,8 +97,8 @@ func (agent *HostAgent) shouldIgnore(packetEvent PacketEvent, currTime time.Time
 }
 
 // Construct packet drop message
-func getPacketDropMessage(srcIp string, dstIp string) string {
-	return fmt.Sprintf("Packet from %s to %s was dropped", srcIp, dstIp)
+func getPacketDropMessage(etherType string, srcIp string, dstIp string) string {
+	return fmt.Sprintf("%s packet from %s to %s was dropped", etherType, srcIp, dstIp)
 }
 
 // Handle the given PacketDrop, return error if api server does not work
@@ -108,15 +119,17 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	} else {
 		obj1, srcExists, err := agent.podInformer.GetStore().GetByKey(srcPodKey)
 		if err == nil {
-			if srcExists  && (obj1 != nil) {
+			if srcExists && (obj1 != nil) {
 				srcPod := obj1.(*v1.Pod)
 				// post events
 				if srcPod != nil && (srcPod.Status.Phase == "Running") &&
 					!srcPod.Spec.HostNetwork {
 					if err := agent.submitEvent(srcPod,
-						getPacketDropMessage(packetEvent.SourceIP,
+						getPacketDropMessage(
+							packetEvent.EtherType,
+							packetEvent.SourceIP,
 							packetEvent.DestinationIP),
-							packetEvent.DropReason); err != nil {
+						packetEvent.DropReason); err != nil {
 						return err
 					}
 					srcEventPosted = true
@@ -142,9 +155,11 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 				if dstPod != nil && (dstPod.Status.Phase == "Running") &&
 					!dstPod.Spec.HostNetwork {
 					if err := agent.submitEvent(dstPod,
-						getPacketDropMessage(packetEvent.SourceIP,
+						getPacketDropMessage(
+							packetEvent.EtherType,
+							packetEvent.SourceIP,
 							packetEvent.DestinationIP),
-							packetEvent.DropReason); err != nil {
+						packetEvent.DropReason); err != nil {
 						return err
 					}
 				}

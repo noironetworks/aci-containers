@@ -146,6 +146,12 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     },
     "snat-sources": {
         "filesystem": ["{{.OpFlexSnatDir | js}}"]
+    },
+    "drop-log-config-sources": {
+        "filesystem": ["{{.OpFlexDropLogConfigDir | js}}"]
+    },
+    "packet-event-notif": {
+        "socket-name": ["{{.PacketEventNotificationSock | js}}"]
     }
 }
 `)
@@ -165,7 +171,15 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
                 }
             },
             "flowid-cache-dir": "{{.OpFlexFlowIdCacheDir | js}}",
-            "mcast-group-file": "{{.OpFlexMcastFile | js}}"
+            "mcast-group-file": "{{.OpFlexMcastFile | js}}",
+            "drop-log": {
+		"geneve" : {
+		    "int-br-iface": "{{.DropLogIntInterface | js}}",
+		    "access-br-iface": "{{.DropLogAccessInterface | js}}",
+		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}",
+		    "namespace": "{{.OpFlexDropLogNetNamespace | js}}"
+		}
+	    }
         }
     }
 }
@@ -182,7 +196,15 @@ var opflexConfigVlan = initTempl("opflex-config-vlan", `{
                 }
             },
             "flowid-cache-dir": "{{.OpFlexFlowIdCacheDir | js}}",
-            "mcast-group-file": "{{.OpFlexMcastFile | js}}"
+            "mcast-group-file": "{{.OpFlexMcastFile | js}}",
+            "drop-log": {
+		"geneve" : {
+		    "int-br-iface": "{{.DropLogIntInterface | js}}",
+		    "access-br-iface": "{{.DropLogAccessInterface | js}}",
+		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}",
+		    "namespace": "{{.OpFlexDropLogNetNamespace | js}}"
+		}
+	    }
         }
     }
 }

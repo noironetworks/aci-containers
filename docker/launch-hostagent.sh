@@ -10,6 +10,7 @@ ACIBIN=${PREFIX}/bin
 HOSTAGENT=${ACIBIN}/aci-containers-host-agent
 HOSTAGENT_CONF=/usr/local/etc/aci-containers/host-agent.conf
 KUBECONFIG=/usr/local/etc/kubeconfig
+DROPLOG_FNAME=a.droplogcfg
 
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
@@ -43,6 +44,14 @@ if [ "$OPFLEX_MODE" == "overlay" ]; then
     ${ACIBIN}/enable-hostacc.sh
 else
     echo "running in on prem mode"
+fi
+
+if [ ! -f ${VARDIR}/lib/opflex-agent-ovs/droplog/${DROPLOG_FNAME} ]; then
+cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/droplog/${DROPLOG_FNAME}
+{
+     "drop-log-enable": true
+}
+EOF
 fi
 
 CMD=${HOSTAGENT}
