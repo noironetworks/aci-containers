@@ -644,7 +644,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 			ServiceMappings:   make([]opflexServiceMapping, 0),
 			InterfaceName:     agent.config.UplinkIface,
 			InterfaceVlan:     uint16(agent.config.ServiceVlan),
-			ServiceMac:        agent.serviceEp.Mac,
+			ServiceMac:        agent.config.UplinkMacAdress,
 			InterfaceIp:       agent.serviceEp.Ipv4.String(),
 		}
 		sm := &opflexServiceMapping{
@@ -655,7 +655,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		if !file_exists {
 			wrote, err := writeAs(filePath, as)
 			if err != nil {
-				agent.log.Debug("Unable to write snat ext service file")
+				agent.log.Debug("Unable to write snat ext service file:")
 			} else if wrote {
 				agent.log.Debug("Created snat ext service file")
 			}
