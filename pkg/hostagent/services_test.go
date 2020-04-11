@@ -193,7 +193,7 @@ func (agent *testHostAgent) doTestService(t *testing.T, tempdir string,
 			desc, st.name, "uuid-external")
 		agent.checkAs(t, st, asexternal, desc)
 
-		assert.Equal(t, "76:47:db:97:ba:4c", asexternal.ServiceMac,
+		assert.Equal(t, agent.config.UplinkMacAdress, asexternal.ServiceMac,
 			desc, st.name, "service-mac")
 		assert.Equal(t, "10.6.0.1", asexternal.InterfaceIp,
 			desc, st.name, "service-ip")
@@ -213,6 +213,7 @@ func TestServiceSync(t *testing.T) {
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
 	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
 	agent.config.AciVrf = "kubernetes-vrf"
 	agent.config.AciVrfTenant = "common"
