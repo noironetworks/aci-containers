@@ -43,6 +43,7 @@ type ApicWatcher struct {
 	apName         string
 	hostProtPrefix string
 	apicInfo       ApicInfo
+	eps            *EPSyncer
 }
 
 type ApicInfo struct {
@@ -135,25 +136,43 @@ func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 			}
 		})
 
+	eps := &EPSyncer{
+		log:      aw.log,
+		gs:       aw.gs,
+		apicConn: aw.apicConn,
+		aw:       aw,
+	}
+	err = eps.Init()
+	if err != nil {
+		return err
+	}
+	aw.eps = eps
 	go aw.apicConn.Run(stopCh)
+	if aw.gs.Config().SyncRemEps {
+		go aw.eps.Run(stopCh)
+	}
 	return nil
 }
 
 func (aw *ApicWatcher) EpgChanged(obj apicapi.ApicObject) {
-
-	aw.Lock()
-	defer aw.Unlock()
 	epgDn := obj.GetAttrStr("dn")
 	tenant := dnToTenant(epgDn)
 	if tenant != aw.tenant && tenant != commonTenant {
 		aw.log.Debugf("== epg: %s ignored tenant: %s", epgDn, tenant)
 		return
 	}
+
+	aw.ProcessEpg(tenant, epgDn, obj)
+}
+
+func (aw *ApicWatcher) ProcessEpg(tenant, epgDn string, obj apicapi.ApicObject) {
+	aw.Lock()
+	defer aw.Unlock()
 	aw.log.Infof("== epg: %s ==", epgDn)
 	// construct the EPG
 	epg := gbpserver.EPG{
 		Tenant: tenant,
-		Name:   obj.GetAttrStr("name"),
+		Name:   aw.dnToEpgName(epgDn),
 		ApicDN: epgDn,
 	}
 
