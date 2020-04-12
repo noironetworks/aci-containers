@@ -62,6 +62,8 @@ type GBPServerConfig struct {
 
 	// APIC info
 	Apic         *ApicInfo `json:"apic,omitempty"`
+	SyncRemEps bool `json:"sync-rem-eps",omitempty"`
+
 	PushJsonFile bool      `json:"push-json-file,omitempty"`
 }
 
@@ -80,7 +82,6 @@ type ApicInfo struct {
 	// How early (seconds) the subscriptions to be refreshed than
 	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
 	RefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
-
 	// A path for a PEM-encoded private key for client certificate
 	// authentication for APIC API
 	PrivateKeyPath string `json:"apic-private-key-path,omitempty"`
@@ -112,4 +113,5 @@ func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
 	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "pod subnet")
 	flag.BoolVar(&config.PushJsonFile, "push-json-file", false, "push file to opflexserver (testing)")
+	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
 }
