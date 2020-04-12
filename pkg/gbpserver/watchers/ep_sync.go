@@ -183,7 +183,7 @@ func (eps *EPSyncer) AddExtEP(subnet, epgDn string) {
 	pi_name := epgName + subnet
 	pi_name = strings.Split(pi_name, "/")[0]
 	// k8s doesn't like the | character in names
-	pi_name = strings.ReplaceAll(pi_name, "|", "-")
+	pi_name = strings.Replace(pi_name, "|", "-", -1)
 	_, err := eps.crdClient.PodIFs("kube-system").Get(pi_name, metav1.GetOptions{})
 	ep := &crdv1.PodIF{Status: crdv1.PodIFStatus{IPAddr: subnet, EPG: epgName}}
 	ep.ObjectMeta.Name = pi_name
