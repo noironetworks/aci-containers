@@ -35,6 +35,7 @@ import (
 )
 
 const (
+	NoContainer = "NC"
 	root        = "/aci/objdb"
 	ListenPort  = "8899"
 	defToken    = "api-server-token"
@@ -644,7 +645,8 @@ func (s *Server) kafkaEPAdd(ep *Endpoint) {
 		return
 	}
 
-	if ep.Uuid == "" { // not a real pod, don't report to kafka
+	cid := UuidToCid(ep.Uuid)
+	if cid == NoContainer { // not a real pod, don't report to kafka
 		return
 	}
 

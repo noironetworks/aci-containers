@@ -215,10 +215,9 @@ func (kw *K8sWatcher) podIFAdded(obj interface{}) {
 		return
 	}
 
-	kw.log.Infof("podIFAdded - %s/%s", podif.Status.PodNS, podif.Status.PodName)
-	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
+	kw.log.Infof("podIFAdded - %s", podif.ObjectMeta.Name)
 	ep := gbpserver.Endpoint{
-		Uuid:      uid,
+		Uuid:      getEPUuid(podif),
 		MacAddr:   podif.Status.MacAddr,
 		IPAddr:    []string{podif.Status.IPAddr},
 		EPG:       podif.Status.EPG,
@@ -238,10 +237,9 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 		return
 	}
 
-	kw.log.Infof("podIFDeleted - %s/%s", podif.Status.PodNS, podif.Status.PodName)
-	uid := fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
+	kw.log.Infof("podIFDeleted - %s", podif.ObjectMeta.Name)
 	ep := gbpserver.Endpoint{
-		Uuid:      uid,
+		Uuid:      getEPUuid(podif),
 		MacAddr:   podif.Status.MacAddr,
 		IPAddr:    []string{podif.Status.IPAddr},
 		EPG:       podif.Status.EPG,
@@ -252,4 +250,12 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 	}
 
 	kw.gs.DelEP(ep)
+}
+
+func getEPUuid(podif *aciv1.PodIF) string {
+	if podif.Status.ContainerID == "" {
+		return fmt.Sprintf("%s.%s", podif.ObjectMeta.Name, gbpserver.NoContainer)
+	} else {
+		return fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
+	}
 }
