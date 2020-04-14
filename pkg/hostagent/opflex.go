@@ -176,8 +176,7 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
 		"geneve" : {
 		    "int-br-iface": "{{.DropLogIntInterface | js}}",
 		    "access-br-iface": "{{.DropLogAccessInterface | js}}",
-		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}",
-		    "namespace": "{{.OpFlexDropLogNetNamespace | js}}"
+		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}"
 		}
 	    }
         }
@@ -201,8 +200,7 @@ var opflexConfigVlan = initTempl("opflex-config-vlan", `{
 		"geneve" : {
 		    "int-br-iface": "{{.DropLogIntInterface | js}}",
 		    "access-br-iface": "{{.DropLogAccessInterface | js}}",
-		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}",
-		    "namespace": "{{.OpFlexDropLogNetNamespace | js}}"
+		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}"
 		}
 	    }
         }
