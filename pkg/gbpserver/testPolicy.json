@@ -499,14 +499,6 @@
         "uri": "/InvUniverse/InvRemoteEndpointInventory/InvRemoteInventoryEp/extNet1/",
         "properties": [
             {
-                "name": "mac",
-                "data": ""
-            },
-            {
-                "name": "nextHopTunnel",
-                "data": ""
-            },
-            {
                 "name": "uuid",
                 "data": "extNet1"
             }
@@ -556,14 +548,6 @@
         "subject": "InvRemoteInventoryEp",
         "uri": "/InvUniverse/InvRemoteEndpointInventory/InvRemoteInventoryEp/extNets2/",
         "properties": [
-            {
-                "name": "mac",
-                "data": ""
-            },
-            {
-                "name": "nextHopTunnel",
-                "data": ""
-            },
             {
                 "name": "uuid",
                 "data": "extNets2"
@@ -1184,11 +1168,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7742988
+                "data": 7740696
             },
             {
                 "name": "classid",
-                "data": 42988
+                "data": 40696
             },
             {
                 "name": "multicastGroupIP",
@@ -1273,11 +1257,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7732120
+                "data": 7755407
             },
             {
                 "name": "classid",
-                "data": 32120
+                "data": 55407
             },
             {
                 "name": "multicastGroupIP",
@@ -1379,11 +1363,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7736673
+                "data": 7733765
             },
             {
                 "name": "classid",
-                "data": 36673
+                "data": 33765
             },
             {
                 "name": "multicastGroupIP",
@@ -1769,11 +1753,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7735009
+                "data": 7759783
             },
             {
                 "name": "classid",
-                "data": 35009
+                "data": 59783
             },
             {
                 "name": "multicastGroupIP",
@@ -1841,11 +1825,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7762614
+                "data": 7733739
             },
             {
                 "name": "classid",
-                "data": 62614
+                "data": 33739
             },
             {
                 "name": "multicastGroupIP",

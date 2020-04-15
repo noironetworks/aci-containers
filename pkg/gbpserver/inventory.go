@@ -272,7 +272,9 @@ func (ep *Endpoint) Add() (string, error) {
 	}
 
 	for _, v := range props {
-		epMo.AddProperty(v.Name, v.Data)
+		if v.Data != "" {
+			epMo.AddProperty(v.Name, v.Data)
+		}
 	}
 
 	ipList := parseIPs(ep.IPAddr)
