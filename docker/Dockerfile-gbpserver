@@ -1,12 +1,6 @@
-FROM alpine:3.7
+FROM alpine:3.10.2
 RUN apk upgrade --no-cache
 COPY dist-static/gbpserver /usr/local/bin/
-ADD https://storage.googleapis.com/kubernetes-release/release/v1.13.1/bin/linux/amd64/kubectl /usr/local/bin/kubectl
-RUN chmod +x /usr/local/bin/kubectl
-COPY docker/gbp_update.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/gbp_update.sh
-COPY docker/get_vteps.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/get_vteps.sh
 
 ENV KUBECONFIG=/kube/kube.yml
 ENV GBP_SERVER_CONF=None
