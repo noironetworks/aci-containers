@@ -46,7 +46,8 @@ type opflexServiceMapping struct {
 	NextHopIps  []string `json:"next-hop-ips"`
 	NextHopPort uint16   `json:"next-hop-port,omitempty"`
 
-	Conntrack bool `json:"conntrack-enabled"`
+	Conntrack bool   `json:"conntrack-enabled"`
+	NodePort  uint16 `json:"node-port,omitempty"`
 }
 
 type opflexService struct {
@@ -60,6 +61,7 @@ type opflexService struct {
 	InterfaceName string `json:"interface-name,omitempty"`
 	InterfaceIp   string `json:"interface-ip,omitempty"`
 	InterfaceVlan uint16 `json:"interface-vlan,omitempty"`
+	ServiceType   string `json:"service-type,omitempty"`
 
 	ServiceMappings []opflexServiceMapping `json:"service-mapping"`
 
@@ -279,6 +281,16 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 		ServiceMode:       "loadbalancer",
 		ServiceMappings:   make([]opflexServiceMapping, 0),
 	}
+	switch as.Spec.Type {
+	case v1.ServiceTypeClusterIP:
+		ofas.ServiceType = "clusterIp"
+	case v1.ServiceTypeNodePort:
+		ofas.ServiceType = "nodePort"
+	case v1.ServiceTypeLoadBalancer:
+		ofas.ServiceType = "loadBalancer"
+	case v1.ServiceTypeExternalName:
+		ofas.ServiceType = "externalName"
+	}
 
 	if external {
 		if agent.config.UplinkIface == "" ||
@@ -311,6 +323,7 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 					NextHopIps:   make([]string, 0),
 					NextHopPort:  uint16(p.Port),
 					Conntrack:    true,
+					NodePort:     uint16(sp.NodePort),
 				}
 
 				if external {
