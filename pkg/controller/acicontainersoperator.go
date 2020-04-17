@@ -168,9 +168,10 @@ func (c *Controller) CreateAciContainersOperatorCR() error{
 	}
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is",(obj.Spec))
-	if err = wait.Poll(time.Second*2, time.Second*30, func() (bool, error){
+	if err = wait.PollInfinite(time.Second*2, func() (bool, error){
 		_,er := c.Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(obj)
 		if er != nil{
+			log.Info(er)
 			log.Info("Waiting for CRD to get registered to etcd....")
 			return false, nil
 		}
