@@ -75,13 +75,15 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 		return false // crd not used
 	}
 
+	// force the mask to /32
+	ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
 	remEP := &aciv1.PodIF{
 		Status: aciv1.PodIFStatus{
 			PodNS:       ep.Attributes["namespace"],
 			PodName:     ep.Attributes["vm-name"],
 			ContainerID: ep.Uuid,
 			MacAddr:     ep.MacAddress,
-			IPAddr:      ep.IpAddress[0],
+			IPAddr:      ipRemEP,
 			EPG:         ep.EndpointGroup,
 			VTEP:        agent.vtepIP,
 			IFName:      ep.IfaceName,
@@ -452,8 +454,8 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		return
 	}
 	agent.cniToPodID[epMetaKey] = epUuid
-        if pod.Status.PodIP != "" {
-		agent.podIpToName[pod.Status.PodIP] = epMetaKey;
+	if pod.Status.PodIP != "" {
+		agent.podIpToName[pod.Status.PodIP] = epMetaKey
 	}
 	epGroup, secGroup, _ := agent.assignGroups(pod)
 	epAttributes := pod.ObjectMeta.Labels
@@ -578,8 +580,8 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 		delete(agent.opflexEps, u)
 		agent.scheduleSyncEps()
 	}
-        if pod.Status.PodIP != "" {
-		delete(agent.podIpToName, pod.Status.PodIP);
+	if pod.Status.PodIP != "" {
+		delete(agent.podIpToName, pod.Status.PodIP)
 	}
 	agent.epDeleted(&u)
 }
