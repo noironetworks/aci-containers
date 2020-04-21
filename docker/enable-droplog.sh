@@ -26,9 +26,9 @@ if [ $retval -ne 0 ]; then
     nft list ruleset | grep "drop-log-geneve-redirect"
     retval=$?
     if [ $retval -ne 0 ]; then
-        nft add table ip filter
-        nft add chain filter OUTPUT
-        nft add rule filter OUTPUT udp dport $GENEVE dnat to $LO_LISTEN comment "drop-log-geneve-redirect"
+        nft add table ip nat
+        nft add chain ip nat OUTPUT
+        nft add rule ip nat OUTPUT udp dport $GENEVE dnat to $LO_LISTEN comment "drop-log-geneve-redirect"
     fi
 else
     # delete the rule we added to determine if iptables or nftables
