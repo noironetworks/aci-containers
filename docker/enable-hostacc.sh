@@ -38,14 +38,14 @@ if [ $retval -ne 0 ]; then
     echo "error getting vtep"
     exit $retval
 else
-read VTEP_IFACE VTEP_IP <<EOF
+read VTEP_IFACE VTEP_IP_CIDR <<EOF
     $vtep
 EOF
 fi
 
-echo "using vtep $VTEP_IFACE $VTEP_IP"
+echo "using vtep $VTEP_IFACE $VTEP_IP_CIDR"
 
-if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
+if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP_CIDR" ]]; then
 
     set +e
 
@@ -80,6 +80,8 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP" ]]; then
     fi
 
     set -e
+
+    VTEP_IP=$(echo $VTEP_IP_CIDR | awk -F '/' '{print $1}')
     # Create Host EP file
     UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
     #FNAME=${UUID}.ep
@@ -91,7 +93,7 @@ cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
   "eg-policy-space": "$TENANT",
   "endpoint-group-name": "$NODE_EPG",
   "ip": [
-    "$VTEP_IP"
+    "$VTEP_IP_CIDR"
   ],
   "mac": "$ACC_MAC",
   "disable-adv": true,

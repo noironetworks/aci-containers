@@ -87,7 +87,7 @@ func main() {
 			}
 			for _, a := range addrs {
 				if strings.HasPrefix(a.String(), ip) {
-					fmt.Println(i.Name, ip)
+					fmt.Println(i.Name, a.String())
 					os.Exit(0)
 				}
 			}
