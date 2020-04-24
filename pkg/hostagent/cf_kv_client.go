@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"code.cloudfoundry.org/cfhttp"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/cf_common"
 	rkv "github.com/noironetworks/aci-containers/pkg/keyvalueservice"

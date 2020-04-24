@@ -16,7 +16,7 @@
 package controller
 
 import (
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"

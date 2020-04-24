@@ -19,7 +19,7 @@ import (
 	"net"
 	"net/rpc"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type HandleAllFunc func(string, []KvItem)

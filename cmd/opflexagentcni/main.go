@@ -24,13 +24,13 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/sirupsen/logrus"
 	"github.com/tatsushid/go-fastping"
 
 	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
@@ -285,9 +285,45 @@ func cmdDel(args *skel.CmdArgs) error {
 	return nil
 }
 
+func cmdCheck(args *skel.CmdArgs) error {
+	n, _, id, err := loadConf(args)
+	if err != nil {
+		return err
+	}
+
+	logger := log.WithFields(logrus.Fields{
+		"id": id,
+	})
+
+	// run the IPAM plugin and get back the config to apply
+	if n.IPAM.Type != "opflex-agent-cni-ipam" {
+		logger.Debug("Executing IPAM check")
+		err := ipam.ExecCheck(n.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+	if n.NetConf.RawPrevResult == nil {
+		return fmt.Errorf("Required prevResult missing")
+	}
+	if err := version.ParsePrevResult(&n.NetConf); err != nil {
+		return err
+	}
+	result, err := current.NewResultFromResult(n.PrevResult)
+	if err != nil {
+		return err
+	}
+	if n.WaitForNetwork {
+		logger.Debug("Waiting for network connectivity")
+		waitForAllNetwork(result, id, 10*time.Second)
+	}
+	logger.Debug("Check result: ", result)
+	return nil
+}
+
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel,
-		version.PluginSupports("0.3.0", "0.3.1"))
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel,
+		version.PluginSupports("0.3.0", "0.3.1", "0.4.0"), "cni")
 
 	if logFile != "" {
 		logFd.Close()

@@ -16,7 +16,7 @@ limitations under the License.
 package watchers
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	restclient "k8s.io/client-go/rest"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"

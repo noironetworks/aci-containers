@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type PollFunc func() (map[string]interface{}, interface{}, error)

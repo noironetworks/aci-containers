@@ -15,7 +15,7 @@
 package hostagent
 
 import (
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	appsv1 "k8s.io/api/apps/v1"

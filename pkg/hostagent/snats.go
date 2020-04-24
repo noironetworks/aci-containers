@@ -19,7 +19,7 @@ package hostagent
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatlocal "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
@@ -763,7 +763,7 @@ func (agent *HostAgent) syncSnat() bool {
 	files, err := ioutil.ReadDir(agent.config.OpFlexSnatDir)
 	if err != nil {
 		agent.log.WithFields(
-			logrus.Fields{"SnatDir": agent.config.OpFlexSnatDir},
+			logrus.Fields{"SnatDir: ": agent.config.OpFlexSnatDir},
 		).Error("Could not read directory " + err.Error())
 		return true
 	}
@@ -1198,7 +1198,7 @@ func (agent *HostAgent) getSnatUuids(poduuid string) []string {
 	val, check := agent.opflexSnatLocalInfos[poduuid]
 	agent.indexMutex.Unlock()
 	if check {
-		agent.log.Debug("Syncing snat uuids: ", val.PlcyUuids)
+		agent.log.Debug("Syncing snat Uuids: ", val.PlcyUuids)
 		return val.PlcyUuids
 
 	} else {
