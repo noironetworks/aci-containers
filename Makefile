@@ -54,11 +54,11 @@ DOCKER_BUILD_CMD ?= docker build
 
 .PHONY: clean goinstall check all
 
-all: vendor dist/aci-containers-host-agent dist/opflex-agent-cni \
+all: dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
     dist/gbpserver \
     dist/aci-containers-operator
-all-static: vendor dist-static/aci-containers-host-agent \
+all-static: dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
 	dist-static/ovsresync dist-static/gbpserver \
     dist-static/aci-containers-operator
