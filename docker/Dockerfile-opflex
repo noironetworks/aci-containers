@@ -1,8 +1,10 @@
-FROM alpine:3.11.5
-RUN apk upgrade --no-cache && apk add --no-cache musl libstdc++ libuv \
-  boost-program_options boost-system boost-date_time boost-filesystem \
-  boost-iostreams libnetfilter_conntrack libssl1.1 libcrypto1.1 ca-certificates \
-  && update-ca-certificates
+FROM registry.access.redhat.com/ubi8/ubi:latest
+RUN yum --disablerepo=\*ubi\* update -y && \
+  yum --disablerepo=\*ubi\* install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
+  --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms libstdc++ libuv \
+  boost-program-options boost-system boost-date-time boost-filesystem \
+  boost-iostreams libnetfilter_conntrack openssl net-tools procps-ng ca-certificates \
+  && yum clean all
 COPY bin/* /usr/local/bin/
 COPY lib/* /usr/local/lib/
 ENV SSL_MODE="encrypted"
