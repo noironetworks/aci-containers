@@ -248,7 +248,7 @@ func (bds *BDSubnet) CreateEPG(name, uri string) *gbpBaseMo {
 	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
 	tosnet := Reference{
 		Subject:      subjSubnetSet,
-		ReferenceUri: bds.SnUri(),
+		ReferenceUri: bds.SubnetsUri(),
 	}
 
 	snetRef.AddProperty(propTarget, tosnet)
