@@ -2,10 +2,9 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 ENV ROOT=/usr/local
 RUN microdnf update && microdnf install --enablerepo codeready-builder-for-rhel-8-x86_64-rpms \
     libtool pkgconfig autoconf automake make cmake file python2-six \
-    openssl-devel git gcc gcc-c++ boost-devel diffutils \
-    python2-devel libnetfilter_conntrack-devel \
-    wget which curl-devel procps zlib-devel java-1.8.0-openjdk-devel.x86_64 \
-    maven && microdnf clean all
+    openssl-devel git gcc gcc-c++ boost-devel diffutils python2-devel \
+    libnetfilter_conntrack-devel wget which curl-devel procps zlib-devel \
+    && microdnf clean all
 ARG make_args=-j4
 RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
   && tar xvfz v1.1.0.tar.gz \
