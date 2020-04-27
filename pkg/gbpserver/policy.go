@@ -735,7 +735,7 @@ func (np *NetworkPolicy) Make() error {
 	hpp.Subject = subjSecGroup
 	hpp.Uri = np.getURI()
 	hpp.AddProperty(propName, np.HostprotPol.Attributes[propName])
-	log.Debugf("NP make name: %s uri: %s", np.HostprotPol.Attributes[propName], hpp.Uri)
+	log.Debugf("NP make name: %s uri: %s pol: %+v", np.HostprotPol.Attributes[propName], hpp.Uri, np)
 	hpp.save()
 	c := np.HostprotPol.getChild("hostprotSubj")
 	if c == nil {
@@ -774,6 +774,10 @@ func (hpp *Hpp) getChild(key string) *HpSubj {
 
 func (hs *HpSubj) Make(hsMo *gbpCommonMo, npName string) error {
 	cList := hs.getChildren("hostprotRule")
+	// add an arp rule
+	if len(cList) > 0 {
+		cList = append(cList, hs.arpRule())
+	}
 
 	for _, c := range cList {
 		if c.Attributes == nil {
@@ -801,6 +805,16 @@ func (hs *HpSubj) Make(hsMo *gbpCommonMo, npName string) error {
 		hs.referredUris = append(hs.referredUris, c.classifierUri, c.subnetSetUri)
 	}
 	return nil
+}
+
+func (hs *HpSubj) arpRule() *HpSubjChild {
+	hsc := new(HpSubjChild)
+	hsc.Attributes = make(map[string]string)
+	hsc.Attributes["ethertype"] = "arp"
+	hsc.Attributes["direction"] = "bidirectional"
+	hsc.Attributes["connTrack"] = "normal"
+	hsc.Attributes["name"] = hs.Attributes[propName] + "-arp"
+	return hsc
 }
 
 func (hs *HpSubj) getChildren(key string) []*HpSubjChild {
@@ -861,7 +875,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	}
 	for _, s := range portSpec {
 		att := hsc.Attributes[s.apicName]
-		if att != "unspecified" {
+		if att != "unspecified" && att != "" {
 			attInt, _ := strconv.Atoi(att)
 			cfMo.AddProperty(s.gbpName, attInt)
 		}

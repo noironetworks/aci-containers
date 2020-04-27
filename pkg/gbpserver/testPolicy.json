@@ -1154,7 +1154,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1168,11 +1168,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7740696
+                "data": 7739177
             },
             {
                 "name": "classid",
-                "data": 40696
+                "data": 39177
             },
             {
                 "name": "multicastGroupIP",
@@ -1243,7 +1243,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1257,11 +1257,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7755407
+                "data": 7760780
             },
             {
                 "name": "classid",
-                "data": 55407
+                "data": 60780
             },
             {
                 "name": "multicastGroupIP",
@@ -1349,7 +1349,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1363,11 +1363,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7733765
+                "data": 7745368
             },
             {
                 "name": "classid",
-                "data": 33765
+                "data": 45368
             },
             {
                 "name": "multicastGroupIP",
@@ -1455,7 +1455,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1561,7 +1561,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/GbpSubnet/1.100.201.0%2f24/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/nodesubnets/"
                 }
             }
         ],
@@ -1667,7 +1667,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1739,7 +1739,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1753,11 +1753,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7759783
+                "data": 7755125
             },
             {
                 "name": "classid",
-                "data": 59783
+                "data": 55125
             },
             {
                 "name": "multicastGroupIP",
@@ -1811,7 +1811,7 @@
                 "name": "target",
                 "data": {
                     "subject": "GbpSubnets",
-                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/GbpSubnet/10.2.56.1%2f21/"
+                    "reference_uri": "/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpSubnets/allsubnets/"
                 }
             }
         ],
@@ -1825,11 +1825,11 @@
         "properties": [
             {
                 "name": "encapId",
-                "data": 7733739
+                "data": 7745551
             },
             {
                 "name": "classid",
-                "data": 33739
+                "data": 45551
             },
             {
                 "name": "multicastGroupIP",
