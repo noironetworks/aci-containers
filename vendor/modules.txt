@@ -550,7 +550,7 @@ gopkg.in/square/go-jose.v2/json
 gopkg.in/square/go-jose.v2/jwt
 # gopkg.in/yaml.v2 v2.2.8
 gopkg.in/yaml.v2
-# k8s.io/api v0.17.3 => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20200211180626-06ad960bfd03
+# k8s.io/api v0.17.5 => k8s.io/api v0.17.5
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1
@@ -591,9 +591,9 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.17.2 => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20200211180626-06ad960bfd03
+# k8s.io/apiextensions-apiserver v0.17.2 => k8s.io/apiextensions-apiserver v0.17.5
 k8s.io/apiextensions-apiserver/pkg/features
-# k8s.io/apimachinery v0.17.3 => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20200211180626-06ad960bfd03
+# k8s.io/apimachinery v0.17.5 => k8s.io/apimachinery v0.17.5
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -641,13 +641,13 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.0.0 => k8s.io/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20200211180626-06ad960bfd03
+# k8s.io/apiserver v0.17.5 => k8s.io/apiserver v0.17.5
 k8s.io/apiserver/pkg/authentication/authenticator
 k8s.io/apiserver/pkg/authentication/serviceaccount
 k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/features
 k8s.io/apiserver/pkg/util/feature
-# k8s.io/client-go v8.0.0+incompatible => github.com/cilium/client-go v0.0.0-20200217141255-96fd08586691
+# k8s.io/client-go v0.17.5 => k8s.io/client-go v0.17.5
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/fake
 k8s.io/client-go/dynamic
@@ -819,13 +819,13 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.0.0 => k8s.io/kubernetes/staging/src/k8s.io/component-base v0.0.0-20200211180626-06ad960bfd03
+# k8s.io/component-base v0.17.5 => k8s.io/component-base v0.17.5
 k8s.io/component-base/featuregate
 # k8s.io/klog v1.0.0 => k8s.io/klog v1.0.0
 k8s.io/klog
-# k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a => k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
+# k8s.io/kube-openapi v0.0.0-20200316234421-82d701f24f9d => k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 k8s.io/kube-openapi/pkg/util/proto
-# k8s.io/kubernetes v0.0.0-00010101000000-000000000000 => k8s.io/kubernetes v1.17.3
+# k8s.io/kubernetes v0.17.5 => k8s.io/kubernetes v1.17.5
 k8s.io/kubernetes/pkg/api/legacyscheme
 k8s.io/kubernetes/pkg/api/service
 k8s.io/kubernetes/pkg/api/v1/pod
