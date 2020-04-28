@@ -18,15 +18,14 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"sort"
 	"strings"
 	"time"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/clientv3/concurrency"
-	"go.etcd.io/etcd/etcdserver/api/v2error"
-	"go.etcd.io/etcd/etcdserver/api/v2store"
-	"go.etcd.io/etcd/mvcc/mvccpb"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/concurrency"
+	etcdErr "github.com/coreos/etcd/error"
+	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/coreos/etcd/store"
 )
 
 // store implements the Store interface for V2 using
@@ -42,13 +41,13 @@ const maxPathDepth = 63
 
 var errUnsupported = fmt.Errorf("TTLs are unsupported")
 
-func NewStore(c *clientv3.Client, pfx string) v2store.Store { return newStore(c, pfx) }
+func NewStore(c *clientv3.Client, pfx string) store.Store { return newStore(c, pfx) }
 
 func newStore(c *clientv3.Client, pfx string) *v2v3Store { return &v2v3Store{c, pfx, c.Ctx()} }
 
 func (s *v2v3Store) Index() uint64 { panic("STUB") }
 
-func (s *v2v3Store) Get(nodePath string, recursive, sorted bool) (*v2store.Event, error) {
+func (s *v2v3Store) Get(nodePath string, recursive, sorted bool) (*store.Event, error) {
 	key := s.mkPath(nodePath)
 	resp, err := s.c.Txn(s.ctx).Then(
 		clientv3.OpGet(key+"/"),
@@ -67,9 +66,9 @@ func (s *v2v3Store) Get(nodePath string, recursive, sorted bool) (*v2store.Event
 		if len(kvs) > 0 {
 			cidx, midx = mkV2Rev(kvs[0].CreateRevision), mkV2Rev(kvs[0].ModRevision)
 		}
-		return &v2store.Event{
-			Action: v2store.Get,
-			Node: &v2store.NodeExtern{
+		return &store.Event{
+			Action: store.Get,
+			Node: &store.NodeExtern{
 				Key:           nodePath,
 				Dir:           true,
 				Nodes:         nodes,
@@ -82,26 +81,23 @@ func (s *v2v3Store) Get(nodePath string, recursive, sorted bool) (*v2store.Event
 
 	kvs := resp.Responses[1].GetResponseRange().Kvs
 	if len(kvs) == 0 {
-		return nil, v2error.NewError(v2error.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 
-	return &v2store.Event{
-		Action:    v2store.Get,
+	return &store.Event{
+		Action:    store.Get,
 		Node:      s.mkV2Node(kvs[0]),
 		EtcdIndex: mkV2Rev(resp.Header.Revision),
 	}, nil
 }
 
-func (s *v2v3Store) getDir(nodePath string, recursive, sorted bool, rev int64) ([]*v2store.NodeExtern, error) {
+func (s *v2v3Store) getDir(nodePath string, recursive, sorted bool, rev int64) ([]*store.NodeExtern, error) {
 	rootNodes, err := s.getDirDepth(nodePath, 1, rev)
 	if err != nil || !recursive {
-		if sorted {
-			sort.Sort(v2store.NodeExterns(rootNodes))
-		}
 		return rootNodes, err
 	}
 	nextNodes := rootNodes
-	nodes := make(map[string]*v2store.NodeExtern)
+	nodes := make(map[string]*store.NodeExtern)
 	// Breadth walk the subdirectories
 	for i := 2; len(nextNodes) > 0; i++ {
 		for _, n := range nextNodes {
@@ -114,21 +110,17 @@ func (s *v2v3Store) getDir(nodePath string, recursive, sorted bool, rev int64) (
 			return nil, err
 		}
 	}
-
-	if sorted {
-		sort.Sort(v2store.NodeExterns(rootNodes))
-	}
 	return rootNodes, nil
 }
 
-func (s *v2v3Store) getDirDepth(nodePath string, depth int, rev int64) ([]*v2store.NodeExtern, error) {
+func (s *v2v3Store) getDirDepth(nodePath string, depth int, rev int64) ([]*store.NodeExtern, error) {
 	pd := s.mkPathDepth(nodePath, depth)
 	resp, err := s.c.Get(s.ctx, pd, clientv3.WithPrefix(), clientv3.WithRev(rev))
 	if err != nil {
 		return nil, err
 	}
 
-	nodes := make([]*v2store.NodeExtern, len(resp.Kvs))
+	nodes := make([]*store.NodeExtern, len(resp.Kvs))
 	for i, kv := range resp.Kvs {
 		nodes[i] = s.mkV2Node(kv)
 	}
@@ -139,48 +131,38 @@ func (s *v2v3Store) Set(
 	nodePath string,
 	dir bool,
 	value string,
-	expireOpts v2store.TTLOptionSet,
-) (*v2store.Event, error) {
+	expireOpts store.TTLOptionSet,
+) (*store.Event, error) {
 	if expireOpts.Refresh || !expireOpts.ExpireTime.IsZero() {
 		return nil, errUnsupported
 	}
 
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 
 	ecode := 0
 	applyf := func(stm concurrency.STM) error {
-		// build path if any directories in path do not exist
-		dirs := []string{}
-		for p := path.Dir(nodePath); !isRoot(p); p = path.Dir(p) {
-			pp := s.mkPath(p)
-			if stm.Rev(pp) > 0 {
-				ecode = v2error.EcodeNotDir
-				return nil
-			}
-			if stm.Rev(pp+"/") == 0 {
-				dirs = append(dirs, pp+"/")
-			}
-		}
-		for _, d := range dirs {
-			stm.Put(d, "")
+		parent := path.Dir(nodePath)
+		if !isRoot(parent) && stm.Rev(s.mkPath(parent)+"/") == 0 {
+			ecode = etcdErr.EcodeKeyNotFound
+			return nil
 		}
 
 		key := s.mkPath(nodePath)
 		if dir {
 			if stm.Rev(key) != 0 {
 				// exists as non-dir
-				ecode = v2error.EcodeNotDir
+				ecode = etcdErr.EcodeNotDir
 				return nil
 			}
 			key = key + "/"
 		} else if stm.Rev(key+"/") != 0 {
-			ecode = v2error.EcodeNotFile
+			ecode = etcdErr.EcodeNotFile
 			return nil
 		}
 		stm.Put(key, value, clientv3.WithPrevKV())
-		stm.Put(s.mkActionKey(), v2store.Set)
+		stm.Put(s.mkActionKey(), store.Set)
 		return nil
 	}
 
@@ -189,11 +171,11 @@ func (s *v2v3Store) Set(
 		return nil, err
 	}
 	if ecode != 0 {
-		return nil, v2error.NewError(ecode, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(ecode, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 
 	createRev := resp.Header.Revision
-	var pn *v2store.NodeExtern
+	var pn *store.NodeExtern
 	if pkv := prevKeyFromPuts(resp); pkv != nil {
 		pn = s.mkV2Node(pkv)
 		createRev = pkv.CreateRevision
@@ -203,9 +185,9 @@ func (s *v2v3Store) Set(
 	if dir {
 		vp = nil
 	}
-	return &v2store.Event{
-		Action: v2store.Set,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.Set,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			Value:         vp,
 			Dir:           dir,
@@ -217,9 +199,9 @@ func (s *v2v3Store) Set(
 	}, nil
 }
 
-func (s *v2v3Store) Update(nodePath, newValue string, expireOpts v2store.TTLOptionSet) (*v2store.Event, error) {
+func (s *v2v3Store) Update(nodePath, newValue string, expireOpts store.TTLOptionSet) (*store.Event, error) {
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 
 	if expireOpts.Refresh || !expireOpts.ExpireTime.IsZero() {
@@ -230,15 +212,15 @@ func (s *v2v3Store) Update(nodePath, newValue string, expireOpts v2store.TTLOpti
 	ecode := 0
 	applyf := func(stm concurrency.STM) error {
 		if rev := stm.Rev(key + "/"); rev != 0 {
-			ecode = v2error.EcodeNotFile
+			ecode = etcdErr.EcodeNotFile
 			return nil
 		}
 		if rev := stm.Rev(key); rev == 0 {
-			ecode = v2error.EcodeKeyNotFound
+			ecode = etcdErr.EcodeKeyNotFound
 			return nil
 		}
 		stm.Put(key, newValue, clientv3.WithPrevKV())
-		stm.Put(s.mkActionKey(), v2store.Update)
+		stm.Put(s.mkActionKey(), store.Update)
 		return nil
 	}
 
@@ -247,13 +229,13 @@ func (s *v2v3Store) Update(nodePath, newValue string, expireOpts v2store.TTLOpti
 		return nil, err
 	}
 	if ecode != 0 {
-		return nil, v2error.NewError(v2error.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 
 	pkv := prevKeyFromPuts(resp)
-	return &v2store.Event{
-		Action: v2store.Update,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.Update,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			Value:         &newValue,
 			ModifiedIndex: mkV2Rev(resp.Header.Revision),
@@ -269,10 +251,10 @@ func (s *v2v3Store) Create(
 	dir bool,
 	value string,
 	unique bool,
-	expireOpts v2store.TTLOptionSet,
-) (*v2store.Event, error) {
+	expireOpts store.TTLOptionSet,
+) (*store.Event, error) {
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 	if expireOpts.Refresh || !expireOpts.ExpireTime.IsZero() {
 		return nil, errUnsupported
@@ -293,7 +275,7 @@ func (s *v2v3Store) Create(
 			}
 		}
 		if stm.Rev(key) > 0 || stm.Rev(key+"/") > 0 {
-			ecode = v2error.EcodeNodeExist
+			ecode = etcdErr.EcodeNodeExist
 			return nil
 		}
 		// build path if any directories in path do not exist
@@ -301,7 +283,7 @@ func (s *v2v3Store) Create(
 		for p := path.Dir(nodePath); !isRoot(p); p = path.Dir(p) {
 			pp := s.mkPath(p)
 			if stm.Rev(pp) > 0 {
-				ecode = v2error.EcodeNotDir
+				ecode = etcdErr.EcodeNotDir
 				return nil
 			}
 			if stm.Rev(pp+"/") == 0 {
@@ -317,7 +299,7 @@ func (s *v2v3Store) Create(
 			key += "/"
 		}
 		stm.Put(key, value)
-		stm.Put(s.mkActionKey(), v2store.Create)
+		stm.Put(s.mkActionKey(), store.Create)
 		return nil
 	}
 
@@ -326,7 +308,7 @@ func (s *v2v3Store) Create(
 		return nil, err
 	}
 	if ecode != 0 {
-		return nil, v2error.NewError(ecode, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(ecode, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 
 	var v *string
@@ -334,9 +316,9 @@ func (s *v2v3Store) Create(
 		v = &value
 	}
 
-	return &v2store.Event{
-		Action: v2store.Create,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.Create,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			Value:         v,
 			Dir:           dir,
@@ -352,10 +334,10 @@ func (s *v2v3Store) CompareAndSwap(
 	prevValue string,
 	prevIndex uint64,
 	value string,
-	expireOpts v2store.TTLOptionSet,
-) (*v2store.Event, error) {
+	expireOpts store.TTLOptionSet,
+) (*store.Event, error) {
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 	if expireOpts.Refresh || !expireOpts.ExpireTime.IsZero() {
 		return nil, errUnsupported
@@ -366,7 +348,7 @@ func (s *v2v3Store) CompareAndSwap(
 		s.mkCompare(nodePath, prevValue, prevIndex)...,
 	).Then(
 		clientv3.OpPut(key, value, clientv3.WithPrevKV()),
-		clientv3.OpPut(s.mkActionKey(), v2store.CompareAndSwap),
+		clientv3.OpPut(s.mkActionKey(), store.CompareAndSwap),
 	).Else(
 		clientv3.OpGet(key),
 		clientv3.OpGet(key+"/"),
@@ -380,9 +362,9 @@ func (s *v2v3Store) CompareAndSwap(
 	}
 
 	pkv := resp.Responses[0].GetResponsePut().PrevKv
-	return &v2store.Event{
-		Action: v2store.CompareAndSwap,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.CompareAndSwap,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			Value:         &value,
 			CreatedIndex:  mkV2Rev(pkv.CreateRevision),
@@ -393,9 +375,9 @@ func (s *v2v3Store) CompareAndSwap(
 	}, nil
 }
 
-func (s *v2v3Store) Delete(nodePath string, dir, recursive bool) (*v2store.Event, error) {
+func (s *v2v3Store) Delete(nodePath string, dir, recursive bool) (*store.Event, error) {
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 	if !dir && !recursive {
 		return s.deleteNode(nodePath)
@@ -409,7 +391,7 @@ func (s *v2v3Store) Delete(nodePath string, dir, recursive bool) (*v2store.Event
 	for i := 1; i < maxPathDepth; i++ {
 		dels[i] = clientv3.OpDelete(s.mkPathDepth(nodePath, i), clientv3.WithPrefix())
 	}
-	dels[maxPathDepth] = clientv3.OpPut(s.mkActionKey(), v2store.Delete)
+	dels[maxPathDepth] = clientv3.OpPut(s.mkActionKey(), store.Delete)
 
 	resp, err := s.c.Txn(s.ctx).If(
 		clientv3.Compare(clientv3.Version(s.mkPath(nodePath)+"/"), ">", 0),
@@ -421,61 +403,61 @@ func (s *v2v3Store) Delete(nodePath string, dir, recursive bool) (*v2store.Event
 		return nil, err
 	}
 	if !resp.Succeeded {
-		return nil, v2error.NewError(v2error.EcodeNodeExist, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeNodeExist, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	dresp := resp.Responses[0].GetResponseDeleteRange()
-	return &v2store.Event{
-		Action:    v2store.Delete,
+	return &store.Event{
+		Action:    store.Delete,
 		PrevNode:  s.mkV2Node(dresp.PrevKvs[0]),
 		EtcdIndex: mkV2Rev(resp.Header.Revision),
 	}, nil
 }
 
-func (s *v2v3Store) deleteEmptyDir(nodePath string) (*v2store.Event, error) {
+func (s *v2v3Store) deleteEmptyDir(nodePath string) (*store.Event, error) {
 	resp, err := s.c.Txn(s.ctx).If(
 		clientv3.Compare(clientv3.Version(s.mkPathDepth(nodePath, 1)), "=", 0).WithPrefix(),
 	).Then(
 		clientv3.OpDelete(s.mkPath(nodePath)+"/", clientv3.WithPrevKV()),
-		clientv3.OpPut(s.mkActionKey(), v2store.Delete),
+		clientv3.OpPut(s.mkActionKey(), store.Delete),
 	).Commit()
 	if err != nil {
 		return nil, err
 	}
 	if !resp.Succeeded {
-		return nil, v2error.NewError(v2error.EcodeDirNotEmpty, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeDirNotEmpty, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	dresp := resp.Responses[0].GetResponseDeleteRange()
 	if len(dresp.PrevKvs) == 0 {
-		return nil, v2error.NewError(v2error.EcodeNodeExist, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeNodeExist, nodePath, mkV2Rev(resp.Header.Revision))
 	}
-	return &v2store.Event{
-		Action:    v2store.Delete,
+	return &store.Event{
+		Action:    store.Delete,
 		PrevNode:  s.mkV2Node(dresp.PrevKvs[0]),
 		EtcdIndex: mkV2Rev(resp.Header.Revision),
 	}, nil
 }
 
-func (s *v2v3Store) deleteNode(nodePath string) (*v2store.Event, error) {
+func (s *v2v3Store) deleteNode(nodePath string) (*store.Event, error) {
 	resp, err := s.c.Txn(s.ctx).If(
 		clientv3.Compare(clientv3.Version(s.mkPath(nodePath)+"/"), "=", 0),
 	).Then(
 		clientv3.OpDelete(s.mkPath(nodePath), clientv3.WithPrevKV()),
-		clientv3.OpPut(s.mkActionKey(), v2store.Delete),
+		clientv3.OpPut(s.mkActionKey(), store.Delete),
 	).Commit()
 	if err != nil {
 		return nil, err
 	}
 	if !resp.Succeeded {
-		return nil, v2error.NewError(v2error.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	pkvs := resp.Responses[0].GetResponseDeleteRange().PrevKvs
 	if len(pkvs) == 0 {
-		return nil, v2error.NewError(v2error.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
+		return nil, etcdErr.NewError(etcdErr.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	pkv := pkvs[0]
-	return &v2store.Event{
-		Action: v2store.Delete,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.Delete,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			CreatedIndex:  mkV2Rev(pkv.CreateRevision),
 			ModifiedIndex: mkV2Rev(resp.Header.Revision),
@@ -485,9 +467,9 @@ func (s *v2v3Store) deleteNode(nodePath string) (*v2store.Event, error) {
 	}, nil
 }
 
-func (s *v2v3Store) CompareAndDelete(nodePath, prevValue string, prevIndex uint64) (*v2store.Event, error) {
+func (s *v2v3Store) CompareAndDelete(nodePath, prevValue string, prevIndex uint64) (*store.Event, error) {
 	if isRoot(nodePath) {
-		return nil, v2error.NewError(v2error.EcodeRootROnly, nodePath, 0)
+		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, nodePath, 0)
 	}
 
 	key := s.mkPath(nodePath)
@@ -495,7 +477,7 @@ func (s *v2v3Store) CompareAndDelete(nodePath, prevValue string, prevIndex uint6
 		s.mkCompare(nodePath, prevValue, prevIndex)...,
 	).Then(
 		clientv3.OpDelete(key, clientv3.WithPrevKV()),
-		clientv3.OpPut(s.mkActionKey(), v2store.CompareAndDelete),
+		clientv3.OpPut(s.mkActionKey(), store.CompareAndDelete),
 	).Else(
 		clientv3.OpGet(key),
 		clientv3.OpGet(key+"/"),
@@ -510,9 +492,9 @@ func (s *v2v3Store) CompareAndDelete(nodePath, prevValue string, prevIndex uint6
 
 	// len(pkvs) > 1 since txn only succeeds when key exists
 	pkv := resp.Responses[0].GetResponseDeleteRange().PrevKvs[0]
-	return &v2store.Event{
-		Action: v2store.CompareAndDelete,
-		Node: &v2store.NodeExtern{
+	return &store.Event{
+		Action: store.CompareAndDelete,
+		Node: &store.NodeExtern{
 			Key:           nodePath,
 			CreatedIndex:  mkV2Rev(pkv.CreateRevision),
 			ModifiedIndex: mkV2Rev(resp.Header.Revision),
@@ -524,15 +506,15 @@ func (s *v2v3Store) CompareAndDelete(nodePath, prevValue string, prevIndex uint6
 
 func compareFail(nodePath, prevValue string, prevIndex uint64, resp *clientv3.TxnResponse) error {
 	if dkvs := resp.Responses[1].GetResponseRange().Kvs; len(dkvs) > 0 {
-		return v2error.NewError(v2error.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
+		return etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	kvs := resp.Responses[0].GetResponseRange().Kvs
 	if len(kvs) == 0 {
-		return v2error.NewError(v2error.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
+		return etcdErr.NewError(etcdErr.EcodeKeyNotFound, nodePath, mkV2Rev(resp.Header.Revision))
 	}
 	kv := kvs[0]
-	indexMatch := prevIndex == 0 || kv.ModRevision == int64(prevIndex)
-	valueMatch := prevValue == "" || string(kv.Value) == prevValue
+	indexMatch := (prevIndex == 0 || kv.ModRevision == int64(prevIndex))
+	valueMatch := (prevValue == "" || string(kv.Value) == prevValue)
 	var cause string
 	switch {
 	case indexMatch && !valueMatch:
@@ -542,7 +524,7 @@ func compareFail(nodePath, prevValue string, prevIndex uint64, resp *clientv3.Tx
 	default:
 		cause = fmt.Sprintf("[%v != %v] [%v != %v]", prevValue, string(kv.Value), prevIndex, kv.ModRevision)
 	}
-	return v2error.NewError(v2error.EcodeTestFailed, cause, mkV2Rev(resp.Header.Revision))
+	return etcdErr.NewError(etcdErr.EcodeTestFailed, cause, mkV2Rev(resp.Header.Revision))
 }
 
 func (s *v2v3Store) mkCompare(nodePath, prevValue string, prevIndex uint64) []clientv3.Cmp {
@@ -566,7 +548,7 @@ func (s *v2v3Store) Version() int { return 2 }
 
 func (s *v2v3Store) Save() ([]byte, error)       { panic("STUB") }
 func (s *v2v3Store) Recovery(state []byte) error { panic("STUB") }
-func (s *v2v3Store) Clone() v2store.Store        { panic("STUB") }
+func (s *v2v3Store) Clone() store.Store          { panic("STUB") }
 func (s *v2v3Store) SaveNoCopy() ([]byte, error) { panic("STUB") }
 func (s *v2v3Store) HasTTLKeys() bool            { panic("STUB") }
 
@@ -604,12 +586,12 @@ func mkV3Rev(v2Rev uint64) int64 {
 }
 
 // mkV2Node creates a V2 NodeExtern from a V3 KeyValue
-func (s *v2v3Store) mkV2Node(kv *mvccpb.KeyValue) *v2store.NodeExtern {
+func (s *v2v3Store) mkV2Node(kv *mvccpb.KeyValue) *store.NodeExtern {
 	if kv == nil {
 		return nil
 	}
-	n := &v2store.NodeExtern{
-		Key:           s.mkNodePath(string(kv.Key)),
+	n := &store.NodeExtern{
+		Key:           string(s.mkNodePath(string(kv.Key))),
 		Dir:           kv.Key[len(kv.Key)-1] == '/',
 		CreatedIndex:  mkV2Rev(kv.CreateRevision),
 		ModifiedIndex: mkV2Rev(kv.ModRevision),

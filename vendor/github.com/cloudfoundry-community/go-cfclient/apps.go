@@ -1,18 +1,12 @@
 package cfclient
 
 import (
-	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -28,56 +22,6 @@ type AppResponse struct {
 type AppResource struct {
 	Meta   Meta `json:"metadata"`
 	Entity App  `json:"entity"`
-}
-
-type AppState string
-
-const (
-	APP_STOPPED AppState = "STOPPED"
-	APP_STARTED AppState = "STARTED"
-)
-
-type HealthCheckType string
-
-const (
-	HEALTH_HTTP    HealthCheckType = "http"
-	HEALTH_PORT    HealthCheckType = "port"
-	HEALTH_PROCESS HealthCheckType = "process"
-)
-
-type DockerCredentials struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-}
-
-type AppCreateRequest struct {
-	Name      string `json:"name"`
-	SpaceGuid string `json:"space_guid"`
-	// Memory for the app, in MB
-	Memory int `json:"memory,omitempty"`
-	// Instances to startup
-	Instances int `json:"instances,omitempty"`
-	// Disk quota in MB
-	DiskQuota int    `json:"disk_quota,omitempty"`
-	StackGuid string `json:"stack_guid,omitempty"`
-	// Desired state of the app. Either "STOPPED" or "STARTED"
-	State AppState `json:"state,omitempty"`
-	// Command to start an app
-	Command string `json:"command,omitempty"`
-	// Buildpack to build the app. Three options:
-	// 1. Blank for autodetection
-	// 2. GIT url
-	// 3. Name of an installed buildpack
-	Buildpack string `json:"buildpack,omitempty"`
-	// Endpoint to check if an app is healthy
-	HealthCheckHttpEndpoint string `json:"health_check_http_endpoint,omitempty"`
-	// How to check if an app is healthy. Defaults to HEALTH_PORT if not specified
-	HealthCheckType   HealthCheckType        `json:"health_check_type,omitempty"`
-	Diego             bool                   `json:"diego,omitempty"`
-	EnableSSH         bool                   `json:"enable_ssh,omitempty"`
-	DockerImage       string                 `json:"docker_image,omitempty"`
-	DockerCredentials DockerCredentials      `json:"docker_credentials,omitempty"`
-	Environment       map[string]interface{} `json:"environment_json,omitempty"`
 }
 
 type App struct {
@@ -242,26 +186,6 @@ func (a *App) Space() (Space, error) {
 		return Space{}, errors.Wrap(err, "Error unmarshalling body")
 	}
 	return a.c.mergeSpaceResource(spaceResource), nil
-}
-
-func (a *App) Summary() (AppSummary, error) {
-	var appSummary AppSummary
-	requestUrl := fmt.Sprintf("/v2/apps/%s/summary", a.Guid)
-	r := a.c.NewRequest("GET", requestUrl)
-	resp, err := a.c.DoRequest(r)
-	if err != nil {
-		return AppSummary{}, errors.Wrap(err, "Error requesting app summary")
-	}
-	resBody, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return AppSummary{}, errors.Wrap(err, "Error reading app summary body")
-	}
-	err = json.Unmarshal(resBody, &appSummary)
-	if err != nil {
-		return AppSummary{}, errors.Wrap(err, "Error unmarshalling app summary")
-	}
-	return appSummary, nil
 }
 
 // ListAppsByQueryWithLimits queries totalPages app info. When totalPages is
@@ -492,169 +416,6 @@ func (c *Client) AppByName(appName, spaceGuid, orgGuid string) (app App, err err
 	return
 }
 
-// UploadAppBits uploads the application's contents
-func (c *Client) UploadAppBits(file io.Reader, appGUID string) error {
-	requestFile, err := ioutil.TempFile("", "requests")
-
-	defer func() {
-		requestFile.Close()
-		os.Remove(requestFile.Name())
-	}()
-
-	writer := multipart.NewWriter(requestFile)
-	err = writer.WriteField("resources", "[]")
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits", appGUID)
-	}
-
-	part, err := writer.CreateFormFile("application", "application.zip")
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits", appGUID)
-	}
-
-	_, err = io.Copy(part, file)
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits, failed to copy all bytes", appGUID)
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits, failed to close multipart writer", appGUID)
-	}
-
-	requestFile.Seek(0, 0)
-	fileStats, err := requestFile.Stat()
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits, failed to get temp file stats", appGUID)
-	}
-
-	requestURL := fmt.Sprintf("/v2/apps/%s/bits", appGUID)
-	r := c.NewRequestWithBody("PUT", requestURL, requestFile)
-	req, err := r.toHTTP()
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits", appGUID)
-	}
-
-	req.ContentLength = fileStats.Size()
-	contentType := fmt.Sprintf("multipart/form-data; boundary=%s", writer.Boundary())
-	req.Header.Set("Content-Type", contentType)
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return errors.Wrapf(err, "Error uploading app %s bits", appGUID)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		return errors.Wrapf(err, "Error uploading app %s bits, response code: %d", appGUID, resp.StatusCode)
-	}
-
-	return nil
-}
-
-// GetAppBits downloads the application's bits as a tar file
-func (c *Client) GetAppBits(guid string) (io.ReadCloser, error) {
-	requestURL := fmt.Sprintf("/v2/apps/%s/download", guid)
-	req := c.NewRequest("GET", requestURL)
-	resp, err := c.DoRequestWithoutRedirects(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error downloading app %s bits, API request failed", guid)
-	}
-	if isResponseRedirect(resp) {
-		// directly download the bits from blobstore using a non cloud controller transport
-		// some blobstores will return a 400 if an Authorization header is sent
-		blobStoreLocation := resp.Header.Get("Location")
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.Config.SkipSslValidation},
-		}
-		client := &http.Client{Transport: tr}
-		resp, err = client.Get(blobStoreLocation)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error downloading app %s bits from blobstore", guid)
-		}
-	} else {
-		return nil, errors.Wrapf(err, "Error downloading app %s bits, expected redirect to blobstore", guid)
-	}
-	return resp.Body, nil
-}
-
-// GetDropletBits downloads the application's droplet bits as a tar file
-func (c *Client) GetDropletBits(guid string) (io.ReadCloser, error) {
-	requestURL := fmt.Sprintf("/v2/apps/%s/droplet/download", guid)
-	req := c.NewRequest("GET", requestURL)
-	resp, err := c.DoRequestWithoutRedirects(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error downloading droplet %s bits, API request failed", guid)
-	}
-	if isResponseRedirect(resp) {
-		// directly download the bits from blobstore using a non cloud controller transport
-		// some blobstores will return a 400 if an Authorization header is sent
-		blobStoreLocation := resp.Header.Get("Location")
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.Config.SkipSslValidation},
-		}
-		client := &http.Client{Transport: tr}
-		resp, err = client.Get(blobStoreLocation)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error downloading droplet %s bits from blobstore", guid)
-		}
-	} else {
-		return nil, errors.Wrapf(err, "Error downloading droplet %s bits, expected redirect to blobstore", guid)
-	}
-	return resp.Body, nil
-}
-
-// CreateApp creates a new empty application that still needs it's
-// app bit uploaded and to be started
-func (c *Client) CreateApp(req AppCreateRequest) (App, error) {
-	var appResp AppResource
-	buf := bytes.NewBuffer(nil)
-	err := json.NewEncoder(buf).Encode(req)
-	if err != nil {
-		return App{}, err
-	}
-	r := c.NewRequestWithBody("POST", "/v2/apps", buf)
-	resp, err := c.DoRequest(r)
-	if err != nil {
-		return App{}, errors.Wrapf(err, "Error creating app %s", req.Name)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		return App{}, errors.Wrapf(err, "Error creating app %s, response code: %d", req.Name, resp.StatusCode)
-	}
-	resBody, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return App{}, errors.Wrapf(err, "Error reading app %s http response body", req.Name)
-	}
-	err = json.Unmarshal(resBody, &appResp)
-	if err != nil {
-		return App{}, errors.Wrapf(err, "Error deserializing app %s response", req.Name)
-	}
-	return c.mergeAppResource(appResp), nil
-}
-
-func (c *Client) StartApp(guid string) error {
-	startRequest := strings.NewReader(`{ "state": "STARTED" }`)
-	resp, err := c.DoRequest(c.NewRequestWithBody("PUT", fmt.Sprintf("/v2/apps/%s", guid), startRequest))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusNoContent {
-		return errors.Wrapf(err, "Error starting app %s, response code: %d", guid, resp.StatusCode)
-	}
-	return nil
-}
-
-func (c *Client) StopApp(guid string) error {
-	stopRequest := strings.NewReader(`{ "state": "STOPPED" }`)
-	resp, err := c.DoRequest(c.NewRequestWithBody("PUT", fmt.Sprintf("/v2/apps/%s", guid), stopRequest))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusNoContent {
-		return errors.Wrapf(err, "Error stopping app %s, response code: %d", guid, resp.StatusCode)
-	}
-	return nil
-}
-
 func (c *Client) DeleteApp(guid string) error {
 	resp, err := c.DoRequest(c.NewRequest("DELETE", fmt.Sprintf("/v2/apps/%s", guid)))
 	if err != nil {
@@ -674,12 +435,4 @@ func (c *Client) mergeAppResource(app AppResource) App {
 	app.Entity.SpaceData.Entity.OrgData.Entity.Guid = app.Entity.SpaceData.Entity.OrgData.Meta.Guid
 	app.Entity.c = c
 	return app.Entity
-}
-
-func isResponseRedirect(res *http.Response) bool {
-	switch res.StatusCode {
-	case http.StatusTemporaryRedirect, http.StatusPermanentRedirect, http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther:
-		return true
-	}
-	return false
 }

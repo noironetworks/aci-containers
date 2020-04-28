@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -20,6 +19,10 @@ type TaskChange struct {
 type TaskFilter struct {
 	Domain string
 	CellID string
+}
+
+func (t *Task) Version() format.Version {
+	return format.V1
 }
 
 func (t *Task) LagerData() lager.Data {
@@ -57,7 +60,6 @@ func (task *Task) Validate() error {
 
 func (t *Task) Copy() *Task {
 	newTask := *t
-	newTask.TaskDefinition = t.TaskDefinition.Copy()
 	return &newTask
 }
 
@@ -83,10 +85,36 @@ func (t *Task) ValidateTransitionTo(to Task_State) error {
 	return nil
 }
 
-func (t *TaskDefinition) Copy() *TaskDefinition {
-	if t == nil {
-		return &TaskDefinition{}
+func newTaskDefWithCachedDependenciesAsActions(t *TaskDefinition) *TaskDefinition {
+	t = t.Copy()
+	if len(t.CachedDependencies) > 0 {
+		cachedDownloads := Parallel(t.actionsFromCachedDependencies()...)
+		if t.Action != nil {
+			t.Action = WrapAction(Serial(cachedDownloads, UnwrapAction(t.Action)))
+		} else {
+			t.Action = WrapAction(Serial(cachedDownloads))
+		}
+		t.CachedDependencies = nil
 	}
+	return t
+}
+
+func (t *TaskDefinition) actionsFromCachedDependencies() []ActionInterface {
+	actions := make([]ActionInterface, len(t.CachedDependencies))
+	for i := range t.CachedDependencies {
+		cacheDependency := t.CachedDependencies[i]
+		actions[i] = &DownloadAction{
+			Artifact:  cacheDependency.Name,
+			From:      cacheDependency.From,
+			To:        cacheDependency.To,
+			CacheKey:  cacheDependency.CacheKey,
+			LogSource: cacheDependency.LogSource,
+		}
+	}
+	return actions
+}
+
+func (t *TaskDefinition) Copy() *TaskDefinition {
 	newTaskDef := *t
 	return &newTaskDef
 }
@@ -150,11 +178,6 @@ func (def *TaskDefinition) Validate() error {
 		validationError = validationError.Append(err)
 	}
 
-	err = validateImageLayers(def.ImageLayers, def.LegacyDownloadUser)
-	if err != nil {
-		validationError = validationError.Append(err)
-	}
-
 	if !validationError.Empty() {
 		return validationError
 	}
@@ -162,43 +185,6 @@ func (def *TaskDefinition) Validate() error {
 	return nil
 }
 
-func downgradeTaskDefinitionV3ToV2(t *TaskDefinition) *TaskDefinition {
-	layers := ImageLayers(t.ImageLayers)
-
-	t.CachedDependencies = append(layers.ToCachedDependencies(), t.CachedDependencies...)
-	t.Action = layers.ToDownloadActions(t.LegacyDownloadUser, t.Action)
-	t.ImageLayers = nil
-
-	return t
-}
-
-func (t *Task) VersionDownTo(v format.Version) *Task {
-	t = t.Copy()
-
-	if v < t.Version() {
-		t.TaskDefinition = downgradeTaskDefinitionV3ToV2(t.TaskDefinition)
-	}
-
-	return t
-}
-
-func (t *Task) Version() format.Version {
-	return format.V3
-}
-
-func (s *Task_State) UnmarshalJSON(data []byte) error {
-	var name string
-	if err := json.Unmarshal(data, &name); err != nil {
-		return err
-	}
-
-	if v, found := Task_State_value[name]; found {
-		*s = Task_State(v)
-		return nil
-	}
-	return fmt.Errorf("invalid state: %s", name)
-}
-
-func (s Task_State) MarshalJSON() ([]byte, error) {
-	return json.Marshal(s.String())
+func (t *TaskDefinition) Version() format.Version {
+	return format.V2
 }

@@ -25,6 +25,3 @@ _testmain.go
 *.prof
 
 vendor
-
-# GoLand
-.idea

@@ -47,7 +47,7 @@ Run `go generate ./...` from the root directory of this repository to generate c
 
 The following documentation assume the following versions:
 
-1. [protoc](https://github.com/google/protobuf/releases) `> v3.5.0`
+1. [protoc](https://github.com/google/protobuf/releases) `> v3.0.0`
 2. [ruby protobuf gem](https://github.com/ruby-protobuf/protobuf) `> 3.6.12`
 
 Run the following commands from the `models` directory to generate `.pb.rb`
@@ -72,16 +72,7 @@ it to use the binary. For more information please
 
 ## SQL
 
-See the instructions in [Running the SQL Unit Tests](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#running-the-sql-unit-tests)
+See the instructions in [Running the Experimental SQL Unit Tests](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#running-the-experimental-sql-unit-tests)
 for testing against a SQL backend
 
 See [Migrations](https://github.com/cloudfoundry/bbs/blob/master/doc/bbs-migration.md) for information about writing database migrations.
-
-## Run Tests
-
-1. First setup your [GOPATH and install the necessary dependencies](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#initial-setup) for running tests.
-1. Setup a MySQL server or a postgres server. [Please follow these instructions.](https://github.com/cloudfoundry/diego-release/blob/develop/CONTRIBUTING.md#running-the-sql-unit-tests)
-1. Run the tests from the root directory of the bbs repo:
-```
-SQL_FLAVOR=mysql ginkgo -r -p -race
-```

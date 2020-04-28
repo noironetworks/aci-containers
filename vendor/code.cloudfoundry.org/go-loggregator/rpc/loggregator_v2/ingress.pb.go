@@ -17,101 +17,29 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the proto package it is being compiled against.
-// A compilation error at this line likely means your copy of the
-// proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
-
 type IngressResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *IngressResponse) Reset()         { *m = IngressResponse{} }
-func (m *IngressResponse) String() string { return proto.CompactTextString(m) }
-func (*IngressResponse) ProtoMessage()    {}
-func (*IngressResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ingress_1df30cb6e71681fb, []int{0}
-}
-func (m *IngressResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_IngressResponse.Unmarshal(m, b)
-}
-func (m *IngressResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_IngressResponse.Marshal(b, m, deterministic)
-}
-func (dst *IngressResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_IngressResponse.Merge(dst, src)
-}
-func (m *IngressResponse) XXX_Size() int {
-	return xxx_messageInfo_IngressResponse.Size(m)
-}
-func (m *IngressResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_IngressResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_IngressResponse proto.InternalMessageInfo
+func (m *IngressResponse) Reset()                    { *m = IngressResponse{} }
+func (m *IngressResponse) String() string            { return proto.CompactTextString(m) }
+func (*IngressResponse) ProtoMessage()               {}
+func (*IngressResponse) Descriptor() ([]byte, []int) { return fileDescriptor3, []int{0} }
 
 type BatchSenderResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *BatchSenderResponse) Reset()         { *m = BatchSenderResponse{} }
-func (m *BatchSenderResponse) String() string { return proto.CompactTextString(m) }
-func (*BatchSenderResponse) ProtoMessage()    {}
-func (*BatchSenderResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ingress_1df30cb6e71681fb, []int{1}
-}
-func (m *BatchSenderResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_BatchSenderResponse.Unmarshal(m, b)
-}
-func (m *BatchSenderResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_BatchSenderResponse.Marshal(b, m, deterministic)
-}
-func (dst *BatchSenderResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BatchSenderResponse.Merge(dst, src)
-}
-func (m *BatchSenderResponse) XXX_Size() int {
-	return xxx_messageInfo_BatchSenderResponse.Size(m)
-}
-func (m *BatchSenderResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_BatchSenderResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_BatchSenderResponse proto.InternalMessageInfo
+func (m *BatchSenderResponse) Reset()                    { *m = BatchSenderResponse{} }
+func (m *BatchSenderResponse) String() string            { return proto.CompactTextString(m) }
+func (*BatchSenderResponse) ProtoMessage()               {}
+func (*BatchSenderResponse) Descriptor() ([]byte, []int) { return fileDescriptor3, []int{1} }
 
 type SendResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *SendResponse) Reset()         { *m = SendResponse{} }
-func (m *SendResponse) String() string { return proto.CompactTextString(m) }
-func (*SendResponse) ProtoMessage()    {}
-func (*SendResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ingress_1df30cb6e71681fb, []int{2}
-}
-func (m *SendResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SendResponse.Unmarshal(m, b)
-}
-func (m *SendResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SendResponse.Marshal(b, m, deterministic)
-}
-func (dst *SendResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SendResponse.Merge(dst, src)
-}
-func (m *SendResponse) XXX_Size() int {
-	return xxx_messageInfo_SendResponse.Size(m)
-}
-func (m *SendResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_SendResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_SendResponse proto.InternalMessageInfo
+func (m *SendResponse) Reset()                    { *m = SendResponse{} }
+func (m *SendResponse) String() string            { return proto.CompactTextString(m) }
+func (*SendResponse) ProtoMessage()               {}
+func (*SendResponse) Descriptor() ([]byte, []int) { return fileDescriptor3, []int{2} }
 
 func init() {
 	proto.RegisterType((*IngressResponse)(nil), "loggregator.v2.IngressResponse")
@@ -127,9 +55,8 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// IngressClient is the client API for Ingress service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+// Client API for Ingress service
+
 type IngressClient interface {
 	Sender(ctx context.Context, opts ...grpc.CallOption) (Ingress_SenderClient, error)
 	BatchSender(ctx context.Context, opts ...grpc.CallOption) (Ingress_BatchSenderClient, error)
@@ -145,7 +72,7 @@ func NewIngressClient(cc *grpc.ClientConn) IngressClient {
 }
 
 func (c *ingressClient) Sender(ctx context.Context, opts ...grpc.CallOption) (Ingress_SenderClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Ingress_serviceDesc.Streams[0], "/loggregator.v2.Ingress/Sender", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Ingress_serviceDesc.Streams[0], c.cc, "/loggregator.v2.Ingress/Sender", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +106,7 @@ func (x *ingressSenderClient) CloseAndRecv() (*IngressResponse, error) {
 }
 
 func (c *ingressClient) BatchSender(ctx context.Context, opts ...grpc.CallOption) (Ingress_BatchSenderClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Ingress_serviceDesc.Streams[1], "/loggregator.v2.Ingress/BatchSender", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Ingress_serviceDesc.Streams[1], c.cc, "/loggregator.v2.Ingress/BatchSender", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,14 +141,15 @@ func (x *ingressBatchSenderClient) CloseAndRecv() (*BatchSenderResponse, error) 
 
 func (c *ingressClient) Send(ctx context.Context, in *EnvelopeBatch, opts ...grpc.CallOption) (*SendResponse, error) {
 	out := new(SendResponse)
-	err := c.cc.Invoke(ctx, "/loggregator.v2.Ingress/Send", in, out, opts...)
+	err := grpc.Invoke(ctx, "/loggregator.v2.Ingress/Send", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// IngressServer is the server API for Ingress service.
+// Server API for Ingress service
+
 type IngressServer interface {
 	Sender(Ingress_SenderServer) error
 	BatchSender(Ingress_BatchSenderServer) error
@@ -326,10 +254,10 @@ var _Ingress_serviceDesc = grpc.ServiceDesc{
 	Metadata: "ingress.proto",
 }
 
-func init() { proto.RegisterFile("ingress.proto", fileDescriptor_ingress_1df30cb6e71681fb) }
+func init() { proto.RegisterFile("ingress.proto", fileDescriptor3) }
 
-var fileDescriptor_ingress_1df30cb6e71681fb = []byte{
-	// 208 bytes of a gzipped FileDescriptorProto
+var fileDescriptor3 = []byte{
+	// 178 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0xcd, 0xcc, 0x4b, 0x2f,
 	0x4a, 0x2d, 0x2e, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0xcb, 0xc9, 0x4f, 0x4f, 0x2f,
 	0x4a, 0x4d, 0x4f, 0x2c, 0xc9, 0x2f, 0xd2, 0x2b, 0x33, 0x92, 0xe2, 0x4b, 0xcd, 0x2b, 0x4b, 0xcd,
@@ -339,8 +267,7 @@ var fileDescriptor_ingress_1df30cb6e71681fb = []byte{
 	0x76, 0xa8, 0x56, 0x21, 0x77, 0x2e, 0x36, 0x88, 0x6a, 0x21, 0x09, 0x3d, 0x54, 0x0b, 0xf5, 0x5c,
 	0xa1, 0xf6, 0x49, 0xc9, 0xa3, 0xcb, 0xa0, 0xdb, 0xcb, 0xa0, 0xc1, 0x28, 0x14, 0xca, 0xc5, 0x8d,
 	0x64, 0xb7, 0x90, 0x2c, 0x2e, 0xd3, 0xc0, 0x8a, 0xa4, 0x94, 0xd1, 0xa5, 0xb1, 0xb9, 0x1b, 0x64,
-	0xac, 0x2b, 0x17, 0x0b, 0x48, 0x94, 0x90, 0x79, 0x32, 0xe8, 0xd2, 0xc8, 0x1e, 0x56, 0x62, 0x70,
-	0x32, 0xe5, 0x92, 0xcf, 0x2f, 0x4a, 0xd7, 0x4b, 0xce, 0xc9, 0x2f, 0x4d, 0x49, 0xcb, 0x2f, 0xcd,
-	0x4b, 0x29, 0xaa, 0x44, 0xd3, 0xe1, 0x24, 0xe4, 0x83, 0xe0, 0x43, 0x3d, 0x98, 0xc4, 0x06, 0x0e,
-	0x6a, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0x87, 0x97, 0x11, 0x79, 0x9b, 0x01, 0x00, 0x00,
+	0xac, 0x2b, 0x17, 0x0b, 0x48, 0x94, 0x90, 0x79, 0x32, 0xe8, 0xd2, 0xc8, 0x1e, 0x56, 0x62, 0x48,
+	0x62, 0x03, 0x87, 0x99, 0x31, 0x20, 0x00, 0x00, 0xff, 0xff, 0x78, 0x97, 0xa9, 0xf1, 0x64, 0x01,
+	0x00, 0x00,
 }

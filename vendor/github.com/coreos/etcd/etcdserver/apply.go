@@ -17,20 +17,17 @@ package etcdserver
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
-	"go.etcd.io/etcd/auth"
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/lease"
-	"go.etcd.io/etcd/mvcc"
-	"go.etcd.io/etcd/mvcc/mvccpb"
-	"go.etcd.io/etcd/pkg/traceutil"
-	"go.etcd.io/etcd/pkg/types"
+	"github.com/coreos/etcd/auth"
+	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/lease"
+	"github.com/coreos/etcd/mvcc"
+	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/coreos/etcd/pkg/types"
 
 	"github.com/gogo/protobuf/proto"
-	"go.uber.org/zap"
 )
 
 const (
@@ -44,23 +41,20 @@ type applyResult struct {
 	// to being logically reflected by the node. Currently only used for
 	// Compaction requests.
 	physc <-chan struct{}
-	trace *traceutil.Trace
 }
 
 // applierV3 is the interface for processing V3 raft messages
 type applierV3 interface {
 	Apply(r *pb.InternalRaftRequest) *applyResult
 
-	Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error)
-	Range(ctx context.Context, txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error)
+	Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, error)
+	Range(txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error)
 	DeleteRange(txn mvcc.TxnWrite, dr *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error)
 	Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error)
-	Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, *traceutil.Trace, error)
+	Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, error)
 
 	LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error)
 	LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error)
-
-	LeaseCheckpoint(lc *pb.LeaseCheckpointRequest) (*pb.LeaseCheckpointResponse, error)
 
 	Alarm(*pb.AlarmRequest) (*pb.AlarmResponse, error)
 
@@ -115,27 +109,25 @@ func (s *EtcdServer) newApplierV3() applierV3 {
 func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	ar := &applyResult{}
 	defer func(start time.Time) {
-		warnOfExpensiveRequest(a.s.getLogger(), start, &pb.InternalRaftStringer{Request: r}, ar.resp, ar.err)
+		warnOfExpensiveRequest(start, &pb.InternalRaftStringer{Request: r}, ar.resp, ar.err)
 	}(time.Now())
 
 	// call into a.s.applyV3.F instead of a.F so upper appliers can check individual calls
 	switch {
 	case r.Range != nil:
-		ar.resp, ar.err = a.s.applyV3.Range(context.TODO(), nil, r.Range)
+		ar.resp, ar.err = a.s.applyV3.Range(nil, r.Range)
 	case r.Put != nil:
-		ar.resp, ar.trace, ar.err = a.s.applyV3.Put(nil, r.Put)
+		ar.resp, ar.err = a.s.applyV3.Put(nil, r.Put)
 	case r.DeleteRange != nil:
 		ar.resp, ar.err = a.s.applyV3.DeleteRange(nil, r.DeleteRange)
 	case r.Txn != nil:
 		ar.resp, ar.err = a.s.applyV3.Txn(r.Txn)
 	case r.Compaction != nil:
-		ar.resp, ar.physc, ar.trace, ar.err = a.s.applyV3.Compaction(r.Compaction)
+		ar.resp, ar.physc, ar.err = a.s.applyV3.Compaction(r.Compaction)
 	case r.LeaseGrant != nil:
 		ar.resp, ar.err = a.s.applyV3.LeaseGrant(r.LeaseGrant)
 	case r.LeaseRevoke != nil:
 		ar.resp, ar.err = a.s.applyV3.LeaseRevoke(r.LeaseRevoke)
-	case r.LeaseCheckpoint != nil:
-		ar.resp, ar.err = a.s.applyV3.LeaseCheckpoint(r.LeaseCheckpoint)
 	case r.Alarm != nil:
 		ar.resp, ar.err = a.s.applyV3.Alarm(r.Alarm)
 	case r.Authenticate != nil:
@@ -176,39 +168,32 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	return ar
 }
 
-func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.PutResponse, trace *traceutil.Trace, err error) {
+func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.PutResponse, err error) {
 	resp = &pb.PutResponse{}
 	resp.Header = &pb.ResponseHeader{}
-	trace = traceutil.New("put",
-		a.s.getLogger(),
-		traceutil.Field{Key: "key", Value: string(p.Key)},
-		traceutil.Field{Key: "req_size", Value: proto.Size(p)},
-	)
+
 	val, leaseID := p.Value, lease.LeaseID(p.Lease)
 	if txn == nil {
 		if leaseID != lease.NoLease {
 			if l := a.s.lessor.Lookup(leaseID); l == nil {
-				return nil, nil, lease.ErrLeaseNotFound
+				return nil, lease.ErrLeaseNotFound
 			}
 		}
-		txn = a.s.KV().Write(trace)
+		txn = a.s.KV().Write()
 		defer txn.End()
 	}
 
 	var rr *mvcc.RangeResult
 	if p.IgnoreValue || p.IgnoreLease || p.PrevKv {
-		trace.DisableStep()
 		rr, err = txn.Range(p.Key, nil, mvcc.RangeOptions{})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		trace.EnableStep()
-		trace.Step("get previous kv pair")
 	}
 	if p.IgnoreValue || p.IgnoreLease {
 		if rr == nil || len(rr.KVs) == 0 {
 			// ignore_{lease,value} flag expects previous key-value pair
-			return nil, nil, ErrKeyNotFound
+			return nil, ErrKeyNotFound
 		}
 	}
 	if p.IgnoreValue {
@@ -224,8 +209,7 @@ func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.Pu
 	}
 
 	resp.Header.Revision = txn.Put(p.Key, val, leaseID)
-	trace.AddField(traceutil.Field{Key: "response_revision", Value: resp.Header.Revision})
-	return resp, trace, nil
+	return resp, nil
 }
 
 func (a *applierV3backend) DeleteRange(txn mvcc.TxnWrite, dr *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error) {
@@ -234,7 +218,7 @@ func (a *applierV3backend) DeleteRange(txn mvcc.TxnWrite, dr *pb.DeleteRangeRequ
 	end := mkGteRange(dr.RangeEnd)
 
 	if txn == nil {
-		txn = a.s.kv.Write(traceutil.TODO())
+		txn = a.s.kv.Write()
 		defer txn.End()
 	}
 
@@ -255,14 +239,12 @@ func (a *applierV3backend) DeleteRange(txn mvcc.TxnWrite, dr *pb.DeleteRangeRequ
 	return resp, nil
 }
 
-func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error) {
-	trace := traceutil.Get(ctx)
-
+func (a *applierV3backend) Range(txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	resp := &pb.RangeResponse{}
 	resp.Header = &pb.ResponseHeader{}
 
 	if txn == nil {
-		txn = a.s.kv.Read(trace)
+		txn = a.s.kv.Read()
 		defer txn.End()
 	}
 
@@ -339,7 +321,7 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 		rr.KVs = rr.KVs[:r.Limit]
 		resp.More = true
 	}
-	trace.Step("filter and sort the key-value pairs")
+
 	resp.Header.Revision = rr.Rev
 	resp.Count = int64(rr.Count)
 	resp.Kvs = make([]*mvccpb.KeyValue, len(rr.KVs))
@@ -349,13 +331,12 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 		}
 		resp.Kvs[i] = &rr.KVs[i]
 	}
-	trace.Step("assemble the response")
 	return resp, nil
 }
 
 func (a *applierV3backend) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {
 	isWrite := !isTxnReadonly(rt)
-	txn := mvcc.NewReadOnlyTxnWrite(a.s.KV().Read(traceutil.TODO()))
+	txn := mvcc.NewReadOnlyTxnWrite(a.s.KV().Read())
 
 	txnPath := compareToPath(txn, rt)
 	if isWrite {
@@ -377,7 +358,7 @@ func (a *applierV3backend) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {
 	// be the revision of the write txn.
 	if isWrite {
 		txn.End()
-		txn = a.s.KV().Write(traceutil.TODO())
+		txn = a.s.KV().Write()
 	}
 	a.applyTxn(txn, rt, txnPath, txnResp)
 	rev := txn.Rev()
@@ -523,39 +504,25 @@ func (a *applierV3backend) applyTxn(txn mvcc.TxnWrite, rt *pb.TxnRequest, txnPat
 	if !txnPath[0] {
 		reqs = rt.Failure
 	}
-
-	lg := a.s.getLogger()
 	for i, req := range reqs {
 		respi := tresp.Responses[i].Response
 		switch tv := req.Request.(type) {
 		case *pb.RequestOp_RequestRange:
-			resp, err := a.Range(context.TODO(), txn, tv.RequestRange)
+			resp, err := a.Range(txn, tv.RequestRange)
 			if err != nil {
-				if lg != nil {
-					lg.Panic("unexpected error during txn", zap.Error(err))
-				} else {
-					plog.Panicf("unexpected error during txn: %v", err)
-				}
+				plog.Panicf("unexpected error during txn: %v", err)
 			}
 			respi.(*pb.ResponseOp_ResponseRange).ResponseRange = resp
 		case *pb.RequestOp_RequestPut:
-			resp, _, err := a.Put(txn, tv.RequestPut)
+			resp, err := a.Put(txn, tv.RequestPut)
 			if err != nil {
-				if lg != nil {
-					lg.Panic("unexpected error during txn", zap.Error(err))
-				} else {
-					plog.Panicf("unexpected error during txn: %v", err)
-				}
+				plog.Panicf("unexpected error during txn: %v", err)
 			}
 			respi.(*pb.ResponseOp_ResponsePut).ResponsePut = resp
 		case *pb.RequestOp_RequestDeleteRange:
 			resp, err := a.DeleteRange(txn, tv.RequestDeleteRange)
 			if err != nil {
-				if lg != nil {
-					lg.Panic("unexpected error during txn", zap.Error(err))
-				} else {
-					plog.Panicf("unexpected error during txn: %v", err)
-				}
+				plog.Panicf("unexpected error during txn: %v", err)
 			}
 			respi.(*pb.ResponseOp_ResponseDeleteRange).ResponseDeleteRange = resp
 		case *pb.RequestOp_RequestTxn:
@@ -570,22 +537,17 @@ func (a *applierV3backend) applyTxn(txn mvcc.TxnWrite, rt *pb.TxnRequest, txnPat
 	return txns
 }
 
-func (a *applierV3backend) Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, *traceutil.Trace, error) {
+func (a *applierV3backend) Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, error) {
 	resp := &pb.CompactionResponse{}
 	resp.Header = &pb.ResponseHeader{}
-	trace := traceutil.New("compact",
-		a.s.getLogger(),
-		traceutil.Field{Key: "revision", Value: compaction.Revision},
-	)
-
-	ch, err := a.s.KV().Compact(trace, compaction.Revision)
+	ch, err := a.s.KV().Compact(compaction.Revision)
 	if err != nil {
-		return nil, ch, nil, err
+		return nil, ch, err
 	}
 	// get the current revision. which key to get is not important.
 	rr, _ := a.s.KV().Range([]byte("compaction"), nil, mvcc.RangeOptions{})
 	resp.Header.Revision = rr.Rev
-	return resp, ch, trace, err
+	return resp, ch, err
 }
 
 func (a *applierV3backend) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
@@ -604,21 +566,10 @@ func (a *applierV3backend) LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevo
 	return &pb.LeaseRevokeResponse{Header: newHeader(a.s)}, err
 }
 
-func (a *applierV3backend) LeaseCheckpoint(lc *pb.LeaseCheckpointRequest) (*pb.LeaseCheckpointResponse, error) {
-	for _, c := range lc.Checkpoints {
-		err := a.s.lessor.Checkpoint(lease.LeaseID(c.ID), c.Remaining_TTL)
-		if err != nil {
-			return &pb.LeaseCheckpointResponse{Header: newHeader(a.s)}, err
-		}
-	}
-	return &pb.LeaseCheckpointResponse{Header: newHeader(a.s)}, nil
-}
-
 func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error) {
 	resp := &pb.AlarmResponse{}
 	oldCount := len(a.s.alarmStore.Get(ar.Alarm))
 
-	lg := a.s.getLogger()
 	switch ar.Action {
 	case pb.AlarmRequest_GET:
 		resp.Alarms = a.s.alarmStore.Get(ar.Alarm)
@@ -633,22 +584,14 @@ func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error)
 			break
 		}
 
-		if lg != nil {
-			lg.Warn("alarm raised", zap.String("alarm", m.Alarm.String()), zap.String("from", types.ID(m.MemberID).String()))
-		} else {
-			plog.Warningf("alarm %v raised by peer %s", m.Alarm, types.ID(m.MemberID))
-		}
+		plog.Warningf("alarm %v raised by peer %s", m.Alarm, types.ID(m.MemberID))
 		switch m.Alarm {
 		case pb.AlarmType_CORRUPT:
 			a.s.applyV3 = newApplierV3Corrupt(a)
 		case pb.AlarmType_NOSPACE:
 			a.s.applyV3 = newApplierV3Capped(a)
 		default:
-			if lg != nil {
-				lg.Warn("unimplemented alarm activation", zap.String("alarm", fmt.Sprintf("%+v", m)))
-			} else {
-				plog.Errorf("unimplemented alarm activation (%+v)", m)
-			}
+			plog.Errorf("unimplemented alarm activation (%+v)", m)
 		}
 	case pb.AlarmRequest_DEACTIVATE:
 		m := a.s.alarmStore.Deactivate(types.ID(ar.MemberID), ar.Alarm)
@@ -664,18 +607,10 @@ func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error)
 		switch m.Alarm {
 		case pb.AlarmType_NOSPACE, pb.AlarmType_CORRUPT:
 			// TODO: check kv hash before deactivating CORRUPT?
-			if lg != nil {
-				lg.Warn("alarm disarmed", zap.String("alarm", m.Alarm.String()), zap.String("from", types.ID(m.MemberID).String()))
-			} else {
-				plog.Infof("alarm disarmed %+v", ar)
-			}
+			plog.Infof("alarm disarmed %+v", ar)
 			a.s.applyV3 = a.s.newApplierV3()
 		default:
-			if lg != nil {
-				lg.Warn("unimplemented alarm deactivation", zap.String("alarm", fmt.Sprintf("%+v", m)))
-			} else {
-				plog.Errorf("unimplemented alarm deactivation (%+v)", m)
-			}
+			plog.Errorf("unimplemented alarm deactivation (%+v)", m)
 		}
 	default:
 		return nil, nil
@@ -692,8 +627,8 @@ type applierV3Capped struct {
 // with Puts so that the number of keys in the store is capped.
 func newApplierV3Capped(base applierV3) applierV3 { return &applierV3Capped{applierV3: base} }
 
-func (a *applierV3Capped) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {
-	return nil, nil, ErrNoSpace
+func (a *applierV3Capped) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, error) {
+	return nil, ErrNoSpace
 }
 
 func (a *applierV3Capped) Txn(r *pb.TxnRequest) (*pb.TxnResponse, error) {
@@ -839,16 +774,16 @@ type quotaApplierV3 struct {
 }
 
 func newQuotaApplierV3(s *EtcdServer, app applierV3) applierV3 {
-	return &quotaApplierV3{app, NewBackendQuota(s, "v3-applier")}
+	return &quotaApplierV3{app, NewBackendQuota(s)}
 }
 
-func (a *quotaApplierV3) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {
+func (a *quotaApplierV3) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, error) {
 	ok := a.q.Available(p)
-	resp, trace, err := a.applierV3.Put(txn, p)
+	resp, err := a.applierV3.Put(txn, p)
 	if err == nil && !ok {
 		err = ErrNoSpace
 	}
-	return resp, trace, err
+	return resp, err
 }
 
 func (a *quotaApplierV3) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {

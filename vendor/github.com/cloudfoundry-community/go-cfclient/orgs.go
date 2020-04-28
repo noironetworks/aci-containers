@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -35,7 +36,6 @@ type Org struct {
 	CreatedAt                   string `json:"created_at"`
 	UpdatedAt                   string `json:"updated_at"`
 	Name                        string `json:"name"`
-	Status                      string `json:"status"`
 	QuotaDefinitionGuid         string `json:"quota_definition_guid"`
 	DefaultIsolationSegmentGuid string `json:"default_isolation_segment_guid"`
 	c                           *Client
@@ -66,17 +66,17 @@ type OrgRequest struct {
 
 func (c *Client) ListOrgsByQuery(query url.Values) ([]Org, error) {
 	var orgs []Org
-	requestURL := "/v2/organizations?" + query.Encode()
+	requestUrl := "/v2/organizations?" + query.Encode()
 	for {
-		orgResp, err := c.getOrgResponse(requestURL)
+		orgResp, err := c.getOrgResponse(requestUrl)
 		if err != nil {
 			return []Org{}, err
 		}
 		for _, org := range orgResp.Resources {
 			orgs = append(orgs, c.mergeOrgResource(org))
 		}
-		requestURL = orgResp.NextUrl
-		if requestURL == "" {
+		requestUrl = orgResp.NextUrl
+		if requestUrl == "" {
 			break
 		}
 	}
@@ -121,13 +121,36 @@ func (c *Client) GetOrgByGuid(guid string) (Org, error) {
 }
 
 func (c *Client) OrgSpaces(guid string) ([]Space, error) {
-	return c.fetchSpaces(fmt.Sprintf("/v2/organizations/%s/spaces", guid))
+	var spaces []Space
+	var spaceResp SpaceResponse
+	path := fmt.Sprintf("/v2/organizations/%s/spaces", guid)
+	r := c.NewRequest("GET", path)
+	resp, err := c.DoRequest(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error requesting space")
+	}
+	resBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading space request %v", resBody)
+	}
+
+	err = json.Unmarshal(resBody, &spaceResp)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error space organization")
+	}
+	for _, space := range spaceResp.Resources {
+		space.Entity.Guid = space.Meta.Guid
+		space.Entity.c = c
+		spaces = append(spaces, space.Entity)
+	}
+
+	return spaces, nil
 }
 
 func (o *Org) Summary() (OrgSummary, error) {
 	var orgSummary OrgSummary
-	requestURL := fmt.Sprintf("/v2/organizations/%s/summary", o.Guid)
-	r := o.c.NewRequest("GET", requestURL)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/summary", o.Guid)
+	r := o.c.NewRequest("GET", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return OrgSummary{}, errors.Wrap(err, "Error requesting org summary")
@@ -150,8 +173,8 @@ func (o *Org) Quota() (*OrgQuota, error) {
 	if o.QuotaDefinitionGuid == "" {
 		return nil, nil
 	}
-	requestURL := fmt.Sprintf("/v2/quota_definitions/%s", o.QuotaDefinitionGuid)
-	r := o.c.NewRequest("GET", requestURL)
+	requestUrl := fmt.Sprintf("/v2/quota_definitions/%s", o.QuotaDefinitionGuid)
+	r := o.c.NewRequest("GET", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return &OrgQuota{}, errors.Wrap(err, "Error requesting org quota")
@@ -247,11 +270,6 @@ func (c *Client) AssociateOrgManagerByUsername(orgGUID, name string) (Org, error
 	return org.AssociateManagerByUsername(name)
 }
 
-func (c *Client) AssociateOrgManagerByUsernameAndOrigin(orgGUID, name, origin string) (Org, error) {
-	org := Org{Guid: orgGUID, c: c}
-	return org.AssociateManagerByUsernameAndOrigin(name, origin)
-}
-
 func (c *Client) AssociateOrgUser(orgGUID, userGUID string) (Org, error) {
 	org := Org{Guid: orgGUID, c: c}
 	return org.AssociateUser(userGUID)
@@ -267,19 +285,9 @@ func (c *Client) AssociateOrgUserByUsername(orgGUID, name string) (Org, error) {
 	return org.AssociateUserByUsername(name)
 }
 
-func (c *Client) AssociateOrgUserByUsernameAndOrigin(orgGUID, name, origin string) (Org, error) {
-	org := Org{Guid: orgGUID, c: c}
-	return org.AssociateUserByUsernameAndOrigin(name, origin)
-}
-
 func (c *Client) AssociateOrgAuditorByUsername(orgGUID, name string) (Org, error) {
 	org := Org{Guid: orgGUID, c: c}
 	return org.AssociateAuditorByUsername(name)
-}
-
-func (c *Client) AssociateOrgAuditorByUsernameAndOrigin(orgGUID, name, origin string) (Org, error) {
-	org := Org{Guid: orgGUID, c: c}
-	return org.AssociateAuditorByUsernameAndOrigin(name, origin)
 }
 
 func (c *Client) AssociateOrgBillingManager(orgGUID, userGUID string) (Org, error) {
@@ -292,11 +300,6 @@ func (c *Client) AssociateOrgBillingManagerByUsername(orgGUID, name string) (Org
 	return org.AssociateBillingManagerByUsername(name)
 }
 
-func (c *Client) AssociateOrgBillingManagerByUsernameAndOrigin(orgGUID, name, origin string) (Org, error) {
-	org := Org{Guid: orgGUID, c: c}
-	return org.AssociateBillingManagerByUsernameAndOrigin(name, origin)
-}
-
 func (c *Client) RemoveOrgManager(orgGUID, userGUID string) error {
 	org := Org{Guid: orgGUID, c: c}
 	return org.RemoveManager(userGUID)
@@ -305,11 +308,6 @@ func (c *Client) RemoveOrgManager(orgGUID, userGUID string) error {
 func (c *Client) RemoveOrgManagerByUsername(orgGUID, name string) error {
 	org := Org{Guid: orgGUID, c: c}
 	return org.RemoveManagerByUsername(name)
-}
-
-func (c *Client) RemoveOrgManagerByUsernameAndOrigin(orgGUID, name, origin string) error {
-	org := Org{Guid: orgGUID, c: c}
-	return org.RemoveManagerByUsernameAndOrigin(name, origin)
 }
 
 func (c *Client) RemoveOrgUser(orgGUID, userGUID string) error {
@@ -327,19 +325,9 @@ func (c *Client) RemoveOrgUserByUsername(orgGUID, name string) error {
 	return org.RemoveUserByUsername(name)
 }
 
-func (c *Client) RemoveOrgUserByUsernameAndOrigin(orgGUID, name, origin string) error {
-	org := Org{Guid: orgGUID, c: c}
-	return org.RemoveUserByUsernameAndOrigin(name, origin)
-}
-
 func (c *Client) RemoveOrgAuditorByUsername(orgGUID, name string) error {
 	org := Org{Guid: orgGUID, c: c}
 	return org.RemoveAuditorByUsername(name)
-}
-
-func (c *Client) RemoveOrgAuditorByUsernameAndOrigin(orgGUID, name, origin string) error {
-	org := Org{Guid: orgGUID, c: c}
-	return org.RemoveAuditorByUsernameAndOrigin(name, origin)
 }
 
 func (c *Client) RemoveOrgBillingManager(orgGUID, userGUID string) error {
@@ -350,11 +338,6 @@ func (c *Client) RemoveOrgBillingManager(orgGUID, userGUID string) error {
 func (c *Client) RemoveOrgBillingManagerByUsername(orgGUID, name string) error {
 	org := Org{Guid: orgGUID, c: c}
 	return org.RemoveBillingManagerByUsername(name)
-}
-
-func (c *Client) RemoveOrgBillingManagerByUsernameAndOrigin(orgGUID, name, origin string) error {
-	org := Org{Guid: orgGUID, c: c}
-	return org.RemoveBillingManagerByUsernameAndOrigin(name, origin)
 }
 
 func (c *Client) ListOrgSpaceQuotas(orgGUID string) ([]SpaceQuota, error) {
@@ -442,8 +425,8 @@ func (o *Org) UnsharePrivateDomain(privateDomainGUID string) error {
 }
 
 func (o *Org) associateRole(userGUID, role string) (Org, error) {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/%s/%s", o.Guid, role, userGUID)
-	r := o.c.NewRequest("PUT", requestURL)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/%s/%s", o.Guid, role, userGUID)
+	r := o.c.NewRequest("PUT", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return Org{}, err
@@ -454,19 +437,14 @@ func (o *Org) associateRole(userGUID, role string) (Org, error) {
 	return o.c.handleOrgResp(resp)
 }
 
-func (o *Org) associateRoleByUsernameAndOrigin(name, role, origin string) (Org, error) {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/%s", o.Guid, role)
+func (o *Org) associateRoleByUsername(name, role string) (Org, error) {
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/%s", o.Guid, role)
 	buf := bytes.NewBuffer(nil)
-	payload := make(map[string]string)
-	payload["username"] = name
-	if origin != "" {
-		payload["origin"] = origin
-	}
-	err := json.NewEncoder(buf).Encode(payload)
+	err := json.NewEncoder(buf).Encode(map[string]string{"username": name})
 	if err != nil {
 		return Org{}, err
 	}
-	r := o.c.NewRequestWithBody("PUT", requestURL, buf)
+	r := o.c.NewRequestWithBody("PUT", requestUrl, buf)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return Org{}, err
@@ -482,16 +460,12 @@ func (o *Org) AssociateManager(userGUID string) (Org, error) {
 }
 
 func (o *Org) AssociateManagerByUsername(name string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "managers", "")
-}
-
-func (o *Org) AssociateManagerByUsernameAndOrigin(name, origin string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "managers", origin)
+	return o.associateRoleByUsername(name, "managers")
 }
 
 func (o *Org) AssociateUser(userGUID string) (Org, error) {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/users/%s", o.Guid, userGUID)
-	r := o.c.NewRequest("PUT", requestURL)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/users/%s", o.Guid, userGUID)
+	r := o.c.NewRequest("PUT", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return Org{}, err
@@ -507,11 +481,7 @@ func (o *Org) AssociateAuditor(userGUID string) (Org, error) {
 }
 
 func (o *Org) AssociateAuditorByUsername(name string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "auditors", "")
-}
-
-func (o *Org) AssociateAuditorByUsernameAndOrigin(name, origin string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "auditors", origin)
+	return o.associateRoleByUsername(name, "auditors")
 }
 
 func (o *Org) AssociateBillingManager(userGUID string) (Org, error) {
@@ -519,33 +489,17 @@ func (o *Org) AssociateBillingManager(userGUID string) (Org, error) {
 }
 
 func (o *Org) AssociateBillingManagerByUsername(name string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "billing_managers", "")
-}
-func (o *Org) AssociateBillingManagerByUsernameAndOrigin(name, origin string) (Org, error) {
-	return o.associateRoleByUsernameAndOrigin(name, "billing_managers", origin)
+	return o.associateRoleByUsername(name, "billing_managers")
 }
 
 func (o *Org) AssociateUserByUsername(name string) (Org, error) {
-	return o.associateUserByUsernameAndOrigin(name, "")
-}
-
-func (o *Org) AssociateUserByUsernameAndOrigin(name, origin string) (Org, error) {
-	return o.associateUserByUsernameAndOrigin(name, origin)
-}
-
-func (o *Org) associateUserByUsernameAndOrigin(name, origin string) (Org, error) {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/users", o.Guid)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/users", o.Guid)
 	buf := bytes.NewBuffer(nil)
-	payload := make(map[string]string)
-	payload["username"] = name
-	if origin != "" {
-		payload["origin"] = origin
-	}
-	err := json.NewEncoder(buf).Encode(payload)
+	err := json.NewEncoder(buf).Encode(map[string]string{"username": name})
 	if err != nil {
 		return Org{}, err
 	}
-	r := o.c.NewRequestWithBody("PUT", requestURL, buf)
+	r := o.c.NewRequestWithBody("PUT", requestUrl, buf)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return Org{}, err
@@ -557,38 +511,26 @@ func (o *Org) associateUserByUsernameAndOrigin(name, origin string) (Org, error)
 }
 
 func (o *Org) removeRole(userGUID, role string) error {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/%s/%s", o.Guid, role, userGUID)
-	r := o.c.NewRequest("DELETE", requestURL)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/%s/%s", o.Guid, role, userGUID)
+	r := o.c.NewRequest("DELETE", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode != http.StatusNoContent {
-		return errors.Wrapf(err, "Error removing %s %s, response code: %d", role, userGUID, resp.StatusCode)
+		return errors.Wrapf(err, "Error removing manager %s, response code: %d", userGUID, resp.StatusCode)
 	}
 	return nil
 }
 
-func (o *Org) removeRoleByUsernameAndOrigin(name, role, origin string) error {
-	var requestURL string
-	var method string
+func (o *Org) removeRoleByUsername(name, role string) error {
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/%s", o.Guid, role)
 	buf := bytes.NewBuffer(nil)
-	payload := make(map[string]string)
-	payload["username"] = name
-	if origin != "" {
-		requestURL = fmt.Sprintf("/v2/organizations/%s/%s/remove", o.Guid, role)
-		method = "POST"
-		payload["origin"] = origin
-	} else {
-		requestURL = fmt.Sprintf("/v2/organizations/%s/%s", o.Guid, role)
-		method = "DELETE"
-	}
-	err := json.NewEncoder(buf).Encode(payload)
+	err := json.NewEncoder(buf).Encode(map[string]string{"username": name})
 	if err != nil {
 		return err
 	}
-
-	r := o.c.NewRequestWithBody(method, requestURL, buf)
+	r := o.c.NewRequestWithBody("DELETE", requestUrl, buf)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return err
@@ -604,10 +546,7 @@ func (o *Org) RemoveManager(userGUID string) error {
 }
 
 func (o *Org) RemoveManagerByUsername(name string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "managers", "")
-}
-func (o *Org) RemoveManagerByUsernameAndOrigin(name, origin string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "managers", origin)
+	return o.removeRoleByUsername(name, "managers")
 }
 
 func (o *Org) RemoveAuditor(userGUID string) error {
@@ -615,10 +554,7 @@ func (o *Org) RemoveAuditor(userGUID string) error {
 }
 
 func (o *Org) RemoveAuditorByUsername(name string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "auditors", "")
-}
-func (o *Org) RemoveAuditorByUsernameAndOrigin(name, origin string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "auditors", origin)
+	return o.removeRoleByUsername(name, "auditors")
 }
 
 func (o *Org) RemoveBillingManager(userGUID string) error {
@@ -626,16 +562,12 @@ func (o *Org) RemoveBillingManager(userGUID string) error {
 }
 
 func (o *Org) RemoveBillingManagerByUsername(name string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "billing_managers", "")
-}
-
-func (o *Org) RemoveBillingManagerByUsernameAndOrigin(name, origin string) error {
-	return o.removeRoleByUsernameAndOrigin(name, "billing_managers", origin)
+	return o.removeRoleByUsername(name, "billing_managers")
 }
 
 func (o *Org) RemoveUser(userGUID string) error {
-	requestURL := fmt.Sprintf("/v2/organizations/%s/users/%s", o.Guid, userGUID)
-	r := o.c.NewRequest("DELETE", requestURL)
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/users/%s", o.Guid, userGUID)
+	r := o.c.NewRequest("DELETE", requestUrl)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return err
@@ -647,32 +579,13 @@ func (o *Org) RemoveUser(userGUID string) error {
 }
 
 func (o *Org) RemoveUserByUsername(name string) error {
-	return o.removeUserByUsernameAndOrigin(name, "")
-}
-
-func (o *Org) RemoveUserByUsernameAndOrigin(name, origin string) error {
-	return o.removeUserByUsernameAndOrigin(name, origin)
-}
-
-func (o *Org) removeUserByUsernameAndOrigin(name, origin string) error {
-	var requestURL string
-	var method string
+	requestUrl := fmt.Sprintf("/v2/organizations/%s/users", o.Guid)
 	buf := bytes.NewBuffer(nil)
-	payload := make(map[string]string)
-	payload["username"] = name
-	if origin != "" {
-		payload["origin"] = origin
-		requestURL = fmt.Sprintf("/v2/organizations/%s/users/remove", o.Guid)
-		method = "POST"
-	} else {
-		requestURL = fmt.Sprintf("/v2/organizations/%s/users", o.Guid)
-		method = "DELETE"
-	}
-	err := json.NewEncoder(buf).Encode(payload)
+	err := json.NewEncoder(buf).Encode(map[string]string{"username": name})
 	if err != nil {
 		return err
 	}
-	r := o.c.NewRequestWithBody(method, requestURL, buf)
+	r := o.c.NewRequestWithBody("DELETE", requestUrl, buf)
 	resp, err := o.c.DoRequest(r)
 	if err != nil {
 		return err
@@ -728,9 +641,9 @@ func (c *Client) DeleteOrg(guid string, recursive, async bool) error {
 	return nil
 }
 
-func (c *Client) getOrgResponse(requestURL string) (OrgResponse, error) {
+func (c *Client) getOrgResponse(requestUrl string) (OrgResponse, error) {
 	var orgResp OrgResponse
-	r := c.NewRequest("GET", requestURL)
+	r := c.NewRequest("GET", requestUrl)
 	resp, err := c.DoRequest(r)
 	if err != nil {
 		return OrgResponse{}, errors.Wrap(err, "Error requesting orgs")
@@ -747,18 +660,18 @@ func (c *Client) getOrgResponse(requestURL string) (OrgResponse, error) {
 	return orgResp, nil
 }
 
-func (c *Client) fetchOrgs(requestURL string) ([]Org, error) {
+func (c *Client) fetchOrgs(requestUrl string) ([]Org, error) {
 	var orgs []Org
 	for {
-		orgResp, err := c.getOrgResponse(requestURL)
+		orgResp, err := c.getOrgResponse(requestUrl)
 		if err != nil {
 			return []Org{}, err
 		}
 		for _, org := range orgResp.Resources {
 			orgs = append(orgs, c.mergeOrgResource(org))
 		}
-		requestURL = orgResp.NextUrl
-		if requestURL == "" {
+		requestUrl = orgResp.NextUrl
+		if requestUrl == "" {
 			break
 		}
 	}
@@ -803,30 +716,4 @@ func (c *Client) mergeOrgResource(org OrgResource) Org {
 	org.Entity.UpdatedAt = org.Meta.UpdatedAt
 	org.Entity.c = c
 	return org.Entity
-}
-
-func (c *Client) DefaultIsolationSegmentForOrg(orgGUID, isolationSegmentGUID string) error {
-	return c.updateOrgDefaultIsolationSegment(orgGUID, map[string]interface{}{"guid": isolationSegmentGUID})
-}
-
-func (c *Client) ResetDefaultIsolationSegmentForOrg(orgGUID string) error {
-	return c.updateOrgDefaultIsolationSegment(orgGUID, nil)
-}
-
-func (c *Client) updateOrgDefaultIsolationSegment(orgGUID string, data interface{}) error {
-	requestURL := fmt.Sprintf("/v3/organizations/%s/relationships/default_isolation_segment", orgGUID)
-	buf := bytes.NewBuffer(nil)
-	err := json.NewEncoder(buf).Encode(map[string]interface{}{"data": data})
-	if err != nil {
-		return err
-	}
-	r := c.NewRequestWithBody("PATCH", requestURL, buf)
-	resp, err := c.DoRequest(r)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return errors.Wrapf(err, "Error setting default isolation segment for org %s, response code: %d", orgGUID, resp.StatusCode)
-	}
-	return nil
 }

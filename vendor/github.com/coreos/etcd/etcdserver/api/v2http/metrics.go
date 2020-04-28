@@ -20,10 +20,10 @@ import (
 
 	"net/http"
 
-	"go.etcd.io/etcd/etcdserver/api/v2error"
-	"go.etcd.io/etcd/etcdserver/api/v2http/httptypes"
-	"go.etcd.io/etcd/etcdserver/etcdserverpb"
-
+	etcdErr "github.com/coreos/etcd/error"
+	"github.com/coreos/etcd/etcdserver"
+	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
+	"github.com/coreos/etcd/etcdserver/etcdserverpb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -44,32 +44,29 @@ var (
 			Help:      "Counter of handle failures of requests (non-watches), by method (GET/PUT etc.) and code (400, 500 etc.).",
 		}, []string{"method", "code"})
 
-	successfulEventsHandlingSec = prometheus.NewHistogramVec(
+	successfulEventsHandlingTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "etcd",
 			Subsystem: "http",
 			Name:      "successful_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of successfully handled requests (non-watches), by method (GET/PUT etc.).",
-
-			// lowest bucket start of upper bound 0.0005 sec (0.5 ms) with factor 2
-			// highest bucket start of 0.0005 sec * 2^12 == 2.048 sec
-			Buckets: prometheus.ExponentialBuckets(0.0005, 2, 13),
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2, 13),
 		}, []string{"method"})
 )
 
 func init() {
 	prometheus.MustRegister(incomingEvents)
 	prometheus.MustRegister(failedEvents)
-	prometheus.MustRegister(successfulEventsHandlingSec)
+	prometheus.MustRegister(successfulEventsHandlingTime)
 }
 
 func reportRequestReceived(request etcdserverpb.Request) {
 	incomingEvents.WithLabelValues(methodFromRequest(request)).Inc()
 }
 
-func reportRequestCompleted(request etcdserverpb.Request, startTime time.Time) {
+func reportRequestCompleted(request etcdserverpb.Request, response etcdserver.Response, startTime time.Time) {
 	method := methodFromRequest(request)
-	successfulEventsHandlingSec.WithLabelValues(method).Observe(time.Since(startTime).Seconds())
+	successfulEventsHandlingTime.WithLabelValues(method).Observe(time.Since(startTime).Seconds())
 }
 
 func reportRequestFailed(request etcdserverpb.Request, err error) {
@@ -89,10 +86,10 @@ func codeFromError(err error) int {
 		return http.StatusInternalServerError
 	}
 	switch e := err.(type) {
-	case *v2error.Error:
-		return e.StatusCode()
+	case *etcdErr.Error:
+		return (*etcdErr.Error)(e).StatusCode()
 	case *httptypes.HTTPError:
-		return e.Code
+		return (*httptypes.HTTPError)(e).Code
 	default:
 		return http.StatusInternalServerError
 	}

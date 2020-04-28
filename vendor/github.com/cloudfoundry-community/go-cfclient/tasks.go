@@ -14,8 +14,19 @@ import (
 
 // TaskListResponse is the JSON response from the API.
 type TaskListResponse struct {
-	Pagination Pagination `json:"pagination"`
-	Tasks      []Task     `json:"resources"`
+	Pagination struct {
+		TotalResults int `json:"total_results"`
+		TotalPages   int `json:"total_pages"`
+		First        struct {
+			Href string `json:"href"`
+		} `json:"first"`
+		Last struct {
+			Href string `json:"href"`
+		} `json:"last"`
+		Next     interface{} `json:"next"`
+		Previous interface{} `json:"previous"`
+	} `json:"pagination"`
+	Tasks []Task `json:"resources"`
 }
 
 // Task is a description of a task element.
@@ -34,9 +45,15 @@ type Task struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	DropletGUID string    `json:"droplet_guid"`
 	Links       struct {
-		Self    Link `json:"self"`
-		App     Link `json:"app"`
-		Droplet Link `json:"droplet"`
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+		App struct {
+			Href string `json:"href"`
+		} `json:"app"`
+		Droplet struct {
+			Href string `json:"href"`
+		} `json:"droplet"`
 	} `json:"links"`
 }
 

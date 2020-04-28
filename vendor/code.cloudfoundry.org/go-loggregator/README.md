@@ -17,45 +17,14 @@ This repository should be imported as:
 
 `import loggregator "code.cloudfoundry.org/go-loggregator"`
 
-## Examples
+## Example
 
-To build the examples, `cd` into the directory of the example and run `go build`
+Example implementation of the client is provided in `examples/main.go`.
 
-### V1 Ingress
+Build the example client by running `go build -o client main.go`
 
-Emits envelopes to metron using dropsonde.
-
-### V2 Ingress
-
-Emits envelopes to metron using the V2 loggregator-api.
-
-Required Environment Variables:
-
-* `CA_CERT_PATH`
-* `CERT_PATH`
-* `KEY_PATH`
-
-### Runtime Stats
-
-Emits information about the running Go proccess using a V2 ingress client.
-
-Required Environment Variables:
-
-* `CA_CERT_PATH`
-* `CERT_PATH`
-* `KEY_PATH`
-
-### Envelope Stream Connector
-
-Reads envelopes from the Loggregator API (e.g. Reverse Log Proxy).
-
-Required Environment Variables:
-
-* `CA_CERT_PATH`
-* `CERT_PATH`
-* `KEY_PATH`
-* `LOGS_API_ADDR`
-* `SHARD_ID`
+Collocate the `client` with a metron agent and set the following environment
+variables: `CA_CERT_PATH`, `CERT_PATH`, `KEY_PATH`
 
 [slack-badge]:              https://slack.cloudfoundry.org/badge.svg
 [loggregator-slack]:        https://cloudfoundry.slack.com/archives/loggregator

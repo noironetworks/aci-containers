@@ -18,8 +18,8 @@ import (
 	"context"
 	"time"
 
-	"go.etcd.io/etcd/etcdserver/api/v2store"
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
+	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/store"
 )
 
 type RequestV2 pb.Request
@@ -39,11 +39,11 @@ type reqV2HandlerEtcdServer struct {
 }
 
 type reqV2HandlerStore struct {
-	store   v2store.Store
+	store   store.Store
 	applier ApplierV2
 }
 
-func NewStoreRequestV2Handler(s v2store.Store, applier ApplierV2) RequestV2Handler {
+func NewStoreRequestV2Handler(s store.Store, applier ApplierV2) RequestV2Handler {
 	return &reqV2HandlerStore{s, applier}
 }
 
@@ -122,14 +122,14 @@ func (s *EtcdServer) Do(ctx context.Context, r pb.Request) (Response, error) {
 	r.ID = s.reqIDGen.Next()
 	h := &reqV2HandlerEtcdServer{
 		reqV2HandlerStore: reqV2HandlerStore{
-			store:   s.v2store,
+			store:   s.store,
 			applier: s.applyV2,
 		},
 		s: s,
 	}
 	rp := &r
 	resp, err := ((*RequestV2)(rp)).Handle(ctx, h)
-	resp.Term, resp.Index = s.Term(), s.CommittedIndex()
+	resp.Term, resp.Index = s.Term(), s.Index()
 	return resp, err
 }
 

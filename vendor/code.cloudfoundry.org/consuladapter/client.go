@@ -1,7 +1,10 @@
 package consuladapter
 
 import (
-	cfhttp "code.cloudfoundry.org/cfhttp/v2"
+	"errors"
+	"net/http"
+
+	"code.cloudfoundry.org/cfhttp"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -40,7 +43,7 @@ func NewClientFromUrl(urlString string) (Client, error) {
 	config := &api.Config{
 		Address:    address,
 		Scheme:     scheme,
-		HttpClient: cfhttp.NewClient(cfhttp.WithStreamingDefaults()),
+		HttpClient: cfhttp.NewStreamingClient(),
 	}
 
 	c, err := api.NewClient(config)
@@ -69,10 +72,12 @@ func NewTLSClientFromUrl(urlString, caCert, clientCert, clientKey string) (Clien
 		return nil, err
 	}
 
-	httpClient := cfhttp.NewClient(
-		cfhttp.WithStreamingDefaults(),
-		cfhttp.WithTLSConfig(tlsClientConfig),
-	)
+	httpClient := cfhttp.NewStreamingClient()
+	transport, ok := httpClient.Transport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("unable to retreive httpClient transport")
+	}
+	transport.TLSClientConfig = tlsClientConfig
 
 	config := &api.Config{
 		Address:    address,

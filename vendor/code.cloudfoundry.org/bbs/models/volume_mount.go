@@ -14,6 +14,9 @@ func (*VolumePlacement) Validate() error {
 	return nil
 }
 
+// while volume mounts are experimental, we should never persist a "old" volume
+// mount to the db layer, so the handler must convert old data models to the new ones
+// when volume mounts are no longer experimental, this validation strategy must be reconsidered
 func (v *VolumeMount) Validate() error {
 	var ve ValidationError
 	if v.Driver == "" {

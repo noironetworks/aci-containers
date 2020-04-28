@@ -19,14 +19,13 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/etcdserver"
-	"go.etcd.io/etcd/etcdserver/api"
-	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/pkg/types"
-	"go.etcd.io/etcd/raft"
+	"github.com/coreos/etcd/etcdserver"
+	"github.com/coreos/etcd/etcdserver/api"
+	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
+	"github.com/coreos/etcd/pkg/types"
+	"github.com/coreos/etcd/raft"
 
-	"github.com/coreos/pkg/capnslog"
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
+	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -48,10 +47,6 @@ func newUnaryInterceptor(s *etcdserver.EtcdServer) grpc.UnaryServerInterceptor {
 			return nil, rpctypes.ErrGRPCNotCapable
 		}
 
-		if s.IsMemberExist(s.ID()) && s.IsLearner() && !isRPCSupportedForLearner(req) {
-			return nil, rpctypes.ErrGPRCNotSupportedForLearner
-		}
-
 		md, ok := metadata.FromIncomingContext(ctx)
 		if ok {
 			if ks := md[rpctypes.MetadataRequireLeaderKey]; len(ks) > 0 && ks[0] == rpctypes.MetadataHasLeader {
@@ -69,11 +64,7 @@ func newLogUnaryInterceptor(s *etcdserver.EtcdServer) grpc.UnaryServerIntercepto
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		startTime := time.Now()
 		resp, err := handler(ctx, req)
-		lg := s.Logger()
-		if (lg != nil && lg.Core().Enabled(zap.DebugLevel)) || // using zap logger and debug level is enabled
-			(lg == nil && plog.LevelAt(capnslog.DEBUG)) { // or, using capnslog and debug level is enabled
-			defer logUnaryRequestStats(ctx, lg, info, startTime, req, resp)
-		}
+		defer logUnaryRequestStats(ctx, nil, info, startTime, req, resp)
 		return resp, err
 	}
 }
@@ -85,7 +76,7 @@ func logUnaryRequestStats(ctx context.Context, lg *zap.Logger, info *grpc.UnaryS
 	if ok {
 		remote = peerInfo.Addr.String()
 	}
-	responseType := info.FullMethod
+	var responseType string = info.FullMethod
 	var reqCount, respCount int64
 	var reqSize, respSize int
 	var reqContent string
@@ -192,10 +183,6 @@ func newStreamInterceptor(s *etcdserver.EtcdServer) grpc.StreamServerInterceptor
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !api.IsCapabilityEnabled(api.V3rpcCapability) {
 			return rpctypes.ErrGRPCNotCapable
-		}
-
-		if s.IsMemberExist(s.ID()) && s.IsLearner() { // learner does not support stream RPC
-			return rpctypes.ErrGPRCNotSupportedForLearner
 		}
 
 		md, ok := metadata.FromIncomingContext(ss.Context())

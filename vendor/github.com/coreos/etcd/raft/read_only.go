@@ -14,7 +14,7 @@
 
 package raft
 
-import pb "go.etcd.io/etcd/raft/raftpb"
+import pb "github.com/coreos/etcd/raft/raftpb"
 
 // ReadState provides state for read only query.
 // It's caller's responsibility to call ReadIndex first before getting
@@ -29,11 +29,7 @@ type ReadState struct {
 type readIndexStatus struct {
 	req   pb.Message
 	index uint64
-	// NB: this never records 'false', but it's more convenient to use this
-	// instead of a map[uint64]struct{} due to the API of quorum.VoteResult. If
-	// this becomes performance sensitive enough (doubtful), quorum.VoteResult
-	// can change to an API that is closer to that of CommittedIndex.
-	acks map[uint64]bool
+	acks  map[uint64]struct{}
 }
 
 type readOnly struct {
@@ -54,25 +50,26 @@ func newReadOnly(option ReadOnlyOption) *readOnly {
 // the read only request.
 // `m` is the original read only request message from the local or remote node.
 func (ro *readOnly) addRequest(index uint64, m pb.Message) {
-	s := string(m.Entries[0].Data)
-	if _, ok := ro.pendingReadIndex[s]; ok {
+	ctx := string(m.Entries[0].Data)
+	if _, ok := ro.pendingReadIndex[ctx]; ok {
 		return
 	}
-	ro.pendingReadIndex[s] = &readIndexStatus{index: index, req: m, acks: make(map[uint64]bool)}
-	ro.readIndexQueue = append(ro.readIndexQueue, s)
+	ro.pendingReadIndex[ctx] = &readIndexStatus{index: index, req: m, acks: make(map[uint64]struct{})}
+	ro.readIndexQueue = append(ro.readIndexQueue, ctx)
 }
 
 // recvAck notifies the readonly struct that the raft state machine received
 // an acknowledgment of the heartbeat that attached with the read only request
 // context.
-func (ro *readOnly) recvAck(id uint64, context []byte) map[uint64]bool {
-	rs, ok := ro.pendingReadIndex[string(context)]
+func (ro *readOnly) recvAck(m pb.Message) int {
+	rs, ok := ro.pendingReadIndex[string(m.Context)]
 	if !ok {
-		return nil
+		return 0
 	}
 
-	rs.acks[id] = true
-	return rs.acks
+	rs.acks[m.From] = struct{}{}
+	// add one to include an ack from local node
+	return len(rs.acks) + 1
 }
 
 // advance advances the read only request queue kept by the readonly struct.

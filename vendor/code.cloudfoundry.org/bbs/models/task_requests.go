@@ -75,23 +75,6 @@ func (req *FailTaskRequest) Validate() error {
 	return nil
 }
 
-func (req *RejectTaskRequest) Validate() error {
-	var validationError ValidationError
-
-	if !taskGuidPattern.MatchString(req.TaskGuid) {
-		validationError = validationError.Append(ErrInvalidField{"task_guid"})
-	}
-	if req.RejectionReason == "" {
-		validationError = validationError.Append(ErrInvalidField{"failure_reason"})
-	}
-
-	if !validationError.Empty() {
-		return validationError
-	}
-
-	return nil
-}
-
 func (req *TasksRequest) Validate() error {
 	return nil
 }

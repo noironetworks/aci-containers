@@ -20,13 +20,11 @@ import (
 	"strings"
 	"time"
 
+	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/etcdserver/membership"
+	"github.com/coreos/etcd/pkg/types"
+	"github.com/coreos/etcd/rafthttp"
 	"github.com/golang/protobuf/proto"
-	"go.etcd.io/etcd/etcdserver/api/membership"
-	"go.etcd.io/etcd/etcdserver/api/rafthttp"
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/pkg/types"
-
-	"go.uber.org/zap"
 )
 
 // isConnectedToQuorumSince checks whether the local member is connected to the
@@ -103,15 +101,15 @@ func (nc *notifier) notify(err error) {
 	close(nc.c)
 }
 
-func warnOfExpensiveRequest(lg *zap.Logger, now time.Time, reqStringer fmt.Stringer, respMsg proto.Message, err error) {
+func warnOfExpensiveRequest(now time.Time, reqStringer fmt.Stringer, respMsg proto.Message, err error) {
 	var resp string
 	if !isNil(respMsg) {
 		resp = fmt.Sprintf("size:%d", proto.Size(respMsg))
 	}
-	warnOfExpensiveGenericRequest(lg, now, reqStringer, "", resp, err)
+	warnOfExpensiveGenericRequest(now, reqStringer, "", resp, err)
 }
 
-func warnOfExpensiveReadOnlyTxnRequest(lg *zap.Logger, now time.Time, r *pb.TxnRequest, txnResponse *pb.TxnResponse, err error) {
+func warnOfExpensiveReadOnlyTxnRequest(now time.Time, r *pb.TxnRequest, txnResponse *pb.TxnResponse, err error) {
 	reqStringer := pb.NewLoggableTxnRequest(r)
 	var resp string
 	if !isNil(txnResponse) {
@@ -126,39 +124,28 @@ func warnOfExpensiveReadOnlyTxnRequest(lg *zap.Logger, now time.Time, r *pb.TxnR
 		}
 		resp = fmt.Sprintf("responses:<%s> size:%d", strings.Join(resps, " "), proto.Size(txnResponse))
 	}
-	warnOfExpensiveGenericRequest(lg, now, reqStringer, "read-only range ", resp, err)
+	warnOfExpensiveGenericRequest(now, reqStringer, "read-only range ", resp, err)
 }
 
-func warnOfExpensiveReadOnlyRangeRequest(lg *zap.Logger, now time.Time, reqStringer fmt.Stringer, rangeResponse *pb.RangeResponse, err error) {
+func warnOfExpensiveReadOnlyRangeRequest(now time.Time, reqStringer fmt.Stringer, rangeResponse *pb.RangeResponse, err error) {
 	var resp string
 	if !isNil(rangeResponse) {
 		resp = fmt.Sprintf("range_response_count:%d size:%d", len(rangeResponse.Kvs), proto.Size(rangeResponse))
 	}
-	warnOfExpensiveGenericRequest(lg, now, reqStringer, "read-only range ", resp, err)
+	warnOfExpensiveGenericRequest(now, reqStringer, "read-only range ", resp, err)
 }
 
-func warnOfExpensiveGenericRequest(lg *zap.Logger, now time.Time, reqStringer fmt.Stringer, prefix string, resp string, err error) {
+func warnOfExpensiveGenericRequest(now time.Time, reqStringer fmt.Stringer, prefix string, resp string, err error) {
+	// TODO: add metrics
 	d := time.Since(now)
 	if d > warnApplyDuration {
-		if lg != nil {
-			lg.Warn(
-				"apply request took too long",
-				zap.Duration("took", d),
-				zap.Duration("expected-duration", warnApplyDuration),
-				zap.String("prefix", prefix),
-				zap.String("request", reqStringer.String()),
-				zap.String("response", resp),
-				zap.Error(err),
-			)
+		var result string
+		if err != nil {
+			result = fmt.Sprintf("error:%v", err)
 		} else {
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("error:%v", err)
-			} else {
-				result = resp
-			}
-			plog.Warningf("%srequest %q with result %q took too long (%v) to execute", prefix, reqStringer.String(), result, d)
+			result = resp
 		}
+		plog.Warningf("%srequest %q with result %q took too long (%v) to execute", prefix, reqStringer.String(), result, d)
 		slowApplies.Inc()
 	}
 }

@@ -1,9 +1,9 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package models;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message PingResponse {
-  bool available = 1 [(gogoproto.jsontag) =  "available"];
+  optional bool available = 1;
 }

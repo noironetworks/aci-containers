@@ -15,10 +15,9 @@
 package mvcc
 
 import (
-	"go.etcd.io/etcd/lease"
-	"go.etcd.io/etcd/mvcc/backend"
-	"go.etcd.io/etcd/mvcc/mvccpb"
-	"go.etcd.io/etcd/pkg/traceutil"
+	"github.com/coreos/etcd/lease"
+	"github.com/coreos/etcd/mvcc/backend"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 )
 
 type RangeOptions struct {
@@ -103,10 +102,10 @@ type KV interface {
 	WriteView
 
 	// Read creates a read transaction.
-	Read(trace *traceutil.Trace) TxnRead
+	Read() TxnRead
 
 	// Write creates a write transaction.
-	Write(trace *traceutil.Trace) TxnWrite
+	Write() TxnWrite
 
 	// Hash computes the hash of the KV's backend.
 	Hash() (hash uint32, revision int64, err error)
@@ -115,7 +114,7 @@ type KV interface {
 	HashByRev(rev int64) (hash uint32, revision int64, compactRev int64, err error)
 
 	// Compact frees all superseded keys with revisions less than rev.
-	Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error)
+	Compact(rev int64) (<-chan struct{}, error)
 
 	// Commit commits outstanding txns into the underlying backend.
 	Commit()

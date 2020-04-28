@@ -27,20 +27,19 @@ import (
 	"strings"
 	"time"
 
-	"go.etcd.io/etcd/etcdserver"
-	"go.etcd.io/etcd/etcdserver/api"
-	"go.etcd.io/etcd/etcdserver/api/etcdhttp"
-	"go.etcd.io/etcd/etcdserver/api/membership"
-	"go.etcd.io/etcd/etcdserver/api/v2auth"
-	"go.etcd.io/etcd/etcdserver/api/v2error"
-	"go.etcd.io/etcd/etcdserver/api/v2http/httptypes"
-	stats "go.etcd.io/etcd/etcdserver/api/v2stats"
-	"go.etcd.io/etcd/etcdserver/api/v2store"
-	"go.etcd.io/etcd/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/pkg/types"
+	etcdErr "github.com/coreos/etcd/error"
+	"github.com/coreos/etcd/etcdserver"
+	"github.com/coreos/etcd/etcdserver/api"
+	"github.com/coreos/etcd/etcdserver/api/etcdhttp"
+	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
+	"github.com/coreos/etcd/etcdserver/auth"
+	"github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/etcdserver/membership"
+	"github.com/coreos/etcd/etcdserver/stats"
+	"github.com/coreos/etcd/pkg/types"
+	"github.com/coreos/etcd/store"
 
 	"github.com/jonboulle/clockwork"
-	"go.uber.org/zap"
 )
 
 const (
@@ -52,17 +51,16 @@ const (
 )
 
 // NewClientHandler generates a muxed http.Handler with the given parameters to serve etcd client requests.
-func NewClientHandler(lg *zap.Logger, server etcdserver.ServerPeer, timeout time.Duration) http.Handler {
+func NewClientHandler(server etcdserver.ServerPeer, timeout time.Duration) http.Handler {
 	mux := http.NewServeMux()
 	etcdhttp.HandleBasic(mux, server)
-	handleV2(lg, mux, server, timeout)
-	return requestLogger(lg, mux)
+	handleV2(mux, server, timeout)
+	return requestLogger(mux)
 }
 
-func handleV2(lg *zap.Logger, mux *http.ServeMux, server etcdserver.ServerV2, timeout time.Duration) {
-	sec := v2auth.NewStore(lg, server, timeout)
+func handleV2(mux *http.ServeMux, server etcdserver.ServerV2, timeout time.Duration) {
+	sec := auth.NewStore(server, timeout)
 	kh := &keysHandler{
-		lg:                    lg,
 		sec:                   sec,
 		server:                server,
 		cluster:               server.Cluster(),
@@ -71,24 +69,21 @@ func handleV2(lg *zap.Logger, mux *http.ServeMux, server etcdserver.ServerV2, ti
 	}
 
 	sh := &statsHandler{
-		lg:    lg,
 		stats: server,
 	}
 
 	mh := &membersHandler{
-		lg:                    lg,
-		sec:                   sec,
-		server:                server,
-		cluster:               server.Cluster(),
-		timeout:               timeout,
-		clock:                 clockwork.NewRealClock(),
+		sec:     sec,
+		server:  server,
+		cluster: server.Cluster(),
+		timeout: timeout,
+		clock:   clockwork.NewRealClock(),
 		clientCertAuthEnabled: server.ClientCertAuthEnabled(),
 	}
 
 	mah := &machinesHandler{cluster: server.Cluster()}
 
 	sech := &authHandler{
-		lg:                    lg,
 		sec:                   sec,
 		cluster:               server.Cluster(),
 		clientCertAuthEnabled: server.ClientCertAuthEnabled(),
@@ -106,8 +101,7 @@ func handleV2(lg *zap.Logger, mux *http.ServeMux, server etcdserver.ServerV2, ti
 }
 
 type keysHandler struct {
-	lg                    *zap.Logger
-	sec                   v2auth.Store
+	sec                   auth.Store
 	server                etcdserver.ServerV2
 	cluster               api.Cluster
 	timeout               time.Duration
@@ -127,11 +121,11 @@ func (h *keysHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := clock.Now()
 	rr, noValueOnSuccess, err := parseKeyRequest(r, clock)
 	if err != nil {
-		writeKeyError(h.lg, w, err)
+		writeKeyError(w, err)
 		return
 	}
 	// The path must be valid at this point (we've parsed the request successfully).
-	if !hasKeyPrefixAccess(h.lg, h.sec, r, r.URL.Path[len(keysPrefix):], rr.Recursive, h.clientCertAuthEnabled) {
+	if !hasKeyPrefixAccess(h.sec, r, r.URL.Path[len(keysPrefix):], rr.Recursive, h.clientCertAuthEnabled) {
 		writeKeyNoAuth(w)
 		return
 	}
@@ -141,7 +135,7 @@ func (h *keysHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.server.Do(ctx, rr)
 	if err != nil {
 		err = trimErrorPrefix(err, etcdserver.StoreKeysPrefix)
-		writeKeyError(h.lg, w, err)
+		writeKeyError(w, err)
 		reportRequestFailed(rr, err)
 		return
 	}
@@ -149,19 +143,15 @@ func (h *keysHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case resp.Event != nil:
 		if err := writeKeyEvent(w, resp, noValueOnSuccess); err != nil {
 			// Should never be reached
-			if h.lg != nil {
-				h.lg.Warn("failed to write key event", zap.Error(err))
-			} else {
-				plog.Errorf("error writing event (%v)", err)
-			}
+			plog.Errorf("error writing event (%v)", err)
 		}
-		reportRequestCompleted(rr, startTime)
+		reportRequestCompleted(rr, resp, startTime)
 	case resp.Watcher != nil:
 		ctx, cancel := context.WithTimeout(context.Background(), defaultWatchTimeout)
 		defer cancel()
-		handleKeyWatch(ctx, h.lg, w, resp, rr.Stream)
+		handleKeyWatch(ctx, w, resp, rr.Stream)
 	default:
-		writeKeyError(h.lg, w, errors.New("received response with no Event/Watcher"))
+		writeKeyError(w, errors.New("received response with no Event/Watcher!"))
 	}
 }
 
@@ -178,8 +168,7 @@ func (h *machinesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type membersHandler struct {
-	lg                    *zap.Logger
-	sec                   v2auth.Store
+	sec                   auth.Store
 	server                etcdserver.ServerV2
 	cluster               api.Cluster
 	timeout               time.Duration
@@ -191,8 +180,8 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r.Method, "GET", "POST", "DELETE", "PUT") {
 		return
 	}
-	if !hasWriteRootAccess(h.lg, h.sec, r, h.clientCertAuthEnabled) {
-		writeNoAuth(h.lg, w, r)
+	if !hasWriteRootAccess(h.sec, r, h.clientCertAuthEnabled) {
+		writeNoAuth(w, r)
 		return
 	}
 	w.Header().Set("X-Etcd-Cluster-ID", h.cluster.ID().String())
@@ -207,34 +196,25 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			mc := newMemberCollection(h.cluster.Members())
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(mc); err != nil {
-				if h.lg != nil {
-					h.lg.Warn("failed to encode members response", zap.Error(err))
-				} else {
-					plog.Warningf("failed to encode members response (%v)", err)
-				}
+				plog.Warningf("failed to encode members response (%v)", err)
 			}
 		case "leader":
 			id := h.server.Leader()
 			if id == 0 {
-				writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusServiceUnavailable, "During election"))
+				writeError(w, r, httptypes.NewHTTPError(http.StatusServiceUnavailable, "During election"))
 				return
 			}
 			m := newMember(h.cluster.Member(id))
 			w.Header().Set("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(m); err != nil {
-				if h.lg != nil {
-					h.lg.Warn("failed to encode members response", zap.Error(err))
-				} else {
-					plog.Warningf("failed to encode members response (%v)", err)
-				}
+				plog.Warningf("failed to encode members response (%v)", err)
 			}
 		default:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusNotFound, "Not found"))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusNotFound, "Not found"))
 		}
-
 	case "POST":
 		req := httptypes.MemberCreateRequest{}
-		if ok := unmarshalRequest(h.lg, r, &req, w); !ok {
+		if ok := unmarshalRequest(r, &req, w); !ok {
 			return
 		}
 		now := h.clock.Now()
@@ -242,65 +222,43 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, err := h.server.AddMember(ctx, *m)
 		switch {
 		case err == membership.ErrIDExists || err == membership.ErrPeerURLexists:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusConflict, err.Error()))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusConflict, err.Error()))
 			return
 		case err != nil:
-			if h.lg != nil {
-				h.lg.Warn(
-					"failed to add a member",
-					zap.String("member-id", m.ID.String()),
-					zap.Error(err),
-				)
-			} else {
-				plog.Errorf("error adding member %s (%v)", m.ID, err)
-			}
-			writeError(h.lg, w, r, err)
+			plog.Errorf("error adding member %s (%v)", m.ID, err)
+			writeError(w, r, err)
 			return
 		}
 		res := newMember(m)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		if err := json.NewEncoder(w).Encode(res); err != nil {
-			if h.lg != nil {
-				h.lg.Warn("failed to encode members response", zap.Error(err))
-			} else {
-				plog.Warningf("failed to encode members response (%v)", err)
-			}
+			plog.Warningf("failed to encode members response (%v)", err)
 		}
-
 	case "DELETE":
-		id, ok := getID(h.lg, r.URL.Path, w)
+		id, ok := getID(r.URL.Path, w)
 		if !ok {
 			return
 		}
 		_, err := h.server.RemoveMember(ctx, uint64(id))
 		switch {
 		case err == membership.ErrIDRemoved:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusGone, fmt.Sprintf("Member permanently removed: %s", id)))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusGone, fmt.Sprintf("Member permanently removed: %s", id)))
 		case err == membership.ErrIDNotFound:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", id)))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", id)))
 		case err != nil:
-			if h.lg != nil {
-				h.lg.Warn(
-					"failed to remove a member",
-					zap.String("member-id", id.String()),
-					zap.Error(err),
-				)
-			} else {
-				plog.Errorf("error removing member %s (%v)", id, err)
-			}
-			writeError(h.lg, w, r, err)
+			plog.Errorf("error removing member %s (%v)", id, err)
+			writeError(w, r, err)
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
-
 	case "PUT":
-		id, ok := getID(h.lg, r.URL.Path, w)
+		id, ok := getID(r.URL.Path, w)
 		if !ok {
 			return
 		}
 		req := httptypes.MemberUpdateRequest{}
-		if ok := unmarshalRequest(h.lg, r, &req, w); !ok {
+		if ok := unmarshalRequest(r, &req, w); !ok {
 			return
 		}
 		m := membership.Member{
@@ -310,20 +268,12 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, err := h.server.UpdateMember(ctx, m)
 		switch {
 		case err == membership.ErrPeerURLexists:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusConflict, err.Error()))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusConflict, err.Error()))
 		case err == membership.ErrIDNotFound:
-			writeError(h.lg, w, r, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", id)))
+			writeError(w, r, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", id)))
 		case err != nil:
-			if h.lg != nil {
-				h.lg.Warn(
-					"failed to update a member",
-					zap.String("member-id", m.ID.String()),
-					zap.Error(err),
-				)
-			} else {
-				plog.Errorf("error updating member %s (%v)", m.ID, err)
-			}
-			writeError(h.lg, w, r, err)
+			plog.Errorf("error updating member %s (%v)", m.ID, err)
+			writeError(w, r, err)
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -331,7 +281,6 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type statsHandler struct {
-	lg    *zap.Logger
 	stats stats.Stats
 }
 
@@ -357,7 +306,7 @@ func (h *statsHandler) serveLeader(w http.ResponseWriter, r *http.Request) {
 	}
 	stats := h.stats.LeaderStats()
 	if stats == nil {
-		etcdhttp.WriteError(h.lg, w, r, httptypes.NewHTTPError(http.StatusForbidden, "not current leader"))
+		etcdhttp.WriteError(w, r, httptypes.NewHTTPError(http.StatusForbidden, "not current leader"))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -373,15 +322,15 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 
 	err := r.ParseForm()
 	if err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidForm,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidForm,
 			err.Error(),
 		)
 	}
 
 	if !strings.HasPrefix(r.URL.Path, keysPrefix) {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidForm,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidForm,
 			"incorrect key prefix",
 		)
 	}
@@ -389,75 +338,75 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 
 	var pIdx, wIdx uint64
 	if pIdx, err = getUint64(r.Form, "prevIndex"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeIndexNaN,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeIndexNaN,
 			`invalid value for "prevIndex"`,
 		)
 	}
 	if wIdx, err = getUint64(r.Form, "waitIndex"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeIndexNaN,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeIndexNaN,
 			`invalid value for "waitIndex"`,
 		)
 	}
 
 	var rec, sort, wait, dir, quorum, stream bool
 	if rec, err = getBool(r.Form, "recursive"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "recursive"`,
 		)
 	}
 	if sort, err = getBool(r.Form, "sorted"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "sorted"`,
 		)
 	}
 	if wait, err = getBool(r.Form, "wait"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "wait"`,
 		)
 	}
 	// TODO(jonboulle): define what parameters dir is/isn't compatible with?
 	if dir, err = getBool(r.Form, "dir"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "dir"`,
 		)
 	}
 	if quorum, err = getBool(r.Form, "quorum"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "quorum"`,
 		)
 	}
 	if stream, err = getBool(r.Form, "stream"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "stream"`,
 		)
 	}
 
 	if wait && r.Method != "GET" {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`"wait" can only be used with GET requests`,
 		)
 	}
 
 	pV := r.FormValue("prevValue")
 	if _, ok := r.Form["prevValue"]; ok && pV == "" {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodePrevValueRequired,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodePrevValueRequired,
 			`"prevValue" cannot be empty`,
 		)
 	}
 
 	if noValueOnSuccess, err = getBool(r.Form, "noValueOnSuccess"); err != nil {
-		return emptyReq, false, v2error.NewRequestError(
-			v2error.EcodeInvalidField,
+		return emptyReq, false, etcdErr.NewRequestError(
+			etcdErr.EcodeInvalidField,
 			`invalid value for "noValueOnSuccess"`,
 		)
 	}
@@ -468,8 +417,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if len(r.FormValue("ttl")) > 0 {
 		i, err := getUint64(r.Form, "ttl")
 		if err != nil {
-			return emptyReq, false, v2error.NewRequestError(
-				v2error.EcodeTTLNaN,
+			return emptyReq, false, etcdErr.NewRequestError(
+				etcdErr.EcodeTTLNaN,
 				`invalid value for "ttl"`,
 			)
 		}
@@ -481,8 +430,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if _, ok := r.Form["prevExist"]; ok {
 		bv, err := getBool(r.Form, "prevExist")
 		if err != nil {
-			return emptyReq, false, v2error.NewRequestError(
-				v2error.EcodeInvalidField,
+			return emptyReq, false, etcdErr.NewRequestError(
+				etcdErr.EcodeInvalidField,
 				"invalid value for prevExist",
 			)
 		}
@@ -494,8 +443,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if _, ok := r.Form["refresh"]; ok {
 		bv, err := getBool(r.Form, "refresh")
 		if err != nil {
-			return emptyReq, false, v2error.NewRequestError(
-				v2error.EcodeInvalidField,
+			return emptyReq, false, etcdErr.NewRequestError(
+				etcdErr.EcodeInvalidField,
 				"invalid value for refresh",
 			)
 		}
@@ -503,14 +452,14 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 		if refresh != nil && *refresh {
 			val := r.FormValue("value")
 			if _, ok := r.Form["value"]; ok && val != "" {
-				return emptyReq, false, v2error.NewRequestError(
-					v2error.EcodeRefreshValue,
+				return emptyReq, false, etcdErr.NewRequestError(
+					etcdErr.EcodeRefreshValue,
 					`A value was provided on a refresh`,
 				)
 			}
 			if ttl == nil {
-				return emptyReq, false, v2error.NewRequestError(
-					v2error.EcodeRefreshTTLRequired,
+				return emptyReq, false, etcdErr.NewRequestError(
+					etcdErr.EcodeRefreshTTLRequired,
 					`No TTL value set`,
 				)
 			}
@@ -556,7 +505,7 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 func writeKeyEvent(w http.ResponseWriter, resp etcdserver.Response, noValueOnSuccess bool) error {
 	ev := resp.Event
 	if ev == nil {
-		return errors.New("cannot write empty Event")
+		return errors.New("cannot write empty Event!")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Etcd-Index", fmt.Sprint(ev.EtcdIndex))
@@ -569,8 +518,8 @@ func writeKeyEvent(w http.ResponseWriter, resp etcdserver.Response, noValueOnSuc
 
 	ev = trimEventPrefix(ev, etcdserver.StoreKeysPrefix)
 	if noValueOnSuccess &&
-		(ev.Action == v2store.Set || ev.Action == v2store.CompareAndSwap ||
-			ev.Action == v2store.Create || ev.Action == v2store.Update) {
+		(ev.Action == store.Set || ev.Action == store.CompareAndSwap ||
+			ev.Action == store.Create || ev.Action == store.Update) {
 		ev.Node = nil
 		ev.PrevNode = nil
 	}
@@ -578,46 +527,32 @@ func writeKeyEvent(w http.ResponseWriter, resp etcdserver.Response, noValueOnSuc
 }
 
 func writeKeyNoAuth(w http.ResponseWriter) {
-	e := v2error.NewError(v2error.EcodeUnauthorized, "Insufficient credentials", 0)
+	e := etcdErr.NewError(etcdErr.EcodeUnauthorized, "Insufficient credentials", 0)
 	e.WriteTo(w)
 }
 
 // writeKeyError logs and writes the given Error to the ResponseWriter.
 // If Error is not an etcdErr, the error will be converted to an etcd error.
-func writeKeyError(lg *zap.Logger, w http.ResponseWriter, err error) {
+func writeKeyError(w http.ResponseWriter, err error) {
 	if err == nil {
 		return
 	}
 	switch e := err.(type) {
-	case *v2error.Error:
+	case *etcdErr.Error:
 		e.WriteTo(w)
 	default:
 		switch err {
 		case etcdserver.ErrTimeoutDueToLeaderFail, etcdserver.ErrTimeoutDueToConnectionLost:
-			if lg != nil {
-				lg.Warn(
-					"v2 response error",
-					zap.String("internal-server-error", err.Error()),
-				)
-			} else {
-				mlog.MergeError(err)
-			}
+			mlog.MergeError(err)
 		default:
-			if lg != nil {
-				lg.Warn(
-					"unexpected v2 response error",
-					zap.String("internal-server-error", err.Error()),
-				)
-			} else {
-				mlog.MergeErrorf("got unexpected response error (%v)", err)
-			}
+			mlog.MergeErrorf("got unexpected response error (%v)", err)
 		}
-		ee := v2error.NewError(v2error.EcodeRaftInternal, err.Error(), 0)
+		ee := etcdErr.NewError(etcdErr.EcodeRaftInternal, err.Error(), 0)
 		ee.WriteTo(w)
 	}
 }
 
-func handleKeyWatch(ctx context.Context, lg *zap.Logger, w http.ResponseWriter, resp etcdserver.Response, stream bool) {
+func handleKeyWatch(ctx context.Context, w http.ResponseWriter, resp etcdserver.Response, stream bool) {
 	wa := resp.Watcher
 	defer wa.Remove()
 	ech := wa.EventChan()
@@ -653,11 +588,7 @@ func handleKeyWatch(ctx context.Context, lg *zap.Logger, w http.ResponseWriter, 
 			ev = trimEventPrefix(ev, etcdserver.StoreKeysPrefix)
 			if err := json.NewEncoder(w).Encode(ev); err != nil {
 				// Should never be reached
-				if lg != nil {
-					lg.Warn("failed to encode event", zap.Error(err))
-				} else {
-					plog.Warningf("error writing event (%v)", err)
-				}
+				plog.Warningf("error writing event (%v)", err)
 				return
 			}
 			if !stream {
@@ -668,7 +599,7 @@ func handleKeyWatch(ctx context.Context, lg *zap.Logger, w http.ResponseWriter, 
 	}
 }
 
-func trimEventPrefix(ev *v2store.Event, prefix string) *v2store.Event {
+func trimEventPrefix(ev *store.Event, prefix string) *store.Event {
 	if ev == nil {
 		return nil
 	}
@@ -680,7 +611,7 @@ func trimEventPrefix(ev *v2store.Event, prefix string) *v2store.Event {
 	return e
 }
 
-func trimNodeExternPrefix(n *v2store.NodeExtern, prefix string) {
+func trimNodeExternPrefix(n *store.NodeExtern, prefix string) {
 	if n == nil {
 		return
 	}
@@ -691,35 +622,35 @@ func trimNodeExternPrefix(n *v2store.NodeExtern, prefix string) {
 }
 
 func trimErrorPrefix(err error, prefix string) error {
-	if e, ok := err.(*v2error.Error); ok {
+	if e, ok := err.(*etcdErr.Error); ok {
 		e.Cause = strings.TrimPrefix(e.Cause, prefix)
 	}
 	return err
 }
 
-func unmarshalRequest(lg *zap.Logger, r *http.Request, req json.Unmarshaler, w http.ResponseWriter) bool {
+func unmarshalRequest(r *http.Request, req json.Unmarshaler, w http.ResponseWriter) bool {
 	ctype := r.Header.Get("Content-Type")
 	semicolonPosition := strings.Index(ctype, ";")
 	if semicolonPosition != -1 {
 		ctype = strings.TrimSpace(strings.ToLower(ctype[0:semicolonPosition]))
 	}
 	if ctype != "application/json" {
-		writeError(lg, w, r, httptypes.NewHTTPError(http.StatusUnsupportedMediaType, fmt.Sprintf("Bad Content-Type %s, accept application/json", ctype)))
+		writeError(w, r, httptypes.NewHTTPError(http.StatusUnsupportedMediaType, fmt.Sprintf("Bad Content-Type %s, accept application/json", ctype)))
 		return false
 	}
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		writeError(lg, w, r, httptypes.NewHTTPError(http.StatusBadRequest, err.Error()))
+		writeError(w, r, httptypes.NewHTTPError(http.StatusBadRequest, err.Error()))
 		return false
 	}
 	if err := req.UnmarshalJSON(b); err != nil {
-		writeError(lg, w, r, httptypes.NewHTTPError(http.StatusBadRequest, err.Error()))
+		writeError(w, r, httptypes.NewHTTPError(http.StatusBadRequest, err.Error()))
 		return false
 	}
 	return true
 }
 
-func getID(lg *zap.Logger, p string, w http.ResponseWriter) (types.ID, bool) {
+func getID(p string, w http.ResponseWriter) (types.ID, bool) {
 	idStr := trimPrefix(p, membersPrefix)
 	if idStr == "" {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -727,7 +658,7 @@ func getID(lg *zap.Logger, p string, w http.ResponseWriter) (types.ID, bool) {
 	}
 	id, err := types.IDFromString(idStr)
 	if err != nil {
-		writeError(lg, w, nil, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", idStr)))
+		writeError(w, nil, httptypes.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such member: %s", idStr)))
 		return 0, false
 	}
 	return id, true

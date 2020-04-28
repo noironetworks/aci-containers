@@ -25,10 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	bolt "github.com/coreos/bbolt"
 	"github.com/coreos/pkg/capnslog"
-	humanize "github.com/dustin/go-humanize"
-	bolt "go.etcd.io/bbolt"
-	"go.uber.org/zap"
 )
 
 var (
@@ -42,32 +40,24 @@ var (
 	// This only works for linux.
 	initialMmapSize = uint64(10 * 1024 * 1024 * 1024)
 
-	plog = capnslog.NewPackageLogger("go.etcd.io/etcd", "mvcc/backend")
+	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "mvcc/backend")
 
 	// minSnapshotWarningTimeout is the minimum threshold to trigger a long running snapshot warning.
-	minSnapshotWarningTimeout = 30 * time.Second
+	minSnapshotWarningTimeout = time.Duration(30 * time.Second)
 )
 
 type Backend interface {
-	// ReadTx returns a read transaction. It is replaced by ConcurrentReadTx in the main data path, see #10523.
 	ReadTx() ReadTx
 	BatchTx() BatchTx
-	// ConcurrentReadTx returns a non-blocking read transaction.
-	ConcurrentReadTx() ReadTx
 
 	Snapshot() Snapshot
 	Hash(ignores map[IgnoreKey]struct{}) (uint32, error)
-	// Size returns the current size of the backend physically allocated.
-	// The backend can hold DB space that is not utilized at the moment,
-	// since it can conduct pre-allocation or spare unused space for recycling.
-	// Use SizeInUse() instead for the actual DB size.
+	// Size returns the current size of the backend.
 	Size() int64
 	// SizeInUse returns the current size of the backend logically in use.
 	// Since the backend can manage free space in a non-byte unit such as
 	// number of pages, the returned value can be not exactly accurate in bytes.
 	SizeInUse() int64
-	// OpenReadTxN returns the number of currently open read transactions in the backend.
-	OpenReadTxN() int64
 	Defrag() error
 	ForceCommit()
 	Close() error
@@ -86,14 +76,14 @@ type backend struct {
 	// size and commits are used with atomic operations so they must be
 	// 64-bit aligned, otherwise 32-bit tests will crash
 
-	// size is the number of bytes allocated in the backend
+	// size is the number of bytes in the backend
 	size int64
+
 	// sizeInUse is the number of bytes actually used in the backend
 	sizeInUse int64
+
 	// commits counts number of commits since start
 	commits int64
-	// openReadTxN is the number of currently open read transactions in the backend
-	openReadTxN int64
 
 	mu sync.RWMutex
 	db *bolt.DB
@@ -106,8 +96,6 @@ type backend struct {
 
 	stopc chan struct{}
 	donec chan struct{}
-
-	lg *zap.Logger
 }
 
 type BackendConfig struct {
@@ -117,12 +105,8 @@ type BackendConfig struct {
 	BatchInterval time.Duration
 	// BatchLimit is the maximum puts before flushing the BatchTx.
 	BatchLimit int
-	// BackendFreelistType is the backend boltdb's freelist type.
-	BackendFreelistType bolt.FreelistType
 	// MmapSize is the number of bytes to mmap for the backend.
 	MmapSize uint64
-	// Logger logs backend-side operations.
-	Logger *zap.Logger
 }
 
 func DefaultBackendConfig() BackendConfig {
@@ -149,15 +133,10 @@ func newBackend(bcfg BackendConfig) *backend {
 		*bopts = *boltOpenOptions
 	}
 	bopts.InitialMmapSize = bcfg.mmapSize()
-	bopts.FreelistType = bcfg.BackendFreelistType
 
 	db, err := bolt.Open(bcfg.Path, 0600, bopts)
 	if err != nil {
-		if bcfg.Logger != nil {
-			bcfg.Logger.Panic("failed to open database", zap.String("path", bcfg.Path), zap.Error(err))
-		} else {
-			plog.Panicf("cannot open database at %s (%v)", bcfg.Path, err)
-		}
+		plog.Panicf("cannot open database at %s (%v)", bcfg.Path, err)
 	}
 
 	// In future, may want to make buffering optional for low-concurrency systems
@@ -173,13 +152,10 @@ func newBackend(bcfg BackendConfig) *backend {
 				txBuffer: txBuffer{make(map[string]*bucketBuffer)},
 			},
 			buckets: make(map[string]*bolt.Bucket),
-			txWg:    new(sync.WaitGroup),
 		},
 
 		stopc: make(chan struct{}),
 		donec: make(chan struct{}),
-
-		lg: bcfg.Logger,
 	}
 	b.batchTx = newBatchTxBuffered(b)
 	go b.run()
@@ -195,24 +171,6 @@ func (b *backend) BatchTx() BatchTx {
 
 func (b *backend) ReadTx() ReadTx { return b.readTx }
 
-// ConcurrentReadTx creates and returns a new ReadTx, which:
-// A) creates and keeps a copy of backend.readTx.txReadBuffer,
-// B) references the boltdb read Tx (and its bucket cache) of current batch interval.
-func (b *backend) ConcurrentReadTx() ReadTx {
-	b.readTx.RLock()
-	defer b.readTx.RUnlock()
-	// prevent boltdb read Tx from been rolled back until store read Tx is done. Needs to be called when holding readTx.RLock().
-	b.readTx.txWg.Add(1)
-	// TODO: might want to copy the read buffer lazily - create copy when A) end of a write transaction B) end of a batch interval.
-	return &concurrentReadTx{
-		buf:     b.readTx.buf.unsafeCopy(),
-		tx:      b.readTx.tx,
-		txMu:    &b.readTx.txMu,
-		buckets: b.readTx.buckets,
-		txWg:    b.readTx.txWg,
-	}
-}
-
 // ForceCommit forces the current batching tx to commit.
 func (b *backend) ForceCommit() {
 	b.batchTx.Commit()
@@ -225,11 +183,7 @@ func (b *backend) Snapshot() Snapshot {
 	defer b.mu.RUnlock()
 	tx, err := b.db.Begin(false)
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to begin tx", zap.Error(err))
-		} else {
-			plog.Fatalf("cannot begin tx (%s)", err)
-		}
+		plog.Fatalf("cannot begin tx (%s)", err)
 	}
 
 	stopc, donec := make(chan struct{}), make(chan struct{})
@@ -249,19 +203,9 @@ func (b *backend) Snapshot() Snapshot {
 		for {
 			select {
 			case <-ticker.C:
-				if b.lg != nil {
-					b.lg.Warn(
-						"snapshotting taking too long to transfer",
-						zap.Duration("taking", time.Since(start)),
-						zap.Int64("bytes", dbBytes),
-						zap.String("size", humanize.Bytes(uint64(dbBytes))),
-					)
-				} else {
-					plog.Warningf("snapshotting is taking more than %v seconds to finish transferring %v MB [started at %v]", time.Since(start).Seconds(), float64(dbBytes)/float64(1024*1014), start)
-				}
-
+				plog.Warningf("snapshotting is taking more than %v seconds to finish transferring %v MB [started at %v]", time.Since(start).Seconds(), float64(dbBytes)/float64(1024*1014), start)
 			case <-stopc:
-				snapshotTransferSec.Observe(time.Since(start).Seconds())
+				snapshotDurations.Observe(time.Since(start).Seconds())
 				return
 			}
 		}
@@ -326,9 +270,7 @@ func (b *backend) run() {
 			b.batchTx.CommitAndStop()
 			return
 		}
-		if b.batchTx.safePending() != 0 {
-			b.batchTx.Commit()
-		}
+		b.batchTx.Commit()
 		t.Reset(b.batchInterval)
 	}
 }
@@ -350,7 +292,7 @@ func (b *backend) Defrag() error {
 
 func (b *backend) defrag() error {
 	now := time.Now()
-
+	
 	// TODO: make this non-blocking?
 	// lock batchTx to ensure nobody is using previous tx, and then
 	// close previous ongoing tx.
@@ -362,11 +304,10 @@ func (b *backend) defrag() error {
 	defer b.mu.Unlock()
 
 	// block concurrent read requests while resetting tx
-	b.readTx.Lock()
-	defer b.readTx.Unlock()
+	b.readTx.mu.Lock()
+	defer b.readTx.mu.Unlock()
 
 	b.batchTx.unsafeCommit(true)
-
 	b.batchTx.tx = nil
 
 	tmpdb, err := bolt.Open(b.db.Path()+".tmp", 0600, boltOpenOptions)
@@ -374,87 +315,50 @@ func (b *backend) defrag() error {
 		return err
 	}
 
-	dbp := b.db.Path()
-	tdbp := tmpdb.Path()
-	size1, sizeInUse1 := b.Size(), b.SizeInUse()
-	if b.lg != nil {
-		b.lg.Info(
-			"defragmenting",
-			zap.String("path", dbp),
-			zap.Int64("current-db-size-bytes", size1),
-			zap.String("current-db-size", humanize.Bytes(uint64(size1))),
-			zap.Int64("current-db-size-in-use-bytes", sizeInUse1),
-			zap.String("current-db-size-in-use", humanize.Bytes(uint64(sizeInUse1))),
-		)
-	}
-
 	err = defragdb(b.db, tmpdb, defragLimit)
+
 	if err != nil {
 		tmpdb.Close()
 		os.RemoveAll(tmpdb.Path())
 		return err
 	}
 
+	dbp := b.db.Path()
+	tdbp := tmpdb.Path()
+
 	err = b.db.Close()
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to close database", zap.Error(err))
-		} else {
-			plog.Fatalf("cannot close database (%s)", err)
-		}
+		plog.Fatalf("cannot close database (%s)", err)
 	}
 	err = tmpdb.Close()
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to close tmp database", zap.Error(err))
-		} else {
-			plog.Fatalf("cannot close database (%s)", err)
-		}
+		plog.Fatalf("cannot close database (%s)", err)
 	}
 	err = os.Rename(tdbp, dbp)
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to rename tmp database", zap.Error(err))
-		} else {
-			plog.Fatalf("cannot rename database (%s)", err)
-		}
+		plog.Fatalf("cannot rename database (%s)", err)
 	}
 
 	b.db, err = bolt.Open(dbp, 0600, boltOpenOptions)
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to open database", zap.String("path", dbp), zap.Error(err))
-		} else {
-			plog.Panicf("cannot open database at %s (%v)", dbp, err)
-		}
+		plog.Panicf("cannot open database at %s (%v)", dbp, err)
 	}
-	b.batchTx.tx = b.unsafeBegin(true)
+	b.batchTx.tx, err = b.db.Begin(true)
+	if err != nil {
+		plog.Fatalf("cannot begin tx (%s)", err)
+	}
 
 	b.readTx.reset()
 	b.readTx.tx = b.unsafeBegin(false)
 
 	size := b.readTx.tx.Size()
-	db := b.readTx.tx.DB()
+	db := b.db
 	atomic.StoreInt64(&b.size, size)
 	atomic.StoreInt64(&b.sizeInUse, size-(int64(db.Stats().FreePageN)*int64(db.Info().PageSize)))
 
 	took := time.Since(now)
-	defragSec.Observe(took.Seconds())
+	defragDurations.Observe(took.Seconds())
 
-	size2, sizeInUse2 := b.Size(), b.SizeInUse()
-	if b.lg != nil {
-		b.lg.Info(
-			"defragmented",
-			zap.String("path", dbp),
-			zap.Int64("current-db-size-bytes-diff", size2-size1),
-			zap.Int64("current-db-size-bytes", size2),
-			zap.String("current-db-size", humanize.Bytes(uint64(size2))),
-			zap.Int64("current-db-size-in-use-bytes-diff", sizeInUse2-sizeInUse1),
-			zap.Int64("current-db-size-in-use-bytes", sizeInUse2),
-			zap.String("current-db-size-in-use", humanize.Bytes(uint64(sizeInUse2))),
-			zap.Duration("took", took),
-		)
-	}
 	return nil
 }
 
@@ -517,10 +421,8 @@ func (b *backend) begin(write bool) *bolt.Tx {
 
 	size := tx.Size()
 	db := tx.DB()
-	stats := db.Stats()
 	atomic.StoreInt64(&b.size, size)
-	atomic.StoreInt64(&b.sizeInUse, size-(int64(stats.FreePageN)*int64(db.Info().PageSize)))
-	atomic.StoreInt64(&b.openReadTxN, int64(stats.OpenTxN))
+	atomic.StoreInt64(&b.sizeInUse, size-(int64(db.Stats().FreePageN)*int64(db.Info().PageSize)))
 
 	return tx
 }
@@ -528,24 +430,16 @@ func (b *backend) begin(write bool) *bolt.Tx {
 func (b *backend) unsafeBegin(write bool) *bolt.Tx {
 	tx, err := b.db.Begin(write)
 	if err != nil {
-		if b.lg != nil {
-			b.lg.Fatal("failed to begin tx", zap.Error(err))
-		} else {
-			plog.Fatalf("cannot begin tx (%s)", err)
-		}
+		plog.Fatalf("cannot begin tx (%s)", err)
 	}
 	return tx
-}
-
-func (b *backend) OpenReadTxN() int64 {
-	return atomic.LoadInt64(&b.openReadTxN)
 }
 
 // NewTmpBackend creates a backend implementation for testing.
 func NewTmpBackend(batchInterval time.Duration, batchLimit int) (*backend, string) {
 	dir, err := ioutil.TempDir(os.TempDir(), "etcd_backend_test")
 	if err != nil {
-		panic(err)
+		plog.Fatal(err)
 	}
 	tmpPath := filepath.Join(dir, "database")
 	bcfg := DefaultBackendConfig()

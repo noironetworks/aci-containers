@@ -1,1 +1,0 @@
-# We don't want an s2 service in the primary dc

@@ -16,10 +16,9 @@ package mvcc
 
 import (
 	"encoding/binary"
-	"fmt"
 
-	"go.etcd.io/etcd/mvcc/backend"
-	"go.etcd.io/etcd/mvcc/mvccpb"
+	"github.com/coreos/etcd/mvcc/backend"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 )
 
 func UpdateConsistentIndex(be backend.Backend, index uint64) {
@@ -48,7 +47,7 @@ func WriteKV(be backend.Backend, kv mvccpb.KeyValue) {
 
 	d, err := kv.Marshal()
 	if err != nil {
-		panic(fmt.Errorf("cannot marshal event: %v", err))
+		plog.Fatalf("cannot marshal event: %v", err)
 	}
 
 	be.BatchTx().Lock()

@@ -2,12 +2,13 @@ package wsproxy
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -26,11 +27,13 @@ type RequestMutatorFunc func(incoming *http.Request, outgoing *http.Request) *ht
 
 // Proxy provides websocket transport upgrade to compatible endpoints.
 type Proxy struct {
-	h                   http.Handler
-	logger              Logger
-	methodOverrideParam string
-	tokenCookieName     string
-	requestMutator      RequestMutatorFunc
+	h                      http.Handler
+	logger                 Logger
+	maxRespBodyBufferBytes int
+	methodOverrideParam    string
+	tokenCookieName        string
+	requestMutator         RequestMutatorFunc
+	headerForwarder        func(header string) bool
 }
 
 // Logger collects log messages.
@@ -50,6 +53,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Option allows customization of the proxy.
 type Option func(*Proxy)
 
+// WithMaxRespBodyBufferSize allows specification of a custom size for the
+// buffer used while reading the response body. By default, the bufio.Scanner
+// used to read the response body sets the maximum token size to MaxScanTokenSize.
+func WithMaxRespBodyBufferSize(nBytes int) Option {
+	return func(p *Proxy) {
+		p.maxRespBodyBufferBytes = nBytes
+	}
+}
+
 // WithMethodParamOverride allows specification of the special http parameter that is used in the proxied streaming request.
 func WithMethodParamOverride(param string) Option {
 	return func(p *Proxy) {
@@ -60,7 +72,7 @@ func WithMethodParamOverride(param string) Option {
 // WithTokenCookieName allows specification of the cookie that is supplied as an upstream 'Authorization: Bearer' http header.
 func WithTokenCookieName(param string) Option {
 	return func(p *Proxy) {
-		p.methodOverrideParam = param
+		p.tokenCookieName = param
 	}
 }
 
@@ -71,11 +83,29 @@ func WithRequestMutator(fn RequestMutatorFunc) Option {
 	}
 }
 
+// WithForwardedHeaders allows controlling which headers are forwarded.
+func WithForwardedHeaders(fn func(header string) bool) Option {
+	return func(p *Proxy) {
+		p.headerForwarder = fn
+	}
+}
+
 // WithLogger allows a custom FieldLogger to be supplied
 func WithLogger(logger Logger) Option {
 	return func(p *Proxy) {
 		p.logger = logger
 	}
+}
+
+var defaultHeadersToForward = map[string]bool{
+	"Origin":  true,
+	"origin":  true,
+	"Referer": true,
+	"referer": true,
+}
+
+func defaultHeaderForwarder(header string) bool {
+	return defaultHeadersToForward[header]
 }
 
 // WebsocketProxy attempts to expose the underlying handler as a bidi websocket stream with newline-delimited
@@ -96,6 +126,7 @@ func WebsocketProxy(h http.Handler, opts ...Option) http.Handler {
 		logger:              logrus.New(),
 		methodOverrideParam: MethodOverrideParam,
 		tokenCookieName:     TokenCookieName,
+		headerForwarder:     defaultHeaderForwarder,
 	}
 	for _, o := range opts {
 		o(p)
@@ -144,7 +175,12 @@ func (p *Proxy) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if swsp := r.Header.Get("Sec-WebSocket-Protocol"); swsp != "" {
-		request.Header.Set("Authorization", strings.Replace(swsp, "Bearer, ", "Bearer ", 1))
+		request.Header.Set("Authorization", transformSubProtocolHeader(swsp))
+	}
+	for header := range r.Header {
+		if p.headerForwarder(header) {
+			request.Header.Set(header, r.Header.Get(header))
+		}
 	}
 	// If token cookie is present, populate Authorization header from the cookie instead.
 	if cookie, err := r.Cookie(p.tokenCookieName); err == nil {
@@ -159,14 +195,15 @@ func (p *Proxy) proxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseBodyR, responseBodyW := io.Pipe()
+	response := newInMemoryResponseWriter(responseBodyW)
 	go func() {
 		<-ctx.Done()
 		p.logger.Debugln("closing pipes")
 		requestBodyW.CloseWithError(io.EOF)
 		responseBodyW.CloseWithError(io.EOF)
+		response.closed <- true
 	}()
 
-	response := newInMemoryResponseWriter(responseBodyW)
 	go func() {
 		defer cancelFn()
 		p.h.ServeHTTP(response, request)
@@ -207,6 +244,14 @@ func (p *Proxy) proxy(w http.ResponseWriter, r *http.Request) {
 	}()
 	// write loop -- take messages from response and write to websocket
 	scanner := bufio.NewScanner(responseBodyR)
+
+	// if maxRespBodyBufferSize has been specified, use custom buffer for scanner
+	var scannerBuf []byte
+	if p.maxRespBodyBufferBytes > 0 {
+		scannerBuf = make([]byte, 0, 64*1024)
+		scanner.Buffer(scannerBuf, p.maxRespBodyBufferBytes)
+	}
+
 	for scanner.Scan() {
 		if len(scanner.Bytes()) == 0 {
 			p.logger.Warnln("[write] empty scan", scanner.Err())
@@ -227,13 +272,26 @@ type inMemoryResponseWriter struct {
 	io.Writer
 	header http.Header
 	code   int
+	closed chan bool
 }
 
 func newInMemoryResponseWriter(w io.Writer) *inMemoryResponseWriter {
 	return &inMemoryResponseWriter{
 		Writer: w,
 		header: http.Header{},
+		closed: make(chan bool, 1),
 	}
+}
+
+// IE and Edge do not delimit Sec-WebSocket-Protocol strings with spaces
+func transformSubProtocolHeader(header string) string {
+	tokens := strings.SplitN(header, "Bearer,", 2)
+
+	if len(tokens) < 2 {
+		return ""
+	}
+
+	return fmt.Sprintf("Bearer %v", strings.Trim(tokens[1], " "))
 }
 
 func (w *inMemoryResponseWriter) Write(b []byte) (int, error) {
@@ -244,5 +302,8 @@ func (w *inMemoryResponseWriter) Header() http.Header {
 }
 func (w *inMemoryResponseWriter) WriteHeader(code int) {
 	w.code = code
+}
+func (w *inMemoryResponseWriter) CloseNotify() <-chan bool {
+	return w.closed
 }
 func (w *inMemoryResponseWriter) Flush() {}

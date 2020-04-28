@@ -19,12 +19,6 @@ import (
 // IngressOption is the type of a configurable client option.
 type IngressOption func(*IngressClient)
 
-func WithDialOptions(opts ...grpc.DialOption) IngressOption {
-	return func(c *IngressClient) {
-		c.dialOpts = append(c.dialOpts, opts...)
-	}
-}
-
 // WithTag allows for the configuration of arbitrary string value
 // metadata which will be included in all data sent to Loggregator
 func WithTag(name, value string) IngressOption {
@@ -69,7 +63,6 @@ func WithAddr(addr string) IngressOption {
 // Logger declares the minimal logging interface used within the v2 client
 type Logger interface {
 	Printf(string, ...interface{})
-	Panicf(string, ...interface{})
 }
 
 // WithLogger allows for the configuration of a logger.
@@ -77,14 +70,6 @@ type Logger interface {
 func WithLogger(l Logger) IngressOption {
 	return func(c *IngressClient) {
 		c.logger = l
-	}
-}
-
-// WithContext configures the context that manages the lifecycle for the gRPC
-// connection. It defaults to a context.Background().
-func WithContext(ctx context.Context) IngressOption {
-	return func(c *IngressClient) {
-		c.ctx = ctx
 	}
 }
 
@@ -101,14 +86,9 @@ type IngressClient struct {
 	batchFlushInterval time.Duration
 	addr               string
 
-	dialOpts []grpc.DialOption
-
 	logger Logger
 
 	closeErrors chan error
-
-	ctx    context.Context
-	cancel func()
 }
 
 // NewIngressClient creates a v2 loggregator client. Its TLS configuration
@@ -122,20 +102,15 @@ func NewIngressClient(tlsConfig *tls.Config, opts ...IngressOption) (*IngressCli
 		addr:               "localhost:3458",
 		logger:             log.New(ioutil.Discard, "", 0),
 		closeErrors:        make(chan error),
-		ctx:                context.Background(),
 	}
 
 	for _, o := range opts {
 		o(c)
 	}
 
-	c.ctx, c.cancel = context.WithCancel(c.ctx)
-
-	c.dialOpts = append(c.dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-
 	conn, err := grpc.Dial(
 		c.addr,
-		c.dialOpts...,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	if err != nil {
 		return nil, err
@@ -153,33 +128,25 @@ type protoEditor interface {
 	SetLogAppInfo(appID, sourceType, sourceInstance string)
 	SetGaugeAppInfo(appID string, index int)
 	SetCounterAppInfo(appID string, index int)
-	SetSourceInfo(sourceID, instanceID string)
 	SetLogToStdout()
 	SetGaugeValue(name string, value float64, unit string)
 	SetDelta(d uint64)
-	SetTotal(t uint64)
 	SetTag(name, value string)
 }
 
 // EmitLogOption is the option type passed into EmitLog
 type EmitLogOption func(proto.Message)
 
-// WithAppInfo configures the meta data associated with emitted data. Exists
-// for backward compatability. If possible, use WithSourceInfo instead.
+// WithAppInfo configures the meta data associated with emitted data
 func WithAppInfo(appID, sourceType, sourceInstance string) EmitLogOption {
-	return WithSourceInfo(appID, sourceType, sourceInstance)
-}
-
-// WithSourceInfo configures the meta data associated with emitted data
-func WithSourceInfo(sourceID, sourceType, sourceInstance string) EmitLogOption {
 	return func(m proto.Message) {
 		switch e := m.(type) {
 		case *loggregator_v2.Envelope:
-			e.SourceId = sourceID
+			e.SourceId = appID
 			e.InstanceId = sourceInstance
 			e.Tags["source_type"] = sourceType
 		case protoEditor:
-			e.SetLogAppInfo(sourceID, sourceType, sourceInstance)
+			e.SetLogAppInfo(appID, sourceType, sourceInstance)
 		default:
 			panic(fmt.Sprintf("unsupported Message type: %T", m))
 		}
@@ -229,22 +196,14 @@ func (c *IngressClient) EmitLog(message string, opts ...EmitLogOption) {
 type EmitGaugeOption func(proto.Message)
 
 // WithGaugeAppInfo configures an envelope with both the app ID and index.
-// Exists for backward compatability. If possible, use WithGaugeSourceInfo
-// instead.
 func WithGaugeAppInfo(appID string, index int) EmitGaugeOption {
-	return WithGaugeSourceInfo(appID, strconv.Itoa(index))
-}
-
-// WithGaugeSourceInfo configures an envelope with both the source ID and
-// instance ID.
-func WithGaugeSourceInfo(sourceID, instanceID string) EmitGaugeOption {
 	return func(m proto.Message) {
 		switch e := m.(type) {
 		case *loggregator_v2.Envelope:
-			e.SourceId = sourceID
-			e.InstanceId = instanceID
+			e.SourceId = appID
+			e.InstanceId = strconv.Itoa(index)
 		case protoEditor:
-			e.SetSourceInfo(sourceID, instanceID)
+			e.SetGaugeAppInfo(appID, index)
 		default:
 			panic(fmt.Sprintf("unsupported Message type: %T", m))
 		}
@@ -314,38 +273,15 @@ func WithDelta(d uint64) EmitCounterOption {
 	}
 }
 
-// WithTotal is an option that sets the total for a counter.
-func WithTotal(t uint64) EmitCounterOption {
-	return func(m proto.Message) {
-		switch e := m.(type) {
-		case *loggregator_v2.Envelope:
-			e.GetCounter().Total = t
-			e.GetCounter().Delta = 0
-		case protoEditor:
-			e.SetTotal(t)
-		default:
-			panic(fmt.Sprintf("unsupported Message type: %T", m))
-		}
-	}
-}
-
 // WithCounterAppInfo configures an envelope with both the app ID and index.
-// Exists for backward compatability. If possible, use WithCounterSourceInfo
-// instead.
 func WithCounterAppInfo(appID string, index int) EmitCounterOption {
-	return WithCounterSourceInfo(appID, strconv.Itoa(index))
-}
-
-// WithCounterSourceInfo configures an envelope with both the app ID and
-// source ID.
-func WithCounterSourceInfo(sourceID, instanceID string) EmitCounterOption {
 	return func(m proto.Message) {
 		switch e := m.(type) {
 		case *loggregator_v2.Envelope:
-			e.SourceId = sourceID
-			e.InstanceId = instanceID
+			e.SourceId = appID
+			e.InstanceId = strconv.Itoa(index)
 		case protoEditor:
-			e.SetSourceInfo(sourceID, instanceID)
+			e.SetCounterAppInfo(appID, index)
 		default:
 			panic(fmt.Sprintf("unsupported Message type: %T", m))
 		}
@@ -376,68 +312,8 @@ func (c *IngressClient) EmitCounter(name string, opts ...EmitCounterOption) {
 	c.envelopes <- e
 }
 
-// EmitTimerOption is the option type passed into EmitTimer.
-type EmitTimerOption func(proto.Message)
-
-// WithTimerSourceInfo configures an envelope with both the source and instance
-// IDs.
-func WithTimerSourceInfo(sourceID, instanceID string) EmitTimerOption {
-	return func(m proto.Message) {
-		switch e := m.(type) {
-		case *loggregator_v2.Envelope:
-			e.SourceId = sourceID
-			e.InstanceId = instanceID
-		case protoEditor:
-			e.SetSourceInfo(sourceID, instanceID)
-		default:
-			panic(fmt.Sprintf("unsupported Message type: %T", m))
-		}
-	}
-}
-
-// EmitTimer sends a timer envelope with the given name, start time and stop time.
-func (c *IngressClient) EmitTimer(name string, start, stop time.Time, opts ...EmitTimerOption) {
-	e := &loggregator_v2.Envelope{
-		Timestamp: time.Now().UnixNano(),
-		Message: &loggregator_v2.Envelope_Timer{
-			Timer: &loggregator_v2.Timer{
-				Name:  name,
-				Start: start.UnixNano(),
-				Stop:  stop.UnixNano(),
-			},
-		},
-		Tags: make(map[string]string),
-	}
-
-	for k, v := range c.tags {
-		e.Tags[k] = v
-	}
-
-	for _, o := range opts {
-		o(e)
-	}
-
-	c.envelopes <- e
-}
-
 // EmitEventOption is the option type passed into EmitEvent.
 type EmitEventOption func(proto.Message)
-
-// WithEventSourceInfo configures an envelope with both the source and instance
-// IDs.
-func WithEventSourceInfo(sourceID, instanceID string) EmitEventOption {
-	return func(m proto.Message) {
-		switch e := m.(type) {
-		case *loggregator_v2.Envelope:
-			e.SourceId = sourceID
-			e.InstanceId = instanceID
-		case protoEditor:
-			e.SetSourceInfo(sourceID, instanceID)
-		default:
-			panic(fmt.Sprintf("unsupported Message type: %T", m))
-		}
-	}
-}
 
 // EmitEvent sends an Event envelope.
 func (c *IngressClient) EmitEvent(ctx context.Context, title, body string, opts ...EmitEventOption) error {
@@ -467,11 +343,6 @@ func (c *IngressClient) EmitEvent(ctx context.Context, title, body string, opts 
 	return err
 }
 
-// Emit sends an envelope. It will sent within a batch.
-func (c *IngressClient) Emit(e *loggregator_v2.Envelope) {
-	c.envelopes <- e
-}
-
 // CloseSend will flush the envelope buffers and close the stream to the
 // ingress server. This method will block until the buffers are flushed.
 func (c *IngressClient) CloseSend() error {
@@ -481,8 +352,6 @@ func (c *IngressClient) CloseSend() error {
 }
 
 func (c *IngressClient) startSender() {
-	defer c.cancel()
-
 	t := time.NewTimer(c.batchFlushInterval)
 
 	var batch []*loggregator_v2.Envelope
@@ -491,13 +360,9 @@ func (c *IngressClient) startSender() {
 		case env, ok := <-c.envelopes:
 			if !ok {
 				if len(batch) > 0 {
-					err := c.flush(batch)
-					c.closeAndRecv()
-					c.closeErrors <- err
-					return
+					c.closeErrors <- c.flush(batch, true)
 				}
 
-				c.closeAndRecv()
 				c.closeErrors <- nil
 
 				return
@@ -506,7 +371,7 @@ func (c *IngressClient) startSender() {
 			batch = append(batch, env)
 
 			if len(batch) >= int(c.batchMaxSize) {
-				c.flush(batch)
+				c.flush(batch, false)
 				batch = nil
 				if !t.Stop() {
 					<-t.C
@@ -515,7 +380,7 @@ func (c *IngressClient) startSender() {
 			}
 		case <-t.C:
 			if len(batch) > 0 {
-				c.flush(batch)
+				c.flush(batch, false)
 				batch = nil
 			}
 			t.Reset(c.batchFlushInterval)
@@ -523,15 +388,8 @@ func (c *IngressClient) startSender() {
 	}
 }
 
-func (c *IngressClient) closeAndRecv() {
-	if c.sender == nil {
-		return
-	}
-	c.sender.CloseAndRecv()
-}
-
-func (c *IngressClient) flush(batch []*loggregator_v2.Envelope) error {
-	err := c.emit(batch)
+func (c *IngressClient) flush(batch []*loggregator_v2.Envelope, close bool) error {
+	err := c.emit(batch, close)
 	if err != nil {
 		c.logger.Printf("Error while flushing: %s", err)
 	}
@@ -539,10 +397,12 @@ func (c *IngressClient) flush(batch []*loggregator_v2.Envelope) error {
 	return err
 }
 
-func (c *IngressClient) emit(batch []*loggregator_v2.Envelope) error {
+func (c *IngressClient) emit(batch []*loggregator_v2.Envelope, close bool) error {
 	if c.sender == nil {
 		var err error
-		c.sender, err = c.client.BatchSender(c.ctx)
+		// TODO Callers of emit should pass in a context. The code should not
+		// be hard-coding context.TODO here.
+		c.sender, err = c.client.BatchSender(context.TODO())
 		if err != nil {
 			return err
 		}
@@ -552,6 +412,10 @@ func (c *IngressClient) emit(batch []*loggregator_v2.Envelope) error {
 	if err != nil {
 		c.sender = nil
 		return err
+	}
+
+	if close {
+		return c.sender.CloseSend()
 	}
 
 	return nil

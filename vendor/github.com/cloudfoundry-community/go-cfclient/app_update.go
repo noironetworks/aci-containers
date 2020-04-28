@@ -9,8 +9,8 @@ import (
 )
 
 type UpdateResponse struct {
-	Metadata Meta                 `json:"metadata"`
-	Entity   UpdateResponseEntity `json:"entity"`
+	Metadata                 Meta                   `json:"metadata"`
+	Entity                   UpdateResponseEntity   `json:"entity"`
 }
 type AppUpdateResource struct {
 	Name                     string                 `json:"name,omitempty"`
@@ -19,7 +19,7 @@ type AppUpdateResource struct {
 	DiskQuota                int                    `json:"disk_quota,omitempty"`
 	SpaceGuid                string                 `json:"space_guid,omitempty"`
 	StackGuid                string                 `json:"stack_guid,omitempty"`
-	State                    AppState               `json:"state,omitempty"`
+	State                    string                 `json:"state,omitempty"`
 	Command                  string                 `json:"command,omitempty"`
 	Buildpack                string                 `json:"buildpack,omitempty"`
 	HealthCheckHttpEndpoint  string                 `json:"health_check_http_endpoint,omitempty"`
@@ -62,23 +62,23 @@ type UpdateResponseEntity struct {
 	Diego                    bool                   `json:"diego,omitempty"`
 	DockerImage              string                 `json:"docker_image"`
 	DockerCredentials        struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	} `json:"docker_credentials"`
-	PackageUpdatedAt     string `json:"package_updated_at"`
-	DetectedStartCommand string `json:"detected_start_command"`
-	EnableSSH            bool   `json:"enable_ssh"`
-	Ports                []int  `json:"ports"`
-	SpaceURL             string `json:"space_url"`
-	StackURL             string `json:"stack_url"`
-	RoutesURL            string `json:"routes_url"`
-	EventsURL            string `json:"events_url"`
-	ServiceBindingsUrl   string `json:"service_bindings_url"`
-	RouteMappingsUrl     string `json:"route_mappings_url"`
+				Username     string     `json:"username"`
+				Password     string     `json:"password"`
+				}                       `json:"docker_credentials"`
+	PackageUpdatedAt         string                 `json:"package_updated_at"`
+	DetectedStartCommand     string                 `json:"detected_start_command"`
+	EnableSSH                bool                   `json:"enable_ssh"`
+	Ports                    []int                  `json:"ports"`
+	SpaceURL                 string                 `json:"space_url"`
+	StackURL                 string                 `json:"stack_url"`
+	RoutesURL                string                 `json:"routes_url"`
+	EventsURL                string                 `json:"events_url"`
+	ServiceBindingsUrl       string                 `json:"service_bindings_url"`
+	RouteMappingsUrl         string                 `json:"route_mappings_url"`
 }
 
 func (c *Client) UpdateApp(guid string, aur AppUpdateResource) (UpdateResponse, error) {
-	var updateResponse UpdateResponse
+	var  updateResponse UpdateResponse
 
 	buf := bytes.NewBuffer(nil)
 	err := json.NewEncoder(buf).Encode(aur)

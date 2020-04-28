@@ -15,14 +15,12 @@
 package etcdserver
 
 import (
-	"context"
 	"sync"
 
-	"go.etcd.io/etcd/auth"
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/lease"
-	"go.etcd.io/etcd/mvcc"
-	"go.etcd.io/etcd/pkg/traceutil"
+	"github.com/coreos/etcd/auth"
+	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/lease"
+	"github.com/coreos/etcd/mvcc"
 )
 
 type authApplierV3 struct {
@@ -63,9 +61,9 @@ func (aa *authApplierV3) Apply(r *pb.InternalRaftRequest) *applyResult {
 	return ret
 }
 
-func (aa *authApplierV3) Put(txn mvcc.TxnWrite, r *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {
+func (aa *authApplierV3) Put(txn mvcc.TxnWrite, r *pb.PutRequest) (*pb.PutResponse, error) {
 	if err := aa.as.IsPutPermitted(&aa.authInfo, r.Key); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if err := aa.checkLeasePuts(lease.LeaseID(r.Lease)); err != nil {
@@ -73,23 +71,23 @@ func (aa *authApplierV3) Put(txn mvcc.TxnWrite, r *pb.PutRequest) (*pb.PutRespon
 		// be written by this user. It means the user cannot revoke the
 		// lease so attaching the lease to the newly written key should
 		// be forbidden.
-		return nil, nil, err
+		return nil, err
 	}
 
 	if r.PrevKv {
 		err := aa.as.IsRangePermitted(&aa.authInfo, r.Key, nil)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 	return aa.applierV3.Put(txn, r)
 }
 
-func (aa *authApplierV3) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error) {
+func (aa *authApplierV3) Range(txn mvcc.TxnRead, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	if err := aa.as.IsRangePermitted(&aa.authInfo, r.Key, r.RangeEnd); err != nil {
 		return nil, err
 	}
-	return aa.applierV3.Range(ctx, txn, r)
+	return aa.applierV3.Range(txn, r)
 }
 
 func (aa *authApplierV3) DeleteRange(txn mvcc.TxnWrite, r *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error) {
@@ -158,7 +156,10 @@ func checkTxnAuth(as auth.AuthStore, ai *auth.AuthInfo, rt *pb.TxnRequest) error
 	if err := checkTxnReqsPermission(as, ai, rt.Success); err != nil {
 		return err
 	}
-	return checkTxnReqsPermission(as, ai, rt.Failure)
+	if err := checkTxnReqsPermission(as, ai, rt.Failure); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (aa *authApplierV3) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"code.cloudfoundry.org/gofileutils/fileutils"
+	"github.com/cloudfoundry/gofileutils/fileutils"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +35,6 @@ type Buildpack struct {
 	Locked    bool   `json:"locked"`
 	Position  int    `json:"position"`
 	Filename  string `json:"filename"`
-	Stack     string `json:"stack"`
 	c         *Client
 }
 
@@ -47,7 +46,6 @@ type BuildpackRequest struct {
 	Enabled  *bool   `json:"enabled,omitempty"`
 	Locked   *bool   `json:"locked,omitempty"`
 	Position *int    `json:"position,omitempty"`
-	Stack    *string `json:"stack,omitempty"`
 }
 
 func (c *Client) CreateBuildpack(bpr *BuildpackRequest) (*Buildpack, error) {
@@ -85,17 +83,6 @@ func (c *Client) ListBuildpacks() ([]Buildpack, error) {
 		}
 	}
 	return buildpacks, nil
-}
-
-func (c *Client) DeleteBuildpack(guid string, async bool) error {
-	resp, err := c.DoRequest(c.NewRequest("DELETE", fmt.Sprintf("/v2/buildpacks/%s?async=%t", guid, async)))
-	if err != nil {
-		return err
-	}
-	if (async && (resp.StatusCode != http.StatusAccepted)) || (!async && (resp.StatusCode != http.StatusNoContent)) {
-		return errors.Wrapf(err, "Error deleting buildpack %s, response code: %d", guid, resp.StatusCode)
-	}
-	return nil
 }
 
 func (c *Client) getBuildpackResponse(requestUrl string) (BuildpackResponse, error) {
@@ -241,7 +228,4 @@ func (bpr *BuildpackRequest) SetPosition(i int) {
 }
 func (bpr *BuildpackRequest) SetName(s string) {
 	bpr.Name = &s
-}
-func (bpr *BuildpackRequest) SetStack(s string) {
-	bpr.Stack = &s
 }

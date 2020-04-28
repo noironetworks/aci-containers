@@ -19,15 +19,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.etcd.io/etcd/pkg/fileutil"
-
-	"go.uber.org/zap"
+	"github.com/coreos/etcd/pkg/fileutil"
 )
 
 // filePipeline pipelines allocating disk space
 type filePipeline struct {
-	lg *zap.Logger
-
 	// dir to put files
 	dir string
 	// size of files to make, in bytes
@@ -40,9 +36,8 @@ type filePipeline struct {
 	donec chan struct{}
 }
 
-func newFilePipeline(lg *zap.Logger, dir string, fileSize int64) *filePipeline {
+func newFilePipeline(dir string, fileSize int64) *filePipeline {
 	fp := &filePipeline{
-		lg:    lg,
 		dir:   dir,
 		size:  fileSize,
 		filec: make(chan *fileutil.LockedFile),
@@ -75,11 +70,7 @@ func (fp *filePipeline) alloc() (f *fileutil.LockedFile, err error) {
 		return nil, err
 	}
 	if err = fileutil.Preallocate(f.File, fp.size, true); err != nil {
-		if fp.lg != nil {
-			fp.lg.Warn("failed to preallocate space when creating a new WAL", zap.Int64("size", fp.size), zap.Error(err))
-		} else {
-			plog.Errorf("failed to allocate space when creating new wal file (%v)", err)
-		}
+		plog.Errorf("failed to allocate space when creating new wal file (%v)", err)
 		f.Close()
 		return nil, err
 	}

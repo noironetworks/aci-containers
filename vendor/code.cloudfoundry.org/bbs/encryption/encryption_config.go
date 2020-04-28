@@ -7,6 +7,10 @@ type EncryptionConfig struct {
 	EncryptionKeys map[string]string `json:"encryption_keys"`
 }
 
+func DefaultEncryptionConfig() EncryptionConfig {
+	return EncryptionConfig{}
+}
+
 func (ef *EncryptionConfig) Parse() (Key, []Key, error) {
 	if len(ef.EncryptionKeys) == 0 {
 		return nil, nil, errors.New("Must have at least one encryption key set")

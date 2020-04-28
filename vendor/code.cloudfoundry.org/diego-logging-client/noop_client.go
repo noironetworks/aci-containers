@@ -4,6 +4,7 @@ import (
 	"time"
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
+	"github.com/cloudfoundry/sonde-go/events"
 )
 
 type noopIngressClient struct{}
@@ -11,7 +12,7 @@ type noopIngressClient struct{}
 func (*noopIngressClient) SendDuration(name string, value time.Duration, opts ...loggregator.EmitGaugeOption) error {
 	return nil
 }
-func (*noopIngressClient) SendMebiBytes(name string, value int, opts ...loggregator.EmitGaugeOption) error {
+func (*noopIngressClient) SendMebiBytes(name string, value int) error {
 	return nil
 }
 func (*noopIngressClient) SendMetric(name string, value int, opts ...loggregator.EmitGaugeOption) error {
@@ -29,21 +30,15 @@ func (*noopIngressClient) IncrementCounter(name string) error {
 func (*noopIngressClient) IncrementCounterWithDelta(name string, value uint64) error {
 	return nil
 }
-func (*noopIngressClient) SendAppLog(message, sourceType string, tags map[string]string) error {
+func (*noopIngressClient) SendAppLog(appID, message, sourceType, sourceInstance string) error {
 	return nil
 }
-func (*noopIngressClient) SendAppErrorLog(message, sourceType string, tags map[string]string) error {
+func (*noopIngressClient) SendAppErrorLog(appID, message, sourceType, sourceInstance string) error {
 	return nil
 }
-func (*noopIngressClient) SendAppMetrics(metrics ContainerMetric) error {
-	return nil
-}
-func (*noopIngressClient) SendSpikeMetrics(metrics SpikeMetric) error {
+func (*noopIngressClient) SendAppMetrics(metrics *events.ContainerMetric) error {
 	return nil
 }
 func (*noopIngressClient) SendComponentMetric(name string, value float64, unit string) error {
-	return nil
-}
-func (*noopIngressClient) SendCPUUsage(applicationID string, instanceIndex int, absoluteUsage, absoluteEntitlement, containerAge uint64) error {
 	return nil
 }

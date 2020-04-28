@@ -14,14 +14,7 @@
 
 package etcdserver
 
-import (
-	"sync"
-
-	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
-
-	humanize "github.com/dustin/go-humanize"
-	"go.uber.org/zap"
-)
+import pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 
 const (
 	// DefaultQuotaBytes is the number of bytes the backend Size may
@@ -62,75 +55,24 @@ const (
 	kvOverhead = 256
 )
 
-var (
-	// only log once
-	quotaLogOnce sync.Once
-
-	DefaultQuotaSize = humanize.Bytes(uint64(DefaultQuotaBytes))
-	maxQuotaSize     = humanize.Bytes(uint64(MaxQuotaBytes))
-)
-
-// NewBackendQuota creates a quota layer with the given storage limit.
-func NewBackendQuota(s *EtcdServer, name string) Quota {
-	lg := s.getLogger()
+func NewBackendQuota(s *EtcdServer) Quota {
 	quotaBackendBytes.Set(float64(s.Cfg.QuotaBackendBytes))
 
 	if s.Cfg.QuotaBackendBytes < 0 {
 		// disable quotas if negative
-		quotaLogOnce.Do(func() {
-			if lg != nil {
-				lg.Info(
-					"disabled backend quota",
-					zap.String("quota-name", name),
-					zap.Int64("quota-size-bytes", s.Cfg.QuotaBackendBytes),
-				)
-			} else {
-				plog.Warningf("disabling backend quota")
-			}
-		})
+		plog.Warningf("disabling backend quota")
 		return &passthroughQuota{}
 	}
 
 	if s.Cfg.QuotaBackendBytes == 0 {
 		// use default size if no quota size given
-		quotaLogOnce.Do(func() {
-			if lg != nil {
-				lg.Info(
-					"enabled backend quota with default value",
-					zap.String("quota-name", name),
-					zap.Int64("quota-size-bytes", DefaultQuotaBytes),
-					zap.String("quota-size", DefaultQuotaSize),
-				)
-			}
-		})
 		quotaBackendBytes.Set(float64(DefaultQuotaBytes))
 		return &backendQuota{s, DefaultQuotaBytes}
 	}
 
-	quotaLogOnce.Do(func() {
-		if s.Cfg.QuotaBackendBytes > MaxQuotaBytes {
-			if lg != nil {
-				lg.Warn(
-					"quota exceeds the maximum value",
-					zap.String("quota-name", name),
-					zap.Int64("quota-size-bytes", s.Cfg.QuotaBackendBytes),
-					zap.String("quota-size", humanize.Bytes(uint64(s.Cfg.QuotaBackendBytes))),
-					zap.Int64("quota-maximum-size-bytes", MaxQuotaBytes),
-					zap.String("quota-maximum-size", maxQuotaSize),
-				)
-			} else {
-				plog.Warningf("backend quota %v exceeds maximum recommended quota %v", s.Cfg.QuotaBackendBytes, MaxQuotaBytes)
-			}
-		}
-		if lg != nil {
-			lg.Info(
-				"enabled backend quota",
-				zap.String("quota-name", name),
-				zap.Int64("quota-size-bytes", s.Cfg.QuotaBackendBytes),
-				zap.String("quota-size", humanize.Bytes(uint64(s.Cfg.QuotaBackendBytes))),
-			)
-		}
-	})
+	if s.Cfg.QuotaBackendBytes > MaxQuotaBytes {
+		plog.Warningf("backend quota %v exceeds maximum recommended quota %v", s.Cfg.QuotaBackendBytes, MaxQuotaBytes)
+	}
 	return &backendQuota{s, s.Cfg.QuotaBackendBytes}
 }
 

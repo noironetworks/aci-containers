@@ -1,9 +1,7 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -27,17 +25,14 @@ var ActualLRPStates = []string{
 	ActualLRPStateCrashed,
 }
 
-// DEPRECATED
 type ActualLRPChange struct {
 	Before *ActualLRPGroup
 	After  *ActualLRPGroup
 }
 
 type ActualLRPFilter struct {
-	Domain      string
-	CellID      string
-	ProcessGuid string
-	Index       *int32
+	Domain string
+	CellID string
 }
 
 func NewActualLRPKey(processGuid string, index int32, domain string) ActualLRPKey {
@@ -48,37 +43,20 @@ func NewActualLRPInstanceKey(instanceGuid string, cellId string) ActualLRPInstan
 	return ActualLRPInstanceKey{instanceGuid, cellId}
 }
 
-func NewActualLRPNetInfo(address string, instanceAddress string, preferredAddress ActualLRPNetInfo_PreferredAddress, ports ...*PortMapping) ActualLRPNetInfo {
-	return ActualLRPNetInfo{address, ports, instanceAddress, preferredAddress}
+func NewActualLRPNetInfo(address string, instanceAddress string, ports ...*PortMapping) ActualLRPNetInfo {
+	return ActualLRPNetInfo{address, ports, instanceAddress}
 }
 
 func EmptyActualLRPNetInfo() ActualLRPNetInfo {
-	return NewActualLRPNetInfo("", "", ActualLRPNetInfo_PreferredAddressUnknown)
+	return NewActualLRPNetInfo("", "")
 }
 
 func (info ActualLRPNetInfo) Empty() bool {
-	return info.Address == "" && len(info.Ports) == 0 && info.PreferredAddress == ActualLRPNetInfo_PreferredAddressUnknown
+	return info.Address == "" && len(info.Ports) == 0
 }
 
 func (*ActualLRPNetInfo) Version() format.Version {
 	return format.V0
-}
-
-func (d *ActualLRPNetInfo_PreferredAddress) UnmarshalJSON(data []byte) error {
-	var name string
-	if err := json.Unmarshal(data, &name); err != nil {
-		return err
-	}
-
-	if v, found := ActualLRPNetInfo_PreferredAddress_value[name]; found {
-		*d = ActualLRPNetInfo_PreferredAddress(v)
-		return nil
-	}
-	return fmt.Errorf("invalid preferred address: %s", name)
-}
-
-func (d ActualLRPNetInfo_PreferredAddress) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
 }
 
 func NewPortMapping(hostPort, containerPort uint32) *PortMapping {
@@ -99,10 +77,6 @@ func NewPortMappingWithTLSProxy(hostPort, containerPort, tlsHost, tlsContainer u
 
 func (key ActualLRPInstanceKey) Empty() bool {
 	return key.InstanceGuid == "" && key.CellId == ""
-}
-func (a *ActualLRP) Copy() *ActualLRP {
-	newActualLRP := *a
-	return &newActualLRP
 }
 
 const StaleUnclaimedActualLRPDuration = 30 * time.Second
@@ -174,54 +148,34 @@ func (before ActualLRP) AllowsTransitionTo(lrpKey *ActualLRPKey, instanceKey *Ac
 	return valid
 }
 
-func (d *ActualLRP_Presence) UnmarshalJSON(data []byte) error {
-	var name string
-	if err := json.Unmarshal(data, &name); err != nil {
-		return err
-	}
-
-	if v, found := ActualLRP_Presence_value[name]; found {
-		*d = ActualLRP_Presence(v)
-		return nil
-	}
-	return fmt.Errorf("invalid presence: %s", name)
-}
-
-func (d ActualLRP_Presence) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
-}
-
-// DEPRECATED
 func NewRunningActualLRPGroup(actualLRP *ActualLRP) *ActualLRPGroup {
 	return &ActualLRPGroup{
 		Instance: actualLRP,
 	}
 }
 
-// DEPRECATED
 func NewEvacuatingActualLRPGroup(actualLRP *ActualLRP) *ActualLRPGroup {
 	return &ActualLRPGroup{
 		Evacuating: actualLRP,
 	}
 }
 
-// DEPRECATED
-func (group ActualLRPGroup) Resolve() (*ActualLRP, bool, error) {
+func (group ActualLRPGroup) Resolve() (*ActualLRP, bool) {
 	switch {
 	case group.Instance == nil && group.Evacuating == nil:
-		return nil, false, ErrActualLRPGroupInvalid
+		panic(ErrActualLRPGroupInvalid)
 
 	case group.Instance == nil:
-		return group.Evacuating, true, nil
+		return group.Evacuating, true
 
 	case group.Evacuating == nil:
-		return group.Instance, false, nil
+		return group.Instance, false
 
 	case group.Instance.State == ActualLRPStateRunning || group.Instance.State == ActualLRPStateCrashed:
-		return group.Instance, false, nil
+		return group.Instance, false
 
 	default:
-		return group.Evacuating, true, nil
+		return group.Evacuating, true
 	}
 }
 
@@ -256,54 +210,6 @@ func (*ActualLRP) Version() format.Version {
 	return format.V0
 }
 
-func (actualLRPInfo *ActualLRPInfo) ToActualLRP(lrpKey ActualLRPKey, lrpInstanceKey ActualLRPInstanceKey) *ActualLRP {
-	if actualLRPInfo == nil {
-		return nil
-	}
-	return &ActualLRP{
-		ActualLRPKey:         lrpKey,
-		ActualLRPInstanceKey: lrpInstanceKey,
-		ActualLRPNetInfo:     actualLRPInfo.ActualLRPNetInfo,
-		CrashCount:           actualLRPInfo.CrashCount,
-		CrashReason:          actualLRPInfo.CrashReason,
-		State:                actualLRPInfo.State,
-		PlacementError:       actualLRPInfo.PlacementError,
-		Since:                actualLRPInfo.Since,
-		ModificationTag:      actualLRPInfo.ModificationTag,
-		Presence:             actualLRPInfo.Presence,
-	}
-}
-
-func (actual *ActualLRP) ToActualLRPInfo() *ActualLRPInfo {
-	if actual == nil {
-		return nil
-	}
-	return &ActualLRPInfo{
-		ActualLRPNetInfo: actual.ActualLRPNetInfo,
-		CrashCount:       actual.CrashCount,
-		CrashReason:      actual.CrashReason,
-		State:            actual.State,
-		PlacementError:   actual.PlacementError,
-		Since:            actual.Since,
-		ModificationTag:  actual.ModificationTag,
-		Presence:         actual.Presence,
-	}
-}
-
-// DEPRECATED
-func (actual *ActualLRP) ToActualLRPGroup() *ActualLRPGroup {
-	if actual == nil {
-		return nil
-	}
-
-	switch actual.Presence {
-	case ActualLRP_Evacuating:
-		return &ActualLRPGroup{Evacuating: actual}
-	default:
-		return &ActualLRPGroup{Instance: actual}
-	}
-}
-
 func (actual ActualLRP) Validate() error {
 	var validationError ValidationError
 
@@ -323,9 +229,6 @@ func (actual ActualLRP) Validate() error {
 		}
 		if !actual.ActualLRPNetInfo.Empty() {
 			validationError = validationError.Append(errors.New("net info cannot be set when state is unclaimed"))
-		}
-		if actual.Presence != ActualLRP_Ordinary {
-			validationError = validationError.Append(errors.New("presence cannot be set when state is unclaimed"))
 		}
 
 	case ActualLRPStateClaimed:
@@ -420,78 +323,4 @@ func (key *ActualLRPInstanceKey) Validate() error {
 	}
 
 	return nil
-}
-
-// hasHigherPriority returns true if lrp1 takes precendence over lrp2
-func hasHigherPriority(lrp1, lrp2 *ActualLRP) bool {
-	if lrp1 == nil {
-		return false
-	}
-
-	if lrp2 == nil {
-		return true
-	}
-
-	if lrp1.Presence == ActualLRP_Ordinary {
-		switch lrp1.State {
-		case ActualLRPStateRunning:
-			return true
-		case ActualLRPStateClaimed:
-			return lrp2.State != ActualLRPStateRunning && lrp2.State != ActualLRPStateClaimed
-		}
-	} else if lrp1.Presence == ActualLRP_Suspect {
-		switch lrp1.State {
-		case ActualLRPStateRunning:
-			return lrp2.State != ActualLRPStateRunning
-		case ActualLRPStateClaimed:
-			return lrp2.State != ActualLRPStateRunning
-		}
-	}
-	// Cases where we are comparing two LRPs with the same presence have undefined behavior since it shouldn't happen
-	// with the way they're stored in the database
-	return false
-}
-
-// DEPRECATED
-// ResolveActualLRPGroups convert the given set of lrp instances into
-// ActualLRPGroup.  This conversion is lossy.  A suspect LRP is given
-// precendence over an Ordinary instance if it is Running.  Otherwise, the
-// Ordinary instance is returned in the Instance field of the ActualLRPGroup.
-func ResolveActualLRPGroups(lrps []*ActualLRP) []*ActualLRPGroup {
-	mapOfGroups := map[ActualLRPKey]*ActualLRPGroup{}
-	result := []*ActualLRPGroup{}
-	for _, actualLRP := range lrps {
-		// Every actual LRP has potentially 2 rows in the database: one for the instance
-		// one for the evacuating.  When building the list of actual LRP groups (where
-		// a group is the instance and corresponding evacuating), make sure we don't add the same
-		// actual lrp twice.
-		if mapOfGroups[actualLRP.ActualLRPKey] == nil {
-			mapOfGroups[actualLRP.ActualLRPKey] = &ActualLRPGroup{}
-			result = append(result, mapOfGroups[actualLRP.ActualLRPKey])
-		}
-		if actualLRP.Presence == ActualLRP_Evacuating {
-			mapOfGroups[actualLRP.ActualLRPKey].Evacuating = actualLRP
-		} else if hasHigherPriority(actualLRP, mapOfGroups[actualLRP.ActualLRPKey].Instance) {
-			mapOfGroups[actualLRP.ActualLRPKey].Instance = actualLRP
-		}
-	}
-
-	return result
-}
-
-// DEPRECATED
-// ResolveToActualLRPGroup calls ResolveActualLRPGroups and return the first
-// LRP group.  It panics if there are more than one group.  If there no LRP
-// groups were returned by ResolveActualLRPGroups, then an empty ActualLRPGroup
-// is returned.
-func ResolveActualLRPGroup(lrps []*ActualLRP) *ActualLRPGroup {
-	actualLRPGroups := ResolveActualLRPGroups(lrps)
-	switch len(actualLRPGroups) {
-	case 0:
-		return &ActualLRPGroup{}
-	case 1:
-		return actualLRPGroups[0]
-	default:
-		panic("shouldn't get here")
-	}
 }
