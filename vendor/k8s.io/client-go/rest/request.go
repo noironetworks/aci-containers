@@ -496,16 +496,7 @@ func (r Request) finalURLTemplate() url.URL {
 	groupIndex := 0
 	index := 0
 	if r.URL() != nil && r.c.base != nil && strings.Contains(r.URL().Path, r.c.base.Path) {
-		// only add baseURL path length if it is different than `/`
-		// as strings.Split("/", "/") returns length of 2
-		if r.c.base.Path != "/" {
-			// We need to perform a `path.Join` as path.Join appends `/` to a
-			// path that does not contain `/` and removes duplicate `/` if they
-			// exist.
-			groupIndex += len(strings.Split(path.Join("/", r.c.base.Path), "/"))
-		} else {
-			groupIndex += 1
-		}
+		groupIndex += len(strings.Split(r.c.base.Path, "/"))
 	}
 	if groupIndex >= len(segments) {
 		return *url
@@ -513,20 +504,14 @@ func (r Request) finalURLTemplate() url.URL {
 
 	const CoreGroupPrefix = "api"
 	const NamedGroupPrefix = "apis"
-	const Version = "version"
 	isCoreGroup := segments[groupIndex] == CoreGroupPrefix
 	isNamedGroup := segments[groupIndex] == NamedGroupPrefix
-	isVersion := segments[groupIndex] == Version
 	if isCoreGroup {
 		// checking the case of core group with /api/v1/... format
 		index = groupIndex + 2
 	} else if isNamedGroup {
 		// checking the case of named group with /apis/apps/v1/... format
 		index = groupIndex + 3
-	} else if isVersion {
-		url.Path = "/version"
-		url.RawQuery = ""
-		return *url
 	} else {
 		// this should not happen that the only two possibilities are /api... and /apis..., just want to put an
 		// outlet here in case more API groups are added in future if ever possible:
@@ -559,7 +544,7 @@ func (r Request) finalURLTemplate() url.URL {
 			segments[index+3] = "{name}"
 		}
 	}
-	url.Path = strings.Join(segments, "/")
+	url.Path = path.Join(segments...)
 	return *url
 }
 
@@ -618,7 +603,7 @@ func (r *Request) Watch() (watch.Interface, error) {
 	if err != nil {
 		// The watch stream mechanism handles many common partial data errors, so closed
 		// connections can be retried in many cases.
-		if net.IsProbableEOF(err) {
+		if net.IsProbableEOF(err) || net.IsTimeout(err) {
 			return watch.NewEmptyWatch(), nil
 		}
 		return nil, err
