@@ -67,9 +67,8 @@ func (agent *HostAgent) RunPacketEventListener(stopCh <-chan struct{}) {
 					}
 					var m []PacketEvent
 					err1 := json.Unmarshal(buffer[:n], &m)
-					agent.log.Infof("PacketEvent Received length %d", n)
 					if err1 != nil {
-						agent.log.Info("Unmarshaling error ", err1)
+						agent.log.Error("Unmarshaling error ", err1)
 					}
 					for _, event := range m {
 						err2 := agent.processPacketEvent(event, time.Now())
