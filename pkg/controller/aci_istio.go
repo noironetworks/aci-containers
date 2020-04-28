@@ -103,7 +103,7 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 	cont.log.Debug("AciIstioCR Create/Update:", istiospeckey)
 
 	log.Info("Applying Upstream istio-operator deployment")
-	cmd := exec.Command("kubectl", "apply", "-f", "/usr/local/var/lib/aci-cni/upstream-istio-operator.yaml")
+	cmd := exec.Command("istioctl", "operator", "init")
 	out, err := cmd.Output()
 	if err != nil {
 		log.Error("Failed:", err)
