@@ -18,13 +18,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/controller"
+	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-// Create K8s Client
+// Create Aci Operator Client
 func getOperatorClient() operatorclientset.Interface {
 
 	restconfig, err := restclient.InClusterConfig()
@@ -32,7 +33,21 @@ func getOperatorClient() operatorclientset.Interface {
 		return nil
 	}
 
-	kubeClient, err := operatorclientset.NewForConfig(restconfig)
+	OperatorClient, err := operatorclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Fatalf("Failed to intialize Aci Operator client %v", err)
+	}
+
+	log.Info("Successfully constructed Aci Operator client")
+	return OperatorClient
+}
+
+func getk8sClient() kubernetes.Interface {
+	restconfig, err := restclient.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+	kubeClient, err := kubernetes.NewForConfig(restconfig)
 	if err != nil {
 		log.Fatalf("Failed to intialize kube client %v", err)
 	}
@@ -41,17 +56,23 @@ func getOperatorClient() operatorclientset.Interface {
 	return kubeClient
 }
 
-
 func main() {
-	// get the Kubernetes client for connectivity
-	log.Debug("Initializing kubernetes client")
-	client := getOperatorClient()
-	if client == nil{
-		log.Fatalf("Failed to intialize kube client", )
+	// get the Aci Opeerator client for connectivity
+	log.Debug("Initializing Aci Operator client")
+	operator_client := getOperatorClient()
+	if operator_client == nil {
+		log.Fatalf("Failed to intialize Aci Operator client")
 		return
 	}
 
-	cont := controller.NewAciContainersOperator(client)
+	log.Debug("Initializing K8s client")
+	k8s_client := getk8sClient()
+	if k8s_client == nil {
+		log.Fatalf("Failed to intialize k8s client")
+		return
+	}
+
+	cont := controller.NewAciContainersOperator(operator_client, k8s_client)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
