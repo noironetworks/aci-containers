@@ -64,7 +64,7 @@ func (agent *HostAgent) translateDropReason(reason string) string {
 
 // Submit an event using kube API with message attached
 func (agent *HostAgent) submitEvent(pod *v1.Pod, message string, dropReason string) error {
-	agent.log.Info("Posting event ", message)
+	agent.log.Debug("Posting event ", message)
 	ref, err := reference.GetReference(scheme.Scheme, pod)
 	if err != nil {
 		agent.log.Error("Returning ", err)
@@ -82,7 +82,7 @@ func (agent *HostAgent) shouldIgnore(packetEvent PacketEvent, currTime time.Time
 	// ignore if the given packetDrop is out of date
 	logTime, err := time.Parse(time.UnixDate, packetEvent.TimeStamp)
 	if (err != nil) || (currTime.Sub(logTime).Minutes() > float64(agent.config.DropLogExpiryTime)) {
-		agent.log.Debug("Ignoring expired event")
+		agent.log.Trace("Ignoring expired event")
 		return true
 	}
 	// ignore if the event has been posted within the defined time period
@@ -90,7 +90,7 @@ func (agent *HostAgent) shouldIgnore(packetEvent PacketEvent, currTime time.Time
 	lastPostedTime := agent.poster.eventSubmitTimeMap[key]
 	repeatEventIntervalMinutes := float64(agent.config.DropLogRepeatIntervalTime)
 	if !lastPostedTime.IsZero() && (logTime.Sub(lastPostedTime).Minutes() <= repeatEventIntervalMinutes) {
-		agent.log.Debug("Ignoring event as it occurred within repeatInterval")
+		agent.log.Trace("Ignoring event as it occurred within repeatInterval")
 		return true
 	}
 	return false
@@ -113,9 +113,9 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	agent.indexMutex.Lock()
 	srcPodKey, srcOk := agent.podIpToName[packetEvent.SourceIP]
 	agent.indexMutex.Unlock()
-	agent.log.Debug("srcPodKey for ", packetEvent.SourceIP, ": ", srcPodKey)
 	if !srcOk {
-		agent.log.Debug(packetEvent.SourceIP, "may not be a pod or not a local pod")
+		agent.log.Trace("srcPodKey for ", packetEvent.SourceIP, ": ", srcPodKey,
+				", may not be a pod or not a local pod")
 	} else {
 		obj1, srcExists, err := agent.podInformer.GetStore().GetByKey(srcPodKey)
 		if err == nil {
@@ -143,9 +143,9 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	agent.indexMutex.Lock()
 	dstPodKey, dstOk := agent.podIpToName[packetEvent.DestinationIP]
 	agent.indexMutex.Unlock()
-	agent.log.Debug("dstPodKey for ", packetEvent.DestinationIP, ": ", dstPodKey)
 	if !dstOk {
-		agent.log.Debug(packetEvent.SourceIP, "may not be a pod or not a local pod")
+		agent.log.Trace("dstPodKey for ", packetEvent.DestinationIP, ": ", dstPodKey,
+				", may not be a pod or not a local pod")
 	} else {
 		obj2, dstExists, err := agent.podInformer.GetStore().GetByKey(dstPodKey)
 		if err == nil {
