@@ -16,16 +16,18 @@
 package controller
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
+	"net"
 	"reflect"
 )
 
@@ -125,8 +127,10 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 		if snatPolicy.Status.State == snatpolicy.IpPortsExhausted {
 			return false
 		}
-		// @TODO Validate the Policy and then update the Status
-		cont.log.Debug("Update SnatPolicy Status Ready: ", policyName)
+		if status, err := cont.validateCr(snatPolicy); !status {
+			cont.log.Error("SnatPolicy Failed: ", err)
+			return cont.setSnatPolicyStaus(policyName, snatpolicy.Failed)
+		}
 		return cont.setSnatPolicyStaus(policyName, snatpolicy.Ready)
 	}
 	cont.updateSnatPolicyCache(policyName, snatPolicy)
@@ -252,4 +256,78 @@ func (cont *AciController) snatFullSync() {
 		func(sobj interface{}) {
 			cont.queueSnatUpdate(sobj.(*snatpolicy.SnatPolicy))
 		})
+}
+
+func (cont *AciController) validateCr(cr *snatpolicy.SnatPolicy) (bool, string) {
+	cont.indexMutex.Lock()
+	snatPolicyCache := make(map[string]*ContSnatPolicy)
+	for k, v := range cont.snatPolicyCache {
+		snatPolicyCache[k] = v
+	}
+	cont.indexMutex.Unlock()
+	if len(cont.snatPolicyCache) >= 1 {
+		cr_labels := cr.Spec.Selector.Labels
+		cr_ns := cr.Spec.Selector.Namespace
+		for key, item := range snatPolicyCache {
+			if cr.ObjectMeta.Name != key {
+				if (len(item.Selector.Labels) == 0) && (len(cr_labels) == 0) &&
+					(cr_ns == item.Selector.Namespace) {
+					return false, fmt.Sprintf(
+						"Namespace is conflicting with the snatpolicy %s",
+						cr.ObjectMeta.Name)
+				}
+				for _, val := range item.SnatIp {
+					_, net1, _ := parseIP(val)
+					for _, ip := range cr.Spec.SnatIp {
+						_, net2, err := parseIP(ip)
+						if err != nil {
+							return false, fmt.Sprintf(
+								"Invalid incoming SnatIP %s", ip)
+						}
+						if net2.Contains(net1.IP) || net1.Contains(net2.IP) {
+							return false, fmt.Sprintf(
+								"SnatIP's are conflicting with the snatpolicy %s",
+								cr.ObjectMeta.Name)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		for _, ip := range cr.Spec.SnatIp {
+			_, _, err := parseIP(ip)
+			if err != nil {
+				return false, fmt.Sprintf(
+					"Invalid incoming SnatIP %s", ip)
+			}
+		}
+	}
+	for _, ip := range cr.Spec.DestIp {
+		_, _, err := parseIP(ip)
+		if err != nil {
+			return false, fmt.Sprintf(
+				"Invalid incoming DestIP %s", ip)
+		}
+	}
+
+	return true, ""
+}
+
+func parseIP(cidr string) (net.IP, *net.IPNet, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		ip_temp := net.ParseIP(cidr)
+		if ip_temp != nil && ip_temp.To4() != nil {
+			cidr = cidr + "/32"
+			ip, ipnet, _ = net.ParseCIDR(cidr)
+			return ip, ipnet, nil
+		} else if ip_temp != nil && ip_temp.To16() != nil {
+			cidr = cidr + "/128"
+			ip, ipnet, _ = net.ParseCIDR(cidr)
+			return ip, ipnet, nil
+		} else {
+			return nil, nil, err
+		}
+	}
+	return ip, ipnet, err
 }

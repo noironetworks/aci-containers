@@ -19,6 +19,8 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"sort"
@@ -194,6 +196,51 @@ func TestSnatGraph(t *testing.T) {
 		name: nil,
 	}
 	sgWait(t, "snat graph deleted", cont, expectedNoSnat)
+	cont.stop()
+
+}
+func snatPolicyCount(t *testing.T, desc string, cont *testAciController, count int) {
+	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
+		if len(cont.snatPolicyCache) != count {
+			return false, nil
+		}
+		return true, nil
+	})
+	assert.Equal(t, count, len(cont.snatPolicyCache))
+}
+
+func TestSnatPolicyVerify(t *testing.T) {
+	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
+	labels := map[string]string{}
+	policy := testsnatpolicy("testpolicy", "common", "deployment",
+		snatIp, labels)
+
+	snatIp2 := []string{"10.4.2.2"}
+	labels2 := map[string]string{
+		"lab_key2": "lab_value2"}
+	policy2 := testsnatpolicy("testpolicy2", "common", "deployment2",
+		snatIp2, labels2)
+	cont := sgCont()
+	cont.run()
+	cont.fakeSnatPolicySource.Add(policy)
+	snatPolicyCount(t, "snat test", cont, 1)
+	policy2.Status.State = ""
+	cont.fakeSnatPolicySource.Add(policy2)
+	// Check the policy is rejected with same SnatIp
+	snatPolicyCount(t, "snat test", cont, 1)
+	policy2.Spec.SnatIp = []string{"11.4.2.2"}
+	policy2.Spec.Selector.Labels = map[string]string{}
+	cont.fakeSnatPolicySource.Modify(policy2)
+	// Check the policy is rejected with same namespace
+	snatPolicyCount(t, "snat test", cont, 1)
+	snatIp3 := []string{"10.4.2.3"}
+	policy3 := testsnatpolicy("testpolicy3", "common", "deployment2",
+		snatIp3, labels2)
+	policy3.Spec.DestIp = []string{"10.3.4.256"}
+	policy3.Status.State = ""
+	// Check invalid destIP is rejected
+	cont.fakeSnatPolicySource.Add(policy3)
+	snatPolicyCount(t, "snat test", cont, 1)
 	cont.stop()
 
 }
