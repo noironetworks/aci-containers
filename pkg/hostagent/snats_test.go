@@ -135,7 +135,7 @@ var snatpolices = []policy{
 		"testns",
 		"policy1",
 		[]string{"10.1.1.8"},
-		[]string{"10.10.10.0/31", "10.10.10.0/24"},
+		[]string{"10.10.10.0/26", "10.10.10.0/31", "10.10.10.0/24"},
 		map[string]string{ /*"key": "value"*/ },
 	},
 }
@@ -164,7 +164,7 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 	assert.Equal(t, pt.ip, snat.SnatIp, desc, pt.name, "ip")
 	switch {
 	case pt.policyname == "policy1":
-		assert.Equal(t, []string{"10.10.10.0/31", "10.10.10.0/24"}, snat.DestIpAddress, desc, pt.name, "destip")
+		assert.Equal(t, []string{"10.10.10.0/31", "10.10.10.0/26", "10.10.10.0/24"}, snat.DestIpAddress, desc, pt.name, "destip")
 	case pt.policyname == "policy2":
 		assert.Equal(t, []string{"10.10.0.0/16"}, snat.DestIpAddress, desc, pt.name, "destip")
 	}

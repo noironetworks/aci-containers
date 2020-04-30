@@ -17,15 +17,16 @@
 package hostagent
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatlocal "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -945,16 +946,9 @@ func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
 			if ip_temp != nil && ip_temp.To4() != nil {
 				b = b + "/32"
 			}
-			ipB, _, _ := net.ParseCIDR(b)
-			_, ipnetA, _ := net.ParseCIDR(a)
-			ipA, _, _ := net.ParseCIDR(a)
-			_, ipnetB, _ := net.ParseCIDR(b)
-			switch {
-			case ipnetA.Contains(ipB):
-				sort = false
-			case ipnetB.Contains(ipA):
-				sort = true
-			default:
+			// TODO need to handle if the order is reversed across the policies.
+			// order reversing is ideally a wrong config. may be we need to block at verfication level
+			if compareIps(a, b) == true {
 				sort = true
 			}
 		}
@@ -1219,14 +1213,26 @@ func setDestIp(destIp []string) {
 			if ip_temp != nil && ip_temp.To4() != nil {
 				b = b + "/32"
 			}
-			ipB, _, _ := net.ParseCIDR(b)
-			_, ipnetA, _ := net.ParseCIDR(a)
-			if ipnetA.Contains(ipB) {
-				return false
-			}
-			return true
+			return compareIps(a, b)
 		})
 	}
+}
+
+func compareIps(ipa string, ipb string) bool {
+	ipB, ipnetB, _ := net.ParseCIDR(ipb)
+	_, ipnetA, _ := net.ParseCIDR(ipa)
+	if ipnetA.Contains(ipB) {
+		// if the Ipa contains the Ipb
+		//the above check can be true if example IP CIDR's are 10.10.0.0/16 10.10.0.0/24
+		// if ip's are equal check the masks
+		if ipnetA.IP.Equal(ipnetB.IP) {
+			if bytes.Compare(ipnetA.Mask, ipnetB.Mask) > 0 {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func getResourceType(obj interface{}) ResourceType {

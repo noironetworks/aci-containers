@@ -204,6 +204,7 @@ func TestSnatnodeInfo(t *testing.T) {
 	snatdeleted(t, "snat test", cont.AciController.snatGlobalInfoCache)
 	cont.stop()
 }
+
 func TestSnatCfgChangeTest(t *testing.T) {
 	cont := testController()
 	for _, pt := range snatTests {

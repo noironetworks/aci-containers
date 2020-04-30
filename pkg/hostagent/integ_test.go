@@ -28,13 +28,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	log "github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/eprpcclient"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	apitypes "k8s.io/apimachinery/pkg/types"
 )
@@ -791,9 +791,10 @@ func TestSnatPolicyDep(t *testing.T) {
 		"deer": "dear",
 	}
 	it.addPodObj(6, "annNS", "", "", depLabels)
-	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.0.0/16", "0.0.0.0/0"}, map[string]string{"app": "sample-app"})
-	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.10/31", "10.10.10.0/24"}, map[string]string{"deer": "dear"})
+	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.0.0/16", "172.192.153.0/26"}, map[string]string{"app": "sample-app"})
+	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.10/31", "10.10.0.0/24"}, map[string]string{"deer": "dear"})
 	it.ta.fakeSnatPolicySource.Add(snatobj1)
+	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatPolicySource.Add(snatobj2)
 	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
