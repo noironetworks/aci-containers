@@ -1,5 +1,6 @@
 FROM noiro/opflex-build-base
 ARG BUILDOPTS="--enable-grpc --enable-prometheus"
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/share/pkgconfig
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4

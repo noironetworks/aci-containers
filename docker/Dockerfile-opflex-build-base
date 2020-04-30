@@ -1,13 +1,24 @@
-FROM alpine:3.11.5
-ARG ROOT=/usr/local
-#COPY ovs-musl.patch /
-COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
-RUN apk upgrade --no-cache && apk add --no-cache build-base \
-    libtool pkgconfig autoconf automake cmake file py3-six \
-    linux-headers libuv-dev boost-dev openssl-dev git \
-    libnetfilter_conntrack-dev rapidjson-dev python3-dev bzip2-dev \
-    curl libcurl curl-dev zlib-dev
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+ENV ROOT=/usr/local
+RUN microdnf update && microdnf install --enablerepo codeready-builder-for-rhel-8-x86_64-rpms \
+    libtool pkgconfig autoconf automake make cmake file python2-six \
+    openssl-devel git gcc gcc-c++ boost-devel diffutils python2-devel \
+    libnetfilter_conntrack-devel wget which curl-devel procps zlib-devel \
+    && microdnf clean all
 ARG make_args=-j4
+RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
+  && tar xvfz v1.1.0.tar.gz \
+  && cd rapidjson-1.1.0 \
+  && cmake CMakeLists.txt \
+  && cp -R include/rapidjson/ /usr/local/include/ \
+  && mkdir /usr/local/lib/pkgconfig \
+  && cp RapidJSON.pc /usr/local/lib/pkgconfig/
+RUN git clone https://github.com/libuv/libuv.git --branch v1.20.3 --depth 1 \
+  && cd libuv \
+  && ./autogen.sh \
+  && ./configure \
+  && make $make_args \
+  && make install && make clean
 RUN git clone https://github.com/noironetworks/3rdparty-debian.git
 RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
   && cd prometheus-cpp \
@@ -32,7 +43,7 @@ ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buff
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
 RUN git clone https://github.com/openvswitch/ovs.git --branch v2.12.0 --depth 1 \
-  && cd ovs && patch -p1 < /ovsdb-idlc.in-fix-dict-change-during-iteration.patch \
+  && cd ovs \
   && ./boot.sh && ./configure --disable-ssl --disable-libcapng --enable-shared \
   && make $make_args && make install \
   && mkdir -p $ROOT/include/openvswitch/openvswitch \
