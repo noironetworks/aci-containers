@@ -1,7 +1,5 @@
-FROM alpine:3.10.2
-RUN apk upgrade --no-cache
+FROM registry.access.redhat.com/ubi8/ubi:latest
 COPY dist-static/gbpserver /usr/local/bin/
 
-ENV KUBECONFIG=/kube/kube.yml
 ENV GBP_SERVER_CONF=None
 ENTRYPOINT exec /usr/local/bin/gbpserver -proxy-listen-port 443 --config-path $GBP_SERVER_CONF

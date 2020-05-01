@@ -18,6 +18,13 @@ CF_COMMON_SRC=$(wildcard pkg/cf_common/*.go)
 UTIL_SRC=$(wildcard pkg/util/*.go)
 DEBIAN_FILES=$(wildcard debian/*)
 GOPKG_FILES=$(wildcard Gopkg.*)
+GOBUILD=noirolabs/gobuild1.14
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Darwin)
+    DOCKER_EXT = -dev
+else
+    DOCKER_EXT =
+endif
 
 HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC} \
 	${CF_ETCD_SRC} ${CF_COMMON_SRC} ${KEYVALUESVC_SRC}
@@ -65,10 +72,10 @@ all-static: dist-static/aci-containers-host-agent \
 
 go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
-	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-targets
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} make go-targets
 
 go-gbp-build:
-	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it noirolabs/gobuild make go-gbp-target
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} make go-gbp-target
 go-gbp-target: gbpserver
 
 clean-dist-static:
@@ -171,9 +178,9 @@ dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 container-gbpserver: dist-static/gbpserver 
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbp-server${DOCKER_TAG} -f ./docker/Dockerfile-gbpserver .
 container-host: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host${DOCKER_EXT} .
 container-controller: dist-static/aci-containers-controller
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller${DOCKER_TAG} -f ./docker/Dockerfile-controller .
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller${DOCKER_TAG} -f ./docker/Dockerfile-controller${DOCKER_EXT} .
 container-opflex-build-base:
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/opflex-build-base${DOCKER_TAG} -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
