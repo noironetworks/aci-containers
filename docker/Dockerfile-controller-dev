@@ -1,0 +1,11 @@
+FROM noirolabs/ubibase:latest
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+RUN chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl
+RUN curl -sL "https://github.com/istio/istio/releases/download/1.5.2/istioctl-1.5.2-linux.tar.gz" | tar xz
+RUN chmod u+x istioctl && mv istioctl /usr/local/bin/istioctl
+RUN mkdir -p /usr/local/var/lib/aci-cni
+COPY pkg/istiocrd/upstream-istio-cr-1.5.2.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
+COPY dist-static/aci-containers-controller /usr/local/bin/
+ENV AWS_SUBNETS="None"
+ENV AWS_VPCID="None"
+ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf -aws-subnets $AWS_SUBNETS -vpc-id $AWS_VPCID
