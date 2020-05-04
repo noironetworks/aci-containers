@@ -2,6 +2,9 @@
    :alt: Build Status
    :target: https://travis-ci.org/noironetworks/aci-containers
 
+.. image:: https://coveralls.io/repos/github/noironetworks/aci-containers/badge.svg?branch=master
+   :target: https://coveralls.io/github/noironetworks/aci-containers?branch=master
+
 ACI CNI Plugin
 ==============
 
