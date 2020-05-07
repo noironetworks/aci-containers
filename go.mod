@@ -45,6 +45,7 @@ require (
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/openshift/api v0.0.0-20200217161739-c99157bc6492
+	github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.5.0
