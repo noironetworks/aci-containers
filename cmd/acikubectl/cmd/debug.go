@@ -167,6 +167,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(systemNamespace),
 		},
+                {
+                        name: "cluster-report/logs/operator/acioperator.log",
+                        args: acioperatorLogCmdArgs(systemNamespace),
+                },
 		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
@@ -176,6 +180,11 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: []string{"-n", systemNamespace, "describe", "deployment",
 				"aci-containers-controller"},
 		},
+                {
+                        name: "cluster-report/status/acioperator_deployment_status.log",
+                        args: []string{"-n", systemNamespace, "describe", "deployment",
+                                "aci-containers-operator"},
+                },
 		{
 			name: "cluster-report/status/host_daemonset_status.log",
 			args: []string{"-n", systemNamespace, "describe", "daemonset",
@@ -205,6 +214,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
                 {
                         name: "cluster-report/status/configmap_snatoperator.log",
                         args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
+                },
+                {
+                        name: "cluster-report/status/configmap_acioperator.log",
+                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
                 },
 
 	}
@@ -427,6 +440,12 @@ func accLogCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
+}
+
+func acioperatorLogCmdArgs(systemNamespace string) []string {
+        return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+                "deployment/aci-containers-operator",
+                "-c", "aci-containers-operator"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
