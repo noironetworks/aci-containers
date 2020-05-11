@@ -178,16 +178,22 @@ func (eps *EPSyncer) processRemoteEPG(obj apicapi.ApicObject) {
 func (eps *EPSyncer) AddExtEP(subnet, epgDn string) {
 	subnet = strings.TrimLeft(subnet, " '")
 	subnet = strings.Split(subnet, "'")[0]
-	eps.log.Debugf("== AddExtEP: %s (%s)", subnet, epgDn)
 	epgName := eps.aw.dnToEpgName(epgDn)
 	pi_name := epgName + subnet
 	pi_name = strings.Split(pi_name, "/")[0]
 	// k8s doesn't like the | character in names
 	pi_name = strings.Replace(pi_name, "|", "-", -1)
+	pi_name = strings.Replace(pi_name, "_", "-", -1)
 	_, err := eps.crdClient.PodIFs("kube-system").Get(pi_name, metav1.GetOptions{})
 	ep := &crdv1.PodIF{Status: crdv1.PodIFStatus{IPAddr: subnet, EPG: epgName}}
 	ep.ObjectMeta.Name = pi_name
 	if err != nil {
-		eps.crdClient.PodIFs("kube-system").Create(ep)
+		_, err = eps.crdClient.PodIFs("kube-system").Create(ep)
+	}
+
+	if err != nil {
+		eps.log.Errorf("== AddExtEP: %s err: %v", pi_name, err)
+	} else {
+		eps.log.Infof("== AddExtEP: %s (%s)", subnet, epgDn)
 	}
 }
