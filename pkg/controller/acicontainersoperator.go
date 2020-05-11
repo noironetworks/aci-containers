@@ -19,12 +19,22 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"reflect"
+	"sync"
+	"time"
+
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	configv1 "github.com/openshift/api/config/v1"
-	"io/ioutil"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	routesv1 "github.com/openshift/api/route/v1"
+	routesClientset "github.com/openshift/client-go/route/clientset/versioned"
+	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,15 +42,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"os"
-	"os/exec"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sync"
-	"time"
 )
 
 // AciResources is a struct for handeling the resources of aci fabric
@@ -61,10 +67,18 @@ type Controller struct {
 	Operator_Queue      workqueue.RateLimitingInterface
 	Deployment_Queue    workqueue.RateLimitingInterface
 	Daemonset_Queue     workqueue.RateLimitingInterface
+	Node_Queue          workqueue.RateLimitingInterface
+	Route_Queue         workqueue.RateLimitingInterface
 	Informer_Operator   cache.SharedIndexInformer
 	Informer_Deployment cache.SharedIndexInformer
 	Informer_Daemonset  cache.SharedIndexInformer
+	Informer_Node       cache.SharedIndexInformer
+	Informer_Route      cache.SharedIndexInformer
 	Resources           AciResources
+	DnsOperatorClient   client.Client             // This client is specific dnsopenshift operator
+	RoutesClient        routesClientset.Interface // This client is specific routes openshift operator
+	Openshiftflavor     bool
+	routes              map[string]bool // local cache to check the routes
 }
 
 var Version = map[string]bool{
@@ -83,6 +97,8 @@ func NewAciContainersOperator(
 	operator_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	deployment_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	daemonset_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	node_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	route_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	log.Info("Intializing Informer")
 
@@ -127,6 +143,52 @@ func NewAciContainersOperator(
 		0,
 		cache.Indexers{},
 	)
+	node_informer := cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.CoreV1().Nodes().List(options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.CoreV1().Nodes().Watch(options)
+			},
+		},
+		&v1.Node{},
+		0,
+		cache.Indexers{},
+	)
+	var routesClient routesClientset.Interface
+	var route_informer cache.SharedIndexInformer
+	flavor := os.Getenv("ACC_PROVISION_FLAVOR")
+	opflavor := false
+	// intializes route watchers for Openshift flavor
+	if Version[flavor] {
+		restconfig, err := restclient.InClusterConfig()
+		if err != nil {
+			log.Error("Failed to intialize the restConfig: ", err)
+		} else {
+			routesClient, err = routesClientset.NewForConfig(restconfig)
+			if err != nil {
+				log.Error("Failed to intialize OpenshiftRoute client: ", err)
+			} else {
+				opflavor = true
+				log.Info("Intializing the route informer")
+				route_informer = cache.NewSharedIndexInformer(
+					&cache.ListWatch{
+						ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).List(options)
+						},
+						WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).Watch(options)
+						},
+					},
+					&routesv1.Route{},
+					0,
+					cache.Indexers{},
+				)
+			}
+		}
+
+	}
 
 	controller := &Controller{
 		Logger:              log.NewEntry(log.New()),
@@ -135,10 +197,18 @@ func NewAciContainersOperator(
 		Informer_Operator:   aci_operator_informer,
 		Informer_Deployment: aci_deployment_informer,
 		Informer_Daemonset:  aci_daemonset_informer,
+		Informer_Node:       node_informer,
+		Informer_Route:      route_informer,
 		Operator_Queue:      operator_queue,
 		Deployment_Queue:    deployment_queue,
 		Daemonset_Queue:     daemonset_queue,
+		Node_Queue:          node_queue,
+		Route_Queue:         route_queue,
 		Resources:           AciResources{},
+		DnsOperatorClient:   nil,
+		RoutesClient:        routesClient,
+		Openshiftflavor:     opflavor,
+		routes:              make(map[string]bool),
 	}
 
 	log.Info("Adding Event Handlers")
@@ -216,6 +286,48 @@ func NewAciContainersOperator(
 			}
 		},
 	})
+	node_informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			log.Debug("The Node key: ", key)
+			if err == nil {
+				node_queue.Add(key)
+			}
+		},
+		UpdateFunc: func(prevObj, currentObj interface{}) {
+			//@TODO need to handle update
+			log.Debug("In UpdateFunc for Node")
+		},
+		DeleteFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			log.Debug("Deleted Node key is :", key)
+			if err == nil {
+				node_queue.Add(key)
+			}
+		},
+	})
+	if opflavor { //openshift flavor
+		route_informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				key, err := cache.MetaNamespaceKeyFunc(obj)
+				log.Debug("Add Route key: ", key)
+				if err == nil {
+					route_queue.Add(key)
+				}
+			},
+			UpdateFunc: func(prevObj, currentObj interface{}) {
+				//@TODO need to handle update
+				log.Debug("In UpdateFunc for Route")
+			},
+			DeleteFunc: func(obj interface{}) {
+				key, err := cache.MetaNamespaceKeyFunc(obj)
+				log.Debug("Deleted route key: ", key)
+				if err == nil {
+					route_queue.Add(key)
+				}
+			},
+		})
+	}
 
 	return controller
 }
@@ -318,12 +430,22 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	go c.Informer_Operator.Run(stopCh)
 	go c.Informer_Deployment.Run(stopCh)
 	go c.Informer_Daemonset.Run(stopCh)
-
-	// Sync the current resources
-	if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
-		c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced) {
-		utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
-		return
+	go c.Informer_Node.Run(stopCh)
+	if c.Openshiftflavor {
+		go c.Informer_Route.Run(stopCh)
+		// Sync the current resources
+		if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
+			c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced, c.Informer_Route.HasSynced) {
+			utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
+			return
+		}
+	} else {
+		// Sync the current resources
+		if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
+			c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced) {
+			utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
+			return
+		}
 	}
 	c.Logger.Info("Controller.Sync: Cache sync complete")
 
@@ -352,6 +474,22 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			return c.handleDaemonsetDelete(obj)
 		},
 		stopCh)
+	go c.processQueue(c.Node_Queue, c.Informer_Node.GetIndexer(),
+		func(obj interface{}) bool {
+			return c.handleNodeCreate(obj)
+		}, func(obj interface{}) bool {
+			return c.handleNodeDelete(obj)
+		},
+		stopCh)
+	if c.Openshiftflavor {
+		go c.processQueue(c.Route_Queue, c.Informer_Route.GetIndexer(),
+			func(obj interface{}) bool {
+				return c.handleRouteCreate(obj)
+			}, func(obj interface{}) bool {
+				return c.handleRouteDelete(obj)
+			},
+			stopCh)
+	}
 
 }
 
@@ -600,6 +738,12 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 				return true
 			}
 		}
+		// Compute the dnsoperator spec
+		err = c.updatednsOperator()
+		if err != nil {
+			log.Info("Failed to update the dnsOperatorCr: ", err)
+			return true
+		}
 	}
 
 	log.Info("Adding Aci Operator OwnerRefrence to resources ....")
@@ -682,5 +826,236 @@ func (c *Controller) handleDaemonsetCreate(obj interface{}) bool {
 
 func (c *Controller) handleDaemonsetDelete(obj interface{}) bool {
 	log.Infof("aci-containers Daemonset Deleted")
+	return false
+}
+
+// intialize the dnsoperator client,
+// computes the dnsSpec.
+// local cache for all the routes will be updated.
+//  if there is change in the dns Spec, triggers the update
+func (c *Controller) updatednsOperator() error {
+	log.Info("Update dnsoperator cr")
+	dnsInfo := &operatorv1.DNS{
+		TypeMeta:   metav1.TypeMeta{APIVersion: operatorv1.GroupVersion.String(), Kind: "DNS"},
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+	}
+	cfg, err := config.GetConfig()
+	scheme := runtime.NewScheme()
+	err = operatorv1.Install(scheme)
+	if err != nil {
+		return err
+	}
+	c.DnsOperatorClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return err
+	}
+	err = c.DnsOperatorClient.Get(context.TODO(), types.NamespacedName{
+		Name: "default"}, dnsInfo)
+	if err != nil {
+		return err
+	}
+	var options metav1.ListOptions
+	if c.RoutesClient == nil {
+		log.Info("Route client is nil")
+		return nil
+	}
+	routes, err := c.RoutesClient.RouteV1().Routes(metav1.NamespaceAll).List(options)
+	if err != nil {
+		return err
+	}
+	var nodeAddress []string
+	nodeAddress, err = c.getNodeAddress()
+	if err != nil {
+		return err
+	}
+	log.Info("NodeAddress: ", nodeAddress)
+	// compute the dns servers info
+	var servers []operatorv1.Server
+	c.indexMutex.Lock()
+	for _, route := range routes.Items {
+		var server operatorv1.Server
+		key := route.ObjectMeta.Namespace + "/" + route.ObjectMeta.Name
+		server.Name = key
+		server.Zones = append(server.Zones, route.Spec.Host)
+		server.ForwardPlugin.Upstreams = nodeAddress
+		servers = append(servers, server)
+		c.routes[key] = true
+	}
+	c.indexMutex.Unlock()
+	update := false
+	if len(dnsInfo.Spec.Servers) == 0 {
+		dnsInfo.Spec.Servers = servers
+		update = true
+	} else {
+		if !reflect.DeepEqual(dnsInfo.Spec.Servers, servers) {
+			dnsInfo.Spec.Servers = servers
+			update = true
+		}
+	}
+	if update {
+		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
+		if err != nil {
+			return err
+		}
+	}
+	log.Infof("Updated dnsInfo: %+v", dnsInfo)
+	return nil
+}
+
+func (c *Controller) getNodeAddress() ([]string, error) {
+	var options metav1.ListOptions
+	nodelist, err := c.K8s_Clientset.CoreV1().Nodes().List(options)
+	if err != nil {
+		log.Info("Failed to List the nodes: ", err)
+		return []string{}, err
+	}
+	var nodeAddress []string
+	for _, node := range nodelist.Items {
+		if node.DeletionTimestamp != nil {
+			continue
+		}
+		if _, ok := node.ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
+			continue
+		}
+		address := node.Status.Addresses
+		for _, val := range address {
+			if val.Type == v1.NodeInternalIP {
+				nodeAddress = append(nodeAddress, val.Address)
+			}
+		}
+	}
+	return nodeAddress, nil
+}
+
+func (c *Controller) getDnsInfo() (*operatorv1.DNS, error) {
+	dnsInfo := &operatorv1.DNS{
+		TypeMeta:   metav1.TypeMeta{APIVersion: operatorv1.GroupVersion.String(), Kind: "DNS"},
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+	}
+	err := c.DnsOperatorClient.Get(context.TODO(), types.NamespacedName{
+		Name: "default"}, dnsInfo)
+	if err != nil {
+		log.Info(err)
+		return nil, err
+	}
+	return dnsInfo, nil
+}
+
+// it reads all the node ip address.
+// updates if there is any changes in the address computed
+func (c *Controller) updateDnsOperatorSpec() bool {
+	if c.DnsOperatorClient == nil || !c.Openshiftflavor {
+		return false
+	}
+	dnsInfo, err := c.getDnsInfo()
+	if err != nil {
+		return true
+	}
+	if len(dnsInfo.Spec.Servers) == 0 {
+		return false
+	}
+	var nodeAddress []string
+	nodeAddress, err = c.getNodeAddress()
+	if err != nil {
+		return true
+	}
+	if !reflect.DeepEqual(dnsInfo.Spec.Servers[0].ForwardPlugin.Upstreams, nodeAddress) {
+		for _, server := range dnsInfo.Spec.Servers {
+			server.ForwardPlugin.Upstreams = nodeAddress
+		}
+		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
+		if err != nil {
+			log.Info("Failed to update the dnsInfo: ", err)
+			return true
+		}
+	}
+	log.Infof("Updated dnsInfo: %+v", dnsInfo)
+	return false
+}
+
+// handle node create to update the dnsOperatorSpec
+func (c *Controller) handleNodeCreate(obj interface{}) bool {
+	log.Infof("node created")
+	return c.updateDnsOperatorSpec()
+}
+
+// handle node delete
+func (c *Controller) handleNodeDelete(obj interface{}) bool {
+	log.Infof("node Deleted")
+	return c.updateDnsOperatorSpec()
+}
+
+// handle route create
+// local route cache will be updated
+// if route is already present it will ignore silently as it isupdate happend in operator create
+func (c *Controller) handleRouteCreate(obj interface{}) bool {
+	route := obj.(*routesv1.Route)
+	log.Infof("route created: %s", route.ObjectMeta.Name)
+	if c.DnsOperatorClient == nil {
+		return false
+	}
+	key, _ := cache.MetaNamespaceKeyFunc(obj)
+	if _, ok := c.routes[key]; ok {
+		return false
+	}
+	c.indexMutex.Lock()
+	c.routes[key] = true
+	c.indexMutex.Unlock()
+	dnsInfo, err := c.getDnsInfo()
+	if err != nil {
+		return true
+	}
+	var server operatorv1.Server
+	server.Name = key
+	server.Zones = append(server.Zones, route.Spec.Host)
+	// if already computed update the cache
+	if len(dnsInfo.Spec.Servers) > 0 {
+		server.ForwardPlugin.Upstreams = dnsInfo.Spec.Servers[0].ForwardPlugin.Upstreams
+	} else { // compute the node ip's fresh
+		nodeaddr, err := c.getNodeAddress()
+		if err != nil {
+			return true
+		}
+		server.ForwardPlugin.Upstreams = nodeaddr
+	}
+	dnsInfo.Spec.Servers = append(dnsInfo.Spec.Servers, server)
+	err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
+	if err != nil {
+		log.Info("Failed to update the dnsInfo: ", err)
+		return true
+	}
+	log.Infof("Updated dnsInfo: %+v", dnsInfo)
+	return false
+}
+
+// handle route delete
+func (c *Controller) handleRouteDelete(obj interface{}) bool {
+	key := fmt.Sprintf("%v", obj)
+	log.Infof("route deleted: %s", key)
+	if _, ok := c.routes[key]; !ok {
+		return false
+	}
+	c.indexMutex.Lock()
+	delete(c.routes, key)
+	c.indexMutex.Unlock()
+	if c.DnsOperatorClient == nil {
+		return false
+	}
+	dnsInfo, err := c.getDnsInfo()
+	if err != nil {
+		return true
+	}
+	for i := range dnsInfo.Spec.Servers {
+		if dnsInfo.Spec.Servers[i].Name == key {
+			dnsInfo.Spec.Servers = append(dnsInfo.Spec.Servers[:i], dnsInfo.Spec.Servers[i+1:]...)
+			break
+		}
+	}
+	err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
+	if err != nil {
+		log.Info("Failed to update the dnsInfo: ", err)
+		return true
+	}
+	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return false
 }
