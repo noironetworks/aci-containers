@@ -342,7 +342,7 @@ func (agent *HostAgent) syncEps() bool {
 				seen[epidstr] = true
 			}
 		}
-		if !ok {
+		if !ok || (ok && !seen[epidstr]) {
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
 		}
