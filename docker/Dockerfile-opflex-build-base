@@ -1,36 +1,44 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 ENV ROOT=/usr/local
-RUN microdnf update && microdnf install --enablerepo codeready-builder-for-rhel-8-x86_64-rpms \
+ARG make_args=-j4
+RUN microdnf install --enablerepo codeready-builder-for-rhel-8-x86_64-rpms \
     libtool pkgconfig autoconf automake make cmake file python2-six \
     openssl-devel git gcc gcc-c++ boost-devel diffutils python2-devel \
     libnetfilter_conntrack-devel wget which curl-devel procps zlib-devel \
     && microdnf clean all
-ARG make_args=-j4
 RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
   && tar xvfz v1.1.0.tar.gz \
   && cd rapidjson-1.1.0 \
   && cmake CMakeLists.txt \
   && cp -R include/rapidjson/ /usr/local/include/ \
   && mkdir /usr/local/lib/pkgconfig \
-  && cp RapidJSON.pc /usr/local/lib/pkgconfig/
-RUN git clone https://github.com/libuv/libuv.git --branch v1.20.3 --depth 1 \
+  && cp RapidJSON.pc /usr/local/lib/pkgconfig/ \
+  && cd / \
+  && rm -rf v1.1.0.tar.gz \
+  && rm -rf rapidjson-1.1.0 \
+  && git clone https://github.com/libuv/libuv.git --branch v1.20.3 --depth 1 \
   && cd libuv \
   && ./autogen.sh \
   && ./configure \
   && make $make_args \
-  && make install && make clean
-RUN git clone https://github.com/noironetworks/3rdparty-debian.git
-RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
+  && make install && make clean \
+  && cd / \
+  && rm -rf libuv \
+  && git clone https://github.com/noironetworks/3rdparty-debian.git \
+  && git clone https://github.com/jupp0r/prometheus-cpp.git \
   && cd prometheus-cpp \
   && git checkout 9effb90b0c266316358680cbf862a8564eb2c2d4 \
   && git submodule init \
   && git submodule update \
-  && git apply ../3rdparty-debian/prometheus/prometheus-cpp.patch \
+  && git apply /3rdparty-debian/prometheus/prometheus-cpp.patch \
   && mkdir _build && cd _build \
   && cmake .. -DBUILD_SHARED_LIBS=ON \
   && make $make_args && make install && make clean \
-  && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/
-RUN git clone https://github.com/grpc/grpc \
+  && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/ \
+  && cd / \
+  && rm -rf 3rdparty-debian \
+  && rm -rf prometheus-cpp \
+  && git clone https://github.com/grpc/grpc \
   && cd grpc \
   && git checkout 5052efd666ab6fdda2a4b3045569f70ce0c5fa57 \
   && git submodule update --init \
@@ -38,7 +46,9 @@ RUN git clone https://github.com/grpc/grpc \
   && cd third_party/protobuf \
   && ./autogen.sh \
   && ./configure \
-  && make $make_args && make install && make clean
+  && make $make_args && make install && make clean \
+  && cd / \
+  && rm -rf grpc
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
@@ -51,4 +61,5 @@ RUN git clone https://github.com/openvswitch/ovs.git --branch v2.12.0 --depth 1 
   && mv $ROOT/include/openflow $ROOT/include/openvswitch \
   && cp include/*.h "$ROOT/include/openvswitch/" \
   && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \; \
-  && make clean
+  && cd / \
+  && rm -rf ovs 

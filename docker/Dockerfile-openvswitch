@@ -1,6 +1,5 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
-RUN yum update -y && \
-  yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
+RUN yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
   --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms openvswitch logrotate conntrack-tools \
   tcpdump curl strace ltrace iptables net-tools && yum clean all
 COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
