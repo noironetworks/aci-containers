@@ -1,6 +1,5 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
-RUN yum --disablerepo=\*ubi\* update -y && \
-  yum --disablerepo=\*ubi\* install -y libstdc++ libuv \
+RUN yum --disablerepo=\*ubi\* install -y libstdc++ libuv \
   boost-program-options boost-system boost-date-time boost-filesystem \
   boost-iostreams libnetfilter_conntrack openssl net-tools procps-ng ca-certificates \
   && yum clean all
