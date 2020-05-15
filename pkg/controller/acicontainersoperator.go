@@ -431,22 +431,17 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	go c.Informer_Deployment.Run(stopCh)
 	go c.Informer_Daemonset.Run(stopCh)
 	go c.Informer_Node.Run(stopCh)
+	// Sync the current resources
+	if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
+		c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced) {
+		utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
+	}
 	if c.Openshiftflavor {
 		go c.Informer_Route.Run(stopCh)
-		// Sync the current resources
-		if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
-			c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced, c.Informer_Route.HasSynced) {
-			utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
-			return
-		}
-	} else {
-		// Sync the current resources
-		if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
-			c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced) {
-			utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
-			return
-		}
+		cache.WaitForCacheSync(stopCh,
+			c.Informer_Route.HasSynced)
 	}
+
 	c.Logger.Info("Controller.Sync: Cache sync complete")
 
 	// Run queue for each Informer
