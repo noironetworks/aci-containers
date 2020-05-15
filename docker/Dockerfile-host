@@ -1,6 +1,5 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
-RUN yum --disablerepo=\*ubi\* update -y && \
-  yum --disablerepo=\*ubi\* install -y iproute nftables \
+RUN yum --disablerepo=\*ubi\* install -y iproute nftables \
   && yum clean all
 COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 ENV TENANT=kube
