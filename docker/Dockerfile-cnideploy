@@ -1,7 +1,6 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
-RUN yum --disablerepo=\*ubi\* update -y && \
-  yum --disablerepo=\*ubi\* install -y wget ca-certificates \
-  && yum clean all
-RUN mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz | tar xz -C /opt/cni/bin
+RUN yum --disablerepo=\*ubi\* install -y wget ca-certificates \
+  && yum clean all \
+  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz | tar xz -C /opt/cni/bin
 COPY launch-cnideploy.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-cnideploy.sh"]
