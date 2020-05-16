@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	hostVethEP   = "veth_host_ac.ep"
-	hostVethName = "veth_host"
+	hostVethEP    = "veth_host_ac.ep"
+	hostVethEPGen = "veth_host_ac.ep.gen"
+	hostVethName  = "veth_host"
 )
 
 func (agent *HostAgent) initNodeInformerFromClient(
@@ -149,8 +150,13 @@ func (agent *HostAgent) registerHostVeth() {
 			epfile := filepath.Join(agent.config.OpFlexEndpointDir, hostVethEP)
 			datacont, err := ioutil.ReadFile(epfile)
 			if err != nil {
-				agent.log.Errorf("Unable to read %s - %v", epfile, err)
-				return
+				agent.log.Errorf("Unable to read, trying generated file %s - %v", epfile, err)
+				epfile = filepath.Join(agent.config.OpFlexEndpointDir, "..", hostVethEPGen)
+				datacont, err = ioutil.ReadFile(epfile)
+				if err != nil {
+					agent.log.Errorf("Unable to read %s - %v", epfile, err)
+					return
+				}
 			}
 
 			err = json.Unmarshal(datacont, ep)

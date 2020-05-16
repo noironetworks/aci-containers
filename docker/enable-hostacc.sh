@@ -85,9 +85,9 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP_CIDR" ]]; then
     # Create Host EP file
     UUID=${HOSTNAME}_${VTEP_IP}_veth_host_ac
     #FNAME=${UUID}.ep
-    FNAME=veth_host_ac.ep
+    FNAME=veth_host_ac.ep.gen
 
-cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
+cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/${FNAME}
 {
   "uuid": "$UUID",
   "eg-policy-space": "$TENANT",
@@ -109,5 +109,5 @@ cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 }
 EOF
 
-    cat ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
+    cat ${VARDIR}/lib/opflex-agent-ovs/${FNAME}
 fi

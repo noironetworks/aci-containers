@@ -292,9 +292,14 @@ func (agent *HostAgent) syncEps() bool {
 	seen := make(map[string]bool)
 	nullMacFile := false
 	nullMacCheck := agent.getEpFileName(agent.config.DefaultEg.Name)
+        vethHostFile := false
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".ep") ||
-			strings.Contains(f.Name(), "veth_host_ac") {
+		if !strings.HasSuffix(f.Name(), ".ep") {
+			continue
+		}
+
+		if strings.Contains(f.Name(), "veth_host_ac") {
+			vethHostFile = true
 			continue
 		}
 
@@ -370,6 +375,9 @@ func (agent *HostAgent) syncEps() bool {
 	if !nullMacFile {
 		agent.creatNullMacEp()
 	}
+	if !vethHostFile {
+		agent.creatVethHostEp()
+	}
 	agent.log.Debug("Finished endpoint sync")
 	return needRetry
 }
@@ -407,6 +415,26 @@ func (agent *HostAgent) creatNullMacEp() {
 		agent.log.Debug("Created null mac Ep file")
 	}
 
+}
+
+func (agent *HostAgent) creatVethHostEp() {
+	EpSrcFilePath := filepath.Join(agent.config.OpFlexEndpointDir, "..", "veth_host_ac.ep.gen")
+	EpDstFilePath := filepath.Join(agent.config.OpFlexEndpointDir, "veth_host_ac.ep")
+	ep_file_exists := fileExists(EpDstFilePath)
+	if ep_file_exists {
+		return
+	}
+	data, err := ioutil.ReadFile(EpSrcFilePath)
+	if err != nil {
+		agent.log.Errorf("Unable to read veth_host_ac.ep.gen file: %v", err)
+	} else {
+		err = ioutil.WriteFile(EpDstFilePath, data, 0644)
+		if (err != nil) {
+			agent.log.Errorf("Unable to write veth_host_ac.ep file: %v", err)
+		} else {
+			agent.log.Debug("Copied generated veth_host_ac.ep")
+		}
+	}
 }
 
 func podFilter(pod *v1.Pod) bool {
