@@ -68,6 +68,7 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	agent.env.(*K8sEnvironment).agent = agent.HostAgent
 
 	agent.fakeNodeSource = framework.NewFakeControllerSource()
+	agent.config.OvsDbSock = ""
 	agent.initNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc:  agent.fakeNodeSource.List,
