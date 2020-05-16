@@ -18,10 +18,11 @@ package watchers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"github.com/sirupsen/logrus"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,7 +56,12 @@ type ApicInfo struct {
 }
 
 func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
-	level, err := logrus.ParseLevel(gs.Config().WatchLogLevel)
+	var privKey []byte
+	var apicCert []byte
+	var err error
+
+	cfg := gs.Config()
+	level, err := logrus.ParseLevel(cfg.WatchLogLevel)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -63,19 +69,34 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 	logger.Level = level
 	log := logger.WithField("mod", "cAPIC-W")
 
+	if cfg.Apic.PrivateKeyPath != "" {
+		privKey, err = ioutil.ReadFile(cfg.Apic.PrivateKeyPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+	if cfg.Apic.CertPath != "" {
+		apicCert, err = ioutil.ReadFile(cfg.Apic.CertPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	vmmDomain := gs.Config().AciVmmDomain
 	return &ApicWatcher{
 		logger:         logger,
 		log:            log,
 		gs:             gs,
 		idb:            newIntentDB(gs, log),
-		tenant:         gs.Config().AciPolicyTenant,
+		tenant:         cfg.AciPolicyTenant,
 		apName:         vmmDomain,
-		hostProtPrefix: fmt.Sprintf("uni/tn-%s/pol-%s", gs.Config().AciPolicyTenant, vmmDomain),
+		hostProtPrefix: fmt.Sprintf("uni/tn-%s/pol-%s", cfg.AciPolicyTenant, vmmDomain),
 		apicInfo: ApicInfo{
-			user:     gs.Config().Apic.Username,
-			password: gs.Config().Apic.Password,
+			user:     cfg.Apic.Username,
+			password: cfg.Apic.Password,
 			prefix:   "k8s",
+			privKey:  privKey,
+			cert:     apicCert,
 		},
 	}
 }
