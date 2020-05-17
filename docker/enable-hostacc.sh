@@ -30,6 +30,12 @@ else
     ip link set veth_host up
     ip link set veth_host_ac up
 fi
+
+# plumb veth_host_ac to ovs bridges
+ovs-vsctl --may-exist add-port br-access veth_host_ac
+ovs-vsctl --may-exist add-port br-access pa-veth_host_ac -- set interface pa-veth_host_ac type=patch options:peer=pi-veth_host_ac
+ovs-vsctl --may-exist add-port br-int pi-veth_host_ac -- set interface pi-veth_host_ac type=patch options:peer=pa-veth_host_ac
+
 ACC_MAC=$(get_mac veth_host)
 
 vtep=$($HOSTAGENT -get-vtep)

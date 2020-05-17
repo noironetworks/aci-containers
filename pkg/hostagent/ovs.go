@@ -279,18 +279,11 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			if _, pok := accbr.ports["veth_host_ac"]; pok {
 				found[agent.config.AccessBridgeName]["veth_host_ac"] = true
 			} else {
-				agent.log.Debug("Adding host access port veth_host_ac")
-				adds, err :=
-					addIfaceOps("veth_host_ac", "pi-veth_host_ac",
-						"pa-veth_host_ac",
-						bridges[agent.config.AccessBridgeName].uuid,
-						bridges[agent.config.IntBridgeName].uuid,
-						strconv.Itoa(opid))
-				opid++
-				if err != nil {
-					agent.log.Error(err)
+				if agent.config.OvsDbSock != "" {
+					agent.log.Fatal("Could not find host access ports for veth_host_ac")
+				} else {
+					agent.log.Info("skipping host access port check for veth_host_ac")
 				}
-				ops = append(ops, adds...)
 			}
 			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{"pi-veth_host_ac"}
 			agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pa-veth_host_ac"}
