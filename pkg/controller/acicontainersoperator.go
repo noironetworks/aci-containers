@@ -35,6 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -172,6 +173,7 @@ func NewAciContainersOperator(
 			} else {
 				opflavor = true
 				log.Info("Intializing the route informer")
+
 				route_informer = cache.NewSharedIndexInformer(
 					&cache.ListWatch{
 						ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -397,9 +399,13 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
 		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(obj)
 		if er != nil {
-			log.Info(er)
-			log.Info("Waiting for CRD to get registered to etcd....")
-			return false, nil
+			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
+				log.Info(er)
+				return true, nil
+			} else {
+				log.Info("Waiting for CRD to get registered to etcd....: ", err)
+				return false, nil
+			}
 		}
 		return true, nil
 	}); err != nil {
@@ -435,11 +441,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
 		c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced) {
 		utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
-	}
-	if c.Openshiftflavor {
-		go c.Informer_Route.Run(stopCh)
-		cache.WaitForCacheSync(stopCh,
-			c.Informer_Route.HasSynced)
 	}
 
 	c.Logger.Info("Controller.Sync: Cache sync complete")
@@ -477,15 +478,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 		},
 		stopCh)
 	if c.Openshiftflavor {
-		go c.processQueue(c.Route_Queue, c.Informer_Route.GetIndexer(),
-			func(obj interface{}) bool {
-				return c.handleRouteCreate(obj)
-			}, func(obj interface{}) bool {
-				return c.handleRouteDelete(obj)
-			},
-			stopCh)
+		c.enableRouteInformer(stopCh)
 	}
-
 }
 
 func (c *Controller) processQueue(queue workqueue.RateLimitingInterface,
@@ -671,6 +665,7 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 
 	//Currently the Kubectl version is v.1.14. This will be updated by the acc-provision according
 	//to the platform specification
+
 	cmd := exec.Command("kubectl", "apply", "-f", "aci-deployment.yaml")
 	log.Debug(cmd)
 	_, err = cmd.Output()
@@ -733,12 +728,7 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 				return true
 			}
 		}
-		// Compute the dnsoperator spec
-		err = c.updatednsOperator()
-		if err != nil {
-			log.Info("Failed to update the dnsOperatorCr: ", err)
-			return true
-		}
+
 	}
 
 	log.Info("Adding Aci Operator OwnerRefrence to resources ....")
@@ -834,34 +824,42 @@ func (c *Controller) updatednsOperator() error {
 		TypeMeta:   metav1.TypeMeta{APIVersion: operatorv1.GroupVersion.String(), Kind: "DNS"},
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
 	}
-	cfg, err := config.GetConfig()
-	scheme := runtime.NewScheme()
-	err = operatorv1.Install(scheme)
-	if err != nil {
-		return err
+	if c.DnsOperatorClient == nil {
+		cfg, err := config.GetConfig()
+		scheme := runtime.NewScheme()
+		err = operatorv1.Install(scheme)
+		if err != nil {
+			return err
+		}
+		c.DnsOperatorClient, err = client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			return err
+		}
 	}
-	c.DnsOperatorClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		return err
-	}
-	err = c.DnsOperatorClient.Get(context.TODO(), types.NamespacedName{
+	err := c.DnsOperatorClient.Get(context.TODO(), types.NamespacedName{
 		Name: "default"}, dnsInfo)
 	if err != nil {
 		return err
 	}
-	var options metav1.ListOptions
 	if c.RoutesClient == nil {
 		log.Info("Route client is nil")
 		return nil
 	}
+	var options metav1.ListOptions
 	routes, err := c.RoutesClient.RouteV1().Routes(metav1.NamespaceAll).List(options)
 	if err != nil {
 		return err
+	}
+	if len(routes.Items) == 0 {
+		return nil
 	}
 	var nodeAddress []string
 	nodeAddress, err = c.getNodeAddress()
 	if err != nil {
 		return err
+	}
+	if len(nodeAddress) == 0 {
+		return nil
 	}
 	log.Info("NodeAddress: ", nodeAddress)
 	// compute the dns servers info
@@ -877,17 +875,8 @@ func (c *Controller) updatednsOperator() error {
 		c.routes[key] = true
 	}
 	c.indexMutex.Unlock()
-	update := false
-	if len(dnsInfo.Spec.Servers) == 0 {
+	if !reflect.DeepEqual(dnsInfo.Spec.Servers, servers) {
 		dnsInfo.Spec.Servers = servers
-		update = true
-	} else {
-		if !reflect.DeepEqual(dnsInfo.Spec.Servers, servers) {
-			dnsInfo.Spec.Servers = servers
-			update = true
-		}
-	}
-	if update {
 		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
 		if err != nil {
 			return err
@@ -947,12 +936,20 @@ func (c *Controller) updateDnsOperatorSpec() bool {
 		return true
 	}
 	if len(dnsInfo.Spec.Servers) == 0 {
+		err = c.updatednsOperator()
+		if err != nil {
+			log.Info("Failed to update the dnsOperatorCr: ", err)
+			return true
+		}
 		return false
 	}
 	var nodeAddress []string
 	nodeAddress, err = c.getNodeAddress()
 	if err != nil {
 		return true
+	}
+	if len(nodeAddress) == 0 {
+		return false
 	}
 	if !reflect.DeepEqual(dnsInfo.Spec.Servers[0].ForwardPlugin.Upstreams, nodeAddress) {
 		for _, server := range dnsInfo.Spec.Servers {
@@ -1011,6 +1008,9 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 		if err != nil {
 			return true
 		}
+		if len(nodeaddr) == 0 {
+			return false
+		}
 		server.ForwardPlugin.Upstreams = nodeaddr
 	}
 	dnsInfo.Spec.Servers = append(dnsInfo.Spec.Servers, server)
@@ -1053,4 +1053,32 @@ func (c *Controller) handleRouteDelete(obj interface{}) bool {
 	}
 	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return false
+}
+
+func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
+	go func() {
+		var options metav1.ListOptions
+		for {
+			Pods, err := c.K8s_Clientset.CoreV1().Pods("openshift-apiserver").List(options)
+			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.Phase == v1.PodRunning) {
+				log.Info("Openshift-apiserver Pod found start router informer")
+				err = c.updatednsOperator()
+				if err != nil {
+					log.Info("Failed to update the dnsOperatorCr: ", err)
+				}
+				go c.Informer_Route.Run(stopCh)
+				cache.WaitForCacheSync(stopCh,
+					c.Informer_Route.HasSynced)
+				go c.processQueue(c.Route_Queue, c.Informer_Route.GetIndexer(),
+					func(obj interface{}) bool {
+						return c.handleRouteCreate(obj)
+					}, func(obj interface{}) bool {
+						return c.handleRouteDelete(obj)
+					},
+					stopCh)
+				break
+			}
+			time.Sleep(time.Minute)
+		}
+	}()
 }

@@ -326,6 +326,12 @@ github.com/nu7hatch/gouuid
 github.com/opencontainers/go-digest
 # github.com/openshift/api v0.0.0-20200217161739-c99157bc6492
 github.com/openshift/api/config/v1
+github.com/openshift/api/operator/v1
+github.com/openshift/api/route/v1
+# github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
+github.com/openshift/client-go/route/clientset/versioned
+github.com/openshift/client-go/route/clientset/versioned/scheme
+github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
 # github.com/pierrec/lz4 v2.4.1+incompatible
