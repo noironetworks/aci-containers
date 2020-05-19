@@ -12,7 +12,7 @@ release="1" \
 summary="This is an ACI CNI Opflex." \
 description="This will deploy a single instance of ACI CNI Opflex."
 # Required Licenses
-COPY docker/licenses /licenses
+COPY licenses /licenses
 COPY bin/* /usr/local/bin/
 COPY lib/* /usr/local/lib/
 ENV SSL_MODE="encrypted"
