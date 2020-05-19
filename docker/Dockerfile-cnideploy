@@ -10,6 +10,6 @@ release="1" \
 summary="This is an ACI CNI cnideploy." \
 description="This operator will deploy a single instance of ACI CNI cnideploy."
 # Required Licenses
-COPY docker/licenses /licenses
+COPY licenses /licenses
 COPY launch-cnideploy.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-cnideploy.sh"]
