@@ -4,6 +4,15 @@ RUN yum --disablerepo=\*ubi\* install -y --enablerepo=openstack-15-for-rhel-8-x8
   boost-program-options boost-system boost-date-time boost-filesystem \
   boost-iostreams libnetfilter_conntrack openssl net-tools procps-ng ca-certificates \
   && yum clean all
+# Required OpenShift Labels
+LABEL name="ACI CNI Opflex" \
+vendor="Cisco" \
+version="v1.0.0" \
+release="1" \
+summary="This is an ACI CNI Opflex." \
+description="This will deploy a single instance of ACI CNI Opflex."
+# Required Licenses
+COPY docker/licenses /licenses
 COPY bin/* /usr/local/bin/
 COPY lib/* /usr/local/lib/
 ENV SSL_MODE="encrypted"

@@ -2,6 +2,15 @@ FROM registry.access.redhat.com/ubi8/ubi:latest
 RUN yum --disablerepo=\*ubi\* --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
   --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms install -y iproute nftables openvswitch \
   && yum clean all
+# Required OpenShift Labels
+LABEL name="ACI CNI Host-Agent" \
+vendor="Cisco" \
+version="v1.0.0" \
+release="1" \
+summary="This is an ACI CNI Host-Agent." \
+description="This will deploy a single instance of ACI CNI Host-Agent."
+# Required Licenses
+COPY docker/licenses /licenses
 COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 ENV TENANT=kube
 ENV NODE_EPG='kubernetes|kube-nodes'
