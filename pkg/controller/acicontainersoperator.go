@@ -173,7 +173,6 @@ func NewAciContainersOperator(
 			} else {
 				opflavor = true
 				log.Info("Intializing the route informer")
-
 				route_informer = cache.NewSharedIndexInformer(
 					&cache.ListWatch{
 						ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -184,7 +183,7 @@ func NewAciContainersOperator(
 						},
 					},
 					&routesv1.Route{},
-					0,
+					time.Duration(5)*time.Minute,
 					cache.Indexers{},
 				)
 			}
@@ -299,6 +298,7 @@ func NewAciContainersOperator(
 		UpdateFunc: func(prevObj, currentObj interface{}) {
 			//@TODO need to handle update
 			log.Debug("In UpdateFunc for Node")
+			controller.handleNodeUpdate(prevObj, currentObj, node_queue)
 		},
 		DeleteFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
@@ -864,7 +864,6 @@ func (c *Controller) updatednsOperator() error {
 	log.Info("NodeAddress: ", nodeAddress)
 	// compute the dns servers info
 	var servers []operatorv1.Server
-	c.indexMutex.Lock()
 	for _, route := range routes.Items {
 		var server operatorv1.Server
 		key := route.ObjectMeta.Namespace + "/" + route.ObjectMeta.Name
@@ -872,9 +871,7 @@ func (c *Controller) updatednsOperator() error {
 		server.Zones = append(server.Zones, route.Spec.Host)
 		server.ForwardPlugin.Upstreams = nodeAddress
 		servers = append(servers, server)
-		c.routes[key] = true
 	}
-	c.indexMutex.Unlock()
 	if !reflect.DeepEqual(dnsInfo.Spec.Servers, servers) {
 		dnsInfo.Spec.Servers = servers
 		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
@@ -882,6 +879,13 @@ func (c *Controller) updatednsOperator() error {
 			return err
 		}
 	}
+	c.indexMutex.Lock()
+	for _, route := range routes.Items {
+		key := route.ObjectMeta.Namespace + "/" + route.ObjectMeta.Name
+		log.Infof("Route added to cache: %s", key)
+		c.routes[key] = true
+	}
+	c.indexMutex.Unlock()
 	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return nil
 }
@@ -927,7 +931,7 @@ func (c *Controller) getDnsInfo() (*operatorv1.DNS, error) {
 
 // it reads all the node ip address.
 // updates if there is any changes in the address computed
-func (c *Controller) updateDnsOperatorSpec() bool {
+func (c *Controller) updateDnsOperatorSpec(add bool) bool {
 	if c.DnsOperatorClient == nil || !c.Openshiftflavor {
 		return false
 	}
@@ -935,7 +939,8 @@ func (c *Controller) updateDnsOperatorSpec() bool {
 	if err != nil {
 		return true
 	}
-	if len(dnsInfo.Spec.Servers) == 0 {
+	// Add and no servers present compute for all the routes
+	if add && len(dnsInfo.Spec.Servers) == 0 {
 		err = c.updatednsOperator()
 		if err != nil {
 			log.Info("Failed to update the dnsOperatorCr: ", err)
@@ -948,12 +953,16 @@ func (c *Controller) updateDnsOperatorSpec() bool {
 	if err != nil {
 		return true
 	}
-	if len(nodeAddress) == 0 {
-		return false
-	}
+
 	if !reflect.DeepEqual(dnsInfo.Spec.Servers[0].ForwardPlugin.Upstreams, nodeAddress) {
-		for _, server := range dnsInfo.Spec.Servers {
-			server.ForwardPlugin.Upstreams = nodeAddress
+		// This is node delete case when there is no worker nodes present
+		// set the spec to nil
+		if !add && len(nodeAddress) == 0 {
+			dnsInfo.Spec = operatorv1.DNSSpec{}
+		} else {
+			for _, server := range dnsInfo.Spec.Servers {
+				server.ForwardPlugin.Upstreams = nodeAddress
+			}
 		}
 		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
 		if err != nil {
@@ -968,13 +977,13 @@ func (c *Controller) updateDnsOperatorSpec() bool {
 // handle node create to update the dnsOperatorSpec
 func (c *Controller) handleNodeCreate(obj interface{}) bool {
 	log.Infof("node created")
-	return c.updateDnsOperatorSpec()
+	return c.updateDnsOperatorSpec(true)
 }
 
 // handle node delete
 func (c *Controller) handleNodeDelete(obj interface{}) bool {
 	log.Infof("node Deleted")
-	return c.updateDnsOperatorSpec()
+	return c.updateDnsOperatorSpec(false)
 }
 
 // handle route create
@@ -990,9 +999,6 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 	if _, ok := c.routes[key]; ok {
 		return false
 	}
-	c.indexMutex.Lock()
-	c.routes[key] = true
-	c.indexMutex.Unlock()
 	dnsInfo, err := c.getDnsInfo()
 	if err != nil {
 		return true
@@ -1019,6 +1025,10 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 		log.Info("Failed to update the dnsInfo: ", err)
 		return true
 	}
+	c.indexMutex.Lock()
+	c.routes[key] = true
+	c.indexMutex.Unlock()
+	log.Infof("Route added to cache:%s", key)
 	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return false
 }
@@ -1030,9 +1040,6 @@ func (c *Controller) handleRouteDelete(obj interface{}) bool {
 	if _, ok := c.routes[key]; !ok {
 		return false
 	}
-	c.indexMutex.Lock()
-	delete(c.routes, key)
-	c.indexMutex.Unlock()
 	if c.DnsOperatorClient == nil {
 		return false
 	}
@@ -1051,6 +1058,10 @@ func (c *Controller) handleRouteDelete(obj interface{}) bool {
 		log.Info("Failed to update the dnsInfo: ", err)
 		return true
 	}
+	c.indexMutex.Lock()
+	delete(c.routes, key)
+	c.indexMutex.Unlock()
+	log.Infof("Route deleted from cache:%s", key)
 	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return false
 }
@@ -1081,4 +1092,14 @@ func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
 			time.Sleep(time.Minute)
 		}
 	}()
+}
+func (c *Controller) handleNodeUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+	old_node := oldobj.(*v1.Node)
+	new_node := newobj.(*v1.Node)
+	if !reflect.DeepEqual(old_node.Status.Addresses, new_node.Status.Addresses) {
+		key, err := cache.MetaNamespaceKeyFunc(newobj)
+		if err == nil {
+			queue.Add(key)
+		}
+	}
 }
