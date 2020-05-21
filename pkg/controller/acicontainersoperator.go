@@ -1071,7 +1071,7 @@ func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
 		var options metav1.ListOptions
 		for {
 			Pods, err := c.K8s_Clientset.CoreV1().Pods("openshift-apiserver").List(options)
-			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.Phase == v1.PodRunning) {
+			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.ContainerStatuses[0].Ready == true) {
 				log.Info("Openshift-apiserver Pod found start router informer")
 				err = c.updatednsOperator()
 				if err != nil {
