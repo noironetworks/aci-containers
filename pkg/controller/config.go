@@ -199,6 +199,8 @@ type ControllerConfig struct {
 
 	// Maximum CSR tunnels
 	MaxCSRTunnels int `json:"max-csr-tunnels,omitempty"`
+	// enable EndpointSlice
+	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 }
 
 type netIps struct {

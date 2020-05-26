@@ -22,6 +22,7 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/discovery/v1beta1"
 	"net"
 	"sort"
 	"testing"
@@ -703,5 +704,562 @@ func TestEndpointsIpIndex(t *testing.T) {
 			c3, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
 			return (!c1 && !c2 && !c3)
 		})
+
+}
+func TestEndpointsliceIpIndex(t *testing.T) {
+	endpoints := []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.1",
+			},
+		},
+	}
+	eps1 := endpointslice("ns1", "name1", endpoints, "service1")
+	endpoints = []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.2",
+			},
+		},
+	}
+	eps2 := endpointslice("ns1", "name2", endpoints, "service1")
+
+	cont := testController()
+	cont.serviceEndPoints = &serviceEndpointSlice{}
+	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+	cont.fakeEndpointSliceSource.Add(eps1)
+	cont.fakeEndpointSliceSource.Add(eps2)
+	cont.run()
+
+	tu.WaitForComp(t, "add", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
+			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
+			return (c1 && c2)
+		})
+	endpoints = []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.3",
+			},
+		},
+	}
+
+	eps1 = endpointslice("ns1", "name1", endpoints, "service1")
+	cont.log.Info("updating")
+	cont.fakeEndpointSliceSource.Add(eps1)
+
+	tu.WaitForComp(t, "update", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
+			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
+			return (c1 && c2)
+		})
+
+	cont.log.Info("adding new")
+	endpoints = []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.1",
+			},
+		},
+		{
+			Addresses: []string{
+				"1.1.1.3",
+			},
+		},
+	}
+	eps2 = endpointslice("ns1", "name2", endpoints, "service2")
+	cont.fakeEndpointSliceSource.Add(eps2)
+
+	tu.WaitForComp(t, "new", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
+			return c1
+		})
+
+	cont.log.Info("ipv6")
+	endpoints = []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"2001::1",
+			},
+		},
+	}
+	eps3 := endpointslice("ns1", "name2", endpoints, "service2")
+	cont.fakeEndpointSliceSource.Add(eps3)
+
+	tu.WaitForComp(t, "ipv6", 500*time.Millisecond,
+		func() bool {
+			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("2001::1"))
+			return c1
+		})
+
+}
+
+// Service annotation test with EndPointSlice
+func TestServiceAnnotationWithEps(t *testing.T) {
+	name := "kube_svc_testns_service1"
+	nameS2 := "kube_svc_testns_service2"
+	graphName := "kube_svc_global"
+	cluster := func(nmap map[string]string) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		dc, _ := apicDeviceCluster(graphName, "common", "service-physdom",
+			"vlan-4001", nodes, nmap)
+		return dc
+	}
+	twoNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/33]",
+		"node2": "topology/pod-1/paths-301/pathep-[eth1/34]",
+	})
+	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
+
+	redirect := func(nmap seMap) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
+			"common", "kube_monPol_kubernetes-service")
+		dc, _ := apicRedirectPol(name, "common", nodes,
+			nmap, monPolDn, false)
+		return dc
+	}
+	twoNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
+			Mac:           "8a:35:a1:a6:e4:60",
+			Ipv4:          net.ParseIP("10.6.1.1"),
+		},
+		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
+			Mac:           "a2:7e:45:57:a0:d4",
+			Ipv4:          net.ParseIP("10.6.1.2"),
+		},
+	})
+	oneNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			Mac:  "8a:35:a1:a6:e4:60",
+			Ipv4: net.ParseIP("10.6.1.1"),
+		},
+	})
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, true, false)
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
+	filter := apicapi.NewVzFilter("common", name)
+	filterDn := filter.GetDn()
+	{
+		fe := apicapi.NewVzEntry(filterDn, "0")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "tcp")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
+		filter.AddChild(fe)
+	}
+	{
+		fe := apicapi.NewVzEntry(filterDn, "1")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "udp")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
+		filter.AddChild(fe)
+	}
+	s1Dcc := apicDevCtx(name, "common", graphName,
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
+	endpoints := []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.1",
+			},
+			Topology: map[string]string{
+				"kubernetes.io/hostname": "node1",
+			},
+		},
+		{
+			Addresses: []string{
+				"1.1.1.2",
+			},
+			Topology: map[string]string{
+				"kubernetes.io/hostname": "node2",
+			},
+		},
+	}
+	endpoints1 := endpointslice("testns", "name", endpoints, "service1")
+	service1 := service("testns", "service1", "10.4.2.2")
+	service1.Spec.Ports = []v1.ServicePort{
+		{
+			Name:     "tcp_80",
+			Protocol: "TCP",
+			Port:     80,
+		},
+		{
+			Name:     "udp_53",
+			Protocol: "UDP",
+			Port:     53,
+		},
+	}
+
+	service1.Spec.Type = v1.ServiceTypeLoadBalancer
+	service2 := service("testns", "service2", "")
+	service2.Spec.Type = ""
+
+	node1 := node("node1")
+	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
+	node2 := node("node2")
+	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
+
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	opflexDevice1.SetAttr("devType", "k8s")
+	opflexDevice1.SetAttr("domName", "kube")
+	opflexDevice1.SetAttr("ctrlrName", "kube")
+
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice2.SetAttr("hostName", "node2")
+	opflexDevice2.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/34]")
+	opflexDevice2.SetAttr("devType", "k8s")
+	opflexDevice2.SetAttr("domName", "kube")
+	opflexDevice2.SetAttr("ctrlrName", "kube")
+
+	cont := sgCont()
+	cont.serviceEndPoints = &serviceEndpointSlice{}
+	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+	cont.config.AciVmmDomain = "kube"
+	cont.config.AciVmmController = "kube"
+	cont.fakeNodeSource.Add(node1)
+	cont.fakeNodeSource.Add(node2)
+	cont.fakeServiceSource.Add(service2)
+	cont.run()
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
+	cont.fakeEndpointSliceSource.Add(endpoints1)
+
+	//Function to check if an object is present in the apic connection at a specific key
+	sgPresentObject := func(t *testing.T, desc string, cont *testAciController,
+		key string, expected string, present bool) {
+
+		tu.WaitFor(t, desc, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				cont.indexMutex.Lock()
+				defer cont.indexMutex.Unlock()
+				var ok bool
+				ds := cont.apicConn.GetDesiredState(key)
+				for _, v := range ds {
+					if _, ok = v[expected]; ok {
+						break
+					}
+				}
+				if ok == present {
+					return true, nil
+				}
+				return false, nil
+			})
+		cont.log.Info("Finished waiting for ", desc)
+
+	}
+
+	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "tenn"
+	time.Sleep(2 * time.Second)
+	cont.fakeServiceSource.Add(service1)
+	sgPresentObject(t, "object absent check", cont, name, "vzBrCP", false)
+
+	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "global"
+	time.Sleep(2 * time.Second)
+	cont.fakeServiceSource.Modify(service1)
+	contract := apicContract(name, "common", graphName, "global", false)
+	expected := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
+		nameS2: nil,
+	}
+	sgPresentObject(t, "object present check", cont, name, "vzBrCP", true)
+	sgWait(t, "valid scope check", cont, expected)
+	cont.stop()
+}
+
+//Service graph test with EndPoint slices
+func TestServiceGraphiWithEps(t *testing.T) {
+
+	graphName := "kube_svc_global"
+	cluster := func(nmap map[string]string) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		dc, _ := apicDeviceCluster(graphName, "common", "service-physdom",
+			"vlan-4001", nodes, nmap)
+		return dc
+	}
+	twoNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/33]",
+		"node2": "topology/pod-1/paths-301/pathep-[eth1/34]",
+	})
+	oneNodeCluster := cluster(map[string]string{
+		"node1": "topology/pod-1/paths-301/pathep-[eth1/100]",
+	})
+
+	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
+
+	name := "kube_svc_testns_service1"
+	conScope := "context"
+	nameS2 := "kube_svc_testns_service2"
+	redirect := func(nmap seMap) apicapi.ApicObject {
+		var nodes []string
+		for node := range nmap {
+			nodes = append(nodes, node)
+		}
+		sort.Strings(nodes)
+		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
+			"common", "kube_monPol_kubernetes-service")
+		dc, _ := apicRedirectPol(name, "common", nodes,
+			nmap, monPolDn, false)
+		return dc
+	}
+	twoNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
+			Mac:           "8a:35:a1:a6:e4:60",
+			Ipv4:          net.ParseIP("10.6.1.1"),
+		},
+		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
+			Mac:           "a2:7e:45:57:a0:d4",
+			Ipv4:          net.ParseIP("10.6.1.2"),
+		},
+	})
+	oneNodeRedirect := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
+			Mac:           "8a:35:a1:a6:e4:60",
+			Ipv4:          net.ParseIP("10.6.1.1"),
+		},
+	})
+
+	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false, false)
+	contract := apicContract(name, "common", graphName, conScope, false)
+	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
+
+	filter := apicapi.NewVzFilter("common", name)
+	filterDn := filter.GetDn()
+	{
+		fe := apicapi.NewVzEntry(filterDn, "0")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "tcp")
+		fe.SetAttr("dFromPort", "80")
+		fe.SetAttr("dToPort", "80")
+		filter.AddChild(fe)
+	}
+	{
+		fe := apicapi.NewVzEntry(filterDn, "1")
+		fe.SetAttr("etherT", "ip")
+		fe.SetAttr("prot", "udp")
+		fe.SetAttr("dFromPort", "53")
+		fe.SetAttr("dToPort", "53")
+		filter.AddChild(fe)
+	}
+
+	s1Dcc := apicDevCtx(name, "common", graphName,
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
+
+	endpoints := []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.1",
+			},
+			Topology: map[string]string{
+				"kubernetes.io/hostname": "node1",
+			},
+		},
+		{
+			Addresses: []string{
+				"1.1.1.2",
+			},
+			Topology: map[string]string{
+				"kubernetes.io/hostname": "node2",
+			},
+		},
+	}
+	endpointsobj1 := endpointslice("testns", "name", endpoints, "service1")
+	endpoints = []v1beta1.Endpoint{
+		{
+			Addresses: []string{
+				"1.1.1.2",
+			},
+			Topology: map[string]string{
+				"kubernetes.io/hostname": "node2",
+			},
+		},
+	}
+	endpointsobj2 := endpointslice("testns", "name1", endpoints, "service1")
+	service1 := service("testns", "service1", "10.4.2.2")
+	service1.Spec.Ports = []v1.ServicePort{
+		{
+			Name:     "tcp_80",
+			Protocol: "TCP",
+			Port:     80,
+		},
+		{
+			Name:     "udp_53",
+			Protocol: "UDP",
+			Port:     53,
+		},
+	}
+	service2 := service("testns", "service2", "")
+	service2.Spec.Type = ""
+
+	node1 := node("node1")
+	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.1\"}"
+	node2 := node("node2")
+	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
+
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/33]")
+	opflexDevice1.SetAttr("devType", "k8s")
+	opflexDevice1.SetAttr("domName", "kube")
+	opflexDevice1.SetAttr("ctrlrName", "kube")
+
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice2.SetAttr("hostName", "node2")
+	opflexDevice2.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/34]")
+	opflexDevice2.SetAttr("devType", "k8s")
+	opflexDevice2.SetAttr("domName", "kube")
+	opflexDevice2.SetAttr("ctrlrName", "kube")
+
+	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice3.SetAttr("hostName", "node3")
+	opflexDevice3.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/50]")
+	opflexDevice3.SetAttr("devType", "k8s")
+	opflexDevice3.SetAttr("domName", "kube")
+	opflexDevice3.SetAttr("ctrlrName", "kube")
+
+	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	opflexDevice4.SetAttr("hostName", "node4")
+	opflexDevice4.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/51]")
+	opflexDevice4.SetAttr("devType", "k8s")
+	opflexDevice4.SetAttr("domName", "kube")
+	opflexDevice4.SetAttr("ctrlrName", "kube")
+
+	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1_alt.SetAttr("hostName", "node1")
+	opflexDevice1_alt.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/100]")
+	opflexDevice1_alt.SetAttr("devType", "k8s")
+	opflexDevice1_alt.SetAttr("domName", "kube")
+	opflexDevice1_alt.SetAttr("ctrlrName", "kube")
+
+	expected := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
+			twoNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
+		nameS2: nil,
+	}
+
+	expectedOneNode := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{oneNodeCluster,
+			graph}, "kube", graphName),
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{
+			oneNodeRedirect, extNet, contract, rsCons, filter, s1Dcc},
+			"kube", name),
+		nameS2: nil,
+	}
+
+	expectedNoService := map[string]apicapi.ApicSlice{
+		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
+			graph}, "kube", graphName),
+		name:   nil,
+		nameS2: nil,
+	}
+
+	cont := sgCont()
+	cont.config.AciVmmDomain = "kube"
+	cont.config.AciVmmController = "kube"
+	cont.serviceEndPoints = &serviceEndpointSlice{}
+	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+	cont.fakeNodeSource.Add(node1)
+	cont.fakeNodeSource.Add(node2)
+	cont.fakeServiceSource.Add(service2)
+	cont.run()
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
+
+	sgWait(t, "non-lb", cont, expectedNoService)
+	cont.serviceUpdates = nil
+	cont.fakeEndpointSliceSource.Add(endpointsobj1)
+	cont.fakeEndpointSliceSource.Add(endpointsobj2)
+	cont.fakeServiceSource.Add(service1)
+
+	sgWait(t, "create", cont, expected)
+
+	cont.opflexDeviceDeleted(opflexDevice1.GetDn())
+	cont.opflexDeviceDeleted(opflexDevice2.GetDn())
+	sgWait(t, "delete device", cont,
+		map[string]apicapi.ApicSlice{name: nil})
+
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
+	sgWait(t, "add device", cont, expected)
+
+	cont.opflexDeviceChanged(opflexDevice1_alt)
+	cont.opflexDeviceDeleted(opflexDevice2.GetDn())
+	sgWait(t, "update device", cont, expectedOneNode)
+
+	cont.opflexDeviceChanged(opflexDevice3)
+	cont.opflexDeviceChanged(opflexDevice4)
+	sgWait(t, "move device", cont,
+		map[string]apicapi.ApicSlice{name: nil})
+
+	cont.opflexDeviceChanged(opflexDevice1)
+	cont.opflexDeviceChanged(opflexDevice2)
+	sgWait(t, "restore device", cont, expected)
+
+	cont.fakeEndpointSliceSource.Delete(endpointsobj1)
+	cont.fakeEndpointSliceSource.Delete(endpointsobj2)
+	sgWait(t, "delete eps", cont,
+		map[string]apicapi.ApicSlice{name: nil})
+
+	cont.fakeEndpointSliceSource.Add(endpointsobj1)
+	cont.fakeEndpointSliceSource.Add(endpointsobj2)
+	sgWait(t, "add eps", cont, expected)
+
+	cont.fakeNodeSource.Delete(node1)
+	cont.fakeNodeSource.Delete(node2)
+	sgWait(t, "delete node", cont, map[string]apicapi.ApicSlice{name: nil})
+	//reset the node annotations with diffrent values before adding the node
+	node1.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"8a:35:a1:a6:e4:60\",\"ipv4\":\"10.6.1.5\"}"
+	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
+		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.6\"}"
+
+	cont.fakeNodeSource.Add(node1)
+	cont.fakeNodeSource.Add(node2)
+	sgWait(t, "add node", cont, expected)
+
+	service1.Spec.Type = ""
+	cont.fakeServiceSource.Add(service1)
+	sgWait(t, "convert to non-lb", cont,
+		map[string]apicapi.ApicSlice{name: nil})
+
+	cont.stop()
 
 }

@@ -213,6 +213,9 @@ type HostAgentConfig struct {
 
 	// More than one droplog within the repeat interval for the same event is suppressed
 	DropLogRepeatIntervalTime uint `json:"drop-log-repeat-intvl,omitempty"`
+
+	// enable EndpointSlice
+	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {

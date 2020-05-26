@@ -41,6 +41,7 @@ import (
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	"k8s.io/client-go/kubernetes"
 )
 
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
@@ -84,6 +85,8 @@ type AciController struct {
 	snatNodeInformer      cache.Controller
 	istioIndexer          cache.Indexer
 	istioInformer         cache.Controller
+	endpointSliceIndexer  cache.Indexer
+	endpointSliceInformer cache.Controller
 	snatCfgInformer       cache.Controller
 	updatePod             podUpdateFunc
 	updateNode            nodeUpdateFunc
@@ -132,6 +135,7 @@ type AciController struct {
 	syncQueue                 workqueue.RateLimitingInterface
 	syncProcessors            map[string]func() bool
 	snatPortExhaustedPolicies map[string]map[string]bool
+	serviceEndPoints          ServiceEndPointType
 }
 
 type nodeServiceMeta struct {
@@ -169,6 +173,53 @@ type portIndexEntry struct {
 type portRangeSnat struct {
 	start int
 	end   int
+}
+
+type ServiceEndPointType interface {
+	InitClientInformer(kubeClient *kubernetes.Clientset)
+	Run(stopCh <-chan struct{})
+	Wait(stopCh <-chan struct{})
+	UpdateServicesForNode(nodename string)
+	GetnodesMetadata(key string, service *v1.Service, nodeMap map[string]*metadata.ServiceEndpoint)
+	SetServiceApicObject(aobj apicapi.ApicObject, service *v1.Service) bool
+	SetNpServiceAugmentForService(servicekey string, service *v1.Service, prs *portRemoteSubnet,
+		portAugments map[string]*portServiceAugment, subnetIndex cidranger.Ranger, logger *logrus.Entry)
+}
+
+type serviceEndpoint struct {
+	cont *AciController
+}
+type serviceEndpointSlice struct {
+	cont *AciController
+}
+
+func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
+	sep.cont.initEndpointsInformerFromClient(kubeClient)
+}
+
+func (seps *serviceEndpointSlice) InitClientInformer(kubeClient *kubernetes.Clientset) {
+	seps.cont.initEndpointSliceInformerFromClient(kubeClient)
+}
+
+func (sep *serviceEndpoint) Run(stopCh <-chan struct{}) {
+	go sep.cont.endpointsInformer.Run(stopCh)
+}
+
+func (seps *serviceEndpointSlice) Run(stopCh <-chan struct{}) {
+	go seps.cont.endpointSliceInformer.Run(stopCh)
+}
+
+func (sep *serviceEndpoint) Wait(stopCh <-chan struct{}) {
+	cache.WaitForCacheSync(stopCh,
+		sep.cont.endpointsInformer.HasSynced,
+		sep.cont.serviceInformer.HasSynced)
+}
+
+func (seps *serviceEndpointSlice) Wait(stopCh <-chan struct{}) {
+	seps.cont.log.Debug("Waiting for EndPointSlicecache sync")
+	cache.WaitForCacheSync(stopCh,
+		seps.cont.endpointSliceInformer.HasSynced,
+		seps.cont.serviceInformer.HasSynced)
 }
 
 func (e *ipIndexEntry) Network() net.IPNet {
@@ -263,6 +314,15 @@ func (cont *AciController) Init() {
 
 	cont.log.Debug("Initializing IPAM")
 	cont.initIpam()
+	//@FIXME need to set this value based on feature capability supported by cluster
+	// if cluster doesn't have the support fallback to endpoints
+	if cont.config.EnabledEndpointSlice {
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = cont
+	} else {
+		cont.serviceEndPoints = &serviceEndpoint{}
+		cont.serviceEndPoints.(*serviceEndpoint).cont = cont
+	}
 
 	err = cont.env.Init(cont)
 	if err != nil {
@@ -443,7 +503,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.LBType == lbTypeAci {
 		cont.initStaticObjs()
 	}
-
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
