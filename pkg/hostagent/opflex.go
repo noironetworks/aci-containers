@@ -49,8 +49,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			if link.VlanId != int(agent.config.AciInfraVlan) {
 				continue
 			}
-
-			if link.MTU < 1600 {
+			// giving extra headroom of 100 bytes
+			if link.MTU < 100+agent.config.InterfaceMtu {
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
@@ -67,7 +67,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				}
 
 				parent = plink
-				if parent.Attrs().MTU < 1600 {
+				if parent.Attrs().MTU < 100+agent.config.InterfaceMtu {
 					agent.log.WithFields(logrus.Fields{
 						"name": parent.Attrs().Name,
 						"vlan": agent.config.AciInfraVlan,
