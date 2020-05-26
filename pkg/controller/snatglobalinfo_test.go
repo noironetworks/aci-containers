@@ -127,7 +127,7 @@ var nodeTests = []nodedata{
 
 func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.GlobalInfo,
 	actual map[string]*snatglobalinfo.GlobalInfo) {
-	tu.WaitFor(t, desc, 1000*time.Millisecond, func(last bool) (bool, error) {
+	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
 		for key, v := range expected {
 			val, ok := actual[key]
 			if ok {
@@ -179,8 +179,8 @@ func TestSnatnodeInfo(t *testing.T) {
 			cont.log.Debug("NodeInfo Modified: ", nodeobj)
 			cont.fakeNodeInfoSource.Modify(nodeobj)
 		}
-		time.Sleep(time.Second)
 	}
+	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
 		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
@@ -195,7 +195,7 @@ func TestSnatnodeInfo(t *testing.T) {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Modify(snatObj)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	snatWaitForIpUpdated(t, "snat test", "10.1.1.20", cont.AciController.snatGlobalInfoCache)
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
@@ -231,8 +231,8 @@ func TestSnatCfgChangeTest(t *testing.T) {
 			cont.log.Debug("NodeInfo Modified: ", nodeobj)
 			cont.fakeNodeInfoSource.Modify(nodeobj)
 		}
-		time.Sleep(time.Second)
 	}
+	time.Sleep(time.Millisecond * 100)
 	modconfigmap := &v1.ConfigMap{
 		Data: map[string]string{"start": "10000", "end": "65000", "ports-per-node": "5000"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -241,7 +241,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		},
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
 		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},

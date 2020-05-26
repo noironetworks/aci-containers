@@ -698,11 +698,13 @@ func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
 	agent.log.Debug("Snat Global Info Obj Delete")
 	snat := obj.(*snatglobal.SnatGlobalInfo)
 	globalInfo := snat.Spec.GlobalInfos
+	agent.indexMutex.Lock()
 	for nodename := range globalInfo {
 		if _, ok := agent.opflexSnatGlobalInfos[nodename]; ok {
 			delete(agent.opflexSnatGlobalInfos, nodename)
 		}
 	}
+	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) syncSnat() bool {
