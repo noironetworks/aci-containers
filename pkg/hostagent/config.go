@@ -72,7 +72,6 @@ type HostAgentNodeConfig struct {
 
 	// Registry Server URL -- for updating remote EP information
 	RegistryURL string `json:"registry-url,omitempty"`
-
 }
 
 // Configuration for the host agent
@@ -200,7 +199,7 @@ type HostAgentConfig struct {
 	//Namespace for SNAT CRDs
 	AciSnatNamespace string `json:"aci-snat-namespace,omitempty"`
 
-        //DropLogging enabled
+	//DropLogging enabled
 	EnableDropLogging bool `json:"enable-drop-log,omitempty"`
 
 	// DropLog Interface connecting to access bridge
