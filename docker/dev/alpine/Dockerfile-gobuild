@@ -1,0 +1,29 @@
+FROM golang
+ARG proxy
+ENV https_proxy=$proxy
+ENV http_proxy=$proxy
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+
+RUN apt-get update
+RUN apt-get install -y python3 python3-pip && pip3 install -U pytest
+RUN pip3 install -U kubernetes
+
+RUN apt-get -y install git unzip build-essential autoconf libtool
+RUN git clone https://github.com/google/protobuf.git && \
+    cd protobuf && \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install && \
+    ldconfig && \
+    make clean && \
+    cd .. && \
+    rm -r protobuf
+
+# Get the source from GitHub
+RUN go get google.golang.org/grpc
+# Install protoc-gen-go
+RUN go get github.com/golang/protobuf/protoc-gen-go
+
+ENV https_proxy=
+ENV http_proxy=
