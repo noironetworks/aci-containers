@@ -1,0 +1,43 @@
+FROM alpine:3.11.5
+ARG ROOT=/usr/local
+#COPY ovs-musl.patch /
+COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
+RUN apk upgrade --no-cache && apk add --no-cache build-base \
+    libtool pkgconfig autoconf automake cmake file py3-six \
+    linux-headers libuv-dev boost-dev openssl-dev git \
+    libnetfilter_conntrack-dev rapidjson-dev python3-dev bzip2-dev \
+    curl libcurl curl-dev zlib-dev
+ARG make_args=-j4
+RUN git clone https://github.com/noironetworks/3rdparty-debian.git
+RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
+  && cd prometheus-cpp \
+  && git checkout 9effb90b0c266316358680cbf862a8564eb2c2d4 \
+  && git submodule init \
+  && git submodule update \
+  && git apply ../3rdparty-debian/prometheus/prometheus-cpp.patch \
+  && mkdir _build && cd _build \
+  && cmake .. -DBUILD_SHARED_LIBS=ON \
+  && make $make_args && make install && make clean \
+  && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/
+RUN git clone https://github.com/grpc/grpc \
+  && cd grpc \
+  && git checkout 5052efd666ab6fdda2a4b3045569f70ce0c5fa57 \
+  && git submodule update --init \
+  && make $make_args && make install \
+  && cd third_party/protobuf \
+  && ./autogen.sh \
+  && ./configure \
+  && make $make_args && make install && make clean
+ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
+ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
+ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
+RUN git clone https://github.com/openvswitch/ovs.git --branch v2.12.0 --depth 1 \
+  && cd ovs && patch -p1 < /ovsdb-idlc.in-fix-dict-change-during-iteration.patch \
+  && ./boot.sh && ./configure --disable-ssl --disable-libcapng --enable-shared \
+  && make $make_args && make install \
+  && mkdir -p $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openvswitch/*.h $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openflow $ROOT/include/openvswitch \
+  && cp include/*.h "$ROOT/include/openvswitch/" \
+  && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \; \
+  && make clean
