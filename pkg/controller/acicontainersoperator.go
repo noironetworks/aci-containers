@@ -374,26 +374,30 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 func (c *Controller) CreateAciContainersOperatorCR() error {
 	log.Info("Reading the Config Map providing CR")
 
-	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	log.Debug("acicnioperator CR is ", string(raw))
-
 	obj := &operators.AciContainersOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "acicnioperator",
 			Namespace: os.Getenv("SYSTEM_NAMESPACE")},
 	}
 
+	obj.Status.Status = true //Setting it default true
+
+	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+	if err != nil {
+		log.Error(err)
+		obj.Status.Status = false
+	}
+
+	log.Debug("acicnioperator CR is ", string(raw))
+
+
 	log.Info("Unmarshalling the Config-Map...")
 	err = json.Unmarshal(raw, &obj.Spec)
 	if err != nil {
 		log.Error(err)
-		return err
+		obj.Status.Status = false
 	}
+
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {

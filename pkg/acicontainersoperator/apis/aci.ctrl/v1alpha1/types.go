@@ -31,7 +31,7 @@ type AciContainersOperatorStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "acioperator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Status    bool       `json:"Successful or Not"`
+	Status    bool       `json:"Successful"`
 }
 
 
