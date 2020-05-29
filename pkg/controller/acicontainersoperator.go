@@ -665,18 +665,6 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 		log.Error(err)
 		return true
 	}
-	log.Info("Applying Aci Deployment")
-
-	//Currently the Kubectl version is v.1.14. This will be updated by the acc-provision according
-	//to the platform specification
-
-	cmd := exec.Command("kubectl", "apply", "-f", "aci-deployment.yaml")
-	log.Debug(cmd)
-	_, err = cmd.Output()
-	if err != nil {
-		log.Error(err)
-		return true
-	}
 
 	log.Info("Platform flavor is ", acicontainersoperator.Spec.Flavor)
 
@@ -733,6 +721,19 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 			}
 		}
 
+	}
+
+	log.Info("Applying Aci Deployment")
+
+	//Currently the Kubectl version is v.1.14. This will be updated by the acc-provision according
+	//to the platform specification
+
+	cmd := exec.Command("kubectl", "apply", "-f", "aci-deployment.yaml")
+	log.Debug(cmd)
+	_, err = cmd.Output()
+	if err != nil {
+		log.Error(err)
+		return true
 	}
 
 	log.Info("Adding Aci Operator OwnerRefrence to resources ....")
