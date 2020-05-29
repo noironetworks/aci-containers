@@ -84,8 +84,11 @@ type Controller struct {
 
 var Version = map[string]bool{
 	"openshift-4.3": true,
+	"cloud": true,
 }
-
+var Dnsoper = map[string]bool{
+	"openshift-4.3": true,
+}
 const aciContainersController = "aci-containers-controller"
 const aciContainersHostDaemonset = "aci-containers-host"
 const aciContainersOvsDaemonset = "aci-containers-openvswitch"
@@ -162,7 +165,7 @@ func NewAciContainersOperator(
 	flavor := os.Getenv("ACC_PROVISION_FLAVOR")
 	opflavor := false
 	// intializes route watchers for Openshift flavor
-	if Version[flavor] {
+	if Dnsoper[flavor] {
 		restconfig, err := restclient.InClusterConfig()
 		if err != nil {
 			log.Error("Failed to intialize the restConfig: ", err)
@@ -385,7 +388,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
 	if err != nil {
 		log.Error(err)
-		obj.Status.Status = false
+		return err
 	}
 
 	log.Debug("acicnioperator CR is ", string(raw))
@@ -395,7 +398,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	err = json.Unmarshal(raw, &obj.Spec)
 	if err != nil {
 		log.Error(err)
-		obj.Status.Status = false
+		return err
 	}
 
 	log.Info("Unmarshalling Successful....")
@@ -425,10 +428,10 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	_, err := c.GetAciContainersOperatorCR()
 	if err != nil {
 		log.Info("Not Present ..Creating acicnioperator CR")
+
 		er := c.CreateAciContainersOperatorCR()
 		if er != nil {
 			log.Error(err)
-			return
 		}
 	}
 	if err == nil {
@@ -639,6 +642,11 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 
 	if acicontainersoperator.Spec.Config == "" {
 		log.Info("acicnioperator CR config is Nil...Exiting")
+		acicontainersoperator.Status.Status = false
+		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Update(acicontainersoperator)
+		if er != nil{
+			log.Error(er)
+		}
 		return false
 	}
 
