@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -36,14 +37,14 @@ type SnatGlobalInfosGetter interface {
 
 // SnatGlobalInfoInterface has methods to work with SnatGlobalInfo resources.
 type SnatGlobalInfoInterface interface {
-	Create(*v1.SnatGlobalInfo) (*v1.SnatGlobalInfo, error)
-	Update(*v1.SnatGlobalInfo) (*v1.SnatGlobalInfo, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.SnatGlobalInfo, error)
-	List(opts metav1.ListOptions) (*v1.SnatGlobalInfoList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.SnatGlobalInfo, err error)
+	Create(ctx context.Context, snatGlobalInfo *v1.SnatGlobalInfo, opts metav1.CreateOptions) (*v1.SnatGlobalInfo, error)
+	Update(ctx context.Context, snatGlobalInfo *v1.SnatGlobalInfo, opts metav1.UpdateOptions) (*v1.SnatGlobalInfo, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.SnatGlobalInfo, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.SnatGlobalInfoList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SnatGlobalInfo, err error)
 	SnatGlobalInfoExpansion
 }
 
@@ -62,20 +63,20 @@ func newSnatGlobalInfos(c *AciV1Client, namespace string) *snatGlobalInfos {
 }
 
 // Get takes name of the snatGlobalInfo, and returns the corresponding snatGlobalInfo object, and an error if there is any.
-func (c *snatGlobalInfos) Get(name string, options metav1.GetOptions) (result *v1.SnatGlobalInfo, err error) {
+func (c *snatGlobalInfos) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.SnatGlobalInfo, err error) {
 	result = &v1.SnatGlobalInfo{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of SnatGlobalInfos that match those selectors.
-func (c *snatGlobalInfos) List(opts metav1.ListOptions) (result *v1.SnatGlobalInfoList, err error) {
+func (c *snatGlobalInfos) List(ctx context.Context, opts metav1.ListOptions) (result *v1.SnatGlobalInfoList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -86,13 +87,13 @@ func (c *snatGlobalInfos) List(opts metav1.ListOptions) (result *v1.SnatGlobalIn
 		Resource("snatglobalinfos").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested snatGlobalInfos.
-func (c *snatGlobalInfos) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *snatGlobalInfos) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -103,71 +104,74 @@ func (c *snatGlobalInfos) Watch(opts metav1.ListOptions) (watch.Interface, error
 		Resource("snatglobalinfos").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a snatGlobalInfo and creates it.  Returns the server's representation of the snatGlobalInfo, and an error, if there is any.
-func (c *snatGlobalInfos) Create(snatGlobalInfo *v1.SnatGlobalInfo) (result *v1.SnatGlobalInfo, err error) {
+func (c *snatGlobalInfos) Create(ctx context.Context, snatGlobalInfo *v1.SnatGlobalInfo, opts metav1.CreateOptions) (result *v1.SnatGlobalInfo, err error) {
 	result = &v1.SnatGlobalInfo{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(snatGlobalInfo).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a snatGlobalInfo and updates it. Returns the server's representation of the snatGlobalInfo, and an error, if there is any.
-func (c *snatGlobalInfos) Update(snatGlobalInfo *v1.SnatGlobalInfo) (result *v1.SnatGlobalInfo, err error) {
+func (c *snatGlobalInfos) Update(ctx context.Context, snatGlobalInfo *v1.SnatGlobalInfo, opts metav1.UpdateOptions) (result *v1.SnatGlobalInfo, err error) {
 	result = &v1.SnatGlobalInfo{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
 		Name(snatGlobalInfo.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(snatGlobalInfo).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the snatGlobalInfo and deletes it. Returns an error if one occurs.
-func (c *snatGlobalInfos) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *snatGlobalInfos) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *snatGlobalInfos) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *snatGlobalInfos) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched snatGlobalInfo.
-func (c *snatGlobalInfos) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.SnatGlobalInfo, err error) {
+func (c *snatGlobalInfos) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SnatGlobalInfo, err error) {
 	result = &v1.SnatGlobalInfo{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("snatglobalinfos").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

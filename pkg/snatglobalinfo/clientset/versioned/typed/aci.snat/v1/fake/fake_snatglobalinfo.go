@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acisnatv1 "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var snatglobalinfosResource = schema.GroupVersionResource{Group: "aci.snat", Ver
 var snatglobalinfosKind = schema.GroupVersionKind{Group: "aci.snat", Version: "v1", Kind: "SnatGlobalInfo"}
 
 // Get takes name of the snatGlobalInfo, and returns the corresponding snatGlobalInfo object, and an error if there is any.
-func (c *FakeSnatGlobalInfos) Get(name string, options v1.GetOptions) (result *acisnatv1.SnatGlobalInfo, err error) {
+func (c *FakeSnatGlobalInfos) Get(ctx context.Context, name string, options v1.GetOptions) (result *acisnatv1.SnatGlobalInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(snatglobalinfosResource, c.ns, name), &acisnatv1.SnatGlobalInfo{})
 
@@ -49,7 +51,7 @@ func (c *FakeSnatGlobalInfos) Get(name string, options v1.GetOptions) (result *a
 }
 
 // List takes label and field selectors, and returns the list of SnatGlobalInfos that match those selectors.
-func (c *FakeSnatGlobalInfos) List(opts v1.ListOptions) (result *acisnatv1.SnatGlobalInfoList, err error) {
+func (c *FakeSnatGlobalInfos) List(ctx context.Context, opts v1.ListOptions) (result *acisnatv1.SnatGlobalInfoList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(snatglobalinfosResource, snatglobalinfosKind, c.ns, opts), &acisnatv1.SnatGlobalInfoList{})
 
@@ -71,14 +73,14 @@ func (c *FakeSnatGlobalInfos) List(opts v1.ListOptions) (result *acisnatv1.SnatG
 }
 
 // Watch returns a watch.Interface that watches the requested snatGlobalInfos.
-func (c *FakeSnatGlobalInfos) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeSnatGlobalInfos) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(snatglobalinfosResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a snatGlobalInfo and creates it.  Returns the server's representation of the snatGlobalInfo, and an error, if there is any.
-func (c *FakeSnatGlobalInfos) Create(snatGlobalInfo *acisnatv1.SnatGlobalInfo) (result *acisnatv1.SnatGlobalInfo, err error) {
+func (c *FakeSnatGlobalInfos) Create(ctx context.Context, snatGlobalInfo *acisnatv1.SnatGlobalInfo, opts v1.CreateOptions) (result *acisnatv1.SnatGlobalInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(snatglobalinfosResource, c.ns, snatGlobalInfo), &acisnatv1.SnatGlobalInfo{})
 
@@ -89,7 +91,7 @@ func (c *FakeSnatGlobalInfos) Create(snatGlobalInfo *acisnatv1.SnatGlobalInfo) (
 }
 
 // Update takes the representation of a snatGlobalInfo and updates it. Returns the server's representation of the snatGlobalInfo, and an error, if there is any.
-func (c *FakeSnatGlobalInfos) Update(snatGlobalInfo *acisnatv1.SnatGlobalInfo) (result *acisnatv1.SnatGlobalInfo, err error) {
+func (c *FakeSnatGlobalInfos) Update(ctx context.Context, snatGlobalInfo *acisnatv1.SnatGlobalInfo, opts v1.UpdateOptions) (result *acisnatv1.SnatGlobalInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(snatglobalinfosResource, c.ns, snatGlobalInfo), &acisnatv1.SnatGlobalInfo{})
 
@@ -100,7 +102,7 @@ func (c *FakeSnatGlobalInfos) Update(snatGlobalInfo *acisnatv1.SnatGlobalInfo) (
 }
 
 // Delete takes name of the snatGlobalInfo and deletes it. Returns an error if one occurs.
-func (c *FakeSnatGlobalInfos) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeSnatGlobalInfos) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(snatglobalinfosResource, c.ns, name), &acisnatv1.SnatGlobalInfo{})
 
@@ -108,15 +110,15 @@ func (c *FakeSnatGlobalInfos) Delete(name string, options *v1.DeleteOptions) err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeSnatGlobalInfos) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(snatglobalinfosResource, c.ns, listOptions)
+func (c *FakeSnatGlobalInfos) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(snatglobalinfosResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acisnatv1.SnatGlobalInfoList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched snatGlobalInfo.
-func (c *FakeSnatGlobalInfos) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acisnatv1.SnatGlobalInfo, err error) {
+func (c *FakeSnatGlobalInfos) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acisnatv1.SnatGlobalInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(snatglobalinfosResource, c.ns, name, pt, data, subresources...), &acisnatv1.SnatGlobalInfo{})
 

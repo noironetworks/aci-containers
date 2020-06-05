@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"time"
 
+	"context"
 	"github.com/Shopify/sarama"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
@@ -71,10 +72,10 @@ func (pc *podIFCache) Init() error {
 	go func() {
 
 		for {
-			podif, err := pc.crdClient.PodIFs("kube-system").Get(markerName, metav1.GetOptions{})
+			podif, err := pc.crdClient.PodIFs("kube-system").Get(context.TODO(), markerName, metav1.GetOptions{})
 			if err != nil {
 				// create podif
-				_, err = pc.crdClient.PodIFs("kube-system").Create(marker)
+				_, err = pc.crdClient.PodIFs("kube-system").Create(context.TODO(), marker, metav1.CreateOptions{})
 				if err == nil {
 					break
 				}
@@ -86,7 +87,7 @@ func (pc *podIFCache) Init() error {
 
 			// update with new markerID
 			podif.Status.ContainerID = pc.markerID
-			_, err = pc.crdClient.PodIFs("kube-system").Update(podif)
+			_, err = pc.crdClient.PodIFs("kube-system").Update(context.TODO(), podif, metav1.UpdateOptions{})
 			if err == nil {
 				break
 			}

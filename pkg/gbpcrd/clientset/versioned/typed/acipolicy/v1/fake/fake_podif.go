@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acipolicyv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var podifsResource = schema.GroupVersionResource{Group: "aci.aw", Version: "v1",
 var podifsKind = schema.GroupVersionKind{Group: "aci.aw", Version: "v1", Kind: "PodIF"}
 
 // Get takes name of the podIF, and returns the corresponding podIF object, and an error if there is any.
-func (c *FakePodIFs) Get(name string, options v1.GetOptions) (result *acipolicyv1.PodIF, err error) {
+func (c *FakePodIFs) Get(ctx context.Context, name string, options v1.GetOptions) (result *acipolicyv1.PodIF, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(podifsResource, c.ns, name), &acipolicyv1.PodIF{})
 
@@ -49,7 +51,7 @@ func (c *FakePodIFs) Get(name string, options v1.GetOptions) (result *acipolicyv
 }
 
 // List takes label and field selectors, and returns the list of PodIFs that match those selectors.
-func (c *FakePodIFs) List(opts v1.ListOptions) (result *acipolicyv1.PodIFList, err error) {
+func (c *FakePodIFs) List(ctx context.Context, opts v1.ListOptions) (result *acipolicyv1.PodIFList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(podifsResource, podifsKind, c.ns, opts), &acipolicyv1.PodIFList{})
 
@@ -71,14 +73,14 @@ func (c *FakePodIFs) List(opts v1.ListOptions) (result *acipolicyv1.PodIFList, e
 }
 
 // Watch returns a watch.Interface that watches the requested podIFs.
-func (c *FakePodIFs) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakePodIFs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(podifsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a podIF and creates it.  Returns the server's representation of the podIF, and an error, if there is any.
-func (c *FakePodIFs) Create(podIF *acipolicyv1.PodIF) (result *acipolicyv1.PodIF, err error) {
+func (c *FakePodIFs) Create(ctx context.Context, podIF *acipolicyv1.PodIF, opts v1.CreateOptions) (result *acipolicyv1.PodIF, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(podifsResource, c.ns, podIF), &acipolicyv1.PodIF{})
 
@@ -89,7 +91,7 @@ func (c *FakePodIFs) Create(podIF *acipolicyv1.PodIF) (result *acipolicyv1.PodIF
 }
 
 // Update takes the representation of a podIF and updates it. Returns the server's representation of the podIF, and an error, if there is any.
-func (c *FakePodIFs) Update(podIF *acipolicyv1.PodIF) (result *acipolicyv1.PodIF, err error) {
+func (c *FakePodIFs) Update(ctx context.Context, podIF *acipolicyv1.PodIF, opts v1.UpdateOptions) (result *acipolicyv1.PodIF, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(podifsResource, c.ns, podIF), &acipolicyv1.PodIF{})
 
@@ -101,7 +103,7 @@ func (c *FakePodIFs) Update(podIF *acipolicyv1.PodIF) (result *acipolicyv1.PodIF
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakePodIFs) UpdateStatus(podIF *acipolicyv1.PodIF) (*acipolicyv1.PodIF, error) {
+func (c *FakePodIFs) UpdateStatus(ctx context.Context, podIF *acipolicyv1.PodIF, opts v1.UpdateOptions) (*acipolicyv1.PodIF, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(podifsResource, "status", c.ns, podIF), &acipolicyv1.PodIF{})
 
@@ -112,7 +114,7 @@ func (c *FakePodIFs) UpdateStatus(podIF *acipolicyv1.PodIF) (*acipolicyv1.PodIF,
 }
 
 // Delete takes name of the podIF and deletes it. Returns an error if one occurs.
-func (c *FakePodIFs) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakePodIFs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(podifsResource, c.ns, name), &acipolicyv1.PodIF{})
 
@@ -120,15 +122,15 @@ func (c *FakePodIFs) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakePodIFs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(podifsResource, c.ns, listOptions)
+func (c *FakePodIFs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(podifsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acipolicyv1.PodIFList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched podIF.
-func (c *FakePodIFs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acipolicyv1.PodIF, err error) {
+func (c *FakePodIFs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acipolicyv1.PodIF, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(podifsResource, c.ns, name, pt, data, subresources...), &acipolicyv1.PodIF{})
 

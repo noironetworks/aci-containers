@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
@@ -36,15 +37,15 @@ type PodIFsGetter interface {
 
 // PodIFInterface has methods to work with PodIF resources.
 type PodIFInterface interface {
-	Create(*v1.PodIF) (*v1.PodIF, error)
-	Update(*v1.PodIF) (*v1.PodIF, error)
-	UpdateStatus(*v1.PodIF) (*v1.PodIF, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.PodIF, error)
-	List(opts metav1.ListOptions) (*v1.PodIFList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.PodIF, err error)
+	Create(ctx context.Context, podIF *v1.PodIF, opts metav1.CreateOptions) (*v1.PodIF, error)
+	Update(ctx context.Context, podIF *v1.PodIF, opts metav1.UpdateOptions) (*v1.PodIF, error)
+	UpdateStatus(ctx context.Context, podIF *v1.PodIF, opts metav1.UpdateOptions) (*v1.PodIF, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.PodIF, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.PodIFList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.PodIF, err error)
 	PodIFExpansion
 }
 
@@ -63,20 +64,20 @@ func newPodIFs(c *AciV1Client, namespace string) *podIFs {
 }
 
 // Get takes name of the podIF, and returns the corresponding podIF object, and an error if there is any.
-func (c *podIFs) Get(name string, options metav1.GetOptions) (result *v1.PodIF, err error) {
+func (c *podIFs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.PodIF, err error) {
 	result = &v1.PodIF{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("podifs").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of PodIFs that match those selectors.
-func (c *podIFs) List(opts metav1.ListOptions) (result *v1.PodIFList, err error) {
+func (c *podIFs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.PodIFList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -87,13 +88,13 @@ func (c *podIFs) List(opts metav1.ListOptions) (result *v1.PodIFList, err error)
 		Resource("podifs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested podIFs.
-func (c *podIFs) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *podIFs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -104,87 +105,90 @@ func (c *podIFs) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 		Resource("podifs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a podIF and creates it.  Returns the server's representation of the podIF, and an error, if there is any.
-func (c *podIFs) Create(podIF *v1.PodIF) (result *v1.PodIF, err error) {
+func (c *podIFs) Create(ctx context.Context, podIF *v1.PodIF, opts metav1.CreateOptions) (result *v1.PodIF, err error) {
 	result = &v1.PodIF{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("podifs").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(podIF).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a podIF and updates it. Returns the server's representation of the podIF, and an error, if there is any.
-func (c *podIFs) Update(podIF *v1.PodIF) (result *v1.PodIF, err error) {
+func (c *podIFs) Update(ctx context.Context, podIF *v1.PodIF, opts metav1.UpdateOptions) (result *v1.PodIF, err error) {
 	result = &v1.PodIF{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("podifs").
 		Name(podIF.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(podIF).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *podIFs) UpdateStatus(podIF *v1.PodIF) (result *v1.PodIF, err error) {
+func (c *podIFs) UpdateStatus(ctx context.Context, podIF *v1.PodIF, opts metav1.UpdateOptions) (result *v1.PodIF, err error) {
 	result = &v1.PodIF{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("podifs").
 		Name(podIF.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(podIF).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the podIF and deletes it. Returns an error if one occurs.
-func (c *podIFs) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *podIFs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("podifs").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *podIFs) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *podIFs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("podifs").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched podIF.
-func (c *podIFs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.PodIF, err error) {
+func (c *podIFs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.PodIF, err error) {
 	result = &v1.PodIF{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("podifs").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

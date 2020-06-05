@@ -17,6 +17,7 @@
 package hostagent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -91,10 +92,10 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 	}
 	remEP.ObjectMeta.Name = agent.getPodIFName(ep.Attributes["namespace"], ep.Attributes["vm-name"])
 
-	podif, err := agent.crdClient.PodIFs("kube-system").Get(remEP.ObjectMeta.Name, metav1.GetOptions{})
+	podif, err := agent.crdClient.PodIFs("kube-system").Get(context.TODO(), remEP.ObjectMeta.Name, metav1.GetOptions{})
 	if err != nil {
 		// create podif
-		_, err := agent.crdClient.PodIFs("kube-system").Create(remEP)
+		_, err := agent.crdClient.PodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
 		if err != nil {
 			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
 			return true
@@ -103,7 +104,7 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 	} else {
 		// update it
 		podif.Status = remEP.Status
-		_, err := agent.crdClient.PodIFs("kube-system").Update(podif)
+		_, err := agent.crdClient.PodIFs("kube-system").Update(context.TODO(), podif, metav1.UpdateOptions{})
 		if err != nil {
 			logrus.Errorf("Update error %v, podif: %+v", err, remEP)
 			return true
@@ -117,7 +118,7 @@ func (agent *HostAgent) EPRegDelEP(name string) {
 	if agent.crdClient == nil {
 		return // crd not used
 	}
-	err := agent.crdClient.PodIFs("kube-system").Delete(name, &metav1.DeleteOptions{})
+	err := agent.crdClient.PodIFs("kube-system").Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		logrus.Errorf("Error %v, podif: %s", err, name)
 	}
@@ -141,12 +142,12 @@ func (agent *HostAgent) initPodInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 
@@ -155,12 +156,12 @@ func (agent *HostAgent) initPodInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
 				//options.LabelSelector = "name=aci-containers-controller"
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
 				//options.LabelSelector = "name=aci-containers-controller"
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(options)
+				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }

@@ -18,6 +18,7 @@ package hostagent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -105,10 +106,10 @@ func (agent *HostAgent) initSnatGlobalInformerFromClient(
 	agent.initSnatGlobalInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(options)
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(options)
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }
@@ -118,10 +119,10 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 	agent.initSnatPolicyInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return snatClient.AciV1().SnatPolicies().List(options)
+				return snatClient.AciV1().SnatPolicies().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return snatClient.AciV1().SnatPolicies().Watch(options)
+				return snatClient.AciV1().SnatPolicies().Watch(context.TODO(), options)
 			},
 		})
 }

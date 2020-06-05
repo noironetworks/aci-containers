@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"context"
 	"strings"
 
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -29,6 +30,7 @@ import (
 	"github.com/yl2chen/cidranger"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -136,14 +138,14 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	snatClient := env.snatClient
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
-		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(pod)
+		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 	}
 	cont.updateNode = func(node *v1.Node) (*v1.Node, error) {
-		return kubeClient.CoreV1().Nodes().Update(node)
+		return kubeClient.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 	}
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().
-			Services(service.ObjectMeta.Namespace).UpdateStatus(service)
+			Services(service.ObjectMeta.Namespace).UpdateStatus(context.TODO(), service, metav1.UpdateOptions{})
 	}
 
 	cont.log.Debug("Initializing informers")

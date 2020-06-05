@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	acisnatv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
@@ -60,13 +61,13 @@ func NewFilteredRdConfigInformer(client versioned.Interface, namespace string, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().RdConfigs(namespace).List(options)
+				return client.AciV1().RdConfigs(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().RdConfigs(namespace).Watch(options)
+				return client.AciV1().RdConfigs(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&acisnatv1.RdConfig{},

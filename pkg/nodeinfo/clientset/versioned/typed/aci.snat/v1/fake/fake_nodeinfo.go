@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acisnatv1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var nodeinfosResource = schema.GroupVersionResource{Group: "aci.snat", Version: 
 var nodeinfosKind = schema.GroupVersionKind{Group: "aci.snat", Version: "v1", Kind: "NodeInfo"}
 
 // Get takes name of the nodeInfo, and returns the corresponding nodeInfo object, and an error if there is any.
-func (c *FakeNodeInfos) Get(name string, options v1.GetOptions) (result *acisnatv1.NodeInfo, err error) {
+func (c *FakeNodeInfos) Get(ctx context.Context, name string, options v1.GetOptions) (result *acisnatv1.NodeInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(nodeinfosResource, c.ns, name), &acisnatv1.NodeInfo{})
 
@@ -49,7 +51,7 @@ func (c *FakeNodeInfos) Get(name string, options v1.GetOptions) (result *acisnat
 }
 
 // List takes label and field selectors, and returns the list of NodeInfos that match those selectors.
-func (c *FakeNodeInfos) List(opts v1.ListOptions) (result *acisnatv1.NodeInfoList, err error) {
+func (c *FakeNodeInfos) List(ctx context.Context, opts v1.ListOptions) (result *acisnatv1.NodeInfoList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(nodeinfosResource, nodeinfosKind, c.ns, opts), &acisnatv1.NodeInfoList{})
 
@@ -71,14 +73,14 @@ func (c *FakeNodeInfos) List(opts v1.ListOptions) (result *acisnatv1.NodeInfoLis
 }
 
 // Watch returns a watch.Interface that watches the requested nodeInfos.
-func (c *FakeNodeInfos) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeNodeInfos) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(nodeinfosResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a nodeInfo and creates it.  Returns the server's representation of the nodeInfo, and an error, if there is any.
-func (c *FakeNodeInfos) Create(nodeInfo *acisnatv1.NodeInfo) (result *acisnatv1.NodeInfo, err error) {
+func (c *FakeNodeInfos) Create(ctx context.Context, nodeInfo *acisnatv1.NodeInfo, opts v1.CreateOptions) (result *acisnatv1.NodeInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(nodeinfosResource, c.ns, nodeInfo), &acisnatv1.NodeInfo{})
 
@@ -89,7 +91,7 @@ func (c *FakeNodeInfos) Create(nodeInfo *acisnatv1.NodeInfo) (result *acisnatv1.
 }
 
 // Update takes the representation of a nodeInfo and updates it. Returns the server's representation of the nodeInfo, and an error, if there is any.
-func (c *FakeNodeInfos) Update(nodeInfo *acisnatv1.NodeInfo) (result *acisnatv1.NodeInfo, err error) {
+func (c *FakeNodeInfos) Update(ctx context.Context, nodeInfo *acisnatv1.NodeInfo, opts v1.UpdateOptions) (result *acisnatv1.NodeInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(nodeinfosResource, c.ns, nodeInfo), &acisnatv1.NodeInfo{})
 
@@ -100,7 +102,7 @@ func (c *FakeNodeInfos) Update(nodeInfo *acisnatv1.NodeInfo) (result *acisnatv1.
 }
 
 // Delete takes name of the nodeInfo and deletes it. Returns an error if one occurs.
-func (c *FakeNodeInfos) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeNodeInfos) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(nodeinfosResource, c.ns, name), &acisnatv1.NodeInfo{})
 
@@ -108,15 +110,15 @@ func (c *FakeNodeInfos) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeNodeInfos) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(nodeinfosResource, c.ns, listOptions)
+func (c *FakeNodeInfos) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(nodeinfosResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acisnatv1.NodeInfoList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched nodeInfo.
-func (c *FakeNodeInfos) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acisnatv1.NodeInfo, err error) {
+func (c *FakeNodeInfos) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acisnatv1.NodeInfo, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(nodeinfosResource, c.ns, name, pt, data, subresources...), &acisnatv1.NodeInfo{})
 

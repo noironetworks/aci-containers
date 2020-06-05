@@ -1,4 +1,4 @@
-// Copyright © 2017 Cisco Systems, Inc.
+// Copyright 2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 package cmd
 
 import (
+	kubecontext "context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
+	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -42,7 +42,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 	var options metav1.GetOptions
 	if strings.HasPrefix(cmd.Use, "namespace") {
 		client := kubeClient.CoreV1().Namespaces()
-		ns, err := client.Get(args[0], options)
+		ns, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -56,7 +56,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			delete(ns.Annotations, annot)
 		}
 
-		_, err = client.Update(ns)
+		_, err = client.Update(kubecontext.TODO(), ns, metav1.UpdateOptions{})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -69,7 +69,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 		}
 
 		client := kubeClient.ExtensionsV1beta1().Deployments(namespace)
-		dep, err := client.Get(args[0], options)
+		dep, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -83,7 +83,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			delete(dep.Annotations, annot)
 		}
 
-		_, err = client.Update(dep)
+		_, err = client.Update(kubecontext.TODO(), dep, metav1.UpdateOptions{})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -96,7 +96,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 		}
 
 		client := kubeClient.CoreV1().Pods(namespace)
-		pod, err := client.Get(args[0], options)
+		pod, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -110,7 +110,7 @@ func updateObjectAnnot(annot string, newValue string, cmd *cobra.Command,
 			delete(pod.Annotations, annot)
 		}
 
-		_, err = client.Update(pod)
+		_, err = client.Update(kubecontext.TODO(), pod, metav1.UpdateOptions{})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -141,7 +141,7 @@ func getObjectAnnot(annot string, format func(string),
 
 	if strings.HasPrefix(cmd.Use, "namespace") {
 		client := kubeClient.CoreV1().Namespaces()
-		ns, err := client.Get(args[0], options)
+		ns, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -155,7 +155,7 @@ func getObjectAnnot(annot string, format func(string),
 		}
 
 		client := kubeClient.ExtensionsV1beta1().Deployments(namespace)
-		dep, err := client.Get(args[0], options)
+		dep, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -169,7 +169,7 @@ func getObjectAnnot(annot string, format func(string),
 		}
 
 		client := kubeClient.CoreV1().Pods(namespace)
-		pod, err := client.Get(args[0], options)
+		pod, err := client.Get(kubecontext.TODO(), args[0], options)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return

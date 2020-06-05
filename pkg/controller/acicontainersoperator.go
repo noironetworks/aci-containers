@@ -84,11 +84,12 @@ type Controller struct {
 
 var Version = map[string]bool{
 	"openshift-4.3": true,
-	"cloud": true,
+	"cloud":         true,
 }
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
 }
+
 const aciContainersController = "aci-containers-controller"
 const aciContainersHostDaemonset = "aci-containers-host"
 const aciContainersOvsDaemonset = "aci-containers-openvswitch"
@@ -109,10 +110,10 @@ func NewAciContainersOperator(
 	aci_operator_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(options)
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(options)
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
 			},
 		},
 		&operators.AciContainersOperator{},
@@ -123,10 +124,10 @@ func NewAciContainersOperator(
 	aci_deployment_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).List(options)
+				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).Watch(options)
+				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
 			},
 		},
 		&appsv1.Deployment{},
@@ -137,10 +138,10 @@ func NewAciContainersOperator(
 	aci_daemonset_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).List(options)
+				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).Watch(options)
+				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
 			},
 		},
 		&appsv1.DaemonSet{},
@@ -150,10 +151,10 @@ func NewAciContainersOperator(
 	node_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.CoreV1().Nodes().List(options)
+				return k8sclient.CoreV1().Nodes().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.CoreV1().Nodes().Watch(options)
+				return k8sclient.CoreV1().Nodes().Watch(context.TODO(), options)
 			},
 		},
 		&v1.Node{},
@@ -179,10 +180,10 @@ func NewAciContainersOperator(
 				route_informer = cache.NewSharedIndexInformer(
 					&cache.ListWatch{
 						ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-							return routesClient.RouteV1().Routes(metav1.NamespaceAll).List(options)
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).List(context.TODO(), options)
 						},
 						WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-							return routesClient.RouteV1().Routes(metav1.NamespaceAll).Watch(options)
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).Watch(context.TODO(), options)
 						},
 					},
 					&routesv1.Route{},
@@ -367,7 +368,7 @@ func (c *Controller) handledaemonsetUpdate(oldobj interface{}, newobj interface{
 
 func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOperator, error) {
 	var options metav1.GetOptions
-	acicnioperator, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Get("acicnioperator", options)
+	acicnioperator, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "acicnioperator", options)
 	if er != nil {
 		return acicnioperator, er
 	}
@@ -393,7 +394,6 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 
 	log.Debug("acicnioperator CR is ", string(raw))
 
-
 	log.Info("Unmarshalling the Config-Map...")
 	err = json.Unmarshal(raw, &obj.Spec)
 	if err != nil {
@@ -404,7 +404,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
-		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(obj)
+		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if er != nil {
 			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
 				log.Info(er)
@@ -547,7 +547,7 @@ func (c *Controller) UpdateDeploymentOwnerReference(acicontainersoperator *opera
 		return true
 	}
 
-	c.Resources.Deployment, _ = deploymentsClient.Get(aciContainersController, metav1.GetOptions{})
+	c.Resources.Deployment, _ = deploymentsClient.Get(context.TODO(), aciContainersController, metav1.GetOptions{})
 	if c.Resources.Deployment == nil {
 		log.Infof("%s deployment is nil..returning", aciContainersController)
 		return false
@@ -557,7 +557,7 @@ func (c *Controller) UpdateDeploymentOwnerReference(acicontainersoperator *opera
 		c.Resources.Deployment.OwnerReferences = []metav1.OwnerReference{
 			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
 		}
-		_, err := deploymentsClient.Update(c.Resources.Deployment)
+		_, err := deploymentsClient.Update(context.TODO(), c.Resources.Deployment, metav1.UpdateOptions{})
 		if err != nil {
 			log.Error(err.Error())
 			return false
@@ -577,7 +577,7 @@ func (c *Controller) UpdateHostDaemonsetOwnerReference(acicontainersoperator *op
 		return true
 	}
 
-	c.Resources.HostDaemonset, _ = hostdaemonsetclient.Get(aciContainersHostDaemonset, metav1.GetOptions{})
+	c.Resources.HostDaemonset, _ = hostdaemonsetclient.Get(context.TODO(), aciContainersHostDaemonset, metav1.GetOptions{})
 	if c.Resources.HostDaemonset == nil {
 		log.Infof("%s daemonset is nil.....returning", aciContainersHostDaemonset)
 		return false
@@ -588,7 +588,7 @@ func (c *Controller) UpdateHostDaemonsetOwnerReference(acicontainersoperator *op
 			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
 		}
 
-		_, err := hostdaemonsetclient.Update(c.Resources.HostDaemonset)
+		_, err := hostdaemonsetclient.Update(context.TODO(), c.Resources.HostDaemonset, metav1.UpdateOptions{})
 		if err != nil {
 			log.Error(err.Error())
 			return false
@@ -609,7 +609,7 @@ func (c *Controller) UpdateOvsDaemonsetOwnerReference(acicontainersoperator *ope
 		return true
 	}
 
-	c.Resources.OvsDaemonset, _ = ovsdaemonsetclient.Get(aciContainersOvsDaemonset, metav1.GetOptions{})
+	c.Resources.OvsDaemonset, _ = ovsdaemonsetclient.Get(context.TODO(), aciContainersOvsDaemonset, metav1.GetOptions{})
 	if c.Resources.OvsDaemonset == nil {
 		log.Infof("%s daemonset is nil.....returning", aciContainersOvsDaemonset)
 		return false
@@ -620,7 +620,7 @@ func (c *Controller) UpdateOvsDaemonsetOwnerReference(acicontainersoperator *ope
 			*metav1.NewControllerRef(acicontainersoperator, operators.SchemeGroupVersion.WithKind("AciContainersOperator")),
 		}
 
-		_, err := ovsdaemonsetclient.Update(c.Resources.OvsDaemonset)
+		_, err := ovsdaemonsetclient.Update(context.TODO(), c.Resources.OvsDaemonset, metav1.UpdateOptions{})
 		if err != nil {
 			log.Error(err.Error())
 			return false
@@ -643,8 +643,8 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 	if acicontainersoperator.Spec.Config == "" {
 		log.Info("acicnioperator CR config is Nil...Exiting")
 		acicontainersoperator.Status.Status = false
-		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Update(acicontainersoperator)
-		if er != nil{
+		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), acicontainersoperator, metav1.UpdateOptions{})
+		if er != nil {
 			log.Error(er)
 		}
 		return false
@@ -859,7 +859,7 @@ func (c *Controller) updatednsOperator() error {
 		return nil
 	}
 	var options metav1.ListOptions
-	routes, err := c.RoutesClient.RouteV1().Routes(metav1.NamespaceAll).List(options)
+	routes, err := c.RoutesClient.RouteV1().Routes(metav1.NamespaceAll).List(context.TODO(), options)
 	if err != nil {
 		return err
 	}
@@ -905,7 +905,7 @@ func (c *Controller) updatednsOperator() error {
 
 func (c *Controller) getNodeAddress() ([]string, error) {
 	var options metav1.ListOptions
-	nodelist, err := c.K8s_Clientset.CoreV1().Nodes().List(options)
+	nodelist, err := c.K8s_Clientset.CoreV1().Nodes().List(context.TODO(), options)
 	if err != nil {
 		log.Info("Failed to List the nodes: ", err)
 		return []string{}, err
@@ -1083,7 +1083,7 @@ func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
 	go func() {
 		var options metav1.ListOptions
 		for {
-			Pods, err := c.K8s_Clientset.CoreV1().Pods("openshift-apiserver").List(options)
+			Pods, err := c.K8s_Clientset.CoreV1().Pods("openshift-apiserver").List(context.TODO(), options)
 			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.ContainerStatuses[0].Ready == true) {
 				log.Info("Openshift-apiserver Pod found start router informer")
 				err = c.updatednsOperator()

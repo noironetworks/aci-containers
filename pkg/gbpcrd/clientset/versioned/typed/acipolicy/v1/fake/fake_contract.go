@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acipolicyv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var contractsResource = schema.GroupVersionResource{Group: "aci.aw", Version: "v
 var contractsKind = schema.GroupVersionKind{Group: "aci.aw", Version: "v1", Kind: "Contract"}
 
 // Get takes name of the contract, and returns the corresponding contract object, and an error if there is any.
-func (c *FakeContracts) Get(name string, options v1.GetOptions) (result *acipolicyv1.Contract, err error) {
+func (c *FakeContracts) Get(ctx context.Context, name string, options v1.GetOptions) (result *acipolicyv1.Contract, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(contractsResource, c.ns, name), &acipolicyv1.Contract{})
 
@@ -49,7 +51,7 @@ func (c *FakeContracts) Get(name string, options v1.GetOptions) (result *acipoli
 }
 
 // List takes label and field selectors, and returns the list of Contracts that match those selectors.
-func (c *FakeContracts) List(opts v1.ListOptions) (result *acipolicyv1.ContractList, err error) {
+func (c *FakeContracts) List(ctx context.Context, opts v1.ListOptions) (result *acipolicyv1.ContractList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(contractsResource, contractsKind, c.ns, opts), &acipolicyv1.ContractList{})
 
@@ -71,14 +73,14 @@ func (c *FakeContracts) List(opts v1.ListOptions) (result *acipolicyv1.ContractL
 }
 
 // Watch returns a watch.Interface that watches the requested contracts.
-func (c *FakeContracts) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeContracts) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(contractsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a contract and creates it.  Returns the server's representation of the contract, and an error, if there is any.
-func (c *FakeContracts) Create(contract *acipolicyv1.Contract) (result *acipolicyv1.Contract, err error) {
+func (c *FakeContracts) Create(ctx context.Context, contract *acipolicyv1.Contract, opts v1.CreateOptions) (result *acipolicyv1.Contract, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(contractsResource, c.ns, contract), &acipolicyv1.Contract{})
 
@@ -89,7 +91,7 @@ func (c *FakeContracts) Create(contract *acipolicyv1.Contract) (result *acipolic
 }
 
 // Update takes the representation of a contract and updates it. Returns the server's representation of the contract, and an error, if there is any.
-func (c *FakeContracts) Update(contract *acipolicyv1.Contract) (result *acipolicyv1.Contract, err error) {
+func (c *FakeContracts) Update(ctx context.Context, contract *acipolicyv1.Contract, opts v1.UpdateOptions) (result *acipolicyv1.Contract, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(contractsResource, c.ns, contract), &acipolicyv1.Contract{})
 
@@ -100,7 +102,7 @@ func (c *FakeContracts) Update(contract *acipolicyv1.Contract) (result *acipolic
 }
 
 // Delete takes name of the contract and deletes it. Returns an error if one occurs.
-func (c *FakeContracts) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeContracts) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(contractsResource, c.ns, name), &acipolicyv1.Contract{})
 
@@ -108,15 +110,15 @@ func (c *FakeContracts) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeContracts) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(contractsResource, c.ns, listOptions)
+func (c *FakeContracts) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(contractsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acipolicyv1.ContractList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched contract.
-func (c *FakeContracts) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acipolicyv1.Contract, err error) {
+func (c *FakeContracts) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acipolicyv1.Contract, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(contractsResource, c.ns, name, pt, data, subresources...), &acipolicyv1.Contract{})
 

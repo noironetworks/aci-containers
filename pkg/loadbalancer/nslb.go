@@ -15,6 +15,7 @@
 package loadbalancer
 
 import (
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -74,10 +75,10 @@ func (n *NSLoadBalancer) Stop() {
 func (n *NSLoadBalancer) initEPWatch() {
 	epLW := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return n.kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
+			return n.kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return n.kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
+			return n.kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
 		},
 	}
 
@@ -106,10 +107,10 @@ func (n *NSLoadBalancer) initEPWatch() {
 func (n *NSLoadBalancer) initSvcWatch() {
 	svcLW := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return n.kubeClient.CoreV1().Services(metav1.NamespaceAll).List(options)
+			return n.kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return n.kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(options)
+			return n.kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
 		},
 	}
 

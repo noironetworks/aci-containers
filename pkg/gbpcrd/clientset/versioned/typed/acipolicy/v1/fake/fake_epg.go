@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acipolicyv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var epgsResource = schema.GroupVersionResource{Group: "aci.aw", Version: "v1", R
 var epgsKind = schema.GroupVersionKind{Group: "aci.aw", Version: "v1", Kind: "Epg"}
 
 // Get takes name of the epg, and returns the corresponding epg object, and an error if there is any.
-func (c *FakeEpgs) Get(name string, options v1.GetOptions) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Get(ctx context.Context, name string, options v1.GetOptions) (result *acipolicyv1.Epg, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(epgsResource, c.ns, name), &acipolicyv1.Epg{})
 
@@ -49,7 +51,7 @@ func (c *FakeEpgs) Get(name string, options v1.GetOptions) (result *acipolicyv1.
 }
 
 // List takes label and field selectors, and returns the list of Epgs that match those selectors.
-func (c *FakeEpgs) List(opts v1.ListOptions) (result *acipolicyv1.EpgList, err error) {
+func (c *FakeEpgs) List(ctx context.Context, opts v1.ListOptions) (result *acipolicyv1.EpgList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(epgsResource, epgsKind, c.ns, opts), &acipolicyv1.EpgList{})
 
@@ -71,14 +73,14 @@ func (c *FakeEpgs) List(opts v1.ListOptions) (result *acipolicyv1.EpgList, err e
 }
 
 // Watch returns a watch.Interface that watches the requested epgs.
-func (c *FakeEpgs) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeEpgs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(epgsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a epg and creates it.  Returns the server's representation of the epg, and an error, if there is any.
-func (c *FakeEpgs) Create(epg *acipolicyv1.Epg) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Create(ctx context.Context, epg *acipolicyv1.Epg, opts v1.CreateOptions) (result *acipolicyv1.Epg, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(epgsResource, c.ns, epg), &acipolicyv1.Epg{})
 
@@ -89,7 +91,7 @@ func (c *FakeEpgs) Create(epg *acipolicyv1.Epg) (result *acipolicyv1.Epg, err er
 }
 
 // Update takes the representation of a epg and updates it. Returns the server's representation of the epg, and an error, if there is any.
-func (c *FakeEpgs) Update(epg *acipolicyv1.Epg) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Update(ctx context.Context, epg *acipolicyv1.Epg, opts v1.UpdateOptions) (result *acipolicyv1.Epg, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(epgsResource, c.ns, epg), &acipolicyv1.Epg{})
 
@@ -100,7 +102,7 @@ func (c *FakeEpgs) Update(epg *acipolicyv1.Epg) (result *acipolicyv1.Epg, err er
 }
 
 // Delete takes name of the epg and deletes it. Returns an error if one occurs.
-func (c *FakeEpgs) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeEpgs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(epgsResource, c.ns, name), &acipolicyv1.Epg{})
 
@@ -108,15 +110,15 @@ func (c *FakeEpgs) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeEpgs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(epgsResource, c.ns, listOptions)
+func (c *FakeEpgs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(epgsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acipolicyv1.EpgList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched epg.
-func (c *FakeEpgs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acipolicyv1.Epg, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(epgsResource, c.ns, name, pt, data, subresources...), &acipolicyv1.Epg{})
 

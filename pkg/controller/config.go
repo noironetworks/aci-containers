@@ -94,7 +94,7 @@ type ControllerConfig struct {
 	ApicCertPath string `json:"apic-cert-path,omitempty"`
 
 	// The type of the ACI VMM domain: either "kubernetes",
-	// "openshift" or "cloudfoundry"
+	// "openshift"
 	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
 
 	// The name of the ACI VMM domain
@@ -188,13 +188,13 @@ type ControllerConfig struct {
 	SnatDefaultPortRangeStart int `json:"snat-default-port-range-start,omitempty"`
 	SnatDefaultPortRangeEnd   int `json:"snat-default-port-range-end,omitempty"`
 
-    // Contract scope used for SNAT svc graph
-    SnatSvcContractScope string `json:"snat-contract-scope,omitempty"`
+	// Contract scope used for SNAT svc graph
+	SnatSvcContractScope string `json:"snat-contract-scope,omitempty"`
 
 	// Maximum number of nodes permitted in a svc graph
 	MaxSvcGraphNodes int `json:"max-nodes-svc-graph,omitempty"`
 
-    // Install Istio ControlPlane components
+	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 }
 

@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -171,7 +172,7 @@ func getNodeIP() (string, error) {
 	}
 
 	options.FieldSelector = fields.Set{"metadata.name": nodeName}.String()
-	nodeList, err := kubeClient.CoreV1().Nodes().List(options)
+	nodeList, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
 	if err != nil {
 		return "", fmt.Errorf("Error listing nodes: %v", err)
 	}

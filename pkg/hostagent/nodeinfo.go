@@ -17,6 +17,7 @@
 package hostagent
 
 import (
+	"context"
 	nodeInfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeInfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,8 +30,7 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		agent.log.Debug("nodeInfo or Kube clients are not intialized")
 		return true
 	}
-	var options metav1.GetOptions
-	nodeInfo, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Get(agent.config.NodeName, options)
+	nodeInfo, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			nodeInfoInstance := &nodeInfov1.NodeInfo{
@@ -43,12 +43,12 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 					Macaddress:      agent.config.UplinkMacAdress,
 				},
 			}
-			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(nodeInfoInstance)
+			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(context.TODO(), nodeInfoInstance, metav1.CreateOptions{})
 		}
 	} else {
 		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) {
 			nodeInfo.Spec.SnatPolicyNames = snatpolicies
-			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(nodeInfo)
+			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(context.TODO(), nodeInfo, metav1.UpdateOptions{})
 		}
 	}
 	if err == nil {

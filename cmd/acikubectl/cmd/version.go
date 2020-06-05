@@ -1,4 +1,4 @@
-// Copyright © 2019 Cisco Systems, Inc.
+// Copyright  2019 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bytes"
+	kubecontext "context"
 	"fmt"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,14 +39,14 @@ func getVersion(cmd *cobra.Command, args []string) {
 		fmt.Fprintln(os.Stderr, "Could not find aci-containers system namespace:", err)
 		return
 	}
-	systemNamespacePods, err1 := kubeClient.CoreV1().Pods(systemNamespace).List(metav1.ListOptions{})
+	systemNamespacePods, err1 := kubeClient.CoreV1().Pods(systemNamespace).List(kubecontext.TODO(), metav1.ListOptions{})
 	if err1 != nil {
 		fmt.Fprintln(os.Stderr, "Could not list pods:", err1)
 	}
 	// Check again in kube-system
 	if len(systemNamespacePods.Items) == 0 {
 		systemNamespace = "kube-system"
-		systemNamespacePods, err1 = kubeClient.CoreV1().Pods(systemNamespace).List(metav1.ListOptions{})
+		systemNamespacePods, err1 = kubeClient.CoreV1().Pods(systemNamespace).List(kubecontext.TODO(), metav1.ListOptions{})
 	}
 	if err1 != nil {
 		fmt.Fprintln(os.Stderr, "Could not list pods:", err1)
@@ -54,7 +55,7 @@ func getVersion(cmd *cobra.Command, args []string) {
 		if strings.Contains(pod.Name, "aci-containers-controller") {
 			buffer := new(bytes.Buffer)
 			mylist := []string{"exec", "-c" + "aci-containers-controller", "-n" + systemNamespace, pod.Name,
-					"--", "/bin/sh", "-c", "aci-containers-controller -version"}
+				"--", "/bin/sh", "-c", "aci-containers-controller -version"}
 			execKubectl(mylist, buffer)
 			trimString := strings.TrimSpace(buffer.String())
 			fmt.Println(trimString)

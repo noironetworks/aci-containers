@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acisnatv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var rdconfigsResource = schema.GroupVersionResource{Group: "aci.snat", Version: 
 var rdconfigsKind = schema.GroupVersionKind{Group: "aci.snat", Version: "v1", Kind: "RdConfig"}
 
 // Get takes name of the rdConfig, and returns the corresponding rdConfig object, and an error if there is any.
-func (c *FakeRdConfigs) Get(name string, options v1.GetOptions) (result *acisnatv1.RdConfig, err error) {
+func (c *FakeRdConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *acisnatv1.RdConfig, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(rdconfigsResource, c.ns, name), &acisnatv1.RdConfig{})
 
@@ -49,7 +51,7 @@ func (c *FakeRdConfigs) Get(name string, options v1.GetOptions) (result *acisnat
 }
 
 // List takes label and field selectors, and returns the list of RdConfigs that match those selectors.
-func (c *FakeRdConfigs) List(opts v1.ListOptions) (result *acisnatv1.RdConfigList, err error) {
+func (c *FakeRdConfigs) List(ctx context.Context, opts v1.ListOptions) (result *acisnatv1.RdConfigList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(rdconfigsResource, rdconfigsKind, c.ns, opts), &acisnatv1.RdConfigList{})
 
@@ -71,14 +73,14 @@ func (c *FakeRdConfigs) List(opts v1.ListOptions) (result *acisnatv1.RdConfigLis
 }
 
 // Watch returns a watch.Interface that watches the requested rdConfigs.
-func (c *FakeRdConfigs) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeRdConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(rdconfigsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a rdConfig and creates it.  Returns the server's representation of the rdConfig, and an error, if there is any.
-func (c *FakeRdConfigs) Create(rdConfig *acisnatv1.RdConfig) (result *acisnatv1.RdConfig, err error) {
+func (c *FakeRdConfigs) Create(ctx context.Context, rdConfig *acisnatv1.RdConfig, opts v1.CreateOptions) (result *acisnatv1.RdConfig, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(rdconfigsResource, c.ns, rdConfig), &acisnatv1.RdConfig{})
 
@@ -89,7 +91,7 @@ func (c *FakeRdConfigs) Create(rdConfig *acisnatv1.RdConfig) (result *acisnatv1.
 }
 
 // Update takes the representation of a rdConfig and updates it. Returns the server's representation of the rdConfig, and an error, if there is any.
-func (c *FakeRdConfigs) Update(rdConfig *acisnatv1.RdConfig) (result *acisnatv1.RdConfig, err error) {
+func (c *FakeRdConfigs) Update(ctx context.Context, rdConfig *acisnatv1.RdConfig, opts v1.UpdateOptions) (result *acisnatv1.RdConfig, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(rdconfigsResource, c.ns, rdConfig), &acisnatv1.RdConfig{})
 
@@ -100,7 +102,7 @@ func (c *FakeRdConfigs) Update(rdConfig *acisnatv1.RdConfig) (result *acisnatv1.
 }
 
 // Delete takes name of the rdConfig and deletes it. Returns an error if one occurs.
-func (c *FakeRdConfigs) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeRdConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(rdconfigsResource, c.ns, name), &acisnatv1.RdConfig{})
 
@@ -108,15 +110,15 @@ func (c *FakeRdConfigs) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeRdConfigs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(rdconfigsResource, c.ns, listOptions)
+func (c *FakeRdConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(rdconfigsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acisnatv1.RdConfigList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched rdConfig.
-func (c *FakeRdConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acisnatv1.RdConfig, err error) {
+func (c *FakeRdConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acisnatv1.RdConfig, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(rdconfigsResource, c.ns, name, pt, data, subresources...), &acisnatv1.RdConfig{})
 
