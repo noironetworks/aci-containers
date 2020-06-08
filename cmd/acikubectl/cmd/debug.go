@@ -1,4 +1,4 @@
-// Copyright © 2017 Cisco Systems, Inc.
+// Copyright 2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	kubecontext "context"
 	"errors"
 	"fmt"
 	"io"
@@ -41,7 +42,7 @@ func getNodes() (*v1.NodeList, error) {
 	}
 
 	nodes, err :=
-		kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		kubeClient.CoreV1().Nodes().List(kubecontext.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Could not list nodes:", err)
 	}
@@ -167,10 +168,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(systemNamespace),
 		},
-                {
-                        name: "cluster-report/logs/operator/acioperator.log",
-                        args: acioperatorLogCmdArgs(systemNamespace),
-                },
+		{
+			name: "cluster-report/logs/operator/acioperator.log",
+			args: acioperatorLogCmdArgs(systemNamespace),
+		},
 		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
@@ -180,11 +181,11 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: []string{"-n", systemNamespace, "describe", "deployment",
 				"aci-containers-controller"},
 		},
-                {
-                        name: "cluster-report/status/acioperator_deployment_status.log",
-                        args: []string{"-n", systemNamespace, "describe", "deployment",
-                                "aci-containers-operator"},
-                },
+		{
+			name: "cluster-report/status/acioperator_deployment_status.log",
+			args: []string{"-n", systemNamespace, "describe", "deployment",
+				"aci-containers-operator"},
+		},
 		{
 			name: "cluster-report/status/host_daemonset_status.log",
 			args: []string{"-n", systemNamespace, "describe", "daemonset",
@@ -207,19 +208,18 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/cluster-info.log",
 			args: []string{"cluster-info"},
 		},
-                {
-                        name: "cluster-report/status/configmap_controller.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
-                },
-                {
-                        name: "cluster-report/status/configmap_snatoperator.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
-                },
-                {
-                        name: "cluster-report/status/configmap_acioperator.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
-                },
-
+		{
+			name: "cluster-report/status/configmap_controller.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
+		},
+		{
+			name: "cluster-report/status/configmap_snatoperator.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
+		},
+		{
+			name: "cluster-report/status/configmap_acioperator.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
+		},
 	}
 
 	// Get all nodes of k8s cluster
@@ -271,14 +271,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			argFunc:  inspectArgs,
 			args:     []string{"-urq", "DmtreeRoot"},
 		},
-                {
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-int.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  ovsOfCtlArgs,
 			args:     []string{"show", "br-int"},
 		},
-                {
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-access.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
@@ -443,9 +443,9 @@ func accLogCmdArgs(systemNamespace string) []string {
 }
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
-        return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
-                "deployment/aci-containers-operator",
-                "-c", "aci-containers-operator"}
+	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+		"deployment/aci-containers-operator",
+		"-c", "aci-containers-operator"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
@@ -462,7 +462,7 @@ func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
 		LabelSelector: namespaceSelector,
 	}
 	namespaces, err :=
-		kubeClient.CoreV1().Namespaces().List(opts)
+		kubeClient.CoreV1().Namespaces().List(kubecontext.TODO(), opts)
 	if err != nil {
 		return "", err
 	}
@@ -478,7 +478,7 @@ func podForNode(kubeClient kubernetes.Interface,
 		LabelSelector: selector,
 	}
 	pods, err :=
-		kubeClient.CoreV1().Pods(systemNamespace).List(opts)
+		kubeClient.CoreV1().Pods(systemNamespace).List(kubecontext.TODO(), opts)
 	if err != nil {
 		return "", err
 	}

@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	acipolicyv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var gbpsstatesResource = schema.GroupVersionResource{Group: "aci.aw", Version: "
 var gbpsstatesKind = schema.GroupVersionKind{Group: "aci.aw", Version: "v1", Kind: "GBPSState"}
 
 // Get takes name of the gBPSState, and returns the corresponding gBPSState object, and an error if there is any.
-func (c *FakeGBPSStates) Get(name string, options v1.GetOptions) (result *acipolicyv1.GBPSState, err error) {
+func (c *FakeGBPSStates) Get(ctx context.Context, name string, options v1.GetOptions) (result *acipolicyv1.GBPSState, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(gbpsstatesResource, c.ns, name), &acipolicyv1.GBPSState{})
 
@@ -49,7 +51,7 @@ func (c *FakeGBPSStates) Get(name string, options v1.GetOptions) (result *acipol
 }
 
 // List takes label and field selectors, and returns the list of GBPSStates that match those selectors.
-func (c *FakeGBPSStates) List(opts v1.ListOptions) (result *acipolicyv1.GBPSStateList, err error) {
+func (c *FakeGBPSStates) List(ctx context.Context, opts v1.ListOptions) (result *acipolicyv1.GBPSStateList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(gbpsstatesResource, gbpsstatesKind, c.ns, opts), &acipolicyv1.GBPSStateList{})
 
@@ -71,14 +73,14 @@ func (c *FakeGBPSStates) List(opts v1.ListOptions) (result *acipolicyv1.GBPSStat
 }
 
 // Watch returns a watch.Interface that watches the requested gBPSStates.
-func (c *FakeGBPSStates) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeGBPSStates) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(gbpsstatesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a gBPSState and creates it.  Returns the server's representation of the gBPSState, and an error, if there is any.
-func (c *FakeGBPSStates) Create(gBPSState *acipolicyv1.GBPSState) (result *acipolicyv1.GBPSState, err error) {
+func (c *FakeGBPSStates) Create(ctx context.Context, gBPSState *acipolicyv1.GBPSState, opts v1.CreateOptions) (result *acipolicyv1.GBPSState, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(gbpsstatesResource, c.ns, gBPSState), &acipolicyv1.GBPSState{})
 
@@ -89,7 +91,7 @@ func (c *FakeGBPSStates) Create(gBPSState *acipolicyv1.GBPSState) (result *acipo
 }
 
 // Update takes the representation of a gBPSState and updates it. Returns the server's representation of the gBPSState, and an error, if there is any.
-func (c *FakeGBPSStates) Update(gBPSState *acipolicyv1.GBPSState) (result *acipolicyv1.GBPSState, err error) {
+func (c *FakeGBPSStates) Update(ctx context.Context, gBPSState *acipolicyv1.GBPSState, opts v1.UpdateOptions) (result *acipolicyv1.GBPSState, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(gbpsstatesResource, c.ns, gBPSState), &acipolicyv1.GBPSState{})
 
@@ -101,7 +103,7 @@ func (c *FakeGBPSStates) Update(gBPSState *acipolicyv1.GBPSState) (result *acipo
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeGBPSStates) UpdateStatus(gBPSState *acipolicyv1.GBPSState) (*acipolicyv1.GBPSState, error) {
+func (c *FakeGBPSStates) UpdateStatus(ctx context.Context, gBPSState *acipolicyv1.GBPSState, opts v1.UpdateOptions) (*acipolicyv1.GBPSState, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(gbpsstatesResource, "status", c.ns, gBPSState), &acipolicyv1.GBPSState{})
 
@@ -112,7 +114,7 @@ func (c *FakeGBPSStates) UpdateStatus(gBPSState *acipolicyv1.GBPSState) (*acipol
 }
 
 // Delete takes name of the gBPSState and deletes it. Returns an error if one occurs.
-func (c *FakeGBPSStates) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeGBPSStates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(gbpsstatesResource, c.ns, name), &acipolicyv1.GBPSState{})
 
@@ -120,15 +122,15 @@ func (c *FakeGBPSStates) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeGBPSStates) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(gbpsstatesResource, c.ns, listOptions)
+func (c *FakeGBPSStates) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(gbpsstatesResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &acipolicyv1.GBPSStateList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched gBPSState.
-func (c *FakeGBPSStates) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *acipolicyv1.GBPSState, err error) {
+func (c *FakeGBPSStates) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acipolicyv1.GBPSState, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(gbpsstatesResource, c.ns, name, pt, data, subresources...), &acipolicyv1.GBPSState{})
 

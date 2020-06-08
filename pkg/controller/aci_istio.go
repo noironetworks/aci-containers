@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"context"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	log "github.com/sirupsen/logrus"
@@ -33,10 +34,10 @@ func (cont *AciController) initIstioInformerFromClient(
 	cont.initIstioInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).List(options)
+				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).Watch(options)
+				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }
@@ -127,7 +128,7 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 		cont.log.Error("Error in Fetching deploymentsClient...")
 		return true // to requeue
 	}
-	istioOperatorDeployment, _ := deploymentsClient.Get("istio-operator", metav1.GetOptions{})
+	istioOperatorDeployment, _ := deploymentsClient.Get(context.TODO(), "istio-operator", metav1.GetOptions{})
 	if istioOperatorDeployment == nil {
 		cont.log.Info("istio-operator deployment is nil..returning")
 		return true // to requeue
@@ -138,7 +139,7 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 		istioOperatorDeployment.OwnerReferences = []metav1.OwnerReference{
 			*metav1.NewControllerRef(istiospec, istiov1.SchemeGroupVersion.WithKind("AciIstioOperator")),
 		}
-		_, err = deploymentsClient.Update(istioOperatorDeployment)
+		_, err = deploymentsClient.Update(context.TODO(), istioOperatorDeployment, metav1.UpdateOptions{})
 		if err != nil {
 			cont.log.Error(err.Error())
 			return true
@@ -180,7 +181,7 @@ func (cont *AciController) createIstioCR() bool {
 		return false
 	}
 	ns := os.Getenv("SYSTEM_NAMESPACE")
-	_, err := istioClient.AciV1().AciIstioOperators(ns).Get("aciistiooperator", options)
+	_, err := istioClient.AciV1().AciIstioOperators(ns).Get(context.TODO(), "aciistiooperator", options)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			aciIstioCR := &istiov1.AciIstioOperator{
@@ -192,7 +193,7 @@ func (cont *AciController) createIstioCR() bool {
 					Profile: "demo",
 				},
 			}
-			_, err = istioClient.AciV1().AciIstioOperators(ns).Create(aciIstioCR)
+			_, err = istioClient.AciV1().AciIstioOperators(ns).Create(context.TODO(), aciIstioCR, metav1.CreateOptions{})
 			if err != nil {
 				cont.log.Debug("AciIstioCR create failed:", aciIstioCR, err)
 				return true

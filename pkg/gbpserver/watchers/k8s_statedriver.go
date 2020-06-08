@@ -19,6 +19,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	restclient "k8s.io/client-go/rest"
 
+	"context"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	aciclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciclientsetv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
@@ -52,14 +53,14 @@ func (ks *K8sStateDriver) Init(wrField int) error {
 	}
 	ks.gsi = aciClient.AciV1().GBPSStates(sysNs)
 	// if the state object doesn't exist, create it now
-	s, err := ks.gsi.Get(stateObject, metav1.GetOptions{})
+	s, err := ks.gsi.Get(context.TODO(), stateObject, metav1.GetOptions{})
 	if err != nil || s == nil {
 		log.Infof("%s object not found, creating", stateObject)
 		s = &aciv1.GBPSState{}
 		s.Kind = "GBPSState"
 		s.APIVersion = "aci.aw/v1"
 		s.ObjectMeta.Name = stateObject
-		s, err = ks.gsi.Create(s)
+		s, err = ks.gsi.Create(context.TODO(), s, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create %s CRD - %v", stateObject, err)
 			return err
@@ -93,7 +94,7 @@ func copyTunnelID(src, dest *aciv1.GBPSState) {
 }
 
 func (ks *K8sStateDriver) Get() (*aciv1.GBPSState, error) {
-	s, err := ks.gsi.Get(stateObject, metav1.GetOptions{})
+	s, err := ks.gsi.Get(context.TODO(), stateObject, metav1.GetOptions{})
 	if err == nil {
 		ks.curr = s
 	} else {
@@ -126,7 +127,7 @@ func (ks *K8sStateDriver) run() {
 		c := *ks.curr
 		ks.copier(s, &c)
 
-		newS, err := ks.gsi.UpdateStatus(&c)
+		newS, err := ks.gsi.UpdateStatus(context.TODO(), &c, metav1.UpdateOptions{})
 		if err == nil {
 			ks.curr = newS
 		} else {

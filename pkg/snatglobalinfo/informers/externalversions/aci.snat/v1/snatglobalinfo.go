@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	acisnatv1 "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -60,13 +61,13 @@ func NewFilteredSnatGlobalInfoInformer(client versioned.Interface, namespace str
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().SnatGlobalInfos(namespace).List(options)
+				return client.AciV1().SnatGlobalInfos(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().SnatGlobalInfos(namespace).Watch(options)
+				return client.AciV1().SnatGlobalInfos(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&acisnatv1.SnatGlobalInfo{},

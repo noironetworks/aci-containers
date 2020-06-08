@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	rdConfigv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,7 @@ func (cont *AciController) syncRdConfig() bool {
 	var options metav1.GetOptions
 	var discoveredSubnets []string
 	cont.indexMutex.Lock()
-	for _,v := range cont.apicConn.CachedSubnetDns {
+	for _, v := range cont.apicConn.CachedSubnetDns {
 		discoveredSubnets = append(discoveredSubnets, v)
 	}
 	cont.indexMutex.Unlock()
@@ -39,7 +40,7 @@ func (cont *AciController) syncRdConfig() bool {
 	}
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
 	name := os.Getenv("ACI_RDCONFIG_NAME")
-	rdConfig, err := rdConfigClient.AciV1().RdConfigs(ns).Get(name, options)
+	rdConfig, err := rdConfigClient.AciV1().RdConfigs(ns).Get(context.TODO(), name, options)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			rdConfigInstance := &rdConfigv1.RdConfig{
@@ -51,7 +52,7 @@ func (cont *AciController) syncRdConfig() bool {
 					DiscoveredSubnets: discoveredSubnets,
 				},
 			}
-			_, err = rdConfigClient.AciV1().RdConfigs(ns).Create(rdConfigInstance)
+			_, err = rdConfigClient.AciV1().RdConfigs(ns).Create(context.TODO(), rdConfigInstance, metav1.CreateOptions{})
 			if err != nil {
 				return true
 			}
@@ -60,7 +61,7 @@ func (cont *AciController) syncRdConfig() bool {
 	} else {
 		if !reflect.DeepEqual(rdConfig.Spec.DiscoveredSubnets, discoveredSubnets) {
 			rdConfig.Spec.DiscoveredSubnets = discoveredSubnets
-			_, err = rdConfigClient.AciV1().RdConfigs(ns).Update(rdConfig)
+			_, err = rdConfigClient.AciV1().RdConfigs(ns).Update(context.TODO(), rdConfig, metav1.UpdateOptions{})
 			if err != nil {
 				return true
 			}

@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	v1alpha1 "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var acicontainersoperatorsResource = schema.GroupVersionResource{Group: "aci.ctr
 var acicontainersoperatorsKind = schema.GroupVersionKind{Group: "aci.ctrl", Version: "v1alpha1", Kind: "AciContainersOperator"}
 
 // Get takes name of the aciContainersOperator, and returns the corresponding aciContainersOperator object, and an error if there is any.
-func (c *FakeAciContainersOperators) Get(name string, options v1.GetOptions) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *FakeAciContainersOperators) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(acicontainersoperatorsResource, c.ns, name), &v1alpha1.AciContainersOperator{})
 
@@ -49,7 +51,7 @@ func (c *FakeAciContainersOperators) Get(name string, options v1.GetOptions) (re
 }
 
 // List takes label and field selectors, and returns the list of AciContainersOperators that match those selectors.
-func (c *FakeAciContainersOperators) List(opts v1.ListOptions) (result *v1alpha1.AciContainersOperatorList, err error) {
+func (c *FakeAciContainersOperators) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.AciContainersOperatorList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(acicontainersoperatorsResource, acicontainersoperatorsKind, c.ns, opts), &v1alpha1.AciContainersOperatorList{})
 
@@ -71,14 +73,14 @@ func (c *FakeAciContainersOperators) List(opts v1.ListOptions) (result *v1alpha1
 }
 
 // Watch returns a watch.Interface that watches the requested aciContainersOperators.
-func (c *FakeAciContainersOperators) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeAciContainersOperators) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(acicontainersoperatorsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a aciContainersOperator and creates it.  Returns the server's representation of the aciContainersOperator, and an error, if there is any.
-func (c *FakeAciContainersOperators) Create(aciContainersOperator *v1alpha1.AciContainersOperator) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *FakeAciContainersOperators) Create(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.CreateOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(acicontainersoperatorsResource, c.ns, aciContainersOperator), &v1alpha1.AciContainersOperator{})
 
@@ -89,7 +91,7 @@ func (c *FakeAciContainersOperators) Create(aciContainersOperator *v1alpha1.AciC
 }
 
 // Update takes the representation of a aciContainersOperator and updates it. Returns the server's representation of the aciContainersOperator, and an error, if there is any.
-func (c *FakeAciContainersOperators) Update(aciContainersOperator *v1alpha1.AciContainersOperator) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *FakeAciContainersOperators) Update(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(acicontainersoperatorsResource, c.ns, aciContainersOperator), &v1alpha1.AciContainersOperator{})
 
@@ -101,7 +103,7 @@ func (c *FakeAciContainersOperators) Update(aciContainersOperator *v1alpha1.AciC
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAciContainersOperators) UpdateStatus(aciContainersOperator *v1alpha1.AciContainersOperator) (*v1alpha1.AciContainersOperator, error) {
+func (c *FakeAciContainersOperators) UpdateStatus(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (*v1alpha1.AciContainersOperator, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(acicontainersoperatorsResource, "status", c.ns, aciContainersOperator), &v1alpha1.AciContainersOperator{})
 
@@ -112,7 +114,7 @@ func (c *FakeAciContainersOperators) UpdateStatus(aciContainersOperator *v1alpha
 }
 
 // Delete takes name of the aciContainersOperator and deletes it. Returns an error if one occurs.
-func (c *FakeAciContainersOperators) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeAciContainersOperators) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(acicontainersoperatorsResource, c.ns, name), &v1alpha1.AciContainersOperator{})
 
@@ -120,15 +122,15 @@ func (c *FakeAciContainersOperators) Delete(name string, options *v1.DeleteOptio
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeAciContainersOperators) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(acicontainersoperatorsResource, c.ns, listOptions)
+func (c *FakeAciContainersOperators) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(acicontainersoperatorsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.AciContainersOperatorList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched aciContainersOperator.
-func (c *FakeAciContainersOperators) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *FakeAciContainersOperators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AciContainersOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(acicontainersoperatorsResource, c.ns, name, pt, data, subresources...), &v1alpha1.AciContainersOperator{})
 

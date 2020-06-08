@@ -18,6 +18,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	aciistiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var aciistiooperatorsResource = schema.GroupVersionResource{Group: "aci.istio", 
 var aciistiooperatorsKind = schema.GroupVersionKind{Group: "aci.istio", Version: "v1", Kind: "AciIstioOperator"}
 
 // Get takes name of the aciIstioOperator, and returns the corresponding aciIstioOperator object, and an error if there is any.
-func (c *FakeAciIstioOperators) Get(name string, options v1.GetOptions) (result *aciistiov1.AciIstioOperator, err error) {
+func (c *FakeAciIstioOperators) Get(ctx context.Context, name string, options v1.GetOptions) (result *aciistiov1.AciIstioOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(aciistiooperatorsResource, c.ns, name), &aciistiov1.AciIstioOperator{})
 
@@ -49,7 +51,7 @@ func (c *FakeAciIstioOperators) Get(name string, options v1.GetOptions) (result 
 }
 
 // List takes label and field selectors, and returns the list of AciIstioOperators that match those selectors.
-func (c *FakeAciIstioOperators) List(opts v1.ListOptions) (result *aciistiov1.AciIstioOperatorList, err error) {
+func (c *FakeAciIstioOperators) List(ctx context.Context, opts v1.ListOptions) (result *aciistiov1.AciIstioOperatorList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(aciistiooperatorsResource, aciistiooperatorsKind, c.ns, opts), &aciistiov1.AciIstioOperatorList{})
 
@@ -71,14 +73,14 @@ func (c *FakeAciIstioOperators) List(opts v1.ListOptions) (result *aciistiov1.Ac
 }
 
 // Watch returns a watch.Interface that watches the requested aciIstioOperators.
-func (c *FakeAciIstioOperators) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeAciIstioOperators) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(aciistiooperatorsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a aciIstioOperator and creates it.  Returns the server's representation of the aciIstioOperator, and an error, if there is any.
-func (c *FakeAciIstioOperators) Create(aciIstioOperator *aciistiov1.AciIstioOperator) (result *aciistiov1.AciIstioOperator, err error) {
+func (c *FakeAciIstioOperators) Create(ctx context.Context, aciIstioOperator *aciistiov1.AciIstioOperator, opts v1.CreateOptions) (result *aciistiov1.AciIstioOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(aciistiooperatorsResource, c.ns, aciIstioOperator), &aciistiov1.AciIstioOperator{})
 
@@ -89,7 +91,7 @@ func (c *FakeAciIstioOperators) Create(aciIstioOperator *aciistiov1.AciIstioOper
 }
 
 // Update takes the representation of a aciIstioOperator and updates it. Returns the server's representation of the aciIstioOperator, and an error, if there is any.
-func (c *FakeAciIstioOperators) Update(aciIstioOperator *aciistiov1.AciIstioOperator) (result *aciistiov1.AciIstioOperator, err error) {
+func (c *FakeAciIstioOperators) Update(ctx context.Context, aciIstioOperator *aciistiov1.AciIstioOperator, opts v1.UpdateOptions) (result *aciistiov1.AciIstioOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(aciistiooperatorsResource, c.ns, aciIstioOperator), &aciistiov1.AciIstioOperator{})
 
@@ -101,7 +103,7 @@ func (c *FakeAciIstioOperators) Update(aciIstioOperator *aciistiov1.AciIstioOper
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAciIstioOperators) UpdateStatus(aciIstioOperator *aciistiov1.AciIstioOperator) (*aciistiov1.AciIstioOperator, error) {
+func (c *FakeAciIstioOperators) UpdateStatus(ctx context.Context, aciIstioOperator *aciistiov1.AciIstioOperator, opts v1.UpdateOptions) (*aciistiov1.AciIstioOperator, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(aciistiooperatorsResource, "status", c.ns, aciIstioOperator), &aciistiov1.AciIstioOperator{})
 
@@ -112,7 +114,7 @@ func (c *FakeAciIstioOperators) UpdateStatus(aciIstioOperator *aciistiov1.AciIst
 }
 
 // Delete takes name of the aciIstioOperator and deletes it. Returns an error if one occurs.
-func (c *FakeAciIstioOperators) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeAciIstioOperators) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(aciistiooperatorsResource, c.ns, name), &aciistiov1.AciIstioOperator{})
 
@@ -120,15 +122,15 @@ func (c *FakeAciIstioOperators) Delete(name string, options *v1.DeleteOptions) e
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeAciIstioOperators) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(aciistiooperatorsResource, c.ns, listOptions)
+func (c *FakeAciIstioOperators) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(aciistiooperatorsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &aciistiov1.AciIstioOperatorList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched aciIstioOperator.
-func (c *FakeAciIstioOperators) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *aciistiov1.AciIstioOperator, err error) {
+func (c *FakeAciIstioOperators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *aciistiov1.AciIstioOperator, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(aciistiooperatorsResource, c.ns, name, pt, data, subresources...), &aciistiov1.AciIstioOperator{})
 

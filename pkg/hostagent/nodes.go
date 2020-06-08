@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
+	"context"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -51,12 +52,12 @@ func (agent *HostAgent) initNodeInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Nodes().List(options)
+				return kubeClient.CoreV1().Nodes().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Nodes().Watch(options)
+				return kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
 			},
 		})
 }

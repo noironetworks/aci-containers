@@ -17,6 +17,7 @@
 package hostagent
 
 import (
+	"context"
 	"encoding/json"
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdConClSet "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
@@ -42,10 +43,10 @@ func (agent *HostAgent) initRdConfigInformerFromClient(
 	agent.initRdConfigInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(options)
+				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(options)
+				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }

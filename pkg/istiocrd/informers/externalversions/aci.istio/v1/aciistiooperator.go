@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	aciistiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -60,13 +61,13 @@ func NewFilteredAciIstioOperatorInformer(client versioned.Interface, namespace s
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().AciIstioOperators(namespace).List(options)
+				return client.AciV1().AciIstioOperators(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().AciIstioOperators(namespace).Watch(options)
+				return client.AciV1().AciIstioOperators(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&aciistiov1.AciIstioOperator{},

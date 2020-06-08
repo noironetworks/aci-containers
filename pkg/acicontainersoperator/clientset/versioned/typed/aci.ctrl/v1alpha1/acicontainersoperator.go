@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"time"
 
 	v1alpha1 "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
@@ -36,15 +37,15 @@ type AciContainersOperatorsGetter interface {
 
 // AciContainersOperatorInterface has methods to work with AciContainersOperator resources.
 type AciContainersOperatorInterface interface {
-	Create(*v1alpha1.AciContainersOperator) (*v1alpha1.AciContainersOperator, error)
-	Update(*v1alpha1.AciContainersOperator) (*v1alpha1.AciContainersOperator, error)
-	UpdateStatus(*v1alpha1.AciContainersOperator) (*v1alpha1.AciContainersOperator, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*v1alpha1.AciContainersOperator, error)
-	List(opts v1.ListOptions) (*v1alpha1.AciContainersOperatorList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.AciContainersOperator, err error)
+	Create(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.CreateOptions) (*v1alpha1.AciContainersOperator, error)
+	Update(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (*v1alpha1.AciContainersOperator, error)
+	UpdateStatus(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (*v1alpha1.AciContainersOperator, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.AciContainersOperator, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.AciContainersOperatorList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AciContainersOperator, err error)
 	AciContainersOperatorExpansion
 }
 
@@ -63,20 +64,20 @@ func newAciContainersOperators(c *AciV1alpha1Client, namespace string) *aciConta
 }
 
 // Get takes name of the aciContainersOperator, and returns the corresponding aciContainersOperator object, and an error if there is any.
-func (c *aciContainersOperators) Get(name string, options v1.GetOptions) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *aciContainersOperators) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	result = &v1alpha1.AciContainersOperator{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of AciContainersOperators that match those selectors.
-func (c *aciContainersOperators) List(opts v1.ListOptions) (result *v1alpha1.AciContainersOperatorList, err error) {
+func (c *aciContainersOperators) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.AciContainersOperatorList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -87,13 +88,13 @@ func (c *aciContainersOperators) List(opts v1.ListOptions) (result *v1alpha1.Aci
 		Resource("acicontainersoperators").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested aciContainersOperators.
-func (c *aciContainersOperators) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *aciContainersOperators) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -104,87 +105,90 @@ func (c *aciContainersOperators) Watch(opts v1.ListOptions) (watch.Interface, er
 		Resource("acicontainersoperators").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a aciContainersOperator and creates it.  Returns the server's representation of the aciContainersOperator, and an error, if there is any.
-func (c *aciContainersOperators) Create(aciContainersOperator *v1alpha1.AciContainersOperator) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *aciContainersOperators) Create(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.CreateOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	result = &v1alpha1.AciContainersOperator{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(aciContainersOperator).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a aciContainersOperator and updates it. Returns the server's representation of the aciContainersOperator, and an error, if there is any.
-func (c *aciContainersOperators) Update(aciContainersOperator *v1alpha1.AciContainersOperator) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *aciContainersOperators) Update(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	result = &v1alpha1.AciContainersOperator{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
 		Name(aciContainersOperator.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(aciContainersOperator).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *aciContainersOperators) UpdateStatus(aciContainersOperator *v1alpha1.AciContainersOperator) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *aciContainersOperators) UpdateStatus(ctx context.Context, aciContainersOperator *v1alpha1.AciContainersOperator, opts v1.UpdateOptions) (result *v1alpha1.AciContainersOperator, err error) {
 	result = &v1alpha1.AciContainersOperator{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
 		Name(aciContainersOperator.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(aciContainersOperator).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the aciContainersOperator and deletes it. Returns an error if one occurs.
-func (c *aciContainersOperators) Delete(name string, options *v1.DeleteOptions) error {
+func (c *aciContainersOperators) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *aciContainersOperators) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *aciContainersOperators) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched aciContainersOperator.
-func (c *aciContainersOperators) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.AciContainersOperator, err error) {
+func (c *aciContainersOperators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AciContainersOperator, err error) {
 	result = &v1alpha1.AciContainersOperator{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("acicontainersoperators").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

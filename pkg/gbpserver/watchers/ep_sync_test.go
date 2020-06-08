@@ -16,6 +16,7 @@ limitations under the License.
 package watchers
 
 import (
+	"context"
 	"encoding/pem"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
@@ -1756,7 +1757,7 @@ func TestEPSync(t *testing.T) {
 	}
 
 	ts.eps.syncRemoteEPGs(r_epgs)
-	crdList, err := ts.eps.crdClient.PodIFs("kube-system").List(metav1.ListOptions{})
+	crdList, err := ts.eps.crdClient.PodIFs("kube-system").List(context.TODO(), metav1.ListOptions{})
 	assert.Nil(t, err, "reading podifs")
 	assert.Equal(t, len(crdList.Items), len(exp_subnets), "number of rem podifs")
 	for _, p := range crdList.Items {

@@ -16,6 +16,7 @@ limitations under the License.
 package watchers
 
 import (
+	"context"
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
@@ -184,11 +185,11 @@ func (eps *EPSyncer) AddExtEP(subnet, epgDn string) {
 	// k8s doesn't like the | character in names
 	pi_name = strings.Replace(pi_name, "|", "-", -1)
 	pi_name = strings.Replace(pi_name, "_", "-", -1)
-	_, err := eps.crdClient.PodIFs("kube-system").Get(pi_name, metav1.GetOptions{})
+	_, err := eps.crdClient.PodIFs("kube-system").Get(context.TODO(), pi_name, metav1.GetOptions{})
 	ep := &crdv1.PodIF{Status: crdv1.PodIFStatus{IPAddr: subnet, EPG: epgName}}
 	ep.ObjectMeta.Name = pi_name
 	if err != nil {
-		_, err = eps.crdClient.PodIFs("kube-system").Create(ep)
+		_, err = eps.crdClient.PodIFs("kube-system").Create(context.TODO(), ep, metav1.CreateOptions{})
 	}
 
 	if err != nil {

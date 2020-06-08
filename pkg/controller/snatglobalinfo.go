@@ -16,6 +16,7 @@
 package controller
 
 import (
+	"context"
 	uuid "github.com/google/uuid"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
@@ -43,10 +44,10 @@ func (cont *AciController) initSnatNodeInformerFromClient(
 	cont.initSnatNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(options)
+				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(options)
+				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }
@@ -79,13 +80,13 @@ func (cont *AciController) initSnatCfgFromClient(
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
 				return kubeClient.CoreV1().ConfigMaps(
-					"aci-containers-system").List(options)
+					"aci-containers-system").List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
 				return kubeClient.CoreV1().ConfigMaps(
-					"aci-containers-system").Watch(options)
+					"aci-containers-system").Watch(context.TODO(), options)
 			},
 		})
 }

@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	time "time"
 
 	acictrlv1alpha1 "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
@@ -60,13 +61,13 @@ func NewFilteredAciContainersOperatorInformer(client versioned.Interface, namesp
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1alpha1().AciContainersOperators(namespace).List(options)
+				return client.AciV1alpha1().AciContainersOperators(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1alpha1().AciContainersOperators(namespace).Watch(options)
+				return client.AciV1alpha1().AciContainersOperators(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&acictrlv1alpha1.AciContainersOperator{},

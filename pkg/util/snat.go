@@ -15,6 +15,7 @@
 package util
 
 import (
+	"context"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -70,7 +71,7 @@ func CreateSnatGlobalInfoCR(c snatglobalclset.Clientset,
 		},
 		Spec: globalInfoSpec,
 	}
-	_, err := c.AciV1().SnatGlobalInfos(ns).Create(obj)
+	_, err := c.AciV1().SnatGlobalInfos(ns).Create(context.TODO(), obj, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func CreateSnatGlobalInfoCR(c snatglobalclset.Clientset,
 // UpdateSnatGlobalInfoCR Updates a SnatGlobalInfo CR
 func UpdateGlobalInfoCR(c snatglobalclset.Clientset, globalInfo snatglobal.SnatGlobalInfo) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	_, err := c.AciV1().SnatGlobalInfos(ns).Update(&globalInfo)
+	_, err := c.AciV1().SnatGlobalInfos(ns).Update(context.TODO(), &globalInfo, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -89,8 +90,7 @@ func UpdateGlobalInfoCR(c snatglobalclset.Clientset, globalInfo snatglobal.SnatG
 
 func GetGlobalInfoCR(c snatglobalclset.Clientset) (snatglobal.SnatGlobalInfo, error) {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	var options metav1.GetOptions
-	globalinfo, err := c.AciV1().SnatGlobalInfos(ns).Get(os.Getenv("ACI_SNAGLOBALINFO_NAME"), options)
+	globalinfo, err := c.AciV1().SnatGlobalInfos(ns).Get(context.TODO(), os.Getenv("ACI_SNAGLOBALINFO_NAME"), metav1.GetOptions{})
 	if err != nil {
 		return snatglobal.SnatGlobalInfo{}, err
 	}
@@ -108,7 +108,7 @@ func CreateNodeInfoCR(c nodeinfoclset.Clientset,
 		},
 		Spec: nodeInfoSpec,
 	}
-	_, err := c.AciV1().NodeInfos(ns).Create(obj)
+	_, err := c.AciV1().NodeInfos(ns).Create(context.TODO(), obj, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -118,15 +118,14 @@ func CreateNodeInfoCR(c nodeinfoclset.Clientset,
 // UpdateNodeInfoCR Updates a UpdateNodeInfoInfo CR
 func UpdateNodeInfoCR(c nodeinfoclset.Clientset, nodeinfo nodeinfo.NodeInfo) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	_, err := c.AciV1().NodeInfos(ns).Update(&nodeinfo)
+	_, err := c.AciV1().NodeInfos(ns).Update(context.TODO(), &nodeinfo, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 func GetPortRangeFromConfigMap(c *kubernetes.Clientset) (snatglobal.PortRange, int) {
-	var options metav1.GetOptions
-	cMap, err := c.CoreV1().ConfigMaps("aci-containers-system").Get("snat-operator-config", options)
+	cMap, err := c.CoreV1().ConfigMaps("aci-containers-system").Get(context.TODO(), "snat-operator-config", metav1.GetOptions{})
 	var resultPortRange snatglobal.PortRange
 	resultPortRange.Start = MIN_PORT
 	resultPortRange.End = MAX_PORT
@@ -164,7 +163,7 @@ func MatchLabels(policylabels map[string]string, reslabels map[string]string) bo
 
 // UpdateSnatPolicy Updates a UpdateSnatPolicy CR
 func UpdateSnatPolicyCR(c snatpolicyclset.Clientset, policy *snatpolicy.SnatPolicy) error {
-	_, err := c.AciV1().SnatPolicies().UpdateStatus(policy)
+	_, err := c.AciV1().SnatPolicies().UpdateStatus(context.TODO(), policy, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}

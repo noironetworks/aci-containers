@@ -4,7 +4,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -22,8 +21,8 @@ type AciIstioOperatorSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Config     string        `json:"config"`
-	Profile    string        `json:"profile"`
+	Config  string `json:"config"`
+	Profile string `json:"profile"`
 }
 
 // AciIstioOperatorStatus defines the observed state of AciIstioOperator
@@ -31,12 +30,10 @@ type AciIstioOperatorStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Status    bool       `json:"Successful or Not"`
+	Status bool `json:"Successful or Not"`
 }
 
-
 // +k8s:depcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // AciIstioOperator list
 type AciIstioOperatorList struct {
 	metav1.TypeMeta `json:",inline"`
