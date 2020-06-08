@@ -12,13 +12,18 @@ RUN curl -O https://fast.dpdk.org/rel/dpdk-18.11.6.tar.xz \
   && mkdir -p /usr/src \
   && mv dpdk-stable-18.11.6 /usr/src \
   && export DPDK_DIR=/usr/src/dpdk-stable-18.11.6 \
-  && sed -i 's/CONFIG_RTE_BUILD_SHARED_LIB=n/CONFIG_RTE_BUILD_SHARED_LIB=y/g' $DPDK_DIR/config/common_base \
-  && OLD_CWD=`pwd` \
-  && cd $DPDK_DIR \
   && export DPDK_TARGET=x86_64-native-linuxapp-gcc \
   && export DPDK_BUILD=$DPDK_DIR/$DPDK_TARGET \
+  && mkdir -p $DPDK_DIR/dpdk-pmds \
+  && sed -i 's/CONFIG_RTE_BUILD_SHARED_LIB=n/CONFIG_RTE_BUILD_SHARED_LIB=y/g' $DPDK_DIR/config/common_base \
+  && sed -i 's/CONFIG_RTE_EAL_PMD_PATH=\"\"/CONFIG_RTE_EAL_PMD_PATH=\"\/usr\/src\/dpdk-stable-18.11.6\/dpdk-pmds\"/g' $DPDK_DIR/config/common_base \
+  && OLD_CWD=`pwd` \
+  && cd $DPDK_DIR \
   && make install T=$DPDK_TARGET DESTDIR=/usr/local \
-  && cd $OLD_CWD
+  && cp -r $DPDK_BUILD/lib/*_pmd_* $DPDK_DIR/dpdk-pmds \
+  && cp -r $DPDK_BUILD/lib/*_mempool_* $DPDK_DIR/dpdk-pmds \
+  && cd $OLD_CWD \
+  && ldconfig
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
