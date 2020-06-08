@@ -1,5 +1,5 @@
 #!/bin/sh
-  
+
 set -e
 set -x
 
@@ -14,7 +14,7 @@ ${OVSCTL} start --system-id=${SYS_ID}
 
 #Enable DPDK
 ${VSCTL} --no-wait set Open_vSwitch . other_config:dpdk-init=true
-${VSCTL} --no-wait set Open_vSwitch . other_config:dpdk-extra="-d /usr/local/lib/librte_mempool_ring.so"
+# ${VSCTL} --no-wait set Open_vSwitch . other_config:dpdk-extra="-d /usr/local/lib/librte_mempool_ring.so"
 # ${VSCTL} --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="1024,0"
 # ${VSCTL} --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0x6
 
