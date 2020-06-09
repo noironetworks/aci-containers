@@ -38,9 +38,8 @@ RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
   && cd / \
   && rm -rf 3rdparty-debian \
   && rm -rf prometheus-cpp \
-  && git clone https://github.com/grpc/grpc \
+  && git clone https://github.com/grpc/grpc --branch v1.29.x \
   && cd grpc \
-  && git checkout 5052efd666ab6fdda2a4b3045569f70ce0c5fa57 \
   && git submodule update --init \
   && make $make_args && make install \
   && cd third_party/protobuf \
