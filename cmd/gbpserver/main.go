@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,37 +32,33 @@ import (
 )
 
 type cliOpts struct {
-	etcdDir       string
-	etcdPort      string
-	apiListenPort string
-	insecurePort  string
-	grpcPort      string
-	moDir         string
-	cAPICUrl      string
-	region        string
+	configPath string
+	version    bool
+	inspect    string
+	vtep       string
+	epg        string
 }
 
 func main() {
+	var opts cliOpts
+
 	cfg := &gbpserver.GBPServerConfig{}
 	gbpserver.InitConfig(cfg)
+	parseCli(&opts)
 
-	configPath := flag.String("config-path", "",
-		"Absolute path to a gbp-server configuration file")
-	//	version := flag.Bool("version", false, "prints github commit ID and build time")
-	flag.Parse()
-	/*	if *version {
+	if opts.version {
 		if gbpserver.GetVersion().GitCommit != "" {
-			buffer := bytes.NewBufferString(controller.VersionString())
+			buffer := bytes.NewBufferString(gbpserver.VersionString())
 			fmt.Println(buffer.String())
 		} else {
 			fmt.Println("Information missing in current build")
 		}
 		os.Exit(0)
-	} */
+	}
 
-	if configPath != nil && *configPath != "None" {
-		logrus.Info("Loading configuration from ", *configPath)
-		raw, err := ioutil.ReadFile(*configPath)
+	if opts.configPath != "None" {
+		logrus.Info("Loading configuration from ", opts.configPath)
+		raw, err := ioutil.ReadFile(opts.configPath)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -69,6 +66,11 @@ func main() {
 		if err != nil {
 			panic(err.Error())
 		}
+	}
+
+	if opts.inspect != "" {
+		handleInspect(&opts, cfg)
+		os.Exit(0)
 	}
 
 	// set the global log level
@@ -110,6 +112,20 @@ func main() {
 	kw.InitEPInformer(stopCh)
 
 	select {}
+}
+
+func parseCli(opts *cliOpts) {
+	flag.StringVar(&opts.configPath,
+		"config-path", "None", "Path to gbp config")
+	flag.BoolVar(&opts.version,
+		"version", false, "Print version information")
+	flag.StringVar(&opts.inspect,
+		"inspect", "", "Print grpc|vtep|kafka information")
+	flag.StringVar(&opts.vtep,
+		"vtep", "all", "Limit grpc info to the specific VTEP")
+	flag.StringVar(&opts.epg,
+		"epg", "all", "Limit kafka info to the specific epg")
+	flag.Parse()
 }
 
 // panics on error

@@ -61,10 +61,10 @@ type GBPServerConfig struct {
 	AciVrf string `json:"aci-vrf,omitempty"`
 
 	// APIC info
-	Apic         *ApicInfo `json:"apic,omitempty"`
-	SyncRemEps bool `json:"sync-rem-eps",omitempty"`
+	Apic       *ApicInfo `json:"apic,omitempty"`
+	SyncRemEps bool      `json:"sync-rem-eps",omitempty"`
 
-	PushJsonFile bool      `json:"push-json-file,omitempty"`
+	PushJsonFile bool `json:"push-json-file,omitempty"`
 }
 
 type ApicInfo struct {
@@ -111,7 +111,7 @@ func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.EtcdDir, "etcd-dir", "/var/gbpserver/etcd", "Etcd dir")
 	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
-	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "pod subnet")
+	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "node subnet")
 	flag.BoolVar(&config.PushJsonFile, "push-json-file", false, "push file to opflexserver (testing)")
 	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
 }

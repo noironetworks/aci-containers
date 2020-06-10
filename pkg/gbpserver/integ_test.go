@@ -32,8 +32,8 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
 	"github.com/coreos/etcd/embed"
@@ -780,6 +780,36 @@ rcvLoop:
 
 	newCh := make(chan *GBPOperation)
 	listVerify(newCh)
+
+	c := NewGBPClient(conn)
+
+	vl, err := c.ListVTEPs(ctx, &EmptyMsg{}, grpc.WaitForReady(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expVTEPs := map[string]bool{
+		"101.10.1.1": true,
+		"101.10.1.2": true,
+		"101.10.1.3": true,
+		"":           true,
+	}
+	for _, vtep := range vl.Vteps {
+		assert.True(t, expVTEPs[vtep], fmt.Sprintf("unexpected %s in vtep list", vtep))
+		delete(expVTEPs, vtep)
+	}
+
+	assert.Zero(t, len(expVTEPs), "Some vteps not listed")
+
+	snap, err := c.GetSnapShot(ctx, &VTEP{Vtep: "none"}, grpc.WaitForReady(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	moMap := make(map[string]*GBPObject)
+	for _, mo := range snap.MoList {
+		moMap[mo.Uri] = mo
+	}
+	verifyPolicy(t, moMap)
 }
 
 func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
