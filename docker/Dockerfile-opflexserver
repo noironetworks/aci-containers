@@ -5,5 +5,8 @@ RUN yum --disablerepo=\*ubi\* install -y libstdc++ libuv \
   && yum clean all
 COPY bin/opflex_server /usr/local/bin/
 COPY bin/launch-opflexserver.sh /usr/local/bin/
-COPY lib/* /usr/local/lib/
+COPY lib/libm* /usr/local/lib/
+COPY lib/libopflex* /usr/local/lib/
+COPY lib/libp* /usr/local/lib/
+COPY lib/libg* /usr/local/lib/
 CMD ["/usr/local/bin/launch-opflexserver.sh"]
