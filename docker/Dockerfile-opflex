@@ -16,8 +16,8 @@ COPY licenses /licenses
 COPY bin/opflex_agent /usr/local/bin/
 COPY bin/mcast_daemon /usr/local/bin/
 COPY bin/gbp_inspect /usr/local/bin/
-COPY bin/launch_opflexagent.sh /usr/local/bin/
-COPY bin/launch_mcastdaemon.sh /usr/local/bin/
+COPY bin/launch-opflexagent.sh /usr/local/bin/
+COPY bin/launch-mcastdaemon.sh /usr/local/bin/
 COPY lib/libm* /usr/local/lib/
 COPY lib/libo* /usr/local/lib/
 COPY lib/libp* /usr/local/lib/
