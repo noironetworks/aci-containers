@@ -1009,12 +1009,21 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 		return false
 	}
 	key, _ := cache.MetaNamespaceKeyFunc(obj)
-	if _, ok := c.routes[key]; ok {
+	c.indexMutex.Lock()
+	_, ok := c.routes[key]
+	c.indexMutex.Unlock()
+	if ok {
 		return false
 	}
 	dnsInfo, err := c.getDnsInfo()
 	if err != nil {
 		return true
+	}
+	// Check if already exists in dnsInfo then no need to update dnsinfo
+	for _, server := range dnsInfo.Spec.Servers {
+		if key == server.Name {
+			return false
+		}
 	}
 	var server operatorv1.Server
 	server.Name = key
@@ -1050,7 +1059,10 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 func (c *Controller) handleRouteDelete(obj interface{}) bool {
 	key := fmt.Sprintf("%v", obj)
 	log.Infof("route deleted: %s", key)
-	if _, ok := c.routes[key]; !ok {
+	c.indexMutex.Lock()
+	_, ok := c.routes[key]
+	c.indexMutex.Unlock()
+	if !ok {
 		return false
 	}
 	if c.DnsOperatorClient == nil {
