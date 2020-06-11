@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -223,35 +223,45 @@ func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config
 	return &tlsConfig, err
 }
 
-func (kc *KafkaClient) kafkaSetup() error {
+func GetClientConfig(cfg *KafkaCfg) (*sarama.Config, error) {
 
-	kc.log.Infof("cfg is: %+v", kc.cfg)
-	producerConfig := sarama.NewConfig()
-	if kc.cfg.ClientKeyPath != "" {
-		tlsConfig, err := newTLSConfig(kc.cfg.ClientCertPath,
-			kc.cfg.ClientKeyPath,
-			kc.cfg.CACertPath)
+	c := sarama.NewConfig()
+	if cfg.ClientKeyPath != "" {
+		tlsConfig, err := newTLSConfig(cfg.ClientCertPath,
+			cfg.ClientKeyPath,
+			cfg.CACertPath)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// This can be used on test server if domain does not match cert:
 		tlsConfig.InsecureSkipVerify = true
 
-		producerConfig.Net.TLS.Enable = true
-		producerConfig.Net.TLS.Config = tlsConfig
+		c.Net.TLS.Enable = true
+		c.Net.TLS.Config = tlsConfig
 	}
 
 	// if sasl is provided, enable it
-	if kc.cfg.Username != "" {
-		producerConfig.Net.SASL.Enable = true
-		producerConfig.Net.SASL.User = kc.cfg.Username
-		producerConfig.Net.SASL.Password = kc.cfg.Password
+	if cfg.Username != "" {
+		c.Net.SASL.Enable = true
+		c.Net.SASL.User = cfg.Username
+		c.Net.SASL.Password = cfg.Password
 	}
 
-	producerConfig.Producer.Flush.Messages = kc.cfg.BatchSize
-	producerConfig.Producer.Return.Successes = true
+	c.Producer.Flush.Messages = cfg.BatchSize
+	c.Producer.Return.Successes = true
+
+	return c, nil
+}
+
+func (kc *KafkaClient) kafkaSetup() error {
+
+	kc.log.Infof("cfg is: %+v", kc.cfg)
+	producerConfig, err := GetClientConfig(kc.cfg)
+	if err != nil {
+		return err
+	}
 
 	p, err := sarama.NewSyncProducer(kc.cfg.Brokers, producerConfig)
 	if err != nil {

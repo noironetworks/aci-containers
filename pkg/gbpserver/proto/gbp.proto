@@ -6,6 +6,8 @@ package gbpserver;
 service GBP {
 	// Obtains the objects currently in the policy database as a stream
 	rpc ListObjects(Version) returns (stream GBPOperation) {}
+	rpc ListVTEPs(EmptyMsg) returns (VTEPList) {}
+	rpc GetSnapShot(VTEP) returns (ObjectList) {}
 }
 
 // A GBPOperation adds, replaces or deletes a subtree
@@ -51,4 +53,22 @@ message Property {
 message Reference {
 	string subject = 1;
 	string reference_uri = 2;
+}
+
+// VTEP is the ip address of the vtep matching a node.
+message VTEP {
+	string  vtep = 1;
+}
+
+// VTEPList is the list of vteps, corresponding to the connected grpc clients
+message VTEPList {
+	repeated string  vteps = 1;
+}
+
+// ObjectList is a list of GBP objects
+message ObjectList {
+	repeated GBPObject  mo_list = 1;
+}
+
+message EmptyMsg {
 }

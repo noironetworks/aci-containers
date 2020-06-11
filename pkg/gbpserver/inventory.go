@@ -25,9 +25,9 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 type gbpInvMo struct {
@@ -99,6 +99,15 @@ func getInvDB(vtep string) map[string]*gbpInvMo {
 	}
 
 	return db
+}
+
+func getVteps() []string {
+	var vteps []string
+	for k := range theServer.invDB {
+		vteps = append(vteps, k)
+	}
+
+	return vteps
 }
 
 func getInvSubTree(url, vtep string) []*GBPObject {

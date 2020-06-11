@@ -25,13 +25,13 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 	"github.com/noironetworks/aci-containers/pkg/objdb"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

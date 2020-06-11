@@ -30,9 +30,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

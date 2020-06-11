@@ -17,6 +17,7 @@ package gbpserver
 
 import (
 	"fmt"
+	context "golang.org/x/net/context"
 	"net"
 	"strings"
 
@@ -143,4 +144,19 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 			return ss.Context().Err()
 		}
 	}
+}
+
+// Lists VTEPs known to the gbp server per the remote registry
+func (gw *gbpWatch) ListVTEPs(ctx context.Context, in *EmptyMsg) (*VTEPList, error) {
+	return &VTEPList{
+		Vteps: getVteps(),
+	}, nil
+}
+
+// Gets a snapshot of policy for a node specified its vtep
+func (gw *gbpWatch) GetSnapShot(ctx context.Context, in *VTEP) (*ObjectList, error) {
+	objList := getSnapShot(in.Vtep)
+	return &ObjectList{
+		MoList: objList,
+	}, nil
 }
