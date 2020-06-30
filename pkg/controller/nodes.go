@@ -259,7 +259,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 			cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
 		}
 
-		cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + 1
+		cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + 2
 	}
 
 	id, found := cont.tunnelGetter.nodeToTunnel[node.Name]
@@ -268,7 +268,14 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 	}
 
 	id = cont.tunnelGetter.nextID
+	if id > int64(cont.config.MaxCSRTunnels) {
+		cont.log.Infof("Max tunnels %d reached", cont.config.MaxCSRTunnels)
+		return 0
+	}
+
+	// each allocated id packs two tunnels.
 	cont.tunnelGetter.nodeToTunnel[node.Name] = id
+	cont.tunnelGetter.nextID = id + 2
 	state := &crdv1.GBPSState{}
 	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
 	cont.tunnelGetter.stateDriver.Update(state)
@@ -285,7 +292,7 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 	aobj.SetAttr("mgmtIp", getNodeIP(node, v1.NodeInternalIP))
 	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)
 	aobj.SetAttr("kernelVer", node.Status.NodeInfo.KernelVersion)
-    if apicapi.ApicVersion >= 5.0 {
+	if apicapi.ApicVersion >= 5.0 {
 		aobj.SetAttr("id", fmt.Sprintf("%v", tunnelID))
 	}
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
