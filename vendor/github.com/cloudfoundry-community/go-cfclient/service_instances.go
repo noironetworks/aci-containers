@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -97,6 +98,24 @@ func (c *Client) ListServiceInstances() ([]ServiceInstance, error) {
 	return c.ListServiceInstancesByQuery(nil)
 }
 
+func (c *Client) GetServiceInstanceParams(guid string) (map[string]interface{}, error) {
+	req := c.NewRequest("GET", "/v2/service_instances/"+guid+"/parameters")
+	res, err := c.DoRequest(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error requesting service instance parameters")
+	}
+
+	defer res.Body.Close()
+
+	var result map[string]interface{}
+	err = json.NewDecoder(res.Body).Decode(&result)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error JSON parsing service instance parameters")
+	}
+
+	return result, nil
+}
+
 func (c *Client) GetServiceInstanceByGuid(guid string) (ServiceInstance, error) {
 	var sir ServiceInstanceResource
 	req := c.NewRequest("GET", "/v2/service_instances/"+guid)
@@ -144,7 +163,7 @@ func (c *Client) CreateServiceInstance(req ServiceInstanceRequest) (ServiceInsta
 		return ServiceInstance{}, err
 	}
 
-	if res.StatusCode != http.StatusAccepted {
+	if res.StatusCode != http.StatusAccepted && res.StatusCode != http.StatusCreated {
 		return ServiceInstance{}, errors.Wrapf(err, "Error creating service, response code: %d", res.StatusCode)
 	}
 
@@ -161,8 +180,20 @@ func (c *Client) CreateServiceInstance(req ServiceInstanceRequest) (ServiceInsta
 	return c.mergeServiceInstance(sir), nil
 }
 
+func (c *Client) UpdateServiceInstance(serviceInstanceGuid string, updatedConfiguration io.Reader, async bool) error {
+	u := fmt.Sprintf("/v2/service_instances/%s?accepts_incomplete=%t", serviceInstanceGuid, async)
+	resp, err := c.DoRequest(c.NewRequestWithBody("PUT", u, updatedConfiguration))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusAccepted {
+		return errors.Wrapf(err, "Error updating service instance %s, response code %d", serviceInstanceGuid, resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) DeleteServiceInstance(guid string, recursive, async bool) error {
-	resp, err := c.DoRequest(c.NewRequest("DELETE", fmt.Sprintf("/v2/service_instances/%s?recursive=%t&async=%t", guid, recursive, async)))
+	resp, err := c.DoRequest(c.NewRequest("DELETE", fmt.Sprintf("/v2/service_instances/%s?recursive=%t&accepts_incomplete=%t&async=%t", guid, recursive, async, async)))
 	if err != nil {
 		return err
 	}

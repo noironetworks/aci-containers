@@ -38,19 +38,6 @@ type IsolationSegementResponse struct {
 	} `json:"links"`
 }
 
-type Pagination struct {
-	TotalResults int `json:"total_results"`
-	TotalPages   int `json:"total_pages"`
-	First        struct {
-		Href string `json:"href"`
-	} `json:"first"`
-	Last struct {
-		Href string `json:"href"`
-	} `json:"last"`
-	Next     string `json:"next"`
-	Previous string `json:"previous"`
-}
-
 type ListIsolationSegmentsResponse struct {
 	Pagination Pagination                  `json:"pagination"`
 	Resources  []IsolationSegementResponse `json:"resources"`
@@ -142,8 +129,9 @@ func (c *Client) ListIsolationSegmentsByQuery(query url.Values) ([]IsolationSegm
 			})
 		}
 
-		requestUrl = isr.Pagination.Next
-		if requestUrl == "" {
+		var ok bool
+		requestUrl, ok = isr.Pagination.Next.(string)
+		if !ok || requestUrl == "" {
 			break
 		}
 	}
@@ -208,7 +196,7 @@ func (i *IsolationSegment) AddOrg(orgGuid string) error {
 	if err != nil {
 		return errors.Wrap(err, "Error during adding org to isolation segment")
 	}
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Error adding org %s to isolation segment %s, response code: %d", orgGuid, i.Name, resp.StatusCode)
 	}
 	return nil
@@ -218,10 +206,7 @@ func (i *IsolationSegment) RemoveOrg(orgGuid string) error {
 	if i == nil || i.c == nil {
 		return errors.New("No communication handle.")
 	}
-	req := i.c.NewRequest("DELETE", fmt.Sprintf("/v3/isolation_segments/%s/relationships/organizations", i.GUID))
-	req.obj = map[string]interface{}{
-		"guid": orgGuid,
-	}
+	req := i.c.NewRequest("DELETE", fmt.Sprintf("/v3/isolation_segments/%s/relationships/organizations/%s", i.GUID, orgGuid))
 	resp, err := i.c.DoRequest(req)
 	if err != nil {
 		return errors.Wrapf(err, "Error during removing org %s in isolation segment %s", orgGuid, i.Name)

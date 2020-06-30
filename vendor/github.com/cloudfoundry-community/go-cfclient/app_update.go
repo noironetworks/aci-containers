@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/pkg/errors"
 )
 
 type UpdateResponse struct {
-	Metadata                 Meta                   `json:"metadata"`
-	Entity                   UpdateResponseEntity   `json:"entity"`
+	Metadata Meta                 `json:"metadata"`
+	Entity   UpdateResponseEntity `json:"entity"`
 }
+
 type AppUpdateResource struct {
 	Name                     string                 `json:"name,omitempty"`
 	Memory                   int                    `json:"memory,omitempty"`
@@ -19,7 +22,7 @@ type AppUpdateResource struct {
 	DiskQuota                int                    `json:"disk_quota,omitempty"`
 	SpaceGuid                string                 `json:"space_guid,omitempty"`
 	StackGuid                string                 `json:"stack_guid,omitempty"`
-	State                    string                 `json:"state,omitempty"`
+	State                    AppState               `json:"state,omitempty"`
 	Command                  string                 `json:"command,omitempty"`
 	Buildpack                string                 `json:"buildpack,omitempty"`
 	HealthCheckHttpEndpoint  string                 `json:"health_check_http_endpoint,omitempty"`
@@ -62,23 +65,23 @@ type UpdateResponseEntity struct {
 	Diego                    bool                   `json:"diego,omitempty"`
 	DockerImage              string                 `json:"docker_image"`
 	DockerCredentials        struct {
-				Username     string     `json:"username"`
-				Password     string     `json:"password"`
-				}                       `json:"docker_credentials"`
-	PackageUpdatedAt         string                 `json:"package_updated_at"`
-	DetectedStartCommand     string                 `json:"detected_start_command"`
-	EnableSSH                bool                   `json:"enable_ssh"`
-	Ports                    []int                  `json:"ports"`
-	SpaceURL                 string                 `json:"space_url"`
-	StackURL                 string                 `json:"stack_url"`
-	RoutesURL                string                 `json:"routes_url"`
-	EventsURL                string                 `json:"events_url"`
-	ServiceBindingsUrl       string                 `json:"service_bindings_url"`
-	RouteMappingsUrl         string                 `json:"route_mappings_url"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	} `json:"docker_credentials"`
+	PackageUpdatedAt     string `json:"package_updated_at"`
+	DetectedStartCommand string `json:"detected_start_command"`
+	EnableSSH            bool   `json:"enable_ssh"`
+	Ports                []int  `json:"ports"`
+	SpaceURL             string `json:"space_url"`
+	StackURL             string `json:"stack_url"`
+	RoutesURL            string `json:"routes_url"`
+	EventsURL            string `json:"events_url"`
+	ServiceBindingsUrl   string `json:"service_bindings_url"`
+	RouteMappingsUrl     string `json:"route_mappings_url"`
 }
 
 func (c *Client) UpdateApp(guid string, aur AppUpdateResource) (UpdateResponse, error) {
-	var  updateResponse UpdateResponse
+	var updateResponse UpdateResponse
 
 	buf := bytes.NewBuffer(nil)
 	err := json.NewEncoder(buf).Encode(aur)
@@ -104,4 +107,21 @@ func (c *Client) UpdateApp(guid string, aur AppUpdateResource) (UpdateResponse, 
 		return UpdateResponse{}, err
 	}
 	return updateResponse, nil
+}
+
+func (c *Client) RestageApp(guid string) (UpdateResponse, error) {
+	var result UpdateResponse
+
+	req := c.NewRequest("POST", "/v2/apps/"+guid+"/restage")
+	resp, err := c.DoRequest(req)
+	if err != nil {
+		return result, errors.Wrap(err, "Error restaging app:")
+	}
+
+	defer resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return result, err
+	}
+
+	return result, nil
 }
