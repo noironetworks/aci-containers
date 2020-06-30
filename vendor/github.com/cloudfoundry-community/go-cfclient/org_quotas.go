@@ -67,6 +67,8 @@ func (c *Client) ListOrgQuotasByQuery(query url.Values) ([]OrgQuota, error) {
 		}
 		for _, org := range orgQuotasResp.Resources {
 			org.Entity.Guid = org.Meta.Guid
+			org.Entity.CreatedAt = org.Meta.CreatedAt
+			org.Entity.UpdatedAt = org.Meta.UpdatedAt
 			org.Entity.c = c
 			orgQuotas = append(orgQuotas, org.Entity)
 		}
@@ -146,6 +148,17 @@ func (c *Client) UpdateOrgQuota(orgQuotaGUID string, orgQuota OrgQuotaRequest) (
 		return nil, fmt.Errorf("CF API returned with status code %d", resp.StatusCode)
 	}
 	return c.handleOrgQuotaResp(resp)
+}
+
+func (c *Client) DeleteOrgQuota(guid string, async bool) error {
+	resp, err := c.DoRequest(c.NewRequest("DELETE", fmt.Sprintf("/v2/quota_definitions/%s?async=%t", guid, async)))
+	if err != nil {
+		return err
+	}
+	if (async && (resp.StatusCode != http.StatusAccepted)) || (!async && (resp.StatusCode != http.StatusNoContent)) {
+		return errors.Wrapf(err, "Error deleting organization %s, response code: %d", guid, resp.StatusCode)
+	}
+	return nil
 }
 
 func (c *Client) handleOrgQuotaResp(resp *http.Response) (*OrgQuota, error) {

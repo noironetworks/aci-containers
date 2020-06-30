@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,8 +46,8 @@ type Config struct {
 	UserAgent           string `json:"user_agent"`
 }
 
-// request is used to help build up a request
-type request struct {
+// Request is used to help build up a request
+type Request struct {
 	method string
 	url    string
 	params url.Values
@@ -228,9 +229,9 @@ func getInfo(api string, httpClient *http.Client) (*Endpoint, error) {
 	return &endpoint, err
 }
 
-// NewRequest is used to create a new request
-func (c *Client) NewRequest(method, path string) *request {
-	r := &request{
+// NewRequest is used to create a new Request
+func (c *Client) NewRequest(method, path string) *Request {
+	r := &Request{
 		method: method,
 		url:    c.Config.ApiAddress + path,
 		params: make(map[string][]string),
@@ -240,7 +241,7 @@ func (c *Client) NewRequest(method, path string) *request {
 
 // NewRequestWithBody is used to create a new request with
 // arbigtrary body io.Reader.
-func (c *Client) NewRequestWithBody(method, path string, body io.Reader) *request {
+func (c *Client) NewRequestWithBody(method, path string, body io.Reader) *Request {
 	r := c.NewRequest(method, path)
 
 	// Set request body
@@ -250,12 +251,24 @@ func (c *Client) NewRequestWithBody(method, path string, body io.Reader) *reques
 }
 
 // DoRequest runs a request with our client
-func (c *Client) DoRequest(r *request) (*http.Response, error) {
+func (c *Client) DoRequest(r *Request) (*http.Response, error) {
 	req, err := r.toHTTP()
 	if err != nil {
 		return nil, err
 	}
 	return c.Do(req)
+}
+
+// DoRequestWithoutRedirects executes the request without following redirects
+func (c *Client) DoRequestWithoutRedirects(r *Request) (*http.Response, error) {
+	prevCheckRedirect := c.Config.HttpClient.CheckRedirect
+	c.Config.HttpClient.CheckRedirect = func(httpReq *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	defer func() {
+		c.Config.HttpClient.CheckRedirect = prevCheckRedirect
+	}()
+	return c.DoRequest(r)
 }
 
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
@@ -270,14 +283,47 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
+		return c.handleError(resp)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) handleError(resp *http.Response) (*http.Response, error) {
+	body, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return resp, CloudFoundryHTTPError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       body,
+		}
+	}
+	defer resp.Body.Close()
+
+	// Unmarshal V2 error response
+	if strings.HasPrefix(resp.Request.URL.Path, "/v2/") {
 		var cfErr CloudFoundryError
-		if err := decodeBody(resp, &cfErr); err != nil {
-			return resp, errors.Wrap(err, "Unable to decode body")
+		if err := json.Unmarshal(body, &cfErr); err != nil {
+			return resp, CloudFoundryHTTPError{
+				StatusCode: resp.StatusCode,
+				Status:     resp.Status,
+				Body:       body,
+			}
 		}
 		return nil, cfErr
 	}
 
-	return resp, nil
+	// Unmarshal a V3 error response and convert it into a V2 model
+	var cfErrorsV3 CloudFoundryErrorsV3
+	if err := json.Unmarshal(body, &cfErrorsV3); err != nil {
+		return resp, CloudFoundryHTTPError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       body,
+		}
+	}
+	return nil, NewCloudFoundryErrorFromV3Errors(cfErrorsV3)
 }
 
 func (c *Client) refreshEndpoint() error {
@@ -313,8 +359,8 @@ func (c *Client) refreshEndpoint() error {
 	return nil
 }
 
-// toHTTP converts the request to an HTTP request
-func (r *request) toHTTP() (*http.Request, error) {
+// toHTTP converts the request to an HTTP Request
+func (r *Request) toHTTP() (*http.Request, error) {
 
 	// Check if we should encode the body
 	if r.body == nil && r.obj != nil {
@@ -325,7 +371,7 @@ func (r *request) toHTTP() (*http.Request, error) {
 		r.body = b
 	}
 
-	// Create the HTTP request
+	// Create the HTTP Request
 	return http.NewRequest(r.method, r.url, r.body)
 }
 
