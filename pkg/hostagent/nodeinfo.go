@@ -49,6 +49,17 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) {
 			nodeInfo.Spec.SnatPolicyNames = snatpolicies
 			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(context.TODO(), nodeInfo, metav1.UpdateOptions{})
+		} else {
+			// This case can hit restart of the Hostagent and having  same number of policeis present in nodinfo crd.
+			agent.indexMutex.Lock()
+			var poduids []string
+			for name := range snatpolicies {
+				for uuid, _ := range agent.snatPods[name] {
+					poduids = append(poduids, uuid)
+				}
+			}
+			agent.updateEpFiles(poduids)
+			agent.indexMutex.Unlock()
 		}
 	}
 	if err == nil {
