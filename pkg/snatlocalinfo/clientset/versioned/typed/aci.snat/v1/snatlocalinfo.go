@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
@@ -36,14 +37,14 @@ type SnatLocalInfosGetter interface {
 
 // SnatLocalInfoInterface has methods to work with SnatLocalInfo resources.
 type SnatLocalInfoInterface interface {
-	Create(*v1.SnatLocalInfo) (*v1.SnatLocalInfo, error)
-	Update(*v1.SnatLocalInfo) (*v1.SnatLocalInfo, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.SnatLocalInfo, error)
-	List(opts metav1.ListOptions) (*v1.SnatLocalInfoList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.SnatLocalInfo, err error)
+	Create(ctx context.Context, snatLocalInfo *v1.SnatLocalInfo, opts metav1.CreateOptions) (*v1.SnatLocalInfo, error)
+	Update(ctx context.Context, snatLocalInfo *v1.SnatLocalInfo, opts metav1.UpdateOptions) (*v1.SnatLocalInfo, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.SnatLocalInfo, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.SnatLocalInfoList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SnatLocalInfo, err error)
 	SnatLocalInfoExpansion
 }
 
@@ -62,20 +63,20 @@ func newSnatLocalInfos(c *AciV1Client, namespace string) *snatLocalInfos {
 }
 
 // Get takes name of the snatLocalInfo, and returns the corresponding snatLocalInfo object, and an error if there is any.
-func (c *snatLocalInfos) Get(name string, options metav1.GetOptions) (result *v1.SnatLocalInfo, err error) {
+func (c *snatLocalInfos) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.SnatLocalInfo, err error) {
 	result = &v1.SnatLocalInfo{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of SnatLocalInfos that match those selectors.
-func (c *snatLocalInfos) List(opts metav1.ListOptions) (result *v1.SnatLocalInfoList, err error) {
+func (c *snatLocalInfos) List(ctx context.Context, opts metav1.ListOptions) (result *v1.SnatLocalInfoList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -86,13 +87,13 @@ func (c *snatLocalInfos) List(opts metav1.ListOptions) (result *v1.SnatLocalInfo
 		Resource("snatlocalinfos").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested snatLocalInfos.
-func (c *snatLocalInfos) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *snatLocalInfos) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -103,71 +104,74 @@ func (c *snatLocalInfos) Watch(opts metav1.ListOptions) (watch.Interface, error)
 		Resource("snatlocalinfos").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a snatLocalInfo and creates it.  Returns the server's representation of the snatLocalInfo, and an error, if there is any.
-func (c *snatLocalInfos) Create(snatLocalInfo *v1.SnatLocalInfo) (result *v1.SnatLocalInfo, err error) {
+func (c *snatLocalInfos) Create(ctx context.Context, snatLocalInfo *v1.SnatLocalInfo, opts metav1.CreateOptions) (result *v1.SnatLocalInfo, err error) {
 	result = &v1.SnatLocalInfo{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(snatLocalInfo).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a snatLocalInfo and updates it. Returns the server's representation of the snatLocalInfo, and an error, if there is any.
-func (c *snatLocalInfos) Update(snatLocalInfo *v1.SnatLocalInfo) (result *v1.SnatLocalInfo, err error) {
+func (c *snatLocalInfos) Update(ctx context.Context, snatLocalInfo *v1.SnatLocalInfo, opts metav1.UpdateOptions) (result *v1.SnatLocalInfo, err error) {
 	result = &v1.SnatLocalInfo{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
 		Name(snatLocalInfo.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(snatLocalInfo).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the snatLocalInfo and deletes it. Returns an error if one occurs.
-func (c *snatLocalInfos) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *snatLocalInfos) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *snatLocalInfos) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *snatLocalInfos) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched snatLocalInfo.
-func (c *snatLocalInfos) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.SnatLocalInfo, err error) {
+func (c *snatLocalInfos) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.SnatLocalInfo, err error) {
 	result = &v1.SnatLocalInfo{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("snatlocalinfos").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

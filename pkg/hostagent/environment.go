@@ -29,6 +29,7 @@ import (
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
+	snatlocalinfoclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 )
 
@@ -43,16 +44,17 @@ type Environment interface {
 }
 
 type K8sEnvironment struct {
-	kubeClient        *kubernetes.Clientset
-	snatGlobalClient  *snatglobalclset.Clientset
-	snatPolicyClient  *snatpolicyclset.Clientset
-	nodeInfo          *nodeinfoclientset.Clientset
-	rdConfig          *rdconfigclset.Clientset
-	agent             *HostAgent
-	podInformer       cache.SharedIndexInformer
-	endpointsInformer cache.SharedIndexInformer
-	serviceInformer   cache.SharedIndexInformer
-	nodeInformer      cache.SharedIndexInformer
+	kubeClient          *kubernetes.Clientset
+	snatGlobalClient    *snatglobalclset.Clientset
+	snatPolicyClient    *snatpolicyclset.Clientset
+	nodeInfo            *nodeinfoclientset.Clientset
+	rdConfig            *rdconfigclset.Clientset
+	snatLocalInfoClient *snatlocalinfoclset.Clientset
+	agent               *HostAgent
+	podInformer         cache.SharedIndexInformer
+	endpointsInformer   cache.SharedIndexInformer
+	serviceInformer     cache.SharedIndexInformer
+	nodeInformer        cache.SharedIndexInformer
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -115,8 +117,13 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize snatpolicy info client")
 		return nil, err
 	}
+	snatLocalInfoClient, err := snatlocalinfoclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize snatpolicy info client")
+		return nil, err
+	}
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, rdConfig: rdConfig}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
