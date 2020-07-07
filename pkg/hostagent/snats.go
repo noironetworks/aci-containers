@@ -764,8 +764,8 @@ func (agent *HostAgent) syncSnat() bool {
 			snatinfo.Uuid = ginfo.SnatIpUid
 			snatinfo.Zone = agent.config.Zone
 			snatinfo.Remote = remoteinfo[ginfo.SnatIp]
-			opflexSnatIps[ginfo.SnatIp] = &snatinfo
-			agent.log.Debug("Opflex Snat data IP: ", opflexSnatIps[ginfo.SnatIp])
+			opflexSnatIps[ginfo.SnatIpUid] = &snatinfo
+			agent.log.Debug("Opflex Snat data IP: ", opflexSnatIps[ginfo.SnatIpUid])
 		}
 	}
 	agent.indexMutex.Unlock()
@@ -939,6 +939,7 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 	}
 	if syncEp {
 		agent.scheduleSyncEps()
+		agent.scheduleSyncLocalInfo()
 	}
 }
 
@@ -1173,6 +1174,7 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 			agent.updateEpFiles(podidlist)
 		} else {
 			agent.scheduleSyncEps()
+			agent.scheduleSyncLocalInfo()
 		}
 	}
 }
