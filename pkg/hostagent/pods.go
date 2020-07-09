@@ -202,20 +202,18 @@ func (agent *HostAgent) syncEps() bool {
 				}
 				agent.indexMutex.Lock()
 				agent.log.Debug("snat local info", agent.opflexSnatLocalInfos)
-				for k, v := range agent.opflexSnatLocalInfos {
-					if k == poduuid {
-						if agent.opflexSnatLocalInfos[poduuid].MarkDelete == true {
-							delete(agent.opflexSnatLocalInfos, poduuid)
-							agent.log.Debug("Restting Snat IP in ep file")
-							ep.SnatIp = ""
-							break
-						}
+				v, present := agent.opflexSnatLocalInfos[poduuid]
+				agent.indexMutex.Unlock()
+				if present {
+					if v.MarkDelete == true {
+						delete(agent.opflexSnatLocalInfos, poduuid)
+						agent.log.Debug("Restting Snat IP in ep file")
+						ep.SnatIp = ""
+					} else {
 						ep.SnatIp = v.SnatIp
 						agent.log.Debug("Ep file updated with Snat IP", ep.SnatIp)
-						break
 					}
 				}
-				agent.indexMutex.Unlock()
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -239,9 +237,18 @@ func (agent *HostAgent) syncEps() bool {
 			if seen[ep.Uuid] {
 				continue
 			}
-
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
+
 			epfile := agent.FormEPFilePath(ep.Uuid)
+
+			poduuid := strings.Split(ep.Uuid, "_")[0]
+			agent.indexMutex.Lock()
+			v, ok := agent.opflexSnatLocalInfos[poduuid]
+			agent.indexMutex.Unlock()
+			if ok {
+				ep.SnatIp = v.SnatIp
+				agent.log.Debug("Ep file updated with Snat IP", ep.SnatIp)
+			}
 			_, err = writeEp(epfile, ep)
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
