@@ -41,8 +41,8 @@ type SnatLocalInfoList struct {
 }
 
 type LocalInfo struct {
-	PodName        string `json:"podName"`
-	PodNamespace   string `json:"podNamespace"`
-	SnatIp         string `json:"snatIp"`
-	SnatPolicyName string `json:"snatPolicyName"`
+	PodName         string              `json:"podName"`
+	PodNamespace    string              `json:"podNamespace"`
+	SnatIpToDests   map[string][]string `json:"snatIpToDests"`
+	SnatPolicyNames []string            `json:"snatPolicyNames"`
 }
