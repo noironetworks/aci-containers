@@ -1180,7 +1180,21 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 }
 
 func (cont *AciController) networkPolicyDeleted(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
+    np, isNetworkpolicy := obj.(*v1net.NetworkPolicy)
+    if !isNetworkpolicy {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+            networkPolicyLogger(cont.log, np).
+                Error("Received unexpected object: ", obj)
+            return
+        }
+        np, ok = deletedState.Obj.(*v1net.NetworkPolicy)
+        if !ok {
+            networkPolicyLogger(cont.log, np).
+                Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
+            return
+        }
+    }
 	npkey, err := cache.MetaNamespaceKeyFunc(np)
 	if err != nil {
 		networkPolicyLogger(cont.log, np).
