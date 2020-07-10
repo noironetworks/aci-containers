@@ -98,7 +98,21 @@ func (cont *AciController) replicaSetChanged(oldobj interface{},
 }
 
 func (cont *AciController) replicaSetDeleted(obj interface{}) {
-	rs := obj.(*appsv1.ReplicaSet)
+    rs, isReplicaset := obj.(*appsv1.ReplicaSet)
+    if !isReplicaset {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+			replicaSetLogger(cont.log, rs).
+            	Error("Received unexpected object: ", obj)
+            return
+        }
+        rs, ok = deletedState.Obj.(*appsv1.ReplicaSet)
+        if !ok {
+			replicaSetLogger(cont.log, rs).
+            	Error("DeletedFinalStateUnknown contained non-Replicaset object: ", deletedState.Obj)
+            return
+        }
+    }
 	rskey, err :=
 		cache.MetaNamespaceKeyFunc(rs)
 	if err != nil {

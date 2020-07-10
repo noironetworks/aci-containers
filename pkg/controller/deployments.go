@@ -146,7 +146,19 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 }
 
 func (cont *AciController) deploymentDeleted(obj interface{}) {
-	dep := obj.(*appsv1.Deployment)
+	dep, isDeployment := obj.(*appsv1.Deployment)
+	if !isDeployment {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object:", obj)
+			return
+		}
+		dep, ok = deletedState.Obj.(*appsv1.Deployment)
+		if !ok {
+		    cont.log.Error("DeletedFinalStateUnknown contained non-Deployment object: ", deletedState.Obj)
+			return
+		}
+	}
 	depkey, err :=
 		cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
