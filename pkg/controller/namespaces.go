@@ -101,7 +101,19 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 }
 
 func (cont *AciController) namespaceDeleted(obj interface{}) {
-	ns := obj.(*v1.Namespace)
+    ns, isNamespace := obj.(*v1.Namespace)
+    if !isNamespace {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+            return
+        }
+        ns, ok = deletedState.Obj.(*v1.Namespace)
+        if !ok {
+		    cont.log.Error("DeletedFinalStateUnknown contained non-Namespace object: ", deletedState.Obj)
+            return
+        }
+    }
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("ns", ns.Name))
 	cont.depPods.DeleteNamespace(ns)
 	cont.netPolPods.DeleteNamespace(ns)

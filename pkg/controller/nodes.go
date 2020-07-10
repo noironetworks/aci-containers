@@ -414,7 +414,19 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 }
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
-	node := obj.(*v1.Node)
+    node, isNode := obj.(*v1.Node)
+    if !isNode {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+            return
+        }
+        node, ok = deletedState.Obj.(*v1.Node)
+        if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-Node object: ", deletedState.Obj)
+            return
+        }
+    }
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node", node.Name))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node-vmm", node.Name))
 

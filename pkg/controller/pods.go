@@ -173,7 +173,19 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 }
 
 func (cont *AciController) podDeleted(obj interface{}) {
-	pod := obj.(*v1.Pod)
+    pod, isPod := obj.(*v1.Pod)
+    if !isPod {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+            cont.log.Error("Received unexpected object: ", obj)
+            return
+        }
+        pod, ok = deletedState.Obj.(*v1.Pod)
+        if !ok {
+            cont.log.Error("DeletedFinalStateUnknown contained non-Pod object: ", deletedState.Obj)
+            return
+        }
+    }
 	logger := podLogger(cont.log, pod)
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {

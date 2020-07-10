@@ -1247,7 +1247,19 @@ func (cont *AciController) endpointsAdded(obj interface{}) {
 }
 
 func (cont *AciController) endpointsDeleted(obj interface{}) {
-	endpoints := obj.(*v1.Endpoints)
+    endpoints, isEndpoints := obj.(*v1.Endpoints)
+    if !isEndpoints {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+            cont.log.Error("Received unexpected object: ", obj)
+            return
+        }
+        endpoints, ok = deletedState.Obj.(*v1.Endpoints)
+        if !ok {
+            cont.log.Error("DeletedFinalStateUnknown contained non-Endpoints object: ", deletedState.Obj)
+            return
+        }
+    }
 	servicekey, err := cache.MetaNamespaceKeyFunc(endpoints)
 	if err != nil {
 		cont.log.Error("Could not create service key: ", err)
@@ -1334,7 +1346,21 @@ func (cont *AciController) serviceUpdated(old interface{}, new interface{}) {
 }
 
 func (cont *AciController) serviceDeleted(obj interface{}) {
-	service := obj.(*v1.Service)
+    service, isService := obj.(*v1.Service)
+    if !isService {
+        deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+        if !ok {
+            serviceLogger(cont.log, service).
+				Error("Received unexpected object: ", obj)
+            return
+        }
+        service, ok = deletedState.Obj.(*v1.Service)
+        if !ok {
+            serviceLogger(cont.log, service).
+				Error("DeletedFinalStateUnknown contained non-Services object: ", deletedState.Obj)
+            return
+        }
+    }
 	servicekey, err := cache.MetaNamespaceKeyFunc(service)
 	if err != nil {
 		serviceLogger(cont.log, service).
