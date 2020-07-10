@@ -19,6 +19,7 @@ package hostagent
 import (
 	"context"
 	snatLocalInfov1 "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
@@ -59,26 +60,30 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		localInfo.snatpolicyName = ginfo.SnatPolicyName
 		snatLocalInfo[ginfo.SnatIpUid] = localInfo
 	}
-	localInfos := make(map[string]snatLocalInfov1.LocalInfo)
+	var localInfos []snatLocalInfov1.LocalInfo
 	for uid, v := range agent.opflexSnatLocalInfos {
 		var localinfo snatLocalInfov1.LocalInfo
-		localinfo.SnatIpToDests = make(map[string][]string)
+		var policies []snatLocalInfov1.SnatPolicy
 		for _, plcyUid := range v.PlcyUuids {
 			if linfo, ok := snatLocalInfo[plcyUid]; ok {
-				localinfo.SnatIpToDests[linfo.snatIp] = linfo.destIps
-				localinfo.SnatPolicyNames = append(localinfo.SnatPolicyNames, linfo.snatpolicyName)
+				var policy snatLocalInfov1.SnatPolicy
+				policy.SnatIp = linfo.snatIp
+				policy.DestIp = linfo.destIps
+				policy.Name = linfo.snatpolicyName
+				policies = append(policies, policy)
 			}
 		}
-		existing, ok := agent.opflexEps[uid]
-		if ok {
-			// @TODO need revisit this code how to copy the podName and Namespace
-			for _, ep := range existing {
-				localinfo.PodName = ep.Attributes["vm-name"]
-				localinfo.PodNamespace = ep.Attributes["namespace"]
-				break
-			}
+		epkey := agent.podUidToName[uid]
+		podobj, exists, err := agent.podInformer.GetStore().GetByKey(epkey)
+		if exists && err == nil {
+			pod := podobj.(*v1.Pod)
+			localinfo.PodName = pod.ObjectMeta.Name
+			localinfo.PodNamespace = pod.ObjectMeta.Namespace
+			agent.log.Debug("PodName:", localinfo.PodName)
 		}
-		localInfos[uid] = localinfo
+		localinfo.PodUid = uid
+		localinfo.SnatPolicies = policies
+		localInfos = append(localInfos, localinfo)
 	}
 	agent.indexMutex.Unlock()
 	snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
@@ -96,8 +101,11 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 			_, err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Create(context.TODO(), snatLocalInfoInstance, metav1.CreateOptions{})
 		}
 	} else {
-		if !reflect.DeepEqual(snatLocalInfoCr.Spec.LocalInfos, localInfos) {
-			snatLocalInfoCr.Spec.LocalInfos = localInfos
+		Spec := snatLocalInfov1.SnatLocalInfoSpec{
+			LocalInfos: localInfos,
+		}
+		if !reflect.DeepEqual(snatLocalInfoCr.Spec, Spec) {
+			snatLocalInfoCr.Spec = Spec
 			_, err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Update(context.TODO(), snatLocalInfoCr, metav1.UpdateOptions{})
 		}
 	}

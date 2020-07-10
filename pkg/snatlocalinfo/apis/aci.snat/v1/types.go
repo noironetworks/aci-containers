@@ -9,16 +9,7 @@ type SnatLocalInfoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Nodename   string               `json:"nodename"`
-	LocalInfos map[string]LocalInfo `json:"localInfos"`
-}
-
-// SnatLocalInfoStatus defines the observed state of SnatLocalInfo
-type SnatLocalInfoStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Status string `json:"status"`
+	LocalInfos []LocalInfo `json:"localInfos"`
 }
 
 // +genclient
@@ -28,8 +19,7 @@ type SnatLocalInfo struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SnatLocalInfoSpec   `json:"spec,omitempty"`
-	Status SnatLocalInfoStatus `json:"status,omitempty"`
+	Spec SnatLocalInfoSpec `json:"spec,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -40,9 +30,15 @@ type SnatLocalInfoList struct {
 	Items           []SnatLocalInfo `json:"items"`
 }
 
+type SnatPolicy struct {
+	Name   string   `json:"name"`
+	SnatIp string   `json:"snatIp"`
+	DestIp []string `json:"destIp"`
+}
+
 type LocalInfo struct {
-	PodName         string              `json:"podName"`
-	PodNamespace    string              `json:"podNamespace"`
-	SnatIpToDests   map[string][]string `json:"snatIpToDests"`
-	SnatPolicyNames []string            `json:"snatPolicyNames"`
+	PodName      string       `json:"podName"`
+	PodNamespace string       `json:"podNamespace"`
+	PodUid       string       `json:"podUid"`
+	SnatPolicies []SnatPolicy `json:"snatPolicies"`
 }

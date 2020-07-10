@@ -51,6 +51,7 @@ type HostAgent struct {
 	epMetadata         map[string]map[string]*md.ContainerMetadata
 	podIpToName        map[string]string
 	cniToPodID         map[string]string
+	podUidToName       map[string]string
 	serviceEp          md.ServiceEndpoint
 	crdClient          aciv1.AciV1Interface
 	podInformer        cache.SharedIndexInformer
@@ -109,6 +110,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
 		podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
+		podUidToName:   make(map[string]string),
 
 		podIps: ipam.NewIpCache(),
 
