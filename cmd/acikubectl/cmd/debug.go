@@ -1,4 +1,4 @@
-// Copyright © 2017 Cisco Systems, Inc.
+// Copyright ÃÂ© 2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -167,10 +167,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(systemNamespace),
 		},
-                {
-                        name: "cluster-report/logs/operator/acioperator.log",
-                        args: acioperatorLogCmdArgs(systemNamespace),
-                },
+		{
+			name: "cluster-report/logs/operator/acioperator.log",
+			args: acioperatorLogCmdArgs(systemNamespace),
+		},
 		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
@@ -180,11 +180,11 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: []string{"-n", systemNamespace, "describe", "deployment",
 				"aci-containers-controller"},
 		},
-                {
-                        name: "cluster-report/status/acioperator_deployment_status.log",
-                        args: []string{"-n", systemNamespace, "describe", "deployment",
-                                "aci-containers-operator"},
-                },
+		{
+			name: "cluster-report/status/acioperator_deployment_status.log",
+			args: []string{"-n", systemNamespace, "describe", "deployment",
+				"aci-containers-operator"},
+		},
 		{
 			name: "cluster-report/status/host_daemonset_status.log",
 			args: []string{"-n", systemNamespace, "describe", "daemonset",
@@ -207,19 +207,30 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/cluster-info.log",
 			args: []string{"cluster-info"},
 		},
-                {
-                        name: "cluster-report/status/configmap_controller.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
-                },
-                {
-                        name: "cluster-report/status/configmap_snatoperator.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
-                },
-                {
-                        name: "cluster-report/status/configmap_acioperator.log",
-                        args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
-                },
-
+		{
+			name: "cluster-report/status/configmap_controller.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
+		},
+		{
+			name: "cluster-report/status/configmap_snatoperator.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
+		},
+		{
+			name: "cluster-report/status/configmap_acioperator.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
+		},
+		{
+			name: "cluster-report/status/snat_policy.log",
+			args: []string{"describe", "snatpolicy"},
+		},
+		{
+			name: "cluster-report/status/snat_localinfo.log",
+			args: []string{"-n", systemNamespace, "describe", "snatlocalinfo"},
+		},
+		{
+			name: "cluster-report/status/snat_globalinfo.log",
+			args: []string{"-n", systemNamespace, "describe", "snatglobalinfo"},
+		},
 	}
 
 	// Get all nodes of k8s cluster
@@ -271,14 +282,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			argFunc:  inspectArgs,
 			args:     []string{"-urq", "DmtreeRoot"},
 		},
-                {
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-int.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  ovsOfCtlArgs,
 			args:     []string{"show", "br-int"},
 		},
-                {
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-access.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
@@ -443,9 +454,9 @@ func accLogCmdArgs(systemNamespace string) []string {
 }
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
-        return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
-                "deployment/aci-containers-operator",
-                "-c", "aci-containers-operator"}
+	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+		"deployment/aci-containers-operator",
+		"-c", "aci-containers-operator"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
