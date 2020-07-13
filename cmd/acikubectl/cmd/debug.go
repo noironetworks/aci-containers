@@ -220,6 +220,18 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/configmap_acioperator.log",
 			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
 		},
+		{
+			name: "cluster-report/status/snat_policy.log",
+			args: []string{"describe", "snatpolicy"},
+		},
+		{
+			name: "cluster-report/status/snat_localinfo.log",
+			args: []string{"-n", systemNamespace, "describe", "snatlocalinfo"},
+		},
+		{
+			name: "cluster-report/status/snat_globalinfo.log",
+			args: []string{"-n", systemNamespace, "describe", "snatglobalinfo"},
+		},
 	}
 
 	// Get all nodes of k8s cluster
