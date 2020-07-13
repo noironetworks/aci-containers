@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/time/rate"
 
@@ -51,6 +51,7 @@ type HostAgent struct {
 	epMetadata         map[string]map[string]*md.ContainerMetadata
 	podIpToName        map[string]string
 	cniToPodID         map[string]string
+	podUidToName       map[string]string
 	serviceEp          md.ServiceEndpoint
 	crdClient          aciv1.AciV1Interface
 	podInformer        cache.SharedIndexInformer
@@ -109,6 +110,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		epMetadata:     make(map[string]map[string]*md.ContainerMetadata),
 		podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
+		podUidToName:   make(map[string]string),
 
 		podIps: ipam.NewIpCache(),
 
@@ -141,12 +143,13 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 	}
 
 	ha.syncProcessors = map[string]func() bool{
-		"eps":          ha.syncEps,
-		"services":     ha.syncServices,
-		"opflexServer": ha.syncOpflexServer,
-		"snat":         ha.syncSnat,
-		"snatnodeInfo": ha.syncSnatNodeInfo,
-		"rdconfig":     ha.syncRdConfig}
+		"eps":           ha.syncEps,
+		"services":      ha.syncServices,
+		"opflexServer":  ha.syncOpflexServer,
+		"snat":          ha.syncSnat,
+		"snatnodeInfo":  ha.syncSnatNodeInfo,
+		"rdconfig":      ha.syncRdConfig,
+		"snatLocalInfo": ha.UpdateLocalInfoCr}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -255,6 +258,9 @@ func (agent *HostAgent) scheduleSyncNodeInfo() {
 }
 func (agent *HostAgent) scheduleSyncRdConfig() {
 	agent.ScheduleSync("rdconfig")
+}
+func (agent *HostAgent) scheduleSyncLocalInfo() {
+	agent.ScheduleSync("snatLocalInfo")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
