@@ -63,6 +63,7 @@ type GBPServerConfig struct {
 	// APIC info
 	Apic       *ApicInfo `json:"apic,omitempty"`
 	SyncRemEps bool      `json:"sync-rem-eps",omitempty"`
+	CSRList    string    `json:"csr-list",omitempty"`
 
 	PushJsonFile bool `json:"push-json-file,omitempty"`
 }
@@ -114,4 +115,5 @@ func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "node subnet")
 	flag.BoolVar(&config.PushJsonFile, "push-json-file", false, "push file to opflexserver (testing)")
 	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
+	flag.StringVar(&config.CSRList, "csr-list", "", "comma separated list of csr vteps")
 }

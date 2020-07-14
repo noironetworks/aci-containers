@@ -45,9 +45,11 @@ type EPSyncer struct {
 	aw        *ApicWatcher
 	epgQuery  string
 	crdClient aciv1.AciV1Interface
+	csrList   string
 }
 
 func (eps *EPSyncer) Init() error {
+	eps.csrList = eps.gs.Config().CSRList
 	tenant := eps.gs.Config().AciPolicyTenant
 	vrf := eps.gs.Config().AciVrf
 	eps.epgQuery = fmt.Sprintf("/api/mo/uni/tn-%s/ctx-%s.json?query-target=children&target-subtree-class=fvRtCloudEPgCtx", tenant, vrf)
@@ -185,8 +187,9 @@ func (eps *EPSyncer) AddExtEP(subnet, epgDn string) {
 	// k8s doesn't like the | character in names
 	pi_name = strings.Replace(pi_name, "|", "-", -1)
 	pi_name = strings.Replace(pi_name, "_", "-", -1)
+        pi_name = strings.ToLower(pi_name)
 	_, err := eps.crdClient.PodIFs("kube-system").Get(context.TODO(), pi_name, metav1.GetOptions{})
-	ep := &crdv1.PodIF{Status: crdv1.PodIFStatus{IPAddr: subnet, EPG: epgName}}
+	ep := &crdv1.PodIF{Status: crdv1.PodIFStatus{IPAddr: subnet, EPG: epgName, VTEP: eps.csrList}}
 	ep.ObjectMeta.Name = pi_name
 	if err != nil {
 		_, err = eps.crdClient.PodIFs("kube-system").Create(context.TODO(), ep, metav1.CreateOptions{})
