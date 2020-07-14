@@ -50,12 +50,13 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				continue
 			}
 			// giving extra headroom of 100 bytes
-			if link.MTU < 100+agent.config.InterfaceMtu {
+			configMtu := 100 + agent.config.InterfaceMtu
+			if link.MTU < configMtu {
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
 					"mtu":  link.MTU,
-				}).Error("OpFlex link MTU must be >= 1600")
+				}).Error("OpFlex link MTU must be >= ", configMtu)
 				return
 			}
 
@@ -67,12 +68,12 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				}
 
 				parent = plink
-				if parent.Attrs().MTU < 100+agent.config.InterfaceMtu {
+				if parent.Attrs().MTU < configMtu {
 					agent.log.WithFields(logrus.Fields{
 						"name": parent.Attrs().Name,
 						"vlan": agent.config.AciInfraVlan,
 						"mtu":  parent.Attrs().MTU,
-					}).Error("Uplink MTU must be >= 1600")
+					}).Error("Uplink MTU must be >= ", configMtu)
 					return
 				}
 			}
