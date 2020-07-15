@@ -387,6 +387,32 @@ var metadata = map[string]*apicMeta{
 			"addr": "",
 		},
 	},
+	"qosRequirement" : {
+		attributes: map[string]interface{}{
+                        "name":            "",
+                },
+                children: []string{
+			"qosRsEgressDppPol",
+			"qosRsIngressDppPol",
+                },
+	},
+	"qosRsEgressDppPol": {
+                attributes: map[string]interface{}{
+			"tDn": "",
+		},
+        },
+	"qosRsIngressDppPol": {
+                attributes: map[string]interface{}{
+                        "tDn": "",
+                },
+        },
+	"qosDppPol" : {
+		attributes: map[string]interface{}{
+                        "name":         "",
+			"burst":        "unspecified",
+			"rate" :        "0",
+                },
+	},
 	"vnsLDevVip": {
 		attributes: map[string]interface{}{
 			"name":         "",
