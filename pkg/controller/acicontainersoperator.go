@@ -85,6 +85,7 @@ type Controller struct {
 var Version = map[string]bool{
 	"openshift-4.3": true,
 	"cloud":         true,
+	"openshift-4.4-esx": true,
 }
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
