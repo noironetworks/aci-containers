@@ -15,18 +15,18 @@
 package hostagent
 
 import (
-	"github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
+	record "k8s.io/client-go/tools/record"
 	"net"
-        record "k8s.io/client-go/tools/record"
-        "time"
+	"time"
 )
 
 const nodename = "test-node"
@@ -51,9 +51,9 @@ type testHostAgent struct {
 func testAgent() *testHostAgent {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	hcf := &HostAgentConfig{
-		NodeName:  nodename,
-		NetConfig: []cniNetConfig{ncf},
-                GroupDefaults: GroupDefaults{DefaultEg: metadata.OpflexGroup{Name: "aci-containers-test|aci-contianers-default"}},
+		NodeName:      nodename,
+		NetConfig:     []cniNetConfig{ncf},
+		GroupDefaults: GroupDefaults{DefaultEg: metadata.OpflexGroup{Name: "aci-containers-test|aci-contianers-default"}},
 	}
 	return testAgentWithConf(hcf)
 }
@@ -101,7 +101,7 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			ListFunc:  agent.fakeServiceSource.List,
 			WatchFunc: agent.fakeServiceSource.Watch,
 		})
-	agent.usedIPs = make(map[string]bool)
+	agent.usedIPs = make(map[string]string)
 
 	agent.fakeNamespaceSource = framework.NewFakeControllerSource()
 	agent.initNamespaceInformerBase(
@@ -151,7 +151,7 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	agent.poster = &EventPoster{
 		recorder:           record.NewFakeRecorder(100),
 		eventSubmitTimeMap: make(map[string]time.Time),
-        }
+	}
 	agent.initNetPolPodIndex()
 	agent.initNetPolPodIndex()
 	agent.initDepPodIndex()
