@@ -21,12 +21,16 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
+
+func makePodKey(ns, name string) string {
+	return fmt.Sprintf("%s.%s", ns, name)
+}
 
 func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 	result := ipam.New()
@@ -38,12 +42,13 @@ func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 
 // builds the used IP info from metadata, at init.
 func (agent *HostAgent) buildUsedIPs() {
-	agent.usedIPs = make(map[string]bool)
+	agent.usedIPs = make(map[string]string)
 	for _, mds := range agent.epMetadata {
 		for _, md := range mds {
+			podKey := makePodKey(md.Id.Namespace, md.Id.Pod)
 			for _, iface := range md.Ifaces {
 				for _, ip := range iface.IPs {
-					agent.usedIPs[ip.Address.IP.String()] = true
+					agent.usedIPs[ip.Address.IP.String()] = podKey
 				}
 			}
 		}
@@ -58,7 +63,7 @@ func (agent *HostAgent) rebuildIpam() {
 		ipAddr := net.ParseIP(ip)
 		if ipAddr != nil {
 			if !agent.podIps.RemoveIp(ipAddr) {
-				agent.log.Errorf("Unable to find used IP %s in range", ip)
+				agent.log.Errorf("Unable to find used IP %s(%s) in range", ip, agent.usedIPs[ip])
 			}
 		} else {
 			agent.log.Warnf("Couldn't parse %v", ip)
@@ -124,7 +129,7 @@ func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
 	free[len(free)-1].AddIp(ip)
 }
 
-func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
+func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey string) error {
 	var result error
 	var err error
 	agent.ipamMutex.Lock()
@@ -137,13 +142,13 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %v", err)
 		} else {
-			_, found := agent.usedIPs[ip.String()]
+			oldKey, found := agent.usedIPs[ip.String()]
 			if found {
-				agent.log.Errorf("Duplicate IP %v allocated", ip.String())
+				agent.log.Errorf("Duplicate IP %v allocated prev: %s", ip.String(), oldKey)
 			}
 			iface.IPs =
 				append(iface.IPs, makeIFaceIp(nc, ip))
-			agent.usedIPs[ip.String()] = true
+			agent.usedIPs[ip.String()] = podKey
 		}
 	}
 
