@@ -251,6 +251,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"container": metadata.Id.ContId,
 	})
 
+	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
 	logger.Debug("Setting up veth")
 	if len(metadata.Ifaces) == 0 {
 		return nil, errors.New("No interfaces specified")
@@ -274,7 +275,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			// We're doing ip address management
 
 			logger.Debug("Allocating IP address(es) for ", iface.Name)
-			err = agent.allocateIps(iface)
+			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
 			}

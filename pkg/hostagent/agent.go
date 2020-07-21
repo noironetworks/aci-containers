@@ -59,7 +59,8 @@ type HostAgent struct {
 	rcPods             *index.PodSelectorIndex
 	podNetAnnotation   string
 	podIps             *ipam.IpCache
-	usedIPs            map[string]bool
+	usedIPs            map[string]string
+	initialIPCount     int
 
 	syncEnabled         bool
 	opflexConfigWritten bool

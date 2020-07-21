@@ -91,7 +91,7 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			ListFunc:  agent.fakeServiceSource.List,
 			WatchFunc: agent.fakeServiceSource.Watch,
 		})
-	agent.usedIPs = make(map[string]bool)
+	agent.usedIPs = make(map[string]string)
 
 	agent.fakeNamespaceSource = framework.NewFakeControllerSource()
 	agent.initNamespaceInformerBase(

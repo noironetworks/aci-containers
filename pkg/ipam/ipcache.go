@@ -70,6 +70,22 @@ func (iplists *IpCache) AllocateIp(ipv4 bool) (net.IP, error) {
 	}
 }
 
+func (iplists *IpCache) GetCount(ipv4 bool) int {
+	var count int64
+
+	if ipv4 {
+		for ix := range iplists.cacheIpsV4 {
+			count += iplists.cacheIpsV4[ix].GetSize()
+		}
+	} else {
+		for ix := range iplists.cacheIpsV6 {
+			count += iplists.cacheIpsV6[ix].GetSize()
+		}
+	}
+
+	return int(count)
+}
+
 //Adds the Ip to the used list of Ips
 func (iplists *IpCache) DeallocateIp(ip net.IP) {
 	if ip.To4() != nil {

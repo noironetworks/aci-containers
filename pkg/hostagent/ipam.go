@@ -28,6 +28,10 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
+func makePodKey(ns, name string) string {
+	return fmt.Sprintf("%s.%s", ns, name)
+}
+
 func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 	result := ipam.New()
 	for _, r := range ranges {
@@ -38,12 +42,13 @@ func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
 
 // builds the used IP info from metadata, at init.
 func (agent *HostAgent) buildUsedIPs() {
-	agent.usedIPs = make(map[string]bool)
+	agent.usedIPs = make(map[string]string)
 	for _, mds := range agent.epMetadata {
 		for _, md := range mds {
+			podKey := makePodKey(md.Id.Namespace, md.Id.Pod)
 			for _, iface := range md.Ifaces {
 				for _, ip := range iface.IPs {
-					agent.usedIPs[ip.Address.IP.String()] = true
+					agent.usedIPs[ip.Address.IP.String()] = podKey
 				}
 			}
 		}
@@ -58,7 +63,7 @@ func (agent *HostAgent) rebuildIpam() {
 		ipAddr := net.ParseIP(ip)
 		if ipAddr != nil {
 			if !agent.podIps.RemoveIp(ipAddr) {
-				agent.log.Errorf("Unable to find used IP %s in range", ip)
+				agent.log.Errorf("Unable to find used IP %s(%s) in range", ip, agent.usedIPs[ip])
 			}
 		} else {
 			agent.log.Warnf("Couldn't parse %v", ip)
@@ -77,6 +82,12 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 	}
 	agent.podNetAnnotation = newPodNetAnnotation
 
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
+	agent.updateIpamLocked()
+}
+
+func (agent *HostAgent) updateIpamLocked() {
 	newRanges := &metadata.NetIps{}
 	err := json.Unmarshal([]byte(agent.podNetAnnotation), newRanges)
 	if err != nil {
@@ -84,8 +95,6 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 		return
 	}
 
-	agent.ipamMutex.Lock()
-	defer agent.ipamMutex.Unlock()
 	agent.podIps = ipam.NewIpCache()
 	if newRanges.V4 != nil {
 		agent.podIps.LoadRanges(newRanges.V4)
@@ -94,6 +103,7 @@ func (agent *HostAgent) updateIpamAnnotation(newPodNetAnnotation string) {
 		agent.podIps.LoadRanges(newRanges.V6)
 	}
 
+	agent.initialIPCount = agent.podIps.GetCount(true)
 	agent.rebuildIpam()
 }
 
@@ -124,9 +134,27 @@ func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
 	free[len(free)-1].AddIp(ip)
 }
 
-func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
+func (agent *HostAgent) ipamCheck() {
+	agent.ipamMutex.Lock()
+	defer agent.ipamMutex.Unlock()
+
+	available := agent.podIps.GetCount(true)
+	if available > 0 {
+		return
+	}
+
+	if len(agent.usedIPs) < agent.initialIPCount {
+		agent.log.Warnf("ipam: available: %d used: %d initial: %d", available, len(agent.usedIPs), agent.initialIPCount)
+		agent.updateIpamLocked()
+		available = agent.podIps.GetCount(true)
+		agent.log.Infof("ipamResync: available: %d used: %d initial: %d", available, len(agent.usedIPs), agent.initialIPCount)
+	}
+}
+
+func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey string) error {
 	var result error
 	var err error
+	agent.ipamCheck()
 	agent.ipamMutex.Lock()
 	defer agent.ipamMutex.Unlock()
 
@@ -137,13 +165,13 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd) error {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %v", err)
 		} else {
-			_, found := agent.usedIPs[ip.String()]
+			oldKey, found := agent.usedIPs[ip.String()]
 			if found {
-				agent.log.Errorf("Duplicate IP %v allocated", ip.String())
+				agent.log.Errorf("Duplicate IP %v allocated prev: %s", ip.String(), oldKey)
 			}
 			iface.IPs =
 				append(iface.IPs, makeIFaceIp(nc, ip))
-			agent.usedIPs[ip.String()] = true
+			agent.usedIPs[ip.String()] = podKey
 		}
 	}
 

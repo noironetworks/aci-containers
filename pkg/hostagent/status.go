@@ -26,6 +26,12 @@ type agentStatus struct {
 	Endpoints int             `json:"endpoints,omitempty"`
 	Services  int             `json:"services,omitempty"`
 	PodIps    metadata.NetIps `json:"pod-ips,omitempty"`
+	UsedIPs   int             `json:"used-ips,omitempty"`
+}
+
+type ipamStatus struct {
+	PodIps    metadata.NetIps `json:"pod-ips,omitempty"`
+	UsedIPs   map[string]string `json:"used-ips,omitempty"`
 }
 
 func (agent *HostAgent) RunStatus() {
@@ -69,8 +75,22 @@ func (agent *HostAgent) RunStatus() {
 				V4: agent.podIps.CombineV4(),
 				V6: agent.podIps.CombineV6(),
 			},
+			UsedIPs:  len(agent.usedIPs),
 		}
 		json.NewEncoder(w).Encode(status)
+		agent.indexMutex.Unlock()
+	})
+	http.HandleFunc("/ipam", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		agent.indexMutex.Lock()
+		is := &ipamStatus{
+			PodIps: metadata.NetIps{
+				V4: agent.podIps.CombineV4(),
+				V6: agent.podIps.CombineV6(),
+			},
+			UsedIPs: agent.usedIPs,
+		}
+		json.NewEncoder(w).Encode(is)
 		agent.indexMutex.Unlock()
 	})
 	agent.log.Info("Starting status server")
