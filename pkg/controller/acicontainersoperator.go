@@ -90,7 +90,6 @@ var Version = map[string]bool{
 }
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
-	"openshift-4.4-openstack": true,
 }
 
 const aciContainersController = "aci-containers-controller"
