@@ -42,6 +42,27 @@ func addGroup(gset map[metadata.OpflexGroup]bool, g []metadata.OpflexGroup,
 	return g
 }
 
+func (agent *HostAgent) assignqosPolicies(pod *v1.Pod) ([]metadata.OpflexGroup, error) {
+	//var policies []metadata.OpflexGroup
+
+	logger := podLogger(agent.log, pod)
+
+	var g []metadata.OpflexGroup
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		logger.Error("Could not create pod key: ", err)
+		return g, err
+	}
+	gset := make(map[metadata.OpflexGroup]bool)
+
+	// Add qos policies that directly select this pod
+	for _, qpkey := range agent.qosPolPods.GetObjForPod(podkey) {
+		g = addGroup(gset, g, agent.config.DefaultEg.PolicySpace,
+			util.AciNameForKey(agent.config.AciPrefix, "qp", qpkey))
+	}
+	return g, nil
+}
+
 func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 	namespace *v1.Namespace, sgval []metadata.OpflexGroup) ([]metadata.OpflexGroup, error) {
 	gset := make(map[metadata.OpflexGroup]bool)

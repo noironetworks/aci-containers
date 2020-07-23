@@ -22,6 +22,8 @@ import (
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	qospolicy "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
+	qosclientset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
@@ -50,6 +52,7 @@ type Environment interface {
 
 type K8sEnvironment struct {
 	kubeClient       *kubernetes.Clientset
+	qosClient        *qosclientset.Clientset
 	snatClient       *snatclientset.Clientset
 	snatGlobalClient *snatglobalclset.Clientset
 	nodeInfoClient   *nodeinfoclientset.Clientset
@@ -86,6 +89,12 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("Initializing qos client")
+	qosClient, err := qosclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize qos client")
+		return nil, err
+	}
 	log.Debug("Initializing snat client")
 	snatClient, err := snatclientset.NewForConfig(restconfig)
 	if err != nil {
@@ -111,9 +120,10 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize AciIstio client")
 		return nil, err
 	}
-	return &K8sEnvironment{kubeClient: kubeClient, snatClient: snatClient,
-		snatGlobalClient: snatGlobalClient, nodeInfoClient: nodeInfoClient,
-		rdConfigClient: rdConfigClient, istioClient: istioClient}, nil
+	return &K8sEnvironment{kubeClient: kubeClient, qosClient: qosClient,
+		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
+		nodeInfoClient: nodeInfoClient, rdConfigClient: rdConfigClient,
+		istioClient: istioClient}, nil
 }
 
 func (env *K8sEnvironment) VmmPolicy() string {
@@ -136,6 +146,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	env.cont = cont
 	kubeClient := env.kubeClient
 	snatClient := env.snatClient
+	qosClient := env.qosClient
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
 		return kubeClient.CoreV1().Pods(pod.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
@@ -158,6 +169,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.serviceEndPoints.InitClientInformer(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
+	cont.initQosInformerFromClient(qosClient)
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
 	cont.initSnatCfgFromClient(kubeClient)
@@ -241,6 +253,12 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, stopCh)
+	go cont.qosInformer.Run(stopCh)
+	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
+		func(obj interface{}) bool {
+			return cont.handleQosPolUpdate(obj.(*qospolicy.QosPolicy))
+		}, stopCh)
+	cont.log.Info("Qos cache sync successful")
 	go cont.snatNodeInformer.Run(stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
@@ -266,6 +284,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
 		cont.networkPolicyInformer.HasSynced,
+		cont.qosInformer.HasSynced,
 		cont.snatNodeInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	return nil
