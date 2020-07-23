@@ -31,6 +31,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
+	qospolicy "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
+        qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 )
 
 func (agent *HostAgent) initNamespaceInformerFromClient(
@@ -174,6 +176,90 @@ func (agent *HostAgent) initNetPolPodIndex() {
 		},
 	)
 	agent.netPolPods.SetPodUpdateCallback(func(podkey string) {
+		podobj, exists, err := agent.podInformer.GetIndexer().GetByKey(podkey)
+		if exists && err == nil {
+			agent.podUpdated(podobj.(*v1.Pod))
+		}
+	})
+}
+
+func (agent *HostAgent) initQoSPolicyInformerFromClient(
+	qosClient *qospolicyclset.Clientset	) {
+	agent.initQoSPolicyInformerBase(
+		cache.NewListWatchFromClient(
+			qosClient.AciV1().RESTClient(), "qospolicies",
+			metav1.NamespaceAll, fields.Everything()))
+}
+
+func (agent *HostAgent) initQoSPolicyInformerBase(listWatch *cache.ListWatch) {
+	agent.qosPolicyInformer =
+		cache.NewSharedIndexInformer(
+			listWatch, &qospolicy.QosPolicy{}, 0,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+
+	agent.qosPolicyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.qosPolicyAdded(obj)
+		},
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			agent.qosPolicyChanged(oldobj, newobj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.qosPolicyDeleted(obj)
+		},
+	},
+	)
+}
+
+func (agent *HostAgent) qosPolicyAdded(obj interface{}) {
+	agent.qosPolPods.UpdateSelectorObj(obj)
+}
+
+func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
+	oldnp := oldobj.(*qospolicy.QosPolicy)
+	newnp := newobj.(*qospolicy.QosPolicy)
+	if !reflect.DeepEqual(oldnp.Spec.Selector, newnp.Spec.Selector) {
+		agent.qosPolPods.UpdateSelectorObjNoCallback(newobj)
+	}
+
+	npkey, err := cache.MetaNamespaceKeyFunc(newnp)
+	if err != nil {
+		logrus.Error("Could not create qos policy key: ", err)
+		return
+	}
+
+	if !reflect.DeepEqual(oldnp.Spec.Ingress, newnp.Spec.Ingress) {
+		peerPodKeys := agent.qosPolPods.GetPodForObj(npkey)
+		for _, podkey := range peerPodKeys {
+			agent.podChanged(&podkey)
+		}
+	}
+	if !reflect.DeepEqual(oldnp.Spec.Egress, newnp.Spec.Egress) {
+                peerPodKeys := agent.qosPolPods.GetPodForObj(npkey)
+                for _, podkey := range peerPodKeys {
+                        agent.podChanged(&podkey)
+                }
+        }
+}
+
+func (agent *HostAgent) qosPolicyDeleted(obj interface{}) {
+	agent.qosPolPods.DeleteSelectorObj(obj)
+}
+
+func (agent *HostAgent) initQoSPolPodIndex() {
+	agent.qosPolPods = index.NewPodSelectorIndex(
+		agent.log,
+		agent.podInformer.GetIndexer(), agent.nsInformer.GetIndexer(), agent.qosPolicyInformer.GetIndexer(),
+		cache.MetaNamespaceKeyFunc,
+		func(obj interface{}) []index.PodSelector {
+			qp := obj.(*qospolicy.QosPolicy)
+			ls := &metav1.LabelSelector{MatchLabels: qp.Spec.Selector.Labels}
+			return index.PodSelectorFromNsAndSelector(qp.ObjectMeta.Namespace,
+				ls)
+		},
+	)
+	agent.qosPolPods.SetPodUpdateCallback(func(podkey string) {
 		podobj, exists, err := agent.podInformer.GetIndexer().GetByKey(podkey)
 		if exists && err == nil {
 			agent.podUpdated(podobj.(*v1.Pod))
