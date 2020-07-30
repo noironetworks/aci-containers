@@ -215,7 +215,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		cont.deleteNodeinfoFromGlInfoCache(nodename)
 		updated = true
 	} else {
-		for name, _ := range nodeinfo.Spec.SnatPolicyNames {
+		for name := range nodeinfo.Spec.SnatPolicyNames {
 			cont.indexMutex.Lock()
 			snatpolicy, ok := cont.snatPolicyCache[name]
 			cont.indexMutex.Unlock()
@@ -401,7 +401,7 @@ func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []s
 
 func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]struct{},
 	newPolicynames map[string]struct{}, nodename string) {
-	for oldkey, _ := range oldPolicyNames {
+	for oldkey := range oldPolicyNames {
 		if _, ok := newPolicynames[oldkey]; !ok {
 			cont.clearSnatGlobalCache(oldkey, nodename)
 			//cont.setSnatPolicyStaus(oldkey, snatv1.Ready)
@@ -450,7 +450,7 @@ func (cont *AciController) handleSnatPoilcyUpdate(policyName string) {
 func (cont *AciController) handleSnatPolicyPortAllocFailures(allocfailed map[string]bool, nodename string) bool {
 	// Any alloc failures mark the policy with Status IpPortsExhausted
 	cont.indexMutex.Lock()
-	for name, _ := range allocfailed {
+	for name := range allocfailed {
 		if _, ok := cont.snatPortExhaustedPolicies[nodename]; !ok {
 			cont.snatPortExhaustedPolicies[nodename] = make(map[string]bool)
 			cont.snatPortExhaustedPolicies[nodename][name] = true
@@ -466,7 +466,7 @@ func (cont *AciController) handleSnatPolicyPortAllocFailures(allocfailed map[str
 	// if there is no allocc failure and check Policy present in snatPortExhaustedPolicie
 	// Mark the Policy Ready
 	if len(cont.snatPortExhaustedPolicies[nodename]) != 0 {
-		for name, _ := range cont.snatPortExhaustedPolicies[nodename] {
+		for name := range cont.snatPortExhaustedPolicies[nodename] {
 			if _, ok := allocfailed[name]; !ok {
 				if cont.setSnatPolicyStaus(name, snatv1.Ready) == true {
 					cont.indexMutex.Unlock()

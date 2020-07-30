@@ -16,11 +16,11 @@ package loadbalancer
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"sync"
 )

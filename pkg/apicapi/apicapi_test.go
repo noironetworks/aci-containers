@@ -31,8 +31,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"

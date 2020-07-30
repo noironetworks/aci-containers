@@ -20,8 +20,8 @@ package hostagent
 import (
 	"reflect"
 
-	"github.com/sirupsen/logrus"
 	"github.com/noironetworks/aci-containers/pkg/index"
+	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"

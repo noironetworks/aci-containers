@@ -155,7 +155,7 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 		}
 		dep, ok = deletedState.Obj.(*appsv1.Deployment)
 		if !ok {
-		    cont.log.Error("DeletedFinalStateUnknown contained non-Deployment object: ", deletedState.Obj)
+			cont.log.Error("DeletedFinalStateUnknown contained non-Deployment object: ", deletedState.Obj)
 			return
 		}
 	}

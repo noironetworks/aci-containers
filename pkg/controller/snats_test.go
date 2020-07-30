@@ -97,7 +97,7 @@ func TestSnatGraph(t *testing.T) {
 	rsProv := apicExtNetProv(name, "common", "l3out", "ext1")
 
 	portRanges := []portRangeSnat{
-		portRangeSnat{
+		{
 			start: 5000,
 			end:   65000,
 		},

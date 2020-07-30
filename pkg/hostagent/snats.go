@@ -286,7 +286,7 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 		agent.updateEpFiles(poduids)
 		agent.handleSnatUpdate(newpolicyinfo)
 		var matchingpods []string
-		for uuid, _ := range agent.snatPods[newpolicyinfo.ObjectMeta.Name] {
+		for uuid := range agent.snatPods[newpolicyinfo.ObjectMeta.Name] {
 			matchingpods = append(matchingpods, uuid)
 		}
 		// Nodeinfo trigger handles if handlesnatUpdate don't match any pods
@@ -353,7 +353,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 		// This Policy will be applied at cluster level
 		var poduids []string
 		// handle policy for cluster
-		for k, _ := range agent.opflexEps {
+		for k := range agent.opflexEps {
 			poduids = append(poduids, k)
 		}
 		uids[CLUSTER] = poduids
@@ -686,7 +686,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 	if updateLocalInfo {
 		var poduids []string
 		for _, v := range agent.opflexSnatGlobalInfos[agent.config.NodeName] {
-			for uuid, _ := range agent.snatPods[v.SnatPolicyName] {
+			for uuid := range agent.snatPods[v.SnatPolicyName] {
 				poduids = append(poduids, uuid)
 			}
 		}

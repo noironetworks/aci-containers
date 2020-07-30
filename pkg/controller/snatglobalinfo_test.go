@@ -183,11 +183,11 @@ func TestSnatnodeInfo(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
-		"node-2": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
+		"node-1": {SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": {SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
 	}
 	expected1 := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-1": {SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"])
 	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
@@ -244,7 +244,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": snatglobalinfo.GlobalInfo{SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
+		"node-1": {SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
 	cont.stop()
