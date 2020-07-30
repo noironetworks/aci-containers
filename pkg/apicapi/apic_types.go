@@ -24,8 +24,8 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/sirupsen/logrus"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 type ApicObjectBody struct {

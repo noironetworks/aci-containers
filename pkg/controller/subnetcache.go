@@ -47,7 +47,7 @@ func (cont *AciController) UpdateSubnetDnCache(subnetDn string, subnetIp string,
 	subnetDelimiter := "/subnet"
 	subnetParentDn := strings.Split(subnetDn, subnetDelimiter)[0]
 	var inCache = false
-	for k, _ := range cont.apicConn.CachedSubnetDns {
+	for k := range cont.apicConn.CachedSubnetDns {
 		if subnetParentDn == strings.Split(k, subnetDelimiter)[0] {
 			cont.log.Debug("subnetParentDn is in cachedSubnets:", subnetParentDn)
 			cont.apicConn.CachedSubnetDns[subnetDn] = subnetIp

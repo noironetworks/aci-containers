@@ -23,8 +23,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/coreos/etcd/client"
+	log "github.com/sirupsen/logrus"
 )
 
 type API interface {
@@ -43,7 +43,7 @@ type API interface {
 // EtcdClient has etcd client state
 type EtcdClient struct {
 	client client.Client // etcd client
-	kapi    client.KeysAPI
+	kapi   client.KeysAPI
 	root   string
 }
 
@@ -61,7 +61,7 @@ func NewClient(endpoints []string, root string) (API, error) {
 	}
 
 	etcdConfig := client.Config{
-		Endpoints:   endpoints,
+		Endpoints: endpoints,
 	}
 
 	// Create a new client

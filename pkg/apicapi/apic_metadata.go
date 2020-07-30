@@ -36,10 +36,10 @@ var portNormalizations = map[string]string{
 	"554": "rtsp",
 }
 
-var classDepth = map[string]int {
-	"cloudEPg": 4,
-	"vzBrCP": 3,
-	"vzFilter": 3,
+var classDepth = map[string]int{
+	"cloudEPg":    4,
+	"vzBrCP":      3,
+	"vzFilter":    3,
 	"hostprotPol": 3,
 }
 

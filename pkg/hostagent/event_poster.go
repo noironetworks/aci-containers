@@ -115,7 +115,7 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	agent.indexMutex.Unlock()
 	if !srcOk {
 		agent.log.Trace("srcPodKey for ", packetEvent.SourceIP, ": ", srcPodKey,
-				", may not be a pod or not a local pod")
+			", may not be a pod or not a local pod")
 	} else {
 		obj1, srcExists, err := agent.podInformer.GetStore().GetByKey(srcPodKey)
 		if err == nil {
@@ -145,7 +145,7 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	agent.indexMutex.Unlock()
 	if !dstOk {
 		agent.log.Trace("dstPodKey for ", packetEvent.DestinationIP, ": ", dstPodKey,
-				", may not be a pod or not a local pod")
+			", may not be a pod or not a local pod")
 	} else {
 		obj2, dstExists, err := agent.podInformer.GetStore().GetByKey(dstPodKey)
 		if err == nil {
