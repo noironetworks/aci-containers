@@ -93,13 +93,22 @@ if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP_CIDR" ]]; then
     #FNAME=${UUID}.ep
     FNAME=veth_host_ac.ep
 
+HOST_IPS=$VTEP_IP_CIDR
+IP_LIST=$(ip addr | awk '/inet /' | awk '!/127.0.0.1/{print $2}')
+for ip_addr in $IP_LIST
+do
+    if [ "$ip_addr" != "$VTEP_IP_CIDR" ]
+    then
+        HOST_IPS="$HOST_IPS\",\"$ip_addr"
+    fi
+done
 cat <<EOF > ${VARDIR}/lib/opflex-agent-ovs/endpoints/${FNAME}
 {
   "uuid": "$UUID",
   "eg-policy-space": "$TENANT",
   "endpoint-group-name": "$NODE_EPG",
   "ip": [
-    "$VTEP_IP_CIDR"
+    "$HOST_IPS"
   ],
   "mac": "$ACC_MAC",
   "disable-adv": true,
