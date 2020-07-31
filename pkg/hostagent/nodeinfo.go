@@ -54,7 +54,7 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 			agent.indexMutex.Lock()
 			var poduids []string
 			for name := range snatpolicies {
-				for uuid, _ := range agent.snatPods[name] {
+				for uuid := range agent.snatPods[name] {
 					poduids = append(poduids, uuid)
 				}
 			}

@@ -34,7 +34,7 @@ func TestDiffPorts(t *testing.T) {
 	agent := testAgent()
 	agent.config.AccessBridgeName = "br-access"
 	agent.config.IntBridgeName = "br-int"
-        agent.config.OpflexMode = "overlay"
+	agent.config.OpflexMode = "overlay"
 
 	partialBr := map[string]ovsBridge{
 		"br-access": {
@@ -62,7 +62,7 @@ func TestDiffPorts(t *testing.T) {
 	}
 	emptyBrWhostac := map[string]ovsBridge{
 		"br-access": {
-			uuid: "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
+			uuid:  "86d9e696-00d0-43dd-9fd2-d43f7f6a883d",
 			ports: map[string]string{},
 		},
 		"br-int": {

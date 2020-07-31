@@ -44,6 +44,8 @@ BUILD_CMD ?= go build -v
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
+GOFMT_CHK_CMD := gofmt -s -l
+GOFMT_FIX_CMD := gofmt -s -w
 GIT_COMMIT=$(shell scripts/getGitCommit.sh)
 PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
@@ -195,7 +197,13 @@ container-simpleservice: dist-static/simpleservice
 container-operator: dist-static/aci-containers-operator
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-operator${DOCKER_TAG} -f ./docker/Dockerfile-operator .
 
-check: check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
+check-gofmt:
+	@${GOFMT_CHK_CMD} pkg | grep ".go"; test $$? -ne 0 || exit 1
+
+fix-gofmt:
+	@${GOFMT_FIX_CMD} pkg
+
+check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
 check-ipam:
 	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:

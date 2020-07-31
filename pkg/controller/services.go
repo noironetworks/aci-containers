@@ -403,9 +403,9 @@ func apicContract(conName string, tenantName string,
 	if isSnat {
 		inTerm := apicapi.NewVzInTerm(csDn)
 		outTerm := apicapi.NewVzOutTerm(csDn)
-        inTerm.AddChild(apicapi.NewVzRsInTermGraphAtt(inTerm.GetDn(), graphName))
+		inTerm.AddChild(apicapi.NewVzRsInTermGraphAtt(inTerm.GetDn(), graphName))
 		inTerm.AddChild(apicapi.NewVzRsFiltAtt(inTerm.GetDn(), conName+"_fromCons-toProv"))
-        outTerm.AddChild(apicapi.NewVzRsOutTermGraphAtt(outTerm.GetDn(), graphName))
+		outTerm.AddChild(apicapi.NewVzRsOutTermGraphAtt(outTerm.GetDn(), graphName))
 		outTerm.AddChild(apicapi.NewVzRsFiltAtt(outTerm.GetDn(), conName+"_fromProv-toCons"))
 		cs.AddChild(inTerm)
 		cs.AddChild(outTerm)
@@ -446,7 +446,7 @@ func apicFilterEntry(filterDn string, count string, p_start string,
 	fe.SetAttr("prot", protocol)
 	if snat {
 		if outTerm {
-		    if protocol == "tcp" {
+			if protocol == "tcp" {
 				fe.SetAttr("tcpRules", "est")
 			}
 			// Reverse the ports for outTerm

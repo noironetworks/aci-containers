@@ -19,7 +19,7 @@ fi
 if [ -w /mnt/cni-conf ]; then
     # Install CNI configuration
     mkdir -p /mnt/cni-conf/cni/net.d
-    cat <<EOF > /mnt/cni-conf/cni/net.d/10-opflex-cni.conf
+    cat <<EOF > /mnt/cni-conf/cni/net.d/01-opflex-cni.conf
 {
    "cniVersion": "0.3.1",
    "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],

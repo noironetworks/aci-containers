@@ -18,10 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"reflect"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/socketplane/libovsdb"
+	"reflect"
+	"strconv"
 )
 
 type ovsBridge struct {
@@ -244,34 +244,34 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			} else {
 				agent.log.Debug("Adding drop log integration port ", agent.config.DropLogIntInterface)
 				adds, err := addDropLogIfaceOps(agent,
-								"int_",
-								bridges[agent.config.IntBridgeName].uuid,
-								"1",
-								agent.config.DropLogIntInterface)
+					"int_",
+					bridges[agent.config.IntBridgeName].uuid,
+					"1",
+					agent.config.DropLogIntInterface)
 				if err != nil {
 					agent.log.Error(err)
 				}
 				ops = append(ops, adds...)
 			}
-                       agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{agent.config.DropLogIntInterface}
-                       accbr, ok := bridges[agent.config.AccessBridgeName]
-                       if ok {
-                               if _, dlpok := accbr.ports[agent.config.DropLogAccessInterface]; dlpok {
-                                       found[agent.config.AccessBridgeName][agent.config.DropLogAccessInterface] = true
-                               } else {
-                                       agent.log.Debug("Adding drop log access port ", agent.config.DropLogAccessInterface)
-                                       adds, err := addDropLogIfaceOps(agent,
-                                                                        "access_",
-                                                                       bridges[agent.config.AccessBridgeName].uuid,
-                                                                       "2",
-                                                                       agent.config.DropLogAccessInterface)
-                                       if err != nil {
-                                               agent.log.Error(err)
-                                       }
-                                       ops = append(ops, adds...)
-                               }
-                               agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{agent.config.DropLogAccessInterface}
-                       }
+			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{agent.config.DropLogIntInterface}
+			accbr, ok := bridges[agent.config.AccessBridgeName]
+			if ok {
+				if _, dlpok := accbr.ports[agent.config.DropLogAccessInterface]; dlpok {
+					found[agent.config.AccessBridgeName][agent.config.DropLogAccessInterface] = true
+				} else {
+					agent.log.Debug("Adding drop log access port ", agent.config.DropLogAccessInterface)
+					adds, err := addDropLogIfaceOps(agent,
+						"access_",
+						bridges[agent.config.AccessBridgeName].uuid,
+						"2",
+						agent.config.DropLogAccessInterface)
+					if err != nil {
+						agent.log.Error(err)
+					}
+					ops = append(ops, adds...)
+				}
+				agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{agent.config.DropLogAccessInterface}
+			}
 		}
 		// check if acc bridge exists and add host veth if needed
 		accbr, ok := bridges[agent.config.AccessBridgeName]
@@ -397,11 +397,11 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 
 func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, encapKey string,
 	ifaceName string) ([]libovsdb.Operation, error) {
-	const dropLogIngressPolicingRate = 1000;
-	const dropLogIngressPolicingBurst = 100;
+	const dropLogIngressPolicingRate = 1000
+	const dropLogIngressPolicingBurst = 100
 	uuidDropLogI := bridgeType + "genv_iface"
 	uuidDropLogP := bridgeType + "genv_port"
-        agent.log.Debug(reflect.TypeOf(uuidDropLogI))
+	agent.log.Debug(reflect.TypeOf(uuidDropLogI))
 	opti, err := libovsdb.NewOvsMap(map[string]interface{}{
 		"key":       encapKey,
 		"remote_ip": "flow",
@@ -425,10 +425,10 @@ func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, e
 			Op:    "insert",
 			Table: "Interface",
 			Row: map[string]interface{}{
-				"name":    ifaceName,
-				"type":    "geneve",
-				"options": opti,
-				"ingress_policing_rate": dropLogIngressPolicingRate,
+				"name":                   ifaceName,
+				"type":                   "geneve",
+				"options":                opti,
+				"ingress_policing_rate":  dropLogIngressPolicingRate,
 				"ingress_policing_burst": dropLogIngressPolicingBurst,
 			},
 			UUIDName: uuidDropLogI,

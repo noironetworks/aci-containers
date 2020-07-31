@@ -117,20 +117,20 @@ type PodIFList struct {
 type GBPSState struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Status  GBPSStatus  `json:"status"`
+	Status            GBPSStatus `json:"status"`
 }
 
 // GBPSSpec is the spec for a gbpserver
 type GBPSSpec struct {
-	ApiPort string `json:"api-port,omitempty"`
+	ApiPort      string `json:"api-port,omitempty"`
 	InsecurePort string `json:"insecure-port,omitempty"`
-	ApicURL string `json:"apic-url,omitempty"`
-	AwsRegion string `json:"aws-region,omitempty"`
+	ApicURL      string `json:"apic-url,omitempty"`
+	AwsRegion    string `json:"aws-region,omitempty"`
 }
 
 // GBPSStatus is the operational state for a gbpserver
 type GBPSStatus struct {
-	ClassIDs map[string]uint `json:"class-ids,omitempty"`
+	ClassIDs  map[string]uint  `json:"class-ids,omitempty"`
 	TunnelIDs map[string]int64 `json:"tunnel-ids,omitempty"`
 }
 
