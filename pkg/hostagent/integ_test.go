@@ -235,10 +235,13 @@ func (it *integ) cniDelParallel(start, end int) {
 func (it *integ) checkEpGroups(id int, epg, sg string) {
 	epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)
 	epfile := it.ta.FormEPFilePath(epid)
+	it.checkEpEpFile(epfile, epg, sg)
+}
+
+func (it *integ) checkEpEpFile(epfile, epg, sg string) {
 	var secGroups []metadata.OpflexGroup
 	err := json.Unmarshal([]byte(sg), &secGroups)
 	assert.Equal(it.t, nil, err)
-
 	tu.WaitFor(it.t, "checking epg in epfile", 100*time.Millisecond,
 		func(last bool) (bool, error) {
 			var ep opflexEndpoint
@@ -257,6 +260,12 @@ func (it *integ) checkEpGroups(id int, epg, sg string) {
 
 			return false, nil
 		})
+}
+
+func (it *integ) checkUpdatedEpGroups(cid, podid int, epg, sg string) {
+	epid := fmt.Sprintf("%d%s_%d%s_", podid, testPodID, cid, testPodID)
+	epfile := it.ta.FormEPFilePath(epid)
+	it.checkEpEpFile(epfile, epg, sg)
 }
 
 func (it *integ) addPodObj(id int, ns, eg, sg string, labels map[string]string) {
@@ -810,4 +819,85 @@ func TestSnatPolicyDep(t *testing.T) {
 	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.cniDelParallel(5, 10)
 	it.cniDelParallel(6, 10)
+}
+
+//1. Create the 2 pods
+//2. change the containerID Interface for one of the pod
+//3. check that EP files updated accordingly
+// 4. Check the length of the used IP's are not changed
+func TestEPUpdateContainerId(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "node1",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+
+			NamespaceDefaultEg: map[string]metadata.OpflexGroup{
+				"ns1": {
+					PolicySpace: "tenantA",
+					Name:        "ns1EPG",
+				},
+				"ns2": {
+					PolicySpace: "tenantA",
+					Name:        "ns2EPG",
+				},
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// Add pods intf via cni
+	it.cniAddParallel(0, 2)
+
+	time.Sleep(10 * time.Millisecond)
+	it.addPodObj(0, testPodNS, "", "", nil)
+	it.addPodObj(1, testPodNS, testEgAnnot1, "", nil)
+	time.Sleep(1000 * time.Millisecond)
+	// 1. change the ContainerID for Pod0
+	name := fmt.Sprintf("pod%d", 0)
+	cid := fmt.Sprintf("%d%s", 2, testPodID)
+	err := it.cniAdd(name, cid, testIfName)
+	if err != nil {
+		it.t.Error(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// Check that EP file according to new IP details and containerId
+	it.checkUpdatedEpGroups(2, 0, "defaultEPG", emptyJSON)
+	it.checkEpGroups(1, "test-prof|test-eg", emptyJSON)
+	// Check for length of IP's is 2.
+	tu.WaitFor(it.t, "Checking for length of Ip's", 100*time.Millisecond,
+		func(last bool) (bool, error) {
+			return tu.WaitEqual(it.t, last, 2, len(it.ta.usedIPs), "wrong number of podIp's allocated"), nil
+		})
+	log.Infof("length of used Ips %d", len(it.ta.usedIPs))
+	it.cniDelParallel(0, 2)
+	time.Sleep(10 * time.Millisecond)
+	err = it.cniDel(name, cid)
+	if err != nil {
+		it.t.Error(err)
+	}
+	// verify ep files are deleted
+	delVerify := func(cid, podid int) {
+		epid := fmt.Sprintf("%d%s_%d%s_", podid, testPodID, cid, testPodID)
+		epfile := it.ta.FormEPFilePath(epid)
+		tu.WaitFor(it.t, "checking in epfile delete", 100*time.Millisecond,
+			func(last bool) (bool, error) {
+				_, err := getEp(epfile)
+				return tu.WaitNotEqual(it.t, last, err, nil, "epfile not removed"), nil
+			})
+	}
+
+	delVerify(1, 1)
+	delVerify(0, 2)
+
 }
