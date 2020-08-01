@@ -102,9 +102,8 @@ func TestSnatGraph(t *testing.T) {
 			end:   65000,
 		},
 	}
-	contract := apicContract(name, "common", graphName, "global", true)
-	filterIn := apicFilterSnat(name+"_fromCons-toProv", "common", portRanges, false)
-	filterOut := apicFilterSnat(name+"_fromProv-toCons", "common", portRanges, true)
+	contract := apicContract(name, "common", graphName, "global")
+	filter := apicFilterSnat(name, "common", portRanges)
 	cc := apicDevCtx(name, "common", graphName,
 		"kube_bd_kubernetes-service", twoNodeRedirect.GetDn())
 
@@ -163,7 +162,7 @@ func TestSnatGraph(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat graph creation", cont, expected)
@@ -174,7 +173,7 @@ func TestSnatGraph(t *testing.T) {
 	expected2 := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filter, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat graph addition", cont, expected2)
@@ -184,7 +183,7 @@ func TestSnatGraph(t *testing.T) {
 	expectedDeleteSnatPolicy := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filter, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat policy deleted", cont, expectedDeleteSnatPolicy)
