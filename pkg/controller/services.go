@@ -992,7 +992,16 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	aobj.SetAttr("guid", string(service.UID))
 	// APIC model only allows one of these
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		aobj.SetAttr("lbIp", ingress.IP)
+		if ingress.IP != "" && ingress.IP != "0.0.0.0" {
+			aobj.SetAttr("lbIp", ingress.IP)
+		} else if ingress.Hostname != "" {
+			ipList, err := net.LookupHost(ingress.Hostname)
+			if err == nil && len(ipList) > 0 {
+				aobj.SetAttr("lbIp", ipList[0])
+			} else {
+				cont.log.Errorf("Lookup: err: %v, ipList: %+v", err, ipList)
+			}
+		}
 		break
 	}
 	if service.Spec.ClusterIP != "" && service.Spec.ClusterIP != "None" {
@@ -1038,6 +1047,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 
 	name := cont.aciNameForKey("service-vmm", key)
 	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
+	cont.log.Debugf("svcObject: %+v", aobj)
 }
 
 func (cont *AciController) allocateServiceIps(servicekey string,
