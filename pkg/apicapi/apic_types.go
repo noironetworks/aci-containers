@@ -806,6 +806,44 @@ func NewVzSubj(parentDn string, name string) ApicObject {
 	return ret
 }
 
+func NewVzInTerm(parentDn string) ApicObject {
+	ret := newApicObject("vzInTerm")
+	ret["vzInTerm"].Attributes["dn"] =
+		fmt.Sprintf("%s/intmnl", parentDn)
+	return ret
+}
+
+func NewVzOutTerm(parentDn string) ApicObject {
+	ret := newApicObject("vzOutTerm")
+	ret["vzOutTerm"].Attributes["dn"] =
+		fmt.Sprintf("%s/outtmnl", parentDn)
+	return ret
+}
+
+func NewVzRsFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
+	ret := newApicObject("vzRsFiltAtt")
+	ret["vzRsFiltAtt"].Attributes["tnVzFilterName"] = tnVzFilterName
+	ret["vzRsFiltAtt"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsfiltAtt-%s", parentDn, tnVzFilterName)
+	return ret
+}
+
+func NewVzRsInTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject {
+	ret := newApicObject("vzRsInTermGraphAtt")
+	ret["vzRsInTermGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
+	ret["vzRsInTermGraphAtt"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsInTermGraphAtt", parentDn)
+	return ret
+}
+
+func NewVzRsOutTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject {
+	ret := newApicObject("vzRsOutTermGraphAtt")
+	ret["vzRsOutTermGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
+	ret["vzRsOutTermGraphAtt"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsOutTermGraphAtt", parentDn)
+	return ret
+}
+
 func NewVzRsSubjFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
 	ret := newApicObject("vzRsSubjFiltAtt")
 	ret["vzRsSubjFiltAtt"].Attributes["tnVzFilterName"] = tnVzFilterName

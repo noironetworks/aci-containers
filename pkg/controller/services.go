@@ -392,7 +392,7 @@ func validScope(scope string) bool {
 }
 
 func apicContract(conName string, tenantName string,
-	graphName string, scopeName string) apicapi.ApicObject {
+	graphName string, scopeName string, isSnat bool) apicapi.ApicObject {
 	con := apicapi.NewVzBrCP(tenantName, conName)
 	if scopeName != "" && scopeName != "context" {
 		con.SetAttr("scope", scopeName)
@@ -400,7 +400,18 @@ func apicContract(conName string, tenantName string,
 	cs := apicapi.NewVzSubj(con.GetDn(), "loadbalancedservice")
 	csDn := cs.GetDn()
 	cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
-	cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
+	if isSnat {
+		inTerm := apicapi.NewVzInTerm(csDn)
+		outTerm := apicapi.NewVzOutTerm(csDn)
+		inTerm.AddChild(apicapi.NewVzRsInTermGraphAtt(inTerm.GetDn(), graphName))
+		inTerm.AddChild(apicapi.NewVzRsFiltAtt(inTerm.GetDn(), conName+"_fromCons-toProv"))
+		outTerm.AddChild(apicapi.NewVzRsOutTermGraphAtt(outTerm.GetDn(), graphName))
+		outTerm.AddChild(apicapi.NewVzRsFiltAtt(outTerm.GetDn(), conName+"_fromProv-toCons"))
+		cs.AddChild(inTerm)
+		cs.AddChild(outTerm)
+	} else {
+		cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
+	}
 	con.AddChild(cs)
 	return con
 }
@@ -428,14 +439,23 @@ func apicDevCtx(name string, tenantName string,
 }
 
 func apicFilterEntry(filterDn string, count string, p_start string,
-	p_end string, protocol string, stateful string, snat bool) apicapi.ApicObject {
+	p_end string, protocol string, stateful string, snat bool, outTerm bool) apicapi.ApicObject {
 
 	fe := apicapi.NewVzEntry(filterDn, count)
 	fe.SetAttr("etherT", "ip")
 	fe.SetAttr("prot", protocol)
 	if snat {
-		fe.SetAttr("sFromPort", p_start)
-		fe.SetAttr("sToPort", p_end)
+		if outTerm {
+			if protocol == "tcp" {
+				fe.SetAttr("tcpRules", "est")
+			}
+			// Reverse the ports for outTerm
+			fe.SetAttr("dFromPort", p_start)
+			fe.SetAttr("dToPort", p_end)
+		} else {
+			fe.SetAttr("sFromPort", p_start)
+			fe.SetAttr("sToPort", p_end)
+		}
 	} else {
 		fe.SetAttr("dFromPort", p_start)
 		fe.SetAttr("dToPort", p_end)
@@ -460,7 +480,7 @@ func apicFilter(name string, tenantName string,
 			proto = "tcp"
 		}
 		fe := apicFilterEntry(filterDn, strconv.Itoa(i), pstr,
-			pstr, proto, "no", false)
+			pstr, proto, "no", false, false)
 		filter.AddChild(fe)
 	}
 
@@ -470,17 +490,17 @@ func apicFilter(name string, tenantName string,
 		p_end := strconv.Itoa(int(portSpec[0].end))
 
 		fe1 := apicFilterEntry(filterDn, strconv.Itoa(i+1), p_start,
-			p_end, "tcp", "no", false)
+			p_end, "tcp", "no", false, false)
 		filter.AddChild(fe1)
 		fe2 := apicFilterEntry(filterDn, strconv.Itoa(i+2), p_start,
-			p_end, "udp", "no", false)
+			p_end, "udp", "no", false, false)
 		filter.AddChild(fe2)
 	}
 	return filter
 }
 
 func apicFilterSnat(name string, tenantName string,
-	portSpec []portRangeSnat) apicapi.ApicObject {
+	portSpec []portRangeSnat, outTerm bool) apicapi.ApicObject {
 
 	filter := apicapi.NewVzFilter(tenantName, name)
 	filterDn := filter.GetDn()
@@ -489,10 +509,10 @@ func apicFilterSnat(name string, tenantName string,
 	p_end := strconv.Itoa(int(portSpec[0].end))
 
 	fe := apicFilterEntry(filterDn, "0", p_start,
-		p_end, "tcp", "yes", true)
+		p_end, "tcp", "yes", true, outTerm)
 	filter.AddChild(fe)
 	fe1 := apicFilterEntry(filterDn, "1", p_start,
-		p_end, "udp", "yes", true)
+		p_end, "udp", "no", true, outTerm)
 	filter.AddChild(fe1)
 
 	return filter
@@ -591,7 +611,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 					cont.config.AciL3Out, ingresses, sharedSecurity, false))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, false)
 		serviceObjs = append(serviceObjs, contract)
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
@@ -686,7 +706,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 					cont.config.AciL3Out, ingresses, sharedSecurity, true))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, true)
 		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {
@@ -698,9 +718,10 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		defaultPortRange := portRangeSnat{start: cont.config.SnatDefaultPortRangeStart,
 			end: cont.config.SnatDefaultPortRangeEnd}
 		portSpec := []portRangeSnat{defaultPortRange}
-		filter := apicFilterSnat(name, cont.config.AciVrfTenant, portSpec)
-
-		serviceObjs = append(serviceObjs, filter)
+		filterIn := apicFilterSnat(name+"_fromCons-toProv", cont.config.AciVrfTenant, portSpec, false)
+		serviceObjs = append(serviceObjs, filterIn)
+		filterOut := apicFilterSnat(name+"_fromProv-toCons", cont.config.AciVrfTenant, portSpec, true)
+		serviceObjs = append(serviceObjs, filterOut)
 
 		// 3. Device cluster context
 		// The logical device context binds the service contract
