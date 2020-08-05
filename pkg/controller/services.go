@@ -399,8 +399,8 @@ func apicContract(conName string, tenantName string,
 	}
 	cs := apicapi.NewVzSubj(con.GetDn(), "loadbalancedservice")
 	csDn := cs.GetDn()
-	cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
 	if isSnat {
+		cs.SetAttr("revFltPorts", "no")
 		inTerm := apicapi.NewVzInTerm(csDn)
 		outTerm := apicapi.NewVzOutTerm(csDn)
 		inTerm.AddChild(apicapi.NewVzRsInTermGraphAtt(inTerm.GetDn(), graphName))
@@ -410,6 +410,7 @@ func apicContract(conName string, tenantName string,
 		cs.AddChild(inTerm)
 		cs.AddChild(outTerm)
 	} else {
+		cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
 		cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
 	}
 	con.AddChild(cs)
@@ -417,7 +418,7 @@ func apicContract(conName string, tenantName string,
 }
 
 func apicDevCtx(name string, tenantName string,
-	graphName string, bdName string, rpDn string) apicapi.ApicObject {
+	graphName string, bdName string, rpDn string, isSnat bool) apicapi.ApicObject {
 
 	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
 	ccDn := cc.GetDn()
@@ -425,8 +426,16 @@ func apicDevCtx(name string, tenantName string,
 	lifDn := fmt.Sprintf("%s/lIf-%s", graphDn, "interface")
 	bdDn := fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, bdName)
 	cc.AddChild(apicapi.NewVnsRsLDevCtxToLDev(ccDn, graphDn))
+	rpDnBase := rpDn
 	for _, ctxConn := range []string{"consumer", "provider"} {
 		lifCtx := apicapi.NewVnsLIfCtx(ccDn, ctxConn)
+		if isSnat {
+			if ctxConn == "consumer" {
+				rpDn = rpDnBase + "_Cons"
+			} else {
+				rpDn = rpDnBase + "_Prov"
+			}
+		}
 		lifCtxDn := lifCtx.GetDn()
 		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToSvcRedirectPol(lifCtxDn,
 			rpDn))
@@ -434,7 +443,6 @@ func apicDevCtx(name string, tenantName string,
 		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToLIf(lifCtxDn, lifDn))
 		cc.AddChild(lifCtx)
 	}
-
 	return cc
 }
 
@@ -509,7 +517,7 @@ func apicFilterSnat(name string, tenantName string,
 	p_end := strconv.Itoa(int(portSpec[0].end))
 
 	fe := apicFilterEntry(filterDn, "0", p_start,
-		p_end, "tcp", "yes", true, outTerm)
+		p_end, "tcp", "no", true, outTerm)
 	filter.AddChild(fe)
 	fe1 := apicFilterEntry(filterDn, "1", p_start,
 		p_end, "udp", "no", true, outTerm)
@@ -633,7 +641,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
 			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
-				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn))
+				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, false))
 	}
 
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
@@ -683,12 +691,18 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		// 1. Service redirect policy
 		// The service redirect policy contains the MAC address
 		// and IP address of each of the service endpoints for
-		// each node that hosts a pod for this service.  The
-		// example below shows the case of two nodes.
-		rp, rpDn :=
-			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+		// each node that hosts a pod for this service.
+		// For SNAT with introuction of filter-chain usage, to work-around
+		// an APIC limitation, creating two PBR policies with same nodes.
+		rpCons, rpDnCons :=
+			apicRedirectPol(name+"_Cons", cont.config.AciVrfTenant, nodes,
 				nodeMap, cont.staticMonPolDn(), true)
-		serviceObjs = append(serviceObjs, rp)
+		serviceObjs = append(serviceObjs, rpCons)
+		rpProv, _ :=
+			apicRedirectPol(name+"_Prov", cont.config.AciVrfTenant, nodes,
+				nodeMap, cont.staticMonPolDn(), true)
+		serviceObjs = append(serviceObjs, rpProv)
+		rpDn := strings.TrimSuffix(rpDnCons, "_Cons")
 
 		// 2. Service graph contract and external network
 		// The service graph contract must be bound to the
@@ -729,7 +743,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
 			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
-				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn))
+				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, true))
 	}
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
 	return nil

@@ -486,7 +486,7 @@ var metadata = map[string]*apicMeta{
 	"vnsAbsConnection": {
 		attributes: map[string]interface{}{
 			"name":          "",
-			"adjType":       "L2",
+			"adjType":       "L3",
 			"connDir":       "unknown",
 			"connType":      "external",
 			"directConnect": "no",
