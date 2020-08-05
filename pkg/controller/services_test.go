@@ -305,7 +305,7 @@ func TestServiceAnnotation(t *testing.T) {
 		filter.AddChild(fe)
 	}
 	s1Dcc := apicDevCtx(name, "common", graphName,
-		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn())
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
 	endpoints1 := endpoints("testns", "service1",
 		[]string{"node1", "node2"}, nil, nil)
 	service1 := service("testns", "service1", "10.4.2.2")
@@ -487,7 +487,7 @@ func TestServiceGraph(t *testing.T) {
 	}
 
 	s1Dcc := apicDevCtx(name, "common", graphName,
-		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn())
+		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
 
 	endpoints1 := endpoints("testns", "service1",
 		[]string{"node1", "node2"}, nil, nil)
