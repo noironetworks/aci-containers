@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -69,7 +70,7 @@ func TestSnatGraph(t *testing.T) {
 
 	graph := apicServiceGraph(graphName, "common", twoNodeCluster.GetDn())
 
-	redirect := func(nmap seMap) apicapi.ApicObject {
+	redirect := func(nmap seMap, relation string) apicapi.ApicObject {
 		var nodes []string
 		for node := range nmap {
 			nodes = append(nodes, node)
@@ -77,11 +78,11 @@ func TestSnatGraph(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name, "common", nodes,
+		dc, _ := apicRedirectPol(name+relation, "common", nodes,
 			nmap, monPolDn, true)
 		return dc
 	}
-	twoNodeRedirect := redirect(seMap{
+	twoNodeRedirectCons := redirect(seMap{
 		"node1": &metadata.ServiceEndpoint{
 			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
 			Mac:           "8a:35:a1:a6:e4:60",
@@ -92,7 +93,19 @@ func TestSnatGraph(t *testing.T) {
 			Mac:           "a2:7e:45:57:a0:d4",
 			Ipv4:          net.ParseIP("10.6.1.2"),
 		},
-	})
+	}, "_Cons")
+	twoNodeRedirectProv := redirect(seMap{
+		"node1": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node1",
+			Mac:           "8a:35:a1:a6:e4:60",
+			Ipv4:          net.ParseIP("10.6.1.1"),
+		},
+		"node2": &metadata.ServiceEndpoint{
+			HealthGroupDn: "uni/tn-common/svcCont/redirectHealthGroup-kube_svc_node2",
+			Mac:           "a2:7e:45:57:a0:d4",
+			Ipv4:          net.ParseIP("10.6.1.2"),
+		},
+	}, "_Prov")
 	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2", "10.20.30.40/20"}, true, true)
 	rsProv := apicExtNetProv(name, "common", "l3out", "ext1")
 
@@ -106,7 +119,7 @@ func TestSnatGraph(t *testing.T) {
 	filterIn := apicFilterSnat(name+"_fromCons-toProv", "common", portRanges, false)
 	filterOut := apicFilterSnat(name+"_fromProv-toCons", "common", portRanges, true)
 	cc := apicDevCtx(name, "common", graphName,
-		"kube_bd_kubernetes-service", twoNodeRedirect.GetDn())
+		"kube_bd_kubernetes-service", strings.TrimSuffix(twoNodeRedirectCons.GetDn(), "_Cons"), true)
 
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
 	labels := map[string]string{
@@ -163,7 +176,7 @@ func TestSnatGraph(t *testing.T) {
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirectProv, twoNodeRedirectCons, extNet, contract, rsProv, filterIn, filterOut, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat graph creation", cont, expected)
@@ -174,7 +187,7 @@ func TestSnatGraph(t *testing.T) {
 	expected2 := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet2, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirectProv, twoNodeRedirectCons, extNet2, contract, rsProv, filterIn, filterOut, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat graph addition", cont, expected2)
@@ -184,7 +197,7 @@ func TestSnatGraph(t *testing.T) {
 	expectedDeleteSnatPolicy := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
-		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirect, extNet, contract, rsProv, filterIn, filterOut, cc},
+		name: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeRedirectProv, twoNodeRedirectCons, extNet, contract, rsProv, filterIn, filterOut, cc},
 			"kube", name),
 	}
 	sgWait(t, "snat policy deleted", cont, expectedDeleteSnatPolicy)
