@@ -380,6 +380,17 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 	}
 }
 
+func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname string) (poduids []string) {
+	uids, res := agent.getPodsMatchingObjet(obj, policyname)
+	if len(uids) > 0 {
+		key, _ := cache.MetaNamespaceKeyFunc(obj)
+		if _, ok := agent.snatPolicyLabels[key]; ok {
+			agent.snatPolicyLabels[key][policyname] = res
+		}
+	}
+	return uids
+}
+
 // Get all the pods matching the Policy Selector
 func (agent *HostAgent) getPodUidsMatchingLabel(namespace string, label map[string]string, policyname string) (poduids []string,
 	deppoduids []string, nspoduids []string) {
@@ -388,36 +399,16 @@ func (agent *HostAgent) getPodUidsMatchingLabel(namespace string, label map[stri
 		func(podobj interface{}) {
 			pod := podobj.(*v1.Pod)
 			if pod.Spec.NodeName == agent.config.NodeName {
-				key, _ := cache.MetaNamespaceKeyFunc(podobj)
-				poduids = append(poduids, string(pod.ObjectMeta.UID))
-				if _, ok := agent.snatPolicyLabels[key]; ok {
-					agent.snatPolicyLabels[key][policyname] = POD
-				}
+				poduids = append(poduids, agent.updateSnatPolicyLabels(podobj, policyname)...)
 			}
 		})
 	cache.ListAll(agent.depInformer.GetIndexer(), selector,
 		func(depobj interface{}) {
-			key, _ := cache.MetaNamespaceKeyFunc(depobj)
-			dep := depobj.(*appsv1.Deployment)
-			uids, _ := agent.getPodsMatchingObjet(dep, policyname)
-			deppoduids = append(deppoduids, uids...)
-			if len(deppoduids) > 0 {
-				if _, ok := agent.snatPolicyLabels[key]; ok {
-					agent.snatPolicyLabels[key][policyname] = DEPLOYMENT
-				}
-			}
+			deppoduids = append(deppoduids, agent.updateSnatPolicyLabels(depobj, policyname)...)
 		})
 	cache.ListAll(agent.nsInformer.GetIndexer(), selector,
 		func(nsobj interface{}) {
-			ns := nsobj.(*v1.Namespace)
-			key, _ := cache.MetaNamespaceKeyFunc(nsobj)
-			uids, _ := agent.getPodsMatchingObjet(ns, policyname)
-			nspoduids = append(nspoduids, uids...)
-			if len(nspoduids) > 0 {
-				if _, ok := agent.snatPolicyLabels[key]; ok {
-					agent.snatPolicyLabels[key][policyname] = NAMESPACE
-				}
-			}
+			nspoduids = append(nspoduids, agent.updateSnatPolicyLabels(nsobj, policyname)...)
 		})
 	return
 }
@@ -1076,7 +1067,6 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	sync := false
 	if len(plcynames) == 0 {
 		polcies := agent.getMatchingSnatPolicy(obj)
-		agent.log.Info("HandleObject matching policies: ", polcies)
 		for name, resources := range polcies {
 			for _, res := range resources {
 				poduids, _ := agent.getPodsMatchingObjet(obj, name)
@@ -1195,7 +1185,6 @@ func (agent *HostAgent) getSnatUuids(poduuid string) []string {
 	val, check := agent.opflexSnatLocalInfos[poduuid]
 	agent.indexMutex.Unlock()
 	if check {
-		agent.log.Debug("Syncing snat Uuids: ", val.PlcyUuids)
 		return val.PlcyUuids
 
 	} else {
