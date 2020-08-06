@@ -486,7 +486,7 @@ var metadata = map[string]*apicMeta{
 	"vnsAbsConnection": {
 		attributes: map[string]interface{}{
 			"name":          "",
-			"adjType":       "L2",
+			"adjType":       "L3",
 			"connDir":       "unknown",
 			"connType":      "external",
 			"directConnect": "no",
@@ -627,6 +627,41 @@ var metadata = map[string]*apicMeta{
 		children: []string{
 			"vzRsSubjFiltAtt",
 			"vzRsSubjGraphAtt",
+			"vzInTerm",
+			"vzOutTerm",
+		},
+	},
+	"vzInTerm": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"vzRsFiltAtt",
+			"vzRsInTermGraphAtt",
+		},
+	},
+	"vzOutTerm": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"vzRsFiltAtt",
+			"vzRsOutTermGraphAtt",
+		},
+	},
+	"vzRsInTermGraphAtt": {
+		attributes: map[string]interface{}{
+			"tnVnsAbsGraphName": "",
+		},
+	},
+	"vzRsOutTermGraphAtt": {
+		attributes: map[string]interface{}{
+			"tnVnsAbsGraphName": "",
+		},
+	},
+	"vzRsFiltAtt": {
+		attributes: map[string]interface{}{
+			"tnVzFilterName": "",
 		},
 	},
 	"vzRsSubjFiltAtt": {
@@ -658,6 +693,7 @@ var metadata = map[string]*apicMeta{
 			"prot":        "unspecified",
 			"sFromPort":   "unspecified",
 			"sToPort":     "unspecified",
+			"tcpRules":    "",
 			"stateful":    "no",
 		},
 		normalizer: filterEntryNormalizer,
