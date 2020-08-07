@@ -291,6 +291,37 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			return nil, err
 		}
 	}
+	var StaleContMetadata []md.ContainerMetadata
+	podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
+	agent.indexMutex.Lock()
+	if len(agent.epMetadata[podid]) > 1 {
+		logger.Warnf("There is a Stale metadata present for the pod")
+	}
+	if val, ok := agent.epMetadata[podid]; ok {
+		// check for any stale entry present.
+		// this is possible if we miss any register events for unconfiguring the POD
+		//  ideally epMetadata[podid] Map should contain only one entry of containerID
+		// As every pod contains one network namespace for all the containers with in the pod
+		// (i.e pause container ==> metadata.Id.ContId)
+		// if there are any stale which doesn't match the ContainerID remove it
+		for key, v := range val {
+			if metadata.Id.ContId != key {
+				logger.Warnf("Stale metadata present clean the entry: %s", key)
+				StaleContMetadata = append(StaleContMetadata, *v)
+			}
+		}
+	}
+	agent.indexMutex.Unlock()
+
+	for _, v := range StaleContMetadata {
+		err := agent.cleanStatleMetadata(v.Id.ContId)
+		if err == nil {
+			agent.deallocateMdIps(&v)
+			agent.ipamMutex.Lock()
+			delete(agent.epMetadata[podid], v.Id.ContId)
+			agent.ipamMutex.Unlock()
+		}
+	}
 
 	err := md.RecordMetadata(agent.config.CniMetadataDir,
 		agent.config.CniNetwork, *metadata)
@@ -299,21 +330,31 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		return nil, err
 	}
 
-	podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
-	{
-		agent.indexMutex.Lock()
-		if _, ok := agent.epMetadata[podid]; !ok {
-			agent.epMetadata[podid] =
-				make(map[string]*md.ContainerMetadata)
-		}
-		agent.epMetadata[podid][metadata.Id.ContId] = metadata
-		agent.indexMutex.Unlock()
+	agent.indexMutex.Lock()
+	if _, ok := agent.epMetadata[podid]; !ok {
+		agent.epMetadata[podid] =
+			make(map[string]*md.ContainerMetadata)
 	}
+	agent.epMetadata[podid][metadata.Id.ContId] = metadata
+	agent.indexMutex.Unlock()
 
 	agent.env.CniDeviceChanged(&podid, &metadata.Id)
 
 	logger.Info("Successfully configured container interface")
 	return result, nil
+}
+
+func (agent *HostAgent) cleanStatleMetadata(id string) error {
+	_, err := md.GetMetadata(agent.config.CniMetadataDir,
+		agent.config.CniNetwork, id)
+	if err == nil {
+		err := md.ClearMetadata(agent.config.CniMetadataDir,
+			agent.config.CniNetwork, id)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
