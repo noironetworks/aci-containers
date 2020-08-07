@@ -132,7 +132,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.log.Debug("Initializing informers")
 	env.agent.initNodeInformerFromClient(env.kubeClient)
 	env.agent.initPodInformerFromClient(env.kubeClient)
-	env.agent.initEndpointsInformerFromClient(env.kubeClient)
+	env.agent.serviceEndPoints.InitClientInformer(env.kubeClient)
 	env.agent.initServiceInformerFromClient(env.kubeClient)
 	env.agent.initNamespaceInformerFromClient(env.kubeClient)
 	env.agent.initNetworkPolicyInformerFromClient(env.kubeClient)
@@ -163,7 +163,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
 	go env.agent.controllerInformer.Run(stopCh)
-	go env.agent.endpointsInformer.Run(stopCh)
+	env.agent.serviceEndPoints.Run(stopCh)
 	go env.agent.serviceInformer.Run(stopCh)
 	go env.agent.nsInformer.Run(stopCh)
 	go env.agent.netPolInformer.Run(stopCh)
@@ -174,9 +174,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.rdConfigInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh,
-		env.agent.podInformer.HasSynced, env.agent.endpointsInformer.HasSynced,
-		env.agent.serviceInformer.HasSynced, env.agent.snatGlobalInformer.HasSynced,
-		env.agent.snatPolicyInformer.HasSynced, env.agent.rdConfigInformer.HasSynced)
+		env.agent.podInformer.HasSynced, env.agent.serviceInformer.HasSynced,
+		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,
+		env.agent.rdConfigInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }

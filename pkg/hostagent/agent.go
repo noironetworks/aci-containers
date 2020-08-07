@@ -21,21 +21,21 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
-	"github.com/sirupsen/logrus"
-	"github.com/vishvananda/netlink"
-	"golang.org/x/time/rate"
-
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	"github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type HostAgent struct {
@@ -46,32 +46,33 @@ type HostAgent struct {
 	indexMutex sync.Mutex
 	ipamMutex  sync.Mutex
 
-	opflexEps          map[string][]*opflexEndpoint
-	opflexServices     map[string]*opflexService
-	epMetadata         map[string]map[string]*md.ContainerMetadata
-	podIpToName        map[string]string
-	cniToPodID         map[string]string
-	podUidToName       map[string]string
-	serviceEp          md.ServiceEndpoint
-	crdClient          aciv1.AciV1Interface
-	podInformer        cache.SharedIndexInformer
-	endpointsInformer  cache.SharedIndexInformer
-	serviceInformer    cache.SharedIndexInformer
-	nodeInformer       cache.SharedIndexInformer
-	nsInformer         cache.SharedIndexInformer
-	netPolInformer     cache.SharedIndexInformer
-	depInformer        cache.SharedIndexInformer
-	rcInformer         cache.SharedIndexInformer
-	snatGlobalInformer cache.SharedIndexInformer
-	controllerInformer cache.SharedIndexInformer
-	snatPolicyInformer cache.SharedIndexInformer
-	rdConfigInformer   cache.SharedIndexInformer
-	netPolPods         *index.PodSelectorIndex
-	depPods            *index.PodSelectorIndex
-	rcPods             *index.PodSelectorIndex
-	podNetAnnotation   string
-	podIps             *ipam.IpCache
-	usedIPs            map[string]string
+	opflexEps             map[string][]*opflexEndpoint
+	opflexServices        map[string]*opflexService
+	epMetadata            map[string]map[string]*md.ContainerMetadata
+	podIpToName           map[string]string
+	cniToPodID            map[string]string
+	podUidToName          map[string]string
+	serviceEp             md.ServiceEndpoint
+	crdClient             aciv1.AciV1Interface
+	podInformer           cache.SharedIndexInformer
+	endpointsInformer     cache.SharedIndexInformer
+	serviceInformer       cache.SharedIndexInformer
+	nodeInformer          cache.SharedIndexInformer
+	nsInformer            cache.SharedIndexInformer
+	netPolInformer        cache.SharedIndexInformer
+	depInformer           cache.SharedIndexInformer
+	rcInformer            cache.SharedIndexInformer
+	snatGlobalInformer    cache.SharedIndexInformer
+	controllerInformer    cache.SharedIndexInformer
+	snatPolicyInformer    cache.SharedIndexInformer
+	rdConfigInformer      cache.SharedIndexInformer
+	endpointSliceInformer cache.SharedIndexInformer
+	netPolPods            *index.PodSelectorIndex
+	depPods               *index.PodSelectorIndex
+	rcPods                *index.PodSelectorIndex
+	podNetAnnotation      string
+	podIps                *ipam.IpCache
+	usedIPs               map[string]string
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -93,11 +94,44 @@ type HostAgent struct {
 	rdConfig         *opflexRdConfig
 	poster           *EventPoster
 	ocServices       []opflexOcService // OpenShiftservices
+	serviceEndPoints ServiceEndPointType
 }
 
 type Vtep struct {
 	vtepIP    string
 	vtepIface string
+}
+
+type ServiceEndPointType interface {
+	InitClientInformer(kubeClient *kubernetes.Clientset)
+	Run(stopCh <-chan struct{})
+	SetOpflexService(ofas *opflexService, as *v1.Service,
+		external bool, key string, sp v1.ServicePort) bool
+}
+
+type serviceEndpoint struct {
+	agent *HostAgent
+}
+type serviceEndpointSlice struct {
+	agent *HostAgent
+}
+
+func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
+	sep.agent.initEndpointsInformerFromClient(kubeClient)
+}
+
+func (seps *serviceEndpointSlice) InitClientInformer(kubeClient *kubernetes.Clientset) {
+	seps.agent.initEndpointSliceInformerFromClient(kubeClient)
+}
+
+func (sep *serviceEndpoint) Run(stopCh <-chan struct{}) {
+	go sep.agent.endpointsInformer.Run(stopCh)
+	cache.WaitForCacheSync(stopCh, sep.agent.endpointsInformer.HasSynced)
+}
+
+func (seps *serviceEndpointSlice) Run(stopCh <-chan struct{}) {
+	go seps.agent.endpointSliceInformer.Run(stopCh)
+	cache.WaitForCacheSync(stopCh, seps.agent.endpointSliceInformer.HasSynced)
 }
 
 func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) *HostAgent {
@@ -228,6 +262,14 @@ func (agent *HostAgent) Init() {
 	}
 	agent.log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 	agent.buildUsedIPs()
+	//@TODO need to set this value based on feature capability currently turnedoff
+	if agent.config.EnabledEndpointSlice {
+		agent.serviceEndPoints = &serviceEndpointSlice{}
+		agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent
+	} else {
+		agent.serviceEndPoints = &serviceEndpoint{}
+		agent.serviceEndPoints.(*serviceEndpoint).agent = agent
+	}
 	err = agent.env.Init(agent)
 	if err != nil {
 		panic(err.Error())
@@ -330,7 +372,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		panic(err.Error())
 	}
-
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
 		agent.config.OpFlexSnatDir == "" {

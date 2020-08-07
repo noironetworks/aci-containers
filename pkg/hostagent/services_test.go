@@ -29,6 +29,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	v1beta1 "k8s.io/api/discovery/v1beta1"
 )
 
 func service(uuid string, namespace string, name string,
@@ -97,6 +98,36 @@ func endpoints(namespace string, name string,
 			})
 	}
 
+	return e
+}
+
+func endpointslice(namespace string, name string,
+	nextHopIps []string, ports []int32) *v1beta1.EndpointSlice {
+	e := &v1beta1.EndpointSlice{
+		Endpoints: []v1beta1.Endpoint{},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name + "ext",
+			Labels:    map[string]string{v1beta1.LabelServiceName: name},
+		},
+		Ports: []v1beta1.EndpointPort{},
+	}
+
+	for i, ip := range nextHopIps {
+		var endpoint v1beta1.Endpoint
+		endpoint.Addresses = append(endpoint.Addresses, ip)
+		e.Endpoints = append(e.Endpoints, endpoint)
+		e.Endpoints[i].Topology = make(map[string]string)
+		e.Endpoints[i].Topology["kubernetes.io/hostname"] = "test-node"
+	}
+
+	for _, port := range ports {
+		e.Ports =
+			append(e.Ports, v1beta1.EndpointPort{
+				Port:     func() *int32 { a := port; return &a }(),
+				Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+			})
+	}
 	return e
 }
 
@@ -251,7 +282,87 @@ func TestServiceSync(t *testing.T) {
 			st.clusterIp, st.externalIp, st.ports)
 		agent.fakeServiceSource.Delete(service)
 
-		tu.WaitFor(t, st.name, 100*time.Millisecond,
+		tu.WaitFor(t, st.name, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				r := true
+				{
+					asfile := filepath.Join(tempdir, st.uuid+".service")
+					_, err := ioutil.ReadFile(asfile)
+					if !tu.WaitNotNil(t, last, err, "read service") {
+						r = false
+					}
+				}
+
+				{
+					asfile := filepath.Join(tempdir, st.uuid+"-external.service")
+					_, err := ioutil.ReadFile(asfile)
+					if !tu.WaitNotNil(t, last, err, "read external service") {
+						r = false
+					}
+				}
+
+				return r, nil
+			})
+	}
+
+	agent.stop()
+}
+
+// Test Service with endpointslice
+func TestServiceSyncWithEps(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+	agent.serviceEndPoints = &serviceEndpointSlice{}
+	agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent.HostAgent
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+
+	agent.run()
+
+	for i, st := range serviceTests {
+		if i%2 == 0 {
+			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
+				[]byte("random gibberish"), 0644)
+			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
+				[]byte("random gibberish"), 0644)
+		}
+
+		service := service(st.uuid, st.namespace, st.name,
+			st.clusterIp, st.externalIp, st.ports)
+		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports)
+		agent.fakeServiceSource.Add(service)
+		agent.fakeEndpointSliceSource.Add(endpoints)
+		agent.doTestService(t, tempdir, &st, "create")
+	}
+
+	for _, st := range serviceTests {
+		service := service(st.uuid, st.namespace, st.name,
+			st.clusterIp, st.externalIp, st.ports)
+		agent.fakeServiceSource.Delete(service)
+
+		tu.WaitFor(t, st.name, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				r := true
 				{

@@ -29,6 +29,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
+	v1beta1 "k8s.io/api/discovery/v1beta1"
 )
 
 var tcp = "TCP"
@@ -65,6 +66,13 @@ func endpointPort(proto v1.Protocol, port int32, name string) v1.EndpointPort {
 		Name:     name,
 		Protocol: proto,
 		Port:     port,
+	}
+}
+func endpointSlicePort(proto v1.Protocol, port int32, name string) v1beta1.EndpointPort {
+	return v1beta1.EndpointPort{
+		Name:     func() *string { a := name; return &a }(),
+		Protocol: func() *v1.Protocol { a := proto; return &a }(),
+		Port:     func() *int32 { a := port; return &a }(),
 	}
 }
 
@@ -134,8 +142,9 @@ func npservice(namespace string, name string,
 }
 
 type npTestAugment struct {
-	endpoints []*v1.Endpoints
-	services  []*v1.Service
+	endpoints      []*v1.Endpoints
+	services       []*v1.Service
+	endpointslices []*v1beta1.EndpointSlice
 }
 
 type npTest struct {
@@ -191,6 +200,10 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 	for _, e := range augment.endpoints {
 		cont.fakeEndpointsSource.Add(e)
 	}
+	for _, e := range augment.endpointslices {
+		cont.fakeEndpointSliceSource.Add(e)
+
+	}
 }
 
 func makeNp(ingress apicapi.ApicSlice,
@@ -226,6 +239,22 @@ func makeEps(namespace string, name string,
 			Name:        name,
 			Annotations: map[string]string{},
 		},
+	}
+}
+
+// endpointslice.
+func makeEpSlice(namespace string, name string, endpoints []v1beta1.Endpoint,
+	ports []v1beta1.EndpointPort, servicename string) *v1beta1.EndpointSlice {
+	return &v1beta1.EndpointSlice{
+		AddressType: v1beta1.AddressTypeIPv4,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      map[string]string{v1beta1.LabelServiceName: servicename},
+			Annotations: map[string]string{},
+		},
+		Endpoints: endpoints,
+		Ports:     ports,
 	}
 }
 
@@ -616,6 +645,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -664,6 +694,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -715,6 +746,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -744,6 +776,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 	initCont := func() *testAciController {
@@ -1169,6 +1202,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1217,6 +1251,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1268,6 +1303,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1297,6 +1333,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
+				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 
@@ -1358,6 +1395,366 @@ func TestNetworkPolicyv6(t *testing.T) {
 		addServices(cont, nt.augment)
 		addPods(cont, false, ips, false)
 		addPods(cont, true, ips, false)
+		checkNp(t, &nt, "npfirst", cont)
+		cont.stop()
+	}
+}
+
+// Test with EndPointslices
+func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	rule_11_0 := apicapi.NewHostprotRule(np1SDnE, "0_0")
+	rule_11_0.SetAttr("direction", "egress")
+	rule_11_0.SetAttr("ethertype", "ipv4")
+	rule_11_0.SetAttr("protocol", "tcp")
+	rule_11_0.SetAttr("toPort", "80")
+	rule_11_0.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0.GetDn(), "1.1.1.1"))
+
+	rule_11_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080")
+	rule_11_s.SetAttr("direction", "egress")
+	rule_11_s.SetAttr("ethertype", "ipv4")
+	rule_11_s.SetAttr("protocol", "tcp")
+	rule_11_s.SetAttr("toPort", "8080")
+	rule_11_s.AddChild(apicapi.NewHostprotRemoteIp(rule_11_s.GetDn(), "9.0.0.42"))
+
+	rule_12_0 := apicapi.NewHostprotRule(np1SDnE, "0")
+	rule_12_0.SetAttr("direction", "egress")
+	rule_12_0.SetAttr("ethertype", "ipv4")
+	rule_12_0.AddChild(apicapi.NewHostprotRemoteIp(rule_12_0.GetDn(),
+		"1.1.1.0/24"))
+
+	rule_12_s_0 := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080")
+	rule_12_s_0.SetAttr("direction", "egress")
+	rule_12_s_0.SetAttr("ethertype", "ipv4")
+	rule_12_s_0.SetAttr("protocol", "tcp")
+	rule_12_s_0.SetAttr("toPort", "8080")
+	rule_12_s_0.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_0.GetDn(),
+		"9.0.0.44"))
+
+	rule_12_s_1 := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8443")
+	rule_12_s_1.SetAttr("direction", "egress")
+	rule_12_s_1.SetAttr("ethertype", "ipv4")
+	rule_12_s_1.SetAttr("protocol", "tcp")
+	rule_12_s_1.SetAttr("toPort", "8443")
+	rule_12_s_1.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_1.GetDn(),
+		"9.0.0.44"))
+
+	rule_13_0 := apicapi.NewHostprotRule(np1SDnE, "0")
+	rule_13_0.SetAttr("direction", "egress")
+	rule_13_0.SetAttr("ethertype", "ipv4")
+
+	rule_14_0 := apicapi.NewHostprotRule(np1SDnE, "0_0")
+	rule_14_0.SetAttr("direction", "egress")
+	rule_14_0.SetAttr("ethertype", "ipv4")
+	rule_14_0.SetAttr("protocol", "tcp")
+	rule_14_0.SetAttr("toPort", "80")
+
+	rule_14_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080")
+	rule_14_s.SetAttr("direction", "egress")
+	rule_14_s.SetAttr("ethertype", "ipv4")
+	rule_14_s.SetAttr("protocol", "tcp")
+	rule_14_s.SetAttr("toPort", "8080")
+	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
+
+	var npTests = []npTest{
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
+					[]v1net.NetworkPolicyPeer{
+						peer(&metav1.LabelSelector{
+							MatchLabels: map[string]string{"l1": "v1"},
+						}, nil),
+					}),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_11_0}, name),
+			nil, "egress-allow-http-select-pods"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
+					[]v1net.NetworkPolicyPeer{
+						peer(&metav1.LabelSelector{
+							MatchLabels: map[string]string{"l1": "v1"},
+						}, nil),
+					}),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_11_0, rule_11_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns", "service2", "9.0.0.99",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}), // should not match (no matching IPs)
+					npservice("testns", "service3", "9.0.0.98",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}), // should not match (incomplete IPs)
+				},
+				[]*v1beta1.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.1",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"2.2.2.2",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+					makeEpSlice("testns", "service3xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.1",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{
+									"2.2.2.2",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service3"),
+				},
+			}, "egress-allow-http-augment"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
+					nil),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_14_0, rule_14_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns", "service2", "9.0.0.99",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 81),
+						}), // should not match (no matching IPs)
+				},
+				[]*v1beta1.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.1",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"2.2.2.2",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
+			}, "egress-allow-http-all-augment"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule(nil,
+					[]v1net.NetworkPolicyPeer{
+						peerIpBlock(peer(nil, nil), "1.1.1.0/24", nil),
+					}),
+			}, allPolicyTypes),
+			makeNp(nil,
+				apicapi.ApicSlice{rule_12_0, rule_12_s_0, rule_12_s_1}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.44",
+						[]v1.ServicePort{
+							servicePort("http", v1.ProtocolTCP, 8080, 80),
+							servicePort("https", v1.ProtocolTCP, 8443, 443),
+						}),
+				},
+				[]*v1beta1.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.3",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod3",
+								},
+							},
+							{
+								Addresses: []string{
+									"1.1.1.4",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod4",
+								},
+							},
+							{
+								Addresses: []string{
+									"1.1.1.5",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns2",
+									Name:      "pod5",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+						}, "service1"),
+				},
+			}, "egress-allow-subnet-augment"},
+
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule(nil, nil),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_13_0}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+				},
+				[]*v1beta1.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.1",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+				},
+			}, "egress-allow-all-augment"},
+	}
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns1",
+			map[string]string{"nl": "nv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns2",
+			map[string]string{"nl": "nv"}))
+
+		return cont
+	}
+
+	{
+		cont := testController()
+		cont.run()
+		static := cont.staticNetPolObjs()
+		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
+		assert.Equal(t, static,
+			cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
+		cont.stop()
+	}
+
+	ips := []string{
+		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
+	}
+
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", nt.desc)
+		addPods(cont, true, ips, true)
+		addServices(cont, nt.augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		checkNp(t, &nt, "podsfirst", cont)
+
+		cont.log.Info("Starting delete ", nt.desc)
+		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting npfirst ", nt.desc)
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.run()
+		addServices(cont, nt.augment)
+		addPods(cont, false, ips, true)
+		addPods(cont, true, ips, true)
 		checkNp(t, &nt, "npfirst", cont)
 		cont.stop()
 	}

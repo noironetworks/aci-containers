@@ -154,7 +154,8 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initReplicaSetInformerFromClient(kubeClient)
 	cont.initDeploymentInformerFromClient(kubeClient)
 	cont.initPodInformerFromClient(kubeClient)
-	cont.initEndpointsInformerFromClient(kubeClient)
+	cont.initEndpointSliceInformerFromClient(kubeClient)
+	cont.serviceEndPoints.InitClientInformer(kubeClient)
 	cont.initServiceInformerFromClient(kubeClient)
 	cont.initNetworkPolicyInformerFromClient(kubeClient)
 	cont.initSnatInformerFromClient(snatClient)
@@ -201,17 +202,14 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
 	cont.log.Info("Node/namespace cache sync successful")
-
-	go cont.endpointsInformer.Run(stopCh)
+	cont.serviceEndPoints.Run(stopCh)
 	go cont.serviceInformer.Run(stopCh)
 	go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
 		func(obj interface{}) bool {
 			return cont.handleServiceUpdate(obj.(*v1.Service))
 		}, stopCh)
 	cont.log.Debug("Waiting for service cache sync")
-	cache.WaitForCacheSync(stopCh,
-		cont.endpointsInformer.HasSynced,
-		cont.serviceInformer.HasSynced)
+	cont.serviceEndPoints.Wait(stopCh)
 	cont.indexMutex.Lock()
 	cont.serviceSyncEnabled = true
 	cont.indexMutex.Unlock()
