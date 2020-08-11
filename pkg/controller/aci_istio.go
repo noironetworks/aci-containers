@@ -19,14 +19,20 @@ import (
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	log "github.com/sirupsen/logrus"
+	iopv1alpha1 "istio.io/istio/operator/pkg/apis/istio/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"os"
 	"os/exec"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 func (cont *AciController) initIstioInformerFromClient(
@@ -133,7 +139,6 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 		cont.log.Info("istio-operator deployment is nil..returning")
 		return true // to requeue
 	}
-
 	cont.log.Info("Setting Owner Reference for upstream istio-operator with AciIstioOperator")
 	if !cont.isOwnerReferenceMarked(istioOperatorDeployment.ObjectMeta.OwnerReferences) {
 		istioOperatorDeployment.OwnerReferences = []metav1.OwnerReference{
@@ -143,6 +148,60 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 		if err != nil {
 			cont.log.Error(err.Error())
 			return true
+		}
+	}
+
+	cfg, err := config.GetConfig()
+	iop := &iopv1alpha1.IstioOperator{}
+	scheme := runtime.NewScheme()
+	iopSchemeVersion := schema.GroupVersion{Group: "install.istio.io", Version: "v1alpha1"}
+	scheme.AddKnownTypes(iopSchemeVersion, &metav1.GetOptions{}, &metav1.UpdateOptions{}, iop)
+	istioclient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		cont.log.Error("Error in creating IstioOperator client")
+		return true
+	}
+	err = istioclient.Get(context.TODO(), types.NamespacedName{Namespace: "istio-system", Name: "istiocontrolplane"}, iop)
+	if err != nil {
+		cont.log.Error("Error in Fetching istioctrlplaneCR")
+		log.Info(err)
+		return true
+	}
+	cont.log.Info("Setting Owner Reference for upstream istioCR with AciIstioOperator")
+	if !cont.isOwnerReferenceMarked(iop.ObjectMeta.OwnerReferences) {
+		iop.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(istiospec, istiov1.SchemeGroupVersion.WithKind("AciIstioOperator")),
+		}
+		err = istioclient.Update(context.TODO(), iop)
+		if err != nil {
+			cont.log.Error(err.Error())
+			return true
+		}
+	}
+
+	istioNamespaces := [...]string{"istio-system", "istio-operator"}
+	nsClient := kubeClient.CoreV1().Namespaces()
+	if nsClient == nil {
+		cont.log.Error("Error in Fetching nsClient")
+		return true // to requeue
+	}
+	for _, ns := range istioNamespaces {
+		istioNsObj, exists, err := cont.namespaceIndexer.GetByKey(ns)
+		if !exists || err != nil || istioNsObj == nil {
+			cont.log.Error("Couldn't look up ns", err)
+			return true // to requeue
+		}
+		istioNs := istioNsObj.(*v1.Namespace)
+		cont.log.Info("Setting Owner Reference for NS:", ns, " with AciIstioOperator")
+		if !cont.isOwnerReferenceMarked(istioNs.ObjectMeta.OwnerReferences) {
+			istioNs.OwnerReferences = []metav1.OwnerReference{
+				*metav1.NewControllerRef(istiospec, istiov1.SchemeGroupVersion.WithKind("AciIstioOperator")),
+			}
+			_, err = nsClient.Update(context.TODO(), istioNs, metav1.UpdateOptions{})
+			if err != nil {
+				cont.log.Error(err.Error())
+				return true
+			}
 		}
 	}
 	return false
