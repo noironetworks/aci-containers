@@ -213,10 +213,14 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 		}
 	}
 	cont.snatPolicyCache[key] = &policy
+	var nodeInfoKeys []string
 	if Update {
-		cont.handleSnatPoilcyUpdate(snatpolicy.ObjectMeta.Name)
+		nodeInfoKeys = cont.getNodeInfoKeys(snatpolicy.ObjectMeta.Name)
 	}
 	cont.indexMutex.Unlock()
+	for _, key := range nodeInfoKeys {
+		cont.queueNodeInfoUpdateByKey(key)
+	}
 }
 
 func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
