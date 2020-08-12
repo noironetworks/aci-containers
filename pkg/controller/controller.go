@@ -127,15 +127,14 @@ type AciController struct {
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
 	istioCache           map[string]*istiov1.AciIstioOperator
 	// Node Name and Policy Name
-	snatGlobalInfoCache       map[string]map[string]*snatglobalinfo.GlobalInfo
-	nodeSyncEnabled           bool
-	serviceSyncEnabled        bool
-	snatSyncEnabled           bool
-	tunnelGetter              *tunnelState
-	syncQueue                 workqueue.RateLimitingInterface
-	syncProcessors            map[string]func() bool
-	snatPortExhaustedPolicies map[string]map[string]bool
-	serviceEndPoints          ServiceEndPointType
+	snatGlobalInfoCache map[string]map[string]*snatglobalinfo.GlobalInfo
+	nodeSyncEnabled     bool
+	serviceSyncEnabled  bool
+	snatSyncEnabled     bool
+	tunnelGetter        *tunnelState
+	syncQueue           workqueue.RateLimitingInterface
+	syncProcessors      map[string]func() bool
+	serviceEndPoints    ServiceEndPointType
 }
 
 type nodeServiceMeta struct {
@@ -271,16 +270,15 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache:      make(map[string]*nodeServiceMeta),
-		nodePodNetCache:           make(map[string]*nodePodNetMeta),
-		serviceMetaCache:          make(map[string]*serviceMeta),
-		snatPolicyCache:           make(map[string]*ContSnatPolicy),
-		snatServices:              make(map[string]bool),
-		tunnelIdBase:              defTunnelIdBase,
-		snatNodeInfoCache:         make(map[string]*nodeinfo.NodeInfo),
-		snatGlobalInfoCache:       make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:                make(map[string]*istiov1.AciIstioOperator),
-		snatPortExhaustedPolicies: make(map[string]map[string]bool),
+		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
+		nodePodNetCache:      make(map[string]*nodePodNetMeta),
+		serviceMetaCache:     make(map[string]*serviceMeta),
+		snatPolicyCache:      make(map[string]*ContSnatPolicy),
+		snatServices:         make(map[string]bool),
+		tunnelIdBase:         defTunnelIdBase,
+		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
+		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:           make(map[string]*istiov1.AciIstioOperator),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,

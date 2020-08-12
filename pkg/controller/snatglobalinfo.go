@@ -118,17 +118,21 @@ func (cont *AciController) snatCfgUpdate(obj interface{}) {
 		start < 5000 || end > 65000 || start > end || portsPerNode > end-start+1 {
 		return
 	}
-	cont.indexMutex.Lock()
 	portRange.Start = start
 	portRange.End = end
 	var currPortRange []snatglobalinfo.PortRange
 	currPortRange = append(currPortRange, portRange)
+	var nodeInfoKeys []string
+	cont.indexMutex.Lock()
 	for name, info := range cont.snatPolicyCache {
 		cont.clearSnatGlobalCache(name, "")
 		info.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
-		cont.handleSnatPoilcyUpdate(name)
+		nodeInfoKeys = cont.getNodeInfoKeys(name)
 	}
 	cont.indexMutex.Unlock()
+	for _, key := range nodeInfoKeys {
+		cont.queueNodeInfoUpdateByKey(key)
+	}
 }
 
 func (cont *AciController) snatNodeInfoAdded(obj interface{}) {
@@ -205,16 +209,30 @@ func (cont *AciController) isSnatNodeInfoPresent(nodeName string) bool {
 	cont.indexMutex.Unlock()
 	return ok
 }
+
+func (cont *AciController) checksnatPolicyPortExhausted(name string) bool {
+	snatobj, exists, err := cont.snatIndexer.GetByKey(name)
+	if err == nil && exists && snatobj != nil {
+		snatpolicy := snatobj.(*snatv1.SnatPolicy)
+		if snatpolicy.Status.State == snatv1.IpPortsExhausted {
+			return true
+		}
+	}
+	return false
+}
+
 func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool {
 	cont.log.Debug("handle Node Info: ", nodeinfo)
 	updated := false
-	allocfailed := make(map[string]bool)
 	nodename := nodeinfo.ObjectMeta.Name
+	ret := false
 	// Cache needs to be updated
 	if !cont.isSnatNodeInfoPresent(nodename) || len(nodeinfo.Spec.SnatPolicyNames) == 0 {
-		cont.deleteNodeinfoFromGlInfoCache(nodename)
+		ret = cont.deleteNodeinfoFromGlInfoCache(nodename)
 		updated = true
 	} else {
+		allocfailed := make(map[string]bool)
+		markready := make(map[string]bool)
 		for name := range nodeinfo.Spec.SnatPolicyNames {
 			cont.indexMutex.Lock()
 			snatpolicy, ok := cont.snatPolicyCache[name]
@@ -230,6 +248,10 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					cont.log.Error("Port Range Exhausted: ", name)
 					allocfailed[name] = true
 					continue
+				} else {
+					if cont.checksnatPolicyPortExhausted(name) {
+						markready[name] = true
+					}
 				}
 				cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
 					nodeinfo.Spec.Macaddress, name)
@@ -244,6 +266,10 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 						cont.log.Error("Port Range Exhausted: ", name)
 						allocfailed[name] = true
 						continue
+					} else {
+						if cont.checksnatPolicyPortExhausted(name) {
+							markready[name] = true
+						}
 					}
 					cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
 						nodeinfo.Spec.Macaddress, name)
@@ -251,14 +277,14 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 				}
 			}
 		}
+		ret = cont.setSnatPoliciesState(allocfailed, snatv1.IpPortsExhausted)
+		ret = cont.setSnatPoliciesState(markready, snatv1.Ready)
 	}
+
 	if updated {
 		cont.scheduleSyncGlobalInfo()
 	}
-	if len(allocfailed) > 0 {
-		return cont.handleSnatPolicyPortAllocFailures(allocfailed, nodename)
-	}
-	return false
+	return ret
 }
 
 func (cont *AciController) syncSnatGlobalInfo() bool {
@@ -350,11 +376,11 @@ func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename st
 	expandedsnatports []snatglobalinfo.PortRange) (string, snatglobalinfo.PortRange, bool) {
 	for _, snatip := range snatIps {
 		cont.indexMutex.Lock()
-		if _, ok := cont.snatGlobalInfoCache[snatip]; !ok {
+		globalInfo, ok := cont.snatGlobalInfoCache[snatip]
+		if !ok {
 			cont.indexMutex.Unlock()
 			return snatip, expandedsnatports[0], true
-		} else if len(cont.snatGlobalInfoCache[snatip]) < len(expandedsnatports) {
-			globalInfo, _ := cont.snatGlobalInfoCache[snatip]
+		} else if len(globalInfo) < len(expandedsnatports) {
 			if _, ok := globalInfo[nodename]; !ok {
 				seen := make(map[int]int)
 				for _, val := range globalInfo {
@@ -371,22 +397,28 @@ func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename st
 				return globalInfo[nodename].SnatIp, globalInfo[nodename].PortRanges[0], true
 			}
 		}
+		cont.indexMutex.Unlock()
 	}
 	return "", snatglobalinfo.PortRange{}, false
 }
 
-func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) {
+func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) bool {
 	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 	for snatip, glinfos := range cont.snatGlobalInfoCache {
-		if _, ok := glinfos[nodename]; ok {
+		if v, ok := glinfos[nodename]; ok {
+			if cont.checksnatPolicyPortExhausted(v.SnatPolicyName) {
+				if cont.setSnatPolicyStaus(v.SnatPolicyName, snatv1.Ready) == true {
+					return true
+				}
+			}
 			delete(glinfos, nodename)
 			if len(glinfos) == 0 {
 				delete(cont.snatGlobalInfoCache, snatip)
 			}
 		}
 	}
-	delete(cont.snatPortExhaustedPolicies, nodename)
-	cont.indexMutex.Unlock()
+	return false
 }
 
 func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []string) {
@@ -404,7 +436,6 @@ func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]struct
 	for oldkey := range oldPolicyNames {
 		if _, ok := newPolicynames[oldkey]; !ok {
 			cont.clearSnatGlobalCache(oldkey, nodename)
-			//cont.setSnatPolicyStaus(oldkey, snatv1.Ready)
 		}
 	}
 }
@@ -433,8 +464,8 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 	}
 }
 
-func (cont *AciController) handleSnatPoilcyUpdate(policyName string) {
-	cont.log.Debug("clear Global cache: ")
+func (cont *AciController) getNodeInfoKeys(policyName string) []string {
+	var nodeinfokeys []string
 	for _, nodeinfo := range cont.snatNodeInfoCache {
 		if _, ok := nodeinfo.Spec.SnatPolicyNames[policyName]; ok {
 			nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
@@ -442,40 +473,19 @@ func (cont *AciController) handleSnatPoilcyUpdate(policyName string) {
 				continue
 			}
 			cont.log.Debug("handleSnatPoilcyUpdate Queu the Key: ")
-			cont.queueNodeInfoUpdateByKey(nodeinfokey)
+			nodeinfokeys = append(nodeinfokeys, (nodeinfokey))
 		}
 	}
+	return nodeinfokeys
 }
 
-func (cont *AciController) handleSnatPolicyPortAllocFailures(allocfailed map[string]bool, nodename string) bool {
+func (cont *AciController) setSnatPoliciesState(names map[string]bool, status snatv1.PolicyState) bool {
 	// Any alloc failures mark the policy with Status IpPortsExhausted
-	cont.indexMutex.Lock()
-	for name := range allocfailed {
-		if _, ok := cont.snatPortExhaustedPolicies[nodename]; !ok {
-			cont.snatPortExhaustedPolicies[nodename] = make(map[string]bool)
-			cont.snatPortExhaustedPolicies[nodename][name] = true
-		} else {
-			cont.snatPortExhaustedPolicies[nodename][name] = true
-		}
-		cont.log.Debug("Allocation Failed: ", allocfailed)
-		if cont.setSnatPolicyStaus(name, snatv1.IpPortsExhausted) == true {
-			cont.indexMutex.Unlock()
-			return true
+	ret := false
+	for name := range names {
+		if cont.setSnatPolicyStaus(name, status) == true {
+			ret = true
 		}
 	}
-	// if there is no allocc failure and check Policy present in snatPortExhaustedPolicie
-	// Mark the Policy Ready
-	if len(cont.snatPortExhaustedPolicies[nodename]) != 0 {
-		for name := range cont.snatPortExhaustedPolicies[nodename] {
-			if _, ok := allocfailed[name]; !ok {
-				if cont.setSnatPolicyStaus(name, snatv1.Ready) == true {
-					cont.indexMutex.Unlock()
-					return true
-				}
-				delete(cont.snatPortExhaustedPolicies[nodename], name)
-			}
-		}
-	}
-	cont.indexMutex.Unlock()
-	return false
+	return ret
 }
