@@ -1,4 +1,4 @@
-FROM alpine:3.12.0
+FROM alpine:3.11.5
 ARG ROOT=/usr/local
 #COPY ovs-musl.patch /
 COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
@@ -19,15 +19,19 @@ RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
   && cmake .. -DBUILD_SHARED_LIBS=ON \
   && make $make_args && make install && make clean \
   && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/
-RUN git clone --recurse-submodules -b v1.31.0 https://github.com/grpc/grpc \
+RUN git clone -b v1.31.0 https://github.com/grpc/grpc --config submodule.third_party/re2.url=https://github.com/google/re2.git --config submodule.third_party/re2.active=true \
   && cd grpc \
+  && git submodule update --init \
   && mkdir -p cmake/build \
   && cd cmake/build \
   && cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
            -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
            -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
            -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ../.. \
-  && make $make_args && make install
+  && make $make_args && make install \
+  && mv /usr/local/lib64/pkgconfig/proto* /usr/local/lib/pkgconfig/ \
+  && mv /usr/local/lib64/libproto* /usr/local/lib/ \
+  && mv /usr/local/lib64/libre2* /usr/local/lib/
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'

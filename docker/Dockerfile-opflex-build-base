@@ -38,9 +38,9 @@ RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
   && cd / \
   && rm -rf 3rdparty-debian \
   && rm -rf prometheus-cpp \
-  && cmake --version \
-  && git clone --recurse-submodules -b v1.31.0 https://github.com/grpc/grpc \
+  && git clone -b v1.31.0 https://github.com/grpc/grpc --config submodule.third_party/re2.url=https://github.com/google/re2.git --config submodule.third_party/re2.active=true \
   && cd grpc \
+  && git submodule update --init \
   && wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.17.0/cmake-3.17.0-Linux-x86_64.sh \
   && mkdir -p cmake-tmp \
   && sh cmake-linux.sh -- --skip-license --prefix=cmake-tmp \
