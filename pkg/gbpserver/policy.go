@@ -961,6 +961,8 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	if err != nil {
 		return nil, errors.Wrap(err, "json.Unmarshal")
 	}
+	modb := getMoDB()
+	_, isUpdate := modb[c.getURI()]
 
 	err = c.Make()
 	if err != nil {
@@ -969,12 +971,13 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	}
 
 	name := c.HostprotPol.Attributes[propName]
-	if !strings.Contains(name, "np_static") {
-		for _, fn := range theServer.listeners {
-			fn(GBPOperation_REPLACE, c.getAllURIs())
-		}
-		DoAll()
+	if strings.Contains(name, "np_static") && isUpdate {
+		return &PostResp{URI: c.getURI()}, nil
 	}
+	for _, fn := range theServer.listeners {
+		fn(GBPOperation_REPLACE, c.getAllURIs())
+	}
+	DoAll()
 	log.Infof("Created %+v", c)
 	return &PostResp{URI: c.getURI()}, nil
 }
