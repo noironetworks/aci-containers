@@ -50,7 +50,8 @@ RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
   && ../../cmake-tmp/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
                                -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
                                -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
-                               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ../.. \
+                               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF \
+                               -DgRPC_SSL_PROVIDER=package -DOPENSSL_ROOT_DIR=/usr/lib/ssl ../.. \
   && make $make_args && make install \
   && mv /usr/local/lib64/pkgconfig/proto* /usr/local/lib/pkgconfig/ \
   && mv /usr/local/lib64/libproto* /usr/local/lib/ \
