@@ -498,9 +498,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		}
 	}
 
-	if cont.config.LBType == lbTypeAci {
-		cont.initStaticObjs()
-	}
+	cont.initStaticObjs()
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
