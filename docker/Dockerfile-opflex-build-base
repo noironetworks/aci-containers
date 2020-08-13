@@ -52,6 +52,9 @@ RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
                                -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
                                -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ../.. \
   && make $make_args && make install \
+  && mv /usr/local/lib64/pkgconfig/proto* /usr/local/lib/pkgconfig/ \
+  && mv /usr/local/lib64/libproto* /usr/local/lib/ \
+  && mv /usr/local/lib64/libre2* /usr/local/lib/ \
   && cd / \
   && rm -rf grpc
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
