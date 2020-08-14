@@ -335,12 +335,12 @@ func (c *Contract) FromMo(mo *gbpBaseMo) error {
 				}
 
 				if cc[1] != "0" {
-					start, _ := strconv.Atoi(cc[1])
+					start := convNameToPort(cc[0], cc[1])
 					rule.Ports.Start = start
 				}
 
 				if cc[2] != "0" {
-					end, _ := strconv.Atoi(cc[2])
+					end := convNameToPort(cc[0], cc[2])
 					rule.Ports.End = end
 				}
 
@@ -866,6 +866,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 		cfMo.AddProperty(p, v)
 	}
 
+	protocol := hsc.Attributes["protocol"]
 	portSpec := []struct {
 		apicName string
 		gbpName  string
@@ -873,10 +874,11 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 		{apicName: "toPort", gbpName: propDToPort},
 		{apicName: "fromPort", gbpName: propDFromPort},
 	}
+	log.Debugf("hscAttr: %+v", hsc.Attributes)
 	for _, s := range portSpec {
 		att := hsc.Attributes[s.apicName]
 		if att != "unspecified" && att != "" {
-			attInt, _ := strconv.Atoi(att)
+			attInt := convNameToPort(protocol, att)
 			cfMo.AddProperty(s.gbpName, attInt)
 		}
 	}
@@ -1008,4 +1010,42 @@ func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (i
 
 	DoAll()
 	return nil, nil
+}
+
+func convNameToPort(prot, port string) int {
+	// based on net pkg
+	var services = map[string]map[string]int{
+		"udp": {
+			"domain": 53,
+		},
+		"tcp": {
+			"ftp":    21,
+			"ftps":   990,
+			"gopher": 70,
+			"http":   80,
+			"https":  443,
+			"imap2":  143,
+			"imap3":  220,
+			"imaps":  993,
+			"pop3":   110,
+			"pop3s":  995,
+			"smtp":   25,
+			"ssh":    22,
+			"telnet": 23,
+		},
+	}
+
+	prot = strings.ToLower(prot)
+	port = strings.ToLower(port)
+
+	portMap := services[prot]
+	if portMap != nil {
+		res, ok := portMap[port]
+		if ok {
+			return res
+		}
+	}
+
+	res, _ := strconv.Atoi(port)
+	return res
 }
