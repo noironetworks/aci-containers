@@ -548,6 +548,39 @@ func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 	return ret
 }
 
+func NewQosDppPol(tenantName string, name string) ApicObject {
+
+	ret := newApicObject("qosDppPol")
+	ret["qosDppPol"].Attributes["name"] = name
+	ret["qosDppPol"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/qosdpppol-%s", tenantName, name)
+	return ret
+}
+
+func NewQosRequirement(tenantName string, name string) ApicObject {
+	ret := newApicObject("qosRequirement")
+	ret["qosRequirement"].Attributes["name"] = name
+	ret["qosRequirement"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/qosreq-%s", tenantName, name)
+	return ret
+}
+
+func NewRsEgressDppPol(parentDn string, dppPolDn string) ApicObject {
+	ret := newApicObject("qosRsEgressDppPol")
+	ret["qosRsEgressDppPol"].Attributes["tDn"] = dppPolDn
+	ret["qosRsEgressDppPol"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsegressDppPol", parentDn)
+	return ret
+}
+
+func NewRsIngressDppPol(parentDn string, dppPolDn string) ApicObject {
+	ret := newApicObject("qosRsIngressDppPol")
+	ret["qosRsIngressDppPol"].Attributes["tDn"] = dppPolDn
+	ret["qosRsIngressDppPol"].Attributes["dn"] =
+		fmt.Sprintf("%s/rsingressDppPol", parentDn)
+	return ret
+}
+
 func NewVnsLDevVip(tenantName string, name string) ApicObject {
 	ret := newApicObject("vnsLDevVip")
 	ret["vnsLDevVip"].Attributes["name"] = name

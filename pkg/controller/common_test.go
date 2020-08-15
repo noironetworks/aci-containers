@@ -44,6 +44,7 @@ type testAciController struct {
 	fakeDeploymentSource    *framework.FakeControllerSource
 	fakeNetworkPolicySource *framework.FakeControllerSource
 	fakeSnatPolicySource    *framework.FakeControllerSource
+	fakeQosPolicySource     *framework.FakeControllerSource
 	fakeAimSource           *framework.FakeControllerSource
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
@@ -132,6 +133,13 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeSnatPolicySource.List,
 			WatchFunc: cont.fakeSnatPolicySource.Watch,
+		})
+
+	cont.fakeQosPolicySource = framework.NewFakeControllerSource()
+	cont.initQosInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeQosPolicySource.List,
+			WatchFunc: cont.fakeQosPolicySource.Watch,
 		})
 
 	cont.fakeNodeInfoSource = framework.NewFakeControllerSource()

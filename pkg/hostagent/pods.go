@@ -52,6 +52,7 @@ type opflexEndpoint struct {
 	EgPolicySpace string                 `json:"eg-policy-space,omitempty"`
 	EndpointGroup string                 `json:"endpoint-group-name,omitempty"`
 	SecurityGroup []metadata.OpflexGroup `json:"security-group,omitempty"`
+	QoSPolicies   []metadata.OpflexGroup `json:"qos-policies,omitempty"`
 
 	IpAddress  []string `json:"ip,omitempty"`
 	MacAddress string   `json:"mac,omitempty"`
@@ -424,6 +425,7 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.qosPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.handleObjectUpdateForSnat(obj)
 	agent.podChangedLocked(obj)
 }
@@ -464,21 +466,21 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	if epAttributes == nil {
 		epAttributes = make(map[string]string)
 	}
+	qosPolicies, _ := agent.assignqosPolicies(pod)
 	epAttributes["vm-name"] = pod.ObjectMeta.Name
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
-	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, epAttributes, logger)
+	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qosPolicies, epAttributes, logger)
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
-	epSecGroups []metadata.OpflexGroup, epAttributes map[string]string,
+	epSecGroups []metadata.OpflexGroup, epQoSPolicies []metadata.OpflexGroup, epAttributes map[string]string,
 	logger *logrus.Entry) {
 	if logger == nil {
 		logger = agent.log.WithFields(logrus.Fields{})
 	}
 
 	logger.Debug("epChanged...")
-	logger.Info("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
@@ -533,6 +535,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 				ep.EndpointGroup = epGroup.Name
 			}
 			ep.SecurityGroup = epSecGroups
+			ep.QoSPolicies = epQoSPolicies
 
 			neweps = append(neweps, ep)
 		}
@@ -570,6 +573,7 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 	agent.podDeletedLocked(obj)
 	agent.depPods.DeletePod(obj.(*v1.Pod))
 	agent.rcPods.DeletePod(obj.(*v1.Pod))
+	agent.qosPolPods.DeletePod(obj.(*v1.Pod))
 	agent.netPolPods.DeletePod(obj.(*v1.Pod))
 	agent.handleObjectDeleteForSnat(obj)
 }
