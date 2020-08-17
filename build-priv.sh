@@ -86,6 +86,13 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find
 	 -name '\''libsflow*so*'\'' -o \
 	 -name '\''libofproto*so*'\'' -o \
 	 -name '\''libgrpc*so*'\'' -o \
+	 -name '\''libproto*so*'\'' -o \
+	 -name '\''libre2*so*'\'' -o \
+	 -name '\''libupb*so*'\'' -o \
+	 -name '\''libabsl*so*'\'' -o \
+	 -name '\''libssl*so*'\'' -o \
+	 -name '\''libcrypto*so*'\'' -o \
+	 -name '\''libaddress_sorting*so*'\'' -o \
 	 -name '\''libgpr*so*'\'' \
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
