@@ -40,8 +40,8 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 	agent.indexMutex.Lock()
 	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 	if !ok {
-		return false
 		agent.indexMutex.Unlock()
+		return false
 	}
 
 	snatLocalInfo := make(map[string]SnatLocalInfo)
