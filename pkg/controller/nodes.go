@@ -285,7 +285,7 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 	aobj.SetAttr("mgmtIp", getNodeIP(node, v1.NodeInternalIP))
 	aobj.SetAttr("os", node.Status.NodeInfo.OSImage)
 	aobj.SetAttr("kernelVer", node.Status.NodeInfo.KernelVersion)
-    if apicapi.ApicVersion >= 5.0 {
+	if apicapi.ApicVersion >= "5.0" {
 		aobj.SetAttr("id", fmt.Sprintf("%v", tunnelID))
 	}
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
