@@ -23,7 +23,6 @@ import (
 	"fmt"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
-	snatlocal "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -151,14 +150,6 @@ func writeSnat(snatfile string, snat *OpflexSnatIp) (bool, error) {
 
 func (agent *HostAgent) FormSnatFilePath(uuid string) string {
 	return filepath.Join(agent.config.OpFlexSnatDir, uuid+".snat")
-}
-
-func SnatLocalInfoLogger(log *logrus.Logger, snat *snatlocal.SnatLocalInfo) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		"namespace": snat.ObjectMeta.Namespace,
-		"name":      snat.ObjectMeta.Name,
-		"spec":      snat.Spec,
-	})
 }
 
 func SnatGlobalInfoLogger(log *logrus.Logger, snat *snatglobal.SnatGlobalInfo) *logrus.Entry {
@@ -930,8 +921,8 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 	}
 	if syncEp {
 		agent.scheduleSyncEps()
-		agent.scheduleSyncLocalInfo()
 	}
+	agent.scheduleSyncLocalInfo()
 }
 
 func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
@@ -1076,7 +1067,9 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 					agent.applyPolicy(poduids, res, name)
 					agent.snatPolicyLabels[objKey][name] = res
 				}
-				sync = true
+				if len(poduids) > 0 {
+					sync = true
+				}
 			}
 		}
 
@@ -1094,11 +1087,11 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 				delpodlist = append(delpodlist, poduids...)
 				delete(agent.snatPolicyLabels[objKey], name)
 			}
-			sync = true
 			seen[name] = true
 		}
 		if len(delpodlist) > 0 {
 			agent.updateEpFiles(delpodlist)
+			sync = true
 		}
 		for name, resources := range matchnames {
 			if seen[name] == true {
@@ -1138,26 +1131,11 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 				delete(agent.opflexSnatLocalInfos, uid)
 				delete(agent.snatPods[name], uid)
 			}
-		}
-		podidlist = append(podidlist, poduids...)
-		sync = true
-	}
-	delete(agent.snatPolicyLabels, objKey)
-	// Delete any Policy entries present for POD
-	if getResourceType(obj) == POD {
-		uid := string(obj.(*v1.Pod).ObjectMeta.UID)
-		localinfo, ok := agent.opflexSnatLocalInfos[uid]
-		if ok {
-			for _, policynames := range localinfo.Snatpolicies {
-				for _, name := range policynames {
-					delete(agent.snatPods[name], uid)
-				}
-			}
-			delete(agent.opflexSnatLocalInfos, uid)
 			sync = true
 		}
+		podidlist = append(podidlist, poduids...)
 	}
-
+	delete(agent.snatPolicyLabels, objKey)
 	if sync {
 		agent.scheduleSyncNodeInfo()
 		if getResourceType(obj) == SERVICE {
