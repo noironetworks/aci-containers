@@ -813,7 +813,7 @@ func TestSnatPolicyDep(t *testing.T) {
 	it.checkEpSnatUids(6, uids, emptyJSON)
 	it.ta.fakeSnatPolicySource.Delete(snatobj1)
 	it.ta.fakeSnatPolicySource.Delete(snatobj2)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
 	var uids1 []string
 	it.checkEpSnatUids(6, uids1, emptyJSON)
@@ -900,4 +900,141 @@ func TestEPUpdateContainerId(t *testing.T) {
 	delVerify(1, 1)
 	delVerify(0, 2)
 
+}
+
+func mkservice(namespace string, name string, snatlabel map[string]string) *v1.Service {
+	return &v1.Service{
+		Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeLoadBalancer,
+			Selector: map[string]string{
+				"app": "sample-app",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+			Labels:      snatlabel,
+		},
+	}
+}
+
+// 1. Add Service
+// 2. Add Snatpolicy-> Service label
+// 3. Check EpFile is updated
+// 4. Delete Service Check EPFile
+// 5. Add Service back check EPFile
+
+func TestSnatPolicyService(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "test-node",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// add an annotated namespace
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+
+	it.testNS = "annNS"
+	it.cniAddParallel(6, 10)
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	time.Sleep(10 * time.Millisecond)
+	snatlabel := map[string]string{
+		"app": "sample-app",
+	}
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel))
+	podLabels := map[string]string{
+		"app":  "sample-app",
+		"tier": "sample-tier",
+	}
+	it.addPodObj(6, "annNS", "", "", podLabels)
+	time.Sleep(10 * time.Millisecond)
+	snatobj1 := snatpolicydata("policy1", "annNS", []string{}, []string{"10.10.0.0/16", "172.192.153.0/26"}, map[string]string{"app": "sample-app"})
+	it.ta.fakeSnatPolicySource.Add(snatobj1)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
+	time.Sleep(10 * time.Millisecond)
+	var uids []string
+	uids = append(uids, "uid-policy1")
+	it.checkEpSnatUids(6, uids, emptyJSON)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeServiceSource.Delete(mkservice("annNS", "testService", snatlabel))
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
+	var uids1 []string
+	it.checkEpSnatUids(6, uids1, emptyJSON)
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel))
+	time.Sleep(10 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
+	time.Sleep(10 * time.Millisecond)
+	it.checkEpSnatUids(6, uids, emptyJSON)
+	it.cniDelParallel(6, 10)
+}
+
+// 1. Create a Service with label matching snatpolicy
+// 2. check EpFile is updated  with UID's
+// 3. Modify the service with diffrent label
+// 4. check EpFile that snat UID's are deleted
+
+func TestSnatPolicylabelUpdate(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "test-node",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(itIpam, true)
+	defer it.tearDown()
+
+	// add an annotated namespace
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+
+	it.testNS = "annNS"
+	it.cniAddParallel(6, 10)
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	time.Sleep(10 * time.Millisecond)
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", map[string]string{"app": "sample-app"}))
+	podLabels := map[string]string{
+		"app":  "sample-app",
+		"tier": "sample-tier",
+	}
+	it.addPodObj(6, "annNS", "", "", podLabels)
+	time.Sleep(10 * time.Millisecond)
+	snatobj1 := snatpolicydata("policy1", "annNS", []string{}, []string{"10.10.0.0/16", "172.192.153.0/26"}, map[string]string{"app": "sample-app"})
+	it.ta.fakeSnatPolicySource.Add(snatobj1)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
+	time.Sleep(10 * time.Millisecond)
+	var uids []string
+	uids = append(uids, "uid-policy1")
+	it.checkEpSnatUids(6, uids, emptyJSON)
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeServiceSource.Modify(mkservice("annNS", "testService", map[string]string{"app": "sample-app1"}))
+	time.Sleep(100 * time.Millisecond)
+	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
+	time.Sleep(100 * time.Millisecond)
+	var uids1 []string
+	it.checkEpSnatUids(6, uids1, emptyJSON)
+	it.cniDelParallel(6, 10)
 }
