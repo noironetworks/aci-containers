@@ -480,14 +480,22 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.CachedVersion = version
 		apicapi.ApicVersion = version
 		// APIC version 3.2 introduced tagAnnotation support for better scalability.
-		if version >= 3.2 {
+		if version >= "3.2" {
 			cont.apicConn.UseAPICInstTag = false
 		} else {
 			cont.apicConn.UseAPICInstTag = true
 		}
+		if version >= "4.2(4i)" {
+			cont.apicConn.SnatPbrFltrChain = true
+		} else {
+			cont.apicConn.SnatPbrFltrChain = false
+		}
+	} else { // For unit-tests
+		cont.apicConn.SnatPbrFltrChain = true
 	}
 
 	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
+	cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
 
 	// Make sure Pod/NodeBDs and AciL3Out are assoicated to same VRF.
 	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {

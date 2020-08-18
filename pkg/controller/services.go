@@ -400,14 +400,14 @@ func validScope(scope string) bool {
 }
 
 func apicContract(conName string, tenantName string,
-	graphName string, scopeName string, isSnat bool) apicapi.ApicObject {
+	graphName string, scopeName string, isSnatPbrFltrChain bool) apicapi.ApicObject {
 	con := apicapi.NewVzBrCP(tenantName, conName)
 	if scopeName != "" && scopeName != "context" {
 		con.SetAttr("scope", scopeName)
 	}
 	cs := apicapi.NewVzSubj(con.GetDn(), "loadbalancedservice")
 	csDn := cs.GetDn()
-	if isSnat {
+	if isSnatPbrFltrChain {
 		cs.SetAttr("revFltPorts", "no")
 		inTerm := apicapi.NewVzInTerm(csDn)
 		outTerm := apicapi.NewVzOutTerm(csDn)
@@ -426,7 +426,7 @@ func apicContract(conName string, tenantName string,
 }
 
 func apicDevCtx(name string, tenantName string,
-	graphName string, bdName string, rpDn string, isSnat bool) apicapi.ApicObject {
+	graphName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
 
 	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
 	ccDn := cc.GetDn()
@@ -437,7 +437,7 @@ func apicDevCtx(name string, tenantName string,
 	rpDnBase := rpDn
 	for _, ctxConn := range []string{"consumer", "provider"} {
 		lifCtx := apicapi.NewVnsLIfCtx(ccDn, ctxConn)
-		if isSnat {
+		if isSnatPbrFltrChain {
 			if ctxConn == "consumer" {
 				rpDn = rpDnBase + "_Cons"
 			} else {
@@ -445,8 +445,7 @@ func apicDevCtx(name string, tenantName string,
 			}
 		}
 		lifCtxDn := lifCtx.GetDn()
-		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToSvcRedirectPol(lifCtxDn,
-			rpDn))
+		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToSvcRedirectPol(lifCtxDn, rpDn))
 		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToBD(lifCtxDn, bdDn))
 		lifCtx.AddChild(apicapi.NewVnsRsLIfCtxToLIf(lifCtxDn, lifDn))
 		cc.AddChild(lifCtx)
@@ -673,18 +672,26 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		// The service redirect policy contains the MAC address
 		// and IP address of each of the service endpoints for
 		// each node that hosts a pod for this service.
-		// For SNAT with introuction of filter-chain usage, to work-around
+		// For SNAT with the introduction of filter-chain usage, to work-around
 		// an APIC limitation, creating two PBR policies with same nodes.
-		rpCons, rpDnCons :=
-			apicRedirectPol(name+"_Cons", cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn(), true)
-		serviceObjs = append(serviceObjs, rpCons)
-		rpProv, _ :=
-			apicRedirectPol(name+"_Prov", cont.config.AciVrfTenant, nodes,
-				nodeMap, cont.staticMonPolDn(), true)
-		serviceObjs = append(serviceObjs, rpProv)
-		rpDn := strings.TrimSuffix(rpDnCons, "_Cons")
-
+		var rpDn string
+		var rp apicapi.ApicObject
+		if cont.apicConn.SnatPbrFltrChain {
+			rpCons, rpDnCons :=
+				apicRedirectPol(name+"_Cons", cont.config.AciVrfTenant, nodes,
+					nodeMap, cont.staticMonPolDn(), true)
+			serviceObjs = append(serviceObjs, rpCons)
+			rpProv, _ :=
+				apicRedirectPol(name+"_Prov", cont.config.AciVrfTenant, nodes,
+					nodeMap, cont.staticMonPolDn(), true)
+			serviceObjs = append(serviceObjs, rpProv)
+			rpDn = strings.TrimSuffix(rpDnCons, "_Cons")
+		} else {
+			rp, rpDn =
+				apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+					nodeMap, cont.staticMonPolDn(), true)
+			serviceObjs = append(serviceObjs, rp)
+		}
 		// 2. Service graph contract and external network
 		// The service graph contract must be bound to the
 		// service
@@ -701,7 +708,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 					cont.config.AciL3Out, ingresses, sharedSecurity, true))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, true)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, cont.apicConn.SnatPbrFltrChain)
 		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {
@@ -713,18 +720,22 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		defaultPortRange := portRangeSnat{start: cont.config.SnatDefaultPortRangeStart,
 			end: cont.config.SnatDefaultPortRangeEnd}
 		portSpec := []portRangeSnat{defaultPortRange}
-		filterIn := apicFilterSnat(name+"_fromCons-toProv", cont.config.AciVrfTenant, portSpec, false)
-		serviceObjs = append(serviceObjs, filterIn)
-		filterOut := apicFilterSnat(name+"_fromProv-toCons", cont.config.AciVrfTenant, portSpec, true)
-		serviceObjs = append(serviceObjs, filterOut)
-
+		if cont.apicConn.SnatPbrFltrChain {
+			filterIn := apicFilterSnat(name+"_fromCons-toProv", cont.config.AciVrfTenant, portSpec, false)
+			serviceObjs = append(serviceObjs, filterIn)
+			filterOut := apicFilterSnat(name+"_fromProv-toCons", cont.config.AciVrfTenant, portSpec, true)
+			serviceObjs = append(serviceObjs, filterOut)
+		} else {
+			filter := apicFilterSnat(name, cont.config.AciVrfTenant, portSpec, false)
+			serviceObjs = append(serviceObjs, filter)
+		}
 		// 3. Device cluster context
 		// The logical device context binds the service contract
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
 			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
-				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, true))
+				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, cont.apicConn.SnatPbrFltrChain))
 	}
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
 	return nil

@@ -86,14 +86,15 @@ type ApicConnection struct {
 	user      string
 	password  string
 	prefix    string
-	version   float64 // APIC version
+	version   string // APIC version
 
-	CachedVersion       float64
+	CachedVersion       string
 	ReconnectInterval   time.Duration
 	RefreshInterval     time.Duration
 	RefreshTickerAdjust time.Duration
 	RetryInterval       time.Duration
 	UseAPICInstTag      bool // use old-style APIC tags rather than annotations
+	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
 	FullSyncHook        func()
 
 	dialer        *websocket.Dialer
@@ -504,7 +505,7 @@ func NewTagAnnotation(parentDn string, key string) ApicObject {
 	dn := ""
 	ret := newApicObject("tagAnnotation")
 	ret["tagAnnotation"].Attributes["key"] = key
-	if ApicVersion >= 4.1 {
+	if ApicVersion >= "4.1" {
 		dn = fmt.Sprintf("%s/annotationKey-[%s]", parentDn, key)
 	} else {
 		dn = fmt.Sprintf("%s/annotationKey-%s", parentDn, key)
