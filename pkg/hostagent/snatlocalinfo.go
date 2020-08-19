@@ -83,7 +83,9 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		}
 		localinfo.PodUid = uid
 		localinfo.SnatPolicies = policies
-		localInfos = append(localInfos, localinfo)
+		if len(policies) > 0 {
+			localInfos = append(localInfos, localinfo)
+		}
 	}
 	agent.indexMutex.Unlock()
 	snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
