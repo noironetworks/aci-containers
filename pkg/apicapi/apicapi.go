@@ -49,7 +49,7 @@ const defaultConnectionRefresh = 30 * time.Second
 // dependencies during APIC interaction. It gets filled with actual version
 // as part of runConn()
 var (
-	ApicVersion = 3.1
+	ApicVersion = "3.1"
 )
 
 func complete(resp *http.Response) {
@@ -477,7 +477,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	// Get APIC version if connection restarts
 	// Unsupported scenario: Exit if APIC downgrades from >=3.2 to <=3.1
-	if conn.version == 0 && conn.checkVersion {
+	if conn.version == "" && conn.checkVersion {
 		go func() {
 			version, err := conn.GetVersion()
 			if err != nil {
@@ -485,7 +485,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
 				ApicVersion = version
-				if version <= 3.1 && conn.CachedVersion >= 3.2 {
+				if version <= "3.1" && conn.CachedVersion >= "3.2" {
 					conn.log.Debug("APIC is downgraded from >=3.2 to a lower version, Exiting ")
 					os.Exit(1) //K8S shall restart the container and fallback to tagInst
 				}
@@ -511,7 +511,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
-		conn.version = 0
+		conn.version = ""
 		conn.indexMutex.Unlock()
 
 		conn.log.Debug("Shutting down web socket")
@@ -547,18 +547,19 @@ loop:
 	conn.log.Debug("Exiting websocket handler")
 }
 
-func (conn *ApicConnection) GetVersion() (float64, error) {
+func (conn *ApicConnection) GetVersion() (string, error) {
 	versionMo := "firmwareCtrlrRunning"
 
 	if len(conn.apic) == 0 {
-		return 0, errors.New("No APIC configuration")
+		return "", errors.New("No APIC configuration")
 	}
 
 	conn.checkVersion = true // enable version check on websocket reconnect
 	// To Handle unit-tests
 	if strings.Contains(conn.apic[conn.apicIndex], "127.0.0.1") {
-		conn.version = 3.2
-		conn.log.Debug("Returning APIC version 3.2 for test server")
+		conn.version = "4.2(4i)"
+		conn.SnatPbrFltrChain = true
+		conn.log.Debug("Returning APIC version 4.2(4i) for test server")
 		return conn.version, nil
 	}
 
@@ -570,7 +571,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 		"host": conn.apic[conn.apicIndex],
 	}).Info("Connecting to APIC to determine the Version")
 
-	for conn.version == 0 {
+	for conn.version == "" {
 		// Wait before Retry.
 		time.Sleep(conn.ReconnectInterval)
 
@@ -623,7 +624,7 @@ func (conn *ApicConnection) GetVersion() (float64, error) {
 					version_number, err := strconv.ParseFloat(version_split[0], 64)
 					conn.log.Debug("Actual APIC version:", version, " Stripped out version:", version_number)
 					if err == nil {
-						conn.version = version_number
+						conn.version = version //return the actual version
 					}
 				}
 			}
