@@ -247,5 +247,15 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		"node-1": {SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
+	modconfigmap = &v1.ConfigMap{
+		Data: map[string]string{"start": "5000", "end": "65000", "ports-per-node": "60000"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "snat-operator-config",
+			Namespace: "aci-containers-system",
+		},
+	}
+	cont.fakeSnatCfgSource.Modify(modconfigmap)
+	expected = map[string]snatglobalinfo.GlobalInfo{}
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
 	cont.stop()
 }

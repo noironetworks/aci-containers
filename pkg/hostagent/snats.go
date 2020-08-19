@@ -251,7 +251,7 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 			}
 		}
 		if !ok || !present {
-			agent.deletePolicy(newpolicyinfo, false)
+			agent.deletePolicy(newpolicyinfo)
 		}
 		return
 	}
@@ -310,7 +310,7 @@ func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
-	agent.deletePolicy(policyinfo, true)
+	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)
 }
 
@@ -483,7 +483,7 @@ func (agent *HostAgent) syncSnatNodeInfo() bool {
 	return false
 }
 
-func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy, sync bool) {
+func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy) {
 	pods, ok := agent.snatPods[policy.GetName()]
 	var poduids []string
 	if !ok {
@@ -496,10 +496,7 @@ func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy, sync bool) {
 	agent.updateEpFiles(poduids)
 	delete(agent.snatPods, policy.GetName())
 	agent.log.Info("SnatPolicy deleted update Nodeinfo: ", policy.GetName())
-	if sync {
-		agent.scheduleSyncNodeInfo()
-	}
-
+	agent.scheduleSyncNodeInfo()
 	for key, v := range agent.snatPolicyLabels {
 		if _, ok := v[policy.GetName()]; ok {
 			delete(agent.snatPolicyLabels[key], policy.GetName())
