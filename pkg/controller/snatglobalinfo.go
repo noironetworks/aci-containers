@@ -373,6 +373,9 @@ func (cont *AciController) getIpAndPortRange(nodename string, snatpolicy *ContSn
 
 func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename string,
 	expandedsnatports []snatglobalinfo.PortRange) (string, snatglobalinfo.PortRange, bool) {
+	if len(expandedsnatports) < 1 {
+		return "", snatglobalinfo.PortRange{}, false
+	}
 	for _, snatip := range snatIps {
 		cont.indexMutex.Lock()
 		globalInfo, ok := cont.snatGlobalInfoCache[snatip]
