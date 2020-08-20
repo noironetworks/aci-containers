@@ -194,13 +194,14 @@ func namespaceLabel(name string, labels map[string]string) *v1.Namespace {
 	}
 }
 
-func mkNamespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
+func mkNamespace(name string, egAnnot string, sgAnnot string, qpAnnot string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Annotations: map[string]string{
 				metadata.EgAnnotation: egAnnot,
 				metadata.SgAnnotation: sgAnnot,
+				metadata.QpAnnotation: qpAnnot,
 			},
 		},
 	}
@@ -219,7 +220,7 @@ func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
 	}
 }
 
-func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string) *appsv1.Deployment {
+func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -235,12 +236,13 @@ func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string)
 			Annotations: map[string]string{
 				metadata.EgAnnotation: egAnnot,
 				metadata.SgAnnotation: sgAnnot,
+				metadata.QpAnnotation: qpAnnot,
 			},
 		},
 	}
 }
 
-func mkRC(namespace string, name string, egAnnot string, sgAnnot string) *v1.ReplicationController {
+func mkRC(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot string) *v1.ReplicationController {
 	return &v1.ReplicationController{
 		Spec: v1.ReplicationControllerSpec{
 			Template: &v1.PodTemplateSpec{},
@@ -251,6 +253,7 @@ func mkRC(namespace string, name string, egAnnot string, sgAnnot string) *v1.Rep
 			Annotations: map[string]string{
 				metadata.EgAnnotation: egAnnot,
 				metadata.SgAnnotation: sgAnnot,
+				metadata.QpAnnotation: qpAnnot,
 			},
 		},
 	}

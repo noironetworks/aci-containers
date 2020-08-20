@@ -129,6 +129,7 @@ func (in *QosPolicySpec) DeepCopyInto(out *QosPolicySpec) {
 	in.Selector.DeepCopyInto(&out.Selector)
 	out.Ingress = in.Ingress
 	out.Egress = in.Egress
+	out.Mark = in.Mark
 	return
 }
 

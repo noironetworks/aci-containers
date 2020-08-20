@@ -37,6 +37,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const (
+	qosCRDName = "qospolicies.aci.qos"
+)
+
 type Environment interface {
 	Init(agent *AciController) error
 	PrepareRun(stopCh <-chan struct{}) error

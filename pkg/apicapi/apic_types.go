@@ -582,6 +582,14 @@ func NewRsIngressDppPol(parentDn string, dppPolDn string) ApicObject {
 	return ret
 }
 
+func NewQosEpDscpMarking(qosreqDn string, name string) ApicObject {
+	ret := newApicObject("qosEpDscpMarking")
+	ret["qosEpDscpMarking"].Attributes["name"] = name
+	ret["qosEpDscpMarking"].Attributes["dn"] =
+		fmt.Sprintf("%s/dscp_marking", qosreqDn)
+	return ret
+}
+
 func NewVnsLDevVip(tenantName string, name string) ApicObject {
 	ret := newApicObject("vnsLDevVip")
 	ret["vnsLDevVip"].Attributes["name"] = name

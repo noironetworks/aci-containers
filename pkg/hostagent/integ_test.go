@@ -57,6 +57,9 @@ const (
 		"\"app-profile\": \"test-prof\", \"name\": \"ann-rc-eg\"}"
 	emptyJSON = "null"
 
+	qpAnnot1 = "{\"tenant\": \"testps\", " +
+		"\"app-profile\": \"test-prof\", \"name\": \"test-qp\"}"
+
 	sgAnnot1 = "[{\"policy-space\":\"testps\",\"name\":\"test-sg1\"}]"
 
 	sgAnnot2 = "[{\"policy-space\":\"testps\",\"name\":\"test-sg1\"}, {\"policy-space\":\"testps\",\"name\":\"test-sg2\"}]"
@@ -513,23 +516,23 @@ func TestGroupAssign(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1, qpAnnot1))
 
 	// add an annotated deployment
-	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
 
 	// add an RC without annotation
-	rc1 := mkRC("annNS", "rcNoAnn", "", "")
+	rc1 := mkRC("annNS", "rcNoAnn", "", "", "")
 	rc1.Spec.Selector = map[string]string{"app": "rc-app"}
 	it.ta.fakeRCSource.Add(rc1)
 
 	// add an annotated rc
-	rc2 := mkRC("annNS", "rcWithAnn", testEgAnnot5, sgAnnot2)
+	rc2 := mkRC("annNS", "rcWithAnn", testEgAnnot5, sgAnnot2, qpAnnot1)
 	rc2.Spec.Selector = map[string]string{"app": "rc-ann-app"}
 	it.ta.fakeRCSource.Add(rc2)
 
 	// add an annotated rc, no selector, set labels in template
-	templRC := mkRC("annNS", "noSelRC", testEgAnnot5, sgAnnot2)
+	templRC := mkRC("annNS", "noSelRC", testEgAnnot5, sgAnnot2, qpAnnot1)
 	templRC.Spec.Template.Labels = map[string]string{"app": "nosel-app"}
 	it.ta.fakeRCSource.Add(templRC)
 
@@ -620,7 +623,7 @@ func TestNPGroupAssign(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, ""))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, "", qpAnnot1))
 
 	// add a default network policy
 	it.ta.fakeNetworkPolicySource.Add(mkNetPol("annNS", "np1",
@@ -725,7 +728,7 @@ func TestSnatPolicy(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, ""))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, "", qpAnnot1))
 
 	// Add pods intf via cni
 	it.cniAddParallel(0, 1)
@@ -784,10 +787,10 @@ func TestSnatPolicyDep(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1, qpAnnot1))
 
 	// add an annotated deployment
-	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
 
 	it.testNS = "annNS"
 	it.cniAddParallel(5, 10)
@@ -945,11 +948,11 @@ func TestSnatPolicyService(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1, qpAnnot1))
 
 	it.testNS = "annNS"
 	it.cniAddParallel(6, 10)
-	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
 	time.Sleep(10 * time.Millisecond)
 	snatlabel := map[string]string{
 		"app": "sample-app",
@@ -1008,11 +1011,11 @@ func TestSnatPolicylabelUpdate(t *testing.T) {
 	defer it.tearDown()
 
 	// add an annotated namespace
-	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1))
+	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, sgAnnot1, qpAnnot1))
 
 	it.testNS = "annNS"
 	it.cniAddParallel(6, 10)
-	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2))
+	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
 	time.Sleep(10 * time.Millisecond)
 	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", map[string]string{"app": "sample-app"}))
 	podLabels := map[string]string{

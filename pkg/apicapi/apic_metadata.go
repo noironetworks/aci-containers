@@ -394,6 +394,7 @@ var metadata = map[string]*apicMeta{
 		children: []string{
 			"qosRsEgressDppPol",
 			"qosRsIngressDppPol",
+			"qosEpDscpMarking",
 		},
 	},
 	"qosRsEgressDppPol": {
@@ -411,6 +412,11 @@ var metadata = map[string]*apicMeta{
 			"name":  "",
 			"burst": "unspecified",
 			"rate":  "0",
+		},
+	},
+	"qosEpDscpMarking": {
+		attributes: map[string]interface{}{
+			"mark": "",
 		},
 	},
 	"vnsLDevVip": {

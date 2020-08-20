@@ -34,7 +34,7 @@ import (
 )
 
 func pod(uuid string, namespace string, name string,
-	egAnnot string, sgAnnot string) *v1.Pod {
+	egAnnot string, sgAnnot string, qpAnnot string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "test-node",
@@ -46,6 +46,7 @@ func pod(uuid string, namespace string, name string,
 			Annotations: map[string]string{
 				metadata.EgAnnotation: egAnnot,
 				metadata.SgAnnotation: sgAnnot,
+				metadata.QpAnnotation: qpAnnot,
 			},
 			Labels: map[string]string{},
 		},
@@ -81,6 +82,8 @@ func cnimd(namespace string, name string,
 const egAnnot = "{\"tenant\": \"testps\", " +
 	"\"app-profile\": \"test\", \"name\": \"test-eg\"}"
 const sgAnnot = "[{\"tenant\": \"testps\", \"name\": \"test-sg\"}]"
+const qpAnnot = "{\"tenant\": \"testps\", " +
+	"\"app-profile\": \"test\", \"name\": \"test-qp\"}"
 
 type podTest struct {
 	uuid      string
@@ -92,6 +95,7 @@ type podTest struct {
 	mac       string
 	eg        string
 	sg        string
+	qp        string
 }
 
 var podTests = []podTest{
@@ -105,6 +109,7 @@ var podTests = []podTest{
 		"00:0c:29:92:fe:d0",
 		egAnnot,
 		sgAnnot,
+		qpAnnot,
 	},
 	{
 		"730a8e7a-8455-4d46-8e6e-f4fdf0e3a667",
@@ -116,6 +121,7 @@ var podTests = []podTest{
 		"00:0c:29:92:fe:d1",
 		egAnnot,
 		sgAnnot,
+		qpAnnot,
 	},
 
 	{
@@ -128,6 +134,7 @@ var podTests = []podTest{
 		"52:54:00:e5:26:57",
 		egAnnot,
 		sgAnnot,
+		qpAnnot,
 	},
 }
 
@@ -182,7 +189,7 @@ func TestPodSync(t *testing.T) {
 				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
 				[]byte("random gibberish"), 0644)
 		}
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
 			map[string]*metadata.ContainerMetadata{
@@ -194,7 +201,7 @@ func TestPodSync(t *testing.T) {
 	}
 
 	for _, pt := range podTests {
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		cnimd.Ifaces[0].Mac = pt.mac
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
@@ -207,7 +214,7 @@ func TestPodSync(t *testing.T) {
 	}
 
 	for _, pt := range podTests {
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		agent.fakePodSource.Delete(pod)
 
 		tu.WaitFor(t, pt.name, 100*time.Millisecond,

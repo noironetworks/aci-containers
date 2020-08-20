@@ -28,21 +28,6 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
-const (
-	qosCRDName = "qospolicies.aci.qos"
-)
-
-type ContPolicingType struct {
-	PolicingRate  int `json:"policing_rate"`
-	PolicingBurst int `json:"policing_burst"`
-}
-
-type ContQosPolicy struct {
-	Selector ContPodSelector
-	Ingress  ContPolicingType
-	Egress   ContPolicingType
-}
-
 func QosPolicyLogger(log *logrus.Logger, qos *qospolicy.QosPolicy) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": qos.ObjectMeta.Namespace,
@@ -135,9 +120,17 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 		return false
 	}
 	labelKey := cont.aciNameForKey("qp", key)
+	cont.log.Debug("create qospolicy")
 	qr := apicapi.NewQosRequirement(cont.config.AciPolicyTenant, labelKey)
 	qrDn := qr.GetDn()
 	apicSlice := apicapi.ApicSlice{qr}
+
+	// Pushing EpDscpMarking Mo if dscp_mark not equal to 0
+	if qp.Spec.Mark != 0 {
+		DscpMarking := apicapi.NewQosEpDscpMarking(qrDn, "EpDscpMarking")
+		DscpMarking.SetAttr("mark", strconv.Itoa(qp.Spec.Mark))
+		qr.AddChild(DscpMarking)
+	}
 
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {

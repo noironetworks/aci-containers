@@ -59,6 +59,9 @@ const EgAnnotation = "opflex.cisco.com/endpoint-group"
 // Annotation for security group designation for pod, deployment, etc.
 const SgAnnotation = "opflex.cisco.com/security-group"
 
+// Annotation for qospolicy group designation for pod,deployment, etc.
+const QpAnnotation = "opflex.cisco.com/qospolicy"
+
 // Computed endpoint group for pod
 const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
 
