@@ -1244,7 +1244,7 @@ func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
 		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(int(portNum))
 		ports[key] = targetPort{
 			proto: port.Protocol,
-			port:  portNum,
+			ports: []int{portNum},
 		}
 	}
 	return ports

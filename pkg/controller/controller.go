@@ -144,6 +144,8 @@ type AciController struct {
 	serviceEndPoints    ServiceEndPointType
 	crdHandlers         map[string]func(*AciController, <-chan struct{})
 	stopCh              <-chan struct{}
+	//index of containername to ctrPortNameEntry
+	ctrPortNameCache map[string]*ctrPortNameEntry
 }
 
 type nodeServiceMeta struct {
@@ -169,7 +171,7 @@ type ipIndexEntry struct {
 
 type targetPort struct {
 	proto v1.Protocol
-	port  int
+	ports []int
 }
 
 type portIndexEntry struct {
@@ -181,6 +183,11 @@ type portIndexEntry struct {
 type portRangeSnat struct {
 	start int
 	end   int
+}
+
+type ctrPortNameEntry struct {
+	// Proto+port->pods
+	ctrNmpToPods map[string]map[string]bool
 }
 
 type ServiceEndPointType interface {
@@ -290,6 +297,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
 		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
