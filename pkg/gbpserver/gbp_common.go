@@ -278,6 +278,26 @@ type gbpCommonMo struct {
 	permanent bool // do not delete
 }
 
+func (g *gbpCommonMo) clone() (*gbpCommonMo, error) {
+	var newMo GBPObject
+
+	b, err := json.Marshal(g)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(b, &newMo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gbpCommonMo{
+		GBPObject: newMo,
+		isRef:     g.isRef,
+		permanent: g.permanent,
+	}, nil
+}
+
 func (g *gbpCommonMo) needParent() bool {
 	switch g.Subject {
 	case subjContract:
@@ -397,6 +417,18 @@ func (g *gbpCommonMo) AddProperty(name string, data interface{}) {
 
 	p := &Property{Name: name, Value: pVal}
 	g.Properties = append(g.Properties, p)
+}
+
+func (g *gbpCommonMo) DelProperty(name string) {
+	p := g.Properties
+
+	for ix, prop := range p {
+		if prop.Name == name {
+			copy(p[ix:], p[ix+1:])
+		}
+	}
+
+	g.Properties = p[:len(p)-1]
 }
 
 func (g *gbpCommonMo) WriteJSON() ([]byte, error) {

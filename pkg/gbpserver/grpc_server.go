@@ -139,7 +139,9 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 			ss.Send(gbpOp)
 
 		case <-ss.Context().Done():
+			gMutex.Lock()
 			gw.gs.RemoveCallBack(peer.Addr.String())
+			gMutex.Unlock()
 			gw.log.Infof("ListObjects Exit %s", peerVtep)
 			return ss.Context().Err()
 		}

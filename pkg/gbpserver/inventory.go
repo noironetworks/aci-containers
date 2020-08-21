@@ -32,12 +32,17 @@ import (
 
 type gbpInvMo struct {
 	gbpCommonMo
+	childGetter func(string) *gbpInvMo
 }
 
 const (
-	epInvURI     = "/InvUniverse/InvRemoteEndpointInventory/"
-	subjRemoteEP = "InvRemoteInventoryEp"
-	getVtepsPath = "/usr/local/bin/get_vteps.sh"
+	epInvURI        = "/InvUniverse/InvRemoteEndpointInventory/"
+	subjRemoteEP    = "InvRemoteInventoryEp"
+	subjNhl         = "InvNextHopLink"
+	propNht         = "nextHopTunnel"
+	getVtepsPath    = "/usr/local/bin/get_vteps.sh"
+	propInvProxyMac = "proxyMac"
+	csrDefMac       = "00:00:5e:00:52:13"
 )
 
 var InvDB = make(map[string]map[string]*gbpInvMo)
@@ -91,6 +96,15 @@ func (g *gbpInvMo) save(vtep string) {
 	db[g.Uri] = g
 }
 
+func (g *gbpInvMo) clone() *gbpInvMo {
+	newMo, err := g.gbpCommonMo.clone()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &gbpInvMo{gbpCommonMo: *newMo}
+}
+
 func getInvDB(vtep string) map[string]*gbpInvMo {
 	db := theServer.invDB[vtep]
 	if db == nil {
@@ -140,22 +154,87 @@ func getInvSubTree(url, vtep string) []*GBPObject {
 func (g *gbpInvMo) getSubTree(vtep string) []*GBPObject {
 	st := make([]*GBPObject, 0, 8)
 
-	return g.preOrder(st, vtep)
+	root := g.xformVteps()
+	return root.preOrder(st, vtep)
+}
+
+// Applies vtep transformation for forwarding via CSR
+func (g *gbpInvMo) xformVteps() *gbpInvMo {
+	auxChildren := make(map[string]*gbpInvMo)
+	// find nextHop aka vtep
+	nh := g.GetStringProperty(propNht)
+
+	// TODO: setup bounce
+	tunnels := strings.Split(nh, ",")
+	nhCount := len(tunnels)
+	if nhCount < 2 { // no change required
+		return g
+	}
+
+	// clone the mo and modify the clone
+	// add nexthops as children instead of property
+	// return this mo
+	newMo := g.clone()
+	newMo.DelProperty(propNht)
+	newMo.AddProperty(propInvProxyMac, csrDefMac)
+
+	for _, vtep := range tunnels {
+		cURI := fmt.Sprintf("%s%s/%s/", newMo.Uri, subjNhl, vtep)
+		child := &gbpInvMo{
+			gbpCommonMo{
+				GBPObject{
+					Subject: subjNhl,
+					Uri:     cURI,
+				},
+				false,
+				false,
+			},
+			nil,
+		}
+		child.AddProperty("ip", vtep)
+		child.SetParent(newMo.Subject, subjNhl, newMo.Uri)
+
+		newMo.AddChild(child.Uri)
+		auxChildren[child.Uri] = child
+	}
+
+	childGetter := func(uri string) *gbpInvMo {
+		c := auxChildren[uri]
+		if c != nil {
+			return c
+		}
+
+		return nil
+	}
+
+	newMo.childGetter = childGetter
+	return newMo
 }
 
 func (g *gbpInvMo) preOrder(moList []*GBPObject, vtep string) []*GBPObject {
 	// append self first
 	moList = append(moList, &g.GBPObject)
+	db := getInvDB(vtep)
+	if db == nil {
+		log.Errorf("InvDB vtep %s not found", vtep)
+	}
+
+	getChild := func(uri string) *gbpInvMo {
+		var c *gbpInvMo
+		if g.childGetter != nil {
+			c = g.childGetter(uri)
+			if c != nil {
+				return c
+			}
+		}
+
+		c = db[uri]
+		return c
+	}
 
 	// append child subtrees
 	for _, c := range g.Children {
-		db := getInvDB(vtep)
-		if db == nil {
-			log.Errorf("InvDB vtep %s not found", vtep)
-			continue
-		}
-
-		cMo := db[c]
+		cMo := getChild(c)
 		if cMo == nil {
 			log.Errorf("Child %s missing for %s", c, g.Uri)
 			continue
@@ -185,13 +264,12 @@ func removeInvMo(vtep, uri string) {
 
 func GetInvMoMap(vtep string) map[string]*gbpCommonMo {
 	res := make(map[string]*gbpCommonMo)
-	for k, m := range theServer.invDB {
-		if k == vtep {
-			continue // skip this vtep
-		}
 
-		for kk, mo := range m {
-			res[kk] = &mo.gbpCommonMo
+	invMo := getMoDB()[epInvURI]
+	for _, cUri := range invMo.Children {
+		st := getInvSubTree(cUri, vtep)
+		for _, mo := range st {
+			res[mo.Uri] = &gbpCommonMo{GBPObject: *mo}
 		}
 	}
 
@@ -253,6 +331,7 @@ func (ep *Endpoint) Add() (string, error) {
 				false,
 				false,
 			},
+			nil,
 		}
 
 		child.SetParent(p.Subject, childSub, p.Uri)
@@ -276,7 +355,7 @@ func (ep *Endpoint) Add() (string, error) {
 		Data string
 	}{
 		{Name: "mac", Data: ep.MacAddr},
-		{Name: "nextHopTunnel", Data: ep.VTEP},
+		{Name: propNht, Data: ep.VTEP},
 		{Name: "uuid", Data: ep.Uuid},
 	}
 
@@ -358,7 +437,7 @@ func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
 	}
 
 	ep.MacAddr = mo.GetStringProperty("mac")
-	ep.VTEP = mo.GetStringProperty("nextHopTunnel")
+	ep.VTEP = mo.GetStringProperty(propNht)
 	ep.Uuid = mo.GetStringProperty("uuid")
 
 	m := getInvDB(ep.VTEP)
