@@ -61,19 +61,20 @@ func (agent *HostAgent) RunPacketEventListener(stopCh <-chan struct{}) {
 					n, err := newFd.Read(buffer)
 					if err != nil {
 						if err != io.EOF {
-							agent.log.Errorf("packet event socket read error %s", err)
+							agent.log.Debugf("packet event socket read error %s", err)
 						}
 						break
 					}
 					var m []PacketEvent
 					err1 := json.Unmarshal(buffer[:n], &m)
 					if err1 != nil {
-						agent.log.Error("Unmarshaling error ", err1)
+						agent.log.Debug("Unmarshaling error ", err1)
+						continue
 					}
 					for _, event := range m {
 						err2 := agent.processPacketEvent(event, time.Now())
 						if err2 != nil {
-							agent.log.Errorf("Failed to post event %d", err2)
+							agent.log.Debugf("Failed to post event %d", err2)
 						}
 					}
 				}
