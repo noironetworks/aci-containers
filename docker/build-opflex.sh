@@ -14,7 +14,7 @@ if [ -d opflex ]; then
     git pull
     popd
 else
-    git clone https://git.opendaylight.org/gerrit/opflex.git --depth 1
+    git clone https://github.com/noironetworks/opflex --depth 1
 fi
 pushd opflex/genie
 mvn compile exec:java
