@@ -95,6 +95,7 @@ type HostAgent struct {
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 	rdConfig         *opflexRdConfig
 	poster           *EventPoster
+	ocServices       []opflexOcService // OpenShiftservices
 	serviceEndPoints ServiceEndPointType
 }
 
@@ -161,6 +162,20 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
+		ocServices: []opflexOcService{
+			{
+				RouterInternalDefault,
+				OpenShiftIngressNs,
+			},
+			{
+				DnsDefault,
+				OpenShiftDnsNs,
+			},
+			{
+				ApiServer,
+				DefaultNs,
+			},
+		},
 	}
 
 	ha.syncProcessors = map[string]func() bool{
