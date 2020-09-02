@@ -41,6 +41,25 @@ type K8sStateDriver struct {
 	copier func(s, d *aciv1.GBPSState)
 }
 
+func (ks *K8sStateDriver) StateExists() (bool, error) {
+	cfg, err := restclient.InClusterConfig()
+	if err != nil {
+		return false, err
+	}
+	aciClient, err := aciclientset.NewForConfig(cfg)
+	if err != nil {
+		return false, err
+	}
+	ks.gsi = aciClient.AciV1().GBPSStates(sysNs)
+	s, err := ks.gsi.Get(context.TODO(), stateObject, metav1.GetOptions{})
+	if err != nil || s == nil {
+		// no state
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (ks *K8sStateDriver) Init(wrField int) error {
 	cfg, err := restclient.InClusterConfig()
 	if err != nil {
