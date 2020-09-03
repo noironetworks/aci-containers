@@ -6,8 +6,8 @@ require (
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd // indirect
-	github.com/containernetworking/cni v0.7.1
-	github.com/containernetworking/plugins v0.8.5
+	github.com/containernetworking/cni v0.8.0
+	github.com/containernetworking/plugins v0.8.7
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
