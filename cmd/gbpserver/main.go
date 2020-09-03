@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/stateinit"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 )
 
@@ -37,6 +38,7 @@ type cliOpts struct {
 	inspect    string
 	vtep       string
 	epg        string
+	init       bool
 }
 
 func main() {
@@ -79,6 +81,11 @@ func main() {
 		panic(err.Error())
 	}
 	logrus.SetLevel(level)
+
+	if opts.init {
+		stateinit.Run(cfg)
+		os.Exit(0)
+	}
 
 	stateDriver := &watchers.K8sStateDriver{}
 	err = stateDriver.Init(watchers.FieldClassID)
@@ -125,6 +132,8 @@ func parseCli(opts *cliOpts) {
 		"vtep", "all", "Limit grpc info to the specific VTEP")
 	flag.StringVar(&opts.epg,
 		"epg", "all", "Limit kafka info to the specific epg")
+	flag.BoolVar(&opts.init,
+		"init", false, "Initalize state and exit")
 	flag.Parse()
 }
 
