@@ -56,18 +56,13 @@ func (agent *HostAgent) RunPacketEventListener(stopCh <-chan struct{}) {
 			}
 			go func(newFd net.Conn) {
 				defer newFd.Close()
+				dec := json.NewDecoder(newFd)
 				for {
-					buffer := make([]byte, 4096)
-					n, err := newFd.Read(buffer)
-					if err != nil {
-						if err != io.EOF {
-							agent.log.Debugf("packet event socket read error %s", err)
-						}
-						break
-					}
 					var m []PacketEvent
-					err1 := json.Unmarshal(buffer[:n], &m)
-					if err1 != nil {
+					if err1 := dec.Decode(&m); err1 != nil {
+						if err1 == io.EOF {
+							break
+						}
 						agent.log.Debug("Unmarshaling error ", err1)
 						continue
 					}
