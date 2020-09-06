@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	vtep1 = "21.32.43.54"
-	vtep2 = "21.32.43.55"
-	vtep3 = "21.32.43.56"
+	vtep1      = "21.32.43.54"
+	vtep2      = "21.32.43.55"
+	vtep3      = "21.32.43.56"
 	singleVTEP = "21.32.43.54"
 	zeroVTEP   = "00.00.00.00"
 	nullVTEP   = ""
@@ -57,8 +57,8 @@ func TestInvXform(t *testing.T) {
 		usedClassIDs:  make(map[uint]bool),
 		instToClassID: make(map[string]uint),
 		driver:        fsd,
-		tunnels: map[string]int64{vtep1: 1, vtep2: 2},
-		bounceList: []string{vtep1, vtep2},
+		tunnels:       map[string]int64{vtep1: 1, vtep2: 2},
+		bounceList:    []string{vtep1, vtep2},
 	}
 	gs.InitDB()
 

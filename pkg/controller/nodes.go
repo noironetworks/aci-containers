@@ -277,7 +277,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 	}
 
 	id = cont.tunnelGetter.nextID
-	if id >= int64(cont.config.MaxCSRTunnels * tunnelIDIncr) {
+	if id >= int64(cont.config.MaxCSRTunnels*tunnelIDIncr) {
 		cont.log.Infof("Max tunnels %d reached", cont.config.MaxCSRTunnels)
 		return 0
 	}
