@@ -42,7 +42,8 @@ import (
 )
 
 const (
-	defTunnelIdBase = 4000
+	defTunnelIdBase = 4001
+	tunnelIDIncr    = 2
 )
 
 type tunnelState struct {
@@ -234,6 +235,12 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 		return 0
 	}
 
+	nodeIP := getNodeIP(node, v1.NodeInternalIP)
+	if nodeIP == "" {
+		cont.log.Errorf("Can't get IP for node %s", node.Name)
+		return 0
+	}
+
 	if cont.tunnelGetter == nil {
 		tunnelGetter := &tunnelState{}
 		tunnelGetter.stateDriver = &watchers.K8sStateDriver{}
@@ -249,33 +256,35 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 			return 0
 		}
 
-		if gbps.Status.TunnelIDs != nil {
-			tunnelGetter.nodeToTunnel = gbps.Status.TunnelIDs
-		} else {
-			tunnelGetter.nodeToTunnel = make(map[string]int64)
-		}
 		cont.tunnelGetter = tunnelGetter
-		for _, val := range tunnelGetter.nodeToTunnel {
-			cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
-		}
+		if gbps.Status.TunnelIDs == nil {
+			cont.log.Infof("Initializing tunnelIDs")
+			tunnelGetter.nodeToTunnel = make(map[string]int64)
+			cont.tunnelGetter.nextID = 0
+		} else {
+			tunnelGetter.nodeToTunnel = gbps.Status.TunnelIDs
+			for _, val := range tunnelGetter.nodeToTunnel {
+				cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
+			}
 
-		cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + 2
+			cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + tunnelIDIncr
+		}
 	}
 
-	id, found := cont.tunnelGetter.nodeToTunnel[node.Name]
+	id, found := cont.tunnelGetter.nodeToTunnel[nodeIP]
 	if found {
 		return id + cont.tunnelIdBase
 	}
 
 	id = cont.tunnelGetter.nextID
-	if id > int64(cont.config.MaxCSRTunnels) {
+	if id >= int64(cont.config.MaxCSRTunnels * tunnelIDIncr) {
 		cont.log.Infof("Max tunnels %d reached", cont.config.MaxCSRTunnels)
 		return 0
 	}
 
 	// each allocated id packs two tunnels.
-	cont.tunnelGetter.nodeToTunnel[node.Name] = id
-	cont.tunnelGetter.nextID = id + 2
+	cont.tunnelGetter.nodeToTunnel[nodeIP] = id
+	cont.tunnelGetter.nextID = id + tunnelIDIncr
 	state := &crdv1.GBPSState{}
 	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
 	cont.tunnelGetter.stateDriver.Update(state)

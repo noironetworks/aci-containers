@@ -42,6 +42,7 @@ const (
 	propNht         = "nextHopTunnel"
 	getVtepsPath    = "/usr/local/bin/get_vteps.sh"
 	propInvProxyMac = "proxyMac"
+	propAddBounce   = "addBounce"
 	csrDefMac       = "00:00:5e:00:52:13"
 )
 
@@ -144,27 +145,26 @@ func getInvSubTree(url, vtep string) []*GBPObject {
 			log.Warnf("InvDB mo %s/%s not found", vtep, url)
 			continue
 		}
-		res = append(res, im.getSubTree(k)...)
+		res = append(res, im.getSubTree(k, vtep)...)
 	}
 
 	return res
 }
 
 // returns the preOrder traversal of the GBP subtree rooted at g.
-func (g *gbpInvMo) getSubTree(vtep string) []*GBPObject {
+func (g *gbpInvMo) getSubTree(vtep, reqVtep string) []*GBPObject {
 	st := make([]*GBPObject, 0, 8)
 
-	root := g.xformVteps()
+	root := g.xformVteps(reqVtep)
 	return root.preOrder(st, vtep)
 }
 
 // Applies vtep transformation for forwarding via CSR
-func (g *gbpInvMo) xformVteps() *gbpInvMo {
+func (g *gbpInvMo) xformVteps(reqVtep string) *gbpInvMo {
 	auxChildren := make(map[string]*gbpInvMo)
 	// find nextHop aka vtep
 	nh := g.GetStringProperty(propNht)
 
-	// TODO: setup bounce
 	tunnels := strings.Split(nh, ",")
 	nhCount := len(tunnels)
 	if nhCount < 2 { // no change required
@@ -177,6 +177,15 @@ func (g *gbpInvMo) xformVteps() *gbpInvMo {
 	newMo := g.clone()
 	newMo.DelProperty(propNht)
 	newMo.AddProperty(propInvProxyMac, csrDefMac)
+	needBounce := checkBounce(reqVtep)
+	log.Debugf("needBounce: %v, reqVtep: %s", needBounce, reqVtep)
+	if needBounce {
+		tunnels = theServer.bounceList
+		newMo.AddProperty(propAddBounce, 0)
+	} else {
+		// add bounce is set for nodes that have a tunnel
+		newMo.AddProperty(propAddBounce, 1)
+	}
 
 	for _, vtep := range tunnels {
 		cURI := fmt.Sprintf("%s%s/%s/", newMo.Uri, subjNhl, vtep)
@@ -589,4 +598,9 @@ func deleteEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]stri
 	err = ep.Delete()
 	DoAll()
 	return nil, err
+}
+
+func checkBounce(reqVtep string) bool {
+	_, found := theServer.tunnels[reqVtep]
+	return !found
 }

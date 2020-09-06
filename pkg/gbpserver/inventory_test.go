@@ -23,10 +23,13 @@ import (
 )
 
 const (
+	vtep1 = "21.32.43.54"
+	vtep2 = "21.32.43.55"
+	vtep3 = "21.32.43.56"
 	singleVTEP = "21.32.43.54"
 	zeroVTEP   = "00.00.00.00"
 	nullVTEP   = ""
-	multiVTEP  = "21.32.43.54,13.24.35.45"
+	multiVTEP  = "13.32.43.54,13.24.35.45"
 )
 
 type fakeSD struct {
@@ -54,6 +57,8 @@ func TestInvXform(t *testing.T) {
 		usedClassIDs:  make(map[uint]bool),
 		instToClassID: make(map[string]uint),
 		driver:        fsd,
+		tunnels: map[string]int64{vtep1: 1, vtep2: 2},
+		bounceList: []string{vtep1, vtep2},
 	}
 	gs.InitDB()
 
@@ -63,7 +68,7 @@ func TestInvXform(t *testing.T) {
 		MacAddr:   "00:11:22:33:44:55",
 		IPAddr:    []string{"12.23.34.45"},
 		EPG:       "epg1",
-		VTEP:      singleVTEP,
+		VTEP:      vtep1,
 		IFName:    "if1",
 		Namespace: "ns1",
 		PodName:   "pod1",
@@ -73,7 +78,7 @@ func TestInvXform(t *testing.T) {
 	assert.Equal(t, err, nil)
 	log.Infof("uri: %s", uri)
 
-	idb := getInvDB(singleVTEP)
+	idb := getInvDB(vtep1)
 	epMo := idb[uri]
 	assert.NotEqual(t, epMo, nil)
 
@@ -103,10 +108,10 @@ func TestInvXform(t *testing.T) {
 	assert.Equal(t, err, nil)
 	log.Infof("uri: %s", uri)
 
-	idb = getInvDB(multiVTEP)
+	idb = getInvDB(vtep2)
 	epMo = idb[uri]
 	assert.NotEqual(t, epMo, nil)
-	st = getInvSubTree(uri, singleVTEP)
+	st = getInvSubTree(uri, vtep1)
 	assert.Equal(t, len(st), 5)
 	root_mo = st[0]
 	cmo = &gbpCommonMo{
@@ -116,6 +121,8 @@ func TestInvXform(t *testing.T) {
 	}
 	nht = cmo.GetStringProperty(propNht)
 	assert.Equal(t, nht, "")
+	addBounce := cmo.GetIntProperty(propAddBounce)
+	assert.Equal(t, 1, addBounce)
 
 	// verify there are 4 children
 	assert.Equal(t, len(cmo.Children), 4)
@@ -137,4 +144,41 @@ func TestInvXform(t *testing.T) {
 		assert.NotEqual(t, "", child.ParentUri)
 		assert.NotEqual(t, "", child.ParentRelation)
 	}
+
+	st = getInvSubTree(uri, vtep3)
+	assert.Equal(t, len(st), 5)
+	root_mo = st[0]
+	cmo = &gbpCommonMo{
+		*root_mo,
+		false,
+		false,
+	}
+	nht = cmo.GetStringProperty(propNht)
+	assert.Equal(t, nht, "")
+	addBounce = cmo.GetIntProperty(propAddBounce)
+	assert.Equal(t, 0, addBounce)
+	// verify there are 4 children
+	assert.Equal(t, len(cmo.Children), 4)
+
+	// validate children
+	bounceVteps := map[string]bool{vtep1: true, vtep2: true}
+	for _, cUri := range cmo.Children {
+		child := lookUpMo(cUri)
+		assert.NotEqual(t, nil, child)
+		assert.NotEqual(t, "", child.ParentSubject)
+		assert.NotEqual(t, "", child.ParentUri)
+		assert.NotEqual(t, "", child.ParentRelation)
+		if child.Subject == subjNhl {
+			ccmo := &gbpCommonMo{
+				*child,
+				false,
+				false,
+			}
+
+			vtep := ccmo.GetStringProperty("ip")
+			delete(bounceVteps, vtep)
+		}
+	}
+
+	assert.Equal(t, 0, len(bounceVteps))
 }

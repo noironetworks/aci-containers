@@ -40,6 +40,8 @@ const (
 	tokenTime    = 20 * time.Second
 	numClassIDs  = 32000
 	firstClassID = 32000
+	RdClassID    = 31999
+	RdEncapID    = 7699999
 	firstEncapID = 7700000
 )
 
@@ -470,6 +472,13 @@ func freeEncapClass(objURI string) {
 func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
 	uURI := filepath.Join(pURI, subjEIC)
 	uURI = uURI + "/"
+	enc, class := getEncapClass(uURI)
+	return createEICWithEncap(pSub, pURI, enc, class)
+}
+
+func createEICWithEncap(pSub, pURI string, enc, class uint) (*GBPeInstContext, error) {
+	uURI := filepath.Join(pURI, subjEIC)
+	uURI = uURI + "/"
 	eic := &GBPeInstContext{}
 	err := eic.Make("", uURI)
 	if err != nil {
@@ -477,7 +486,6 @@ func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
 	}
 
 	eic.SetParent(pSub, subjEIC, pURI)
-	enc, class := getEncapClass(eic.Uri)
 	eic.AddProperty(propEncapID, enc)
 	eic.AddProperty(propClassID, class)
 
@@ -490,7 +498,9 @@ func (rd *GBPRoutingDomain) Make(name, uri string) error {
 	rd.AddProperty(propName, name)
 
 	// create GBPeInstContext
-	eic, err := createEIC(subjVRF, uri)
+	enc := uint(theServer.config.VrfEncapID)
+	class := uint(RdClassID)
+	eic, err := createEICWithEncap(subjVRF, uri, enc, class)
 	if err != nil {
 		return err
 	}

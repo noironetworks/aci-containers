@@ -58,7 +58,8 @@ type GBPServerConfig struct {
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
 	// ACI VRF for this kubernetes instance
-	AciVrf string `json:"aci-vrf,omitempty"`
+	AciVrf     string `json:"aci-vrf,omitempty"`
+	VrfEncapID int    `json:"vrf-encap-id,omitempty"`
 
 	// APIC info
 	Apic       *ApicInfo `json:"apic,omitempty"`
@@ -116,4 +117,5 @@ func InitConfig(config *GBPServerConfig) {
 	flag.BoolVar(&config.PushJsonFile, "push-json-file", false, "push file to opflexserver (testing)")
 	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
 	flag.StringVar(&config.CSRList, "csr-list", "", "comma separated list of csr vteps")
+	flag.IntVar(&config.VrfEncapID, "vrf-encap-id", RdEncapID, "encap-id for vrf")
 }

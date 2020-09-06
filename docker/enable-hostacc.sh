@@ -49,6 +49,15 @@ read VTEP_IFACE VTEP_IP_CIDR <<EOF
 EOF
 fi
 
+#if docker0 exists, remove its ip address to prevent ip masquerade errors
+ip link | grep docker0
+retval=$?
+if [ $retval -eq 0 ]; then
+  set +e
+  ip addr flush dev docker0
+  set -e
+fi
+
 echo "using vtep $VTEP_IFACE $VTEP_IP_CIDR"
 
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP_CIDR" ]]; then
