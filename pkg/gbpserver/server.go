@@ -51,6 +51,7 @@ const (
 	OpdelEP
 	OpaddNetPol
 	OpdelNetPol
+	OpUpdTunnels
 )
 
 var DefETCD = []string{"127.0.0.1:2379"}
@@ -85,6 +86,8 @@ type Server struct {
 	kc            *kafkac.KafkaClient
 	usedClassIDs  map[uint]bool
 	instToClassID map[string]uint
+	tunnels       map[string]int64
+	bounceList    []string
 	stopped       bool
 }
 
@@ -331,6 +334,7 @@ func NewServer(config *GBPServerConfig) *Server {
 		listeners:     make(map[string]func(op GBPOperation_OpCode, urls []string)),
 		usedClassIDs:  make(map[uint]bool),
 		instToClassID: make(map[string]uint),
+		tunnels:       make(map[string]int64),
 	}
 }
 
@@ -497,6 +501,15 @@ func (s *Server) DelEP(ep Endpoint) {
 	s.rxCh <- m
 }
 
+func (s *Server) UpdateTunnels(tunnels map[string]int64) {
+	m := &inputMsg{
+		op:   OpUpdTunnels,
+		data: tunnels,
+	}
+
+	s.rxCh <- m
+}
+
 func (s *Server) handleMsgs() {
 	moDB := getMoDB()
 	gMutex.Lock()
@@ -510,6 +523,23 @@ func (s *Server) handleMsgs() {
 		gMutex.Lock()
 
 		switch m.op {
+		case OpUpdTunnels:
+			tunnels, ok := m.data.(map[string]int64)
+			if !ok {
+				log.Errorf("Bad OpUpdTunnels msg")
+				continue
+			}
+
+			log.Debugf("OpUpdTunnels: %+v", tunnels)
+			s.tunnels = tunnels
+			var bL []string
+			for tunVtep := range tunnels {
+				bL = append(bL, tunVtep)
+			}
+			s.bounceList = bL
+			for _, fn := range s.listeners {
+				fn(GBPOperation_REPLACE, []string{epInvURI})
+			}
 		case OpaddEP:
 			ep, ok := m.data.(*Endpoint)
 			if !ok {

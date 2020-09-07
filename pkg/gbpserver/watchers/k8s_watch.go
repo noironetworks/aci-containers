@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"reflect"
 	"strings"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
@@ -67,6 +68,7 @@ func NewK8sWatcher(gs *gbpserver.Server) (*K8sWatcher, error) {
 
 func (kw *K8sWatcher) InitEPInformer(stopCh <-chan struct{}) error {
 	kw.watchPodIFs(stopCh)
+	kw.watchGBPState(stopCh)
 	return nil
 }
 
@@ -258,4 +260,47 @@ func getEPUuid(podif *aciv1.PodIF) string {
 	} else {
 		return fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	}
+}
+
+func (kw *K8sWatcher) watchGBPState(stopCh <-chan struct{}) {
+
+	gbpsLw := cache.NewListWatchFromClient(kw.rc, "gbpsstates", sysNs, fields.Everything())
+	_, gbpsInformer := cache.NewInformer(gbpsLw, &aciv1.GBPSState{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				kw.log.Infof("gbps added")
+				newGbp, ok := obj.(*aciv1.GBPSState)
+				if !ok {
+					kw.log.Errorf("gpbs: Bad object type")
+					return
+				}
+				kw.gbpsChanged(newGbp)
+			},
+			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				kw.log.Infof("gbps changed")
+				oldGbp, ok := oldobj.(*aciv1.GBPSState)
+				if !ok {
+					kw.log.Errorf("gpbs: Bad object type")
+					return
+				}
+				newGbp, ok := newobj.(*aciv1.GBPSState)
+				if !ok {
+					kw.log.Errorf("gpbs: Bad object type")
+					return
+				}
+				if reflect.DeepEqual(oldGbp.Status.TunnelIDs, newGbp.Status.TunnelIDs) {
+					return
+				}
+
+				kw.gbpsChanged(newGbp)
+			},
+			DeleteFunc: func(obj interface{}) {
+			},
+		})
+	go gbpsInformer.Run(stopCh)
+}
+
+func (kw *K8sWatcher) gbpsChanged(obj *aciv1.GBPSState) {
+	kw.log.Infof("gbps tunnels changed")
+	kw.gs.UpdateTunnels(obj.Status.TunnelIDs)
 }
