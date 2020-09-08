@@ -46,6 +46,7 @@ func (cont *AciController) initCRDInformerBase(listWatch *cache.ListWatch) {
 				crd, ok := obj.(*v1.CustomResourceDefinition)
 				if !ok {
 					cont.log.Errorf("Add CRD bad object")
+					return
 				}
 				cont.crdAdded(crd)
 			},

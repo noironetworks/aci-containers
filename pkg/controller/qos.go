@@ -60,8 +60,6 @@ func qosInit(cont *AciController, stopCh <-chan struct{}) {
 		return
 	}
 	cont.initQosInformerFromClient(qosClient)
-	cache.WaitForCacheSync(stopCh, cont.qosInformer.HasSynced)
-	cont.log.Infof("QoS cache synced")
 	cont.qosInformer.Run(stopCh)
 }
 
