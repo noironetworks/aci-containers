@@ -1087,3 +1087,35 @@ func NewVmmInjectedOrgUnitDepl(vendor, domain, controller, org, unit, name strin
 			vendor, domain, controller, org, unit, name)
 	return ret
 }
+
+func NewInfra(parentDn string) ApicObject {
+	ret := newApicObject("infraInfra")
+	ret["infraInfra"].Attributes["dn"] =
+		fmt.Sprintf("%s/infra", parentDn)
+	return ret
+}
+
+func NewNetflowVmmExporterPol(infra, name string) ApicObject {
+	ret := newApicObject("netflowVmmExporterPol")
+	ret["netflowVmmExporterPol"].Attributes["name"] = name
+	ret["netflowVmmExporterPol"].Attributes["nameAlias"] = truncatedName(name)
+	ret["netflowVmmExporterPol"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/vmmexporterpol-%s", name)
+	return ret
+}
+
+func NewVmmVSwitchPolicyCont(domainType string, domainName string) ApicObject {
+	ret := newApicObject("vmmVSwitchPolicyCont")
+	ret["vmmVSwitchPolicyCont"].Attributes["dn"] =
+		fmt.Sprintf("uni/vmmp-%s/dom-%s/vswitchpolcont", domainType, domainName)
+	return ret
+}
+
+func NewVmmRsVswitchExporterPol(domainType string, domainName string, tDn string) ApicObject {
+	ret := newApicObject("vmmRsVswitchExporterPol")
+	ret["vmmRsVswitchExporterPol"].Attributes["tDn"] = tDn
+	ret["vmmRsVswitchExporterPol"].Attributes["dn"] =
+		fmt.Sprintf("uni/vmmp-%s/dom-%s/vswitchpolcont/rsvswitchExporterPol-[%s]",
+			domainType, domainName, tDn)
+	return ret
+}

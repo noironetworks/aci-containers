@@ -186,4 +186,12 @@ func TestTypes(t *testing.T) {
 		"org-[org]/unit-[unit]/grp-[name]",
 		NewVmmInjectedOrgUnitContGrp("kube", "domain", "cont",
 			"org", "unit", "name").GetDn())
+	assert.Equal(t, "fake/dn/infra",
+		NewInfra("fake/dn").GetDn())
+	assert.Equal(t, "uni/infra/vmmexporterpol-testTan",
+		NewNetflowVmmExporterPol("uni/infra", "testTan").GetDn())
+	assert.Equal(t, "uni/vmmp-Kubernetes/dom-k8s/vswitchpolcont",
+		NewVmmVSwitchPolicyCont("Kubernetes", "k8s").GetDn())
+	assert.Equal(t, "uni/vmmp-Kubernetes/dom-k8s/vswitchpolcont/rsvswitchExporterPol-[uni/infra/vmmexporterpol-testTan]",
+		NewVmmRsVswitchExporterPol("Kubernetes", "k8s", "uni/infra/vmmexporterpol-testTan").GetDn())
 }

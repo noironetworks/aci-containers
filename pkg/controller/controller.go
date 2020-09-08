@@ -61,6 +61,7 @@ type AciController struct {
 	qosQueue          workqueue.RateLimitingInterface
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
+	netflowQueue      workqueue.RateLimitingInterface
 	snatNodeInfoQueue workqueue.RateLimitingInterface
 	istioQueue        workqueue.RateLimitingInterface
 
@@ -87,6 +88,8 @@ type AciController struct {
 	crdInformer           cache.Controller
 	qosIndexer            cache.Indexer
 	qosInformer           cache.Controller
+	netflowIndexer        cache.Indexer
+	netflowInformer       cache.Controller
 	istioIndexer          cache.Indexer
 	istioInformer         cache.Controller
 	endpointSliceIndexer  cache.Indexer
@@ -260,6 +263,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		podQueue:          createQueue("pod"),
 		netPolQueue:       createQueue("networkPolicy"),
 		qosQueue:          createQueue("qos"),
+		netflowQueue:      createQueue("netflow"),
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
@@ -531,7 +535,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		if ok {
 			qs = []workqueue.RateLimitingInterface{
 				cont.podQueue, cont.netPolQueue, cont.qosQueue,
-				cont.serviceQueue, cont.snatQueue,
+				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
 				cont.snatNodeInfoQueue,
 			}
 		}

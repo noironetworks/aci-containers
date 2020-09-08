@@ -100,6 +100,8 @@ type ControllerConfig struct {
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
+	AciInfra string `json:"aci-infra,omitempty"`
+
 	// The name of the ACI VMM domain controller instance
 	AciVmmController string `json:"aci-vmm-controller,omitempty"`
 
