@@ -28,6 +28,10 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
+const (
+	qosCRDName = "qospolicies.aci.qos"
+)
+
 type ContPolicingType struct {
 	PolicingRate  int `json:"policing_rate"`
 	PolicingBurst int `json:"policing_burst"`
@@ -45,6 +49,18 @@ func QosPolicyLogger(log *logrus.Logger, qos *qospolicy.QosPolicy) *logrus.Entry
 		"name":      qos.ObjectMeta.Name,
 		"spec":      qos.Spec,
 	})
+}
+
+func qosInit(cont *AciController, stopCh <-chan struct{}) {
+	cont.log.Debug("Initializing qos client")
+	restconfig := cont.env.RESTConfig()
+	qosClient, err := qosclientset.NewForConfig(restconfig)
+	if err != nil {
+		cont.log.Errorf("Failed to intialize qos client")
+		return
+	}
+	cont.initQosInformerFromClient(qosClient)
+	cont.qosInformer.Run(stopCh)
 }
 
 func (cont *AciController) initQosInformerFromClient(
@@ -106,9 +122,14 @@ func (cont *AciController) qosPolicyDelete(qosobj interface{}) {
 
 }
 
-func (cont *AciController) handleQosPolUpdate(qp *qospolicy.QosPolicy) bool {
-	key, err := cache.MetaNamespaceKeyFunc(qp)
+func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
+	qp, ok := obj.(*qospolicy.QosPolicy)
+	if !ok {
+		cont.log.Error("handleQosPolUpdate: Bad object type")
+		return false
+	}
 	logger := QosPolicyLogger(cont.log, qp)
+	key, err := cache.MetaNamespaceKeyFunc(qp)
 	if err != nil {
 		logger.Error("Could not create qos policy key: ", err)
 		return false
