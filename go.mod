@@ -43,6 +43,7 @@ require (
 	google.golang.org/grpc v1.30.0
 	istio.io/istio v0.0.0-20200811212058-b18b33f83db7
 	k8s.io/api v0.18.6
+	k8s.io/apiextensions-apiserver v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v0.18.6
 	k8s.io/code-generator v0.18.3

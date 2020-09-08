@@ -49,6 +49,7 @@ type testAciController struct {
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
 	fakeSnatCfgSource       *framework.FakeControllerSource
+	fakeCRDSource           *framework.FakeControllerSource
 	podUpdates              []*v1.Pod
 	nodeUpdates             []*v1.Node
 	serviceUpdates          []*v1.Service
@@ -161,6 +162,13 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeSnatCfgSource.List,
 			WatchFunc: cont.fakeSnatCfgSource.Watch,
+		})
+
+	cont.fakeCRDSource = framework.NewFakeControllerSource()
+	cont.initCRDInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeCRDSource.List,
+			WatchFunc: cont.fakeCRDSource.Watch,
 		})
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {

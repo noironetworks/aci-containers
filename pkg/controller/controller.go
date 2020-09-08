@@ -84,6 +84,7 @@ type AciController struct {
 	snatInformer          cache.Controller
 	snatNodeInfoIndexer   cache.Indexer
 	snatNodeInformer      cache.Controller
+	crdInformer           cache.Controller
 	qosIndexer            cache.Indexer
 	qosInformer           cache.Controller
 	istioIndexer          cache.Indexer
@@ -138,6 +139,8 @@ type AciController struct {
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 	serviceEndPoints    ServiceEndPointType
+	crdHandlers         map[string]func(*AciController, <-chan struct{})
+	stopCh              <-chan struct{}
 }
 
 type nodeServiceMeta struct {
@@ -283,6 +286,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
