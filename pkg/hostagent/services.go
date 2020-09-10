@@ -559,6 +559,7 @@ func (agent *HostAgent) setOpenShfitService(as *v1.Service, external bool, ofas 
 					val.ServiceIp = InfraIp
 					ocas.ServiceMappings = append(ocas.ServiceMappings, val)
 				}
+				ocas.ServiceType = ofas.ServiceType
 				ocas.Attributes = ofas.Attributes
 				agent.opflexServices[ocas.Uuid] = ocas
 			}
