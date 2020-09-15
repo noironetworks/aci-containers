@@ -49,10 +49,11 @@ const NullMac = "null-mac"
 type opflexEndpoint struct {
 	Uuid string `json:"uuid"`
 
-	EgPolicySpace string                 `json:"eg-policy-space,omitempty"`
-	EndpointGroup string                 `json:"endpoint-group-name,omitempty"`
-	SecurityGroup []metadata.OpflexGroup `json:"security-group,omitempty"`
-	QoSPolicies   []metadata.OpflexGroup `json:"qos-policies,omitempty"`
+	EgPolicySpace  string                 `json:"eg-policy-space,omitempty"`
+	EndpointGroup  string                 `json:"endpoint-group-name,omitempty"`
+	SecurityGroup  []metadata.OpflexGroup `json:"security-group,omitempty"`
+	QosPolicyGroup metadata.OpflexGroup   `json:"qospolicy-group,omitempty"`
+	QoSPolicies    []metadata.OpflexGroup `json:"qos-policies,omitempty"`
 
 	IpAddress  []string `json:"ip,omitempty"`
 	MacAddress string   `json:"mac,omitempty"`
@@ -461,7 +462,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		agent.podIpToName[pod.Status.PodIP] = epMetaKey
 	}
 	agent.podUidToName[epUuid] = epMetaKey
-	epGroup, secGroup, _ := agent.assignGroups(pod)
+	epGroup, secGroup, qpGroup, _ := agent.assignGroups(pod)
 	epAttributes := pod.ObjectMeta.Labels
 	if epAttributes == nil {
 		epAttributes = make(map[string]string)
@@ -470,11 +471,11 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	epAttributes["vm-name"] = pod.ObjectMeta.Name
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
-	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qosPolicies, epAttributes, logger)
+	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, qosPolicies, epAttributes, logger)
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
-	epSecGroups []metadata.OpflexGroup, epQoSPolicies []metadata.OpflexGroup, epAttributes map[string]string,
+	epSecGroups []metadata.OpflexGroup, epQpGroup metadata.OpflexGroup, epQoSPolicies []metadata.OpflexGroup, epAttributes map[string]string,
 	logger *logrus.Entry) {
 	if logger == nil {
 		logger = agent.log.WithFields(logrus.Fields{})
@@ -535,6 +536,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 				ep.EndpointGroup = epGroup.Name
 			}
 			ep.SecurityGroup = epSecGroups
+			ep.QosPolicyGroup = epQpGroup
 			ep.QoSPolicies = epQoSPolicies
 
 			neweps = append(neweps, ep)

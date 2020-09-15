@@ -81,7 +81,7 @@ func TestShouldIgnoreRepeated(t *testing.T) {
 				[]byte("random gibberish"), 0644)
 		}
 
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		pod.Status.PodIP = pt.ip
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =

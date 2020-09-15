@@ -22,6 +22,7 @@ type QosPolicySpec struct {
 	Selector PodSelector  `json:"selector,omitempty"`
 	Ingress  PolicingType `json:"ingress,omitempty"`
 	Egress   PolicingType `json:"egress,omitempty"`
+	Mark     int          `json:"dscpmark,omitempty"`
 }
 
 //PolicingType

@@ -63,15 +63,18 @@ func addQosServices(cont *testAciController, augment *qrTestAugment) {
 }
 
 func makeQr(ingress apicapi.ApicSlice, egress apicapi.ApicSlice, name string, policingRateI int,
-	policingBurstI int, policingRateE int, policingBurstE int) apicapi.ApicObject {
+	policingBurstI int, policingRateE int, policingBurstE int, dscpMark int) apicapi.ApicObject {
 
 	qr1 := apicapi.NewQosRequirement("test-tenant_qos", name)
+	qEpDscpMarking := apicapi.NewQosEpDscpMarking(qr1.GetDn(), "EpDscpMarking")
+	qEpDscpMarking.SetAttr("mark", strconv.Itoa(dscpMark))
+	qr1.AddChild(qEpDscpMarking)
 
 	if ingress != nil {
 		qr1dpppI :=
 			apicapi.NewQosDppPol("test-tenant_qos", "ingress")
-		qr1dpppI.SetAttr("rate", policingRateI)
-		qr1dpppI.SetAttr("burst", policingBurstI)
+		qr1dpppI.SetAttr("rate", strconv.Itoa(policingRateI))
+		qr1dpppI.SetAttr("burst", strconv.Itoa(policingBurstI))
 		qr1rsdpppI :=
 			apicapi.NewRsIngressDppPol(qr1.GetDn(), qr1dpppI.GetDn())
 		qr1.AddChild(qr1rsdpppI)
@@ -129,6 +132,13 @@ func (cont *AciController) qosPolUpdate(qp *qospolicy.QosPolicy) apicapi.ApicObj
 	qr := apicapi.NewQosRequirement(cont.config.AciPolicyTenant, labelKey)
 	qrDn := qr.GetDn()
 
+	// Pushing EpDscpMarking Mo if dscp_mark not equal to 0
+	if qp.Spec.Mark != 0 {
+		DscpMarking := apicapi.NewQosEpDscpMarking(qrDn, "EpDscpMarking")
+		DscpMarking.SetAttr("mark", strconv.Itoa(qp.Spec.Mark))
+		qr.AddChild(DscpMarking)
+	}
+
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
 
@@ -157,10 +167,10 @@ func (cont *AciController) qosPolUpdate(qp *qospolicy.QosPolicy) apicapi.ApicObj
 }
 
 func testqospolicy(name string, namespace string, ingress qospolicy.PolicingType,
-	egress qospolicy.PolicingType, labels map[string]string) *qospolicy.QosPolicy {
+	egress qospolicy.PolicingType, mark int, labels map[string]string) *qospolicy.QosPolicy {
 	policy := &qospolicy.QosPolicy{
 		Spec: qospolicy.QosPolicySpec{
-			Ingress: ingress, Egress: egress,
+			Ingress: ingress, Egress: egress, Mark: mark,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -178,6 +188,8 @@ func testqospolicy(name string, namespace string, ingress qospolicy.PolicingType
 }
 
 func TestQosPolicy(t *testing.T) {
+	dscpmark := 1
+
 	var ingress0 qospolicy.PolicingType
 	ingress0.PolicingRate = 1000
 	ingress0.PolicingBurst = 1000
@@ -211,47 +223,50 @@ func TestQosPolicy(t *testing.T) {
 	egress3.PolicingBurst = 0
 
 	name := "kube_qp_testns"
-	baseDn := makeQr(nil, nil, name, 1000, 1000, 0, 0).GetDn()
+	baseDn := makeQr(nil, nil, name, 1000, 1000, 0, 0, 0).GetDn()
 	qr1SDnI := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1 ", baseDn)
 
 	rule_0_0 := apicapi.NewQosRequirement(qr1SDnI, "0")
 	rule_0_1 := apicapi.NewQosDppPol(rule_0_0.GetDn(), "ingress")
 	rule_0_0.AddChild(apicapi.NewRsIngressDppPol(rule_0_0.GetDn(), rule_0_1.GetDn()))
+	rule_0_0.AddChild(apicapi.NewQosEpDscpMarking(rule_0_0.GetDn(), "EpDscpMarking"))
 
-	baseDn = makeQr(nil, nil, name, 0, 0, 1000, 1000).GetDn()
+	baseDn = makeQr(nil, nil, name, 0, 0, 1000, 1000, 0).GetDn()
 	qr1SDnE := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1", baseDn)
 
 	rule_1_0 := apicapi.NewQosRequirement(qr1SDnE, "0")
 	rule_1_1 := apicapi.NewQosDppPol(rule_1_0.GetDn(), "egress")
 	rule_1_0.AddChild(apicapi.NewRsEgressDppPol(rule_1_0.GetDn(), rule_1_1.GetDn()))
+	rule_1_0.AddChild(apicapi.NewQosEpDscpMarking(rule_1_0.GetDn(), "EpDscpMarking"))
 
-	baseDn = makeQr(nil, nil, name, 1000, 1000, 1000, 1000).GetDn()
+	baseDn = makeQr(nil, nil, name, 1000, 1000, 1000, 1000, 0).GetDn()
 	qr1SDnIE := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1", baseDn)
 	rule_2_0 := apicapi.NewQosRequirement(qr1SDnIE, "0")
 	rule_2_1 := apicapi.NewQosDppPol(rule_2_0.GetDn(), "ingress")
 	rule_2_2 := apicapi.NewQosDppPol(rule_2_0.GetDn(), "egress")
 	rule_2_0.AddChild(apicapi.NewRsIngressDppPol(rule_2_0.GetDn(), rule_2_1.GetDn()))
 	rule_2_0.AddChild(apicapi.NewRsEgressDppPol(rule_2_0.GetDn(), rule_2_2.GetDn()))
+	rule_2_0.AddChild(apicapi.NewQosEpDscpMarking(rule_2_0.GetDn(), "EpDscpMarking"))
 
 	labels := map[string]string{
 		"lab_key1": "lab_value1"}
 
 	var qrTests = []qrTest{
 		{testqospolicy("testns", "qr1",
-			ingress0, egress0, labels),
-			makeQr(apicapi.ApicSlice{rule_0_0}, nil, name, 1000, 1000, 0, 0),
+			ingress0, egress0, dscpmark, labels),
+			makeQr(apicapi.ApicSlice{rule_0_0}, nil, name, 1000, 1000, 0, 0, 1),
 			nil, ""},
 		{testqospolicy("testns", "qr1",
-			ingress1, egress1, labels),
-			makeQr(nil, apicapi.ApicSlice{rule_1_0}, name, 0, 0, 1000, 1000),
+			ingress1, egress1, dscpmark, labels),
+			makeQr(nil, apicapi.ApicSlice{rule_1_0}, name, 0, 0, 1000, 1000, 1),
 			nil, ""},
 		{testqospolicy("testns", "qr1",
-			ingress2, egress2, labels),
+			ingress2, egress2, dscpmark, labels),
 			makeQr(apicapi.ApicSlice{rule_2_0}, apicapi.ApicSlice{rule_2_0},
-				name, 1000, 1000, 1000, 1000), nil, ""},
+				name, 1000, 1000, 1000, 1000, 1), nil, ""},
 		{testqospolicy("testns", "qr1",
-			ingress3, egress3, labels),
-			makeQr(nil, nil, name, 0, 0, 0, 0), nil, ""},
+			ingress3, egress3, dscpmark, labels),
+			makeQr(nil, nil, name, 0, 0, 0, 0, 1), nil, ""},
 	}
 	initCont := func() *testAciController {
 		cont := testController()

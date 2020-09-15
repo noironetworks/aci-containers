@@ -131,7 +131,7 @@ func decodeAnnotation(annStr string, into interface{}, logger *logrus.Entry, com
 }
 
 // Gets eg, sg annotations on associated deployment or rc
-func (agent *HostAgent) getParentAnn(podKey string) (string, string, bool) {
+func (agent *HostAgent) getParentAnn(podKey string) (string, string, string, bool) {
 	set := []struct {
 		indexer  *index.PodSelectorIndex
 		informer cache.SharedIndexInformer
@@ -153,33 +153,36 @@ func (agent *HostAgent) getParentAnn(podKey string) (string, string, bool) {
 				deployment, ok := obj.(*appsv1.Deployment)
 				if ok {
 					return deployment.ObjectMeta.Annotations[metadata.EgAnnotation],
-						deployment.ObjectMeta.Annotations[metadata.SgAnnotation], true
+						deployment.ObjectMeta.Annotations[metadata.SgAnnotation],
+						deployment.ObjectMeta.Annotations[metadata.QpAnnotation], true
 				}
 
 				rc, ok := obj.(*v1.ReplicationController)
 				if ok {
 					return rc.ObjectMeta.Annotations[metadata.EgAnnotation],
-						rc.ObjectMeta.Annotations[metadata.SgAnnotation], true
+						rc.ObjectMeta.Annotations[metadata.SgAnnotation],
+						rc.ObjectMeta.Annotations[metadata.QpAnnotation], true
 				}
 
 			}
 		}
 	}
-	return "", "", false
+	return "", "", "", false
 }
 
 // assignGroups assigns epg and security groups based on annotations on the
 // namespace, deployment and pod.
-func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metadata.OpflexGroup, error) {
+func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metadata.OpflexGroup, metadata.OpflexGroup, error) {
 	var egval metadata.OpflexGroup
 	var sgval []metadata.OpflexGroup
+	var qpval metadata.OpflexGroup
 
 	logger := podLogger(agent.log, pod)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		logger.Error("Could not create pod key: ", err)
-		return egval, sgval, err
+		return egval, sgval, qpval, err
 	}
 
 	namespaceobj, exists, err :=
@@ -187,12 +190,13 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 	if err != nil {
 		agent.log.Error("Could not lookup namespace " +
 			pod.ObjectMeta.Namespace + ": " + err.Error())
-		return egval, sgval, err
+		return egval, sgval, qpval, err
 	}
 
 	// top-level default annotation
 	egval = agent.config.DefaultEg
 	sgval = agent.config.DefaultSg
+	qpval = agent.config.DefaultQp
 
 	// configured namespace override has next-highest priority
 	if nseg, ok := agent.config.NamespaceDefaultEg[pod.Namespace]; ok {
@@ -201,6 +205,10 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 
 	if nssgs, ok := agent.config.NamespaceDefaultSg[pod.Namespace]; ok {
 		sgval = nssgs
+	}
+
+	if nsqp, ok := agent.config.NamespaceDefaultQp[pod.Namespace]; ok {
+		qpval = nsqp
 	}
 
 	// namespace annotation has next-highest priority
@@ -227,17 +235,20 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 			decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.EgAnnotation], &egval, logger, "namespace[EpgAnnotation]")
 		}
 		decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "namespace[SgAnnotation]")
+		decodeAnnotation(namespace.ObjectMeta.Annotations[metadata.QpAnnotation], &qpval, logger, "namespace[QpAnnotation]")
 	}
 
 	// annotation on parent deployment or rc is next-highest priority
-	egAnn, sgAnn, found := agent.getParentAnn(podkey)
+	egAnn, sgAnn, qpAnn, found := agent.getParentAnn(podkey)
 	if found {
 		decodeAnnotation(egAnn, &egval, logger, "deployment/rc[EpgAnnotation]")
 		decodeAnnotation(sgAnn, &sgval, logger, "deployment/rc[SgAnnotation]")
+		decodeAnnotation(qpAnn, &qpval, logger, "deployment/rc[QpAnnotation]")
 	}
 
 	// direct pod annotation is highest priority
 	decodeAnnotation(pod.ObjectMeta.Annotations[metadata.EgAnnotation], &egval, logger, "pod[EpgAnnotation]")
+	decodeAnnotation(pod.ObjectMeta.Annotations[metadata.QpAnnotation], &qpval, logger, "pod[QpAnnotation]")
 	decodeAnnotation(pod.ObjectMeta.Annotations[metadata.SgAnnotation], &sgval, logger, "pod[SgAnnotation]")
 
 	sgval, err = agent.mergeNetPolSg(podkey, pod, namespace, sgval)
@@ -246,5 +257,5 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 			"security groups:", err)
 	}
 
-	return egval, sgval, nil
+	return egval, sgval, qpval, nil
 }

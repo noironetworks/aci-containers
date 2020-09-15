@@ -45,6 +45,9 @@ type GroupDefaults struct {
 	// Default security group annotation value
 	DefaultSg []metadata.OpflexGroup `json:"default-security-group,omitempty"`
 
+	// Default qospolicy group annotation value
+	DefaultQp metadata.OpflexGroup `json:"default-qospolicy-group,omitempty"`
+
 	// Override default endpoint group assignments for a namespace
 	// map ns name -> group
 	NamespaceDefaultEg map[string]metadata.OpflexGroup `json:"namespace-default-endpoint-group,omitempty"`
@@ -52,6 +55,10 @@ type GroupDefaults struct {
 	// Override default security group assignments for namespaces
 	// map ns name -> slice of groups
 	NamespaceDefaultSg map[string][]metadata.OpflexGroup `json:"namespace-default-security-group,omitempty"`
+
+	// Override default qospolicy group assignments for a namespace
+	// map ns name -> group
+	NamespaceDefaultQp map[string]metadata.OpflexGroup `json:"namespace-default-qospolicy-group,omitempty"`
 }
 
 type HostAgentNodeConfig struct {

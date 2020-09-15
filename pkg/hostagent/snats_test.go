@@ -194,7 +194,7 @@ func TestSnatSync(t *testing.T) {
 				[]byte("random gibberish"), 0644)
 		}
 
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
 			map[string]*metadata.ContainerMetadata{
@@ -260,7 +260,7 @@ func TestSnatPortExhausted(t *testing.T) {
 	agent.config.UplinkMacAdress = "5a:fd:16:e5:e7:c0"
 	agent.run()
 	for _, pt := range podTests {
-		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg)
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
 			map[string]*metadata.ContainerMetadata{
