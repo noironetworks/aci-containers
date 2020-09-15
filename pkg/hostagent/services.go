@@ -390,6 +390,7 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 							val.ServiceIp = InfraIp
 							ocas.ServiceMappings = append(ocas.ServiceMappings, val)
 						}
+						ocas.ServiceType = ofas.ServiceType
 						ocas.Attributes = ofas.Attributes
 						agent.opflexServices[ocas.Uuid] = ocas
 					}
