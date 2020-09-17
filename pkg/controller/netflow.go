@@ -145,7 +145,7 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	}
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.log.Debug("create netflowpolicy")
-	nf := apicapi.NewNetflowVmmExporterPol(cont.config.AciInfra, labelKey)
+	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
 	nfDn := nf.GetDn()
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)

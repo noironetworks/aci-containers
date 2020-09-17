@@ -189,7 +189,7 @@ func TestTypes(t *testing.T) {
 	assert.Equal(t, "fake/dn/infra",
 		NewInfra("fake/dn").GetDn())
 	assert.Equal(t, "uni/infra/vmmexporterpol-testTan",
-		NewNetflowVmmExporterPol("uni/infra", "testTan").GetDn())
+		NewNetflowVmmExporterPol("testTan").GetDn())
 	assert.Equal(t, "uni/vmmp-Kubernetes/dom-k8s/vswitchpolcont",
 		NewVmmVSwitchPolicyCont("Kubernetes", "k8s").GetDn())
 	assert.Equal(t, "uni/vmmp-Kubernetes/dom-k8s/vswitchpolcont/rsvswitchExporterPol-[uni/infra/vmmexporterpol-testTan]",

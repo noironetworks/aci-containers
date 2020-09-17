@@ -16,7 +16,6 @@
 package controller
 
 import (
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -64,7 +63,7 @@ func addNetflowServices(cont *testAciController, augment *nfTestAugment) {
 func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, dstPort string, ver string,
 	activeFlowTimeOut string, idleFlowTimeOut string) apicapi.ApicObject {
 
-	nf1 := apicapi.NewNetflowVmmExporterPol("test-infra_netflow", name)
+	nf1 := apicapi.NewNetflowVmmExporterPol(name)
 
 	nf1.SetAttr("dstAddr", dstAddr)
 	nf1.SetAttr("dstPort", dstPort)
@@ -118,7 +117,7 @@ func (cont *AciController) netflowPolUpdate(nfp *netflowpolicy.NetflowPolicy) ap
 		return nil
 	}
 	labelKey := cont.aciNameForKey("nfp", key)
-	nf := apicapi.NewNetflowVmmExporterPol(cont.config.AciInfra, labelKey)
+	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
 	nfDn := nf.GetDn()
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
 	nf.SetAttr("ver", nfp.Spec.FlowSamplingPolicy.Ver)
@@ -159,10 +158,8 @@ func TestNetflowPolicy(t *testing.T) {
 	flowSamplingPolicy0.IdleFlowTimeOut = 5
 
 	name := "kube_nfp_testns"
-	baseDn := makeNf(nil, name, "172.51.1.2", "2055", "v5", "5", "5").GetDn()
-	nf1SDnf := fmt.Sprintf("%s/vmmexporterpol-nfp_default_netflow-policy1 ", baseDn)
 
-	rule_0_0 := apicapi.NewNetflowVmmExporterPol(nf1SDnf, "test")
+	rule_0_0 := apicapi.NewNetflowVmmExporterPol("test")
 	rule_0_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
 	rule_0_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule_0_0.GetDn()))
 
@@ -176,7 +173,6 @@ func TestNetflowPolicy(t *testing.T) {
 	}
 	initCont := func() *testAciController {
 		cont := testController()
-		cont.config.AciInfra = "test-infra_netflow"
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}

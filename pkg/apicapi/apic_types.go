@@ -1095,7 +1095,7 @@ func NewInfra(parentDn string) ApicObject {
 	return ret
 }
 
-func NewNetflowVmmExporterPol(infra, name string) ApicObject {
+func NewNetflowVmmExporterPol(name string) ApicObject {
 	ret := newApicObject("netflowVmmExporterPol")
 	ret["netflowVmmExporterPol"].Attributes["name"] = name
 	ret["netflowVmmExporterPol"].Attributes["nameAlias"] = truncatedName(name)
