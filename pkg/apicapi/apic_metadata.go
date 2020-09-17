@@ -849,6 +849,37 @@ var metadata = map[string]*apicMeta{
 			"vmmInjectedDepl",
 		},
 	},
+	"infraInfra": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"netflowVmmExporterPol",
+		},
+	},
+	"netflowVmmExporterPol": {
+		attributes: map[string]interface{}{
+			"name":    "",
+			"ver":     "v5",
+			"dstAddr": "",
+			"dstPort": "",
+		},
+		children: []string{},
+	},
+	"vmmVSwitchPolicyCont": {
+		attributes: map[string]interface{}{},
+		children: []string{
+			"vmmRsVswitchExporterPol",
+		},
+	},
+	"vmmRsVswitchExporterPol": {
+		attributes: map[string]interface{}{
+			"tDn":               "",
+			"activeFlowTimeOut": "60",
+			"idleFlowTimeOut":   "15",
+		},
+		children: []string{},
+	},
 }
 
 func AddMetaDataChild(parent, child string) error {

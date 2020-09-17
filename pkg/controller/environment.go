@@ -205,6 +205,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.stopCh = stopCh
 
 	cont.registerCRDHook(qosCRDName, qosInit)
+	cont.registerCRDHook(netflowCRDName, netflowInit)
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
@@ -259,6 +260,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
 		func(obj interface{}) bool {
 			return cont.handleQosPolUpdate(obj)
+		}, stopCh)
+	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
+		func(obj interface{}) bool {
+			return cont.handleNetflowPolUpdate(obj)
 		}, stopCh)
 	go cont.snatNodeInformer.Run(stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
