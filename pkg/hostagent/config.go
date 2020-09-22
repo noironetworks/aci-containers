@@ -212,7 +212,7 @@ type HostAgentConfig struct {
 	// DropLog Interface connecting to access bridge
 	DropLogAccessInterface string `json:"drop-log-access-iface,omitempty"`
 
-	// DropLog Interface connecting to access bridge
+	// DropLog Interface connecting to integration bridge
 	DropLogIntInterface string `json:"drop-log-int-iface,omitempty"`
 
 	// Droplogs older than the expiry-time will be discarded if not published
@@ -265,7 +265,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
 
-	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
+	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 0, "Interface MTU to use when configuring container interfaces")
 
 	flag.UintVar(&config.ServiceVlan, "service-vlan", 4003, "VLAN for service traffic")
 
