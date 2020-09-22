@@ -49,6 +49,11 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			if link.VlanId != int(agent.config.AciInfraVlan) {
 				continue
 			}
+			// if the interface MTU was not explicitly set by
+			// the user, use the link MTU
+			if agent.config.InterfaceMtu == 0 {
+				agent.config.InterfaceMtu = link.MTU - 100
+			}
 			// giving extra headroom of 100 bytes
 			configMtu := 100 + agent.config.InterfaceMtu
 			if link.MTU < configMtu {
