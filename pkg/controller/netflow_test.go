@@ -60,8 +60,8 @@ func addNetflowServices(cont *testAciController, augment *nfTestAugment) {
 	}
 }
 
-func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, dstPort string, ver string,
-	activeFlowTimeOut string, idleFlowTimeOut string) apicapi.ApicObject {
+func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, dstPort int, ver string,
+	activeFlowTimeOut int, idleFlowTimeOut int) apicapi.ApicObject {
 
 	nf1 := apicapi.NewNetflowVmmExporterPol(name)
 
@@ -120,7 +120,12 @@ func (cont *AciController) netflowPolUpdate(nfp *netflowpolicy.NetflowPolicy) ap
 	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
 	nfDn := nf.GetDn()
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
-	nf.SetAttr("ver", nfp.Spec.FlowSamplingPolicy.Ver)
+	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
+		nf.SetAttr("ver", "v5")
+	}
+	if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+		nf.SetAttr("ver", "v9")
+	}
 	nf.SetAttr("dstPort", nfp.Spec.FlowSamplingPolicy.DstPort)
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
@@ -152,8 +157,8 @@ func testnetflowpolicy(name string, namespace string, flowSamplingPolicy netflow
 func TestNetflowPolicy(t *testing.T) {
 	var flowSamplingPolicy0 netflowpolicy.NetflowType
 	flowSamplingPolicy0.DstAddr = "172.51.1.2"
-	flowSamplingPolicy0.DstPort = "2055"
-	flowSamplingPolicy0.Ver = "v5"
+	flowSamplingPolicy0.DstPort = 2055
+	flowSamplingPolicy0.Version = "netflow"
 	flowSamplingPolicy0.ActiveFlowTimeOut = 5
 	flowSamplingPolicy0.IdleFlowTimeOut = 5
 
@@ -169,7 +174,7 @@ func TestNetflowPolicy(t *testing.T) {
 	var nfTests = []nfTest{
 		{testnetflowpolicy("testns", "nf1",
 			flowSamplingPolicy0, labels),
-			makeNf(apicapi.ApicSlice{rule_0_0}, name, "172.51.1.2", "2055", "v5", "5", "5"), nil, ""},
+			makeNf(apicapi.ApicSlice{rule_0_0}, name, "172.51.1.2", 2055, "v5", 5, 5), nil, ""},
 	}
 	initCont := func() *testAciController {
 		cont := testController()

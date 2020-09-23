@@ -150,8 +150,11 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
 	nf.SetAttr("dstPort", nfp.Spec.FlowSamplingPolicy.DstPort)
-	if nfp.Spec.FlowSamplingPolicy.Ver == "netflow" {
+	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
 		nf.SetAttr("ver", "v5")
+	}
+	if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+		nf.SetAttr("ver", "v9")
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
