@@ -25,17 +25,17 @@ type NetflowPolicySpec struct {
 
 //NetflowType
 type NetflowType struct {
-	DstAddr string `json:"dstIp"`
+	DstAddr string `json:"destIp"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
-	DstPort int `json:"dstPort"`
+	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
 	Version string `json:"type"`
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=36001
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=3600
 	ActiveFlowTimeOut int `json:"activeFlowTimeOut"`
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=6001
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=600
 	IdleFlowTimeOut int `json:"idleFlowTimeOut"`
 }
 
