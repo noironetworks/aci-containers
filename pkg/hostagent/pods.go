@@ -38,6 +38,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	gouuid "github.com/nu7hatch/gouuid"
 )
 
@@ -150,7 +151,16 @@ func (agent *HostAgent) syncEps() bool {
 	agent.indexMutex.Lock()
 	opflexEps := make(map[string][]*opflexEndpoint)
 	for k, v := range agent.opflexEps {
-		opflexEps[k] = v
+		ep := []*opflexEndpoint{}
+		for _, op := range v {
+			val := &opflexEndpoint{}
+			err := util.DeepCopyObj(op, val)
+			if err != nil {
+				continue
+			}
+			ep = append(ep, val)
+		}
+		opflexEps[k] = ep
 	}
 	agent.indexMutex.Unlock()
 

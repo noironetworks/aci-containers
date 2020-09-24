@@ -633,7 +633,7 @@ func TestNPGroupAssign(t *testing.T) {
 	it.checkEpGroups(0, "defaultEPG", emptyJSON)
 	it.checkEpGroups(1, "test-prof|ann-ns-eg", sgAnnotNP1)
 	it.checkEpGroups(2, "test-prof|ann-ns-eg", sgAnnotNP2)
-
+	time.Sleep(10 * time.Millisecond)
 	it.cniDelParallel(1, 3)
 	it.testNS = testPodNS
 	it.cniDelParallel(0, 1)
