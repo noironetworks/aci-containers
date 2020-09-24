@@ -25,11 +25,18 @@ type NetflowPolicySpec struct {
 
 //NetflowType
 type NetflowType struct {
-	DstAddr           string `json:"dstAddr"`
-	DstPort           string `json:"dstPort"`
-	Ver               string `json:"type"`
-	ActiveFlowTimeOut int    `json:"activeFlowTimeOut"`
-	IdleFlowTimeOut   int    `json:"idleFlowTimeOut"`
+	DstAddr string `json:"destIp"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	DstPort int `json:"destPort"`
+	// +kubebuilder:validation:Enum=netflow,ipfix
+	Version string `json:"type"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=3600
+	ActiveFlowTimeOut int `json:"activeFlowTimeOut"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=600
+	IdleFlowTimeOut int `json:"idleFlowTimeOut"`
 }
 
 // NetflowPolicyStatus defines the observed state of NetflowPolicy
