@@ -42,8 +42,7 @@ import (
 )
 
 const (
-	defTunnelIdBase = 4001
-	tunnelIDIncr    = 2
+	tunnelIDIncr = 2
 )
 
 type tunnelState struct {
@@ -273,7 +272,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 
 	id, found := cont.tunnelGetter.nodeToTunnel[nodeIP]
 	if found {
-		return id + cont.tunnelIdBase
+		return id + int64(cont.config.CSRTunnelIDBase)
 	}
 
 	id = cont.tunnelGetter.nextID
@@ -288,7 +287,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 	state := &crdv1.GBPSState{}
 	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
 	cont.tunnelGetter.stateDriver.Update(state)
-	return id + cont.tunnelIdBase
+	return id + int64(cont.config.CSRTunnelIDBase)
 }
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
