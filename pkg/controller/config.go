@@ -198,7 +198,8 @@ type ControllerConfig struct {
 	InstallIstio bool `json:"install-istio,omitempty"`
 
 	// Maximum CSR tunnels
-	MaxCSRTunnels int `json:"max-csr-tunnels,omitempty"`
+	MaxCSRTunnels   int `json:"max-csr-tunnels,omitempty"`
+	CSRTunnelIDBase int `json:"csr-tunnel-id-base,omitempty"`
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 }
@@ -239,6 +240,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
 	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")
 	flag.IntVar(&config.MaxCSRTunnels, "max-csr-tunnels", 16, "Number of CSR tunnels")
+	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,
