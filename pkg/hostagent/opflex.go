@@ -120,10 +120,13 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			conf.OpflexPeerIp = peerIp.String()
 		}
 	}
-	intf, err := net.InterfaceByName(conf.UplinkIface)
-	if err == nil {
-		conf.UplinkMacAdress = intf.HardwareAddr.String()
-		return
+
+	if conf != nil {
+		intf, err := net.InterfaceByName(conf.UplinkIface)
+		if err == nil {
+			conf.UplinkMacAdress = intf.HardwareAddr.String()
+			return
+		}
 	}
 
 	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
