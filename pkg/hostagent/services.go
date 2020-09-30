@@ -25,6 +25,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"github.com/noironetworks/aci-containers/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -178,7 +179,12 @@ func (agent *HostAgent) syncServices() bool {
 	agent.indexMutex.Lock()
 	opflexServices := make(map[string]*opflexService)
 	for k, v := range agent.opflexServices {
-		opflexServices[k] = v
+		val := &opflexService{}
+		err := util.DeepCopyObj(v, val)
+		if err != nil {
+			continue
+		}
+		opflexServices[k] = val
 	}
 	agent.indexMutex.Unlock()
 
@@ -204,7 +210,6 @@ func (agent *HostAgent) syncServices() bool {
 		logger := agent.log.WithFields(
 			logrus.Fields{"Uuid": uuid},
 		)
-
 		existing, ok := opflexServices[uuid]
 		if ok {
 			wrote, err := writeAs(asfile, existing)
@@ -244,10 +249,10 @@ func (agent *HostAgent) syncServices() bool {
 func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service,
 	endpoints *v1.Endpoints) bool {
 
-       if as.Spec.ClusterIP == "None" {
-	   agent.log.Debug("ClusterIP is set to None")
-           return true
-       }
+	if as.Spec.ClusterIP == "None" {
+		agent.log.Debug("ClusterIP is set to None")
+		return true
+	}
 
 	ofas := &opflexService{
 		Uuid:              string(as.ObjectMeta.UID),
