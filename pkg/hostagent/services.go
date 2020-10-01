@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/noironetworks/aci-containers/pkg/util"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -203,7 +204,12 @@ func (agent *HostAgent) syncServices() bool {
 	agent.indexMutex.Lock()
 	opflexServices := make(map[string]*opflexService)
 	for k, v := range agent.opflexServices {
-		opflexServices[k] = v
+		val := &opflexService{}
+		err := util.DeepCopyObj(v, val)
+		if err != nil {
+			continue
+		}
+		opflexServices[k] = val
 	}
 	agent.indexMutex.Unlock()
 
@@ -229,7 +235,6 @@ func (agent *HostAgent) syncServices() bool {
 		logger := agent.log.WithFields(
 			logrus.Fields{"Uuid": uuid},
 		)
-
 		existing, ok := opflexServices[uuid]
 		if ok {
 			wrote, err := writeAs(asfile, existing)

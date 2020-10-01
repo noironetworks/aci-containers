@@ -40,6 +40,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	gouuid "github.com/nu7hatch/gouuid"
 )
 
@@ -276,7 +277,16 @@ func (agent *HostAgent) syncEps() bool {
 	agent.indexMutex.Lock()
 	opflexEps := make(map[string][]*opflexEndpoint)
 	for k, v := range agent.opflexEps {
-		opflexEps[k] = v
+		ep := []*opflexEndpoint{}
+		for _, op := range v {
+			val := &opflexEndpoint{}
+			err := util.DeepCopyObj(op, val)
+			if err != nil {
+				continue
+			}
+			ep = append(ep, val)
+		}
+		opflexEps[k] = ep
 	}
 	agent.indexMutex.Unlock()
 
@@ -619,7 +629,7 @@ func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
 	if pod.ObjectMeta.Labels == nil {
 		return
 	}
-
+	agent.indexMutex.Lock()
 	nameVal := pod.ObjectMeta.Labels["name"]
 	if nameVal == "aci-containers-controller" {
 		if agent.gbpServerIP != pod.Status.PodIP {
@@ -628,4 +638,5 @@ func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
 			agent.scheduleSyncOpflexServer()
 		}
 	}
+	agent.indexMutex.Unlock()
 }
