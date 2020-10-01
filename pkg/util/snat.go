@@ -46,7 +46,7 @@ func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglob
 	for _, item := range currPortRange {
 		temp := item.Start
 		for temp < item.End-1 {
-			if temp+step-1 < item.End-1 {
+			if temp+step-1 <= item.End-1 {
 				expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
 			}
 			temp = temp + step
