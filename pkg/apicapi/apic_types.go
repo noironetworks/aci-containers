@@ -566,17 +566,17 @@ func NewQosRequirement(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewRsEgressDppPol(parentDn string, dppPolDn string) ApicObject {
+func NewRsEgressDppPol(parentDn string, dppPolName string) ApicObject {
 	ret := newApicObject("qosRsEgressDppPol")
-	ret["qosRsEgressDppPol"].Attributes["tDn"] = dppPolDn
+	ret["qosRsEgressDppPol"].Attributes["tnQosDppPolName"] = dppPolName
 	ret["qosRsEgressDppPol"].Attributes["dn"] =
 		fmt.Sprintf("%s/rsegressDppPol", parentDn)
 	return ret
 }
 
-func NewRsIngressDppPol(parentDn string, dppPolDn string) ApicObject {
+func NewRsIngressDppPol(parentDn string, dppPolName string) ApicObject {
 	ret := newApicObject("qosRsIngressDppPol")
-	ret["qosRsIngressDppPol"].Attributes["tDn"] = dppPolDn
+	ret["qosRsIngressDppPol"].Attributes["tnQosDppPolName"] = dppPolName
 	ret["qosRsIngressDppPol"].Attributes["dn"] =
 		fmt.Sprintf("%s/rsingressDppPol", parentDn)
 	return ret

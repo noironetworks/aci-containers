@@ -399,12 +399,12 @@ var metadata = map[string]*apicMeta{
 	},
 	"qosRsEgressDppPol": {
 		attributes: map[string]interface{}{
-			"tDn": "",
+			"tnQosDppPolName": "",
 		},
 	},
 	"qosRsIngressDppPol": {
 		attributes: map[string]interface{}{
-			"tDn": "",
+			"tnQosDppPolName": "",
 		},
 	},
 	"qosDppPol": {
