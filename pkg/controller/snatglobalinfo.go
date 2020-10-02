@@ -121,15 +121,15 @@ func (cont *AciController) snatCfgUpdate(obj interface{}) {
 	portRange.End = end
 	var currPortRange []snatglobalinfo.PortRange
 	currPortRange = append(currPortRange, portRange)
-	var nodeInfoKeys []string
 	cont.indexMutex.Lock()
+	nodeInfoKeys := make(map[string]bool)
 	for name, info := range cont.snatPolicyCache {
 		cont.clearSnatGlobalCache(name, "")
 		info.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
-		nodeInfoKeys = cont.getNodeInfoKeys(name)
+		cont.getNodeInfoKeys(name, nodeInfoKeys)
 	}
 	cont.indexMutex.Unlock()
-	for _, key := range nodeInfoKeys {
+	for key := range nodeInfoKeys {
 		cont.queueNodeInfoUpdateByKey(key)
 	}
 }
@@ -466,19 +466,16 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 	}
 }
 
-func (cont *AciController) getNodeInfoKeys(policyName string) []string {
-	var nodeinfokeys []string
+func (cont *AciController) getNodeInfoKeys(policyName string, nodeinfokeys map[string]bool) {
 	for _, nodeinfo := range cont.snatNodeInfoCache {
 		if _, ok := nodeinfo.Spec.SnatPolicyNames[policyName]; ok {
 			nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
 			if err != nil {
 				continue
 			}
-			cont.log.Debug("handleSnatPoilcyUpdate Queu the Key: ")
-			nodeinfokeys = append(nodeinfokeys, (nodeinfokey))
+			nodeinfokeys[nodeinfokey] = true
 		}
 	}
-	return nodeinfokeys
 }
 
 func (cont *AciController) setSnatPoliciesState(names map[string]bool, status snatv1.PolicyState) bool {
