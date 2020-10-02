@@ -1,10 +1,10 @@
-FROM alpine:3.11.6
+FROM alpine:3.10.5
 ARG ROOT=/usr/local
 COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
-    libtool pkgconfig autoconf automake cmake doxygen file py-six \
+    libtool pkgconfig autoconf automake cmake doxygen file py2-six \
     linux-headers libuv-dev boost-dev openssl-dev git \
-    libnetfilter_conntrack-dev rapidjson-dev python-dev bzip2-dev
+    libnetfilter_conntrack-dev rapidjson-dev python2-dev bzip2-dev
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
