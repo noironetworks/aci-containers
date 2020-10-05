@@ -52,7 +52,7 @@ sed -i -e "s/FROM noiro\/opflex-build-base/FROM $DOCKER_HUB_ID\/opflex-build-bas
 export GOPATH
 ACICONTAINERS_DIR=.
 
-[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex
+[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex1
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
@@ -122,6 +122,9 @@ make go-build
 docker build -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-controller .
 docker push $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG
 
+docker run $DOCKER_HUB_ID/opflex-build$DOCKER_TAG tar -c -C /usr/local \
+	bin/map_ctrl bin/bpf bin/ip bin/tc \
+	| tar -x -C dist-static
 docker build -t $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-host .
 docker push $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG
 
