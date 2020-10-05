@@ -23,6 +23,9 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog
 fi
 
+#/usr/local/bin/ip link set dev enp0s8 xdp off || true
+#/usr/local/bin/ip link set dev enp0s8 xdp obj /usr/local/bin/xdp_vxlan_bounce.o sec xdp_vxlan_bounce
+
 if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then
     cat <<EOF > ${OPFLEXAGENT_DISABLED_CONF}
 {

@@ -1,4 +1,4 @@
-FROM noiro/opflex-build-base
+FROM challa/opflex-build-base:master1
 ARG BUILDOPTS="--enable-grpc --enable-prometheus"
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
@@ -14,11 +14,17 @@ COPY agent-ovs /opflex/agent-ovs
 RUN cd /opflex/agent-ovs \
   && ./autogen.sh && ./configure $BUILDOPTS \
   && make $make_args && make install && make clean
+RUN cd /opflex/agent-ovs \
+  && make -C ./bpf \
+  && make -C  ./bpf install \
+  && make -C  ./bpf clean
 RUN for p in `find /usr/local/lib/ /usr/local/bin/ -type f \(\
     -name 'opflex_agent' -o \
+    -name 'gbp_client_stress' -o \
     -name 'gbp_inspect' -o \
     -name 'mcast_daemon' -o \
     -name 'opflex_server' -o \
+    -name 'map_ctrl' -o \
     -name 'libopflex*so*' -o \
     -name 'libmodelgbp*so*' -o \
     -name 'libopenvswitch*so*' -o \

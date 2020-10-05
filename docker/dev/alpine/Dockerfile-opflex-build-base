@@ -2,11 +2,13 @@ FROM alpine:3.11.5
 ARG ROOT=/usr/local
 #COPY ovs-musl.patch /
 COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
+  && apk update
 RUN apk upgrade --no-cache && apk add --no-cache build-base \
     libtool pkgconfig autoconf automake cmake file py3-six \
     linux-headers libuv-dev boost-dev openssl-dev git \
     libnetfilter_conntrack-dev rapidjson-dev python3-dev bzip2-dev \
-    curl libcurl curl-dev zlib-dev
+    curl libcurl curl-dev zlib-dev clang llvm bison flex elfutils-dev
 ARG make_args=-j4
 RUN git clone https://github.com/noironetworks/3rdparty-debian.git
 RUN git clone https://github.com/jupp0r/prometheus-cpp.git \
@@ -45,3 +47,8 @@ RUN git clone https://github.com/openvswitch/ovs.git --branch v2.12.0 --depth 1 
   && cp include/*.h "$ROOT/include/openvswitch/" \
   && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \; \
   && make clean
+RUN git clone https://github.com/shemminger/iproute2.git \
+  && cd iproute2 \
+  && ./configure \
+  && make -j4 \
+  && SBINDIR=/usr/local/bin make install

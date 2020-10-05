@@ -1,7 +1,9 @@
 FROM alpine:3.11.5
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
+  && apk update
 RUN apk upgrade --no-cache && apk add --no-cache musl libstdc++ libuv \
   boost-program_options boost-system boost-date_time boost-filesystem \
-  boost-iostreams libnetfilter_conntrack libssl1.1 libcrypto1.1 ca-certificates \
+  boost-iostreams libnetfilter_conntrack libssl1.1 libcrypto1.1 ca-certificates elfutils-dev \
   && update-ca-certificates
 COPY bin/opflex_server /usr/local/bin/
 COPY bin/launch-opflexserver.sh /usr/local/bin/

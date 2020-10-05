@@ -76,7 +76,7 @@ docker build -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG -f $DOCKER_DIR/Dockerfile
 
 mkdir -p build/opflex/dist
 docker run $DOCKER_HUB_ID/opflex-build$DOCKER_TAG tar -c -C /usr/local \
-	bin/opflex_agent bin/gbp_inspect bin/mcast_daemon bin/opflex_server \
+	bin/opflex_agent bin/gbp_inspect bin/mcast_daemon bin/opflex_server bin/map_ctrl bin/bpf bin/ip bin/tc \
 	| tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
 	 -name '\''libopflex*.so*'\'' -o \
@@ -93,7 +93,8 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find
 	 -name '\''libssl*so*'\'' -o \
 	 -name '\''libcrypto*so*'\'' -o \
 	 -name '\''libaddress_sorting*so*'\'' -o \
-	 -name '\''libgpr*so*'\'' \
+	 -name '\''libgpr*so*'\'' -o \
+	 -name '\''bpf'\'' \
            \) ! -name '\''*debug'\'' \
            | xargs tar -c ' \
 	  | tar -x -C build/opflex/dist
@@ -113,8 +114,10 @@ docker build -t $DOCKER_HUB_ID/opflex-server$DOCKER_TAG -f ./build/opflex/dist/D
 docker push $DOCKER_HUB_ID/opflex-server$DOCKER_TAG
 
 echo "starting aci-containers build"
+rm -Rf dist-static
 make all-static
 make go-gbp-build
+make go-build
 
 docker build -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-controller .
 docker push $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG
