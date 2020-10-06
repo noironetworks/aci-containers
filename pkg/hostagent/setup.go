@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 
 	cnicur "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
@@ -277,7 +278,14 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		if err != nil {
 			return nil, err
 		}
-
+		_, err = os.Stat("/usr/local/bin/attach_bpf_ep.sh");
+		if !os.IsNotExist(err) {
+			cmd := exec.Command("/usr/local/bin/attach_bpf_ep.sh", iface.HostVethName)
+			err := cmd.Run()
+			if err != nil {
+				logger.Error("Failed to exec attach_bpf_ep.sh, error ", err)
+			}
+		}
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
 

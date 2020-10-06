@@ -2,7 +2,7 @@ FROM alpine:3.10.2
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
   && apk update
 RUN apk upgrade --no-cache && apk add --no-cache iproute2 nftables openvswitch elfutils-dev
-COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/bin docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/bin docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh docker/attach_bpf_ep.sh /usr/local/bin/
 ENV TENANT=kube
 ENV NODE_EPG='kubernetes|kube-nodes'
 CMD ["/usr/local/bin/launch-hostagent.sh"]
