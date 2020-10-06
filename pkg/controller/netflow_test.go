@@ -16,6 +16,7 @@
 package controller
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"testing"
@@ -67,7 +68,7 @@ func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, d
 	nf1 := apicapi.NewNetflowVmmExporterPol(name)
 
 	nf1.SetAttr("dstAddr", dstAddr)
-	nf1.SetAttr("dstPort", strconv.Itoa(dstPort))
+	nf1.SetAttr("dstPort", fmt.Sprintf("%d", dstPort))
 	nf1.SetAttr("ver", ver)
 
 	nf1VmmVSwitch :=
@@ -127,7 +128,7 @@ func (cont *AciController) netflowPolUpdate(nfp *netflowpolicy.NetflowPolicy) ap
 	if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
 		nf.SetAttr("ver", "v9")
 	}
-	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
+	nf.SetAttr("dstPort", fmt.Sprintf("%d", nfp.Spec.FlowSamplingPolicy.DstPort))
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(cont.vmmDomainProvider(), cont.config.AciVmmDomain, nfDn)
