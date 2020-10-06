@@ -862,7 +862,7 @@ var metadata = map[string]*apicMeta{
 			"name":    "",
 			"ver":     "v5",
 			"dstAddr": "",
-			"dstPort": "",
+			"dstPort": "unspecified",
 		},
 		children: []string{},
 	},

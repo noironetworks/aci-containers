@@ -16,7 +16,6 @@
 package controller
 
 import (
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"strconv"
 
@@ -151,7 +150,7 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	nfDn := nf.GetDn()
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
-	nf.SetAttr("dstPort", fmt.Sprintf("%d", nfp.Spec.FlowSamplingPolicy.DstPort))
+	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
 	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
 		nf.SetAttr("ver", "v5")
 	}
