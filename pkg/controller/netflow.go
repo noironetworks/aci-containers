@@ -17,6 +17,7 @@ package controller
 
 import (
 	"github.com/sirupsen/logrus"
+	"strconv"
 
 	netflowpolicy "github.com/noironetworks/aci-containers/pkg/netflowpolicy/apis/aci.netflow/v1alpha"
 	netflowclientset "github.com/noironetworks/aci-containers/pkg/netflowpolicy/clientset/versioned"
@@ -149,7 +150,7 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	nfDn := nf.GetDn()
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
-	nf.SetAttr("dstPort", nfp.Spec.FlowSamplingPolicy.DstPort)
+	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
 	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
 		nf.SetAttr("ver", "v5")
 	}
@@ -160,8 +161,8 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(cont.vmmDomainProvider(), cont.config.AciVmmDomain, nfDn)
 	VmmVSwitch.AddChild(RsVmmVSwitch)
-	RsVmmVSwitch.SetAttr("activeFlowTimeOut", nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut)
-	RsVmmVSwitch.SetAttr("idleFlowTimeOut", nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut)
+	RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
+	RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
 	apicSlice = append(apicSlice, VmmVSwitch)
 
 	cont.log.Info("create netflow Rs", apicSlice)
