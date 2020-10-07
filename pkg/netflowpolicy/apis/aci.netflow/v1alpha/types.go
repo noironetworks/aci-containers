@@ -37,6 +37,9 @@ type NetflowType struct {
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=600
 	IdleFlowTimeOut int `json:"idleFlowTimeOut"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=1000
+	SamplingRate int `json:"samplingRate"`
 }
 
 // NetflowPolicyStatus defines the observed state of NetflowPolicy

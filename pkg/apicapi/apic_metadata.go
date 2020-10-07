@@ -877,6 +877,7 @@ var metadata = map[string]*apicMeta{
 			"tDn":               "",
 			"activeFlowTimeOut": "60",
 			"idleFlowTimeOut":   "15",
+			"samplingRate":      "0",
 		},
 		children: []string{},
 	},
