@@ -163,6 +163,7 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	VmmVSwitch.AddChild(RsVmmVSwitch)
 	RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
 	RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
+	RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
 	apicSlice = append(apicSlice, VmmVSwitch)
 
 	cont.log.Info("create netflow Rs", apicSlice)
