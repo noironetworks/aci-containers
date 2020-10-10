@@ -16,12 +16,20 @@ package hostagent
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	"net"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"text/template"
 
 	"github.com/sirupsen/logrus"
@@ -32,6 +40,16 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	if agent.config.OpflexMode == "overlay" {
 		conf = &HostAgentNodeConfig{}
 		conf.OpflexPeerIp = "127.0.0.1"
+		// if the interface MTU was not explicitly set by
+		// the user, use the VTEP MTU
+		if agent.config.InterfaceMtu == 0 {
+			_, _, mtu, err := GetVTEPDetails()
+			if err == nil {
+				agent.config.InterfaceMtu = mtu - 100
+			} else {
+				agent.log.Warn("Unable to retrieve VTEP details")
+			}
+		}
 		agent.log.Info("\n  == Opflex: Running in overlay mode ==\n")
 		return
 	}
@@ -309,4 +327,63 @@ func (agent *HostAgent) writeOpflexConfig() error {
 		return err
 	}
 	return nil
+}
+
+func GetVTEPDetails() (string, string, int, error) {
+	nodeIp, err := GetNodeIP()
+	if err != nil {
+		return "",  "", -1, err
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", "", -1, err
+	}
+
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if strings.HasPrefix(addr.String(), nodeIp) {
+				return i.Name, addr.String(), i.MTU, err
+			}
+		}
+	}
+	return "", "", -1, fmt.Errorf("Unable to find VTEP details")
+}
+
+func GetNodeIP() (string, error) {
+	var options metav1.ListOptions
+	nodeName := os.Getenv("KUBERNETES_NODE_NAME")
+	if nodeName == "" {
+		return "", fmt.Errorf("KUBERNETES_NODE_NAME must be set")
+	}
+
+	restconfig, err := restclient.InClusterConfig()
+	if err != nil {
+		return "", fmt.Errorf("Error getting config: %v", err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(restconfig)
+	if err != nil {
+		return "", fmt.Errorf("Error initializing client: %v", err)
+	}
+
+	options.FieldSelector = fields.Set{"metadata.name": nodeName}.String()
+	nodeList, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
+	if err != nil {
+		return "", fmt.Errorf("Error listing nodes: %v", err)
+	}
+
+	for _, node := range nodeList.Items {
+		for _, a := range node.Status.Addresses {
+			if a.Type == v1.NodeInternalIP {
+				return a.Address, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("Failed to list node")
 }

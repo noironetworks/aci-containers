@@ -20,6 +20,19 @@ function get_mac {
     ip link show "$1" | awk '/ether/ {print $2}'
 }
 
+vtep=$($HOSTAGENT -get-vtep)
+retval=$?
+if [ $retval -ne 0 ]; then
+    echo "error getting vtep"
+    exit $retval
+else
+read VTEP_IFACE VTEP_IP_CIDR VTEP_MTU <<EOF
+    $vtep
+EOF
+fi
+
+echo "using vtep $VTEP_IFACE $VTEP_IP_CIDR $VTEP_MTU"
+
 # Add host access links
 if check_eth veth_host; then
     echo "veth_host already exists, skip creation"
@@ -27,6 +40,10 @@ else
     ip link add veth_host type veth peer name veth_host_ac
     PEER=$(ip link | grep @veth_host: | awk '{print $2}' | awk -F @ '{print $1}')
     ip link set $PEER name veth_host_ac
+    if [[ ! -z "$VTEP_MTU"]]; then
+        ip link set veth_host mtu $VTEP_MTU
+        ip link set veth_host_ac mtu $VTEP_MTU
+    fi
     ip link set veth_host up
     ip link set veth_host_ac up
 fi
@@ -38,16 +55,6 @@ ovs-vsctl --may-exist add-port br-int pi-veth_host_ac -- set interface pi-veth_h
 
 ACC_MAC=$(get_mac veth_host)
 
-vtep=$($HOSTAGENT -get-vtep)
-retval=$?
-if [ $retval -ne 0 ]; then
-    echo "error getting vtep"
-    exit $retval
-else
-read VTEP_IFACE VTEP_IP_CIDR <<EOF
-    $vtep
-EOF
-fi
 
 #if docker0 exists, remove its ip address to prevent ip masquerade errors
 ip link | grep docker0
@@ -57,8 +64,6 @@ if [ $retval -eq 0 ]; then
   ip addr flush dev docker0
   set -e
 fi
-
-echo "using vtep $VTEP_IFACE $VTEP_IP_CIDR"
 
 if [[ ! -z "$VTEP_IFACE" && ! -z "$VTEP_IP_CIDR" ]]; then
 
