@@ -39,6 +39,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
 const (
@@ -439,12 +440,18 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	cont.snatFullSync()
 	if _, ok := cont.snatNodeInfoCache[node.ObjectMeta.Name]; ok {
 		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
-		nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
-		if err != nil {
-			return
-		}
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
+		nodeinfokey, _ := cache.MetaNamespaceKeyFunc(nodeinfo)
 		cont.queueNodeInfoUpdateByKey(nodeinfokey)
+	}
+	env := cont.env.(*K8sEnvironment)
+	nodeinfocl := env.nodeInfoClient
+	//TODO Add reconcile here on failure
+	if nodeinfocl != nil {
+		err := util.DeleteNodeInfoCR(*nodeinfocl, node.ObjectMeta.Name)
+		if err != nil {
+			cont.log.Error("Could not delete the NodeInfo", node.ObjectMeta.Name)
+		}
 	}
 }
 

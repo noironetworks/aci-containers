@@ -230,6 +230,12 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		ret = cont.deleteNodeinfoFromGlInfoCache(nodename)
 		updated = true
 	} else {
+		// This case ignores any stale entry is present in nodeinfo
+		_, _, err := cont.nodeIndexer.GetByKey(nodename)
+		if err != nil {
+			cont.log.Info("Could not lookup node: ", err, "nodeName: ", nodename)
+			return false
+		}
 		allocfailed := make(map[string]bool)
 		markready := make(map[string]bool)
 		for name := range nodeinfo.Spec.SnatPolicyNames {
