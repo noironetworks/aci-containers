@@ -124,6 +124,17 @@ func UpdateNodeInfoCR(c nodeinfoclset.Clientset, nodeinfo nodeinfo.NodeInfo) err
 	}
 	return nil
 }
+
+// UpdateNodeInfoCR Updates a UpdateNodeInfoInfo CR
+func DeleteNodeInfoCR(c nodeinfoclset.Clientset, name string) error {
+	ns := os.Getenv("ACI_SNAT_NAMESPACE")
+	err := c.AciV1().NodeInfos(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func GetPortRangeFromConfigMap(c *kubernetes.Clientset) (snatglobal.PortRange, int) {
 	cMap, err := c.CoreV1().ConfigMaps("aci-containers-system").Get(context.TODO(), "snat-operator-config", metav1.GetOptions{})
 	var resultPortRange snatglobal.PortRange
