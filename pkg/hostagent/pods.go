@@ -63,9 +63,10 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes map[string]string `json:"attributes,omitempty"`
-	SnatUuid   []string          `json:"snat-uuids,omitempty"`
-	registered bool
+	Attributes        map[string]string `json:"attributes,omitempty"`
+	SnatUuid          []string          `json:"snat-uuids,omitempty"`
+	ServiceClusterIps []string          `json:"service-ip,omitempty"`
+	registered        bool
 }
 
 func (agent *HostAgent) getPodIFName(ns, podName string) string {
@@ -345,6 +346,7 @@ func (agent *HostAgent) syncEps() bool {
 					continue
 				}
 				ep.SnatUuid = agent.getSnatUuids(poduuid)
+				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -368,6 +370,7 @@ func (agent *HostAgent) syncEps() bool {
 			}
 			poduuid := strings.Split(ep.Uuid, "_")[0]
 			ep.SnatUuid = agent.getSnatUuids(poduuid)
+			ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)

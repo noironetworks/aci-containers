@@ -387,3 +387,65 @@ func TestServiceSyncWithEps(t *testing.T) {
 
 	agent.stop()
 }
+
+//1. Create Pod with 10.1.1.1
+// 2. Create Endpoint with 10.1.1.1
+// 3. Create Service with clusterIp 100.1.1.1
+// 4. Check ServiceIp's updated properly for the Pod created
+// 5. Delete the Service Make sure that cleanup happend
+func TestServiceEptoSerMap(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+
+	agent.run()
+	pod := mkPod("poduid", "testns", "pod1", "", "", map[string]string{"app": "tier"})
+	cnimd := cnimd("testns", "pod1", "10.1.1.1", "cont1", "veth1")
+	cnimd.Ifaces[0].Mac = "00:0c:29:92:fe:d0"
+	agent.epMetadata["testns"+"/"+"pod1"] =
+		map[string]*metadata.ContainerMetadata{
+			cnimd.Id.ContId: cnimd,
+		}
+	pod.Status.PodIP = "10.1.1.1"
+	agent.fakePodSource.Add(pod)
+	time.Sleep(10 * time.Millisecond)
+	st := serviceTests[0]
+	service := service(st.uuid, st.namespace, st.name,
+		st.clusterIp, st.externalIp, st.ports)
+	service.Spec.Selector = map[string]string{"app": "tier"}
+	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	agent.fakeServiceSource.Add(service)
+	agent.fakeEndpointsSource.Add(endpoints)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp := agent.getServiceIPs("poduid")
+	assert.Equal(t, clusterIp, []string{"100.1.1.1"}, "Updated", "ClusterIp")
+	agent.fakeServiceSource.Delete(service)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp = agent.getServiceIPs("poduid")
+	var empty []string
+	assert.Equal(t, clusterIp, empty, "deleted", "ClusterIp")
+	agent.stop()
+}
