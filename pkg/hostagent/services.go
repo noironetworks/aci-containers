@@ -443,6 +443,8 @@ func (agent *HostAgent) doUpdateService(key string) {
 	doSync = agent.updateServiceDesc(true, as, endpoints) || doSync
 	if doSync {
 		agent.scheduleSyncServices()
+		agent.updateEpFileWithClusterIp(as, false)
+		agent.scheduleSyncEps()
 	}
 }
 
@@ -494,6 +496,8 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 			}
 		}
 		agent.scheduleSyncServices()
+		agent.deleteServIpFromEp(u)
+		agent.scheduleSyncEps()
 	}
 	agent.handleObjectDeleteForSnat(obj)
 }
@@ -553,4 +557,95 @@ func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 		}
 	}
 	return ""
+}
+
+func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) {
+	suid := string(as.ObjectMeta.UID)
+	ofas, ok := agent.opflexServices[suid]
+	var dummy struct{}
+	if ok {
+		if as.Spec.ClusterIP == "None" {
+			return
+		}
+		podKeys := agent.getPodKeysFromSm(ofas.ServiceMappings)
+		current := make(map[string]struct{})
+		for _, key := range podKeys {
+			obj, exists, err := agent.podInformer.GetStore().GetByKey(key)
+			if err == nil && exists && (obj != nil) {
+				pod := obj.(*v1.Pod)
+				if agent.config.NodeName != pod.Spec.NodeName {
+					continue
+				}
+				poduid := string(pod.ObjectMeta.UID)
+				if _, sok := agent.servicetoPodUids[suid]; !sok {
+					agent.servicetoPodUids[suid] = make(map[string]struct{})
+				}
+				agent.servicetoPodUids[suid][poduid] = dummy
+				if _, podok := agent.podtoServiceUids[poduid]; !podok {
+					agent.podtoServiceUids[poduid] = make(map[string]string)
+				}
+				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIP
+				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIP)
+				current[poduid] = dummy
+			}
+		}
+		// reconcile with the current pods matching the service
+		// if there is any stale info remove that from service matching the pods
+		// update the revese map for the pod to service
+		poduids, _ := agent.servicetoPodUids[suid]
+		for id := range poduids {
+			if _, ok := current[id]; !ok {
+				delete(agent.servicetoPodUids[suid], id)
+				delete(agent.podtoServiceUids[id], suid)
+				if len(agent.podtoServiceUids[id]) == 0 {
+					delete(agent.podtoServiceUids, id)
+				}
+			}
+		}
+	} else {
+		agent.deleteServIpFromEp(suid)
+	}
+
+}
+
+func (agent *HostAgent) getPodKeysFromSm(sm []opflexServiceMapping) []string {
+	var podkeys []string
+	if len(sm) > 0 {
+		podIps := sm[0].NextHopIps
+		for _, ip := range podIps {
+			podkey, ok := agent.podIpToName[ip]
+			if ok {
+				podkeys = append(podkeys, podkey)
+			}
+		}
+	}
+	return podkeys
+}
+
+func (agent *HostAgent) getServiceIPs(poduid string) []string {
+	var ips []string
+	agent.indexMutex.Lock()
+	v, ok := agent.podtoServiceUids[poduid]
+	if ok {
+		for _, ip := range v {
+			ips = append(ips, ip)
+		}
+	}
+	agent.indexMutex.Unlock()
+	return ips
+}
+
+func (agent *HostAgent) deleteServIpFromEp(suid string) {
+	v, ok := agent.servicetoPodUids[suid]
+	if ok {
+		for poduid := range v {
+			if _, ok := agent.podtoServiceUids[poduid]; ok {
+				delete(agent.podtoServiceUids[poduid], suid)
+				if len(agent.podtoServiceUids[poduid]) == 0 {
+					delete(agent.podtoServiceUids, poduid)
+				}
+			}
+		}
+		delete(agent.servicetoPodUids, suid)
+	}
 }
