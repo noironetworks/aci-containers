@@ -223,6 +223,10 @@ type HostAgentConfig struct {
 
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
+	// Cluster Flavour
+	Flavor string `json:"flavor,omitempty"`
+	// Installer lb Ip provisioned for Openshift on Esx
+	InstallerProvlbIp string `json:"installer-provisioned-lb-ip,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -289,4 +293,6 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.DropLogIntInterface, "drop-log-int-iface", "gen1", "Interface in Integration bridge to send dropped packets")
 	flag.UintVar(&config.DropLogExpiryTime, "drop-log-expiry", 10, "Expiry time for droplogs in the pipeline in minutes")
 	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
+	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
+	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 }
