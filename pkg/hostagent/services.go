@@ -89,6 +89,11 @@ type opflexOcService struct {
 	Namespace string
 }
 
+var Version = map[string]bool{
+	"openshift-4.4-esx": true,
+	"openshift-4.5-esx": true,
+}
+
 func (agent *HostAgent) initEndpointsInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
 	agent.initEndpointsInformerBase(
@@ -524,6 +529,12 @@ func (agent *HostAgent) updateAllServices() {
 
 // This API is get the OpenShift InfrastructreIp's
 func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
+	if _, ok := Version[agent.config.Flavor]; ok {
+		if serviceName == RouterInternalDefault {
+			return agent.config.InstallerProvlbIp
+		}
+		return ""
+	}
 	infraStructureInfo := &configv1.Infrastructure{
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
