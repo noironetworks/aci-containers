@@ -1,7 +1,7 @@
 go 1.13
 
 require (
-	github.com/Shopify/sarama v1.26.1
+	github.com/Shopify/sarama v1.27.0
 	github.com/aws/aws-sdk-go v1.33.11
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
@@ -9,7 +9,7 @@ require (
 	github.com/containernetworking/cni v0.8.0
 	github.com/containernetworking/plugins v0.8.7
 	github.com/coreos/bbolt v1.3.3 // indirect
-	github.com/coreos/etcd v3.3.15+incompatible
+	github.com/coreos/etcd v3.3.25+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -22,13 +22,14 @@ require (
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/serf v0.8.5 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
+	github.com/noironetworks/metrics-poc v0.3.0
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.7.0
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.4.0

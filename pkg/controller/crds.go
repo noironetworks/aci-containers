@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"github.com/noironetworks/metrics-poc/metrics"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,10 +50,13 @@ func (cont *AciController) initCRDInformerBase(listWatch *cache.ListWatch) {
 					return
 				}
 				cont.crdAdded(crd)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 	)

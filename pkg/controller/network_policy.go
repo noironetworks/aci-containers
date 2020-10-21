@@ -20,13 +20,14 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/yl2chen/cidranger"
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"github.com/yl2chen/cidranger"
 
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
@@ -41,6 +42,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	"github.com/noironetworks/metrics-poc/metrics"
 	v1beta "k8s.io/api/discovery/v1beta1"
 )
 
@@ -60,12 +62,15 @@ func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWa
 			cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
 					cont.networkPolicyAdded(obj)
+					metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 				},
 				UpdateFunc: func(oldobj interface{}, newobj interface{}) {
 					cont.networkPolicyChanged(oldobj, newobj)
+					metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, newobj)
 				},
 				DeleteFunc: func(obj interface{}) {
 					cont.networkPolicyDeleted(obj)
+					metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 				},
 			},
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},

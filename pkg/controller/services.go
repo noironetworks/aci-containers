@@ -25,6 +25,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/metrics-poc/metrics"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/discovery/v1beta1"
@@ -65,12 +66,15 @@ func (cont *AciController) initEndpointSliceInformerBase(listWatch *cache.ListWa
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.endpointSliceAdded(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
 				cont.endpointSliceUpdated(oldobj, newobj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.endpointSliceDeleted(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -83,12 +87,15 @@ func (cont *AciController) initEndpointsInformerBase(listWatch *cache.ListWatch)
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.endpointsAdded(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(old interface{}, new interface{}) {
 				cont.endpointsUpdated(old, new)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, new)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.endpointsDeleted(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -110,12 +117,15 @@ func (cont *AciController) initServiceInformerBase(listWatch *cache.ListWatch) {
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.serviceAdded(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(old interface{}, new interface{}) {
 				cont.serviceUpdated(old, new)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, new)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.serviceDeleted(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},

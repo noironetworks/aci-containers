@@ -39,6 +39,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/metrics-poc/metrics"
 )
 
 const (
@@ -68,12 +69,15 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 			AddFunc: func(obj interface{}) {
 				cont.syncPodNet(obj) // update cache
 				cont.nodeChanged(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(_ interface{}, obj interface{}) {
 				cont.nodeChanged(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, obj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.nodeDeleted(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},

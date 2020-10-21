@@ -77,7 +77,9 @@ all-static: dist-static/aci-containers-host-agent \
 
 go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
-	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} make go-targets
+	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} \
+    go env -w GOPRIVATE=github.com/noironetworks/metrics-poc; \
+    make go-targets
 
 go-gbp-build:
 	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} make go-gbp-target

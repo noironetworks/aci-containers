@@ -41,6 +41,7 @@ import (
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	"github.com/noironetworks/metrics-poc/metrics"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -519,6 +520,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	cont.initStaticObjs()
+	go metrics.Run(cont.config.AciVmmDomain, "172.28.11.78:30000", []string{"172.31.141.220:31999"})
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())

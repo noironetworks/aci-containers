@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/metrics-poc/metrics"
 )
 
 func (cont *AciController) initPodInformerFromClient(
@@ -45,12 +46,15 @@ func (cont *AciController) initPodInformerBase(listWatch *cache.ListWatch) {
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.podAdded(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_ADD, obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
 				cont.podUpdated(oldobj, newobj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_UPDATE, newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.podDeleted(obj)
+				metrics.HandleK8sCRUDEvents(metrics.EventType_EVENT_DELETE, obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
