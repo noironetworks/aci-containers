@@ -15,8 +15,9 @@ RUN git clone -b libnftnl-1.1.7 https://git.netfilter.org/libnftnl \
   && make install && cp libnftnl.pc /usr/lib64/pkgconfig && make clean \
   && cd / \
   && rm -Rf libnftnl \
-  && git clone -b v1.8.5 https://git.netfilter.org/iptables \
+  && git clone https://git.netfilter.org/iptables \
   && cd iptables \
+  && git checkout dac904bdcd9a18aabafee7275ccf0c2bd53800f3 \
   && ./autogen.sh \
   && ./configure --prefix=/usr --sbindir=/sbin \
   && make $make_args \
