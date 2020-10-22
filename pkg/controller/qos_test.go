@@ -69,23 +69,24 @@ func makeQr(ingress apicapi.ApicSlice, egress apicapi.ApicSlice, name string, po
 	qEpDscpMarking := apicapi.NewQosEpDscpMarking(qr1.GetDn(), "EpDscpMarking")
 	qEpDscpMarking.SetAttr("mark", strconv.Itoa(dscpMark))
 	qr1.AddChild(qEpDscpMarking)
-
+	dppPolNameI := name + "_ingress"
+	dppPolNameE := name + "_egress"
 	if ingress != nil {
 		qr1dpppI :=
-			apicapi.NewQosDppPol("test-tenant_qos", "ingress")
+			apicapi.NewQosDppPol("test-tenant_qos", dppPolNameI)
 		qr1dpppI.SetAttr("rate", strconv.Itoa(policingRateI))
 		qr1dpppI.SetAttr("burst", strconv.Itoa(policingBurstI))
 		qr1rsdpppI :=
-			apicapi.NewRsIngressDppPol(qr1.GetDn(), qr1dpppI.GetDn())
+			apicapi.NewRsIngressDppPol(qr1.GetDn(), dppPolNameI)
 		qr1.AddChild(qr1rsdpppI)
 	}
 	if egress != nil {
 		qr1dpppE :=
-			apicapi.NewQosDppPol("test-tenant_qos", "egress")
+			apicapi.NewQosDppPol("test-tenant_qos", dppPolNameE)
 		qr1dpppE.SetAttr("rate", policingRateE)
 		qr1dpppE.SetAttr("burst", policingBurstE)
 		qr1rsdpppE :=
-			apicapi.NewRsEgressDppPol(qr1.GetDn(), qr1dpppE.GetDn())
+			apicapi.NewRsEgressDppPol(qr1.GetDn(), dppPolNameE)
 		qr1.AddChild(qr1rsdpppE)
 	}
 	return qr1
@@ -142,24 +143,24 @@ func (cont *AciController) qosPolUpdate(qp *qospolicy.QosPolicy) apicapi.ApicObj
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
 
-		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, "ingress")
+		DppPolIngressName := labelKey + "_ingress"
+		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolIngressName)
 		DppPolIngress.SetAttr("rate", strconv.Itoa(qp.Spec.Ingress.PolicingRate))
 		DppPolIngress.SetAttr("burst", strconv.Itoa(qp.Spec.Ingress.PolicingBurst))
 
-		DppPolIngressDn := DppPolIngress.GetDn()
-		RsIngressDppPol := apicapi.NewRsIngressDppPol(qrDn, DppPolIngressDn)
+		RsIngressDppPol := apicapi.NewRsIngressDppPol(qrDn, DppPolIngressName)
 		qr.AddChild(RsIngressDppPol)
 	}
 
 	// Generate egress policies
 	if qp.Spec.Egress.PolicingRate != 0 && qp.Spec.Egress.PolicingBurst != 0 {
 
-		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, "egress")
+		DppPolEgressName := labelKey + "_egress"
+		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolEgressName)
 		DppPolEgress.SetAttr("rate", strconv.Itoa(qp.Spec.Egress.PolicingRate))
 		DppPolEgress.SetAttr("burst", strconv.Itoa(qp.Spec.Egress.PolicingBurst))
 
-		DppPolEgressDn := DppPolEgress.GetDn()
-		RsEgressDppPol := apicapi.NewRsEgressDppPol(qrDn, DppPolEgressDn)
+		RsEgressDppPol := apicapi.NewRsEgressDppPol(qrDn, DppPolEgressName)
 		qr.AddChild(RsEgressDppPol)
 	}
 
@@ -223,29 +224,27 @@ func TestQosPolicy(t *testing.T) {
 	egress3.PolicingBurst = 0
 
 	name := "kube_qp_testns"
+	dppPolIngressName := name + "_ingress"
+	dppPolEgressName := name + "_egress"
 	baseDn := makeQr(nil, nil, name, 1000, 1000, 0, 0, 0).GetDn()
 	qr1SDnI := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1 ", baseDn)
 
 	rule_0_0 := apicapi.NewQosRequirement(qr1SDnI, "0")
-	rule_0_1 := apicapi.NewQosDppPol(rule_0_0.GetDn(), "ingress")
-	rule_0_0.AddChild(apicapi.NewRsIngressDppPol(rule_0_0.GetDn(), rule_0_1.GetDn()))
+	rule_0_0.AddChild(apicapi.NewRsIngressDppPol(rule_0_0.GetDn(), dppPolIngressName))
 	rule_0_0.AddChild(apicapi.NewQosEpDscpMarking(rule_0_0.GetDn(), "EpDscpMarking"))
 
 	baseDn = makeQr(nil, nil, name, 0, 0, 1000, 1000, 0).GetDn()
 	qr1SDnE := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1", baseDn)
 
 	rule_1_0 := apicapi.NewQosRequirement(qr1SDnE, "0")
-	rule_1_1 := apicapi.NewQosDppPol(rule_1_0.GetDn(), "egress")
-	rule_1_0.AddChild(apicapi.NewRsEgressDppPol(rule_1_0.GetDn(), rule_1_1.GetDn()))
+	rule_1_0.AddChild(apicapi.NewRsEgressDppPol(rule_1_0.GetDn(), dppPolEgressName))
 	rule_1_0.AddChild(apicapi.NewQosEpDscpMarking(rule_1_0.GetDn(), "EpDscpMarking"))
 
 	baseDn = makeQr(nil, nil, name, 1000, 1000, 1000, 1000, 0).GetDn()
 	qr1SDnIE := fmt.Sprintf("%s/qosreq-qp_default_qos-policy1", baseDn)
 	rule_2_0 := apicapi.NewQosRequirement(qr1SDnIE, "0")
-	rule_2_1 := apicapi.NewQosDppPol(rule_2_0.GetDn(), "ingress")
-	rule_2_2 := apicapi.NewQosDppPol(rule_2_0.GetDn(), "egress")
-	rule_2_0.AddChild(apicapi.NewRsIngressDppPol(rule_2_0.GetDn(), rule_2_1.GetDn()))
-	rule_2_0.AddChild(apicapi.NewRsEgressDppPol(rule_2_0.GetDn(), rule_2_2.GetDn()))
+	rule_2_0.AddChild(apicapi.NewRsIngressDppPol(rule_2_0.GetDn(), dppPolIngressName))
+	rule_2_0.AddChild(apicapi.NewRsEgressDppPol(rule_2_0.GetDn(), dppPolEgressName))
 	rule_2_0.AddChild(apicapi.NewQosEpDscpMarking(rule_2_0.GetDn(), "EpDscpMarking"))
 
 	labels := map[string]string{

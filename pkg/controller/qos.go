@@ -135,12 +135,12 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
 
-		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, "ingress")
+		DppPolIngressName := labelKey + "_ingress"
+		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolIngressName)
 		DppPolIngress.SetAttr("rate", strconv.Itoa(qp.Spec.Ingress.PolicingRate))
 		DppPolIngress.SetAttr("burst", strconv.Itoa(qp.Spec.Ingress.PolicingBurst))
 
-		DppPolIngressDn := DppPolIngress.GetDn()
-		RsIngressDppPol := apicapi.NewRsIngressDppPol(qrDn, DppPolIngressDn)
+		RsIngressDppPol := apicapi.NewRsIngressDppPol(qrDn, DppPolIngressName)
 		qr.AddChild(RsIngressDppPol)
 		apicSlice = append(apicSlice, DppPolIngress)
 	}
@@ -148,12 +148,12 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 	// Generate egress policies
 	if qp.Spec.Egress.PolicingRate != 0 && qp.Spec.Egress.PolicingBurst != 0 {
 
-		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, "egress")
+		DppPolEgressName := labelKey + "_egress"
+		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolEgressName)
 		DppPolEgress.SetAttr("rate", strconv.Itoa(qp.Spec.Egress.PolicingRate))
 		DppPolEgress.SetAttr("burst", strconv.Itoa(qp.Spec.Egress.PolicingBurst))
 
-		DppPolEgressDn := DppPolEgress.GetDn()
-		RsEgressDppPol := apicapi.NewRsEgressDppPol(qrDn, DppPolEgressDn)
+		RsEgressDppPol := apicapi.NewRsEgressDppPol(qrDn, DppPolEgressName)
 		qr.AddChild(RsEgressDppPol)
 		apicSlice = append(apicSlice, DppPolEgress)
 	}
