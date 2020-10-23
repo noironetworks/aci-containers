@@ -265,8 +265,15 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 
 	for ifaceind, iface := range metadata.Ifaces {
 		var err error
+		var mtu int
+		if agent.config.InterfaceMtu == 0 {
+			// MTU not explicitly set in config or discovered
+			mtu = 1500
+		} else {
+			mtu = agent.config.InterfaceMtu
+		}
 		iface.HostVethName, iface.Mac, err =
-			runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu)
+			runSetupVeth(iface.Sandbox, iface.Name, mtu)
 		if err != nil {
 			return nil, err
 		}

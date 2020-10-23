@@ -87,6 +87,8 @@ var Version = map[string]bool{
 	"cloud":                   true,
 	"openshift-4.4-esx":       true,
 	"openshift-4.4-openstack": true,
+	"openshift-4.5-openstack": true,
+	"openshift-4.5-esx":       true,
 }
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
@@ -376,33 +378,40 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 	}
 	return acicnioperator, nil
 }
+func (c *Controller) ReadConfigMap() ([]byte, error) {
+	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	log.Debug("Config-Map is:  ", string(raw))
+	return raw, err
+}
 
-func (c *Controller) CreateAciContainersOperatorCR() error {
-	log.Info("Reading the Config Map providing CR")
-
-	obj := &operators.AciContainersOperator{
+func (c *Controller) CreateAciContainersOperatorObj() *operators.AciContainersOperator {
+	obj := operators.AciContainersOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "acicnioperator",
 			Namespace: os.Getenv("SYSTEM_NAMESPACE")},
 	}
-
 	obj.Status.Status = true //Setting it default true
+	return &obj
+}
 
-	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+func (c *Controller) CreateAciContainersOperatorCR() error {
+	log.Info("Reading the Config Map providing CR")
+	raw, err := c.ReadConfigMap()
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-
-	log.Debug("acicnioperator CR is ", string(raw))
-
+	obj := c.CreateAciContainersOperatorObj()
 	log.Info("Unmarshalling the Config-Map...")
 	err = json.Unmarshal(raw, &obj.Spec)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
@@ -425,22 +434,38 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 
 func (c *Controller) Run(stopCh <-chan struct{}) {
 	c.Logger.Info("Controller.Run: initiating")
-
 	log.Info("Checking if acicnioperator CR already present")
-	_, err := c.GetAciContainersOperatorCR()
+	acicnioperator, err := c.GetAciContainersOperatorCR()
 	if err != nil {
 		log.Info("Not Present ..Creating acicnioperator CR")
-
 		er := c.CreateAciContainersOperatorCR()
 		if er != nil {
 			log.Error(err)
 		}
-	}
-	if err == nil {
-
+	} else {
 		log.Info("acicnioperator CR already present")
+		log.Debug("Reading current configmap")
+		raw, err := c.ReadConfigMap()
+		if err != nil {
+			log.Error(err)
+		} else {
+			obj := c.CreateAciContainersOperatorObj()
+			log.Debug("Unmarshalling the Config-Map...")
+			err = json.Unmarshal(raw, &obj.Spec)
+			if err != nil {
+				log.Error(err)
+			}
+			if acicnioperator.Spec.Config != obj.Spec.Config {
+				acicnioperator.Spec.Config = obj.Spec.Config
+				log.Info("New Configuration detected...applying changes")
+				_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
+					Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
+				if er != nil {
+					log.Error(er)
+				}
+			}
+		}
 	}
-
 	// Run informer to start watching and listening
 	go c.Informer_Operator.Run(stopCh)
 	go c.Informer_Deployment.Run(stopCh)

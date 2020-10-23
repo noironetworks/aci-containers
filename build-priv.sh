@@ -15,9 +15,9 @@ DOCKER_TAG=$3
 
 UBI_URI="registry.access.redhat.com\/ubi8\/ubi:latest"
 UBI_MIN_URI="registry.access.redhat.com\/ubi8\/ubi-minimal:latest"
-UBIBASE_OPFLEX="noirolabs\/ubibase-opflex:latest"
-UBIBASE_OPFLEX_BUILD_BASE="noirolabs\/ubibase-opflex-build-base:latest"
-UBIBASE_ACI="noirolabs\/ubibase-aci:latest"
+UBIBASE_OPFLEX="registry.hub.docker.com\/noirolabs\/ubibase-opflex:latest"
+UBIBASE_OPFLEX_BUILD_BASE="registry.hub.docker.com\/noirolabs\/ubibase-opflex-build-base:latest"
+UBIBASE_ACI="registry.hub.docker.com\/noirolabs\/ubibase-aci:latest"
 
 opflex_arr='Dockerfile-opflex Dockerfile-opflexserver'
 containers_arr='Dockerfile-controller Dockerfile-host Dockerfile-cnideploy Dockerfile-gbpserver Dockerfile-openvswitch'
@@ -75,37 +75,65 @@ docker build -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG -f $DOCKER_DIR/Dockerfile
 #docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
 
 mkdir -p build/opflex/dist
+mkdir -p build/opflex/dist/agent
+mkdir -p build/opflex/dist/server
 docker run $DOCKER_HUB_ID/opflex-build$DOCKER_TAG tar -c -C /usr/local \
 	bin/opflex_agent bin/gbp_inspect bin/mcast_daemon bin/opflex_server \
 	| tar -x -C build/opflex/dist
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
-	 -name '\''libopflex*.so*'\'' -o \
-	 -name '\''libmodelgbp*so*'\'' -o \
-	 -name '\''libopenvswitch*so*'\'' -o \
+         -name '\''libopflex*.so*'\'' -o \
+         -name '\''libmodelgbp*so*'\'' -o \
+         -name '\''libopenvswitch*so*'\'' -o \
+         -name '\''libsflow*so*'\'' -o \
          -name '\''libprometheus-cpp-*so*'\'' -o \
-	 -name '\''libsflow*so*'\'' -o \
-	 -name '\''libofproto*so*'\'' -o \
-	 -name '\''libgrpc*so*'\'' -o \
-	 -name '\''libproto*so*'\'' -o \
-	 -name '\''libre2*so*'\'' -o \
-	 -name '\''libupb*so*'\'' -o \
-	 -name '\''libabsl*so*'\'' -o \
-	 -name '\''libssl*so*'\'' -o \
-	 -name '\''libcrypto*so*'\'' -o \
-	 -name '\''libaddress_sorting*so*'\'' -o \
-	 -name '\''libgpr*so*'\'' \
-           \) ! -name '\''*debug'\'' \
-           | xargs tar -c ' \
-	  | tar -x -C build/opflex/dist
+         -name '\''libgrpc*so*'\'' -o \
+         -name '\''libproto*so*'\'' -o \
+         -name '\''libre2*so*'\'' -o \
+         -name '\''libupb*so*'\'' -o \
+         -name '\''libabsl*so*'\'' -o \
+         -name '\''libssl*so*'\'' -o \
+         -name '\''libcrypto*so*'\'' -o \
+         -name '\''libaddress_sorting*so*'\'' -o \
+         -name '\''libgpr*so*'\'' -o \
+         -name '\''libofproto*so*'\'' \
+         \) ! -name '\''*debug'\'' \
+        | xargs tar -c ' \
+    | tar -x -C build/opflex/dist
+docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
+         -name '\''libopflex*.so*'\'' -o \
+         -name '\''libmodelgbp*so*'\'' -o \
+         -name '\''libopenvswitch*so*'\'' -o \
+         -name '\''libsflow*so*'\'' -o \
+         -name '\''libprometheus-cpp-*so*'\'' -o \
+         -name '\''libofproto*so*'\'' \
+         \) ! -name '\''*debug'\'' \
+        | xargs tar -c ' \
+    | tar -x -C build/opflex/dist/agent
+docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c 'find lib \(\
+         -name '\''libopflex*.so*'\'' -o \
+         -name '\''libmodelgbp*so*'\'' -o \
+         -name '\''libprometheus-cpp-*so*'\'' -o \
+         -name '\''libgrpc*so*'\'' -o \
+         -name '\''libproto*so*'\'' -o \
+         -name '\''libre2*so*'\'' -o \
+         -name '\''libupb*so*'\'' -o \
+         -name '\''libabsl*so*'\'' -o \
+         -name '\''libssl*so*'\'' -o \
+         -name '\''libcrypto*so*'\'' -o \
+         -name '\''libaddress_sorting*so*'\'' -o \
+         -name '\''libgpr*so*'\'' \
+         \) ! -name '\''*debug'\'' \
+        | xargs tar -c ' \
+    | tar -x -C build/opflex/dist/server
 docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c \
 	'find lib bin -name '\''*.debug'\'' | xargs tar -cz' \
 	 > opflex-debuginfo.tar.gz
 cp docker/launch-opflexagent.sh build/opflex/dist/bin/
 cp docker/launch-mcastdaemon.sh build/opflex/dist/bin/
 cp docker/launch-opflexserver.sh build/opflex/dist/bin/
-cp -Rf docker/licenses build/opflex/dist
 cp $DOCKER_DIR/Dockerfile-opflex build/opflex/dist/
 cp $DOCKER_DIR/Dockerfile-opflexserver build/opflex/dist/
+cp -Rf $DOCKER_DIR/licenses build/opflex/dist/
 
 docker build -t $DOCKER_HUB_ID/opflex$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
@@ -119,6 +147,7 @@ make go-gbp-build
 docker build -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-controller .
 docker push $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG
 
+docker/copy_iptables.sh $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG dist-static
 docker build -t $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-host .
 docker push $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG
 

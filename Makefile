@@ -40,7 +40,7 @@ DIST_FILE=aci-containers.tgz
 
 DOCKER_HUB_ID ?= noiro
 DOCKER_TAG ?=
-BUILD_CMD ?= go build -v
+BUILD_CMD ?= go build -v -trimpath
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v

@@ -399,12 +399,12 @@ var metadata = map[string]*apicMeta{
 	},
 	"qosRsEgressDppPol": {
 		attributes: map[string]interface{}{
-			"tDn": "",
+			"tnQosDppPolName": "",
 		},
 	},
 	"qosRsIngressDppPol": {
 		attributes: map[string]interface{}{
-			"tDn": "",
+			"tnQosDppPolName": "",
 		},
 	},
 	"qosDppPol": {
@@ -862,7 +862,7 @@ var metadata = map[string]*apicMeta{
 			"name":    "",
 			"ver":     "v5",
 			"dstAddr": "",
-			"dstPort": "",
+			"dstPort": "unspecified",
 		},
 		children: []string{},
 	},
@@ -877,6 +877,7 @@ var metadata = map[string]*apicMeta{
 			"tDn":               "",
 			"activeFlowTimeOut": "60",
 			"idleFlowTimeOut":   "15",
+			"samplingRate":      "0",
 		},
 		children: []string{},
 	},

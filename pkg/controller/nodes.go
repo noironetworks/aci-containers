@@ -39,12 +39,12 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/noironetworks/metrics-poc/metrics"
 )
 
 const (
-	defTunnelIdBase = 4001
-	tunnelIDIncr    = 2
+	tunnelIDIncr = 2
 )
 
 type tunnelState struct {
@@ -277,7 +277,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 
 	id, found := cont.tunnelGetter.nodeToTunnel[nodeIP]
 	if found {
-		return id + cont.tunnelIdBase
+		return id + int64(cont.config.CSRTunnelIDBase)
 	}
 
 	id = cont.tunnelGetter.nextID
@@ -292,7 +292,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 	state := &crdv1.GBPSState{}
 	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
 	cont.tunnelGetter.stateDriver.Update(state)
-	return id + cont.tunnelIdBase
+	return id + int64(cont.config.CSRTunnelIDBase)
 }
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
@@ -459,12 +459,18 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	cont.snatFullSync()
 	if _, ok := cont.snatNodeInfoCache[node.ObjectMeta.Name]; ok {
 		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
-		nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
-		if err != nil {
-			return
-		}
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
+		nodeinfokey, _ := cache.MetaNamespaceKeyFunc(nodeinfo)
 		cont.queueNodeInfoUpdateByKey(nodeinfokey)
+	}
+	env := cont.env.(*K8sEnvironment)
+	nodeinfocl := env.nodeInfoClient
+	//TODO Add reconcile here on failure
+	if nodeinfocl != nil {
+		err := util.DeleteNodeInfoCR(*nodeinfocl, node.ObjectMeta.Name)
+		if err != nil {
+			cont.log.Error("Could not delete the NodeInfo", node.ObjectMeta.Name)
+		}
 	}
 }
 

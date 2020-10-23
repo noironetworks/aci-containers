@@ -212,7 +212,7 @@ type HostAgentConfig struct {
 	// DropLog Interface connecting to access bridge
 	DropLogAccessInterface string `json:"drop-log-access-iface,omitempty"`
 
-	// DropLog Interface connecting to access bridge
+	// DropLog Interface connecting to integration bridge
 	DropLogIntInterface string `json:"drop-log-int-iface,omitempty"`
 
 	// Droplogs older than the expiry-time will be discarded if not published
@@ -223,6 +223,10 @@ type HostAgentConfig struct {
 
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
+	// Cluster Flavour
+	Flavor string `json:"flavor,omitempty"`
+	// Installer lb Ip provisioned for Openshift on Esx
+	InstallerProvlbIp string `json:"installer-provisioned-lb-ip,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -265,7 +269,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.IntBridgeName, "int-bridge-name", "br-int", "Name of the OVS integration bridge")
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
 
-	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 1500, "Interface MTU to use when configuring container interfaces")
+	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 0, "Interface MTU to use when configuring container interfaces")
 
 	flag.UintVar(&config.ServiceVlan, "service-vlan", 4003, "VLAN for service traffic")
 
@@ -289,4 +293,6 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.DropLogIntInterface, "drop-log-int-iface", "gen1", "Interface in Integration bridge to send dropped packets")
 	flag.UintVar(&config.DropLogExpiryTime, "drop-log-expiry", 10, "Expiry time for droplogs in the pipeline in minutes")
 	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
+	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
+	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 }

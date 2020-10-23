@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/noironetworks/aci-containers/pkg/util"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -88,6 +89,11 @@ const (
 type opflexOcService struct {
 	Name      string
 	Namespace string
+}
+
+var Version = map[string]bool{
+	"openshift-4.4-esx": true,
+	"openshift-4.5-esx": true,
 }
 
 func (agent *HostAgent) initEndpointsInformerFromClient(
@@ -238,7 +244,12 @@ func (agent *HostAgent) syncServices() bool {
 	agent.indexMutex.Lock()
 	opflexServices := make(map[string]*opflexService)
 	for k, v := range agent.opflexServices {
-		opflexServices[k] = v
+		val := &opflexService{}
+		err := util.DeepCopyObj(v, val)
+		if err != nil {
+			continue
+		}
+		opflexServices[k] = val
 	}
 	agent.indexMutex.Unlock()
 
@@ -264,7 +275,6 @@ func (agent *HostAgent) syncServices() bool {
 		logger := agent.log.WithFields(
 			logrus.Fields{"Uuid": uuid},
 		)
-
 		existing, ok := opflexServices[uuid]
 		if ok {
 			wrote, err := writeAs(asfile, existing)
@@ -395,6 +405,8 @@ func (agent *HostAgent) doUpdateService(keys ...string) {
 	doSync = agent.updateServiceDesc(true, as, key) || doSync
 	if doSync {
 		agent.scheduleSyncServices()
+		agent.updateEpFileWithClusterIp(as, false)
+		agent.scheduleSyncEps()
 	}
 }
 
@@ -447,7 +459,6 @@ func (agent *HostAgent) serviceChanged(obj interface{}) {
 			Error("Could not create key:" + err.Error())
 		return
 	}
-	agent.log.Info("Service Changed#####: ", key)
 	agent.doUpdateService(key)
 	agent.handleObjectUpdateForSnat(obj)
 }
@@ -469,6 +480,8 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 			}
 		}
 		agent.scheduleSyncServices()
+		agent.deleteServIpFromEp(u)
+		agent.scheduleSyncEps()
 	}
 	agent.handleObjectDeleteForSnat(obj)
 }
@@ -495,6 +508,12 @@ func (agent *HostAgent) updateAllServices() {
 
 // This API is get the OpenShift InfrastructreIp's
 func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
+	if _, ok := Version[agent.config.Flavor]; ok {
+		if serviceName == RouterInternalDefault {
+			return agent.config.InstallerProvlbIp
+		}
+		return ""
+	}
 	infraStructureInfo := &configv1.Infrastructure{
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
@@ -699,4 +718,95 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		}
 	}
 	return hasValidMapping
+}
+
+func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) {
+	suid := string(as.ObjectMeta.UID)
+	ofas, ok := agent.opflexServices[suid]
+	var dummy struct{}
+	if ok {
+		if as.Spec.ClusterIP == "None" {
+			return
+		}
+		podKeys := agent.getPodKeysFromSm(ofas.ServiceMappings)
+		current := make(map[string]struct{})
+		for _, key := range podKeys {
+			obj, exists, err := agent.podInformer.GetStore().GetByKey(key)
+			if err == nil && exists && (obj != nil) {
+				pod := obj.(*v1.Pod)
+				if agent.config.NodeName != pod.Spec.NodeName {
+					continue
+				}
+				poduid := string(pod.ObjectMeta.UID)
+				if _, sok := agent.servicetoPodUids[suid]; !sok {
+					agent.servicetoPodUids[suid] = make(map[string]struct{})
+				}
+				agent.servicetoPodUids[suid][poduid] = dummy
+				if _, podok := agent.podtoServiceUids[poduid]; !podok {
+					agent.podtoServiceUids[poduid] = make(map[string]string)
+				}
+				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIP
+				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIP)
+				current[poduid] = dummy
+			}
+		}
+		// reconcile with the current pods matching the service
+		// if there is any stale info remove that from service matching the pods
+		// update the revese map for the pod to service
+		poduids, _ := agent.servicetoPodUids[suid]
+		for id := range poduids {
+			if _, ok := current[id]; !ok {
+				delete(agent.servicetoPodUids[suid], id)
+				delete(agent.podtoServiceUids[id], suid)
+				if len(agent.podtoServiceUids[id]) == 0 {
+					delete(agent.podtoServiceUids, id)
+				}
+			}
+		}
+	} else {
+		agent.deleteServIpFromEp(suid)
+	}
+
+}
+
+func (agent *HostAgent) getPodKeysFromSm(sm []opflexServiceMapping) []string {
+	var podkeys []string
+	if len(sm) > 0 {
+		podIps := sm[0].NextHopIps
+		for _, ip := range podIps {
+			podkey, ok := agent.podIpToName[ip]
+			if ok {
+				podkeys = append(podkeys, podkey)
+			}
+		}
+	}
+	return podkeys
+}
+
+func (agent *HostAgent) getServiceIPs(poduid string) []string {
+	var ips []string
+	agent.indexMutex.Lock()
+	v, ok := agent.podtoServiceUids[poduid]
+	if ok {
+		for _, ip := range v {
+			ips = append(ips, ip)
+		}
+	}
+	agent.indexMutex.Unlock()
+	return ips
+}
+
+func (agent *HostAgent) deleteServIpFromEp(suid string) {
+	v, ok := agent.servicetoPodUids[suid]
+	if ok {
+		for poduid := range v {
+			if _, ok := agent.podtoServiceUids[poduid]; ok {
+				delete(agent.podtoServiceUids[poduid], suid)
+				if len(agent.podtoServiceUids[poduid]) == 0 {
+					delete(agent.podtoServiceUids, poduid)
+				}
+			}
+		}
+		delete(agent.servicetoPodUids, suid)
+	}
 }

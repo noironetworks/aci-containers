@@ -41,6 +41,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	gouuid "github.com/nu7hatch/gouuid"
 )
 
@@ -62,9 +63,10 @@ type opflexEndpoint struct {
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
 	IfaceName         string `json:"interface-name,omitempty"`
 
-	Attributes map[string]string `json:"attributes,omitempty"`
-	SnatUuid   []string          `json:"snat-uuids,omitempty"`
-	registered bool
+	Attributes        map[string]string `json:"attributes,omitempty"`
+	SnatUuid          []string          `json:"snat-uuids,omitempty"`
+	ServiceClusterIps []string          `json:"service-ip,omitempty"`
+	registered        bool
 }
 
 func (agent *HostAgent) getPodIFName(ns, podName string) string {
@@ -279,7 +281,16 @@ func (agent *HostAgent) syncEps() bool {
 	agent.indexMutex.Lock()
 	opflexEps := make(map[string][]*opflexEndpoint)
 	for k, v := range agent.opflexEps {
-		opflexEps[k] = v
+		ep := []*opflexEndpoint{}
+		for _, op := range v {
+			val := &opflexEndpoint{}
+			err := util.DeepCopyObj(op, val)
+			if err != nil {
+				continue
+			}
+			ep = append(ep, val)
+		}
+		opflexEps[k] = ep
 	}
 	agent.indexMutex.Unlock()
 
@@ -335,6 +346,7 @@ func (agent *HostAgent) syncEps() bool {
 					continue
 				}
 				ep.SnatUuid = agent.getSnatUuids(poduuid)
+				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -358,6 +370,7 @@ func (agent *HostAgent) syncEps() bool {
 			}
 			poduuid := strings.Split(ep.Uuid, "_")[0]
 			ep.SnatUuid = agent.getSnatUuids(poduuid)
+			ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
@@ -626,7 +639,7 @@ func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
 	if pod.ObjectMeta.Labels == nil {
 		return
 	}
-
+	agent.indexMutex.Lock()
 	nameVal := pod.ObjectMeta.Labels["name"]
 	if nameVal == "aci-containers-controller" {
 		if agent.gbpServerIP != pod.Status.PodIP {
@@ -635,4 +648,5 @@ func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
 			agent.scheduleSyncOpflexServer()
 		}
 	}
+	agent.indexMutex.Unlock()
 }

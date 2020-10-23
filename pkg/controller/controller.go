@@ -287,7 +287,6 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceMetaCache:     make(map[string]*serviceMeta),
 		snatPolicyCache:      make(map[string]*ContSnatPolicy),
 		snatServices:         make(map[string]bool),
-		tunnelIdBase:         defTunnelIdBase,
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),

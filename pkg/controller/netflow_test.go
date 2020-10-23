@@ -17,6 +17,7 @@ package controller
 
 import (
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,13 +61,13 @@ func addNetflowServices(cont *testAciController, augment *nfTestAugment) {
 	}
 }
 
-func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, dstPort string, ver string,
-	activeFlowTimeOut string, idleFlowTimeOut string) apicapi.ApicObject {
+func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, dstPort int, ver string,
+	activeFlowTimeOut int, idleFlowTimeOut int, samplingRate int) apicapi.ApicObject {
 
 	nf1 := apicapi.NewNetflowVmmExporterPol(name)
 
 	nf1.SetAttr("dstAddr", dstAddr)
-	nf1.SetAttr("dstPort", dstPort)
+	nf1.SetAttr("dstPort", strconv.Itoa(dstPort))
 	nf1.SetAttr("ver", ver)
 
 	nf1VmmVSwitch :=
@@ -74,8 +75,9 @@ func makeNf(flowSamplingPolicy apicapi.ApicSlice, name string, dstAddr string, d
 	nf1RsVmmVSwitch :=
 		apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", nf1.GetDn())
 	nf1VmmVSwitch.AddChild(nf1RsVmmVSwitch)
-	nf1RsVmmVSwitch.SetAttr("activeFlowTimeOut", activeFlowTimeOut)
-	nf1RsVmmVSwitch.SetAttr("idleFlowTimeOut", idleFlowTimeOut)
+	nf1RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(activeFlowTimeOut))
+	nf1RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(idleFlowTimeOut))
+	nf1RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(samplingRate))
 	return nf1
 }
 
@@ -120,14 +122,20 @@ func (cont *AciController) netflowPolUpdate(nfp *netflowpolicy.NetflowPolicy) ap
 	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
 	nfDn := nf.GetDn()
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
-	nf.SetAttr("ver", nfp.Spec.FlowSamplingPolicy.Ver)
-	nf.SetAttr("dstPort", nfp.Spec.FlowSamplingPolicy.DstPort)
+	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
+		nf.SetAttr("ver", "v5")
+	}
+	if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+		nf.SetAttr("ver", "v9")
+	}
+	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(cont.vmmDomainProvider(), cont.config.AciVmmDomain, nfDn)
 	VmmVSwitch.AddChild(RsVmmVSwitch)
-	RsVmmVSwitch.SetAttr("activeFlowTimeOut", nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut)
-	RsVmmVSwitch.SetAttr("idleFlowTimeOut", nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut)
+	RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
+	RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
+	RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
 
 	return nf
 }
@@ -152,10 +160,11 @@ func testnetflowpolicy(name string, namespace string, flowSamplingPolicy netflow
 func TestNetflowPolicy(t *testing.T) {
 	var flowSamplingPolicy0 netflowpolicy.NetflowType
 	flowSamplingPolicy0.DstAddr = "172.51.1.2"
-	flowSamplingPolicy0.DstPort = "2055"
-	flowSamplingPolicy0.Ver = "v5"
+	flowSamplingPolicy0.DstPort = 2055
+	flowSamplingPolicy0.Version = "netflow"
 	flowSamplingPolicy0.ActiveFlowTimeOut = 5
 	flowSamplingPolicy0.IdleFlowTimeOut = 5
+	flowSamplingPolicy0.SamplingRate = 400
 
 	name := "kube_nfp_testns"
 
@@ -169,7 +178,7 @@ func TestNetflowPolicy(t *testing.T) {
 	var nfTests = []nfTest{
 		{testnetflowpolicy("testns", "nf1",
 			flowSamplingPolicy0, labels),
-			makeNf(apicapi.ApicSlice{rule_0_0}, name, "172.51.1.2", "2055", "v5", "5", "5"), nil, ""},
+			makeNf(apicapi.ApicSlice{rule_0_0}, name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, ""},
 	}
 	initCont := func() *testAciController {
 		cont := testController()

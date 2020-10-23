@@ -122,15 +122,15 @@ func (cont *AciController) snatCfgUpdate(obj interface{}) {
 	portRange.End = end
 	var currPortRange []snatglobalinfo.PortRange
 	currPortRange = append(currPortRange, portRange)
-	var nodeInfoKeys []string
 	cont.indexMutex.Lock()
+	nodeInfoKeys := make(map[string]bool)
 	for name, info := range cont.snatPolicyCache {
 		cont.clearSnatGlobalCache(name, "")
 		info.ExpandedSnatPorts = util.ExpandPortRanges(currPortRange, portsPerNode)
-		nodeInfoKeys = cont.getNodeInfoKeys(name)
+		cont.getNodeInfoKeys(name, nodeInfoKeys)
 	}
 	cont.indexMutex.Unlock()
-	for _, key := range nodeInfoKeys {
+	for key := range nodeInfoKeys {
 		cont.queueNodeInfoUpdateByKey(key)
 	}
 }
@@ -231,6 +231,12 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		ret = cont.deleteNodeinfoFromGlInfoCache(nodename)
 		updated = true
 	} else {
+		// This case ignores any stale entry is present in nodeinfo
+		_, _, err := cont.nodeIndexer.GetByKey(nodename)
+		if err != nil {
+			cont.log.Info("Could not lookup node: ", err, "nodeName: ", nodename)
+			return false
+		}
 		allocfailed := make(map[string]bool)
 		markready := make(map[string]bool)
 		for name := range nodeinfo.Spec.SnatPolicyNames {
@@ -467,19 +473,16 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 	}
 }
 
-func (cont *AciController) getNodeInfoKeys(policyName string) []string {
-	var nodeinfokeys []string
+func (cont *AciController) getNodeInfoKeys(policyName string, nodeinfokeys map[string]bool) {
 	for _, nodeinfo := range cont.snatNodeInfoCache {
 		if _, ok := nodeinfo.Spec.SnatPolicyNames[policyName]; ok {
 			nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
 			if err != nil {
 				continue
 			}
-			cont.log.Debug("handleSnatPoilcyUpdate Queu the Key: ")
-			nodeinfokeys = append(nodeinfokeys, (nodeinfokey))
+			nodeinfokeys[nodeinfokey] = true
 		}
 	}
-	return nodeinfokeys
 }
 
 func (cont *AciController) setSnatPoliciesState(names map[string]bool, status snatv1.PolicyState) bool {
