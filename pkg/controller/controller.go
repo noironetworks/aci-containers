@@ -63,6 +63,7 @@ type AciController struct {
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
 	netflowQueue      workqueue.RateLimitingInterface
+	metricsQueue      workqueue.RateLimitingInterface
 	snatNodeInfoQueue workqueue.RateLimitingInterface
 	istioQueue        workqueue.RateLimitingInterface
 
@@ -91,6 +92,8 @@ type AciController struct {
 	qosInformer           cache.Controller
 	netflowIndexer        cache.Indexer
 	netflowInformer       cache.Controller
+	metricsIndexer        cache.Indexer
+	metricsInformer       cache.Controller
 	istioIndexer          cache.Indexer
 	istioInformer         cache.Controller
 	endpointSliceIndexer  cache.Indexer
@@ -265,6 +268,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netPolQueue:       createQueue("networkPolicy"),
 		qosQueue:          createQueue("qos"),
 		netflowQueue:      createQueue("netflow"),
+		metricsQueue:      createQueue("metrics"),
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
@@ -519,7 +523,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	cont.initStaticObjs()
-	go metrics.Run(cont.config.AciVmmDomain, "172.28.11.78:30000", []string{"172.31.141.220:31999"})
+	go metrics.Run(cont.config.AciVmmDomain)
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
@@ -537,7 +541,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			qs = []workqueue.RateLimitingInterface{
 				cont.podQueue, cont.netPolQueue, cont.qosQueue,
 				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
-				cont.snatNodeInfoQueue,
+				cont.metricsQueue, cont.snatNodeInfoQueue,
 			}
 		}
 		for _, q := range qs {
