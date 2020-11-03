@@ -503,12 +503,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	cont.log.Debug("UseAPICInstTag set to:", cont.apicConn.UseAPICInstTag)
 	cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
-
-	// Make sure Pod/NodeBDs and AciL3Out are assoicated to same VRF.
+	// Make sure Pod/NodeBDs are assoicated to same VRF.
 	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
-		acil3outdn := "uni/tn-" + cont.config.AciVrfTenant + "/out-" + cont.config.AciL3Out
 		var expectedVrfRelations []string
-		expectedVrfRelations = append(expectedVrfRelations, acil3outdn, cont.config.AciPodBdDn, cont.config.AciNodeBdDn)
+		expectedVrfRelations = append(expectedVrfRelations, cont.config.AciPodBdDn, cont.config.AciNodeBdDn)
 		cont.log.Debug("expectedVrfRelations:", expectedVrfRelations)
 		err = cont.apicConn.ValidateAciVrfAssociation(cont.config.AciVrfDn, expectedVrfRelations)
 		if err != nil {
