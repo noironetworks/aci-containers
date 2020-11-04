@@ -137,3 +137,23 @@ rcvLoop:
 
 	listVerify(listCh, crd1.URI(), false)
 }
+
+func TestGetURIBySubject(t *testing.T) {
+	testData := []struct {
+		sub string
+		uri string
+	}{
+		{"DomainConfig", "/DomainConfig/"},
+		{"PlatformConfig", "/PolicyUniverse/PlatformConfig/comp%2fprov-Kubernetes%2fctrlr-%5btestDom%5d-testDom%2fsw-InsiemeLSOid/"},
+	}
+
+	suite := &testSuite{}
+	s := suite.setupGBPServer(t)
+	defer s.Stop()
+	defer suite.tearDown()
+
+	for _, td := range testData {
+		uri := s.GetURIBySubject(td.sub)
+		assert.Equal(t, td.uri, uri)
+	}
+}

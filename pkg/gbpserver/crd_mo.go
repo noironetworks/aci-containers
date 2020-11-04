@@ -36,6 +36,19 @@ func (s *Server) GetTenantURI() string {
 	return getTenantUri()
 }
 
+// GetURIBySubject helper for watchers to get a parent URI
+func (s *Server) GetURIBySubject(sub string) string {
+	gMutex.Lock()
+	defer gMutex.Unlock()
+	moDB := getMoDB()
+	for uri, mo := range moDB {
+		if mo.Subject == sub {
+			return uri
+		}
+	}
+	return ""
+}
+
 // AddCRDMo access utility for crd watcher to add an MO
 func (s *Server) AddCRDMo(crd CRDMo) {
 	m := &inputMsg{
