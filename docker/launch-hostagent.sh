@@ -30,6 +30,11 @@ if [ -w /mnt/cni-conf ]; then
 EOF
 fi
 
+if [  -z !=  $MULTUS ] && [ $MULTUS = "True" ]; then
+    mkdir -p /mnt/multus-cni-conf/cni/net.d
+    cp -r /mnt/cni-conf/cni/net.d/* /mnt/multus-cni-conf/cni/net.d/
+fi
+
 if [ -w ${PREFIX} ]; then
     # Setup folders to hold metadata
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/endpoints
