@@ -56,6 +56,7 @@ var protoNormalizations = map[string]string{
 	"89":  "ospfigp",
 	"103": "pim",
 	"115": "l2tp",
+	"132": "sctp",
 }
 
 func normalizePort(port string) string {
