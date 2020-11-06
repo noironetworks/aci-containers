@@ -257,6 +257,16 @@ func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "test-node",
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "serve-80",
+							ContainerPort: int32(80),
+						},
+					},
+				},
+			},
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,

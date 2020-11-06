@@ -202,7 +202,6 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 	}
 	for _, e := range augment.endpointslices {
 		cont.fakeEndpointSliceSource.Add(e)
-
 	}
 }
 
@@ -259,7 +258,7 @@ func makeEpSlice(namespace string, name string, endpoints []v1beta1.Endpoint,
 }
 
 func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController) {
-	tu.WaitFor(t, category+"/"+nt.desc, 500*time.Millisecond,
+	tu.WaitFor(t, category+"/"+nt.desc, 2000*time.Millisecond,
 		func(last bool) (bool, error) {
 			slice := apicapi.ApicSlice{nt.aciObj}
 			key := cont.aciNameForKey("np",
@@ -431,7 +430,6 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_14_s.SetAttr("protocol", "tcp")
 	rule_14_s.SetAttr("toPort", "8080")
 	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
-
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil, nil)},
@@ -545,6 +543,27 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(apicapi.ApicSlice{rule_8_0, rule_8_1}, nil, name),
 			nil, "multiple-from"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{
+					{
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					},
+				}, []v1net.NetworkPolicyPeer{
+					peer(&metav1.LabelSelector{
+						MatchLabels: map[string]string{"l1": "v1"},
+					}, nil),
+				}),
+				ingressRule([]v1net.NetworkPolicyPort{
+					port(nil, &port443),
+				}, []v1net.NetworkPolicyPeer{
+					peer(&metav1.LabelSelector{
+						MatchLabels: map[string]string{"l1": "v2"},
+					}, nil),
+				}),
+			}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_8_0, rule_8_1}, nil, name),
+			nil, "multiple-from-name"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule(nil,
 					[]v1net.NetworkPolicyPeer{
@@ -647,6 +666,63 @@ func TestNetworkPolicy(t *testing.T) {
 				},
 				[]*v1beta1.EndpointSlice{},
 			}, "egress-allow-http-augment"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					},
+				},
+					[]v1net.NetworkPolicyPeer{
+						peer(&metav1.LabelSelector{
+							MatchLabels: map[string]string{"l1": "v1"},
+						}, nil),
+					}),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_11_0, rule_11_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{
+					makeEps("testns", "service1",
+						[]v1.EndpointAddress{
+							{
+								IP: "1.1.1.1",
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 80, ""),
+						}),
+					makeEps("testns", "service2",
+						[]v1.EndpointAddress{
+							{
+								IP: "2.2.2.2",
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 80, ""),
+						}),
+				},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns", "service2", "9.0.0.99",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}), // should not match (no matching IPs)
+				},
+				[]*v1beta1.EndpointSlice{},
+			}, "egress-allow-http-augment-namedport"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
@@ -813,7 +889,6 @@ func TestNetworkPolicy(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting podsfirst ", nt.desc)
@@ -828,7 +903,6 @@ func TestNetworkPolicy(t *testing.T) {
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting npfirst ", nt.desc)
@@ -1371,7 +1445,6 @@ func TestNetworkPolicyv6(t *testing.T) {
 	ips := []string{
 		"2001::2", "2001::3", "2001::4", "2001::5", "2001::6", "",
 	}
-
 	for _, nt := range np6Tests {
 		cont := initCont()
 		cont.log.Info("Starting podsfirst ", nt.desc)
@@ -1557,6 +1630,69 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 			}, "egress-allow-http-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					},
+				},
+					[]v1net.NetworkPolicyPeer{
+						peer(&metav1.LabelSelector{
+							MatchLabels: map[string]string{"l1": "v1"},
+						}, nil),
+					}),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_11_0, rule_11_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns", "service2", "9.0.0.99",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}), // should not match (no matching IPs)
+					npservice("testns", "service3", "9.0.0.98",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}), // should not match (incomplete IPs)
+				},
+				[]*v1beta1.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"1.1.1.1",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]v1beta1.Endpoint{
+							{
+								Addresses: []string{
+									"2.2.2.2",
+								},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []v1beta1.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+				},
+			}, "egress-allow-http-augment-namedport"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
 				egressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
 					nil),
 			}, allPolicyTypes),
@@ -1732,7 +1868,6 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting podsfirst ", nt.desc)
@@ -1755,6 +1890,168 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 		addServices(cont, nt.augment)
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		checkNp(t, &nt, "npfirst", cont)
+		cont.stop()
+	}
+}
+
+/*
+* 1. Create Pods with 2 diffrent containerPorts
+* 2.  expose these pods to service1 and 2
+*.3. create a wildcard network policy with  nameedport.
+* 4. Check matching port is added to the NetworkPolicy
+ */
+func TestNetworkPolicyEgressNmPort(t *testing.T) {
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnE, "0_0")
+	rule_1_0.SetAttr("direction", "egress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("toPort", "80")
+
+	rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080")
+	rule_1_s.SetAttr("direction", "egress")
+	rule_1_s.SetAttr("ethertype", "ipv4")
+	rule_1_s.SetAttr("protocol", "tcp")
+	rule_1_s.SetAttr("toPort", "8080")
+	rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
+	var npTests = []npTest{
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					},
+				}, nil),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_1_0, rule_1_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{
+					makeEps("testns", "service1",
+						[]v1.EndpointAddress{
+							{
+								IP: "1.1.1.1",
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 80, ""),
+						}),
+					makeEps("testns", "service2",
+						[]v1.EndpointAddress{
+							{
+								IP: "2.2.2.2",
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 81, ""),
+						}),
+				},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+					npservice("testns1", "service2", "9.0.0.99",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8081, 81),
+						}),
+				},
+				[]*v1beta1.EndpointSlice{},
+			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
+	}
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	{
+		cont := testController()
+		cont.run()
+		static := cont.staticNetPolObjs()
+		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
+		assert.Equal(t, static,
+			cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
+		cont.stop()
+	}
+
+	ports := []v1.ContainerPort{
+		{
+			Name:          "serve-80",
+			ContainerPort: int32(80),
+		},
+	}
+
+	ports1 := []v1.ContainerPort{
+		{
+			Name:          "serve-81",
+			ContainerPort: int32(81),
+		},
+	}
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", nt.desc)
+		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
+		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
+		addServices(cont, nt.augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		checkNp(t, &nt, "podsfirst", cont)
+		cont.log.Info("Starting delete ", nt.desc)
+		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+	for _, nt := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting npfirst ", nt.desc)
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.run()
+		addServices(cont, nt.augment)
+		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
+		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
 		checkNp(t, &nt, "npfirst", cont)
 		cont.stop()
 	}

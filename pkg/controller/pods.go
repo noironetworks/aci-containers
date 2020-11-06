@@ -17,17 +17,18 @@
 package controller
 
 import (
-	"reflect"
-
 	"github.com/sirupsen/logrus"
-
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
+	"reflect"
+	"strconv"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 func (cont *AciController) initPodInformerFromClient(
@@ -94,14 +95,13 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	}
 
 	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
 	if pod.Spec.NodeName != "" {
 		// note here we're assuming pods do not change nodes
 		cont.addPodToNode(pod.Spec.NodeName, podkey)
 
 	}
-
+	cont.indexMutex.Unlock()
+	go cont.updateCtrNmPortForPod(pod, podkey)
 	return false
 }
 
@@ -203,6 +203,96 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)
 	cont.indexMutex.Unlock()
-
+	go cont.deleteCtrNmPortForPod(pod, podkey)
 	logger.Debug("Pod deleted")
+}
+
+func (cont *AciController) updateCtrNmPortForPod(pod *v1.Pod, podkey string) {
+	cont.indexMutex.Lock()
+	nmport := false
+	for _, ctr := range pod.Spec.Containers {
+		for _, ctrportspec := range ctr.Ports {
+			if ctrportspec.Name != "" {
+				key := portProto(&ctrportspec.Protocol) + "-" + strconv.Itoa(int(ctrportspec.ContainerPort))
+				ctrNmpEntry, ok := cont.ctrPortNameCache[ctrportspec.Name]
+				if !ok {
+					ctrNmpEntry := &ctrPortNameEntry{}
+					ctrNmpEntry.ctrNmpToPods = make(map[string]map[string]bool)
+					ctrNmpEntry.ctrNmpToPods[key] = make(map[string]bool)
+					ctrNmpEntry.ctrNmpToPods[key][podkey] = true
+					cont.ctrPortNameCache[ctrportspec.Name] = ctrNmpEntry
+					nmport = true
+				} else {
+					if _, present := ctrNmpEntry.ctrNmpToPods[key]; !present {
+						ctrNmpEntry.ctrNmpToPods[key] = make(map[string]bool)
+						nmport = true
+					}
+					ctrNmpEntry.ctrNmpToPods[key][podkey] = true
+				}
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+	if nmport {
+		cache.ListAll(cont.networkPolicyIndexer, labels.Everything(),
+			func(nsobj interface{}) {
+				npkey, err := cache.MetaNamespaceKeyFunc(nsobj)
+				if err != nil {
+					cont.log.Error("Could not create np key: ", err)
+					return
+				}
+				np := nsobj.(*v1net.NetworkPolicy)
+				if isNamedPortPresenInNp(np) {
+					cont.indexMutex.Lock()
+					ports := cont.getNetPolTargetPorts(np)
+					cont.updateTargetPortIndex(false, npkey, nil, ports)
+					cont.indexMutex.Unlock()
+					cont.log.Debug("Added Ports: ", ports, "For Network Policy: ", npkey)
+					cont.queueNetPolUpdateByKey(npkey)
+				}
+			})
+	}
+
+}
+
+func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
+	cont.indexMutex.Lock()
+	cont.removePodFromNode(pod.Spec.NodeName, podkey)
+	nmport := false
+	for _, ctr := range pod.Spec.Containers {
+		for _, ctrportspec := range ctr.Ports {
+			if ctrportspec.Name != "" {
+				ctrNmpEntry, ok := cont.ctrPortNameCache[ctrportspec.Name]
+				if ok {
+					key := portProto(&ctrportspec.Protocol) + "-" + strconv.Itoa(int(ctrportspec.ContainerPort))
+					pods, present := ctrNmpEntry.ctrNmpToPods[key]
+					if present {
+						delete(pods, podkey)
+						if len(pods) == 0 {
+							delete(ctrNmpEntry.ctrNmpToPods, key)
+						}
+					}
+					if len(ctrNmpEntry.ctrNmpToPods) == 0 {
+						delete(cont.ctrPortNameCache, ctrportspec.Name)
+					}
+				}
+				nmport = true
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+	if nmport {
+		cache.ListAll(cont.networkPolicyIndexer, labels.Everything(),
+			func(nsobj interface{}) {
+				npkey, err := cache.MetaNamespaceKeyFunc(nsobj)
+				if err != nil {
+					cont.log.Error("Could not create np key: ", err)
+					return
+				}
+				np := nsobj.(*v1net.NetworkPolicy)
+				if isNamedPortPresenInNp(np) {
+					cont.queueNetPolUpdateByKey(npkey)
+				}
+			})
+	}
 }
