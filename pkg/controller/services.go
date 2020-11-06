@@ -505,12 +505,7 @@ func apicFilter(name string, tenantName string,
 	var port v1.ServicePort
 	for i, port = range portSpec {
 		pstr := strconv.Itoa(int(port.Port))
-		var proto string
-		if port.Protocol == v1.ProtocolUDP {
-			proto = "udp"
-		} else {
-			proto = "tcp"
-		}
+		proto := getProtocolStr(port.Protocol)
 		fe := apicFilterEntry(filterDn, strconv.Itoa(i), pstr,
 			pstr, proto, "no", false, false)
 		filter.AddChild(fe)
@@ -1065,12 +1060,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		aobj.SetAttr("type", t)
 	}
 	for _, port := range service.Spec.Ports {
-		var proto string
-		if port.Protocol == v1.ProtocolUDP {
-			proto = "udp"
-		} else {
-			proto = "tcp"
-		}
+		proto := getProtocolStr(port.Protocol)
 		p := apicapi.NewVmmInjectedSvcPort(aobjDn,
 			strconv.Itoa(int(port.Port)), proto, port.TargetPort.String())
 		p.SetAttr("nodePort", strconv.Itoa(int(port.NodePort)))
@@ -1702,4 +1692,18 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 		return false
 	}
 	return true
+}
+func getProtocolStr(proto v1.Protocol) string {
+	var protostring string
+	switch proto {
+	case v1.ProtocolUDP:
+		protostring = "udp"
+	case v1.ProtocolTCP:
+		protostring = "tcp"
+	case v1.ProtocolSCTP:
+		protostring = "sctp"
+	default:
+		protostring = "tcp"
+	}
+	return protostring
 }
