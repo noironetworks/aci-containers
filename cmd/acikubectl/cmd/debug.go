@@ -198,7 +198,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 		{
 			name: "cluster-report/status/pods_status.log",
-			args: []string{"get", "pods", "--all-namespaces"},
+			args: []string{"get", "pods", "--all-namespaces", "--output=wide"},
 		},
 		{
 			name: "cluster-report/status/services_status.log",
