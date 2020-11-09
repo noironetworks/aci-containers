@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@ limitations under the License.
 package fake
 
 import (
-	aciqosv1 "github.com/noironetworks/aci-containers/apis/aci.qos/v1"
+	"context"
+
+	aciqosv1 "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -37,7 +39,7 @@ var qospoliciesResource = schema.GroupVersionResource{Group: "aci.qos", Version:
 var qospoliciesKind = schema.GroupVersionKind{Group: "aci.qos", Version: "v1", Kind: "QosPolicy"}
 
 // Get takes name of the qosPolicy, and returns the corresponding qosPolicy object, and an error if there is any.
-func (c *FakeQosPolicies) Get(name string, options v1.GetOptions) (result *aciqosv1.QosPolicy, err error) {
+func (c *FakeQosPolicies) Get(ctx context.Context, name string, options v1.GetOptions) (result *aciqosv1.QosPolicy, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootGetAction(qospoliciesResource, name), &aciqosv1.QosPolicy{})
 	if obj == nil {
@@ -47,7 +49,7 @@ func (c *FakeQosPolicies) Get(name string, options v1.GetOptions) (result *aciqo
 }
 
 // List takes label and field selectors, and returns the list of QosPolicies that match those selectors.
-func (c *FakeQosPolicies) List(opts v1.ListOptions) (result *aciqosv1.QosPolicyList, err error) {
+func (c *FakeQosPolicies) List(ctx context.Context, opts v1.ListOptions) (result *aciqosv1.QosPolicyList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootListAction(qospoliciesResource, qospoliciesKind, opts), &aciqosv1.QosPolicyList{})
 	if obj == nil {
@@ -68,13 +70,13 @@ func (c *FakeQosPolicies) List(opts v1.ListOptions) (result *aciqosv1.QosPolicyL
 }
 
 // Watch returns a watch.Interface that watches the requested qosPolicies.
-func (c *FakeQosPolicies) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeQosPolicies) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewRootWatchAction(qospoliciesResource, opts))
 }
 
 // Create takes the representation of a qosPolicy and creates it.  Returns the server's representation of the qosPolicy, and an error, if there is any.
-func (c *FakeQosPolicies) Create(qosPolicy *aciqosv1.QosPolicy) (result *aciqosv1.QosPolicy, err error) {
+func (c *FakeQosPolicies) Create(ctx context.Context, qosPolicy *aciqosv1.QosPolicy, opts v1.CreateOptions) (result *aciqosv1.QosPolicy, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootCreateAction(qospoliciesResource, qosPolicy), &aciqosv1.QosPolicy{})
 	if obj == nil {
@@ -84,7 +86,7 @@ func (c *FakeQosPolicies) Create(qosPolicy *aciqosv1.QosPolicy) (result *aciqosv
 }
 
 // Update takes the representation of a qosPolicy and updates it. Returns the server's representation of the qosPolicy, and an error, if there is any.
-func (c *FakeQosPolicies) Update(qosPolicy *aciqosv1.QosPolicy) (result *aciqosv1.QosPolicy, err error) {
+func (c *FakeQosPolicies) Update(ctx context.Context, qosPolicy *aciqosv1.QosPolicy, opts v1.UpdateOptions) (result *aciqosv1.QosPolicy, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootUpdateAction(qospoliciesResource, qosPolicy), &aciqosv1.QosPolicy{})
 	if obj == nil {
@@ -95,7 +97,7 @@ func (c *FakeQosPolicies) Update(qosPolicy *aciqosv1.QosPolicy) (result *aciqosv
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeQosPolicies) UpdateStatus(qosPolicy *aciqosv1.QosPolicy) (*aciqosv1.QosPolicy, error) {
+func (c *FakeQosPolicies) UpdateStatus(ctx context.Context, qosPolicy *aciqosv1.QosPolicy, opts v1.UpdateOptions) (*aciqosv1.QosPolicy, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootUpdateSubresourceAction(qospoliciesResource, "status", qosPolicy), &aciqosv1.QosPolicy{})
 	if obj == nil {
@@ -105,22 +107,22 @@ func (c *FakeQosPolicies) UpdateStatus(qosPolicy *aciqosv1.QosPolicy) (*aciqosv1
 }
 
 // Delete takes name of the qosPolicy and deletes it. Returns an error if one occurs.
-func (c *FakeQosPolicies) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeQosPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewRootDeleteAction(qospoliciesResource, name), &aciqosv1.QosPolicy{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeQosPolicies) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(qospoliciesResource, listOptions)
+func (c *FakeQosPolicies) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewRootDeleteCollectionAction(qospoliciesResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &aciqosv1.QosPolicyList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched qosPolicy.
-func (c *FakeQosPolicies) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *aciqosv1.QosPolicy, err error) {
+func (c *FakeQosPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *aciqosv1.QosPolicy, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootPatchSubresourceAction(qospoliciesResource, name, pt, data, subresources...), &aciqosv1.QosPolicy{})
 	if obj == nil {

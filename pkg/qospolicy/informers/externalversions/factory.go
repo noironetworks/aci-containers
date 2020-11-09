@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/noironetworks/aci-containers/qospolicy/clientset/versioned"
-	aciqos "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/aci.qos"
-	internalinterfaces "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/internalinterfaces"
+	versioned "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
+	aciqos "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/aci.qos"
+	internalinterfaces "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

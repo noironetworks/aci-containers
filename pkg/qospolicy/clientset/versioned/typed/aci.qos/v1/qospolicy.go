@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,15 +37,15 @@ type QosPoliciesGetter interface {
 
 // QosPolicyInterface has methods to work with QosPolicy resources.
 type QosPolicyInterface interface {
-	Create(ctx context.Context, qosPolicy *v1.QosPolicy) (*v1.QosPolicy, error)
-	Update(ctx context.Context, qosPolicy *v1.QosPolicy) (*v1.QosPolicy, error)
-	UpdateStatus(ctx context.Context, qosPolicy *v1.QosPolicy) (*v1.QosPolicy, error)
-	Delete(ctx context.Context, name string, options *metav1.DeleteOptions) error
-	DeleteCollection(ctx context.Context, options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(ctx context.Context, name string, options metav1.GetOptions) (*v1.QosPolicy, error)
+	Create(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.CreateOptions) (*v1.QosPolicy, error)
+	Update(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.UpdateOptions) (*v1.QosPolicy, error)
+	UpdateStatus(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.UpdateOptions) (*v1.QosPolicy, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.QosPolicy, error)
 	List(ctx context.Context, opts metav1.ListOptions) (*v1.QosPolicyList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.QosPolicy, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.QosPolicy, err error)
 	QosPolicyExpansion
 }
 
@@ -104,10 +104,11 @@ func (c *qosPolicies) Watch(ctx context.Context, opts metav1.ListOptions) (watch
 }
 
 // Create takes the representation of a qosPolicy and creates it.  Returns the server's representation of the qosPolicy, and an error, if there is any.
-func (c *qosPolicies) Create(ctx context.Context, qosPolicy *v1.QosPolicy) (result *v1.QosPolicy, err error) {
+func (c *qosPolicies) Create(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.CreateOptions) (result *v1.QosPolicy, err error) {
 	result = &v1.QosPolicy{}
 	err = c.client.Post().
 		Resource("qospolicies").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(qosPolicy).
 		Do(ctx).
 		Into(result)
@@ -115,11 +116,12 @@ func (c *qosPolicies) Create(ctx context.Context, qosPolicy *v1.QosPolicy) (resu
 }
 
 // Update takes the representation of a qosPolicy and updates it. Returns the server's representation of the qosPolicy, and an error, if there is any.
-func (c *qosPolicies) Update(ctx context.Context, qosPolicy *v1.QosPolicy) (result *v1.QosPolicy, err error) {
+func (c *qosPolicies) Update(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.UpdateOptions) (result *v1.QosPolicy, err error) {
 	result = &v1.QosPolicy{}
 	err = c.client.Put().
 		Resource("qospolicies").
 		Name(qosPolicy.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(qosPolicy).
 		Do(ctx).
 		Into(result)
@@ -128,13 +130,13 @@ func (c *qosPolicies) Update(ctx context.Context, qosPolicy *v1.QosPolicy) (resu
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *qosPolicies) UpdateStatus(ctx context.Context, qosPolicy *v1.QosPolicy) (result *v1.QosPolicy, err error) {
+func (c *qosPolicies) UpdateStatus(ctx context.Context, qosPolicy *v1.QosPolicy, opts metav1.UpdateOptions) (result *v1.QosPolicy, err error) {
 	result = &v1.QosPolicy{}
 	err = c.client.Put().
 		Resource("qospolicies").
 		Name(qosPolicy.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(qosPolicy).
 		Do(ctx).
 		Into(result)
@@ -142,37 +144,38 @@ func (c *qosPolicies) UpdateStatus(ctx context.Context, qosPolicy *v1.QosPolicy)
 }
 
 // Delete takes name of the qosPolicy and deletes it. Returns an error if one occurs.
-func (c *qosPolicies) Delete(ctx context.Context, name string, options *metav1.DeleteOptions) error {
+func (c *qosPolicies) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Resource("qospolicies").
 		Name(name).
-		Body(options).
+		Body(&opts).
 		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *qosPolicies) DeleteCollection(ctx context.Context, options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *qosPolicies) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Resource("qospolicies").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
+		Body(&opts).
 		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched qosPolicy.
-func (c *qosPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.QosPolicy, err error) {
+func (c *qosPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.QosPolicy, err error) {
 	result = &v1.QosPolicy{}
 	err = c.client.Patch(pt).
 		Resource("qospolicies").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

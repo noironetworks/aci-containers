@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
-	aciqosv1 "github.com/noironetworks/aci-containers/apis/aci.qos/v1"
-	versioned "github.com/noironetworks/aci-containers/qospolicy/clientset/versioned"
-	internalinterfaces "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/internalinterfaces"
-	v1 "github.com/noironetworks/aci-containers/qospolicy/listers/aci.qos/v1"
+	aciqosv1 "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
+	versioned "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
+	internalinterfaces "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/internalinterfaces"
+	v1 "github.com/noironetworks/aci-containers/pkg/qospolicy/listers/aci.qos/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -59,13 +60,13 @@ func NewFilteredQosPolicyInformer(client versioned.Interface, resyncPeriod time.
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().QosPolicies().List(options)
+				return client.AciV1().QosPolicies().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().QosPolicies().Watch(options)
+				return client.AciV1().QosPolicies().Watch(context.TODO(), options)
 			},
 		},
 		&aciqosv1.QosPolicy{},
