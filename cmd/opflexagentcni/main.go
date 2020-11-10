@@ -115,7 +115,7 @@ func waitForAllNetwork(result *current.Result, id string,
 		if err != nil {
 			log.Error("Could not open netns: ", err)
 		} else {
-			waitForNetwork(netns, result, id, index, 10*time.Second)
+			waitForNetwork(netns, result, id, index, timeout)
 			netns.Close()
 		}
 	}
