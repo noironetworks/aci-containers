@@ -32,7 +32,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	if agent.config.OpflexMode == "overlay" {
 		conf = &HostAgentNodeConfig{}
 		conf.OpflexPeerIp = "127.0.0.1"
-		agent.log.Info("\n  == Opflex: Running in overlay mode ==\n")
+		agent.log.Debug("\n  == Opflex: Running in overlay mode ==\n")
 		return
 	}
 
@@ -275,6 +275,7 @@ func (agent *HostAgent) updateOpflexConfig() {
 			"vxlan-iface":      newNodeConfig.VxlanIface,
 			"vxlan-anycast-ip": newNodeConfig.VxlanAnycastIp,
 			"opflex-peer-ip":   newNodeConfig.OpflexPeerIp,
+			"opflex-mode":      agent.config.OpflexMode,
 		}).Info("Discovered node configuration")
 		if err := agent.writeOpflexConfig(); err == nil {
 			agent.opflexConfigWritten = true
