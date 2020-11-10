@@ -598,7 +598,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 		return false
 	}
 	if !exists || endpointsobj == nil {
-		agent.log.Debug("no endpoints: ")
+		agent.log.Debugf("no endpoints for service %s/%s", as.Namespace, as.Name)
 		return false
 	}
 	endpoints := endpointsobj.(*v1.Endpoints)
@@ -669,7 +669,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			return false
 		}
 		if !exists || endpointSliceobj == nil {
-			agent.log.Debug("no endpoints: ")
+			agent.log.Debugf("no endpoints for service %s/%s", as.Namespace, as.Name)
 			return false
 		}
 		endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
