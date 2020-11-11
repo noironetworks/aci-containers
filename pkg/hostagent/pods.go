@@ -498,7 +498,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
-		k := fmt.Sprintf("%s.%s", epAttributes["namespace"], epAttributes["vm-name"])
+		k := agent.getPodIFName(epAttributes["namespace"], epAttributes["vm-name"])
 		agent.EPRegDelEP(k)
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
