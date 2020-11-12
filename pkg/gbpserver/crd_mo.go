@@ -20,9 +20,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// CRDMo acts as the interface between a CRD and the corresponding MO.
+// GBPCustomMo acts as the interface between a CRD and the corresponding MO.
 // Implement this interface in the CRD watcher
-type CRDMo interface {
+type GBPCustomMo interface {
 	Subject() string
 	URI() string
 	Properties() map[string]interface{}
@@ -49,27 +49,27 @@ func (s *Server) GetURIBySubject(sub string) string {
 	return ""
 }
 
-// AddCRDMo access utility for crd watcher to add an MO
-func (s *Server) AddCRDMo(crd CRDMo) {
+// AddGBPCustomMo access utility for crd watcher to add an MO
+func (s *Server) AddGBPCustomMo(crd GBPCustomMo) {
 	m := &inputMsg{
-		op:   OpaddCRDMo,
+		op:   OpaddGBPCustomMo,
 		data: crd,
 	}
 
 	s.rxCh <- m
 }
 
-// DelCRDMo access utility for crd watcher to delete an MO
-func (s *Server) DelCRDMo(crd CRDMo) {
+// DelGBPCustomMo access utility for crd watcher to delete an MO
+func (s *Server) DelGBPCustomMo(crd GBPCustomMo) {
 	m := &inputMsg{
-		op:   OpdelCRDMo,
+		op:   OpdelGBPCustomMo,
 		data: crd,
 	}
 
 	s.rxCh <- m
 }
 
-func (s *Server) processAddCRDMoLocked(crd CRDMo) {
+func (s *Server) processAddGBPCustomMoLocked(crd GBPCustomMo) {
 	mo := &gbpBaseMo{}
 	mo.Subject = crd.Subject()
 	mo.Uri = crd.URI()
@@ -90,7 +90,7 @@ func (s *Server) processAddCRDMoLocked(crd CRDMo) {
 	}
 }
 
-func (s *Server) processDelCRDMoLocked(crd CRDMo) {
+func (s *Server) processDelGBPCustomMoLocked(crd GBPCustomMo) {
 	key := crd.URI()
 	log.Debugf("delete object: %s", key)
 	for _, fn := range s.listeners {

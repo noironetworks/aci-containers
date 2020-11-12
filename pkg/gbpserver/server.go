@@ -52,8 +52,8 @@ const (
 	OpaddNetPol
 	OpdelNetPol
 	OpUpdTunnels
-	OpaddCRDMo
-	OpdelCRDMo
+	OpaddGBPCustomMo
+	OpdelGBPCustomMo
 )
 
 var DefETCD = []string{"127.0.0.1:2379"}
@@ -663,10 +663,10 @@ func (s *Server) handleMsgs() {
 				fn(GBPOperation_DELETE, []string{key})
 			}
 			npMo.delRecursive()
-		case OpaddCRDMo:
-			s.processAddCRDMoLocked(m.data.(CRDMo))
-		case OpdelCRDMo:
-			s.processDelCRDMoLocked(m.data.(CRDMo))
+		case OpaddGBPCustomMo:
+			s.processAddGBPCustomMoLocked(m.data.(GBPCustomMo))
+		case OpdelGBPCustomMo:
+			s.processDelGBPCustomMoLocked(m.data.(GBPCustomMo))
 		default:
 			log.Errorf("Unknown msg type: %d", m.op)
 			continue

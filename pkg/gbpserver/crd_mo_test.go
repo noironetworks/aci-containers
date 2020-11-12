@@ -66,7 +66,7 @@ func (tc *testCRD) Children() []string {
 	return []string{}
 }
 
-func TestCRDMo(t *testing.T) {
+func TestGBPCustomMo(t *testing.T) {
 	suite := &testSuite{}
 	s := suite.setupGBPServer(t)
 	uriTenant = s.GetTenantURI()
@@ -117,10 +117,10 @@ func TestCRDMo(t *testing.T) {
 		Prop1: "strProp",
 		Prop2: 100,
 	}
-	s.AddCRDMo(crd1)
+	s.AddGBPCustomMo(crd1)
 	listVerify(listCh, crd1.URI(), true)
 
-	s.DelCRDMo(crd1)
+	s.DelGBPCustomMo(crd1)
 
 rcvLoop:
 	for {
