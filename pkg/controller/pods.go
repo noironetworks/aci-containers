@@ -135,6 +135,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	cont.writeApicPod(pod)
 	cont.depPods.UpdatePodNoCallback(pod)
+	cont.erspanPolPods.UpdatePodNoCallback(pod)
 	cont.netPolPods.UpdatePodNoCallback(pod)
 	cont.netPolIngressPods.UpdatePodNoCallback(pod)
 	cont.netPolEgressPods.UpdatePodNoCallback(pod)
@@ -152,6 +153,8 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 		!reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
 		shouldqueue =
 			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
+		shouldqueue =
+			cont.erspanPolPods.UpdatePodNoCallback(newpod) || shouldqueue
 		shouldqueue =
 			cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
 		shouldqueue =
@@ -195,6 +198,7 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", podkey))
 
 	cont.depPods.DeletePod(pod)
+	cont.erspanPolPods.DeletePod(pod)
 	cont.netPolPods.DeletePod(pod)
 	cont.netPolIngressPods.DeletePod(pod)
 	cont.netPolEgressPods.DeletePod(pod)

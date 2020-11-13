@@ -62,6 +62,7 @@ type AciController struct {
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
 	netflowQueue      workqueue.RateLimitingInterface
+	erspanQueue       workqueue.RateLimitingInterface
 	snatNodeInfoQueue workqueue.RateLimitingInterface
 	istioQueue        workqueue.RateLimitingInterface
 
@@ -90,6 +91,10 @@ type AciController struct {
 	qosInformer           cache.Controller
 	netflowIndexer        cache.Indexer
 	netflowInformer       cache.Controller
+	erspanIndexer         cache.Indexer
+	erspanInformer        cache.Controller
+	podIfIndexer          cache.Indexer
+	podIfInformer         cache.Controller
 	istioIndexer          cache.Indexer
 	istioInformer         cache.Controller
 	endpointSliceIndexer  cache.Indexer
@@ -121,6 +126,8 @@ type AciController struct {
 	targetPortIndex map[string]*portIndexEntry
 	// index of ip blocks referenced by network policy egress rules
 	netPolSubnetIndex cidranger.Ranger
+	// index of pods matched by erspan policies
+	erspanPolPods *index.PodSelectorIndex
 
 	apicConn     *apicapi.ApicConnection
 	tunnelIdBase int64
@@ -133,6 +140,7 @@ type AciController struct {
 	snatServices         map[string]bool
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
 	istioCache           map[string]*istiov1.AciIstioOperator
+	podIftoEp            map[string]*EndPointData
 	// Node Name and Policy Name
 	snatGlobalInfoCache map[string]map[string]*snatglobalinfo.GlobalInfo
 	nodeSyncEnabled     bool
@@ -185,6 +193,14 @@ type portIndexEntry struct {
 type portRangeSnat struct {
 	start int
 	end   int
+}
+
+//EndPointData holds PodIF data in controller.
+type EndPointData struct {
+	MacAddr    string
+	EPG        string
+	Namespace  string
+	AppProfile string
 }
 
 type ctrPortNameEntry struct {
@@ -273,6 +289,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netPolQueue:       createQueue("networkPolicy"),
 		qosQueue:          createQueue("qos"),
 		netflowQueue:      createQueue("netflow"),
+		erspanQueue:       createQueue("erspan"),
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
@@ -296,6 +313,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatPolicyCache:      make(map[string]*ContSnatPolicy),
 		snatServices:         make(map[string]bool),
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
+		podIftoEp:            make(map[string]*EndPointData),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
 		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
@@ -540,7 +558,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			qs = []workqueue.RateLimitingInterface{
 				cont.podQueue, cont.netPolQueue, cont.qosQueue,
 				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
-				cont.snatNodeInfoQueue,
+				cont.snatNodeInfoQueue, cont.erspanQueue,
 			}
 		}
 		for _, q := range qs {
