@@ -1,10 +1,10 @@
 FROM alpine:3.11.6
-RUN apk upgrade --no-cache
-RUN apk update && apk add curl git
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
-RUN chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl
-RUN curl -LO https://istio.io/operator.yaml
-RUN mkdir -p /usr/local/var/lib/aci-cni
+RUN apk upgrade --no-cache && \
+    apk update && apk add curl && \
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl && \
+    chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl && \
+    curl -LO https://istio.io/operator.yaml && \
+    mkdir -p /usr/local/var/lib/aci-cni
 COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
 COPY dist-static/aci-containers-controller /usr/local/bin/
 ENV AWS_SUBNETS="None"
