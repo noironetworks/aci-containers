@@ -109,7 +109,7 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	if agent.shouldIgnore(packetEvent, currTime) {
 		return nil
 	}
-	var srcEventPosted bool = false
+	var eventDestination *v1.Pod
 	agent.indexMutex.Lock()
 	srcPodKey, srcOk := agent.podIpToName[packetEvent.SourceIP]
 	agent.indexMutex.Unlock()
@@ -124,15 +124,7 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 				// post events
 				if srcPod != nil && (srcPod.Status.Phase == "Running") &&
 					!srcPod.Spec.HostNetwork {
-					if err := agent.submitEvent(srcPod,
-						getPacketDropMessage(
-							packetEvent.EtherType,
-							packetEvent.SourceIP,
-							packetEvent.DestinationIP),
-						packetEvent.DropReason); err != nil {
-						return err
-					}
-					srcEventPosted = true
+					eventDestination = srcPod
 				}
 			}
 		} else {
@@ -149,18 +141,13 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	} else {
 		obj2, dstExists, err := agent.podInformer.GetStore().GetByKey(dstPodKey)
 		if err == nil {
-			//Avoid posting to both src and dst pods, if src has already been posted
-			if dstExists && (obj2 != nil) && !srcEventPosted {
+			if dstExists && (obj2 != nil) {
 				dstPod := obj2.(*v1.Pod)
 				if dstPod != nil && (dstPod.Status.Phase == "Running") &&
 					!dstPod.Spec.HostNetwork {
-					if err := agent.submitEvent(dstPod,
-						getPacketDropMessage(
-							packetEvent.EtherType,
-							packetEvent.SourceIP,
-							packetEvent.DestinationIP),
-						packetEvent.DropReason); err != nil {
-						return err
+					//Avoid posting to both src and dst pods, if src has already been posted
+					if eventDestination == nil {
+						eventDestination = dstPod
 					}
 				}
 			}
@@ -170,11 +157,24 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 		dstOk = dstExists
 	}
 
-	if !srcOk && !dstOk {
-		return nil
+	if eventDestination != nil {
+		var eventSrcName, eventDstName string = packetEvent.SourceIP, packetEvent.DestinationIP
+		if srcOk {
+			eventSrcName = srcPodKey
+		}
+		if dstOk {
+			eventDstName = dstPodKey
+		}
+		if err := agent.submitEvent(eventDestination,
+			getPacketDropMessage(
+				packetEvent.EtherType,
+				eventSrcName,
+				eventDstName),
+			packetEvent.DropReason); err != nil {
+			return err
+		}
+		// update poster's eventSubmitTimeMap
+		agent.poster.eventSubmitTimeMap[packetEvent.SourceIP+packetEvent.DestinationIP] = currTime
 	}
-
-	// update poster's eventSubmitTimeMap
-	agent.poster.eventSubmitTimeMap[packetEvent.SourceIP+packetEvent.DestinationIP] = currTime
 	return nil
 }
