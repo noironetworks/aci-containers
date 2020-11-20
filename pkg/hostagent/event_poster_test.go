@@ -67,6 +67,7 @@ func TestShouldIgnoreRepeated(t *testing.T) {
 	agent := testAgent()
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
 	agent.config.UplinkIface = "eth10"
 	agent.config.NodeName = "test-node"
 	agent.config.ServiceVlan = 4003
@@ -83,6 +84,7 @@ func TestShouldIgnoreRepeated(t *testing.T) {
 
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		pod.Status.PodIP = pt.ip
+		pod.Status.Phase = "Running"
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		agent.epMetadata[pt.namespace+"/"+pt.name] =
 			map[string]*metadata.ContainerMetadata{
@@ -100,5 +102,9 @@ func TestShouldIgnoreRepeated(t *testing.T) {
 	packetEvent.TimeStamp = "Sun Mar 08 20:06:59 EDT 2020"
 	currTime = currTime.Add(time.Minute * 5)
 	assert.Equal(t, false, agent.shouldIgnore(packetEvent, currTime), "post event test failed")
+	for _, pt := range podTests {
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
+		agent.fakePodSource.Delete(pod)
+	}
 	agent.stop()
 }
