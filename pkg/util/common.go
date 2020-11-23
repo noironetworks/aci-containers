@@ -15,7 +15,10 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 func DeepCopyObj(src, dst interface{}) error {
@@ -28,4 +31,13 @@ func DeepCopyObj(src, dst interface{}) error {
 		return err
 	}
 	return nil
+}
+
+// Checks if cluster supports endpointslices
+func IsEndPointSlicesSupported(kubeClient *kubernetes.Clientset) bool {
+	esobj, err := kubeClient.DiscoveryV1beta1().EndpointSlices("default").Get(context.TODO(), "kubernetes", metav1.GetOptions{})
+	if err == nil && esobj != nil {
+		return true
+	}
+	return false
 }
