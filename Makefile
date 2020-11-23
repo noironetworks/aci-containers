@@ -206,19 +206,19 @@ fix-gofmt:
 
 check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
 check-ipam:
-	${TEST_CMD} ${BASE}/pkg/ipam ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-ipam ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
-	${TEST_CMD} ${BASE}/pkg/index ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
-	${TEST_CMD} ${BASE}/pkg/apicapi ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS}
 check-hostagent:
-	${TEST_CMD} ${BASE}/pkg/hostagent ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
-	${TEST_CMD} ${BASE}/pkg/controller ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS}
 check-gbpserver:
-	${TEST_CMD} ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
 check-keyvalueservice:
-	${TEST_CMD} ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-keyvalueservice ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 gometalintercheck:
 	@bash ./golang_checks.sh
 
