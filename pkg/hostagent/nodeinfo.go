@@ -66,5 +66,6 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		agent.log.Debug("NodeInfo Update Successful..")
 		return true
 	}
+	agent.log.Warn("NodeInfo update failed", err)
 	return false
 }

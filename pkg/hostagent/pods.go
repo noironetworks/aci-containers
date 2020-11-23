@@ -433,7 +433,7 @@ func podFilter(pod *v1.Pod) bool {
 }
 
 func (agent *HostAgent) podUpdated(obj interface{}) {
-	agent.log.Info("podUpdated")
+	agent.log.Infof("podUpdated %s/%s", obj.(*v1.Pod).Namespace, obj.(*v1.Pod).Name)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
