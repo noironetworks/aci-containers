@@ -219,8 +219,6 @@ check-gbpserver:
 	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
 check-keyvalueservice:
 	${TEST_CMD} -coverprofile=covprof-keyvalueservice ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
-gometalintercheck:
-	@bash ./golang_checks.sh
 
 DEB_PKG_DIR=build-deb-pkg
 dsc: dist
