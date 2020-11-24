@@ -185,7 +185,7 @@ func (agent *HostAgent) routeInit() {
 	for _, nc := range agent.config.NetConfig {
 		err := addPodRoute(nc.Subnet, hostVethName, agent.vtepIP)
 		if err != nil {
-			agent.log.Errorf("### Could not add route for subnet %+v", nc.Subnet)
+			agent.log.Errorf("### Could not add route for subnet %+v reason: %s", nc.Subnet, err)
 			continue
 		}
 		agent.log.Infof("VtepIP: %s, subnet: %+v, interface: %s", agent.vtepIP, nc.Subnet, hostVethName)

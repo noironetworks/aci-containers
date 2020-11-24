@@ -48,7 +48,7 @@ func WaitFor(t *testing.T, desc string, timeout time.Duration,
 // Wait for the given condition to become true
 func WaitForComp(t *testing.T, desc string, timeout time.Duration,
 	cond assert.Comparison) error {
-	return WaitFor(t, desc, 500*time.Millisecond,
+	return WaitFor(t, desc, timeout,
 		func(last bool) (bool, error) {
 			return cond(), nil
 		})

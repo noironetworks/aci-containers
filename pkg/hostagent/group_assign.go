@@ -119,8 +119,8 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 }
 
 func decodeAnnotation(annStr string, into interface{}, logger *logrus.Entry, comment string) {
-	logger.Infof("decodeAnnotation: %s -- [%s]", annStr, comment)
 	if annStr != "" {
+		logger.Infof("decodeAnnotation: %s -- [%s]", annStr, comment)
 		err := json.Unmarshal([]byte(annStr), &into)
 		if err != nil {
 			logger.WithFields(logrus.Fields{
