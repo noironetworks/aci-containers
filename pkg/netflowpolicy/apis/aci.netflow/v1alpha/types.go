@@ -30,7 +30,7 @@ type NetflowType struct {
 	// +kubebuilder:validation:Maximum=65535
 	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
-	Version string `json:"type"`
+	Version string `json:"flowType"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600
 	ActiveFlowTimeOut int `json:"activeFlowTimeOut"`

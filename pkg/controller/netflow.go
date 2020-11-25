@@ -184,7 +184,7 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	}
 	apicSlice = append(apicSlice, VmmVSwitch)
 
-	cont.log.Info("create netflow Rs", apicSlice)
+	cont.log.Info("Netflow Object", apicSlice)
 
 	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 
