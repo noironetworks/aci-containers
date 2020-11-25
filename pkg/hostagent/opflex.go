@@ -242,8 +242,14 @@ func (agent *HostAgent) writeConfigFile(name string,
 	if err != nil {
 		return err
 	}
-	f.Write(buffer.Bytes())
-	f.Close()
+	_, err = f.Write(buffer.Bytes())
+	if err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return err
+	}
 
 	agent.log.Info("Wrote OpFlex agent configuration file ", path)
 
