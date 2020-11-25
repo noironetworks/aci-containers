@@ -144,3 +144,19 @@ func TestDiffPorts(t *testing.T) {
 	agent.epMetadata = emptyMeta
 	assert.Equal(t, addUplinks, agent.diffPorts(emptyBrWhostac), "uplinks")
 }
+
+func TestUuidSetToMap(t *testing.T) {
+	portUuid := libovsdb.UUID{GoUUID: "aba85930-00f9-4665-9917-40beff731d87"}
+	portMap := uuidSetToMap(portUuid)
+	assert.EqualValues(t, 1, len(portMap))
+
+	ports, err := libovsdb.NewOvsSet([]libovsdb.UUID{
+		{GoUUID: "aba85930-00f9-4665-9917-40beff731d87"},
+		{GoUUID: "aba85930-00f9-4665-9917-40beff731d88"},
+		{GoUUID: "aba85930-00f9-4665-9917-40beff731d89"},
+	})
+	assert.Nil(t, err)
+	portMap2 := uuidSetToMap(*ports)
+	assert.EqualValues(t, 3, len(ports.GoSet))
+	assert.EqualValues(t, 3, len(portMap2))
+}

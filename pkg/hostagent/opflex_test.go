@@ -32,7 +32,8 @@ func doTestOpflex(t *testing.T, agent *testHostAgent) {
 
 	agent.config.OpFlexConfigPath = tempdir
 
-	agent.writeOpflexConfig()
+	err = agent.writeOpflexConfig()
+	assert.Nil(t, err, "config")
 	_, err = os.Stat(filepath.Join(tempdir, "01-base.conf"))
 	assert.Nil(t, err, "base")
 	_, err = os.Stat(filepath.Join(tempdir, "10-renderer.conf"))
@@ -65,4 +66,36 @@ func TestOpflexConfigVlan(t *testing.T) {
 		NodeName:     "node1",
 	}
 	doTestOpflex(t, agent)
+}
+
+func TestDiscoverUpdateOverlayConfig(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpflexMode = "overlay"
+	config := agent.discoverHostConfig()
+	assert.NotNil(t, config, "Host config is nil")
+	agent.config.HostAgentNodeConfig.VxlanIface = "eth1.4093"
+	agent.config.HostAgentNodeConfig.UplinkIface = "eth1"
+	agent.config.EncapType = "vlan"
+	agent.config.AciInfraVlan = 4093
+	agent.config.NodeName = "node1"
+	err = agent.writeOpflexConfig()
+	if err != nil {
+		panic(err)
+	}
+	agent.config.InterfaceMtu = 1600
+	agent.updateOpflexConfig()
+}
+
+func TestDiscoverHostConfigInvalidVlan(t *testing.T) {
+	agent := testAgent()
+	// assumes there won't be an interface with vlan 0
+	agent.config.AciInfraVlan = 0
+	config := agent.discoverHostConfig()
+	assert.Nil(t, config, "Host config is not nil")
 }
