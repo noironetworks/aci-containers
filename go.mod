@@ -35,7 +35,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/tatsushid/go-fastping v0.0.0-20160109021039-d7bb493dee3e
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20200122045848-3419fae592fc // indirect
-	github.com/vishvananda/netlink v1.0.0
+	github.com/vishvananda/netlink v1.1.0
 	github.com/yl2chen/cidranger v1.0.0
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200306183522-221f0cc107cb // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381
@@ -47,6 +47,7 @@ require (
 	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v0.18.6
 	k8s.io/code-generator v0.18.3
+	k8s.io/kubectl v0.18.6
 	k8s.io/kubernetes v1.18.3
 	sigs.k8s.io/controller-runtime v0.6.1
 )
