@@ -115,27 +115,20 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 		}
 	}
 	ep.registered = true
-	opflexEpLogger(agent.log, ep).Info("Updated endpoint")
+	opflexEpLogger(agent.log, ep).Info("Updated podif")
 	return false
 }
+
 func (agent *HostAgent) EPRegDelEP(name string) {
 	if agent.crdClient == nil {
 		return // crd not used
 	}
 	err := agent.crdClient.PodIFs("kube-system").Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
-		logrus.Errorf("Error %v, podif: %s", err, name)
-	}
-}
-
-func (agent *HostAgent) EPRegDel(obj interface{}) {
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		agent.log.Errorf("Bad object -- expected Pod")
+		agent.log.Errorf("Error %v, podif: %s", err, name)
 		return
 	}
-	k := agent.getPodIFName(pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-	agent.EPRegDelEP(k)
+	agent.log.Infof("podif: %s deleted", name)
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -217,6 +210,17 @@ func getEp(epfile string) (string, error) {
 		return "", err
 	}
 	return string(raw), err
+}
+
+func readEp(epfile string) (*opflexEndpoint, error) {
+	epStr, err := getEp(epfile)
+	if err != nil {
+		return nil, err
+	}
+
+	ep := &opflexEndpoint{}
+	err = json.Unmarshal([]byte(epStr), ep)
+	return ep, err
 }
 
 func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
@@ -358,6 +362,11 @@ func (agent *HostAgent) syncEps() bool {
 			}
 		}
 		if !ok || (ok && !seen[epidstr]) {
+			staleEp, err := readEp(epfile)
+			if err == nil {
+				k := agent.getPodIFName(staleEp.Attributes["namespace"], staleEp.Attributes["vm-name"])
+				agent.EPRegDelEP(k)
+			}
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
 		}
@@ -498,8 +507,6 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
 		logger.Debug("No metadata")
-		k := agent.getPodIFName(epAttributes["namespace"], epAttributes["vm-name"])
-		agent.EPRegDelEP(k)
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
 		return
@@ -582,7 +589,6 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 
 func (agent *HostAgent) podDeleted(obj interface{}) {
 	agent.log.Info("podDeleted")
-	agent.EPRegDel(obj)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.podDeletedLocked(obj)
@@ -610,29 +616,20 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 
 func (agent *HostAgent) cniEpDelete(cniKey string) {
 	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+
 	epUuid, ok := agent.cniToPodID[cniKey]
 	if !ok {
 		agent.log.Warnf("cniEpDelete: PodID not found for %s", cniKey)
-		goto unlock_exit
+		return
 	}
 	delete(agent.cniToPodID, cniKey)
 
-	if eps, ok := agent.opflexEps[epUuid]; ok {
+	if _, ok := agent.opflexEps[epUuid]; ok {
 		agent.log.Infof("cniEpDelete: delete %s", cniKey)
 		delete(agent.opflexEps, epUuid)
 		agent.scheduleSyncEps()
-		// delete remote podif
-		agent.indexMutex.Unlock()
-		for _, ep := range eps {
-			k := agent.getPodIFName(ep.Attributes["namespace"], ep.Attributes["vm-name"])
-			agent.EPRegDelEP(k)
-		}
-		return
-
 	}
-
-unlock_exit:
-	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
