@@ -205,26 +205,22 @@ func getTagFromKey(prefix string, key string) string {
 }
 
 func PrepareApicSlice(objects ApicSlice, prefix string, key string) ApicSlice {
-	return prepareApicSliceTag(objects, getTagFromKey(prefix, key), false)
+	return prepareApicSliceTag(objects, getTagFromKey(prefix, key))
 }
 
-func prepareApicSliceTag(objects ApicSlice, tag string,
-	useAPICInstTag bool) ApicSlice {
-
+func prepareApicSliceTag(objects ApicSlice, tag string) ApicSlice {
 	sort.Sort(objects)
 	for _, obj := range objects {
 		for class, body := range obj {
 			if class != "tagInst" && class != "tagAnnotation" {
-				obj.SetTag(tag, useAPICInstTag)
-				if !useAPICInstTag {
-					if body.Attributes == nil {
-						body.Attributes = make(map[string]interface{})
-					}
-					body.Attributes["annotation"] =
-						aciContainersOwnerAnnotation
+				obj.SetTag(tag)
+				if body.Attributes == nil {
+					body.Attributes = make(map[string]interface{})
 				}
+				body.Attributes["annotation"] =
+					aciContainersOwnerAnnotation
 			}
-			prepareApicSliceTag(body.Children, tag, useAPICInstTag)
+			prepareApicSliceTag(body.Children, tag)
 
 			if md, ok := metadata[class]; ok {
 				if md.normalizer != nil {
@@ -334,7 +330,7 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	container bool) {
 	tag := getTagFromKey(conn.prefix, key)
-	prepareApicSliceTag(objects, tag, conn.UseAPICInstTag)
+	prepareApicSliceTag(objects, tag)
 
 	conn.indexMutex.Lock()
 	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)

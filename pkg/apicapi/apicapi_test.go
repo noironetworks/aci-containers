@@ -235,11 +235,7 @@ func (h *retryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func TestGetSetTag(t *testing.T) {
 	bd := NewFvBD("common", "testbd1")
-	bd.SetTag("tagTest", false)
-	assert.Equal(t, "tagTest", bd.GetTag())
-
-	bd = NewFvBD("common", "testbd2")
-	bd.SetTag("tagTest", true)
+	bd.SetTag("tagTest")
 	assert.Equal(t, "tagTest", bd.GetTag())
 
 	bd = NewFvBD("common", "testbd3")
@@ -247,16 +243,6 @@ func TestGetSetTag(t *testing.T) {
 	bd.AddChild(NewTagAnnotation(bd.GetDn(), aciContainersAnnotKey).
 		SetAttr("value", "anotherTest"))
 	assert.Equal(t, "anotherTest", bd.GetTag())
-
-	bd = NewFvBD("common", "testbd4")
-	bd.SetTag("tagTest", true)
-	bd.SetTag("tagTest2", false)
-	assert.Equal(t, "tagTest2", bd.GetTag())
-
-	bd = NewFvBD("common", "testbd5")
-	bd.SetTag("tagTest", false)
-	bd.SetTag("tagTest2", true)
-	assert.Equal(t, "tagTest2", bd.GetTag())
 }
 
 func TestIsSyncTag(t *testing.T) {

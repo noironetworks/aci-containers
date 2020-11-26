@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -476,7 +475,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}
 
 	// Get APIC version if connection restarts
-	// Unsupported scenario: Exit if APIC downgrades from >=3.2 to <=3.1
 	if conn.version == "" && conn.checkVersion {
 		go func() {
 			version, err := conn.GetVersion()
@@ -485,10 +483,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
 				ApicVersion = version
-				if version <= "3.1" && conn.CachedVersion >= "3.2" {
-					conn.log.Debug("APIC is downgraded from >=3.2 to a lower version, Exiting ")
-					os.Exit(1) //K8S shall restart the container and fallback to tagInst
-				}
 			}
 		}()
 	}
@@ -1076,8 +1070,7 @@ func doComputeRespClasses(targetClasses []string,
 
 }
 
-func computeRespClasses(targetClasses []string,
-	useAPICInstTag bool) []string {
+func computeRespClasses(targetClasses []string) []string {
 
 	visited := make(map[string]bool)
 	doComputeRespClasses(targetClasses, visited)
@@ -1086,10 +1079,7 @@ func computeRespClasses(targetClasses []string,
 	for class := range visited {
 		respClasses = append(respClasses, class)
 	}
-	respClasses = append(respClasses, "tagInst")
-	if !useAPICInstTag {
-		respClasses = append(respClasses, "tagAnnotation")
-	}
+	respClasses = append(respClasses, "tagAnnotation")
 	return respClasses
 }
 
@@ -1119,7 +1109,7 @@ func (conn *ApicConnection) AddSubscriptionClass(class string,
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubClass,
 		targetClasses: targetClasses,
-		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
+		respClasses:   computeRespClasses(targetClasses),
 		targetFilter:  targetFilter,
 	}
 	conn.indexMutex.Unlock()
@@ -1132,7 +1122,7 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	conn.subscriptions.subs[dn] = &subscription{
 		kind:          apicSubDn,
 		targetClasses: targetClasses,
-		respClasses:   computeRespClasses(targetClasses, conn.UseAPICInstTag),
+		respClasses:   computeRespClasses(targetClasses),
 	}
 	conn.indexMutex.Unlock()
 }
