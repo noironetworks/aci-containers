@@ -242,6 +242,8 @@ func (agent *HostAgent) writeConfigFile(name string,
 	if err != nil {
 		return err
 	}
+	// in case there's an error in the write
+	defer f.Close()
 	_, err = f.Write(buffer.Bytes())
 	if err != nil {
 		return err
