@@ -74,15 +74,11 @@ type opflexService struct {
 // Name of the Openshift Service
 const (
 	RouterInternalDefault string = "router-internal-default"
-	DnsDefault            string = "dns-default"
-	ApiServer             string = "kubernetes"
 )
 
 // Namespace of Openshift Service
 const (
 	OpenShiftIngressNs string = "openshift-ingress"
-	OpenShiftDnsNs     string = "openshift-dns"
-	DefaultNs          string = "default"
 )
 
 // Represent the Openshift services
@@ -539,10 +535,6 @@ func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 			switch serviceName {
 			case RouterInternalDefault:
 				return infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP
-			case DnsDefault:
-				return infraStructureInfo.Status.PlatformStatus.OpenStack.NodeDNSIP
-			case ApiServer:
-				return infraStructureInfo.Status.PlatformStatus.OpenStack.APIServerInternalIP
 			}
 		}
 	}
