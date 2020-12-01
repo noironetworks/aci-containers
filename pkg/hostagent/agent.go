@@ -173,14 +173,6 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 				RouterInternalDefault,
 				OpenShiftIngressNs,
 			},
-			{
-				DnsDefault,
-				OpenShiftDnsNs,
-			},
-			{
-				ApiServer,
-				DefaultNs,
-			},
 		},
 	}
 
