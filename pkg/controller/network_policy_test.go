@@ -542,7 +542,7 @@ func TestNetworkPolicy(t *testing.T) {
 			}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_8_0, rule_8_1}, nil, name),
 			nil, "multiple-from"},
-		{netpol("testns", "np1", &metav1.LabelSelector{},
+		{netpol("testns", "np1", &metav1.LabelSelector{MatchLabels: map[string]string{"l1": "v1"}},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{
 					{

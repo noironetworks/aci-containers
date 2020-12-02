@@ -144,8 +144,10 @@ type AciController struct {
 	serviceEndPoints    ServiceEndPointType
 	crdHandlers         map[string]func(*AciController, <-chan struct{})
 	stopCh              <-chan struct{}
-	//index of containername to ctrPortNameEntry
+	//index of containerportname to ctrPortNameEntry
 	ctrPortNameCache map[string]*ctrPortNameEntry
+	// named networkPolicies
+	nmPortNp map[string]bool
 }
 
 type nodeServiceMeta struct {
@@ -298,6 +300,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
 		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
 		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
+		nmPortNp:             make(map[string]bool),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
