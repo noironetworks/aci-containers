@@ -150,23 +150,41 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	nfDn := nf.GetDn()
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
-	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
+
+	if nfp.Spec.FlowSamplingPolicy.DstPort != 0 {
+		nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
+	} else {
+		nf.SetAttr("dstPort", "unspecified")
+	}
 	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
 		nf.SetAttr("ver", "v5")
-	}
-	if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+	} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
 		nf.SetAttr("ver", "v9")
+	} else {
+		nf.SetAttr("ver", "v5")
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(cont.vmmDomainProvider(), cont.config.AciVmmDomain, nfDn)
 	VmmVSwitch.AddChild(RsVmmVSwitch)
-	RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
-	RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
-	RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
+	if nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut != 0 {
+		RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
+	} else {
+		RsVmmVSwitch.SetAttr("activeFlowTimeOut", "60")
+	}
+	if nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut != 0 {
+		RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
+	} else {
+		RsVmmVSwitch.SetAttr("idleFlowTimeOut", "15")
+	}
+	if nfp.Spec.FlowSamplingPolicy.SamplingRate != 0 {
+		RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
+	} else {
+		RsVmmVSwitch.SetAttr("samplingRate", "0")
+	}
 	apicSlice = append(apicSlice, VmmVSwitch)
 
-	cont.log.Info("create netflow Rs", apicSlice)
+	cont.log.Info("Netflow Object", apicSlice)
 
 	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 
