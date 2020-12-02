@@ -37,9 +37,6 @@ type ControllerConfig struct {
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
-	// Absolute path to CloudFoundry-specific config file
-	CfConfig string `json:"cfconfig,omitempty"`
-
 	// TCP port to run status server on (or 0 to disable)
 	StatusPort int `json:"status-port,omitempty"`
 
@@ -234,8 +231,6 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 
 	flag.StringVar(&config.KubeConfig, "kube-config", "", "Absolute path to a kubeconfig file")
-
-	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
 	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")

@@ -96,9 +96,6 @@ type HostAgentConfig struct {
 	// Absolute path to a kubeconfig file
 	KubeConfig string `json:"kubeconfig,omitempty"`
 
-	// Absolute path to CloudFoundry-specific config file
-	CfConfig string `json:"cfconfig,omitempty"`
-
 	// Name of Kubernetes node on which this agent is running
 	NodeName string `json:"node-name,omitempty"`
 
@@ -236,8 +233,6 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.KubeConfig, "kube-config", "", "Absolute path to a kubeconfig file")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
-
-	flag.StringVar(&config.CfConfig, "cfconfig", "", "Absolute path to CloudFoundry-specific config file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8090, "TCP port to run status server on (or 0 to disable)")
 	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port for opflex server to connect")
