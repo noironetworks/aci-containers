@@ -200,25 +200,25 @@ func TestNetflowPolicy(t *testing.T) {
 
 	name := "kube_nfp_testns"
 
-	rule_0_0 := apicapi.NewNetflowVmmExporterPol("test")
-	rule_0_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
-	rule_0_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule_0_0.GetDn()))
+	rule0_0 := apicapi.NewNetflowVmmExporterPol("test")
+	rule0_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
+	rule0_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule0_0.GetDn()))
 
-	rule_1_0 := apicapi.NewNetflowVmmExporterPol("test")
-	rule_1_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
-	rule_1_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule_1_0.GetDn()))
+	rule1_0 := apicapi.NewNetflowVmmExporterPol("test")
+	rule1_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
+	rule1_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule1_0.GetDn()))
 
-	rule_2_0 := apicapi.NewNetflowVmmExporterPol("test")
-	rule_2_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
-	rule_2_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule_2_0.GetDn()))
+	rule2_0 := apicapi.NewNetflowVmmExporterPol("test")
+	rule2_1 := apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "k8s")
+	rule2_1.AddChild(apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "k8s", rule2_0.GetDn()))
 
 	var nfTests = []nfTest{
 		{testnetflowpolicy("testns", "nf1", flowSamplingPolicy0),
-			makeNf(apicapi.ApicSlice{rule_0_0}, name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, ""},
+			makeNf(apicapi.ApicSlice{rule0_0}, name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, ""},
 		{testnetflowpolicy("testns", "nf1", flowSamplingPolicy1),
-			makeNf(apicapi.ApicSlice{rule_1_0}, name, "172.51.1.2", 2055, "v5", 0, 0, 0), nil, ""},
+			makeNf(apicapi.ApicSlice{rule1_0}, name, "172.51.1.2", 2055, "v5", 0, 0, 0), nil, ""},
 		{testnetflowpolicy("testns", "nf1", flowSamplingPolicy2),
-			makeNf(apicapi.ApicSlice{rule_2_0}, name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, ""},
+			makeNf(apicapi.ApicSlice{rule2_0}, name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, ""},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
