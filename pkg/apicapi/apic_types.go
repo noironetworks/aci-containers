@@ -93,7 +93,6 @@ type ApicConnection struct {
 	RefreshInterval     time.Duration
 	RefreshTickerAdjust time.Duration
 	RetryInterval       time.Duration
-	UseAPICInstTag      bool // use old-style APIC tags rather than annotations
 	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
 	FullSyncHook        func()
 
@@ -217,16 +216,7 @@ func (o ApicObject) GetTag() string {
 	for _, body := range o {
 		for _, c := range body.Children {
 			for class, cbody := range c {
-				if class == "tagInst" {
-					if cbody.Attributes == nil {
-						return ""
-					}
-					switch t := cbody.Attributes["name"].(type) {
-					case string:
-						return t
-					}
-					return ""
-				} else if class == "tagAnnotation" {
+				if class == "tagAnnotation" {
 					if cbody.Attributes == nil {
 						continue
 					}
@@ -248,28 +238,18 @@ func (o ApicObject) GetTag() string {
 	return ""
 }
 
-func (o ApicObject) SetTag(tag string, useAPICInstTag bool) {
+func (o ApicObject) SetTag(tag string) {
 	for _, body := range o {
 		for j := len(body.Children) - 1; j >= 0; j-- {
 			isTag := false
 			for class, cbody := range body.Children[j] {
 				if class == "tagAnnotation" {
 					isTag = true
-					if !useAPICInstTag && cbody.Attributes != nil {
+					if cbody.Attributes != nil {
 						switch k := cbody.Attributes["key"].(type) {
 						case string:
 							if k == aciContainersAnnotKey {
 								cbody.Attributes["value"] = tag
-								return
-							}
-						}
-					}
-				} else if class == "tagInst" {
-					isTag = true
-					if useAPICInstTag && cbody.Attributes != nil {
-						switch t := cbody.Attributes["name"].(type) {
-						case string:
-							if t == tag {
 								return
 							}
 						}
@@ -285,12 +265,8 @@ func (o ApicObject) SetTag(tag string, useAPICInstTag bool) {
 		break
 	}
 
-	if useAPICInstTag {
-		o.AddChild(NewTagInst(o.GetDn(), tag))
-	} else {
-		o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
-			SetAttr("value", tag))
-	}
+	o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
+		SetAttr("value", tag))
 }
 
 func (o ApicObject) SetAttr(name string, value interface{}) ApicObject {
