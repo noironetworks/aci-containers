@@ -27,6 +27,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/time/rate"
@@ -262,13 +263,17 @@ func (agent *HostAgent) Init() {
 	}
 	agent.log.Info("Loaded cached endpoint CNI metadata: ", len(agent.epMetadata))
 	agent.buildUsedIPs()
-	//@TODO need to set this value based on feature capability currently turnedoff
-	if agent.config.EnabledEndpointSlice {
+	// check if the cluster supports endpoint slices
+	// if cluster doesn't have the support fallback to endpoints
+	kubeClient := agent.env.(*K8sEnvironment).kubeClient
+	if util.IsEndPointSlicesSupported(kubeClient) {
 		agent.serviceEndPoints = &serviceEndpointSlice{}
 		agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent
+		agent.log.Info("Initializing ServiceEndpointSlices")
 	} else {
 		agent.serviceEndPoints = &serviceEndpoint{}
 		agent.serviceEndPoints.(*serviceEndpoint).agent = agent
+		agent.log.Info("Initializing ServiceEndpoints")
 	}
 	err = agent.env.Init(agent)
 	if err != nil {
