@@ -22,6 +22,7 @@ require (
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/serf v0.8.5 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
+	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-00010101000000-000000000000
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
@@ -52,6 +53,7 @@ require (
 )
 
 replace (
+	github.com/noironetworks/aci-containers/pkg/ipam => ./pkg/ipam
 	go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.3
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0
 	k8s.io/api => k8s.io/api v0.18.3
