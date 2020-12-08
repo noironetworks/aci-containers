@@ -5,7 +5,7 @@ RUN microdnf install --enablerepo codeready-builder-for-rhel-8-x86_64-rpms \
     libtool pkgconfig autoconf automake make cmake file python2-six \
     openssl-devel git gcc gcc-c++ boost-devel diffutils python2-devel \
     libnetfilter_conntrack-devel wget which curl-devel procps zlib-devel \
-    libmnl-devel vi \
+    libmnl-devel vi libtsan \
     && microdnf clean all
 RUN git clone -b libnftnl-1.1.7 https://git.netfilter.org/libnftnl \
   && cd libnftnl \
