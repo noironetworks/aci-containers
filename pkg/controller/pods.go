@@ -26,7 +26,6 @@ import (
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -221,38 +220,34 @@ func (cont *AciController) updateCtrNmPortForPod(pod *v1.Pod, podkey string) {
 					ctrNmpEntry.ctrNmpToPods[key] = make(map[string]bool)
 					ctrNmpEntry.ctrNmpToPods[key][podkey] = true
 					cont.ctrPortNameCache[ctrportspec.Name] = ctrNmpEntry
-					nmport = true
 				} else {
 					if _, present := ctrNmpEntry.ctrNmpToPods[key]; !present {
 						ctrNmpEntry.ctrNmpToPods[key] = make(map[string]bool)
-						nmport = true
 					}
 					ctrNmpEntry.ctrNmpToPods[key][podkey] = true
 				}
+				nmport = true
 			}
 		}
 	}
 	cont.indexMutex.Unlock()
 	if nmport {
-		cache.ListAll(cont.networkPolicyIndexer, labels.Everything(),
-			func(nsobj interface{}) {
-				npkey, err := cache.MetaNamespaceKeyFunc(nsobj)
-				if err != nil {
-					cont.log.Error("Could not create np key: ", err)
-					return
+		for npkey := range cont.nmPortNp {
+			obj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
+			if exists && err == nil {
+				np := obj.(*v1net.NetworkPolicy)
+				if !cont.checkPodNmpMatchesNp(npkey, podkey) {
+					continue
 				}
-				np := nsobj.(*v1net.NetworkPolicy)
-				if isNamedPortPresenInNp(np) {
-					cont.indexMutex.Lock()
-					ports := cont.getNetPolTargetPorts(np)
-					cont.updateTargetPortIndex(false, npkey, nil, ports)
-					cont.indexMutex.Unlock()
-					cont.log.Debug("Added Ports: ", ports, "For Network Policy: ", npkey)
-					cont.queueNetPolUpdateByKey(npkey)
-				}
-			})
+				cont.indexMutex.Lock()
+				ports := cont.getNetPolTargetPorts(np)
+				cont.updateTargetPortIndex(false, npkey, nil, ports)
+				cont.indexMutex.Unlock()
+				cont.log.Debug("Added Ports: ", ports, "For Network Policy: ", npkey)
+				cont.queueNetPolUpdateByKey(npkey)
+			}
+		}
 	}
-
 }
 
 func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
@@ -282,17 +277,11 @@ func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
 	}
 	cont.indexMutex.Unlock()
 	if nmport {
-		cache.ListAll(cont.networkPolicyIndexer, labels.Everything(),
-			func(nsobj interface{}) {
-				npkey, err := cache.MetaNamespaceKeyFunc(nsobj)
-				if err != nil {
-					cont.log.Error("Could not create np key: ", err)
-					return
-				}
-				np := nsobj.(*v1net.NetworkPolicy)
-				if isNamedPortPresenInNp(np) {
-					cont.queueNetPolUpdateByKey(npkey)
-				}
-			})
+		for npkey := range cont.nmPortNp {
+			if !cont.checkPodNmpMatchesNp(npkey, podkey) {
+				continue
+			}
+			cont.queueNetPolUpdateByKey(npkey)
+		}
 	}
 }

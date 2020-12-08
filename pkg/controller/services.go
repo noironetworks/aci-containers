@@ -169,12 +169,29 @@ func (cont *AciController) queueNetPolForEpAddrs(addrs []v1.EndpointAddress) {
 		}
 		podkey := addr.TargetRef.Namespace + "/" + addr.TargetRef.Name
 		npkeys := cont.netPolEgressPods.GetObjForPod(podkey)
+		ps := make(map[string]bool)
 		for _, npkey := range npkeys {
 			cont.queueNetPolUpdateByKey(npkey)
+			ps[npkey] = true
 		}
+		// Process if the  any matching namedport wildcard policy is present
+		// ignore np already processed policies
+		cont.queueMatchingNamedNp(ps, podkey)
 	}
 }
 
+func (cont *AciController) queueMatchingNamedNp(served map[string]bool, podkey string) {
+	cont.indexMutex.Lock()
+	for npkey := range cont.nmPortNp {
+		if _, ok := served[npkey]; !ok {
+			if cont.checkPodNmpMatchesNp(npkey, podkey) {
+				cont.queueNetPolUpdateByKey(npkey)
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+
+}
 func (cont *AciController) queueEndpointsNetPolUpdates(endpoints *v1.Endpoints) {
 	for _, subset := range endpoints.Subsets {
 		cont.queueNetPolForEpAddrs(subset.Addresses)
@@ -1513,9 +1530,13 @@ func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta
 		}
 		podkey := endpoint.TargetRef.Namespace + "/" + endpoint.TargetRef.Name
 		npkeys := cont.netPolEgressPods.GetObjForPod(podkey)
+		ps := make(map[string]bool)
 		for _, npkey := range npkeys {
 			cont.queueNetPolUpdateByKey(npkey)
 		}
+		// Process if the  any matching namedport wildcard policy is present
+		// ignore np already processed policies
+		cont.queueMatchingNamedNp(ps, podkey)
 	}
 }
 

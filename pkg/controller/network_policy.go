@@ -666,7 +666,7 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	subj apicapi.ApicObject, direction string, peers []v1net.NetworkPolicyPeer,
 	remoteSubnets []string, ports []v1net.NetworkPolicyPort,
-	logger *logrus.Entry, npKey string) {
+	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy) {
 
 	if len(peers) > 0 && len(remoteSubnets) == 0 {
 		// nonempty From matches no pods or IPBlocks; don't
@@ -696,11 +696,17 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 					if direction == "egress" {
 						portnums = append(portnums, cont.getPortNums(&p)...)
 					} else {
+						// TODO need to handle empty Pod Selector
+						if reflect.DeepEqual(np.Spec.PodSelector, metav1.LabelSelector{}) {
+							logger.Warning("Empty PodSelctor for NamedPort is not supported in ingress direction"+
+								"port in network policy: ", p.Port.String())
+							continue
+						}
 						podKeys := cont.netPolPods.GetPodForObj(npKey)
 						portnums = cont.getPortNumsFromPortName(podKeys, p.Port.String())
 					}
 					if len(portnums) == 0 {
-						logger.Warning("There is no matching  ports in egress direction "+
+						logger.Warning("There is no matching  ports in ingress/egress direction "+
 							"port in network policy: ", p.Port.String())
 						continue
 					}
@@ -709,13 +715,13 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 					}
 				}
 			}
-			for _, port := range ports {
+			for i, port := range ports {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
 						"ipv4", proto, port, remoteSubnets)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
 						"ipv6", proto, port, remoteSubnets)
 				}
 			}
@@ -1099,7 +1105,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
 				np.Namespace, peerPods, peerNs, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
-				"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key)
+				"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np)
 		}
 		hpp.AddChild(subjIngress)
 	}
@@ -1114,7 +1120,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
 				np.Namespace, peerPods, peerNs, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-				"egress", egress.To, remoteSubnets, egress.Ports, logger, key)
+				"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
 
 			// creating a rule to egress to all on a given port needs
 			// to enable access to any service IPs/ports that have
@@ -1173,6 +1179,9 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 
 	ports := cont.getNetPolTargetPorts(np)
 	cont.updateTargetPortIndex(false, npkey, nil, ports)
+	if isNamedPortPresenInNp(np) {
+		cont.nmPortNp[npkey] = true
+	}
 	cont.indexMutex.Unlock()
 	cont.queueNetPolUpdateByKey(npkey)
 }
@@ -1337,6 +1346,9 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 
 	ports := cont.getNetPolTargetPorts(np)
 	cont.updateTargetPortIndex(false, npkey, ports, nil)
+	if isNamedPortPresenInNp(np) {
+		delete(cont.nmPortNp, npkey)
+	}
 	cont.indexMutex.Unlock()
 
 	cont.netPolPods.DeleteSelectorObj(obj)
@@ -1470,6 +1482,32 @@ func isNamedPortPresenInNp(np *v1net.NetworkPolicy) bool {
 		for _, p := range egress.Ports {
 			if p.Port.Type == intstr.String {
 				return true
+			}
+		}
+	}
+	return false
+}
+
+func (cont *AciController) checkPodNmpMatchesNp(npkey, podkey string) bool {
+	podobj, exists, err := cont.podIndexer.GetByKey(podkey)
+	if err != nil {
+		return false
+	}
+	if !exists || podobj == nil {
+		return false
+	}
+	pod := podobj.(*v1.Pod)
+	npobj, npexists, nperr := cont.networkPolicyIndexer.GetByKey(npkey)
+	if npexists && nperr == nil && npobj != nil {
+		np := npobj.(*v1net.NetworkPolicy)
+		for _, egress := range np.Spec.Egress {
+			for _, p := range egress.Ports {
+				if p.Port.Type == intstr.String {
+					_, err := k8util.LookupContainerPortNumberByName(*pod, p.Port.String())
+					if err == nil {
+						return true
+					}
+				}
 			}
 		}
 	}
