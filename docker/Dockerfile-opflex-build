@@ -29,6 +29,7 @@ RUN cd /opflex && tar xvfz opflex.tgz && cd /opflex/opflex/libopflex \
     -name 'libre2*so*' -o \
     -name 'libupb*so*' -o \
     -name 'libabsl*so*' -o \
+    -name 'libtsan*so*' -o \
     -name 'libssl*so*' -o \
     -name 'libcrypto*so*' -o \
     -name 'libaddress_sorting*so*' -o \
