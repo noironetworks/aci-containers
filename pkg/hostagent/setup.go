@@ -197,11 +197,7 @@ func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
 
 	*ack = false
 	if err := netns.Do(func(_ ns.NetNS) error {
-		if err := ipam.ConfigureIface(args.IfName, args.Result); err != nil {
-			return err
-		}
-
-		return nil
+		return ipam.ConfigureIface(args.IfName, args.Result)
 	}); err != nil {
 		return err
 	}

@@ -151,7 +151,7 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 		}
 	}
 
-	cfg, err := config.GetConfig()
+	cfg, _ := config.GetConfig()
 	iop := &iopv1alpha1.IstioOperator{}
 	scheme := runtime.NewScheme()
 	iopSchemeVersion := schema.GroupVersion{Group: "install.istio.io", Version: "v1alpha1"}
@@ -256,10 +256,9 @@ func (cont *AciController) createIstioCR() bool {
 			if err != nil {
 				cont.log.Debug("AciIstioCR create failed:", aciIstioCR, err)
 				return true
-			} else {
-				cont.log.Debug("AciIstioCR is created:", aciIstioCR, err)
-				return false
 			}
+			cont.log.Debug("AciIstioCR is created:", aciIstioCR, err)
+			return false
 		} else {
 			cont.log.Debug("AciIstioCR create failed with apierror:", err)
 			return true

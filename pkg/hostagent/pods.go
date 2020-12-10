@@ -265,7 +265,7 @@ func (agent *HostAgent) syncOpflexServer() bool {
 		agent.log.Errorf("Failed to create directory: %s", filepath.Dir(agent.config.OpFlexServerConfigFile))
 	}
 
-	data, err := json.MarshalIndent(srvCfg, "", "  ")
+	data, _ := json.MarshalIndent(srvCfg, "", "  ")
 	err = ioutil.WriteFile(agent.config.OpFlexServerConfigFile, data, 0644)
 	if err != nil {
 		agent.log.Errorf("Failed to create file: %s", agent.config.OpFlexServerConfigFile)

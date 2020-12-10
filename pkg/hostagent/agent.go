@@ -248,10 +248,7 @@ func addPodRoute(ipn types.IPNet, dev string, src string) error {
 		Mask: ipn.Mask,
 	}
 	route := netlink.Route{LinkIndex: link.Attrs().Index, Dst: dst, Src: ipsrc}
-	if err := netlink.RouteAdd(&route); err != nil {
-		return err
-	}
-	return nil
+	return netlink.RouteAdd(&route)
 }
 
 func (agent *HostAgent) Init() {
