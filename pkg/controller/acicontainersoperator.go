@@ -420,10 +420,9 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
 				log.Info(er)
 				return true, nil
-			} else {
-				log.Info("Waiting for CRD to get registered to etcd....: ", err)
-				return false, nil
 			}
+			log.Info("Waiting for CRD to get registered to etcd....: ", err)
+			return false, nil
 		}
 		return true, nil
 	}); err != nil {
@@ -710,7 +709,7 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
 		}
 
-		cfg, err := config.GetConfig()
+		cfg, _ := config.GetConfig()
 		scheme := runtime.NewScheme()
 		err = configv1.Install(scheme)
 		if err != nil {
@@ -865,9 +864,9 @@ func (c *Controller) updatednsOperator() error {
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
 	}
 	if c.DnsOperatorClient == nil {
-		cfg, err := config.GetConfig()
+		cfg, _ := config.GetConfig()
 		scheme := runtime.NewScheme()
-		err = operatorv1.Install(scheme)
+		err := operatorv1.Install(scheme)
 		if err != nil {
 			return err
 		}

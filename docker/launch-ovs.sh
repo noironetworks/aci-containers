@@ -5,8 +5,6 @@ set -x
 
 OVSCTL=/usr/share/openvswitch/scripts/ovs-ctl
 VSCTL=/usr/bin/ovs-vsctl
-OVS_DB_LOG=/var/log/openvswitch/ovsdb-server.log
-OVS_VSWITCHD_LOG=/var/log/openvswitch/ovs-vswitchd.log
 SYS_ID=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
 
 # Start OVS

@@ -368,11 +368,10 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service, key str
 			agent.setOpenShfitService(as, external, ofas)
 		}
 		return true
-	} else {
-		if ok {
-			delete(agent.opflexServices, ofas.Uuid)
-			return true
-		}
+	}
+	if ok {
+		delete(agent.opflexServices, ofas.Uuid)
+		return true
 	}
 
 	return false
@@ -514,7 +513,7 @@ func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Infrastructure"},
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
 	}
-	cfg, err := config.GetConfig()
+	cfg, _ := config.GetConfig()
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &configv1.Infrastructure{})
 	rclient, err := client.New(cfg, client.Options{Scheme: scheme})

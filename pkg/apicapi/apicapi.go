@@ -601,7 +601,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 			continue
 		}
 		for _, obj := range apicresp.Imdata {
-			vresp, ok := obj["firmwareCtrlrRunning"]
+			vresp, _ := obj["firmwareCtrlrRunning"]
 			version, ok := vresp.Attributes["version"]
 			if !ok {
 				conn.log.Debug("No version attribute in the response??!")
@@ -672,10 +672,8 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 			if err != nil {
 				conn.log.Error("Failed to open APIC websocket: ", err)
 				return
-			} else {
-				conn.log.Info("Websocket connected!")
 			}
-
+			conn.log.Info("Websocket connected!")
 			conn.runConn(stopCh)
 		}()
 	}
