@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

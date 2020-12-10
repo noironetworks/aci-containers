@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ limitations under the License.
 package aci
 
 import (
-	v1 "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/aci.qos/v1"
-	internalinterfaces "github.com/noironetworks/aci-containers/qospolicy/informers/externalversions/internalinterfaces"
+	v1 "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/aci.qos/v1"
+	internalinterfaces "github.com/noironetworks/aci-containers/pkg/qospolicy/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

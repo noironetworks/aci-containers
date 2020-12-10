@@ -1,5 +1,5 @@
 /***
-Copyright 2020 Cisco Systems Inc. All rights reserved.
+Copyright 2019 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/noironetworks/aci-containers/qospolicy/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/qospolicy/clientset/versioned/typed/aci.qos/v1"
-	fakeaciv1 "github.com/noironetworks/aci-containers/qospolicy/clientset/versioned/typed/aci.qos/v1/fake"
+	clientset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned/typed/aci.qos/v1"
+	fakeaciv1 "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned/typed/aci.qos/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
