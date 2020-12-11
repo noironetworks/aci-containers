@@ -378,17 +378,11 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service, key str
 }
 
 // must have index lock
-func (agent *HostAgent) doUpdateService(keys ...string) {
-	servicekey := keys[0]
-	key := keys[0]
-	//This case is to handle the EndpointSlice Key
-	if len(keys) > 1 {
-		key = keys[1]
-	}
-	asobj, exists, err := agent.serviceInformer.GetStore().GetByKey(servicekey)
+func (agent *HostAgent) doUpdateService(key string) {
+	asobj, exists, err := agent.serviceInformer.GetStore().GetByKey(key)
 	if err != nil {
 		agent.log.Error("Could not lookup service for " +
-			servicekey + ": " + err.Error())
+			key + ": " + err.Error())
 		return
 	}
 	if !exists || asobj == nil {
@@ -430,16 +424,11 @@ func (agent *HostAgent) endpointSliceChanged(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	endpointslice := obj.(*v1beta1.EndpointSlice)
-	key, err := cache.MetaNamespaceKeyFunc(endpointslice)
-	if err != nil {
-		agent.log.Error("Could not create key:" + err.Error())
-		return
-	}
 	servicekey, ok := getServiceKey(endpointslice)
 	if !ok {
 		return
 	}
-	agent.doUpdateService(servicekey, key)
+	agent.doUpdateService(servicekey)
 }
 
 func (agent *HostAgent) serviceChanged(obj interface{}) {
@@ -641,30 +630,12 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	agent := seps.agent
 	hasValidMapping := false
 	var endpointSlices []*v1beta1.EndpointSlice
-	servicekey, _ := cache.MetaNamespaceKeyFunc(as)
-	// check if the update is from Service or endpointslice
-	if servicekey == key {
-		label := map[string]string{"kubernetes.io/service-name": as.ObjectMeta.Name}
-		selector := labels.SelectorFromSet(labels.Set(label))
-		cache.ListAllByNamespace(agent.endpointSliceInformer.GetIndexer(), as.ObjectMeta.Namespace, selector,
-			func(endpointSliceobj interface{}) {
-				endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
-			})
-
-	} else {
-		endpointSliceobj, exists, err :=
-			agent.endpointSliceInformer.GetStore().GetByKey(key)
-		if err != nil {
-			agent.log.Error("Could not lookup endpoints for " +
-				key + ": " + err.Error())
-			return false
-		}
-		if !exists || endpointSliceobj == nil {
-			agent.log.Debugf("no endpoints for service %s/%s", as.Namespace, as.Name)
-			return false
-		}
-		endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
-	}
+	label := map[string]string{"kubernetes.io/service-name": as.ObjectMeta.Name}
+	selector := labels.SelectorFromSet(labels.Set(label))
+	cache.ListAllByNamespace(agent.endpointSliceInformer.GetIndexer(), as.ObjectMeta.Namespace, selector,
+		func(endpointSliceobj interface{}) {
+			endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
+		})
 
 	for _, endpointSlice := range endpointSlices {
 		for _, p := range endpointSlice.Ports {
