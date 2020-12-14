@@ -164,7 +164,7 @@ func TestNetflowPolicy(t *testing.T) {
 		cont.run()
 		cont.fakeNetflowPolicySource.Add(nt.netflowPol)
 		actual := nt.aciObjSlice
-		expected := cont.NetflowPolObjs(nt.netflowPol)
+		expected := cont.netflowPolObjs(nt.netflowPol)
 		assert.Equal(t, actual, expected)
 
 		cont.log.Info("Testing netflow post to APIC ", nt.desc)
