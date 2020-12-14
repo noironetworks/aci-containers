@@ -12,9 +12,6 @@ GBPSERVER_SRC=$(wildcard cmd/gbpserver/*.go pkg/apiserver/*.go)
 ACIKUBECTL_SRC=$(wildcard cmd/acikubectl/*.go cmd/acikubectl/cmd/*.go)
 OVSRESYNC_SRC=$(wildcard cmd/ovsresync/*.go)
 SIMPLESERVICE_SRC=$(wildcard cmd/simpleservice/*.go)
-CFAPI_SRC=$(wildcard pkg/cfapi/*.go)
-KEYVALUESVC_SRC=$(wildcard pkg/keyvalueservice/*.go)
-CF_COMMON_SRC=$(wildcard pkg/cf_common/*.go)
 UTIL_SRC=$(wildcard pkg/util/*.go)
 DEBIAN_FILES=$(wildcard debian/*)
 GOPKG_FILES=$(wildcard Gopkg.*)
@@ -26,13 +23,11 @@ else
     DOCKER_EXT =
 endif
 
-HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC} \
-	${CF_ETCD_SRC} ${CF_COMMON_SRC} ${KEYVALUESVC_SRC}
+HOSTAGENT_DEPS=${METADATA_SRC} ${IPAM_SRC} ${HOSTAGENT_SRC} 
 AGENTCNI_DEPS=${METADATA_SRC} ${EPRPCCLIENT_SRC} ${AGENTCNI_SRC}
 CONTROLLER_DEPS= \
 	${METADATA_SRC} ${IPAM_SRC} ${INDEX_SRC} \
-	${APICAPI_SRC} ${CONTROLLER_SRC} \
-	${CFAPI_SRC} ${CF_COMMON_SRC} ${KEYVALUESVC_SRC}
+	${APICAPI_SRC} ${CONTROLLER_SRC} 
 ACIKUBECTL_DEPS=${METADATA_SRC} ${ACIKUBECTL_SRC}
 OVSRESYNC_DEPS=${METADATA_SRC} ${OVSRESYNC_SRC}
 SIMPLESERVICE_DEPS=${SIMPLESERVICE_SRC}
@@ -110,10 +105,7 @@ dist: ${METADATA_SRC} \
 	${ACIKUBECTL_SRC} \
 	${OVSRESYNC_SRC} \
 	${SIMPLESERVICE} \
-	${CF_COMMON_SRC} \
         ${UTIL_SRC} \
-	${CFAPI_SRC} \
-	${KEYVALUESVC_SRC} \
 	${DEBIAN_FILES} ${GOPKG_FILES} Makefile
 	- rm -rf ${PACKAGE_DIR}
 	mkdir -p ${GOSRC_PATH}
@@ -204,7 +196,7 @@ check-gofmt:
 fix-gofmt:
 	@${GOFMT_FIX_CMD} pkg
 
-check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-keyvalueservice check-gbpserver
+check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver
 check-ipam:
 	${TEST_CMD} -coverprofile=covprof-ipam ${BASE}/pkg/ipam ${TEST_ARGS}
 check-index:
