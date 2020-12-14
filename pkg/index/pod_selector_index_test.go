@@ -466,6 +466,33 @@ var nsMatchTests = []updateTest{
 		},
 		"removepod",
 	},
+	{
+		"add",
+		testObj("", "testobj2", []PodSelector{
+			{
+				Namespace: nil,
+				PodSelector: labels.SelectorFromSet(labels.Set{
+					"label1": "value1",
+					"label2": "value2"}),
+				NsSelector: labels.Everything(),
+			},
+		}),
+		[]string{"testobj2"},
+		map[string][]string{
+			"testobj2": {
+				"testns2/testpod3"},
+		},
+		"cluster_level_podselector",
+	},
+	{
+		"remove",
+		pod("testns2", "testpod3", map[string]string{}),
+		[]string{"testobj2"},
+		map[string][]string{
+			"testobj2": nil,
+		},
+		"removepod3",
+	},
 }
 
 func TestPodIndexNSMatch(t *testing.T) {
