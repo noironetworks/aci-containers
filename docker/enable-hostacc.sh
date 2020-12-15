@@ -50,13 +50,16 @@ EOF
 fi
 
 #if docker0 exists, remove its ip address to prevent ip masquerade errors
-set +e
-ip link | grep docker0
-retval=$?
-if [ $retval -eq 0 ]; then
-  ip addr flush dev docker0
+if [ ! -z "$SKIP_DOCKER_CHECK"]; then
+    echo "checking docker bridge"
+    set +e
+    ip link | grep docker0
+    retval=$?
+    if [ $retval -eq 0 ]; then
+      ip addr flush dev docker0
+    fi
+    set -e
 fi
-set -e
 
 echo "using vtep $VTEP_IFACE $VTEP_IP_CIDR"
 
