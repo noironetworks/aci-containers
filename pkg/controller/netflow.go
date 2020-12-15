@@ -80,16 +80,15 @@ func (cont *AciController) initNetflowInformerBase(listWatch *cache.ListWatch) {
 
 }
 
-func (cont *AciController) netflowPolicyUpdated(obj interface{}) bool {
+func (cont *AciController) netflowPolicyUpdated(obj interface{}) {
 	netflowPolicy := obj.(*netflowpolicy.NetflowPolicy)
 	key, err := cache.MetaNamespaceKeyFunc(netflowPolicy)
 	if err != nil {
 		NetflowPolicyLogger(cont.log, netflowPolicy).
 			Error("Could not create key:" + err.Error())
-		return false
+		return
 	}
 	cont.queueNetflowUpdateByKey(key)
-	return false
 
 }
 
@@ -130,7 +129,7 @@ func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 		return false
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nfp", nfkey))
-	return false
+	return true
 
 }
 
@@ -200,5 +199,5 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.apicConn.WriteApicObjects(labelKey, cont.netflowPolObjs(nfp))
 
-	return false
+	return true
 }

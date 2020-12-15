@@ -41,7 +41,6 @@ type nfTest struct {
 	desc        string
 	writeToApic bool
 	nfDelete    bool
-	nfUpdate    bool
 }
 
 func makeNf(name string, dstAddr string, dstPort int,
@@ -139,11 +138,11 @@ func TestNetflowPolicy(t *testing.T) {
 
 	var nfTests = []nfTest{
 		{testnetflowpolicy("testnf", flowSamplingPolicy0),
-			makeNf(name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, "test1", false, false, false},
+			makeNf(name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, "test1", true, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy1),
-			makeNf(name, "172.51.1.2", 2055, "v9", 60, 15, 0), nil, "test2", false, false, false},
+			makeNf(name, "172.51.1.2", 2055, "v9", 60, 15, 0), nil, "test2", true, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy2),
-			makeNf(name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, "test3", false, false, false},
+			makeNf(name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, "test3", true, true},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
@@ -171,12 +170,6 @@ func TestNetflowPolicy(t *testing.T) {
 		actualPost := nt.writeToApic
 		expectedPost := cont.handleNetflowPolUpdate(nt.netflowPol)
 		assert.Equal(t, actualPost, expectedPost)
-
-		cont.log.Info("Testing netflow update bool for ", nt.desc)
-		cont.fakeNetflowPolicySource.Modify(nt.netflowPol)
-		actualUpdate := nt.nfUpdate
-		expectedUpdate := cont.netflowPolicyUpdated(nt.netflowPol)
-		assert.Equal(t, actualUpdate, expectedUpdate)
 
 		cont.log.Info("Testing netflow delete for ", nt.desc)
 		cont.fakeNetflowPolicySource.Delete(nt.netflowPol)
