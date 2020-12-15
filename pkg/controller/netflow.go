@@ -106,44 +106,38 @@ func (cont *AciController) queueNetflowUpdate(netflowpolicy *netflowpolicy.Netfl
 	cont.netflowQueue.Add(key)
 }
 
-func (cont *AciController) netflowPolicyDelete(obj interface{}) {
+func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 	nf, isNf := obj.(*netflowpolicy.NetflowPolicy)
 	if !isNf {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			NetflowPolicyLogger(cont.log, nf).
 				Error("Received unexpected object: ", obj)
-			return
+			return false
 		}
 		nf, ok = deletedState.Obj.(*netflowpolicy.NetflowPolicy)
 		if !ok {
 			NetflowPolicyLogger(cont.log, nf).
 				Error("DeletedFinalStateUnknown contained non-netflow object: ", deletedState.Obj)
-			return
+			return false
 		}
 	}
 	nfkey, err := cache.MetaNamespaceKeyFunc(nf)
 	if err != nil {
 		NetflowPolicyLogger(cont.log, nf).
 			Error("Could not create netflow key: ", err)
-		return
+		return false
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nfp", nfkey))
+	return true
 
 }
 
-func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
-	nfp, ok := obj.(*netflowpolicy.NetflowPolicy)
-	if !ok {
-		cont.log.Error("handleNetflowPolUpdate: Bad object type")
-		return false
-	}
-	logger := NetflowPolicyLogger(cont.log, nfp)
-	key, err := cache.MetaNamespaceKeyFunc(nfp)
-	if err != nil {
-		logger.Error("Could not create netflow policy key: ", err)
-		return false
-	}
+// netflowPolObjs is used to build Netflow Policy objects
+func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apicapi.ApicSlice {
+
+	key, _ := cache.MetaNamespaceKeyFunc(nfp)
+
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.log.Debug("create netflowpolicy")
 	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
@@ -184,10 +178,26 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	}
 	apicSlice = append(apicSlice, VmmVSwitch)
 
-	cont.log.Info("Netflow Object", apicSlice)
+	cont.log.Info("Netflow ApicSlice: ", apicSlice)
 
-	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
+	return apicapi.ApicSlice{nf, VmmVSwitch}
 
-	return false
+}
 
+func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
+	nfp, ok := obj.(*netflowpolicy.NetflowPolicy)
+	if !ok {
+		cont.log.Error("handleNetflowPolUpdate: Bad object type")
+		return false
+	}
+	logger := NetflowPolicyLogger(cont.log, nfp)
+	key, err := cache.MetaNamespaceKeyFunc(nfp)
+	if err != nil {
+		logger.Error("Could not create netflow policy key: ", err)
+		return false
+	}
+	labelKey := cont.aciNameForKey("nfp", key)
+	cont.apicConn.WriteApicObjects(labelKey, cont.netflowPolObjs(nfp))
+
+	return true
 }
