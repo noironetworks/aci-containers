@@ -138,11 +138,11 @@ func TestNetflowPolicy(t *testing.T) {
 
 	var nfTests = []nfTest{
 		{testnetflowpolicy("testnf", flowSamplingPolicy0),
-			makeNf(name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, "test1", true, true},
+			makeNf(name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, "test1", false, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy1),
-			makeNf(name, "172.51.1.2", 2055, "v9", 60, 15, 0), nil, "test2", true, true},
+			makeNf(name, "172.51.1.2", 2055, "v9", 60, 15, 0), nil, "test2", false, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy2),
-			makeNf(name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, "test3", true, true},
+			makeNf(name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, "test3", false, true},
 	}
 	initCont := func() *testAciController {
 		cont := testController()

@@ -184,6 +184,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 
 }
 
+// func returns false if exceuted without error, true if the caller has to requeue.
 func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	nfp, ok := obj.(*netflowpolicy.NetflowPolicy)
 	if !ok {
@@ -199,5 +200,5 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.apicConn.WriteApicObjects(labelKey, cont.netflowPolObjs(nfp))
 
-	return true
+	return false
 }
