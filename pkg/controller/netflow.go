@@ -199,5 +199,5 @@ func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.apicConn.WriteApicObjects(labelKey, cont.netflowPolObjs(nfp))
 
-	return true
+	return false
 }
