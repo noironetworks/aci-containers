@@ -1,0 +1,16 @@
+apiVersion: aci.erspan/v1alpha
+kind: ErspanPolicy
+metadata:
+  name: erspan-policy
+  namespace: default
+spec:
+  selector:
+    labels:
+      app: consul
+    namespace: default
+  source:
+    admin_state: "start"
+    direction: "both"
+  destination:
+    destIp: "1.1.1.1"
+    flowId: 1

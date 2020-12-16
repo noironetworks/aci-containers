@@ -1,0 +1,9 @@
+apiVersion: aci.netflow/v1alpha
+kind: NetflowPolicy
+metadata:
+  name: netflow-policy
+spec:
+  flowSamplingPolicy:
+    destIp: "1.1.1.1"
+    destPort: 2055
+    flowType: "netflow"
