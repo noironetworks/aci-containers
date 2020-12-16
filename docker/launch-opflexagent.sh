@@ -21,6 +21,7 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/snats
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/faults
 fi
 
 if [ -d ${OPFLEXAGENT_CONF_PATH} ]; then

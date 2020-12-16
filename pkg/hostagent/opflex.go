@@ -24,9 +24,31 @@ import (
 	"reflect"
 	"text/template"
 
+	//	"fmt"
+	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
+
+type opflexFault struct {
+	FaultUuid   string `json:"fault_uuid,omitempty"`
+	Severity    string `json:"severity,omitempty"`
+	Description string `json:"description,omitempty"`
+	FaultCode   string `json:"faultCode,omitempty"`
+}
+
+func writeFault(faultfile string, ep *opflexFault) (bool, error) {
+	newdata, err := json.MarshalIndent(ep, "", "  ")
+	if err != nil {
+		return true, err
+	}
+	existingdata, err := ioutil.ReadFile(faultfile)
+	if err == nil && reflect.DeepEqual(existingdata, newdata) {
+		return false, nil
+	}
+	err = ioutil.WriteFile(faultfile, newdata, 0644)
+	return true, err
+}
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	if agent.config.OpflexMode == "overlay" {
@@ -74,6 +96,24 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 
 				parent = plink
 				if parent.Attrs().MTU < configMtu {
+					FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, "123.fs")
+					fault_file_exists := fileExists(FaultFilePath)
+					if fault_file_exists {
+						return
+					}
+					fault := &opflexFault{
+						FaultUuid:   "123",
+						Severity:    "minor",
+						Description: "MTU mismatach",
+						FaultCode:   "1",
+					}
+					wrote, err := writeFault(FaultFilePath, fault)
+					if err != nil {
+						agent.log.Debug("Unable to write fault file")
+					} else if wrote {
+						agent.log.Debug("Created fault file")
+					}
+
 					agent.log.WithFields(logrus.Fields{
 						"name": parent.Attrs().Name,
 						"vlan": agent.config.AciInfraVlan,
