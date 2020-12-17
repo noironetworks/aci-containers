@@ -44,6 +44,7 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/faults
 fi
 
 if [ "$OPFLEX_MODE" == "overlay" ]; then
