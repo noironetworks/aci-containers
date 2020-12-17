@@ -21,7 +21,8 @@ docker run -w /usr/sbin ${BASE_IMAGE} tar -cz -C /usr/sbin \
 docker run -w /lib64 ${BASE_IMAGE} /bin/sh -c 'find . \(\
  -name '\''libxtables*.so*'\'' -o \
  -name '\''libip6tc*.so*'\'' -o \
- -name '\''libip4tc*.so*'\'' \
+ -name '\''libip4tc*.so*'\'' -o \
+ -name '\''xtables'\'' \
 \)  \
 | xargs tar -cz ' > ${TARGET_DIR}/iptables-libs.tar.gz
 
