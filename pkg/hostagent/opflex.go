@@ -24,14 +24,15 @@ import (
 	"reflect"
 	"text/template"
 
-	//	"fmt"
 	"encoding/json"
+	"fmt"
+	gouuid "github.com/nu7hatch/gouuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 
 type opflexFault struct {
-	FaultUuid   string `json:"fault_uuid,omitempty"`
+	FaultUUID   string `json:"fault_uuid,omitempty"`
 	Severity    string `json:"severity,omitempty"`
 	Description string `json:"description,omitempty"`
 	FaultCode   string `json:"faultCode,omitempty"`
@@ -79,6 +80,31 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			// giving extra headroom of 100 bytes
 			configMtu := 100 + agent.config.InterfaceMtu
 			if link.MTU < configMtu {
+				uuid, _ := gouuid.NewV4()
+				fmt.Print("uuid " + uuid.String())
+				FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
+				faultFileExists := fileExists(FaultFilePath)
+				if faultFileExists {
+					fmt.Print("fault file exist")
+					return
+				}
+				fault := &opflexFault{
+					FaultUUID:   uuid.String(),
+					Severity:    "minor",
+					Description: "MTU exceeds opflex link MTU",
+					FaultCode:   "3",
+				}
+				fmt.Print("writing to file")
+				wrote, err := writeFault(FaultFilePath, fault)
+				if err != nil {
+					agent.log.Debug("Unable to write fault file")
+				} else if wrote {
+					agent.log.Debug("Created fault file")
+				}
+				fmt.Printf("interface mtu %d", agent.config.InterfaceMtu)
+				fmt.Printf("configMtu %d", configMtu)
+				fmt.Printf("link MTU %d ", link.MTU)
+
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
@@ -96,23 +122,30 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 
 				parent = plink
 				if parent.Attrs().MTU < configMtu {
-					FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, "123.fs")
-					fault_file_exists := fileExists(FaultFilePath)
-					if fault_file_exists {
+					uuid, _ := gouuid.NewV4()
+					FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
+					faultFileExists := fileExists(FaultFilePath)
+					if faultFileExists {
+						fmt.Print("fault file exist")
 						return
 					}
+					fmt.Print("fault file doesnt exist")
 					fault := &opflexFault{
-						FaultUuid:   "123",
+						FaultUUID:   uuid.String(),
 						Severity:    "minor",
-						Description: "MTU mismatach",
-						FaultCode:   "1",
+						Description: "MTU exceeds fabric uplink MTU",
+						FaultCode:   "3",
 					}
+					fmt.Print("writing to file")
 					wrote, err := writeFault(FaultFilePath, fault)
 					if err != nil {
 						agent.log.Debug("Unable to write fault file")
 					} else if wrote {
 						agent.log.Debug("Created fault file")
 					}
+					fmt.Printf("interface mtu %d", agent.config.InterfaceMtu)
+					fmt.Printf("configMtu %d", configMtu)
+					fmt.Printf("parent MTU %d ", parent.Attrs().MTU)
 
 					agent.log.WithFields(logrus.Fields{
 						"name": parent.Attrs().Name,
