@@ -32,10 +32,10 @@ import (
 )
 
 type opflexFault struct {
-	FaultUUID   string `json:"fault_uuid,omitempty"`
-	Severity    string `json:"severity,omitempty"`
-	Description string `json:"description,omitempty"`
-	FaultCode   string `json:"faultCode,omitempty"`
+	FaultUUID   string `json:"fault_uuid"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	FaultCode   string `json:"faultCode"`
 }
 
 func writeFault(faultfile string, ep *opflexFault) (bool, error) {
@@ -49,6 +49,31 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 	}
 	err = ioutil.WriteFile(faultfile, newdata, 0644)
 	return true, err
+}
+
+func (agent *HostAgent) createMtuFault() {
+	uuid, _ := gouuid.NewV4()
+	fmt.Print("uuid " + uuid.String())
+	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
+	faultFileExists := fileExists(FaultFilePath)
+	if faultFileExists {
+		fmt.Print("fault file exist")
+		return
+	}
+	fault := &opflexFault{
+		FaultUUID:   uuid.String(),
+		Severity:    "major",
+		Description: "User configured MTU exceeds uplink MTU",
+		FaultCode:   "3",
+	}
+	fmt.Print("writing to file")
+	wrote, err := writeFault(FaultFilePath, fault)
+	if err != nil {
+		agent.log.Debug("Unable to write fault file")
+	} else if wrote {
+		agent.log.Debug("Created fault file")
+	}
+	return
 }
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
@@ -80,36 +105,12 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			// giving extra headroom of 100 bytes
 			configMtu := 100 + agent.config.InterfaceMtu
 			if link.MTU < configMtu {
-				uuid, _ := gouuid.NewV4()
-				fmt.Print("uuid " + uuid.String())
-				FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
-				faultFileExists := fileExists(FaultFilePath)
-				if faultFileExists {
-					fmt.Print("fault file exist")
-					return
-				}
-				fault := &opflexFault{
-					FaultUUID:   uuid.String(),
-					Severity:    "minor",
-					Description: "MTU exceeds opflex link MTU",
-					FaultCode:   "3",
-				}
-				fmt.Print("writing to file")
-				wrote, err := writeFault(FaultFilePath, fault)
-				if err != nil {
-					agent.log.Debug("Unable to write fault file")
-				} else if wrote {
-					agent.log.Debug("Created fault file")
-				}
-				fmt.Printf("interface mtu %d", agent.config.InterfaceMtu)
-				fmt.Printf("configMtu %d", configMtu)
-				fmt.Printf("link MTU %d ", link.MTU)
-
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
 					"mtu":  link.MTU,
 				}).Error("OpFlex link MTU must be >= ", configMtu)
+				agent.createMtuFault()
 				return
 			}
 
@@ -122,36 +123,12 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 
 				parent = plink
 				if parent.Attrs().MTU < configMtu {
-					uuid, _ := gouuid.NewV4()
-					FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
-					faultFileExists := fileExists(FaultFilePath)
-					if faultFileExists {
-						fmt.Print("fault file exist")
-						return
-					}
-					fmt.Print("fault file doesnt exist")
-					fault := &opflexFault{
-						FaultUUID:   uuid.String(),
-						Severity:    "minor",
-						Description: "MTU exceeds fabric uplink MTU",
-						FaultCode:   "3",
-					}
-					fmt.Print("writing to file")
-					wrote, err := writeFault(FaultFilePath, fault)
-					if err != nil {
-						agent.log.Debug("Unable to write fault file")
-					} else if wrote {
-						agent.log.Debug("Created fault file")
-					}
-					fmt.Printf("interface mtu %d", agent.config.InterfaceMtu)
-					fmt.Printf("configMtu %d", configMtu)
-					fmt.Printf("parent MTU %d ", parent.Attrs().MTU)
-
 					agent.log.WithFields(logrus.Fields{
 						"name": parent.Attrs().Name,
 						"vlan": agent.config.AciInfraVlan,
 						"mtu":  parent.Attrs().MTU,
 					}).Error("Uplink MTU must be >= ", configMtu)
+					agent.createMtuFault()
 					return
 				}
 			}
@@ -234,6 +211,9 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     },
     "packet-event-notif": {
         "socket-name": ["{{.PacketEventNotificationSock | js}}"]
+    },
+    "host-agent-fault-sources": {
+        "filesystem": ["{{.OpFlexFaultDir | js}}"]
     }
 }
 `)
