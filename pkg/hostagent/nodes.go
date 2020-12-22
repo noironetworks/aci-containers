@@ -92,7 +92,7 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 	}
 
 	agent.indexMutex.Lock()
-
+	agent.localNode = node
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if ok {
 		agent.updateIpamAnnotation(pnet)

@@ -72,7 +72,7 @@ func service(uuid string, namespace string, name string,
 }
 
 func endpoints(namespace string, name string,
-	nextHopIps []string, ports []int32) *v1.Endpoints {
+	nextHopIps []OpflexNexhopIp, ports []int32) *v1.Endpoints {
 	e := &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{{}},
 		ObjectMeta: metav1.ObjectMeta{
@@ -82,12 +82,14 @@ func endpoints(namespace string, name string,
 	}
 
 	nn := "test-node"
-	for _, ip := range nextHopIps {
-		e.Subsets[0].Addresses =
-			append(e.Subsets[0].Addresses, v1.EndpointAddress{
-				IP:       ip,
-				NodeName: &nn,
-			})
+	for _, nhops := range nextHopIps {
+		for _, ip := range nhops.Ips {
+			e.Subsets[0].Addresses =
+				append(e.Subsets[0].Addresses, v1.EndpointAddress{
+					IP:       ip,
+					NodeName: &nn,
+				})
+		}
 	}
 
 	for _, port := range ports {
@@ -102,7 +104,7 @@ func endpoints(namespace string, name string,
 }
 
 func endpointslice(namespace string, name string,
-	nextHopIps []string, ports []int32) *v1beta1.EndpointSlice {
+	nextHopIps []OpflexNexhopIp, ports []int32) *v1beta1.EndpointSlice {
 	e := &v1beta1.EndpointSlice{
 		Endpoints: []v1beta1.Endpoint{},
 		ObjectMeta: metav1.ObjectMeta{
@@ -113,12 +115,14 @@ func endpointslice(namespace string, name string,
 		Ports: []v1beta1.EndpointPort{},
 	}
 
-	for i, ip := range nextHopIps {
-		var endpoint v1beta1.Endpoint
-		endpoint.Addresses = append(endpoint.Addresses, ip)
-		e.Endpoints = append(e.Endpoints, endpoint)
-		e.Endpoints[i].Topology = make(map[string]string)
-		e.Endpoints[i].Topology["kubernetes.io/hostname"] = "test-node"
+	for _, nhops := range nextHopIps {
+		for i, ip := range nhops.Ips {
+			var endpoint v1beta1.Endpoint
+			endpoint.Addresses = append(endpoint.Addresses, ip)
+			e.Endpoints = append(e.Endpoints, endpoint)
+			e.Endpoints[i].Topology = make(map[string]string)
+			e.Endpoints[i].Topology["kubernetes.io/hostname"] = "test-node"
+		}
 	}
 
 	for _, port := range ports {
@@ -138,7 +142,7 @@ type serviceTest struct {
 	clusterIp  string
 	externalIp string
 	ports      []int32
-	nextHopIps []string
+	nextHopIps []OpflexNexhopIp
 }
 
 var serviceTests = []serviceTest{
@@ -149,7 +153,7 @@ var serviceTests = []serviceTest{
 		"100.1.1.1",
 		"200.1.1.1",
 		[]int32{80},
-		[]string{"10.1.1.1", "10.2.2.2"},
+		[]OpflexNexhopIp{{"any", []string{"10.1.1.1", "10.2.2.2"}}},
 	},
 	{
 		"683c333d-a594-4f00-baa6-0d578a13d83f",
@@ -158,7 +162,7 @@ var serviceTests = []serviceTest{
 		"100.1.1.2",
 		"",
 		[]int32{42},
-		[]string{"10.5.1.1", "10.6.2.2"},
+		[]OpflexNexhopIp{{"any", []string{"10.5.1.1", "10.6.2.2"}}},
 	},
 }
 

@@ -46,11 +46,16 @@ type opflexServiceMapping struct {
 	ServiceProto string `json:"service-proto,omitempty"`
 	ServicePort  uint16 `json:"service-port,omitempty"`
 
-	NextHopIps  []string `json:"next-hop-ips"`
-	NextHopPort uint16   `json:"next-hop-port,omitempty"`
+	NextHopIps  []OpflexNexhopIp `json:"next-hop-ips"`
+	NextHopPort uint16           `json:"next-hop-port,omitempty"`
 
 	Conntrack bool   `json:"conntrack-enabled"`
 	NodePort  uint16 `json:"node-port,omitempty"`
+}
+
+type OpflexNexhopIp struct {
+	RouteType string   `json:"route-type"`
+	Ips       []string `json:"ips"`
 }
 
 type opflexService struct {
@@ -595,7 +600,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 			sm := &opflexServiceMapping{
 				ServicePort:  uint16(sp.Port),
 				ServiceProto: strings.ToLower(string(sp.Protocol)),
-				NextHopIps:   make([]string, 0),
+				NextHopIps:   make([]OpflexNexhopIp, 0),
 				NextHopPort:  uint16(p.Port),
 				Conntrack:    true,
 				NodePort:     uint16(sp.NodePort),
@@ -609,12 +614,18 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 			} else {
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
-
+			nexthops := make(map[string][]string)
 			for _, a := range e.Addresses {
 				if !external ||
 					(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
-					sm.NextHopIps = append(sm.NextHopIps, a.IP)
+					nexthops["any"] = append(nexthops["any"], a.IP)
 				}
+			}
+			for key, val := range nexthops {
+				var nexhop OpflexNexhopIp
+				nexhop.RouteType = key
+				nexhop.Ips = val
+				sm.NextHopIps = append(sm.NextHopIps, nexhop)
 			}
 			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 				hasValidMapping = true
@@ -623,6 +634,17 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 		}
 	}
 	return hasValidMapping
+}
+
+func CheckKeyMatch(topology, nodelabels map[string]string, key string) bool {
+	topval, ok1 := topology[key]
+	nodeval, ok2 := nodelabels[key]
+	if ok1 && ok2 {
+		if topval == nodeval {
+			return true
+		}
+	}
+	return false
 }
 
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
@@ -650,7 +672,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			sm := &opflexServiceMapping{
 				ServicePort:  uint16(sp.Port),
 				ServiceProto: strings.ToLower(string(sp.Protocol)),
-				NextHopIps:   make([]string, 0),
+				NextHopIps:   make([]OpflexNexhopIp, 0),
 				NextHopPort:  uint16(*p.Port),
 				Conntrack:    true,
 				NodePort:     uint16(sp.NodePort),
@@ -664,15 +686,53 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			} else {
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
-
+			nexthops := make(map[string][]string)
 			for _, e := range endpointSlice.Endpoints {
 				for _, a := range e.Addresses {
 					nodeName, ok := e.Topology["kubernetes.io/hostname"]
+					agent.log.Debug("endpoint topoKeys", e.Topology)
 					if !external || (ok && nodeName == agent.config.NodeName) {
-						sm.NextHopIps = append(sm.NextHopIps, a)
+						obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
+						if err != nil {
+							agent.log.Error("Could not lookup node: ", err)
+							continue
+						}
+						if !exists && obj == nil {
+							agent.log.Error("Object nil")
+							continue
+						}
+						node := obj.(*v1.Node)
+						updated := false
+						if len(as.Spec.TopologyKeys) == 0 {
+							nexthops["any"] = append(nexthops["any"], a)
+						} else {
+							for _, key := range as.Spec.TopologyKeys {
+								if !updated && CheckKeyMatch(e.Topology, node.ObjectMeta.Labels, key) {
+									agent.log.Debug("Topology matches", key)
+									if key == "*" {
+										nexthops["any"] = append(nexthops["any"], a)
+									}
+									nexthops[key] = append(nexthops[key], a)
+									updated = true
+								}
+							}
+						}
 					}
 				}
 			}
+			agent.log.Debug("nexthops", nexthops)
+			if len(as.Spec.TopologyKeys) > 0 {
+				for _, key := range as.Spec.TopologyKeys {
+					if _, ok := nexthops[key]; ok {
+						nexhop := OpflexNexhopIp{RouteType: key, Ips: nexthops[key]}
+						sm.NextHopIps = append(sm.NextHopIps, nexhop)
+					}
+				}
+			} else {
+				nexhop := OpflexNexhopIp{RouteType: "any", Ips: nexthops["any"]}
+				sm.NextHopIps = append(sm.NextHopIps, nexhop)
+			}
+			agent.log.Debug("sm.NextHopIps", sm.NextHopIps)
 			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 				hasValidMapping = true
 			}
@@ -735,10 +795,12 @@ func (agent *HostAgent) getPodKeysFromSm(sm []opflexServiceMapping) []string {
 	var podkeys []string
 	if len(sm) > 0 {
 		podIps := sm[0].NextHopIps
-		for _, ip := range podIps {
-			podkey, ok := agent.podIpToName[ip]
-			if ok {
-				podkeys = append(podkeys, podkey)
+		for _, nhips := range podIps {
+			for _, ip := range nhips.Ips {
+				podkey, ok := agent.podIpToName[ip]
+				if ok {
+					podkeys = append(podkeys, podkey)
+				}
 			}
 		}
 	}

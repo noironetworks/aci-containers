@@ -102,6 +102,7 @@ type HostAgent struct {
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
+	localNode        *v1.Node
 }
 
 type Vtep struct {
