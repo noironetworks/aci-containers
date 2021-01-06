@@ -24,16 +24,21 @@ import (
 // Implement this interface in the CRD watcher
 type GBPCustomMo interface {
 	Subject() string
-	URI() string
+	URI(s *Server) string
 	Properties() map[string]interface{}
 	ParentSub() string
-	ParentURI() string
+	ParentURI(s *Server) string
 	Children() []string
 }
 
 // GetTenantURI helper for watchers to get the tenant uri
 func (s *Server) GetTenantURI() string {
 	return getTenantUri()
+}
+
+// GetPlatformURI helper for watchers to get the platform uri
+func (s *Server) GetPlatformURI() string {
+	return getPlatformUri(s)
 }
 
 // GetURIBySubject helper for watchers to get a parent URI
@@ -72,9 +77,9 @@ func (s *Server) DelGBPCustomMo(crd GBPCustomMo) {
 func (s *Server) processAddGBPCustomMoLocked(crd GBPCustomMo) {
 	mo := &gbpBaseMo{}
 	mo.Subject = crd.Subject()
-	mo.Uri = crd.URI()
+	mo.Uri = crd.URI(s)
 	if crd.ParentSub() != "" {
-		mo.SetParent(crd.ParentSub(), crd.Subject(), crd.ParentURI())
+		mo.SetParent(crd.ParentSub(), crd.Subject(), crd.ParentURI(s))
 		for p, val := range crd.Properties() {
 			mo.AddProperty(p, val)
 		}
@@ -91,7 +96,7 @@ func (s *Server) processAddGBPCustomMoLocked(crd GBPCustomMo) {
 }
 
 func (s *Server) processDelGBPCustomMoLocked(crd GBPCustomMo) {
-	key := crd.URI()
+	key := crd.URI(s)
 	log.Debugf("delete object: %s", key)
 	for _, fn := range s.listeners {
 		fn(GBPOperation_DELETE, []string{key})

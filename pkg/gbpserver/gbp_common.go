@@ -130,6 +130,14 @@ func getTenantName() string {
 	return "undefined"
 }
 
+func getAciVmmDomain(s *Server) string {
+	if s != nil {
+		return s.config.AciVmmDomain
+	}
+
+	return "undefined"
+}
+
 func getVrfName() string {
 	if theServer != nil {
 		return theServer.config.AciVrf
@@ -138,8 +146,17 @@ func getVrfName() string {
 	return "undefined"
 }
 
+func getDefPConfigName(domain string) string {
+	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/sw-InsiemeLSOid", domain, domain)
+}
+
 func getTenantUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/", getTenantName())
+}
+
+func getPlatformUri(s *Server) string {
+	pConfigName := getDefPConfigName(getAciVmmDomain(s))
+	return fmt.Sprintf("/PolicyUniverse/PlatformConfig/%s/", escapeName(pConfigName, false))
 }
 
 func getVrfUri() string {
@@ -505,10 +522,6 @@ func escapeName(n string, undo bool) string {
 	}
 
 	return n
-}
-
-func getDefPConfigName(domain string) string {
-	return fmt.Sprintf("comp/prov-Kubernetes/ctrlr-[%s]-%s/sw-InsiemeLSOid", domain, domain)
 }
 
 func CreateRoot(config *GBPServerConfig) {
