@@ -53,11 +53,10 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 
 func (agent *HostAgent) createMtuFault(description string) {
 	uuid, _ := gouuid.NewV4()
-	fmt.Print("uuid " + uuid.String())
 	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
 	faultFileExists := fileExists(FaultFilePath)
 	if faultFileExists {
-		fmt.Print("fault file exist")
+		agent.log.Debug("fault file exist")
 		return
 	}
 	fault := &opflexFault{
@@ -66,7 +65,6 @@ func (agent *HostAgent) createMtuFault(description string) {
 		Description: description,
 		FaultCode:   "3",
 	}
-	fmt.Print("writing to file")
 	wrote, err := writeFault(FaultFilePath, fault)
 	if err != nil {
 		agent.log.Debug("Unable to write fault file")
