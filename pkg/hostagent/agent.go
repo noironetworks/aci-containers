@@ -379,7 +379,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
 		agent.config.OpFlexSnatDir == "" {
-		//		agent.config.OpFlexFaultDir == "" {
 		agent.log.Warn("OpFlex endpoint,service or snat directories not set")
 
 	} else {
