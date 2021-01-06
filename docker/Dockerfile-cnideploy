@@ -1,7 +1,6 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
-RUN microdnf --disablerepo=\*ubi\* install wget ca-certificates tar gzip \
-  && microdnf clean all \
-  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-linux-amd64-v0.8.7.tgz | tar xz -C /opt/cni/bin
+ARG basetag=latest
+ARG baserepo=quay.io/noirolabs
+FROM ${baserepo}/aci-containers-cnideploy-base:${basetag}
 # Required OpenShift Labels
 LABEL name="ACI CNI cnideploy" \
 vendor="Cisco" \
@@ -10,6 +9,6 @@ release="1" \
 summary="This is an ACI CNI cnideploy." \
 description="This operator will deploy a single instance of ACI CNI cnideploy."
 # Required Licenses
-COPY licenses /licenses
-COPY launch-cnideploy.sh /usr/local/bin/
+COPY docker/licenses /licenses
+COPY docker/launch-cnideploy.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-cnideploy.sh"]
