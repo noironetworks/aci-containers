@@ -25,7 +25,6 @@ import (
 	"text/template"
 
 	"encoding/json"
-	"fmt"
 	gouuid "github.com/nu7hatch/gouuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
