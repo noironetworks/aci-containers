@@ -51,10 +51,10 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 	return true, err
 }
 
-func (agent *HostAgent) createMtuFault() {
+func (agent *HostAgent) createMtuFault(description string) {
 	uuid, _ := gouuid.NewV4()
 	fmt.Print("uuid " + uuid.String())
-	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, uuid.String()+".fs")
+	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
 	faultFileExists := fileExists(FaultFilePath)
 	if faultFileExists {
 		fmt.Print("fault file exist")
@@ -63,7 +63,7 @@ func (agent *HostAgent) createMtuFault() {
 	fault := &opflexFault{
 		FaultUUID:   uuid.String(),
 		Severity:    "major",
-		Description: "User configured MTU exceeds uplink MTU",
+		Description: description,
 		FaultCode:   "3",
 	}
 	fmt.Print("writing to file")
@@ -87,6 +87,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
+		description := "Could_not_enumerat_interfaces"
+		agent.createMtuFault(description)
 		return
 	}
 
@@ -110,7 +112,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"vlan": agent.config.AciInfraVlan,
 					"mtu":  link.MTU,
 				}).Error("OpFlex link MTU must be >= ", configMtu)
-				agent.createMtuFault()
+				description := "User_configured_MTU_exceeds_opflex_MTU"
+				agent.createMtuFault(description)
 				return
 			}
 
@@ -128,7 +131,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 						"vlan": agent.config.AciInfraVlan,
 						"mtu":  parent.Attrs().MTU,
 					}).Error("Uplink MTU must be >= ", configMtu)
-					agent.createMtuFault()
+					description := "User_configured_MTU_exceed_uplink_MTU"
+					agent.createMtuFault(description)
 					return
 				}
 			}
@@ -137,6 +141,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"index": link.ParentIndex,
 					"name":  link.Name,
 				}).Error("Could not find parent link for OpFlex interface")
+				description := "Could_not_find_parent_link_for_OpFlex_interface"
+				agent.createMtuFault(description)
 				return
 			}
 
@@ -146,6 +152,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 				}).Error("Could not enumerate link addresses: ", err)
+				description := "Could_not_enumerate_link_addresses"
+				agent.createMtuFault(description)
 				return
 			}
 			var anycast net.IP
@@ -165,6 +173,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
 				}).Error("IP address not set for OpFlex link")
+				description := "IP_address_not_set_for_OpFlex_link"
+				agent.createMtuFault(description)
 				return
 			}
 
@@ -186,6 +196,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 
 	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
 		Error("Could not find suitable host uplink interface for vlan")
+	description := "Could_not_find_suitable_host_uplink_interface_for_vlan"
+	agent.createMtuFault(description)
 	return
 }
 

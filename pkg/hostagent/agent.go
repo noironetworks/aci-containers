@@ -17,6 +17,8 @@ package hostagent
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -377,6 +379,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
 		agent.config.OpFlexSnatDir == "" {
+		//		agent.config.OpFlexFaultDir == "" {
 		agent.log.Warn("OpFlex endpoint,service or snat directories not set")
 
 	} else {
@@ -385,7 +388,10 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
-
+	err = RemoveAllFiles(agent.config.OpFlexFaultDir)
+	if err != nil {
+		fmt.Println(err)
+	}
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)
 	if err != nil {
@@ -393,4 +399,23 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 
 	agent.cleanupSetup()
+}
+
+func RemoveAllFiles(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
