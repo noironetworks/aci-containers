@@ -40,9 +40,9 @@ import (
 
 	"k8s.io/kubernetes/pkg/controller"
 
+	uuid "github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
-	gouuid "github.com/nu7hatch/gouuid"
 )
 
 const NullMac = "null-mac"
@@ -418,9 +418,8 @@ func (agent *HostAgent) creatNullMacEp() {
 	if ep_file_exists {
 		return
 	}
-	uuid, _ := gouuid.NewV4()
 	ep := &opflexEndpoint{
-		Uuid:          uuid.String(),
+		Uuid:          uuid.New().String(),
 		EgPolicySpace: epGroup.PolicySpace,
 		EndpointGroup: epGroup.Name,
 		MacAddress:    "00:00:00:00:00:00",

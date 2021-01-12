@@ -329,7 +329,6 @@ github.com/natefinch/pie
 github.com/noironetworks/aci-containers/pkg/ipam
 # github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 ## explicit
-github.com/nu7hatch/gouuid
 # github.com/opencontainers/go-digest v1.0.0-rc1
 github.com/opencontainers/go-digest
 # github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
