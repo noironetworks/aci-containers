@@ -22,10 +22,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"text/template"
 
 	"encoding/json"
-	gouuid "github.com/nu7hatch/gouuid"
+	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
@@ -34,7 +35,7 @@ type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
 	Severity    string `json:"severity"`
 	Description string `json:"description"`
-	FaultCode   string `json:"faultCode"`
+	FaultCode   int    `json:"faultCode"`
 }
 
 func writeFault(faultfile string, ep *opflexFault) (bool, error) {
@@ -50,19 +51,20 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 	return true, err
 }
 
-func (agent *HostAgent) createMtuFault(description string) {
-	uuid, _ := gouuid.NewV4()
+func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
+	Uuid := uuid.New().String()
 	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
 	faultFileExists := fileExists(FaultFilePath)
 	if faultFileExists {
 		agent.log.Debug("fault file exist")
 		return
 	}
+	desc := strings.Replace(description, "_", " ", -1)
 	fault := &opflexFault{
-		FaultUUID:   uuid.String(),
-		Severity:    "major",
-		Description: description,
-		FaultCode:   "3",
+		FaultUUID:   Uuid,
+		Severity:    "critical",
+		Description: desc,
+		FaultCode:   faultCode,
 	}
 	wrote, err := writeFault(FaultFilePath, fault)
 	if err != nil {
@@ -84,8 +86,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
-		description := "Could_not_enumerat_interfaces"
-		agent.createMtuFault(description)
+		description := "Could_not_enumerate_interfaces"
+		agent.createFaultOnAgent(description, 3)
 		return
 	}
 
@@ -110,7 +112,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"mtu":  link.MTU,
 				}).Error("OpFlex link MTU must be >= ", configMtu)
 				description := "User_configured_MTU_exceeds_opflex_MTU"
-				agent.createMtuFault(description)
+				agent.createFaultOnAgent(description, 4)
 				return
 			}
 
@@ -129,7 +131,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 						"mtu":  parent.Attrs().MTU,
 					}).Error("Uplink MTU must be >= ", configMtu)
 					description := "User_configured_MTU_exceed_uplink_MTU"
-					agent.createMtuFault(description)
+					agent.createFaultOnAgent(description, 5)
 					return
 				}
 			}
@@ -139,7 +141,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"name":  link.Name,
 				}).Error("Could not find parent link for OpFlex interface")
 				description := "Could_not_find_parent_link_for_OpFlex_interface"
-				agent.createMtuFault(description)
+				agent.createFaultOnAgent(description, 6)
 				return
 			}
 
@@ -150,7 +152,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"name": link.Name,
 				}).Error("Could not enumerate link addresses: ", err)
 				description := "Could_not_enumerate_link_addresses"
-				agent.createMtuFault(description)
+				agent.createFaultOnAgent(description, 7)
 				return
 			}
 			var anycast net.IP
@@ -171,7 +173,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"vlan": agent.config.AciInfraVlan,
 				}).Error("IP address not set for OpFlex link")
 				description := "IP_address_not_set_for_OpFlex_link"
-				agent.createMtuFault(description)
+				agent.createFaultOnAgent(description, 8)
 				return
 			}
 
@@ -194,7 +196,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
 		Error("Could not find suitable host uplink interface for vlan")
 	description := "Could_not_find_suitable_host_uplink_interface_for_vlan"
-	agent.createMtuFault(description)
+	agent.createFaultOnAgent(description, 9)
 	return
 }
 
