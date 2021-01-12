@@ -28,7 +28,7 @@ require (
 	github.com/mattn/goveralls v0.0.7 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-00010101000000-000000000000
-	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
+	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
