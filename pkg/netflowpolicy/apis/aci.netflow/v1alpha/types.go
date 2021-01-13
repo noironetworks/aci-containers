@@ -23,19 +23,23 @@ type NetflowPolicySpec struct {
 	FlowSamplingPolicy NetflowType `json:"flowSamplingPolicy,omitempty"`
 }
 
-//NetflowType
+// NetflowType contains all the attrbutes of Netflow Policy.
 type NetflowType struct {
+	// Remote node destination IP address.
 	DstAddr string `json:"destIp"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
 	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
+	// The Cisco Discovery Protocol (CDP) version supported by the device.
 	Version string `json:"flowType"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600
+	// Specifies the timeout for an active flow.
 	ActiveFlowTimeOut int `json:"activeFlowTimeOut"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=600
+	// Specifies the timeout for an idle flow.
 	IdleFlowTimeOut int `json:"idleFlowTimeOut"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=1000
@@ -54,7 +58,7 @@ type NetflowPolicyStatus struct {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Policy is the Schema for the netflowpolicies API
+// NetflowPolicy is the Schema for the netflowpolicies API
 type NetflowPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

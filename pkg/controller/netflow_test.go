@@ -54,13 +54,13 @@ func makeNf(name string, dstAddr string, dstPort int,
 	nf1VmmVSwitch :=
 		apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "")
 	nf1RsVmmVSwitch :=
-		apicapi.NewVmmRsVswitchExporterPol("Kubernetes", "", nf1.GetDn())
+		apicapi.NewVmmRsVswitchExporterPol(nf1VmmVSwitch.GetDn(), nf1.GetDn())
 	nf1VmmVSwitch.AddChild(nf1RsVmmVSwitch)
 	nf1RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(activeFlowTimeOut))
 	nf1RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(idleFlowTimeOut))
 	nf1RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(samplingRate))
 
-	apicSlice = append(apicSlice, nf1VmmVSwitch)
+	apicSlice = append(apicSlice, nf1RsVmmVSwitch)
 
 	return apicSlice
 }
@@ -122,7 +122,7 @@ func TestNetflowPolicy(t *testing.T) {
 
 	var flowSamplingPolicy1 netflowpolicy.NetflowType
 	flowSamplingPolicy1.DstAddr = "172.51.1.2"
-	flowSamplingPolicy1.DstPort = 2055
+	flowSamplingPolicy1.DstPort = 0
 	flowSamplingPolicy1.Version = "ipfix"
 	flowSamplingPolicy1.ActiveFlowTimeOut = 0
 	flowSamplingPolicy1.IdleFlowTimeOut = 0
