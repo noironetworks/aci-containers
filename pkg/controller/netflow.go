@@ -148,7 +148,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	if nfp.Spec.FlowSamplingPolicy.DstPort != 0 {
 		nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
 	} else {
-		nf.SetAttr("dstPort", "unspecified")
+		nf.SetAttr("dstPort", "2055")
 	}
 	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
 		nf.SetAttr("ver", "v5")
@@ -159,7 +159,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
-	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(cont.vmmDomainProvider(), cont.config.AciVmmDomain, nfDn)
+	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(VmmVSwitch.GetDn(), nfDn)
 	VmmVSwitch.AddChild(RsVmmVSwitch)
 	if nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut != 0 {
 		RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
@@ -180,7 +180,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 
 	cont.log.Info("Netflow ApicSlice: ", apicSlice)
 
-	return apicapi.ApicSlice{nf, VmmVSwitch}
+	return apicapi.ApicSlice{nf, RsVmmVSwitch}
 
 }
 

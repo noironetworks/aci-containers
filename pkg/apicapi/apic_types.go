@@ -1095,11 +1095,10 @@ func NewVmmVSwitchPolicyCont(domainType string, domainName string) ApicObject {
 	return ret
 }
 
-func NewVmmRsVswitchExporterPol(domainType string, domainName string, tDn string) ApicObject {
+func NewVmmRsVswitchExporterPol(parentDn string, tDn string) ApicObject {
 	ret := newApicObject("vmmRsVswitchExporterPol")
 	ret["vmmRsVswitchExporterPol"].Attributes["tDn"] = tDn
 	ret["vmmRsVswitchExporterPol"].Attributes["dn"] =
-		fmt.Sprintf("uni/vmmp-%s/dom-%s/vswitchpolcont/rsvswitchExporterPol-[%s]",
-			domainType, domainName, tDn)
+		fmt.Sprintf("%s/rsvswitchExporterPol-[%s]", parentDn, tDn)
 	return ret
 }
