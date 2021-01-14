@@ -17,8 +17,6 @@ package hostagent
 import (
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -387,14 +385,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
-	if agent.config.OpFlexFaultDir == "" {
-		agent.log.Warn("OpFlex Faults directories not set")
-	} else {
-		err = removeAllFiles(agent.config.OpFlexFaultDir)
-		if err != nil {
-			agent.log.Warn("Not able to clear faults files on agent: ", err.Error())
-		}
-	}
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)
 	if err != nil {
@@ -402,23 +392,4 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 
 	agent.cleanupSetup()
-}
-
-func removeAllFiles(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
-	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(dir, name))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

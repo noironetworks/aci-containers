@@ -327,6 +327,14 @@ func (agent *HostAgent) updateOpflexConfig() {
 		agent.log.Debug("OpFlex agent configuration path not set")
 		return
 	}
+	if agent.config.OpFlexFaultDir == "" {
+		agent.log.Warn("OpFlex Faults directories not set")
+	} else {
+		err := removeAllFiles(agent.config.OpFlexFaultDir)
+		if err != nil {
+			agent.log.Warn("Not able to clear faults files on agent: ", err.Error())
+		}
+	}
 
 	newNodeConfig := agent.discoverHostConfig()
 	if newNodeConfig == nil {
@@ -380,6 +388,25 @@ func (agent *HostAgent) writeOpflexConfig() error {
 	err = agent.writeConfigFile("10-renderer.conf", rtempl)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func removeAllFiles(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
