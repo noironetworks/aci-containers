@@ -53,10 +53,10 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 
 func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	Uuid := uuid.New().String()
-	FaultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
-	faultFileExists := fileExists(FaultFilePath)
+	faultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
+	faultFileExists := fileExists(faultFilePath)
 	if faultFileExists {
-		agent.log.Debug("fault file exist")
+		agent.log.Debug("fault file exist at: ", faultFilePath)
 		return
 	}
 	desc := strings.Replace(description, "_", " ", -1)
@@ -66,11 +66,11 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 		Description: desc,
 		FaultCode:   faultCode,
 	}
-	wrote, err := writeFault(FaultFilePath, fault)
+	wrote, err := writeFault(faultFilePath, fault)
 	if err != nil {
-		agent.log.Debug("Unable to write fault file")
+		agent.log.Warn("Unable to write fault file: ", err.Error())
 	} else if wrote {
-		agent.log.Debug("Created fault file")
+		agent.log.Debug("Created fault file at the location: ", faultFilePath)
 	}
 	return
 }

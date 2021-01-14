@@ -387,9 +387,13 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
-	err = RemoveAllFiles(agent.config.OpFlexFaultDir)
-	if err != nil {
-		fmt.Println(err)
+	if agent.config.OpFlexFaultDir == "" {
+		agent.log.Warn("OpFlex Faults directories not set")
+	} else {
+		err = removeAllFiles(agent.config.OpFlexFaultDir)
+		if err != nil {
+			agent.log.Warn("Not able to clear faults files on agent: ", err.Error())
+		}
 	}
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)
@@ -400,7 +404,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	agent.cleanupSetup()
 }
 
-func RemoveAllFiles(dir string) error {
+func removeAllFiles(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
 		return err
