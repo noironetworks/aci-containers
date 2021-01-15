@@ -1,7 +1,6 @@
-FROM registry.access.redhat.com/ubi8/ubi:latest
-RUN yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
-  --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms openvswitch2.13 logrotate conntrack-tools \
-  tcpdump curl strace ltrace iptables net-tools && yum clean all
+ARG basetag=latest
+ARG baserepo=quay.io/noirolabs
+FROM ${baserepo}/aci-containers-openvswitch-base:${basetag}
 # Required OpenShift Labels
 LABEL name="ACI CNI Openvswitch" \
 vendor="Cisco" \

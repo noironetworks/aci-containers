@@ -1,0 +1,7 @@
+ARG basetag=latest
+ARG baserepo=quay.io/noirolabs
+FROM ${baserepo}/aci-containers-base:${basetag}
+RUN yum --disablerepo=\*ubi\* install -y wget ca-certificates tar gzip \
+  && yum clean all \
+  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-linux-amd64-v0.8.7.tgz | tar xz -C /opt/cni/bin
+CMD ["/usr/bin/sh"]
