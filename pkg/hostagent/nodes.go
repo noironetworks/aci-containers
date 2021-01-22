@@ -115,6 +115,12 @@ func (agent *HostAgent) nodeChanged(obj interface{}) {
 				"epval": epval,
 			}).Info("Updated service endpoint")
 			agent.serviceEp = newServiceEp
+			// this case can be posible when there is a default snatpolicy present
+			// And nodeinfo service EP is not annotated
+			if _, ok := agent.opflexServices[SnatService]; ok {
+				agent.opflexServices[SnatService].InterfaceIp = agent.serviceEp.Ipv4.String()
+				agent.log.Infof("Updated Snat service-ext file: %s", agent.serviceEp.Ipv4.String())
+			}
 			updateServices = true
 		}
 	}
