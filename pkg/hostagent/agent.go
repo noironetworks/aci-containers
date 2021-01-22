@@ -385,6 +385,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
+
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)
 	if err != nil {

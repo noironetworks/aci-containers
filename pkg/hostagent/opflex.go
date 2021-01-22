@@ -52,11 +52,15 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 }
 
 func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
+        if agent.config.OpFlexFaultDir == "" {
+                agent.log.Error("OpFlex Fault directory not set")
+                return
+        }
 	Uuid := uuid.New().String()
 	faultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
 	faultFileExists := fileExists(faultFilePath)
 	if faultFileExists {
-		agent.log.Debug("fault file exist at: ", faultFilePath)
+	       	agent.log.Debug("Fault file exist at: ", faultFilePath)
 		return
 	}
 	desc := strings.Replace(description, "_", " ", -1)
@@ -332,8 +336,9 @@ func (agent *HostAgent) updateOpflexConfig() {
 	} else {
 		err := removeAllFiles(agent.config.OpFlexFaultDir)
 		if err != nil {
-			agent.log.Warn("Not able to clear faults files on agent: ", err.Error())
-		}
+			agent.log.Error("Not able to clear faults files on agent: ", err.Error())
+                }
+                agent.log.Debug("Cleared existig Faults files at the location ",agent.config.OpFlexFaultDir)
 	}
 
 	newNodeConfig := agent.discoverHostConfig()
