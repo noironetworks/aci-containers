@@ -108,32 +108,32 @@ func TestDiscoverHostConfigMTUMismtach(t *testing.T) {
 	defer os.RemoveAll(tempdir)
 	agent := testAgent()
 	//assigning user defined MTU to be greater than the uplink MTU
-	agent.config.OpFlexFaultDir =  tempdir
+	agent.config.OpFlexFaultDir = tempdir
 	agent.config.InterfaceMtu = 2000
 	config := agent.discoverHostConfig()
 	assert.Nil(t, config, "Host config is not nil")
 }
 
 func TestOpFlexFaultDirRemoveAll(t *testing.T) {
-        tempdir, err := ioutil.TempDir("", "faultdir_test_")
-        if err != nil {
-                panic(err)
-        }
-        defer os.RemoveAll(tempdir)
-        agent := testAgent()
-        agent.config.OpFlexFaultDir = tempdir
-        agent.removeAllFiles(tempdir)
+	tempdir, err := ioutil.TempDir("", "faultdir_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+	agent := testAgent()
+	agent.config.OpFlexFaultDir = tempdir
+	agent.removeAllFiles(tempdir)
 }
 
 func TestDiscoverHostIPNotSetForLink(t *testing.T) {
-        tempdir, err := ioutil.TempDir("", "faultdir_test_")
-        if err != nil {
-                panic(err)
-        }
-        defer os.RemoveAll(tempdir)
-        agent := testAgent()
-        agent.config.OpFlexFaultDir =  tempdir
-        agent.config.InterfaceMtu = 200
-        config := agent.discoverHostConfig()
-        assert.Nil(t, config, "Host config is not nil")
+	tempdir, err := ioutil.TempDir("", "faultdir_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+	agent := testAgent()
+	agent.config.OpFlexFaultDir = tempdir
+	agent.config.InterfaceMtu = 200
+	config := agent.discoverHostConfig()
+	assert.Nil(t, config, "Host config is not nil")
 }

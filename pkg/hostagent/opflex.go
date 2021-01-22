@@ -410,7 +410,7 @@ func (agent *HostAgent) removeAllFiles(dir string) error {
 	for _, name := range names {
 		err = os.RemoveAll(filepath.Join(dir, name))
 		if err != nil {
-			agent.log.Error("Not able to clear the Fault files  ",err)
+			agent.log.Error("Not able to clear the Fault Files  ", err)
 			return err
 		}
 	}
