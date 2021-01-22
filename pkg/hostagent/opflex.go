@@ -332,13 +332,13 @@ func (agent *HostAgent) updateOpflexConfig() {
 		return
 	}
 	if agent.config.OpFlexFaultDir == "" {
-		agent.log.Warn("OpFlex Faults directories not set")
+		agent.log.Warn("OpFlex Fault directory not set")
 	} else {
-		err := removeAllFiles(agent.config.OpFlexFaultDir)
+		err := agent.removeAllFiles(agent.config.OpFlexFaultDir)
 		if err != nil {
-			agent.log.Error("Not able to clear faults files on agent: ", err.Error())
+			agent.log.Error("Not able to clear Fault files on agent: ", err.Error())
 		}
-		agent.log.Debug("Cleared existig Faults files at the location ", agent.config.OpFlexFaultDir)
+		agent.log.Debug("Cleared existig Fault files at the location ", agent.config.OpFlexFaultDir)
 	}
 
 	newNodeConfig := agent.discoverHostConfig()
@@ -397,7 +397,7 @@ func (agent *HostAgent) writeOpflexConfig() error {
 	return nil
 }
 
-func removeAllFiles(dir string) error {
+func (agent *HostAgent) removeAllFiles(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
 		return err
@@ -410,6 +410,7 @@ func removeAllFiles(dir string) error {
 	for _, name := range names {
 		err = os.RemoveAll(filepath.Join(dir, name))
 		if err != nil {
+			agent.log.Error("Not able to clear the Fault files  ",err)
 			return err
 		}
 	}
