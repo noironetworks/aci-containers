@@ -101,14 +101,14 @@ func TestDiscoverHostConfigInvalidVlan(t *testing.T) {
 }
 
 func TestDiscoverHostConfigMTUMismtach(t *testing.T) {
-        tempdir, err := ioutil.TempDir("", "hostagent_test_")
-        if err != nil {
-                panic(err)
-        }
-        defer os.RemoveAll(tempdir)
-        agent := testAgent()
-        //assigning user defined MTU to be greater than the uplink MTU
-        agent.config.InterfaceMtu = 2000
-        config := agent.discoverHostConfig()
-        assert.Nil(t, config, "Host config is not nil")
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+	agent := testAgent()
+	//assigning user defined MTU to be greater than the uplink MTU
+	agent.config.InterfaceMtu = 2000
+	config := agent.discoverHostConfig()
+	assert.Nil(t, config, "Host config is not nil")
 }
