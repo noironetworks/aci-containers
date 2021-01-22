@@ -123,6 +123,9 @@ type HostAgentConfig struct {
 	// Directory for writing OpFlex snat metadata
 	OpFlexSnatDir string `json:"opflex-snat-dir,omitempty"`
 
+	// Directory for writing OpFlex fault metadata
+	OpFlexFaultDir string `json:"opflex-fault-dir,omitempty"`
+
 	// OpFlex agent's flow-ID cache directory
 	OpFlexFlowIdCacheDir string `json:"opflex-flowid-cache-dir,omitempty"`
 
@@ -244,6 +247,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 	flag.StringVar(&config.OpFlexSnatDir, "opflex-snat-dir", "/usr/local/var/lib/opflex-agent-ovs/snats/", "Directory for writing OpFlex snat metadata")
+	flag.StringVar(&config.OpFlexFaultDir, "opflex-fault-dir", "/usr/local/var/lib/opflex-agent-ovs/faults/", "Directory for writing OpFlex fault metadata")
 	flag.StringVar(&config.OpFlexFlowIdCacheDir, "opflex-flowid-cache-dir",
 		"/usr/local/var/lib/opflex-agent-ovs/ids/",
 		"OpFlex agent's flow-ID cache directory")

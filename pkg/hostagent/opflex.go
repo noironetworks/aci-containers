@@ -22,11 +22,62 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"text/template"
 
+	"encoding/json"
+	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
+
+type opflexFault struct {
+	FaultUUID   string `json:"fault_uuid"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	FaultCode   int    `json:"faultCode"`
+}
+
+func writeFault(faultfile string, ep *opflexFault) (bool, error) {
+	newdata, err := json.MarshalIndent(ep, "", "  ")
+	if err != nil {
+		return true, err
+	}
+	existingdata, err := ioutil.ReadFile(faultfile)
+	if err == nil && reflect.DeepEqual(existingdata, newdata) {
+		return false, nil
+	}
+	err = ioutil.WriteFile(faultfile, newdata, 0644)
+	return true, err
+}
+
+func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
+	if agent.config.OpFlexFaultDir == "" {
+		agent.log.Error("OpFlex Fault directory not set")
+		return
+	}
+	Uuid := uuid.New().String()
+	faultFilePath := filepath.Join(agent.config.OpFlexFaultDir, description+".fs")
+	faultFileExists := fileExists(faultFilePath)
+	if faultFileExists {
+		agent.log.Debug("Fault file exist at: ", faultFilePath)
+		return
+	}
+	desc := strings.Replace(description, "_", " ", -1)
+	fault := &opflexFault{
+		FaultUUID:   Uuid,
+		Severity:    "critical",
+		Description: desc,
+		FaultCode:   faultCode,
+	}
+	wrote, err := writeFault(faultFilePath, fault)
+	if err != nil {
+		agent.log.Warn("Unable to write fault file: ", err.Error())
+	} else if wrote {
+		agent.log.Debug("Created fault files at the location: ", faultFilePath)
+	}
+	return
+}
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	if agent.config.OpflexMode == "overlay" {
@@ -39,6 +90,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
+		description := "Could_not_enumerate_interfaces"
+		agent.createFaultOnAgent(description, 3)
 		return
 	}
 
@@ -62,6 +115,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"vlan": agent.config.AciInfraVlan,
 					"mtu":  link.MTU,
 				}).Error("OpFlex link MTU must be >= ", configMtu)
+				description := "User_configured_MTU_exceeds_opflex_MTU"
+				agent.createFaultOnAgent(description, 4)
 				return
 			}
 
@@ -79,6 +134,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 						"vlan": agent.config.AciInfraVlan,
 						"mtu":  parent.Attrs().MTU,
 					}).Error("Uplink MTU must be >= ", configMtu)
+					description := "User_configured_MTU_exceed_uplink_MTU"
+					agent.createFaultOnAgent(description, 5)
 					return
 				}
 			}
@@ -87,6 +144,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"index": link.ParentIndex,
 					"name":  link.Name,
 				}).Error("Could not find parent link for OpFlex interface")
+				description := "Could_not_find_parent_link_for_OpFlex_interface"
+				agent.createFaultOnAgent(description, 6)
 				return
 			}
 
@@ -96,6 +155,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
 				}).Error("Could not enumerate link addresses: ", err)
+				description := "Could_not_enumerate_link_addresses"
+				agent.createFaultOnAgent(description, 7)
 				return
 			}
 			var anycast net.IP
@@ -115,6 +176,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 					"name": link.Name,
 					"vlan": agent.config.AciInfraVlan,
 				}).Error("IP address not set for OpFlex link")
+				description := "IP_address_not_set_for_OpFlex_link"
+				agent.createFaultOnAgent(description, 8)
 				return
 			}
 
@@ -136,6 +199,8 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 
 	agent.log.WithFields(logrus.Fields{"vlan": agent.config.AciInfraVlan}).
 		Error("Could not find suitable host uplink interface for vlan")
+	description := "Could_not_find_suitable_host_uplink_interface_for_vlan"
+	agent.createFaultOnAgent(description, 9)
 	return
 }
 
@@ -161,6 +226,9 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     },
     "packet-event-notif": {
         "socket-name": ["{{.PacketEventNotificationSock | js}}"]
+    },
+    "host-agent-fault-sources": {
+        "filesystem": ["{{.OpFlexFaultDir | js}}"]
     }
 }
 `)
@@ -263,6 +331,15 @@ func (agent *HostAgent) updateOpflexConfig() {
 		agent.log.Debug("OpFlex agent configuration path not set")
 		return
 	}
+	if agent.config.OpFlexFaultDir == "" {
+		agent.log.Warn("OpFlex Fault directory not set")
+	} else {
+		err := agent.removeAllFiles(agent.config.OpFlexFaultDir)
+		if err != nil {
+			agent.log.Error("Not able to clear Fault files on agent: ", err.Error())
+		}
+		agent.log.Debug("Cleared existig Fault files at the location ", agent.config.OpFlexFaultDir)
+	}
 
 	newNodeConfig := agent.discoverHostConfig()
 	if newNodeConfig == nil {
@@ -316,6 +393,26 @@ func (agent *HostAgent) writeOpflexConfig() error {
 	err = agent.writeConfigFile("10-renderer.conf", rtempl)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (agent *HostAgent) removeAllFiles(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			agent.log.Error("Not able to clear the Fault Files  ", err)
+			return err
+		}
 	}
 	return nil
 }
