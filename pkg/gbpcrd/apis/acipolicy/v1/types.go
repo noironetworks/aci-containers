@@ -94,6 +94,7 @@ type PodIFStatus struct {
 	PodName     string `json:"podname,omitempty"`
 	ContainerID string `json:"containerID,omitempty"`
 	MacAddr     string `json:"macaddr,omitempty"`
+        AccessIfaceMac string `json:"accessifacemac,omitempty"`
 	IPAddr      string `json:"ipaddr,omitempty"`
 	EPG         string `json:"epg,omitempty"`
 	VTEP        string `json:"vtep,omitempty"`

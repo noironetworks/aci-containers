@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+        "net"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -58,6 +59,7 @@ type opflexEndpoint struct {
 
 	IpAddress  []string `json:"ip,omitempty"`
 	MacAddress string   `json:"mac,omitempty"`
+        AccessIfaceMac string `json:"accessifacemac,omitempty"`
 
 	AccessIface       string `json:"access-interface,omitempty"`
 	AccessUplinkIface string `json:"access-uplink-interface,omitempty"`
@@ -72,12 +74,26 @@ func (agent *HostAgent) getPodIFName(ns, podName string) string {
 	return fmt.Sprintf("%s.%s.%s", ns, podName, agent.vtepIP)
 }
 
+func getIfaceMacAddr(ifname string) (string, error) {
+    ifa, err := net.InterfaceByName(ifname)
+    if err != nil {
+        return "", err
+    }
+   a := ifa.HardwareAddr.String()
+   return a, nil
+}
+
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 
 	if agent.crdClient == nil {
 		ep.registered = true
 		return false // crd not used
 	}
+
+        accessIfaceMac, err := getIfaceMacAddr(ep.AccessIface)
+        if err != nil {
+            logrus.Errorf("Error getting AccessIfaceMac %v, pod: %s", err, ep.AccessIface)
+        }
 
 	// force the mask to /32
 	ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
@@ -87,6 +103,7 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 			PodName:     ep.Attributes["vm-name"],
 			ContainerID: ep.Uuid,
 			MacAddr:     ep.MacAddress,
+                        AccessIfaceMac: accessIfaceMac,
 			IPAddr:      ipRemEP,
 			EPG:         ep.EndpointGroup,
 			VTEP:        agent.vtepIP,
@@ -518,9 +535,16 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			}
 
 			epidstr := *epUuid + "_" + epmeta.Id.ContId + "_" + iface.HostVethName
+			accessIfaceMac, err := getIfaceMacAddr(iface.HostVethName)
+		        if err != nil {
+            			logger.Errorf("Error getting AccessIfaceMac %v, pod: %s", err, iface.HostVethName)
+        		} else {
+				logger.Debug("Got AccessIfaceMac %s, pod: %s", accessIfaceMac, iface.HostVethName)
+                        }
 			ep := &opflexEndpoint{
 				Uuid:              epidstr,
 				MacAddress:        iface.Mac,
+				AccessIfaceMac: accessIfaceMac,
 				IpAddress:         ips,
 				AccessIface:       iface.HostVethName,
 				AccessUplinkIface: patchAccessName,

@@ -52,7 +52,7 @@ sed -i -e "s/FROM noiro\/opflex-build-base/FROM $DOCKER_HUB_ID\/opflex-build-bas
 export GOPATH
 ACICONTAINERS_DIR=.
 
-[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex1
+[ -z "$OPFLEX_DIR" ] && OPFLEX_DIR=$HOME/work/opflex
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
@@ -104,7 +104,7 @@ docker run -w /usr/local $DOCKER_HUB_ID/opflex-build$DOCKER_TAG /bin/sh -c \
 cp docker/launch-opflexagent.sh build/opflex/dist/bin/
 cp docker/launch-mcastdaemon.sh build/opflex/dist/bin/
 cp docker/launch-opflexserver.sh build/opflex/dist/bin/
-cp -Rf docker/licenses build/opflex/dist
+#cp -Rf docker/licenses build/opflex/dist
 cp $DOCKER_DIR/Dockerfile-opflex build/opflex/dist/
 cp $DOCKER_DIR/Dockerfile-opflexserver build/opflex/dist/
 

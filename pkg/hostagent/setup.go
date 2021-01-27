@@ -278,6 +278,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		if err != nil {
 			return nil, err
 		}
+		logger.Debug("Attaching bpf program for interface ", iface.Name)
 		_, err = os.Stat("/usr/local/bin/attach_bpf_ep.sh");
 		if !os.IsNotExist(err) {
 			cmd := exec.Command("/usr/local/bin/attach_bpf_ep.sh", iface.HostVethName)
@@ -285,6 +286,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			if err != nil {
 				logger.Error("Failed to exec attach_bpf_ep.sh, error ", err)
 			}
+		} else {
+			logger.Error("Failed to open attach_bpf_ep.sh, error ", err)
 		}
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
