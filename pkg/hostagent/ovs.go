@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/socketplane/libovsdb"
+        "os"
+        "os/exec"
 	"reflect"
 	"strconv"
 )
@@ -131,7 +133,13 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	}
 
 	ops := agent.diffPorts(bridges)
-	return execTransaction(ovs, ops)
+	ret := execTransaction(ovs, ops)
+        _, err = os.Stat("/usr/local/bin/attach_bpf_ep.sh");
+        if !os.IsNotExist(err) {
+                cmd := exec.Command("/usr/local/bin/attach_bpf_ep.sh", "vxlan_sys_8472", "ingress", "vxlan-ingress")
+                cmd.Run()
+        }
+        return ret
 }
 
 func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Operation {

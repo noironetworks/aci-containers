@@ -281,7 +281,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		logger.Debug("Attaching bpf program for interface ", iface.Name)
 		_, err = os.Stat("/usr/local/bin/attach_bpf_ep.sh");
 		if !os.IsNotExist(err) {
-			cmd := exec.Command("/usr/local/bin/attach_bpf_ep.sh", iface.HostVethName)
+			cmd := exec.Command("/usr/local/bin/attach_bpf_ep.sh", iface.HostVethName, "ingress", "ep-ingress")
 			err := cmd.Run()
 			if err != nil {
 				logger.Error("Failed to exec attach_bpf_ep.sh, error ", err)
