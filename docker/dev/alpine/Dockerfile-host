@@ -1,4 +1,4 @@
-FROM alpine:3.12.1
+FROM alpine:3.12.3
 RUN apk upgrade --no-cache && apk add --no-cache iproute2 nftables openvswitch
 COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 ENV TENANT=kube

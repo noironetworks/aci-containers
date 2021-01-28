@@ -1,4 +1,4 @@
-FROM alpine:3.12.1
+FROM alpine:3.12.3
 ARG ROOT=/usr/local
 #COPY ovs-musl.patch /
 COPY ovsdb-idlc.in-fix-dict-change-during-iteration.patch /
