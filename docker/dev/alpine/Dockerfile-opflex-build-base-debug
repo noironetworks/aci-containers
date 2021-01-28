@@ -1,4 +1,4 @@
-FROM alpine:3.12.1
+FROM alpine:3.12.3
 ARG ROOT=/usr/local
 COPY ovs-musl.patch /
 RUN apk upgrade --no-cache && apk add --no-cache build-base \

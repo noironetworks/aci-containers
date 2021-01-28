@@ -1,4 +1,4 @@
-FROM alpine:3.12.1
+FROM alpine:3.12.3
 RUN apk upgrade --no-cache
 COPY dist-static/gbpserver /usr/local/bin/
 

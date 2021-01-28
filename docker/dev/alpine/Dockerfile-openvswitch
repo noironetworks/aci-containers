@@ -1,4 +1,4 @@
-FROM alpine:3.12.1
+FROM alpine:3.12.3
 RUN apk upgrade --no-cache && \
   apk --no-cache add openvswitch logrotate conntrack-tools tcpdump curl strace \
   ltrace iptables net-tools
