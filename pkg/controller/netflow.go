@@ -150,12 +150,15 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	} else {
 		nf.SetAttr("dstPort", "2055")
 	}
-	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
-		nf.SetAttr("ver", "v5")
-	} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
-		nf.SetAttr("ver", "v9")
-	} else {
-		nf.SetAttr("ver", "v5")
+	// Ability to set netflow "version" attribute is available only for APIC versions >= 5.0(x)
+	if apicapi.ApicVersion >= "5.0" {
+		if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
+			nf.SetAttr("ver", "v5")
+		} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+			nf.SetAttr("ver", "v9")
+		} else {
+			nf.SetAttr("ver", "v5")
+		}
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)

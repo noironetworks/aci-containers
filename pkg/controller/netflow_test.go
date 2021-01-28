@@ -50,7 +50,9 @@ func makeNf(name string, dstAddr string, dstPort int,
 	apicSlice := apicapi.ApicSlice{nf1}
 	nf1.SetAttr("dstAddr", dstAddr)
 	nf1.SetAttr("dstPort", strconv.Itoa(dstPort))
-	nf1.SetAttr("ver", ver)
+	if apicapi.ApicVersion >= "5.0" {
+		nf1.SetAttr("ver", ver)
+	}
 	nf1VmmVSwitch :=
 		apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "")
 	nf1RsVmmVSwitch :=
