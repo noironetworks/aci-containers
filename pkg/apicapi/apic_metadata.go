@@ -860,7 +860,6 @@ var metadata = map[string]*apicMeta{
 	"netflowVmmExporterPol": {
 		attributes: map[string]interface{}{
 			"name":    "",
-			"ver":     "v5",
 			"dstAddr": "",
 			"dstPort": "unspecified",
 		},
