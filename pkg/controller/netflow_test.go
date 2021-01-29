@@ -62,7 +62,7 @@ func makeNf(name string, dstAddr string, dstPort int,
 	nf1RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(idleFlowTimeOut))
 	nf1RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(samplingRate))
 
-	apicSlice = append(apicSlice, nf1RsVmmVSwitch)
+	apicSlice = append(apicSlice, nf1VmmVSwitch)
 
 	return apicSlice
 }

@@ -183,7 +183,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 
 	cont.log.Info("Netflow ApicSlice: ", apicSlice)
 
-	return apicapi.ApicSlice{nf, RsVmmVSwitch}
+	return apicapi.ApicSlice{nf, VmmVSwitch}
 
 }
 
