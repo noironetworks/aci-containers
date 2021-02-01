@@ -150,15 +150,17 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	} else {
 		nf.SetAttr("dstPort", "2055")
 	}
-	// Ability to set netflow "version" attribute is available only for APIC versions >= 5.0(x)
-	if apicapi.ApicVersion >= "5.0" {
-		if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
-			nf.SetAttr("ver", "v5")
-		} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
-			nf.SetAttr("ver", "v9")
-		} else {
-			nf.SetAttr("ver", "v5")
-		}
+	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
+	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
+	if apicapi.ApicVersion < "5.0" {
+		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ", apicapi.ApicVersion)
+	}
+	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
+		nf.SetAttr("ver", "v5")
+	} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+		nf.SetAttr("ver", "v9")
+	} else {
+		nf.SetAttr("ver", "v5")
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
@@ -183,7 +185,7 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 
 	cont.log.Info("Netflow ApicSlice: ", apicSlice)
 
-	return apicapi.ApicSlice{nf, RsVmmVSwitch}
+	return apicapi.ApicSlice{nf, VmmVSwitch}
 
 }
 

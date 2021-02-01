@@ -50,9 +50,7 @@ func makeNf(name string, dstAddr string, dstPort int,
 	apicSlice := apicapi.ApicSlice{nf1}
 	nf1.SetAttr("dstAddr", dstAddr)
 	nf1.SetAttr("dstPort", strconv.Itoa(dstPort))
-	if apicapi.ApicVersion >= "5.0" {
-		nf1.SetAttr("ver", ver)
-	}
+	nf1.SetAttr("ver", ver)
 	nf1VmmVSwitch :=
 		apicapi.NewVmmVSwitchPolicyCont("Kubernetes", "")
 	nf1RsVmmVSwitch :=
@@ -62,7 +60,7 @@ func makeNf(name string, dstAddr string, dstPort int,
 	nf1RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(idleFlowTimeOut))
 	nf1RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(samplingRate))
 
-	apicSlice = append(apicSlice, nf1RsVmmVSwitch)
+	apicSlice = append(apicSlice, nf1VmmVSwitch)
 
 	return apicSlice
 }

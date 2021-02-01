@@ -25,10 +25,13 @@ import (
 )
 
 // NetflowPolicyLister helps list NetflowPolicies.
+// All objects returned here must be treated as read-only.
 type NetflowPolicyLister interface {
 	// List lists all NetflowPolicies in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha.NetflowPolicy, err error)
 	// Get retrieves the NetflowPolicy from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha.NetflowPolicy, error)
 	NetflowPolicyListerExpansion
 }

@@ -32,18 +32,22 @@ type NetflowType struct {
 	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
 	// The Cisco Discovery Protocol (CDP) version supported by the device.
-	Version string `json:"flowType"`
+	// +optional
+	Version string `json:"flowType,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600
 	// Specifies the timeout for an active flow.
-	ActiveFlowTimeOut int `json:"activeFlowTimeOut"`
+	// +optional
+	ActiveFlowTimeOut int `json:"activeFlowTimeOut,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=600
 	// Specifies the timeout for an idle flow.
-	IdleFlowTimeOut int `json:"idleFlowTimeOut"`
+	// +optional
+	IdleFlowTimeOut int `json:"idleFlowTimeOut,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=1000
-	SamplingRate int `json:"samplingRate"`
+	// +optional
+	SamplingRate int `json:"samplingRate,omitempty"`
 }
 
 // NetflowPolicyStatus defines the observed state of NetflowPolicy
