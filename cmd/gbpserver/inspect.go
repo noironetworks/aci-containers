@@ -28,7 +28,7 @@ import (
 )
 
 func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
-	if cfg.Apic == nil {
+	if opts.configPath == "None" {
 		fmt.Printf("Please specify config-path ($GBP_SERVER_CONF)\n")
 		return
 	}
@@ -41,6 +41,10 @@ func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
 		inspectGRPC(opts, cfg)
 
 	case "kafka":
+		if cfg.Apic == nil {
+			fmt.Printf("Need cfg.Apic for kafka\n")
+			return
+		}
 		inspectKafka(opts, cfg)
 
 	default:
