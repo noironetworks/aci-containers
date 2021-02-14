@@ -42,15 +42,18 @@ RUN git clone -b libnftnl-1.1.7 https://git.netfilter.org/libnftnl \
   && make install && make clean \
   && cd / \
   && rm -rf libuv \
+  && wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.17.0/cmake-3.17.0-Linux-x86_64.sh \
+  && mkdir -p cmake-tmp \
+  && sh cmake-linux.sh -- --skip-license --prefix=cmake-tmp \
+  && rm cmake-linux.sh \
   && git clone https://github.com/noironetworks/3rdparty-debian.git \
-  && git clone https://github.com/jupp0r/prometheus-cpp.git \
+  && git clone https://github.com/jupp0r/prometheus-cpp.git -b v0.12.1 --depth 1 \
   && cd prometheus-cpp \
-  && git checkout 9effb90b0c266316358680cbf862a8564eb2c2d4 \
   && git submodule init \
   && git submodule update \
   && git apply /3rdparty-debian/prometheus/prometheus-cpp.patch \
   && mkdir _build && cd _build \
-  && cmake .. -DBUILD_SHARED_LIBS=ON \
+  && ../../cmake-tmp/bin/cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF \
   && make $make_args && make install && make clean \
   && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/ \
   && cd / \
@@ -59,13 +62,9 @@ RUN git clone -b libnftnl-1.1.7 https://git.netfilter.org/libnftnl \
   && git clone -b v1.31.0 https://github.com/grpc/grpc --config submodule.third_party/re2.url=https://github.com/google/re2.git --config submodule.third_party/re2.active=true \
   && cd grpc \
   && git submodule update --init \
-  && wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.17.0/cmake-3.17.0-Linux-x86_64.sh \
-  && mkdir -p cmake-tmp \
-  && sh cmake-linux.sh -- --skip-license --prefix=cmake-tmp \
-  && rm cmake-linux.sh \
   && mkdir -p cmake/build \
   && cd cmake/build \
-  && ../../cmake-tmp/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
+  && ../../../cmake-tmp/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
                                -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
                                -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
                                -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF \
