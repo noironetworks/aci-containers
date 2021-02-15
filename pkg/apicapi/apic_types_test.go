@@ -194,4 +194,31 @@ func TestTypes(t *testing.T) {
 		NewVmmVSwitchPolicyCont("Kubernetes", "k8s").GetDn())
 	assert.Equal(t, "fake/dn/rsvswitchExporterPol-[uni/infra/vmmexporterpol-testTan]",
 		NewVmmRsVswitchExporterPol("fake/dn", "uni/infra/vmmexporterpol-testTan").GetDn())
+	assert.Equal(t, "uni/infra/vsrcgrp-testSrcGrp",
+		NewSpanVSrcGrp("testSrcGrp").GetDn())
+	assert.Equal(t, "fake/dn/vsrc-testSrc",
+		NewSpanVSrc("fake/dn", "testSrc").GetDn())
+	assert.Equal(t, "fake/dn/rssrcToVPort-"+
+		"[uni/tn-infra/ap-access/epg-default/cep-58:F3:9C:24:5B:F0]",
+		NewSpanRsSrcToVPort("fake/dn", "uni/tn-infra/ap-access/epg-default/cep-58:F3:9C:24:5B:F0").GetDn())
+	assert.Equal(t, "uni/infra/vdestgrp-testDestGrp",
+		NewSpanVDestGrp("testDestGrp").GetDn())
+	assert.Equal(t, "fake/dn/vdest-testDest",
+		NewSpanVDest("fake/dn", "testDest").GetDn())
+	assert.Equal(t, "fake/dn/vepgsummary",
+		NewSpanVEpgSummary("fake/dn").GetDn())
+	assert.Equal(t, "fake/dn/spanlbl-testDestGrp",
+		NewSpanSpanLbl("fake/dn", "testDestGrp").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accbundle-vpc-101-1-20-102-1-20",
+		NewInfraAccBndlGrp("vpc-101-1-20-102-1-20").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accportgrp-sauto_l3out_port_grp",
+		NewInfraAccPortGrp("sauto_l3out_port_grp").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accbundle-fake/rsspanVSrcGrp-testSrcGrp",
+		NewInfraRsSpanVSrcGrp("fake", "testSrcGrp").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accbundle-fake/rsspanVDestGrp-testDestGrp",
+		NewInfraRsSpanVDestGrp("fake", "testDestGrp").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accportgrp-fake/rsspanVSrcGrp-testSrcGrp",
+		NewInfraRsSpanVSrcGrpAP("fake", "testSrcGrp").GetDn())
+	assert.Equal(t, "uni/infra/funcprof/accportgrp-fake/rsspanVDestGrp-testDestGrp",
+		NewInfraRsSpanVDestGrpAP("fake", "testDestGrp").GetDn())
 }

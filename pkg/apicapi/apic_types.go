@@ -1102,3 +1102,105 @@ func NewVmmRsVswitchExporterPol(parentDn string, tDn string) ApicObject {
 		fmt.Sprintf("%s/rsvswitchExporterPol-[%s]", parentDn, tDn)
 	return ret
 }
+
+func NewSpanVSrcGrp(name string) ApicObject {
+	ret := newApicObject("spanVSrcGrp")
+	ret["spanVSrcGrp"].Attributes["name"] = name
+	ret["spanVSrcGrp"].Attributes["nameAlias"] = truncatedName(name)
+	ret["spanVSrcGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/vsrcgrp-%s", name)
+	return ret
+}
+func NewSpanVSrc(vSourceGroup string, name string) ApicObject {
+	ret := newApicObject("spanVSrc")
+	ret["spanVSrc"].Attributes["name"] = name
+	ret["spanVSrc"].Attributes["nameAlias"] = truncatedName(name)
+	ret["spanVSrc"].Attributes["dn"] =
+		fmt.Sprintf("%s/vsrc-%s", vSourceGroup, name)
+	return ret
+}
+func NewSpanRsSrcToVPort(parentDn string, tDn string) ApicObject {
+	ret := newApicObject("spanRsSrcToVPort")
+	ret["spanRsSrcToVPort"].Attributes["tDn"] = tDn
+	ret["spanRsSrcToVPort"].Attributes["dn"] =
+		fmt.Sprintf("%s/rssrcToVPort-[%s]", parentDn, tDn)
+	return ret
+}
+func NewSpanVDestGrp(name string) ApicObject {
+	ret := newApicObject("spanVDestGrp")
+	ret["spanVDestGrp"].Attributes["name"] = name
+	ret["spanVDestGrp"].Attributes["nameAlias"] = truncatedName(name)
+	ret["spanVDestGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/vdestgrp-%s", name)
+	return ret
+}
+func NewSpanVDest(vDestGroup string, name string) ApicObject {
+	ret := newApicObject("spanVDest")
+	ret["spanVDest"].Attributes["name"] = name
+	ret["spanVDest"].Attributes["nameAlias"] = truncatedName(name)
+	ret["spanVDest"].Attributes["dn"] =
+		fmt.Sprintf("%s/vdest-%s", vDestGroup, name)
+	return ret
+}
+func NewSpanVEpgSummary(parentDn string) ApicObject {
+	ret := newApicObject("spanVEpgSummary")
+	ret["spanVEpgSummary"].Attributes["dn"] =
+		fmt.Sprintf("%s/vepgsummary", parentDn)
+	return ret
+}
+func NewSpanSpanLbl(vSourceGroup string, name string) ApicObject {
+	ret := newApicObject("spanSpanLbl")
+	ret["spanSpanLbl"].Attributes["name"] = name
+	ret["spanSpanLbl"].Attributes["nameAlias"] = truncatedName(name)
+	ret["spanSpanLbl"].Attributes["dn"] =
+		fmt.Sprintf("%s/spanlbl-%s", vSourceGroup, name)
+	return ret
+}
+func NewInfraAccBndlGrp(name string) ApicObject {
+	ret := newApicObject("infraAccBndlGrp")
+	ret["infraAccBndlGrp"].Attributes["name"] = name
+	ret["infraAccBndlGrp"].Attributes["nameAlias"] = truncatedName(name)
+	ret["infraAccBndlGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accbundle-%s", name)
+	return ret
+}
+func NewInfraAccPortGrp(name string) ApicObject {
+	ret := newApicObject("infraAccPortGrp")
+	ret["infraAccPortGrp"].Attributes["name"] = name
+	ret["infraAccPortGrp"].Attributes["nameAlias"] = truncatedName(name)
+	ret["infraAccPortGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accportgrp-%s", name)
+	return ret
+}
+func NewInfraRsSpanVSrcGrp(accBndlGrpName string, tnSpanVSrcGrpName string) ApicObject {
+	ret := newApicObject("infraRsSpanVSrcGrp")
+	ret["infraRsSpanVSrcGrp"].Attributes["tnSpanVSrcGrpName"] = tnSpanVSrcGrpName
+	ret["infraRsSpanVSrcGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accbundle-%s/rsspanVSrcGrp-%s",
+			accBndlGrpName, tnSpanVSrcGrpName)
+	return ret
+}
+func NewInfraRsSpanVDestGrp(accBndlGrpName string, tnSpanVDestGrpName string) ApicObject {
+	ret := newApicObject("infraRsSpanVDestGrp")
+	ret["infraRsSpanVDestGrp"].Attributes["tnSpanVDestGrpName"] = tnSpanVDestGrpName
+	ret["infraRsSpanVDestGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accbundle-%s/rsspanVDestGrp-%s",
+			accBndlGrpName, tnSpanVDestGrpName)
+	return ret
+}
+func NewInfraRsSpanVSrcGrpAP(accPortGrpName string, tnSpanVSrcGrpName string) ApicObject {
+	ret := newApicObject("infraRsSpanVSrcGrp")
+	ret["infraRsSpanVSrcGrp"].Attributes["tnSpanVSrcGrpName"] = tnSpanVSrcGrpName
+	ret["infraRsSpanVSrcGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accportgrp-%s/rsspanVSrcGrp-%s",
+			accPortGrpName, tnSpanVSrcGrpName)
+	return ret
+}
+func NewInfraRsSpanVDestGrpAP(accPortGrpName string, tnSpanVDestGrpName string) ApicObject {
+	ret := newApicObject("infraRsSpanVDestGrp")
+	ret["infraRsSpanVDestGrp"].Attributes["tnSpanVDestGrpName"] = tnSpanVDestGrpName
+	ret["infraRsSpanVDestGrp"].Attributes["dn"] =
+		fmt.Sprintf("uni/infra/funcprof/accportgrp-%s/rsspanVDestGrp-%s",
+			accPortGrpName, tnSpanVDestGrpName)
+	return ret
+}

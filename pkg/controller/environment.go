@@ -18,6 +18,7 @@ import (
 	"context"
 	"strings"
 
+	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
@@ -179,6 +180,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
+	cont.initErspanPolPodIndex()
 	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
 	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
@@ -206,6 +208,8 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 
 	cont.registerCRDHook(qosCRDName, qosInit)
 	cont.registerCRDHook(netflowCRDName, netflowInit)
+	cont.registerCRDHook(erspanCRDName, erspanInit)
+	cont.registerCRDHook(podIfCRDName, podIfInit)
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
@@ -270,6 +274,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
+	go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
+		func(obj interface{}) bool {
+			return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
+		}, stopCh)
+	cont.erspanSyncOpflexDev()
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
 	if cont.config.InstallIstio {
 		go cont.istioInformer.Run(stopCh)

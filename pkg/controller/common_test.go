@@ -46,6 +46,8 @@ type testAciController struct {
 	fakeSnatPolicySource    *framework.FakeControllerSource
 	fakeQosPolicySource     *framework.FakeControllerSource
 	fakeNetflowPolicySource *framework.FakeControllerSource
+	fakeErspanPolicySource  *framework.FakeControllerSource
+	fakePodIFSource         *framework.FakeControllerSource
 	fakeAimSource           *framework.FakeControllerSource
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
@@ -151,6 +153,20 @@ func testController() *testAciController {
 			WatchFunc: cont.fakeNetflowPolicySource.Watch,
 		})
 
+	cont.fakeErspanPolicySource = framework.NewFakeControllerSource()
+	cont.initErspanInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeErspanPolicySource.List,
+			WatchFunc: cont.fakeErspanPolicySource.Watch,
+		})
+
+	cont.fakePodIFSource = framework.NewFakeControllerSource()
+	cont.initPodIfInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakePodIFSource.List,
+			WatchFunc: cont.fakePodIFSource.Watch,
+		})
+
 	cont.fakeNodeInfoSource = framework.NewFakeControllerSource()
 	cont.initSnatNodeInformerBase(
 		&cache.ListWatch{
@@ -194,6 +210,7 @@ func testController() *testAciController {
 
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
+	cont.initErspanPolPodIndex()
 	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
 	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
