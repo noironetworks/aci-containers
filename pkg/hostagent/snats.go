@@ -882,7 +882,6 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 		if !ok {
 			continue
 		}
-		agent.log.Debug("Local info: ", localinfo)
 		var i uint = 1
 		var pos uint = 0
 		var policystack []string
