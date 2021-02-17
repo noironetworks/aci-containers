@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/noironetworks/aci-containers.svg?branch=master)](https://travis-ci.org/noironetworks/aci-containers)
+[![Build Status](https://travis-ci.com/noironetworks/aci-containers.svg?branch=master)](https://travis-ci.com/noironetworks/aci-containers)
 [![Go Report Card](https://goreportcard.com/badge/github.com/noironetworks/aci-containers)](https://goreportcard.com/report/github.com/noironetworks/aci-containers)
 [![image](https://coveralls.io/repos/github/noironetworks/aci-containers/badge.svg?branch=master)](https://coveralls.io/github/noironetworks/aci-containers?branch=master)
 
