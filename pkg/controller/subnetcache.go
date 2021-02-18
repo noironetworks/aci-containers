@@ -17,9 +17,14 @@ package controller
 import (
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
+
+	"encoding/json"
 	"sort"
 	"strings"
 )
+
+var cachedVRFDns []string
 
 func (cont *AciController) SubnetChanged(obj apicapi.ApicObject, aciVrfDn string) {
 	subnetDn := obj.GetAttrStr("dn")
@@ -127,7 +132,7 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 	}
 	sort.Strings(vrfEpgDns)
 	cont.log.Debug("aciVrfEpgDns: ", vrfEpgDns)
-
+	cachedVRFDns = vrfEpgDns
 	apicresp, err = cont.apicConn.GetApicResponse(SubnetUri)
 	if err != nil {
 		return
@@ -153,4 +158,35 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 func (cont *AciController) contains(s []string, searchterm string) bool {
 	i := sort.SearchStrings(s, searchterm)
 	return i < len(s) && s[i] == searchterm
+}
+
+func (cont *AciController) getCachedVRFDns() []string {
+	return cachedVRFDns
+}
+
+func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, metadata.OpflexGroup) {
+	var egval metadata.OpflexGroup
+
+	if epGroup != "" {
+		err := json.Unmarshal([]byte(epGroup), &egval)
+		if err != nil {
+			cont.log.Warn("Could not decode the annotation : ", comment)
+			return false, egval
+		}
+	}
+	if (egval.Tenant != "") && (egval.AppProfile != "") && (egval.Name != "") {
+		vrfDns := cont.getCachedVRFDns()
+		if vrfDns == nil {
+			return false, egval
+		}
+
+		dn := "uni/" + egval.Tenant + "/" +
+			egval.AppProfile + "/" + egval.Name
+		exist := cont.contains(vrfDns, dn)
+
+		if !exist {
+			return true, egval
+		}
+	}
+	return false, egval
 }

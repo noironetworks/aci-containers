@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +80,41 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 		return
 	}
 	cont.podQueue.Add(podkey)
+}
+
+func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
+	var egval metadata.OpflexGroup
+
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
+		return
+	}
+
+	key := cont.aciNameForKey("pod", podkey)
+	epGroup := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
+	notExist, egval := cont.checkVrfCache(epGroup, "pod[EpgAnnotation]")
+
+	if notExist && egval.Name != "" {
+		desc := "Pod Annotation failed for the pod " + pod.Name + "(Namespace " +
+			pod.Namespace + ", Reason being: " + "Cannot resolve the EPG " + egval.Name +
+			" for the tenant " + egval.Tenant + " and app-profile " + egval.AppProfile
+		faultCode := strconv.Itoa(10)
+		severity := "major"
+		cont.createFaultInst(key, desc, faultCode, severity)
+	}
+	return
+}
+
+func (cont *AciController) createFaultInst(key string, desc string, code string, severity string) {
+	aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
+		cont.config.AciVmmDomain, cont.config.AciVmmController)
+	aPrObjDn := aPrObj.GetDn()
+	aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, code)
+	aObj.SetAttr("faultDesc", desc)
+	aObj.SetAttr("faultCode", code)
+	aObj.SetAttr("faultSeverity", severity)
+	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
 }
 
 func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
@@ -140,6 +176,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	cont.netPolIngressPods.UpdatePodNoCallback(pod)
 	cont.netPolEgressPods.UpdatePodNoCallback(pod)
 	cont.queuePodUpdate(pod)
+	cont.checkIfEpgExistPod(pod)
 }
 
 func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
@@ -172,6 +209,7 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	if shouldqueue {
 		cont.queuePodUpdate(newpod)
 	}
+	cont.checkIfEpgExistPod(newpod)
 }
 
 func (cont *AciController) podDeleted(obj interface{}) {

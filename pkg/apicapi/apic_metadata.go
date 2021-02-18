@@ -970,6 +970,25 @@ var metadata = map[string]*apicMeta{
 		},
 		children: []string{},
 	},
+	"vmmInjectedClusterInfo": {
+		attributes: map[string]interface{}{
+			"accountName": "",
+			"version":     "",
+			"provider":    "",
+		},
+		children: []string{
+			"vmmnInjectedClusterDetails",
+			"vmmInjectedClusterSubnet",
+			"vmmClusterFaultInfo",
+		},
+	},
+	"vmmClusterFaultInfo": {
+		attributes: map[string]interface{}{
+			"faultDesc":     "",
+			"faultSeverity": "",
+			"faultCode":     "",
+		},
+	},
 }
 
 func AddMetaDataChild(parent, child string) error {

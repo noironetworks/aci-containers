@@ -19,7 +19,9 @@ package controller
 
 import (
 	"reflect"
+	"strconv"
 
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -79,6 +81,7 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	cont.netPolPods.UpdateNamespace(ns)
 	cont.netPolIngressPods.UpdateNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+	cont.checkIfEpgExistNs(ns)
 }
 
 func (cont *AciController) namespaceChanged(oldobj interface{},
@@ -98,6 +101,7 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 		newns.ObjectMeta.Annotations) {
 		cont.updatePodsForNamespace(newns.ObjectMeta.Name)
 	}
+	cont.checkIfEpgExistNs(newns)
 }
 
 func (cont *AciController) namespaceDeleted(obj interface{}) {
@@ -119,4 +123,27 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 	cont.netPolPods.DeleteNamespace(ns)
 	cont.netPolIngressPods.DeleteNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+}
+
+func (cont *AciController) checkIfEpgExistNs(namespaceobj *v1.Namespace) {
+	var egval metadata.OpflexGroup
+
+	nskey := cont.aciNameForKey("ns", namespaceobj.Name)
+	if nskey == "" {
+		cont.log.Error("Could not retrieve namespace key")
+		return
+	}
+
+	epGroup := namespaceobj.ObjectMeta.Annotations[metadata.EgAnnotation]
+	notExist, egval := cont.checkVrfCache(epGroup, "namespace[EpgAnnotation]")
+
+	if notExist && egval.Name != "" {
+		desc := "Annotation failed for the Namespace " + namespaceobj.Name +
+			", Reason being: " + " Cannot resolve the EPG " + egval.Name +
+			" for the tenant " + egval.Tenant + " and app-profile " + egval.AppProfile
+		faultCode := strconv.Itoa(11)
+		severity := "critical"
+		cont.createFaultInst(nskey, desc, faultCode, severity)
+	}
+	return
 }

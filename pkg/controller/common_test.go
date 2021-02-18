@@ -28,6 +28,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	v1beta1 "k8s.io/api/discovery/v1beta1"
+	"sort"
 )
 
 type testAciController struct {
@@ -56,6 +57,43 @@ type testAciController struct {
 	podUpdates              []*v1.Pod
 	nodeUpdates             []*v1.Node
 	serviceUpdates          []*v1.Service
+}
+
+const egAnnot = "{\"tenant\": \"testps\", " +
+	"\"app-profile\": \"test\", \"name\": \"test-eg\"}"
+const sgAnnot = "[{\"tenant\": \"testps\", \"name\": \"test-sg\"}]"
+const qpAnnot = "{\"tenant\": \"testps\", " +
+	"\"app-profile\": \"test\", \"name\": \"test-qp\"}"
+
+var vrfEpgDn string = "uni/testps/test/test-eg"
+var cachedVRFDn []string
+
+type podTest struct {
+	uuid      string
+	cont      string
+	veth      string
+	namespace string
+	name      string
+	ip        string
+	mac       string
+	eg        string
+	sg        string
+	qp        string
+}
+
+var podTests = []podTest{
+	{
+		"730a8e7a-8455-4d46-8e6e-f4fdf0e3a667",
+		"cont1",
+		"veth1",
+		"testns",
+		"pod1",
+		"10.1.1.1",
+		"00:0c:29:92:fe:d0",
+		egAnnot,
+		sgAnnot,
+		qpAnnot,
+	},
 }
 
 func testController() *testAciController {
@@ -215,6 +253,23 @@ func testController() *testAciController {
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
 	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
 
+	for _, pt := range podTests {
+		pod := pod(pt.namespace, pt.name, pt.eg, pt.sg)
+		cont.checkIfEpgExistPod(pod)
+		cachedVRFDns = append(cachedVRFDns, "uni/tn-bashokba/ap-aci-containers-bashokba/epg-aci-containers-system")
+		cachedVRFDns = append(cachedVRFDns, "uni/testps/test/test-eg")
+
+		sort.Strings(cachedVRFDns)
+		cont.contains(cachedVRFDns, vrfEpgDn)
+		cont.checkVrfCache(pt.eg, "pod annotation")
+
+		namespace := namespace(pt.name, pt.eg, pt.sg)
+		cont.checkIfEpgExistNs(namespace)
+
+		deployment := deployment(pt.namespace, pt.name, pt.eg, pt.sg)
+		cont.checkIfEpgExistDep(deployment)
+
+	}
 	return cont
 }
 
