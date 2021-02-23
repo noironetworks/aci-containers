@@ -18,6 +18,7 @@ package controller
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -129,7 +130,7 @@ func (cont *AciController) initPodIfInformerBase(listWatch *cache.ListWatch) {
 				cont.podIFAdded(obj)
 			},
 			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				cont.podIFAdded(newobj)
+				cont.podIFUpdated(oldobj, newobj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				cont.podIFDeleted(obj)
@@ -153,22 +154,54 @@ func isValidEPG(podif *podIfpolicy.PodIF) bool {
 	return true
 }
 
+func getPodifEPG(podif *podIfpolicy.PodIF) string {
+	deconcatenate := strings.Split(podif.Status.EPG, "|")
+	deconEPG := deconcatenate[len(deconcatenate)-1]
+	return deconEPG
+}
+
+func getPodifAppProfile(podif *podIfpolicy.PodIF) string {
+	deconcatenate := strings.Split(podif.Status.EPG, "|")
+	deconAppProfile := deconcatenate[0]
+	return deconAppProfile
+}
+
 func (cont *AciController) podIFAdded(obj interface{}) {
 	podif := obj.(*podIfpolicy.PodIF)
 	cont.log.Infof("podif Added: %s", podif.ObjectMeta.Name)
 	cont.indexMutex.Lock()
-	deconcatenate := strings.Split(podif.Status.EPG, "|")
-	deconEPG := deconcatenate[len(deconcatenate)-1]
-	deconAppProfile := deconcatenate[0]
 	podifdata := &EndPointData{
 		MacAddr:    podif.Status.MacAddr,
-		EPG:        deconEPG,
+		EPG:        getPodifEPG(podif),
 		Namespace:  podif.Status.PodNS,
-		AppProfile: deconAppProfile,
+		AppProfile: getPodifAppProfile(podif),
 	}
 	podifKey := getPodifKey(podif)
 	cont.podIftoEp[podifKey] = podifdata
 	cont.indexMutex.Unlock()
+}
+
+// PodIF reconciliation with ERSPAN source CEPs
+func (cont *AciController) podIFUpdated(oldobj interface{}, newobj interface{}) {
+	oldpodif := oldobj.(*podIfpolicy.PodIF)
+	newpodif := newobj.(*podIfpolicy.PodIF)
+	cont.log.Infof("podif updated: %s", oldpodif.ObjectMeta.Name)
+	if !reflect.DeepEqual(oldpodif.Status.EPG, newpodif.Status.EPG) ||
+		!reflect.DeepEqual(oldpodif.Status.MacAddr, newpodif.Status.MacAddr) {
+		cont.indexMutex.Lock()
+		podifdata := &EndPointData{
+			MacAddr:    newpodif.Status.MacAddr,
+			EPG:        getPodifEPG(newpodif),
+			AppProfile: getPodifAppProfile(newpodif),
+		}
+		podifKey := getPodifKey(newpodif)
+		cont.podIftoEp[podifKey] = podifdata
+		cont.indexMutex.Unlock()
+		spankeys := cont.erspanPolPods.GetObjForPod(podifKey)
+		for _, spankey := range spankeys {
+			cont.queueErspanUpdateByKey(spankey)
+		}
+	}
 }
 
 func (cont *AciController) podIFDeleted(obj interface{}) {
@@ -177,6 +210,10 @@ func (cont *AciController) podIFDeleted(obj interface{}) {
 	cont.indexMutex.Lock()
 	delete(cont.podIftoEp, getPodifKey(podif))
 	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) queueErspanUpdateByKey(key string) {
+	cont.erspanQueue.Add(key)
 }
 
 func (cont *AciController) erspanPolicyUpdated(obj interface{}) {
