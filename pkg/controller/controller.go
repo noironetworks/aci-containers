@@ -592,8 +592,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn.AddSubscriptionDn(vmmDn,
 		[]string{"vmmInjectedHost", "vmmInjectedNs",
 			"vmmInjectedContGrp", "vmmInjectedDepl",
-			"vmmInjectedSvc", "vmmInjectedReplSet",
-			"vmmInjectedOrg", "vmmInjectedOrgUnit"})
+			"vmmInjectedSvc", "vmmInjectedReplSet"})
 
 	var tnTargetFilter string
 	if len(cont.config.AciVrfRelatedTenants) > 0 {
