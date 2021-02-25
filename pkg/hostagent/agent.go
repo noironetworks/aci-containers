@@ -186,20 +186,17 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"rdconfig":      ha.syncRdConfig,
 		"snatLocalInfo": ha.UpdateLocalInfoCr}
 
-	if ha.config.EPRegistry == "k8s" {
-		cfg, err := rest.InClusterConfig()
-		if err != nil {
-			log.Errorf("ERROR getting cluster config: %v", err)
-			return ha
-		}
-		aciawClient, err := crdclientset.NewForConfig(cfg)
-		if err != nil {
-			log.Errorf("ERROR getting crd client for registry: %v", err)
-			return ha
-		}
-
-		ha.crdClient = aciawClient.AciV1()
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		log.Errorf("ERROR getting cluster config: %v", err)
+		return ha
 	}
+	aciawClient, err := crdclientset.NewForConfig(cfg)
+	if err != nil {
+		log.Errorf("ERROR getting crd client for registry: %v", err)
+		return ha
+	}
+	ha.crdClient = aciawClient.AciV1()
 	return ha
 }
 
