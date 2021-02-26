@@ -64,7 +64,13 @@ func erspanInit(cont *AciController, stopCh <-chan struct{}) {
 		return
 	}
 	cont.initErspanInformerFromClient(erspanClient)
-	cont.erspanInformer.Run(stopCh)
+	go cont.erspanInformer.Run(stopCh)
+	go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
+		func(obj interface{}) bool {
+			return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
+		}, stopCh)
+	cache.WaitForCacheSync(stopCh, cont.erspanInformer.HasSynced)
+	cont.erspanSyncOpflexDev()
 }
 
 func podIfInit(cont *AciController, stopCh <-chan struct{}) {
@@ -76,7 +82,8 @@ func podIfInit(cont *AciController, stopCh <-chan struct{}) {
 		return
 	}
 	cont.initPodIfInformerFromClient(podIfClient)
-	cont.podIfInformer.Run(stopCh)
+	go cont.podIfInformer.Run(stopCh)
+	cache.WaitForCacheSync(stopCh, cont.podIfInformer.HasSynced)
 }
 
 func (cont *AciController) initErspanInformerFromClient(
