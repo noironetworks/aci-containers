@@ -203,9 +203,6 @@ func (env *K8sEnvironment) NodeServiceChanged(nodeName string) {
 func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont := env.cont
 	cont.stopCh = stopCh
-
-	cont.registerCRDHook(qosCRDName, qosInit)
-	cont.registerCRDHook(netflowCRDName, netflowInit)
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
@@ -234,7 +231,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
-	go cont.crdInformer.Run(stopCh)
 	go cont.snatInformer.Run(stopCh)
 	go cont.processQueue(cont.snatQueue, cont.snatIndexer,
 		func(obj interface{}) bool {
@@ -257,14 +253,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, stopCh)
-	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
-		func(obj interface{}) bool {
-			return cont.handleQosPolUpdate(obj)
-		}, stopCh)
-	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
-		func(obj interface{}) bool {
-			return cont.handleNetflowPolUpdate(obj)
-		}, stopCh)
 	go cont.snatNodeInformer.Run(stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
@@ -284,6 +272,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	}
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	go cont.snatCfgInformer.Run(stopCh)
+	// Intialize all the CRD's
+	cont.registerCRDHook(qosCRDName, qosInit)
+	cont.registerCRDHook(netflowCRDName, netflowInit)
+	go cont.crdInformer.Run(stopCh)
+
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,

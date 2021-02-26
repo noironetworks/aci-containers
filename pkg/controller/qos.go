@@ -45,7 +45,12 @@ func qosInit(cont *AciController, stopCh <-chan struct{}) {
 		return
 	}
 	cont.initQosInformerFromClient(qosClient)
-	cont.qosInformer.Run(stopCh)
+	go cont.qosInformer.Run(stopCh)
+	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
+		func(obj interface{}) bool {
+			return cont.handleQosPolUpdate(obj)
+		}, stopCh)
+	cache.WaitForCacheSync(stopCh, cont.qosInformer.HasSynced)
 }
 
 func (cont *AciController) initQosInformerFromClient(

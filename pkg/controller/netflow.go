@@ -48,7 +48,12 @@ func netflowInit(cont *AciController, stopCh <-chan struct{}) {
 		return
 	}
 	cont.initNetflowInformerFromClient(netflowClient)
-	cont.netflowInformer.Run(stopCh)
+	go cont.netflowInformer.Run(stopCh)
+	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
+		func(obj interface{}) bool {
+			return cont.handleNetflowPolUpdate(obj)
+		}, stopCh)
+	cache.WaitForCacheSync(stopCh, cont.netflowInformer.HasSynced)
 }
 
 func (cont *AciController) initNetflowInformerFromClient(
