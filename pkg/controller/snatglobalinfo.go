@@ -301,7 +301,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 	}
 	cont.indexMutex.Lock()
 	cont.log.Debug("syncSnatGlobalInfo")
-	glInfoCache := make(map[string][]snatglobalinfo.GlobalInfo)
+	glInfoCache := make(map[string]snatglobalinfo.GlobalInfoList)
 	for _, glinfos := range cont.snatGlobalInfoCache {
 		for name, v := range glinfos {
 			glInfoCache[name] = append(glInfoCache[name], *v)
@@ -332,7 +332,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 	cont.log.Debug("Update GlobalInfo: ", glInfoCache)
 	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
 	if err != nil {
-		cont.log.Debug("Update Failed: ", glInfoCache)
+		cont.log.Debug("Update Failed: ", err)
 		return true
 	}
 	return false
@@ -440,8 +440,8 @@ func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []s
 	return
 }
 
-func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]struct{},
-	newPolicynames map[string]struct{}, nodename string) {
+func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,
+	newPolicynames map[string]bool, nodename string) {
 	for oldkey := range oldPolicyNames {
 		if _, ok := newPolicynames[oldkey]; !ok {
 			cont.clearSnatGlobalCache(oldkey, nodename)
