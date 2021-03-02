@@ -25,7 +25,7 @@ import (
 	"reflect"
 )
 
-func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]struct{}) bool {
+func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]bool) bool {
 	if nodeInfoClient == nil {
 		agent.log.Debug("nodeInfo or Kube clients are not intialized")
 		return true
@@ -66,6 +66,6 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		agent.log.Debug("NodeInfo Update Successful..")
 		return true
 	}
-	agent.log.Warn("NodeInfo update failed", err)
+	agent.log.Warn("NodeInfo update failed: ", err)
 	return false
 }

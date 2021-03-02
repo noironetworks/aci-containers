@@ -42,7 +42,7 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 	if !ok {
 		agent.indexMutex.Unlock()
-		return false
+		return agent.deleteLocalInfoCr()
 	}
 
 	snatLocalInfo := make(map[string]SnatLocalInfo)
@@ -116,4 +116,18 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		return false
 	}
 	return true
+}
+
+func (agent *HostAgent) deleteLocalInfoCr() bool {
+	env := agent.env.(*K8sEnvironment)
+	snatLocalInfoClient := env.snatLocalInfoClient
+	_, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
+	if err == nil {
+		err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Delete(context.TODO(), agent.config.NodeName, metav1.DeleteOptions{})
+		if err != nil {
+			agent.log.Debug("SnatLocalInfo failed to delete: ", err)
+			return true
+		}
+	}
+	return false
 }

@@ -4,13 +4,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type GlobalInfoList []GlobalInfo
 type SnatGlobalInfoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	// +kubebuilder:validation:Enum=selector, node
-	SnatType    string                  `json:"snatType"`
-	GlobalInfos map[string][]GlobalInfo `json:"globalInfos"`
+	GlobalInfos map[string]GlobalInfoList `json:"globalInfos"`
 }
 
 // SnatGlobalInfoStatus defines the observed state of SnatGlobalInfo
@@ -42,13 +42,11 @@ type SnatGlobalInfoList struct {
 }
 
 type GlobalInfo struct {
-	MacAddress string      `json:"macAddress"`
-	PortRanges []PortRange `json:"portRanges"`
-	SnatIp     string      `json:"snatIp"`
-	SnatIpUid  string      `json:"snatIpUid"`
-	// +kubebuilder:validation:Enum=tcp,udp,icmp
-	Protocols      []string `json:"protocols"`
-	SnatPolicyName string   `json:"snatPolicyName"`
+	MacAddress     string      `json:"macAddress"`
+	PortRanges     []PortRange `json:"portRanges"`
+	SnatIp         string      `json:"snatIp"`
+	SnatIpUid      string      `json:"snatIpUid"`
+	SnatPolicyName string      `json:"snatPolicyName"`
 }
 
 // +k8s:openapi-gen=true
