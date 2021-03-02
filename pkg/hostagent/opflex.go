@@ -338,7 +338,6 @@ func (agent *HostAgent) updateOpflexConfig() {
 		if err != nil {
 			agent.log.Error("Not able to clear Fault files on agent: ", err.Error())
 		}
-		agent.log.Debug("Cleared existig Fault files at the location ", agent.config.OpFlexFaultDir)
 	}
 
 	newNodeConfig := agent.discoverHostConfig()
