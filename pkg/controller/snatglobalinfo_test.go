@@ -25,8 +25,6 @@ import (
 	"time"
 )
 
-var dummy struct{}
-
 func snatpolicydata(name string, namespace string,
 	snatIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
 	policy := &snatpolicy.SnatPolicy{
@@ -47,7 +45,7 @@ func snatpolicydata(name string, namespace string,
 	return policy
 }
 
-func Nodeinfodata(name string, namespace string, macaddr string, snatplcy map[string]struct{}) *nodeinfo.NodeInfo {
+func Nodeinfodata(name string, namespace string, macaddr string, snatplcy map[string]bool) *nodeinfo.NodeInfo {
 	info := &nodeinfo.NodeInfo{
 		Spec: nodeinfo.NodeInfoSpec{
 			SnatPolicyNames: snatplcy,
@@ -71,7 +69,7 @@ type policy struct {
 type nodedata struct {
 	namespace       string
 	name            string
-	snatpolicynames map[string]struct{}
+	snatpolicynames map[string]bool
 	macaddr         string
 }
 
@@ -108,19 +106,19 @@ var nodeTests = []nodedata{
 	{
 		"testns",
 		"node-1",
-		map[string]struct{}{"policy1": dummy},
+		map[string]bool{"policy1": true},
 		"01:02:03:04",
 	},
 	{
 		"testns",
 		"node-2",
-		map[string]struct{}{"policy1": dummy},
+		map[string]bool{"policy1": true},
 		"01:02:03:05",
 	},
 	{
 		"testns",
 		"node-1",
-		map[string]struct{}{"policy2": dummy, "policy1": dummy},
+		map[string]bool{"policy2": true, "policy1": true},
 		"01:02:03:04",
 	},
 }
