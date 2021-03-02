@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import (
 )
 
 // SnatGlobalInfoLister helps list SnatGlobalInfos.
+// All objects returned here must be treated as read-only.
 type SnatGlobalInfoLister interface {
 	// List lists all SnatGlobalInfos in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.SnatGlobalInfo, err error)
 	// SnatGlobalInfos returns an object that can list and get SnatGlobalInfos.
 	SnatGlobalInfos(namespace string) SnatGlobalInfoNamespaceLister
@@ -57,10 +59,13 @@ func (s *snatGlobalInfoLister) SnatGlobalInfos(namespace string) SnatGlobalInfoN
 }
 
 // SnatGlobalInfoNamespaceLister helps list and get SnatGlobalInfos.
+// All objects returned here must be treated as read-only.
 type SnatGlobalInfoNamespaceLister interface {
 	// List lists all SnatGlobalInfos in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.SnatGlobalInfo, err error)
 	// Get retrieves the SnatGlobalInfo from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.SnatGlobalInfo, error)
 	SnatGlobalInfoNamespaceListerExpansion
 }

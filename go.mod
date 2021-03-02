@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/consul v1.3.1 // indirect
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/serf v0.8.5 // indirect
-	github.com/mattn/goveralls v0.0.7 // indirect
+	github.com/mattn/goveralls v0.0.8 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-00010101000000-000000000000
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
