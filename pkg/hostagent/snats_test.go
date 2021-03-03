@@ -36,8 +36,8 @@ type portRange struct {
 	end   int
 }
 
-func snatglobaldata(uuid string, name string, nodename string, namespace string, globalinfo []snatglobal.GlobalInfo) *snatglobal.SnatGlobalInfo {
-	GlobalInfos := make(map[string][]snatglobal.GlobalInfo, 10)
+func snatglobaldata(uuid string, name string, nodename string, namespace string, globalinfo snatglobal.GlobalInfoList) *snatglobal.SnatGlobalInfo {
+	GlobalInfos := make(map[string]snatglobal.GlobalInfoList, 10)
 	GlobalInfos[nodename] = globalinfo
 	return &snatglobal.SnatGlobalInfo{
 		Spec: snatglobal.SnatGlobalInfoSpec{
@@ -210,7 +210,7 @@ func TestSnatSync(t *testing.T) {
 
 	}
 	time.Sleep(1000 * time.Millisecond)
-	var newglobal []snatglobal.GlobalInfo
+	var newglobal snatglobal.GlobalInfoList
 	var snatglobalinfo *snatglobal.SnatGlobalInfo
 	for i, pt := range snatGlobals {
 		if i%2 == 0 {

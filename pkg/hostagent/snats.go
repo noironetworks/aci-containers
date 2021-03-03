@@ -461,12 +461,11 @@ func (agent *HostAgent) syncSnatNodeInfo() bool {
 	if !agent.syncEnabled {
 		return false
 	}
-	snatPolicyNames := make(map[string]struct{})
+	snatPolicyNames := make(map[string]bool)
 	agent.indexMutex.Lock()
-	var dummy struct{}
 	for key, val := range agent.snatPods {
 		if len(val) > 0 {
-			snatPolicyNames[key] = dummy
+			snatPolicyNames[key] = true
 		}
 	}
 	agent.indexMutex.Unlock()
