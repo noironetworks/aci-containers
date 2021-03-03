@@ -1,5 +1,5 @@
 // +k8s:deepcopy-gen=package,register
 
-// Package v1 is the v1 version of the API.
+// Package v1alpha is the v1alpha version of the API.
 // +groupName=aci.netflow
 package v1alpha

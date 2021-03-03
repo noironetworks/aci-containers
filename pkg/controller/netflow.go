@@ -155,9 +155,9 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	if apicapi.ApicVersion < "5.0" {
 		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ", apicapi.ApicVersion)
 	}
-	if nfp.Spec.FlowSamplingPolicy.Version == "netflow" {
+	if nfp.Spec.FlowSamplingPolicy.FlowType == "netflow" {
 		nf.SetAttr("ver", "v5")
-	} else if nfp.Spec.FlowSamplingPolicy.Version == "ipfix" {
+	} else if nfp.Spec.FlowSamplingPolicy.FlowType == "ipfix" {
 		nf.SetAttr("ver", "v9")
 	} else {
 		nf.SetAttr("ver", "v5")
