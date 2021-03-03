@@ -18,7 +18,6 @@ import (
 	"context"
 	"strings"
 
-	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
@@ -205,11 +204,6 @@ func (env *K8sEnvironment) NodeServiceChanged(nodeName string) {
 func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont := env.cont
 	cont.stopCh = stopCh
-
-	cont.registerCRDHook(qosCRDName, qosInit)
-	cont.registerCRDHook(netflowCRDName, netflowInit)
-	cont.registerCRDHook(erspanCRDName, erspanInit)
-	cont.registerCRDHook(podIfCRDName, podIfInit)
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
@@ -238,7 +232,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
-	go cont.crdInformer.Run(stopCh)
 	go cont.snatInformer.Run(stopCh)
 	go cont.processQueue(cont.snatQueue, cont.snatIndexer,
 		func(obj interface{}) bool {
@@ -261,24 +254,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, stopCh)
-	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
-		func(obj interface{}) bool {
-			return cont.handleQosPolUpdate(obj)
-		}, stopCh)
-	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
-		func(obj interface{}) bool {
-			return cont.handleNetflowPolUpdate(obj)
-		}, stopCh)
 	go cont.snatNodeInformer.Run(stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
-	go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
-		func(obj interface{}) bool {
-			return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
-		}, stopCh)
-	cont.erspanSyncOpflexDev()
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
 	if cont.config.InstallIstio {
 		go cont.istioInformer.Run(stopCh)
@@ -293,6 +273,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	}
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	go cont.snatCfgInformer.Run(stopCh)
+	// Intialize all the CRD's
+	cont.registerCRDHook(qosCRDName, qosInit)
+	cont.registerCRDHook(netflowCRDName, netflowInit)
+	cont.registerCRDHook(podIfCRDName, podIfInit)
+	cont.registerCRDHook(erspanCRDName, erspanInit)
+	go cont.crdInformer.Run(stopCh)
+
 	cache.WaitForCacheSync(stopCh,
 		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,
