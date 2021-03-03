@@ -609,7 +609,6 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 			} else {
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
-
 			for _, a := range e.Addresses {
 				if !external ||
 					(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
@@ -625,6 +624,17 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	return hasValidMapping
 }
 
+func CheckKeyMatch(topology, nodelabels map[string]string, key string) bool {
+	val1, ok1 := topology[key]
+	val2, ok2 := nodelabels[key]
+	if ok1 && ok2 {
+		if val1 == val2 {
+			return true
+		}
+	}
+	return false
+}
+
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
 	external bool, key string, sp v1.ServicePort) bool {
 	agent := seps.agent
@@ -636,7 +646,6 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		func(endpointSliceobj interface{}) {
 			endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
 		})
-
 	for _, endpointSlice := range endpointSlices {
 		for _, p := range endpointSlice.Ports {
 			if p.Protocol != nil && *p.Protocol != sp.Protocol {
@@ -664,14 +673,47 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			} else {
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
-
+			nexthops := make(map[string][]string)
 			for _, e := range endpointSlice.Endpoints {
 				for _, a := range e.Addresses {
 					nodeName, ok := e.Topology["kubernetes.io/hostname"]
 					if !external || (ok && nodeName == agent.config.NodeName) {
-						sm.NextHopIps = append(sm.NextHopIps, a)
+						obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
+						if err != nil {
+							agent.log.Error("Could not lookup node: ", err)
+							continue
+						}
+						if !exists && obj == nil {
+							agent.log.Error("Object nil")
+							continue
+						}
+						node := obj.(*v1.Node)
+						// don't apply the topology constraint if there are no Keys
+						// or external service as we have check above for local to the node
+						if len(as.Spec.TopologyKeys) == 0 || external {
+							nexthops["any"] = append(nexthops["any"], a)
+						} else {
+							for _, key := range as.Spec.TopologyKeys {
+								if CheckKeyMatch(e.Topology, node.ObjectMeta.Labels, key) {
+									nexthops[key] = append(nexthops[key], a)
+								}
+							}
+						}
 					}
 				}
+			}
+			// Check if the service is configured with TopologyKeys
+			// Select the high priority keys as datapath doesn't have support for fallback
+			if len(as.Spec.TopologyKeys) > 0 && !external {
+				for _, key := range as.Spec.TopologyKeys {
+					if v, ok := nexthops[key]; ok {
+						sm.NextHopIps = append(sm.NextHopIps, v...)
+						agent.log.Infof("Topology matching key: %s Nexthops: %s", key, sm.NextHopIps)
+						break
+					}
+				}
+			} else {
+				sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
 			}
 			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 				hasValidMapping = true

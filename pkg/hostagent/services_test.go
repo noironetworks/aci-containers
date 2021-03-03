@@ -33,10 +33,11 @@ import (
 )
 
 func service(uuid string, namespace string, name string,
-	clusterIp string, externalIp string, ports []int32) *v1.Service {
+	clusterIp string, externalIp string, ports []int32, topokeys []string) *v1.Service {
 	s := &v1.Service{
 		Spec: v1.ServiceSpec{
-			ClusterIP: clusterIp,
+			ClusterIP:    clusterIp,
+			TopologyKeys: topokeys,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			UID:         apitypes.UID(uuid),
@@ -102,7 +103,7 @@ func endpoints(namespace string, name string,
 }
 
 func endpointslice(namespace string, name string,
-	nextHopIps []string, ports []int32) *v1beta1.EndpointSlice {
+	nextHopIps []string, ports []int32, nodename string) *v1beta1.EndpointSlice {
 	e := &v1beta1.EndpointSlice{
 		Endpoints: []v1beta1.Endpoint{},
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +119,7 @@ func endpointslice(namespace string, name string,
 		endpoint.Addresses = append(endpoint.Addresses, ip)
 		e.Endpoints = append(e.Endpoints, endpoint)
 		e.Endpoints[i].Topology = make(map[string]string)
-		e.Endpoints[i].Topology["kubernetes.io/hostname"] = "test-node"
+		e.Endpoints[i].Topology["kubernetes.io/hostname"] = nodename
 	}
 
 	for _, port := range ports {
@@ -139,6 +140,7 @@ type serviceTest struct {
 	externalIp string
 	ports      []int32
 	nextHopIps []string
+	nodename   string
 }
 
 var serviceTests = []serviceTest{
@@ -150,6 +152,7 @@ var serviceTests = []serviceTest{
 		"200.1.1.1",
 		[]int32{80},
 		[]string{"10.1.1.1", "10.2.2.2"},
+		"test-node",
 	},
 	{
 		"683c333d-a594-4f00-baa6-0d578a13d83f",
@@ -159,6 +162,7 @@ var serviceTests = []serviceTest{
 		"",
 		[]int32{42},
 		[]string{"10.5.1.1", "10.6.2.2"},
+		"test-node",
 	},
 }
 
@@ -261,6 +265,7 @@ func TestServiceSync(t *testing.T) {
 
 	agent.run()
 
+	var topokeys []string
 	for i, st := range serviceTests {
 		if i%2 == 0 {
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
@@ -268,9 +273,8 @@ func TestServiceSync(t *testing.T) {
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
-
 		service := service(st.uuid, st.namespace, st.name,
-			st.clusterIp, st.externalIp, st.ports)
+			st.clusterIp, st.externalIp, st.ports, topokeys)
 		endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointsSource.Add(endpoints)
@@ -279,7 +283,7 @@ func TestServiceSync(t *testing.T) {
 
 	for _, st := range serviceTests {
 		service := service(st.uuid, st.namespace, st.name,
-			st.clusterIp, st.externalIp, st.ports)
+			st.clusterIp, st.externalIp, st.ports, topokeys)
 		agent.fakeServiceSource.Delete(service)
 
 		tu.WaitFor(t, st.name, 500*time.Millisecond,
@@ -340,7 +344,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 	agent.fakeNodeSource.Add(node)
 
 	agent.run()
-
+	var topokeys []string
 	for i, st := range serviceTests {
 		if i%2 == 0 {
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
@@ -348,10 +352,9 @@ func TestServiceSyncWithEps(t *testing.T) {
 			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
-
 		service := service(st.uuid, st.namespace, st.name,
-			st.clusterIp, st.externalIp, st.ports)
-		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports)
+			st.clusterIp, st.externalIp, st.ports, topokeys)
+		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointSliceSource.Add(endpoints)
 		agent.doTestService(t, tempdir, &st, "create")
@@ -359,7 +362,89 @@ func TestServiceSyncWithEps(t *testing.T) {
 
 	for _, st := range serviceTests {
 		service := service(st.uuid, st.namespace, st.name,
-			st.clusterIp, st.externalIp, st.ports)
+			st.clusterIp, st.externalIp, st.ports, topokeys)
+		agent.fakeServiceSource.Delete(service)
+
+		tu.WaitFor(t, st.name, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				r := true
+				{
+					asfile := filepath.Join(tempdir, st.uuid+".service")
+					_, err := ioutil.ReadFile(asfile)
+					if !tu.WaitNotNil(t, last, err, "read service") {
+						r = false
+					}
+				}
+
+				{
+					asfile := filepath.Join(tempdir, st.uuid+"-external.service")
+					_, err := ioutil.ReadFile(asfile)
+					if !tu.WaitNotNil(t, last, err, "read external service") {
+						r = false
+					}
+				}
+
+				return r, nil
+			})
+	}
+
+	agent.stop()
+}
+
+// TopoKeys testing.
+func TestServiceWithTopoKeys(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+	agent.serviceEndPoints = &serviceEndpointSlice{}
+	agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent.HostAgent
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
+			Labels: map[string]string{"kubernetes.io/hostname": "test-node"},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+
+	agent.run()
+	var topokeys []string
+	// set the  key local to the host
+	topokeys = append(topokeys, "kubernetes.io/hostname")
+	for i, st := range serviceTests {
+		if i%2 == 0 {
+			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
+				[]byte("random gibberish"), 0644)
+			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
+				[]byte("random gibberish"), 0644)
+		}
+		service := service(st.uuid, st.namespace, st.name,
+			st.clusterIp, st.externalIp, st.ports, topokeys)
+		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, agent.config.NodeName)
+		agent.fakeServiceSource.Add(service)
+		agent.fakeEndpointSliceSource.Add(endpoints)
+		agent.doTestService(t, tempdir, &st, "create")
+	}
+
+	for _, st := range serviceTests {
+		service := service(st.uuid, st.namespace, st.name,
+			st.clusterIp, st.externalIp, st.ports, topokeys)
 		agent.fakeServiceSource.Delete(service)
 
 		tu.WaitFor(t, st.name, 500*time.Millisecond,
@@ -420,7 +505,7 @@ func TestServiceEptoSerMap(t *testing.T) {
 		},
 	}
 	agent.fakeNodeSource.Add(node)
-
+	var topokeys []string
 	agent.run()
 	pod := mkPod("poduid", "testns", "pod1", "", "", map[string]string{"app": "tier"})
 	cnimd := cnimd("testns", "pod1", "10.1.1.1", "cont1", "veth1")
@@ -434,7 +519,7 @@ func TestServiceEptoSerMap(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	st := serviceTests[0]
 	service := service(st.uuid, st.namespace, st.name,
-		st.clusterIp, st.externalIp, st.ports)
+		st.clusterIp, st.externalIp, st.ports, topokeys)
 	service.Spec.Selector = map[string]string{"app": "tier"}
 	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
 	agent.fakeServiceSource.Add(service)
