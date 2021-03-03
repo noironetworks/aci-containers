@@ -375,6 +375,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 				nodeUpdated = true
 				cont.updateServicesForNode(node.ObjectMeta.Name)
 				cont.snatFullSync()
+				cont.erspanSyncOpflexDev()
 			}
 		}
 	}
@@ -453,6 +454,7 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	delete(cont.nodeServiceMetaCache, node.ObjectMeta.Name)
 	cont.updateServicesForNode(node.ObjectMeta.Name)
 	cont.snatFullSync()
+	cont.erspanSyncOpflexDev()
 	if _, ok := cont.snatNodeInfoCache[node.ObjectMeta.Name]; ok {
 		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
