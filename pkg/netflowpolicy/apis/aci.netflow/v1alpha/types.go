@@ -31,9 +31,8 @@ type NetflowType struct {
 	// +kubebuilder:validation:Maximum=65535
 	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
-	// The Cisco Discovery Protocol (CDP) version supported by the device.
 	// +optional
-	Version string `json:"flowType,omitempty"`
+	FlowType string `json:"flowType,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600
 	// Specifies the timeout for an active flow.
