@@ -217,6 +217,9 @@ func (cont *AciController) erspanPolicyDeleted(obj interface{}) {
 }
 
 func (cont *AciController) erspanSyncOpflexDev() {
+	if cont.erspanIndexer == nil {
+		return
+	}
 	cache.ListAll(cont.erspanIndexer, labels.Everything(),
 		func(spanObj interface{}) {
 			cont.queueErspanUpdate(spanObj.(*erspanpolicy.ErspanPolicy))
