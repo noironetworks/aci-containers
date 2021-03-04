@@ -984,6 +984,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 
 		for _, node := range nodeUpdates {
 			cont.env.NodeServiceChanged(node)
+			cont.erspanSyncOpflexDev()
 		}
 		cont.updateDeviceCluster()
 
@@ -1017,6 +1018,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 		cont.updateDeviceCluster()
 		for _, node := range nodeUpdates {
 			cont.env.NodeServiceChanged(node)
+			cont.erspanSyncOpflexDev()
 		}
 	}
 }
