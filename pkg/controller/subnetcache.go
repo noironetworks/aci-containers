@@ -24,8 +24,6 @@ import (
 	"strings"
 )
 
-var cachedVRFDns []string
-
 func (cont *AciController) SubnetChanged(obj apicapi.ApicObject, aciVrfDn string) {
 	subnetDn := obj.GetAttrStr("dn")
 	subnetIp := obj.GetAttrStr("ip")
@@ -132,7 +130,9 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 	}
 	sort.Strings(vrfEpgDns)
 	cont.log.Debug("aciVrfEpgDns: ", vrfEpgDns)
-	cachedVRFDns = vrfEpgDns
+	cont.indexMutex.Lock()
+	cont.cachedVRFDns = vrfEpgDns
+	cont.indexMutex.Unlock()
 	apicresp, err = cont.apicConn.GetApicResponse(SubnetUri)
 	if err != nil {
 		return
@@ -161,31 +161,33 @@ func (cont *AciController) contains(s []string, searchterm string) bool {
 }
 
 func (cont *AciController) getCachedVRFDns() []string {
-	return cachedVRFDns
+	return cont.cachedVRFDns
 }
 
 func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, metadata.OpflexGroup) {
 	var egval metadata.OpflexGroup
+	var dn string
 
-	if epGroup != "" {
+	if len(epGroup) != 0 {
 		err := json.Unmarshal([]byte(epGroup), &egval)
 		if err != nil {
 			cont.log.Warn("Could not decode the annotation : ", comment)
 			return false, egval
 		}
 	}
-	if (egval.Tenant != "") && (egval.AppProfile != "") && (egval.Name != "") {
+
+	if len(egval.Name) != 0 {
 		vrfDns := cont.getCachedVRFDns()
-		if vrfDns == nil {
-			return false, egval
-		}
 
-		dn := "uni/" + egval.Tenant + "/" +
-			egval.AppProfile + "/" + egval.Name
-		exist := cont.contains(vrfDns, dn)
-
-		if !exist {
-			return true, egval
+		if len(vrfDns) != 0 {
+			dn = fmt.Sprintf("uni/epg-%s", egval.Name)
+			if egval.Tenant != "" && egval.AppProfile != "" {
+				dn = fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", egval.Tenant, egval.AppProfile, egval.Name)
+			}
+			exist := cont.contains(vrfDns, dn)
+			if !exist {
+				return true, egval
+			}
 		}
 	}
 	return false, egval

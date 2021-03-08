@@ -174,7 +174,6 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 }
 
 func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
-	var egval metadata.OpflexGroup
 
 	depkey, err := cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
@@ -183,17 +182,13 @@ func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
 		return
 	}
 
-	epGroup := dep.ObjectMeta.Annotations[metadata.EgAnnotation]
 	key := cont.aciNameForKey("deployment", depkey)
-	notExist, egval := cont.checkVrfCache(epGroup, "deployment[EpgAnnotation]")
-
-	if notExist && egval.Name != "" {
-		desc := "Annotation failed for the deployment " + dep.Name + ", for the Namespace " +
-			dep.Namespace + ", Reason being: " + " Cannot resolve the EPG " + egval.Name +
-			" for the tenant " + egval.Tenant + " and app-profile " + egval.AppProfile
-		faultCode := strconv.Itoa(12)
-		severity := "major"
-		cont.createFaultInst(key, desc, faultCode, severity)
+	epGroup, ok := dep.ObjectMeta.Annotations[metadata.EgAnnotation]
+	if ok {
+		severity := major
+		faultCode := 12
+		cont.handleEpgAnnotationUpdate(key, faultCode, severity, dep.Name, epGroup)
 	}
+
 	return
 }

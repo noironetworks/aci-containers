@@ -221,4 +221,8 @@ func TestTypes(t *testing.T) {
 		NewInfraRsSpanVSrcGrpAP("fake", "testSrcGrp").GetDn())
 	assert.Equal(t, "uni/infra/funcprof/accportgrp-fake/rsspanVDestGrp-testDestGrp",
 		NewInfraRsSpanVDestGrpAP("fake", "testDestGrp").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/info",
+		NewVmmInjectedClusterInfo("kube", "domain", "cont").GetDn())
+	assert.Equal(t, "comp/prov-kube/ctrlr-[domain]-cont/injcont/info/clusterfaultinfo-10",
+		NewVmmClusterFaultInfo("comp/prov-kube/ctrlr-[domain]-cont/injcont/info", "10").GetDn())
 }

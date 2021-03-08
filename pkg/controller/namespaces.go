@@ -19,7 +19,6 @@ package controller
 
 import (
 	"reflect"
-	"strconv"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	v1 "k8s.io/api/core/v1"
@@ -126,24 +125,18 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 }
 
 func (cont *AciController) checkIfEpgExistNs(namespaceobj *v1.Namespace) {
-	var egval metadata.OpflexGroup
 
 	nskey := cont.aciNameForKey("ns", namespaceobj.Name)
 	if nskey == "" {
 		cont.log.Error("Could not retrieve namespace key")
 		return
 	}
-
-	epGroup := namespaceobj.ObjectMeta.Annotations[metadata.EgAnnotation]
-	notExist, egval := cont.checkVrfCache(epGroup, "namespace[EpgAnnotation]")
-
-	if notExist && egval.Name != "" {
-		desc := "Annotation failed for the Namespace " + namespaceobj.Name +
-			", Reason being: " + " Cannot resolve the EPG " + egval.Name +
-			" for the tenant " + egval.Tenant + " and app-profile " + egval.AppProfile
-		faultCode := strconv.Itoa(11)
-		severity := "critical"
-		cont.createFaultInst(nskey, desc, faultCode, severity)
+	epGroup, ok := namespaceobj.ObjectMeta.Annotations[metadata.EgAnnotation]
+	if ok {
+		severity := critical
+		faultCode := 11
+		cont.handleEpgAnnotationUpdate(nskey, faultCode, severity, namespaceobj.Name, epGroup)
 	}
+
 	return
 }

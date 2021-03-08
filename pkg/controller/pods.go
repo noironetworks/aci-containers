@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
@@ -29,6 +30,17 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+)
+
+type Severity int
+
+const (
+	cleared  Severity = iota
+	info              = iota
+	warning           = iota
+	minor             = iota
+	major             = iota
+	critical          = iota
 )
 
 func (cont *AciController) initPodInformerFromClient(
@@ -83,7 +95,6 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 }
 
 func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
-	var egval metadata.OpflexGroup
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
@@ -92,29 +103,42 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 	}
 
 	key := cont.aciNameForKey("pod", podkey)
-	epGroup := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
-	notExist, egval := cont.checkVrfCache(epGroup, "pod[EpgAnnotation]")
-
-	if notExist && egval.Name != "" {
-		desc := "Pod Annotation failed for the pod " + pod.Name + "(Namespace " +
-			pod.Namespace + ", Reason being: " + "Cannot resolve the EPG " + egval.Name +
-			" for the tenant " + egval.Tenant + " and app-profile " + egval.AppProfile
-		faultCode := strconv.Itoa(10)
-		severity := "major"
-		cont.createFaultInst(key, desc, faultCode, severity)
+	epGroup, ok := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
+	if ok {
+		severity := major
+		faultCode := 10
+		cont.handleEpgAnnotationUpdate(key, faultCode, severity, pod.Name, epGroup)
 	}
+
 	return
 }
 
-func (cont *AciController) createFaultInst(key string, desc string, code string, severity string) {
-	aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
-		cont.config.AciVmmDomain, cont.config.AciVmmController)
-	aPrObjDn := aPrObj.GetDn()
-	aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, code)
-	aObj.SetAttr("faultDesc", desc)
-	aObj.SetAttr("faultCode", code)
-	aObj.SetAttr("faultSeverity", severity)
-	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
+func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, severity int, entity string, epGroup string) bool {
+	var egval metadata.OpflexGroup
+	notExist, egval := cont.checkVrfCache(epGroup, "EpgAnnotation")
+
+	if notExist && egval.Name != "" {
+		desc := fmt.Sprintf("Annotation failed for  %s, Reason being: Cannot resolve the EPG %s for the tenant %s and app-profile %s",
+			entity, egval.Name, egval.Tenant, egval.AppProfile)
+		faultcode := strconv.Itoa(faultCode)
+		severity := strconv.Itoa(severity)
+
+		aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
+			cont.config.AciVmmDomain, cont.config.AciVmmController)
+		aPrObjDn := aPrObj.GetDn()
+		aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, faultcode)
+		aObj.SetAttr("faultDesc", desc)
+		aObj.SetAttr("faultCode", faultcode)
+		aObj.SetAttr("faultSeverity", severity)
+
+		if faultCode == 11 {
+			cont.apicConn.WriteApicContainer(key, apicapi.ApicSlice{aObj})
+		} else {
+			cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
+		}
+		return true
+	}
+	return false
 }
 
 func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
