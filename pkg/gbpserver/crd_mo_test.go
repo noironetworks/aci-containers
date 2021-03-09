@@ -43,7 +43,7 @@ func (tc *testCRD) Subject() string {
 	return testCRDSub
 }
 
-func (tc *testCRD) URI() string {
+func (tc *testCRD) URI(s *Server) string {
 	return fmt.Sprintf("%s%s/", uriTenant, testCRDSub)
 }
 
@@ -58,7 +58,7 @@ func (tc *testCRD) ParentSub() string {
 	return testCRDParentSub
 }
 
-func (tc *testCRD) ParentURI() string {
+func (tc *testCRD) ParentURI(s *Server) string {
 	return testCRDParentUri
 }
 
@@ -118,7 +118,7 @@ func TestGBPCustomMo(t *testing.T) {
 		Prop2: 100,
 	}
 	s.AddGBPCustomMo(crd1)
-	listVerify(listCh, crd1.URI(), true)
+	listVerify(listCh, crd1.URI(s), true)
 
 	s.DelGBPCustomMo(crd1)
 
@@ -135,7 +135,7 @@ rcvLoop:
 		}
 	}
 
-	listVerify(listCh, crd1.URI(), false)
+	listVerify(listCh, crd1.URI(s), false)
 }
 
 func TestGetURIBySubject(t *testing.T) {

@@ -29,23 +29,28 @@ type NetflowType struct {
 	DstAddr string `json:"destIp"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:default:=2055
 	DstPort int `json:"destPort"`
 	// +kubebuilder:validation:Enum=netflow,ipfix
 	// +optional
+	// +kubebuilder:default:=netflow
 	FlowType string `json:"flowType,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600
 	// Specifies the timeout for an active flow.
 	// +optional
+	// +kubebuilder:default:=60
 	ActiveFlowTimeOut int `json:"activeFlowTimeOut,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=600
 	// Specifies the timeout for an idle flow.
 	// +optional
+	// +kubebuilder:default:=15
 	IdleFlowTimeOut int `json:"idleFlowTimeOut,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=1000
 	// +optional
+	// +kubebuilder:default:=0
 	SamplingRate int `json:"samplingRate,omitempty"`
 }
 

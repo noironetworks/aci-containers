@@ -103,6 +103,10 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("Starting k8s watcher : %v", err)
 	}
+	nfw, err := watchers.NewNetflowWatcher(s)
+	if err != nil {
+		logrus.Fatalf("Starting netflow watcher : %v", err)
+	}
 
 	stopCh := make(chan struct{})
 	if cfg.Apic == nil || cfg.Apic.Hosts == nil {
@@ -117,6 +121,10 @@ func main() {
 		}
 	}
 	kw.InitEPInformer(stopCh)
+
+	if nfw != nil {
+		nfw.InitNetflowInformer(stopCh)
+	}
 
 	select {}
 }
