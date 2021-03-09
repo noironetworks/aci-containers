@@ -18,7 +18,6 @@ package controller
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,7 +26,6 @@ import (
 	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
 	erspanclientset "github.com/noironetworks/aci-containers/pkg/erspanpolicy/clientset/versioned"
 	podIfpolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	podIfclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +36,6 @@ import (
 
 const (
 	erspanCRDName = "erspanpolicies.aci.erspan"
-	podIfCRDName  = "podifs.aci.aw"
 )
 
 func ErspanPolicyLogger(log *logrus.Logger, erspan *erspanpolicy.ErspanPolicy) *logrus.Entry {
@@ -46,13 +43,6 @@ func ErspanPolicyLogger(log *logrus.Logger, erspan *erspanpolicy.ErspanPolicy) *
 		"namespace": erspan.ObjectMeta.Namespace,
 		"name":      erspan.ObjectMeta.Name,
 		"spec":      erspan.Spec,
-	})
-}
-
-func PodIfPolicyLogger(log *logrus.Logger, podIf *podIfpolicy.PodIF) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		"namespace": podIf.ObjectMeta.Namespace,
-		"name":      podIf.ObjectMeta.Name,
 	})
 }
 
@@ -74,32 +64,11 @@ func erspanInit(cont *AciController, stopCh <-chan struct{}) {
 	cont.erspanSyncOpflexDev()
 }
 
-func podIfInit(cont *AciController, stopCh <-chan struct{}) {
-	cont.log.Debug("Initializing podIf client")
-	restconfig := cont.env.RESTConfig()
-	podIfClient, err := podIfclientset.NewForConfig(restconfig)
-	if err != nil {
-		cont.log.Errorf("Failed to intialize podif client")
-		return
-	}
-	cont.initPodIfInformerFromClient(podIfClient)
-	go cont.podIfInformer.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, cont.podIfInformer.HasSynced)
-}
-
 func (cont *AciController) initErspanInformerFromClient(
 	erspanClient *erspanclientset.Clientset) {
 	cont.initErspanInformerBase(
 		cache.NewListWatchFromClient(
 			erspanClient.AciV1alpha().RESTClient(), "erspanpolicies",
-			metav1.NamespaceAll, fields.Everything()))
-}
-
-func (cont *AciController) initPodIfInformerFromClient(
-	podIfClient *podIfclientset.Clientset) {
-	cont.initPodIfInformerBase(
-		cache.NewListWatchFromClient(
-			podIfClient.AciV1().RESTClient(), "podifs",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
@@ -122,29 +91,6 @@ func (cont *AciController) initErspanInformerBase(listWatch *cache.ListWatch) {
 	cont.log.Debug("Initializing erspan Policy Informers")
 }
 
-func (cont *AciController) initPodIfInformerBase(listWatch *cache.ListWatch) {
-	cont.podIfIndexer, cont.podIfInformer = cache.NewIndexerInformer(
-		listWatch, &podIfpolicy.PodIF{}, 0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				cont.podIFAdded(obj)
-			},
-			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				cont.podIFUpdated(oldobj, newobj)
-			},
-			DeleteFunc: func(obj interface{}) {
-				cont.podIFDeleted(obj)
-			},
-		},
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	cont.log.Debug("Initializing podif Informers")
-}
-
-func getPodifKey(podif *podIfpolicy.PodIF) string {
-	return podif.Status.PodNS + "/" + podif.Status.PodName
-}
-
 func isValidEPG(podif *podIfpolicy.PodIF) bool {
 	pattern := regexp.MustCompile("\\|")
 	idx := pattern.FindAllStringIndex(podif.Status.EPG, -1)
@@ -152,64 +98,6 @@ func isValidEPG(podif *podIfpolicy.PodIF) bool {
 		return false
 	}
 	return true
-}
-
-func getPodifEPG(podif *podIfpolicy.PodIF) string {
-	deconcatenate := strings.Split(podif.Status.EPG, "|")
-	deconEPG := deconcatenate[len(deconcatenate)-1]
-	return deconEPG
-}
-
-func getPodifAppProfile(podif *podIfpolicy.PodIF) string {
-	deconcatenate := strings.Split(podif.Status.EPG, "|")
-	deconAppProfile := deconcatenate[0]
-	return deconAppProfile
-}
-
-func (cont *AciController) podIFAdded(obj interface{}) {
-	podif := obj.(*podIfpolicy.PodIF)
-	cont.log.Infof("podif Added: %s", podif.ObjectMeta.Name)
-	cont.indexMutex.Lock()
-	podifdata := &EndPointData{
-		MacAddr:    podif.Status.MacAddr,
-		EPG:        getPodifEPG(podif),
-		Namespace:  podif.Status.PodNS,
-		AppProfile: getPodifAppProfile(podif),
-	}
-	podifKey := getPodifKey(podif)
-	cont.podIftoEp[podifKey] = podifdata
-	cont.indexMutex.Unlock()
-}
-
-// PodIF reconciliation with ERSPAN source CEPs
-func (cont *AciController) podIFUpdated(oldobj interface{}, newobj interface{}) {
-	oldpodif := oldobj.(*podIfpolicy.PodIF)
-	newpodif := newobj.(*podIfpolicy.PodIF)
-	cont.log.Infof("podif updated: %s", oldpodif.ObjectMeta.Name)
-	if !reflect.DeepEqual(oldpodif.Status.EPG, newpodif.Status.EPG) ||
-		!reflect.DeepEqual(oldpodif.Status.MacAddr, newpodif.Status.MacAddr) {
-		cont.indexMutex.Lock()
-		podifdata := &EndPointData{
-			MacAddr:    newpodif.Status.MacAddr,
-			EPG:        getPodifEPG(newpodif),
-			AppProfile: getPodifAppProfile(newpodif),
-		}
-		podifKey := getPodifKey(newpodif)
-		cont.podIftoEp[podifKey] = podifdata
-		cont.indexMutex.Unlock()
-		spankeys := cont.erspanPolPods.GetObjForPod(podifKey)
-		for _, spankey := range spankeys {
-			cont.queueErspanUpdateByKey(spankey)
-		}
-	}
-}
-
-func (cont *AciController) podIFDeleted(obj interface{}) {
-	podif := obj.(*podIfpolicy.PodIF)
-	cont.log.Infof("podif Deleted: %s", podif.ObjectMeta.Name)
-	cont.indexMutex.Lock()
-	delete(cont.podIftoEp, getPodifKey(podif))
-	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) queueErspanUpdateByKey(key string) {
@@ -222,6 +110,13 @@ func (cont *AciController) erspanPolicyUpdated(obj interface{}) {
 		cont.log.Error("erspanPolicyUpdated: Bad object type")
 		return
 	}
+	key, err := cache.MetaNamespaceKeyFunc(erspanPolicy)
+	if err != nil {
+		ErspanPolicyLogger(cont.log, erspanPolicy).
+			Error("Could not create key:" + err.Error())
+		return
+	}
+	cont.queueErspanUpdateByKey(key)
 	cont.erspanPolPods.UpdateSelectorObj(obj)
 	cont.log.Infof("erspan policy updated: %s", erspanPolicy.ObjectMeta.Name)
 }
