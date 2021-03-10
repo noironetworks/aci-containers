@@ -63,8 +63,8 @@ type GBPServerConfig struct {
 
 	// APIC info
 	Apic       *ApicInfo `json:"apic,omitempty"`
-	SyncRemEps bool      `json:"sync-rem-eps",omitempty"`
-	CSRList    string    `json:"csr-list",omitempty"`
+	SyncRemEps bool      `json:"sync-rem-eps,omitempty"`
+	CSRList    string    `json:"csr-list,omitempty"`
 
 	PushJsonFile bool `json:"push-json-file,omitempty"`
 }

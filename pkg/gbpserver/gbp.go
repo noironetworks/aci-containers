@@ -607,86 +607,10 @@ func (ss *GBPFloodMcast) Validate() error {
 	return nil
 }
 
-func CreateDefSubnet(subnet string) {
-	// create subnet set
-	ss := &GBPSubnetSet{}
-	ss.Make("allsubnets", defSubnetsURI)
-	sn := escapeName(subnet, false)
-	uri := fmt.Sprintf("%sGbpSubnet/%s/", defSubnetsURI, sn)
-	s := &GBPSubnet{}
-	s.Make(subnet, uri)
-
-	ss.AddChild(s.Uri)
-	s.SetParent(subjSubnetSet, subjSubnet, ss.Uri)
-}
-
 func CreateDefVrf() {
 	vrf := &GBPRoutingDomain{}
 	// TODO: add subnet ref if necessary
 	vrf.Make(getVrfName(), getVrfUri())
-}
-
-func CreateDefFD() {
-	// create child 1: default Mcast
-	fm := &GBPFloodMcast{}
-	fm.Make("", defFDMcastURI)
-	fm.AddProperty(propMcast, defMcastGroup)
-	fm.SetParent(subjFD, subjFDMcast, defFDURI)
-
-	// create child 2: FD to DefaultBD reference
-	bdRef := &GBPFDToBD{}
-	bdRef.setSubject(subjFDToBD)
-	bdRef.Make("", defFDToBDURI)
-
-	to := Reference{
-		Subject:      subjBD,
-		ReferenceUri: defBDURI,
-	}
-
-	bdRef.AddProperty(propTarget, to)
-
-	fd := &GBPFloodDomain{}
-	fd.Make(defFDName, defFDURI)
-	fd.AddChild(fm.Uri)
-	fm.SetParent(fd.Subject, fm.Subject, fd.Uri)
-	fd.AddChild(bdRef.Uri)
-	bdRef.SetParent(fd.Subject, bdRef.Subject, fd.Uri)
-
-	// set properties
-	fd.AddProperty("unknownFloodMode", "drop")
-	fd.AddProperty("arpMode", "unicast")
-	fd.AddProperty("neighborDiscMode", "unicast")
-}
-
-func CreateEPG(name, uri string) *gbpBaseMo {
-	epg := &GBPEpGroup{}
-	epg.Make(name, uri)
-
-	fdRef := GBPEPGToFD{}
-	fdRef.setSubject(subjEPGToFD)
-	fdRef.Make("", uri+"GbpEpGroupToNetworkRSrc/")
-	to := Reference{
-		Subject:      subjFD,
-		ReferenceUri: defFDURI,
-	}
-
-	fdRef.AddProperty(propTarget, to)
-	epg.AddChild(fdRef.Uri)
-	// setparent
-	fdRef.SetParent(epg.Subject, fdRef.Subject, epg.Uri)
-
-	snetRef := GBPEPGToSnet{}
-	snetRef.setSubject(subjEPGToSnet)
-	snetRef.Make("", uri+"GbpEpGroupToSubnetsRSrc/")
-	tosnet := Reference{
-		Subject:      subjSubnetSet,
-		ReferenceUri: defSubnetsURI,
-	}
-
-	snetRef.AddProperty(propTarget, tosnet)
-	epg.AddChild(snetRef.Uri)
-	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
-	return getMoDB()[uri]
 }
 
 // Initializes the Mo DB
@@ -780,43 +704,6 @@ func getInvDir() string {
 	return filepath.Join(dbDataDir, "inventory")
 }
 
-func restoreDB() error {
-	mofile := getMoFile()
-	data, err := ioutil.ReadFile(mofile)
-	if err != nil {
-		log.Infof("Reading %s - %v", mofile, err)
-		return err
-	}
-
-	var moList []gbpBaseMo
-
-	err = json.Unmarshal(data, &moList)
-	if err != nil {
-		log.Infof("Decoding %s - %v", mofile, err)
-		return err
-	}
-
-	moDB := getMoDB()
-	for _, mo := range moList {
-		mm := new(gbpBaseMo)
-		*mm = mo
-		moDB[mo.Uri] = mm
-	}
-
-	invdir := getInvDir()
-	vteps, err := ioutil.ReadDir(invdir)
-	if err != nil {
-		log.Infof("Reading %s - %v", invdir, err)
-		return nil // ignore the error
-	}
-
-	for _, vtep := range vteps {
-		ReadInvFile(vtep.Name(), filepath.Join(invdir, vtep.Name()))
-	}
-
-	return nil
-}
-
 func addToMap(sum, addend map[string]*gbpCommonMo) {
 	for k, m := range addend {
 		sum[k] = m
@@ -901,42 +788,6 @@ func saveDBToFile() {
 		printSorted(invToCommon(vtep), vtepFile, debugDB)
 	}
 
-}
-
-func VerifyFile(pFile string, print bool) {
-	data, err := ioutil.ReadFile(pFile)
-	if err != nil {
-		fmt.Printf("Reading %s - %v", pFile, err)
-		return
-	}
-
-	var moList []gbpCommonMo
-
-	err = json.Unmarshal(data, &moList)
-	if err != nil {
-		fmt.Printf("Decoding %s - %v", pFile, err)
-		return
-	}
-
-	db := make(map[string]*gbpCommonMo)
-
-	for _, m := range moList {
-		mm := new(gbpCommonMo)
-		*mm = m
-		db[m.Uri] = mm
-	}
-
-	for _, m := range moList {
-		err = m.Verify(db)
-		if err != nil {
-			fmt.Printf("%v\n", err)
-		}
-
-	}
-
-	if print {
-		printSorted(db, pFile+".sorted", false)
-	}
 }
 
 func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {

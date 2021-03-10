@@ -33,7 +33,7 @@ var skipList = map[string]bool{
 }
 
 func Run(cfg *gbpserver.GBPServerConfig) {
-	if !isColdStart(cfg) {
+	if !isColdStart() {
 		logrus.Infof("Not a cold start, skipping init")
 		return
 	}
@@ -130,7 +130,7 @@ func setupApicConn(cfg *gbpserver.GBPServerConfig) *apicapi.ApicConnection {
 	return conn
 }
 
-func isColdStart(cfg *gbpserver.GBPServerConfig) bool {
+func isColdStart() bool {
 	stateDriver := &watchers.K8sStateDriver{}
 	exists, err := stateDriver.StateExists()
 	if err != nil {

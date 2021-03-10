@@ -513,7 +513,7 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 				log.Errorf("Child %s not found", c)
 				continue
 			}
-			if cMo != nil && cMo.isRef && cMo.Subject == sub {
+			if cMo.isRef && cMo.Subject == sub {
 				target, err := cMo.getTarget()
 				if err != nil {
 					log.Errorf("Target not found for %s", c)

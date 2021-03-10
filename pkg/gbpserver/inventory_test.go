@@ -23,13 +23,11 @@ import (
 )
 
 const (
-	vtep1      = "21.32.43.54"
-	vtep2      = "21.32.43.55"
-	vtep3      = "21.32.43.56"
-	singleVTEP = "21.32.43.54"
-	zeroVTEP   = "00.00.00.00"
-	nullVTEP   = ""
-	multiVTEP  = "13.32.43.54,13.24.35.45"
+	vtep1     = "21.32.43.54"
+	vtep2     = "21.32.43.55"
+	vtep3     = "21.32.43.56"
+	nullVTEP  = ""
+	multiVTEP = "13.32.43.54,13.24.35.45"
 )
 
 type fakeSD struct {
