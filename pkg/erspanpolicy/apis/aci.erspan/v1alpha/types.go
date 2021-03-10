@@ -31,10 +31,12 @@ type ErspanSourceType struct {
 	// +kubebuilder:validation:Enum=start,stop
 	// Administrative state.
 	// +optional
+	// +kubebuilder:default:=start
 	AdminState string `json:"adminState,omitempty"`
 	// +kubebuilder:validation:Enum=in,out,both
 	// The direction of the packets to monitor.
 	// +optional
+	// +kubebuilder:default:=both
 	Direction string `json:"direction,omitempty"`
 }
 
@@ -46,6 +48,7 @@ type ErspanDestType struct {
 	// +kubebuilder:validation:Maximum=1023
 	// The unique flow ID of the ERSPAN packet.
 	// +optional
+	// +kubebuilder:default:=1
 	FlowID int `json:"flowID,omitempty"`
 }
 

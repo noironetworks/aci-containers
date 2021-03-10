@@ -247,18 +247,10 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 	srcGrp := apicapi.NewSpanVSrcGrp(labelKey)
 	srcName := labelKey + "_Src"
 	apicSlice := apicapi.ApicSlice{srcGrp}
-	if span.Spec.Source.AdminState != "" {
-		srcGrp.SetAttr("adminSt", span.Spec.Source.AdminState)
-	} else {
-		srcGrp.SetAttr("adminSt", "start")
-	}
+	srcGrp.SetAttr("adminSt", span.Spec.Source.AdminState)
 	src := apicapi.NewSpanVSrc(srcGrp.GetDn(), srcName)
 	srcGrp.AddChild(src)
-	if span.Spec.Source.Direction != "" {
-		src.SetAttr("dir", span.Spec.Source.Direction)
-	} else {
-		src.SetAttr("dir", "both")
-	}
+	src.SetAttr("dir", span.Spec.Source.Direction)
 
 	// Build fvCEp for matching pods
 	cont.indexMutex.Lock()
@@ -287,11 +279,7 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 	destSummary := apicapi.NewSpanVEpgSummary(dest.GetDn())
 	dest.AddChild(destSummary)
 	destSummary.SetAttr("dstIp", span.Spec.Dest.DestIP)
-	if span.Spec.Dest.FlowID != 0 {
-		destSummary.SetAttr("flowId", strconv.Itoa(span.Spec.Dest.FlowID))
-	} else {
-		destSummary.SetAttr("flowId", "1")
-	}
+	destSummary.SetAttr("flowId", strconv.Itoa(span.Spec.Dest.FlowID))
 	apicSlice = append(apicSlice, destGrp)
 
 	// Erspan policy binding to Virtual Port Channels.
