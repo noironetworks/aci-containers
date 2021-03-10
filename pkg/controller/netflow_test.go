@@ -122,11 +122,7 @@ func TestNetflowPolicy(t *testing.T) {
 
 	var flowSamplingPolicy1 netflowpolicy.NetflowType
 	flowSamplingPolicy1.DstAddr = "172.51.1.2"
-	flowSamplingPolicy1.DstPort = 0
 	flowSamplingPolicy1.FlowType = "ipfix"
-	flowSamplingPolicy1.ActiveFlowTimeOut = 0
-	flowSamplingPolicy1.IdleFlowTimeOut = 0
-	flowSamplingPolicy1.SamplingRate = 0
 
 	var flowSamplingPolicy2 netflowpolicy.NetflowType
 	flowSamplingPolicy2.DstAddr = "172.51.1.2"
@@ -140,7 +136,7 @@ func TestNetflowPolicy(t *testing.T) {
 		{testnetflowpolicy("testnf", flowSamplingPolicy0),
 			makeNf(name, "172.51.1.2", 2055, "v5", 5, 5, 400), nil, "test1", false, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy1),
-			makeNf(name, "172.51.1.2", 2055, "v9", 60, 15, 0), nil, "test2", false, true},
+			makeNf(name, "172.51.1.2", 0, "v9", 0, 0, 0), nil, "test2", false, true},
 		{testnetflowpolicy("testnf", flowSamplingPolicy2),
 			makeNf(name, "172.51.1.2", 2056, "v5", 60, 15, 0), nil, "test3", false, true},
 	}

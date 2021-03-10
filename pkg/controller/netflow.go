@@ -86,7 +86,11 @@ func (cont *AciController) initNetflowInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (cont *AciController) netflowPolicyUpdated(obj interface{}) {
-	netflowPolicy := obj.(*netflowpolicy.NetflowPolicy)
+	netflowPolicy, ok := obj.(*netflowpolicy.NetflowPolicy)
+	if !ok {
+		cont.log.Error("netflowPolicyUpdated: Bad object type")
+		return
+	}
 	key, err := cache.MetaNamespaceKeyFunc(netflowPolicy)
 	if err != nil {
 		NetflowPolicyLogger(cont.log, netflowPolicy).
@@ -141,51 +145,34 @@ func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 // netflowPolObjs is used to build Netflow Policy objects
 func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apicapi.ApicSlice {
 
-	key, _ := cache.MetaNamespaceKeyFunc(nfp)
+	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
+	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
+	if apicapi.ApicVersion < "5.0" {
+		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ",
+			apicapi.ApicVersion)
+	}
 
+	key, _ := cache.MetaNamespaceKeyFunc(nfp)
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.log.Debug("create netflowpolicy")
 	nf := apicapi.NewNetflowVmmExporterPol(labelKey)
 	nfDn := nf.GetDn()
 	apicSlice := apicapi.ApicSlice{nf}
 	nf.SetAttr("dstAddr", nfp.Spec.FlowSamplingPolicy.DstAddr)
+	nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
 
-	if nfp.Spec.FlowSamplingPolicy.DstPort != 0 {
-		nf.SetAttr("dstPort", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.DstPort))
-	} else {
-		nf.SetAttr("dstPort", "2055")
-	}
-	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
-	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
-	if apicapi.ApicVersion < "5.0" {
-		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ", apicapi.ApicVersion)
-	}
 	if nfp.Spec.FlowSamplingPolicy.FlowType == "netflow" {
 		nf.SetAttr("ver", "v5")
 	} else if nfp.Spec.FlowSamplingPolicy.FlowType == "ipfix" {
 		nf.SetAttr("ver", "v9")
-	} else {
-		nf.SetAttr("ver", "v5")
 	}
 
 	VmmVSwitch := apicapi.NewVmmVSwitchPolicyCont(cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 	RsVmmVSwitch := apicapi.NewVmmRsVswitchExporterPol(VmmVSwitch.GetDn(), nfDn)
 	VmmVSwitch.AddChild(RsVmmVSwitch)
-	if nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut != 0 {
-		RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
-	} else {
-		RsVmmVSwitch.SetAttr("activeFlowTimeOut", "60")
-	}
-	if nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut != 0 {
-		RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
-	} else {
-		RsVmmVSwitch.SetAttr("idleFlowTimeOut", "15")
-	}
-	if nfp.Spec.FlowSamplingPolicy.SamplingRate != 0 {
-		RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
-	} else {
-		RsVmmVSwitch.SetAttr("samplingRate", "0")
-	}
+	RsVmmVSwitch.SetAttr("activeFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.ActiveFlowTimeOut))
+	RsVmmVSwitch.SetAttr("idleFlowTimeOut", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.IdleFlowTimeOut))
+	RsVmmVSwitch.SetAttr("samplingRate", strconv.Itoa(nfp.Spec.FlowSamplingPolicy.SamplingRate))
 	apicSlice = append(apicSlice, VmmVSwitch)
 
 	cont.log.Info("Netflow ApicSlice: ", apicSlice)
