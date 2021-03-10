@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -29,8 +30,14 @@ import (
 
 func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
 	if opts.configPath == "None" {
-		fmt.Printf("Please specify config-path ($GBP_SERVER_CONF)\n")
-		return
+		defaultConfig, exists := os.LookupEnv("GBP_SERVER_CONF")
+		fmt.Printf("default config path - %s\n", defaultConfig)
+		if exists {
+			opts.configPath = defaultConfig
+		} else {
+			fmt.Printf("Please specify config-path ($GBP_SERVER_CONF)\n")
+			return
+		}
 	}
 
 	switch opts.inspect {
