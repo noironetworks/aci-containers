@@ -24,7 +24,6 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
-	podIfpolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
@@ -36,13 +35,6 @@ type erspanTest struct {
 	writeToApic bool
 	desc        string
 	spanDel     bool
-}
-
-type podifdata struct {
-	MacAddr    string
-	EPG        string
-	Namespace  string
-	AppProfile string
 }
 
 func staticErspanKey() string {
@@ -68,21 +60,6 @@ func erspanpol(name string, namespace string, dest erspanpolicy.ErspanDestType,
 	podSelector.Labels = labels
 	policy.Spec.Selector = podSelector
 	return policy
-}
-
-func podifinfodata(name string, namespace string, macaddr string,
-	epg string) *podIfpolicy.PodIF {
-	podifinfo := &podIfpolicy.PodIF{
-		Status: podIfpolicy.PodIFStatus{
-			MacAddr: macaddr,
-			EPG:     epg,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-	}
-	return podifinfo
 }
 
 func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
@@ -140,47 +117,7 @@ func checkDeleteErspan(t *testing.T, spanTest erspanTest, cont *testAciControlle
 		})
 }
 
-var podifTests = []podifdata{
-	{
-		"C2-85-53-A1-85-61",
-		"test-epg1",
-		"testns",
-		"test-ap1",
-	},
-	{
-		"C2-85-53-A1-85-62",
-		"test-epg2",
-		"testns",
-		"test-ap2",
-	},
-	{
-		"C2-85-53-A1-85-63",
-		"test-epg3",
-		"testns",
-		"test-ap3",
-	},
-}
-
-func podifwait(t *testing.T, desc string, expected map[string]podifdata,
-	actual map[string]*EndPointData) {
-	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
-		for key, v := range expected {
-			val, ok := actual[key]
-			if ok {
-				result := tu.WaitEqual(t, last, v.MacAddr, val.MacAddr, "MacAddr does not match") &&
-					tu.WaitEqual(t, last, v.EPG[0], val.EPG[0], "EPG does not match")
-				return result, nil
-			} else {
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-
-}
-
 func TestErspanPolicy(t *testing.T) {
-	cont := testController()
 	name := "kube_span_test"
 	labels := map[string]string{"lab_key1": "lab_value1"}
 	macs := []string{"C2-85-53-A1-85-60", "E4-81-80-40-26-CD"}
@@ -229,10 +166,6 @@ func TestErspanPolicy(t *testing.T) {
 		return cont
 	}
 
-	ips := []string{
-		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
-	}
-
 	//Function to check if erspan object is present in the apic connection at a specific key
 	erspanObject := func(t *testing.T, desc string, cont *testAciController,
 		key string, expected string, present bool) {
@@ -256,21 +189,10 @@ func TestErspanPolicy(t *testing.T) {
 		cont.log.Info("Finished waiting for ", desc)
 
 	}
-	cont.run()
-	for _, pt := range podifTests {
-		cont := initCont()
-		cont.log.Info("Testing podif data")
-		podifObj := podifinfodata(pt.MacAddr, pt.EPG, pt.Namespace, pt.AppProfile)
-		cont.fakePodIFSource.Add(podifObj)
-		cont.log.Debug("podIF Added: ", podifObj)
-
-	}
-	cont.stop()
 
 	for _, spanTest := range spanTests {
 		cont := initCont()
 		cont.log.Info("Testing erspan post to APIC ", spanTest.desc)
-		addPods(cont, true, ips, true)
 		cont.run()
 		cont.fakeErspanPolicySource.Modify(spanTest.erspanPol)
 		erspanObject(t, "object absent check", cont, name, "spanVSrcGrp", false)
