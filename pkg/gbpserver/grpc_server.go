@@ -17,7 +17,7 @@ package gbpserver
 
 import (
 	"fmt"
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"net"
 	"strings"
 

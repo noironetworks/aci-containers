@@ -37,7 +37,6 @@ import (
 const (
 	NoContainer = "NC"
 	root        = "/aci/objdb"
-	ListenPort  = "8899"
 	defToken    = "api-server-token"
 	versionPath = "/api/node/class/firmwareCtrlrRunning.json"
 	versionStr  = "3.2(5d)"

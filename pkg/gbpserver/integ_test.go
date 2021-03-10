@@ -441,13 +441,13 @@ func verifyRest(t *testing.T, c *http.Client) {
 		if !ok {
 			content, err = json.Marshal(p.obj)
 			if err != nil {
-				log.Errorf("json.Marshal :% v", err)
+				log.Errorf("json.Marshal :%v", err)
 				t.FailNow()
 			}
 		}
 		resp, err := c.Post(p.url, "application/json", strings.NewReader(string(content)))
 		if err != nil {
-			log.Errorf("Post :% v", err)
+			log.Errorf("Post :%v", err)
 			t.FailNow()
 		}
 
@@ -455,7 +455,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 		rBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Errorf("ReadAll :% v", err)
+			log.Errorf("ReadAll :%v", err)
 			t.FailNow()
 		}
 
@@ -463,7 +463,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 		err = json.Unmarshal(rBody, &reply)
 		if err != nil {
-			log.Errorf("Unmarshal :% v", err)
+			log.Errorf("Unmarshal :%v", err)
 			t.FailNow()
 		}
 
@@ -473,14 +473,14 @@ func verifyRest(t *testing.T, c *http.Client) {
 	getter := func(uri string) []byte {
 		getResp, err := c.Get(uri)
 		if err != nil {
-			log.Errorf("Get :% v", err)
+			log.Errorf("Get :%v", err)
 			t.FailNow()
 		}
 
 		defer getResp.Body.Close()
 		gBody, err := ioutil.ReadAll(getResp.Body)
 		if err != nil {
-			log.Errorf("ReadAll :% v", err)
+			log.Errorf("ReadAll :%v", err)
 			t.FailNow()
 		}
 
@@ -492,7 +492,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	err := json.Unmarshal(l, &getList)
 	if err != nil {
-		log.Errorf("Marshal get list :% v", err)
+		log.Errorf("Marshal get list :%v", err)
 		t.FailNow()
 	}
 	for _, reqUri := range getList.URIs {
@@ -504,7 +504,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
-		log.Errorf("Marshal get list :% v", err)
+		log.Errorf("Marshal get list :%v", err)
 		t.FailNow()
 	}
 
@@ -518,7 +518,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
-		log.Errorf("Marshal get list :% v", err)
+		log.Errorf("Marshal get list :%v", err)
 		t.FailNow()
 	}
 
@@ -532,7 +532,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri), nil)
 		_, err = c.Do(req)
 		if err != nil {
-			log.Errorf("Delete %s :% v", reqUri, err)
+			log.Errorf("Delete %s :%v", reqUri, err)
 			t.FailNow()
 		}
 	}
@@ -541,7 +541,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 	err = json.Unmarshal(l, &getList)
 	if err != nil {
-		log.Errorf("Marshal get list :% v", err)
+		log.Errorf("Marshal get list :%v", err)
 		t.FailNow()
 	}
 
@@ -552,7 +552,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), nil)
 	_, err = c.Do(req)
 	if err != nil {
-		log.Errorf("Delete :% v", err)
+		log.Errorf("Delete :%v", err)
 		t.FailNow()
 	}
 }

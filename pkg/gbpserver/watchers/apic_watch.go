@@ -223,10 +223,6 @@ func (aw *ApicWatcher) ProcessEpg(tenant, epgDn string, obj apicapi.ApicObject) 
 	aw.log.Debugf("epgAdded: %v", epg)
 }
 
-func getEpgKey(e *gbpserver.EPG) string {
-	return fmt.Sprintf("%s/%s", e.Tenant, e.Name)
-}
-
 func xtractContract(c apicapi.ApicObject) (string, error) {
 	Dn := c.GetAttrStr("tDn")
 	if Dn == "" {
