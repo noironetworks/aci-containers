@@ -17,17 +17,30 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+)
+
+type Severity int
+
+const (
+	cleared  Severity = iota
+	info              = iota
+	warning           = iota
+	minor             = iota
+	major             = iota
+	critical          = iota
 )
 
 func (cont *AciController) initPodInformerFromClient(
@@ -79,6 +92,53 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 		return
 	}
 	cont.podQueue.Add(podkey)
+}
+
+func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
+
+	podkey, err := cache.MetaNamespaceKeyFunc(pod)
+	if err != nil {
+		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
+		return
+	}
+
+	key := cont.aciNameForKey("pod", podkey)
+	epGroup, ok := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
+	if ok {
+		severity := major
+		faultCode := 10
+		cont.handleEpgAnnotationUpdate(key, faultCode, severity, pod.Name, epGroup)
+	}
+
+	return
+}
+
+func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, severity int, entity string, epGroup string) bool {
+	var egval metadata.OpflexGroup
+	notExist, egval := cont.checkVrfCache(epGroup, "EpgAnnotation")
+
+	if notExist && egval.Name != "" {
+		desc := fmt.Sprintf("Annotation failed for  %s, Reason being: Cannot resolve the EPG %s for the tenant %s and app-profile %s",
+			entity, egval.Name, egval.Tenant, egval.AppProfile)
+		faultcode := strconv.Itoa(faultCode)
+		severity := strconv.Itoa(severity)
+
+		aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
+			cont.config.AciVmmDomain, cont.config.AciVmmController)
+		aPrObjDn := aPrObj.GetDn()
+		aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, faultcode)
+		aObj.SetAttr("faultDesc", desc)
+		aObj.SetAttr("faultCode", faultcode)
+		aObj.SetAttr("faultSeverity", severity)
+
+		if faultCode == 11 {
+			cont.apicConn.WriteApicContainer(key, apicapi.ApicSlice{aObj})
+		} else {
+			cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
+		}
+		return true
+	}
+	return false
 }
 
 func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
@@ -140,6 +200,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	cont.netPolIngressPods.UpdatePodNoCallback(pod)
 	cont.netPolEgressPods.UpdatePodNoCallback(pod)
 	cont.queuePodUpdate(pod)
+	cont.checkIfEpgExistPod(pod)
 }
 
 func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
@@ -172,6 +233,7 @@ func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
 	if shouldqueue {
 		cont.queuePodUpdate(newpod)
 	}
+	cont.checkIfEpgExistPod(newpod)
 }
 
 func (cont *AciController) podDeleted(obj interface{}) {

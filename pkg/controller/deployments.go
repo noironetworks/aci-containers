@@ -23,6 +23,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -112,6 +113,7 @@ func (cont *AciController) writeApicDepl(dep *appsv1.Deployment) {
 func (cont *AciController) deploymentAdded(obj interface{}) {
 	cont.writeApicDepl(obj.(*appsv1.Deployment))
 	cont.depPods.UpdateSelectorObj(obj)
+	cont.checkIfEpgExistDep(obj.(*appsv1.Deployment))
 }
 
 func (cont *AciController) deploymentChanged(oldobj interface{},
@@ -142,7 +144,7 @@ func (cont *AciController) deploymentChanged(oldobj interface{},
 			}
 		}
 	}
-
+	cont.checkIfEpgExistDep(newdep)
 }
 
 func (cont *AciController) deploymentDeleted(obj interface{}) {
@@ -169,4 +171,24 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 		cont.apicConn.ClearApicObjects(key)
 	}
 	cont.depPods.DeleteSelectorObj(obj)
+}
+
+func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
+
+	depkey, err := cache.MetaNamespaceKeyFunc(dep)
+	if err != nil {
+		deploymentLogger(cont.log, dep).
+			Error("Could not  create deployment key: ", err)
+		return
+	}
+
+	key := cont.aciNameForKey("deployment", depkey)
+	epGroup, ok := dep.ObjectMeta.Annotations[metadata.EgAnnotation]
+	if ok {
+		severity := major
+		faultCode := 12
+		cont.handleEpgAnnotationUpdate(key, faultCode, severity, dep.Name, epGroup)
+	}
+
+	return
 }

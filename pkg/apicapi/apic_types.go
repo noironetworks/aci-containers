@@ -1204,3 +1204,17 @@ func NewInfraRsSpanVDestGrpAP(accPortGrpName string, tnSpanVDestGrpName string) 
 			accPortGrpName, tnSpanVDestGrpName)
 	return ret
 }
+func NewVmmInjectedClusterInfo(vendor string, domain string, controller string) ApicObject {
+	ret := newApicObject("vmmInjectedClusterInfo")
+	ret["vmmInjectedClusterInfo"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/info",
+			vendor, domain, controller)
+	return ret
+
+}
+func NewVmmClusterFaultInfo(parentDn string, faultCode string) ApicObject {
+	ret := newApicObject("vmmClusterFaultInfo")
+	ret["vmmClusterFaultInfo"].Attributes["dn"] =
+		fmt.Sprintf("%s/clusterfaultinfo-%s", parentDn, faultCode)
+	return ret
+}

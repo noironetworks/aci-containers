@@ -156,6 +156,8 @@ type AciController struct {
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
 	nmPortNp map[string]bool
+	// cache to look for VRF Epg DNs
+	cachedVRFDns []string
 }
 
 type nodeServiceMeta struct {
