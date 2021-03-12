@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	netpolclientset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
@@ -52,6 +53,7 @@ type K8sEnvironment struct {
 	nodeInfo            *nodeinfoclientset.Clientset
 	rdConfig            *rdconfigclset.Clientset
 	snatLocalInfoClient *snatlocalinfoclset.Clientset
+	netPolClient        *netpolclientset.Clientset
 	agent               *HostAgent
 	podInformer         cache.SharedIndexInformer
 	endpointsInformer   cache.SharedIndexInformer
@@ -129,8 +131,13 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize snatpolicy info client")
 		return nil, err
 	}
+	netPolClient, err := netpolclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize nwpolicy info client")
+		return nil, err
+	}
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netPolClient: netPolClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -142,7 +149,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.serviceEndPoints.InitClientInformer(env.kubeClient)
 	env.agent.initServiceInformerFromClient(env.kubeClient)
 	env.agent.initNamespaceInformerFromClient(env.kubeClient)
-	env.agent.initNetworkPolicyInformerFromClient(env.kubeClient)
+	env.agent.initNetworkPolicyInformerFromClient(env.netPolClient)
 	env.agent.initDeploymentInformerFromClient(env.kubeClient)
 	env.agent.initRCInformerFromClient(env.kubeClient)
 	env.agent.initSnatGlobalInformerFromClient(env.snatGlobalClient)

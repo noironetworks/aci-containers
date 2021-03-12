@@ -516,6 +516,15 @@ func NewHostprotRule(parentDn string, name string) ApicObject {
 	return ret
 }
 
+func NewHostprotDnsName(parentDn string, name string) ApicObject {
+
+	ret := newApicObject("hostprotDnsName")
+	ret["hostprotDnsName"].Attributes["name"] = name
+	ret["hostprotDnsName"].Attributes["dn"] =
+		fmt.Sprintf("%s/[%s]", parentDn, name)
+	return ret
+}
+
 func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 
 	ret := newApicObject("hostprotRemoteIp")
