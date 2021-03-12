@@ -227,92 +227,74 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) (*Server, error) {
-	// create an etcd client
-	log.Debugf("=> Creating new client ..")
-	ec, err := objdb.NewClient(etcdURLs, root)
-	if err != nil {
-		return nil, err
-	}
 
-	log.Debugf("=> New client created..")
 	s := NewServer(config)
 	s.InitState(sd)
 	s.InitDB()
-	s.objapi = ec
-	wHandler := func(w http.ResponseWriter, r *http.Request) {
-		s.handleWrite(w, r)
-	}
-	rHandler := func(w http.ResponseWriter, r *http.Request) {
-		s.handleRead(w, r)
-	}
-
-	r := mux.NewRouter()
-
-	// add websocket handlers
-	r.Handle("/api/webtokenSession.json", &loginHandler{})
-	r.Handle("/api/aaaLogin.json", &loginHandler{})
-	r.Handle("/api/aaaRefresh.json", &refreshSucc{})
-	r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
-	//r.PathPrefix("/api/node").HandlerFunc(wHandler)
-
-	t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
-	// gbp rest handlers
-	addGBPPost(t)
-
-	npPath := fmt.Sprintf("/api/mo/uni/tn-%s/pol-", config.AciPolicyTenant)
-	t.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(postNP))
-	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
-	// api/mo handlers (apic stub)
-	t.PathPrefix("/api/mo").HandlerFunc(wHandler)
-	// Routes consist of a path and a handler function.
-	delR := r.Methods("DELETE").Subrouter()
-	addGBPDelete(delR)
-	delR.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(deleteNP))
-	getR := r.Methods("GET").Subrouter()
-	addGBPGet(getR)
-	getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
-	getR.PathPrefix("/api/node").HandlerFunc(rHandler)
-	getR.PathPrefix("/api/class").HandlerFunc(rHandler)
-	r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
-	r.NotFoundHandler = &nfh{}
-	tlsCfg, err := getTLSCfg()
-	if err != nil {
-		return nil, err
-	}
-	//	tlsCfg.BuildNameToCertificate()
-
-	listenPort := fmt.Sprintf(":%d", config.ProxyListenPort)
-	go func() {
-		log.Infof("=> Listening at %s", listenPort)
-		tlsSrv := http.Server{Addr: listenPort, Handler: r, TLSConfig: tlsCfg}
-		s.tlsSrv = &tlsSrv
-		// Bind to a port and pass our router in
-		err := tlsSrv.ListenAndServeTLS("", "")
-		if !s.stopped {
-			log.Fatal(err)
+	// init etcd client if we're not in pure overlay
+	if config.Apic != nil {
+		// create an etcd client
+		log.Debugf("=> Creating new client ..")
+		ec, err := objdb.NewClient(etcdURLs, root)
+		if err != nil {
+			return nil, err
 		}
-	}()
-
-	/*
-		if insecurePort != "" {
-			go func() {
-				srv := &http.Server{
-					Handler: r,
-					Addr:    insecurePort,
-					// Good practice: enforce timeouts for servers you create!
-					WriteTimeout: 15 * time.Second,
-					ReadTimeout:  15 * time.Second,
-				}
-
-				s.insSrv = srv
-				err := srv.ListenAndServe()
-				if !s.stopped {
-					log.Fatal(err)
-				}
-			}()
+		log.Debugf("=> New client created..")
+		s.objapi = ec
+		wHandler := func(w http.ResponseWriter, r *http.Request) {
+			s.handleWrite(w, r)
 		}
-	*/
+		rHandler := func(w http.ResponseWriter, r *http.Request) {
+			s.handleRead(w, r)
+		}
 
+		r := mux.NewRouter()
+
+		// add websocket handlers
+		r.Handle("/api/webtokenSession.json", &loginHandler{})
+		r.Handle("/api/aaaLogin.json", &loginHandler{})
+		r.Handle("/api/aaaRefresh.json", &refreshSucc{})
+		r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
+		//r.PathPrefix("/api/node").HandlerFunc(wHandler)
+
+		t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
+		// gbp rest handlers
+		addGBPPost(t)
+
+		npPath := fmt.Sprintf("/api/mo/uni/tn-%s/pol-", config.AciPolicyTenant)
+		t.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(postNP))
+		t.PathPrefix("/api/mo").HandlerFunc(wHandler)
+		// api/mo handlers (apic stub)
+		t.PathPrefix("/api/mo").HandlerFunc(wHandler)
+		// Routes consist of a path and a handler function.
+		delR := r.Methods("DELETE").Subrouter()
+		addGBPDelete(delR)
+		delR.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(deleteNP))
+		getR := r.Methods("GET").Subrouter()
+		addGBPGet(getR)
+		getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
+		getR.PathPrefix("/api/node").HandlerFunc(rHandler)
+		getR.PathPrefix("/api/class").HandlerFunc(rHandler)
+		r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
+		r.NotFoundHandler = &nfh{}
+		tlsCfg, err := getTLSCfg()
+		if err != nil {
+			return nil, err
+		}
+		//	tlsCfg.BuildNameToCertificate()
+
+		listenPort := fmt.Sprintf(":%d", config.ProxyListenPort)
+		go func() {
+			log.Infof("=> Listening at %s", listenPort)
+			tlsSrv := http.Server{Addr: listenPort, Handler: r, TLSConfig: tlsCfg}
+			s.tlsSrv = &tlsSrv
+			// Bind to a port and pass our router in
+			err := tlsSrv.ListenAndServeTLS("", "")
+			if !s.stopped {
+				log.Fatal(err)
+			}
+		}()
+	}
 	go s.handleMsgs()
 	if config.Apic != nil && config.Apic.Kafka != nil {
 		kc, err := kafkac.InitKafkaClient(config.Apic.Kafka, config.Apic.Cloud)
@@ -324,7 +306,8 @@ func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) 
 	}
 
 	grpcPort := fmt.Sprintf(":%d", config.GRPCPort)
-	s.gw, err = StartGRPC(grpcPort, s)
+	gw, err := StartGRPC(grpcPort, s)
+	s.gw = gw
 	return s, err
 }
 
@@ -402,7 +385,9 @@ func (s *Server) Config() *GBPServerConfig {
 func (s *Server) Stop() {
 	s.stopped = true
 	s.gw.Stop()
-	s.tlsSrv.Close()
+	if s.tlsSrv != nil {
+		s.tlsSrv.Close()
+	}
 	if s.insSrv != nil {
 		s.insSrv.Close()
 	}

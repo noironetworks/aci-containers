@@ -93,7 +93,10 @@ func main() {
 		logrus.Fatalf("State Driver: %v", err)
 	}
 
-	etcdURLs := startEtcd(cfg)
+	var etcdURLs []string
+	if cfg.Apic != nil {
+		etcdURLs = startEtcd(cfg)
+	}
 	s, err := gbpserver.StartNewServer(cfg, stateDriver, etcdURLs)
 	if err != nil {
 		logrus.Fatalf("Starting api server: %v", err)

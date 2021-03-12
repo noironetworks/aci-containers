@@ -155,6 +155,8 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	gCfg.AciPolicyTenant = testTenant
 	gCfg.AciVmmDomain = "testDom"
 	gCfg.AciVrf = "defaultVrf"
+	apicCfg := &ApicInfo{}
+	gCfg.Apic = apicCfg
 
 	s, err := StartNewServer(gCfg, ts.sd, etcdClientURLs)
 	if err != nil {
