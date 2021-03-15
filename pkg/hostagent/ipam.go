@@ -154,19 +154,10 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
-			var ip net.IP
 			if nc.Subnet.IP.To4() != nil {
 				allocIP(true, &nc)
 			} else if nc.Subnet.IP.To16() != nil {
 				allocIP(false, &nc)
-				ip, err = agent.podIps.AllocateIp(false)
-				if err != nil {
-					result =
-						fmt.Errorf("Could not allocate IPv6 address: %v", err)
-				} else {
-					iface.IPs =
-						append(iface.IPs, makeIFaceIp(&nc, ip))
-				}
 			}
 		}
 	}
