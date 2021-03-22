@@ -50,7 +50,7 @@ type SyncLoginSpec struct {
 }
 
 type NetConfigSpec struct {
-	InterfaceMTU       int `json:"interface_mtu"`
+	InterfaceMTU       int `json:"interface_mtu,omitempty"`
 	SvcMonitorInterval int `json:"service_monitor_interval"`
 	PBRTrackingNonSNAT bool `json:"pbr_tracking_non_snat"`
 }
@@ -58,6 +58,7 @@ type NetConfigSpec struct {
 type RegistrySpec struct {
 	ImagePrefix                    string `json:"image_prefix"`
 	ImagePullSecret                string `json:"image_pull_secret"`
+        AccProvisionOperatorVersion    string `json:"acc_provision_operator_version"`
 	AciContainersControllerVersion string `json:"aci_containers_controller_version"`
 	AciContainersHostVersion       string `json:"aci_containers_host_version"`
 	CNIDeployVersion               string `json:"cnideploy_version"`
@@ -92,7 +93,7 @@ type KubeConfigSpec struct {
 	UseOpenshiftSecurityContextConstraints bool `json:"use_openshift_security_context_constraints"`
 	AllowKubeAPIDefaultEPG                 bool `json:"allow_kube_api_default_epg"`
 	ImagePullPolicy                        string `json:"image_pull_policy"`
-	RebootOpflexWithOvs                    bool `json:"reboot_opflex_with_ovs"`
+	RebootOpflexWithOvs                    string `json:"reboot_opflex_with_ovs"`
 }
 
 // AciContainersOperatorStatus defines the observed state of AciContainersOperator
