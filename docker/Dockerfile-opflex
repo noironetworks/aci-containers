@@ -18,9 +18,12 @@ COPY licenses /licenses
 COPY bin/opflex_agent /usr/local/bin/
 COPY bin/mcast_daemon /usr/local/bin/
 COPY bin/gbp_inspect /usr/local/bin/
+COPY bin/opflex_server /usr/local/bin/
 COPY bin/launch-opflexagent.sh /usr/local/bin/
 COPY bin/launch-mcastdaemon.sh /usr/local/bin/
+COPY bin/launch-opflexserver.sh /usr/local/bin/
 COPY agent/lib/ /usr/local/lib/
+COPY server/lib/ /usr/local/lib/
 ENV SSL_MODE="encrypted"
 ENV REBOOT_WITH_OVS="true"
 CMD ["/usr/local/bin/launch-opflexagent.sh"]
