@@ -17,6 +17,7 @@ package hostagent
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 
 	cnicur "github.com/containernetworking/cni/pkg/types/current"
@@ -80,6 +81,7 @@ type SetupVethArgs struct {
 	Sandbox string
 	IfName  string
 	Mtu     int
+	Ip      net.IP
 }
 
 type SetupVethResult struct {
@@ -88,10 +90,10 @@ type SetupVethResult struct {
 }
 
 func runSetupVeth(sandbox string, ifName string,
-	mtu int) (string, string, error) {
+	mtu int, ip net.IP) (string, string, error) {
 	result := &SetupVethResult{}
 	err := PluginCloner.runPluginCmd("ClientRPC.SetupVeth",
-		&SetupVethArgs{sandbox, ifName, mtu}, result)
+		&SetupVethArgs{sandbox, ifName, mtu, ip}, result)
 	return result.HostVethName, result.Mac, err
 }
 
@@ -111,6 +113,17 @@ func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error 
 		}
 
 		result.HostVethName = hostVeth.Name
+
+		// Force a consistent MAC address based on the IPv4 address
+		// Currently we dont have a support for V6 based mac allocation. Upstream doesn't support yet :-(
+		// This code has to be revisted if upstream drops SetHWAddrByIP in future
+		// https://github.com/containernetworking/plugins/blob/e1517e2498fe4774435bc4be6bdd39fa735b469b/pkg/ip/link_linux.go#L228
+
+		if args.Ip.To4() != nil {
+			if err := ip.SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
+				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
+			}
+		}
 
 		contVeth, err := netlink.LinkByName(args.IfName)
 		if err != nil {
@@ -272,11 +285,6 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		} else {
 			mtu = agent.config.InterfaceMtu
 		}
-		iface.HostVethName, iface.Mac, err =
-			runSetupVeth(iface.Sandbox, iface.Name, mtu)
-		if err != nil {
-			return nil, err
-		}
 
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
@@ -285,6 +293,21 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
+			}
+		}
+
+		for _, ip := range iface.IPs {
+			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
+			//We are guaranteed to derive the MAC address from the IPv4 address in the IPv4-only case.
+
+			if ip.Address.IP != nil {
+				iface.HostVethName, iface.Mac, err =
+					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
+				if err != nil {
+					return nil, err
+				} else {
+					break
+				}
 			}
 		}
 
