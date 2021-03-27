@@ -51,7 +51,7 @@ type SyncLoginSpec struct {
 
 type NetConfigSpec struct {
 	InterfaceMTU       int `json:"interface_mtu,omitempty"`
-	SvcMonitorInterval int `json:"service_monitor_interval"`
+	SvcMonitorInterval int `json:"service_monitor_interval,omitempty"`
 	PBRTrackingNonSNAT bool `json:"pbr_tracking_non_snat"`
 }
 
