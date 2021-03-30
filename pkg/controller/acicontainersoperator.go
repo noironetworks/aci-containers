@@ -415,6 +415,8 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	}
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
+        log.Info("acicnioperator !!!!!!!!!!!!!! CR recieved is", (obj.Status.Custom))
+	log.Info("acicnioperator !!!!!!!!!!!!!! CR recieved is", (obj.Status.Status))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
 		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if er != nil {
