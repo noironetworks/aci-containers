@@ -427,6 +427,9 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 			log.Info("Waiting for CRD to get registered to etcd....: ", err)
 			return false, nil
 		}
+		obj.Status.Status = true
+		c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).UpdateStatus(context.TODO(), obj, metav1.UpdateOptions{})
+		log.Info("///////////////////")
 		return true, nil
 	}); err != nil {
 		return err

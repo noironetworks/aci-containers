@@ -8,7 +8,6 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AciContainersOperator is a specification for a AciContainersOperator resource
-// +kubebuilder:subresource:status
 type AciContainersOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -102,7 +101,7 @@ type AciContainersOperatorStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "acioperator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	Status bool `json:"Successful"`
+	Status bool `json:"successful"`
         Custom string `json:"Custom"`
 }
 
