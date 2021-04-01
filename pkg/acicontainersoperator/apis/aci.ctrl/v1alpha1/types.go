@@ -8,6 +8,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AciContainersOperator is a specification for a AciContainersOperator resource
+// +kubebuilder:subresource:status
 type AciContainersOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
