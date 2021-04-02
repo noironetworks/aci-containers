@@ -18,7 +18,6 @@ package controller
 import (
 	podIfpolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	podIfclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
-	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -29,13 +28,6 @@ import (
 const (
 	podIfCRDName = "podifs.aci.aw"
 )
-
-func PodIfPolicyLogger(log *logrus.Logger, podIf *podIfpolicy.PodIF) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		"namespace": podIf.ObjectMeta.Namespace,
-		"name":      podIf.ObjectMeta.Name,
-	})
-}
 
 func podIfInit(cont *AciController, stopCh <-chan struct{}) {
 	cont.log.Debug("Initializing podIf client")

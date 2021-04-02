@@ -15,7 +15,6 @@
 package hostagent
 
 import (
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -198,37 +197,6 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 	}
 	ha.crdClient = aciawClient.AciV1()
 	return ha
-}
-
-func getVtep() (Vtep, error) {
-	var vtep Vtep
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return vtep, err
-	}
-	for _, i := range ifaces {
-		// FIXME -- hardcoded for now
-		if i.Name != "enp0s8" {
-			continue
-		}
-		addrs, err := i.Addrs()
-		if err != nil {
-			return vtep, err
-		}
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPAddr:
-				ip = v.IP
-				vtep.vtepIP = ip.String()
-				vtep.vtepIface = i.Name
-				return vtep, nil
-			}
-			// process IP address
-		}
-	}
-
-	return vtep, fmt.Errorf("VTEP IP not found")
 }
 
 func addPodRoute(ipn types.IPNet, dev string, src string) error {

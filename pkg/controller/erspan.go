@@ -18,14 +18,12 @@ package controller
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
 	erspanclientset "github.com/noironetworks/aci-containers/pkg/erspanpolicy/clientset/versioned"
-	podIfpolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,15 +87,6 @@ func (cont *AciController) initErspanInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing erspan Policy Informers")
-}
-
-func isValidEPG(podif *podIfpolicy.PodIF) bool {
-	pattern := regexp.MustCompile("\\|")
-	idx := pattern.FindAllStringIndex(podif.Status.EPG, -1)
-	if len(idx) != 1 || idx[0][0] == 0 || idx[0][0] == len(podif.Status.EPG)-1 {
-		return false
-	}
-	return true
 }
 
 func (cont *AciController) queueErspanUpdateByKey(key string) {

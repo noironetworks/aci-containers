@@ -185,15 +185,6 @@ func (agent *testHostAgent) stop() {
 	close(agent.stopCh)
 }
 
-func namespaceLabel(name string, labels map[string]string) *v1.Namespace {
-	return &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: labels,
-		},
-	}
-}
-
 func mkNamespace(name string, egAnnot string, sgAnnot string, qpAnnot string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -203,19 +194,6 @@ func mkNamespace(name string, egAnnot string, sgAnnot string, qpAnnot string) *v
 				metadata.SgAnnotation: sgAnnot,
 				metadata.QpAnnotation: qpAnnot,
 			},
-		},
-	}
-}
-
-func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
-	return &v1.Pod{
-		Spec: v1.PodSpec{
-			NodeName: "test-node",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-			Labels:    labels,
 		},
 	}
 }

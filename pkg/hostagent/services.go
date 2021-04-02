@@ -191,14 +191,6 @@ func (agent *HostAgent) initServiceInformerBase(listWatch *cache.ListWatch) {
 	})
 }
 
-func getAs(asfile string) (string, error) {
-	raw, err := ioutil.ReadFile(asfile)
-	if err != nil {
-		return "", err
-	}
-	return string(raw), err
-}
-
 func writeAs(asfile string, as *opflexService) (bool, error) {
 	newdata, err := json.MarshalIndent(as, "", "  ")
 	if err != nil {
