@@ -91,14 +91,9 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	log.Debug("NetConf: ", n)
 
 	k8sArgs := &K8SArgs{}
-	if n.DomainType != "CloudFoundry" {
-		err = types.LoadArgs(args.Args, k8sArgs)
-		if err != nil {
-			return nil, nil, "", err
-		}
-	} else {
-		k8sArgs.K8S_POD_NAMESPACE = "_cf_"
-		k8sArgs.K8S_POD_NAME = types.UnmarshallableString(args.ContainerID)
+	err = types.LoadArgs(args.Args, k8sArgs)
+	if err != nil {
+		return nil, nil, "", err
 	}
 
 	id := args.ContainerID

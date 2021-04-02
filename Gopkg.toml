@@ -114,18 +114,6 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   branch = "release-1.15"
 
 [[constraint]]
-  name = "code.cloudfoundry.org/bbs"
-  branch = "master"
-
-[[constraint]]
-  name = "github.com/cloudfoundry-community/go-cfclient"
-  branch = "master"
-
-[[constraint]]
-  name = "code.cloudfoundry.org/cfhttp"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/coreos/go-iptables"
   version = "0.3.0"
 
@@ -136,14 +124,6 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 [[constraint]]
   name = "github.com/mattn/go-sqlite3"
   version = "1.6.0"
-
-[[constraint]]
-  name = "code.cloudfoundry.org/clock"
-  branch = "master"
-
-[[constraint]]
-  name = "code.cloudfoundry.org/locket"
-  branch = "master"
 
 [[constraint]]
   name = "github.com/yl2chen/cidranger"
@@ -171,7 +151,3 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
   revision = "3652de39ca8ccf74d9126c1f0b5cb3679449c18b"
-
-[[override]]
-  name = "code.cloudfoundry.org/locket"
-  revision = "285105ed8d9a2c4bae7002b0cb5eb35e7e1b6cd7"

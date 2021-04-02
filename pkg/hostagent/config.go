@@ -178,8 +178,8 @@ type HostAgentConfig struct {
 	// Configuration for CNI networks
 	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
 
-	// The type of the ACI VMM domain: either "Kubernetes",
-	// "OpenShift" or "CloudFoundry"
+	// The type of the ACI VMM domain: either "Kubernetes"
+	// or "OpenShift"
 	AciVmmDomainType string `json:"aci-vmm-type,omitempty"`
 
 	// The name of the ACI VMM domain
