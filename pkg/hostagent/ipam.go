@@ -32,14 +32,6 @@ func makePodKey(ns, name string) string {
 	return fmt.Sprintf("%s.%s", ns, name)
 }
 
-func combine(ranges []*ipam.IpAlloc) *ipam.IpAlloc {
-	result := ipam.New()
-	for _, r := range ranges {
-		result.AddAll(r)
-	}
-	return result
-}
-
 // builds the used IP info from metadata, at init.
 func (agent *HostAgent) buildUsedIPs() {
 	agent.usedIPs = make(map[string]string)
@@ -123,10 +115,6 @@ func makeIFaceIp(nc *cniNetConfig, ip net.IP) metadata.ContainerIfaceIP {
 		},
 		Gateway: nc.Gateway,
 	}
-}
-
-func deallocateIp(ip net.IP, free []*ipam.IpAlloc) {
-	free[len(free)-1].AddIp(ip)
 }
 
 func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey string) error {
