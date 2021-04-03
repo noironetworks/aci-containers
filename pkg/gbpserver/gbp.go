@@ -725,7 +725,9 @@ func getSnapShot(vtep string) []*GBPObject {
 
 	var keys []string
 	for k := range moMap {
-		keys = append(keys, k)
+		if len(k) > 1 { // skip topRoot
+			keys = append(keys, k)
+		}
 	}
 
 	sort.Strings(keys)
@@ -759,8 +761,6 @@ func DoAll() {
 	}
 
 	saveDBToFile()
-
-	//	fmt.Printf("policy.json: %s", policyJson)
 }
 func invToCommon(vtep string) map[string]*gbpCommonMo {
 	moMap := make(map[string]*gbpCommonMo)

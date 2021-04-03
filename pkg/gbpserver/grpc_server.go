@@ -99,7 +99,7 @@ func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
 		for _, url := range urls {
 			if strings.Contains(url, "InvRemoteInventoryEp") {
 				moList = append(moList, getInvSubTree(url, peerVtep)...)
-			} else {
+			} else if len(url) > 1 { // skip topRoot
 				moList = append(moList, getMoSubTree(url)...)
 			}
 		}

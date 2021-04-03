@@ -828,8 +828,13 @@ func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, len(moList), len(moMap))
+	// we explicitly remove topRoot from map returned to clients
+	assert.Equal(t, len(moList)-1, len(moMap))
 	for _, m := range moList {
+		if len(m.Uri) <= 1 {
+			// skip topRoot
+			continue
+		}
 		n, found := moMap[m.Uri]
 		if !found {
 			t.Fatal(fmt.Errorf("Object %s not found in received policy", m.Uri))
