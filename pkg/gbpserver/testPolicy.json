@@ -3,8 +3,6 @@
         "subject": "DmtreeRoot",
         "uri": "/",
         "children": [
-            "/RelatorUniverse/",
-            "/GbpeVMUniverse/",
             "/DomainConfig/",
             "/InvUniverse/",
             "/PolicyUniverse/"
@@ -52,13 +50,6 @@
         "parent_subject": "DomainConfig",
         "parent_uri": "/DomainConfig/",
         "parent_relation": "DomainConfigToRemoteEndpointInventoryRSrc"
-    },
-    {
-        "subject": "GbpeVMUniverse",
-        "uri": "/GbpeVMUniverse/",
-        "parent_subject": "DmtreeRoot",
-        "parent_uri": "/",
-        "parent_relation": "GbpeVMUniverse"
     },
     {
         "subject": "InvUniverse",
@@ -2159,12 +2150,5 @@
                 "data": 6443
             }
         ]
-    },
-    {
-        "subject": "RelatorUniverse",
-        "uri": "/RelatorUniverse/",
-        "parent_subject": "DmtreeRoot",
-        "parent_uri": "/",
-        "parent_relation": "RelatorUniverse"
     }
 ]

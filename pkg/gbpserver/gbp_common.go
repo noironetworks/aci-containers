@@ -547,8 +547,6 @@ func CreateRoot(config *GBPServerConfig) {
 	}
 
 	rootChildren := []string{
-		"RelatorUniverse",
-		"GbpeVMUniverse",
 		"DomainConfig",
 		"InvUniverse",
 		"PolicyUniverse",
