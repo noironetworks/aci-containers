@@ -73,8 +73,8 @@ func (agent *HostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
 		AddFunc: func(obj interface{}) {
 			agent.nodeChanged(obj)
 		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			agent.nodeChanged(obj)
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			agent.nodeChanged(oldobj, newobj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			agent.nodeDeleted(obj)
@@ -82,10 +82,19 @@ func (agent *HostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
 	})
 }
 
-func (agent *HostAgent) nodeChanged(obj interface{}) {
+func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	updateServices := false
-
-	node := obj.(*v1.Node)
+	var node *v1.Node
+	if len(obj) == 2 {
+		oldnode := obj[0].(*v1.Node)
+		node = obj[1].(*v1.Node)
+		if !reflect.DeepEqual(node.ObjectMeta.Labels, oldnode.ObjectMeta.Labels) {
+			updateServices = true
+			agent.log.Info("Node label changed, Updating services")
+		}
+	} else {
+		node = obj[0].(*v1.Node)
+	}
 	if node.ObjectMeta.Name != agent.config.NodeName {
 		agent.log.Error("Got incorrect node update for ", node.ObjectMeta.Name)
 		return
