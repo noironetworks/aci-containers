@@ -1,5 +1,5 @@
 FROM noiro/opflex-build-base
-ARG BUILDOPTS="--enable-grpc --enable-prometheus"
+ARG BUILDOPTS="--enable-grpc"
 WORKDIR /opflex
 COPY libopflex /opflex/libopflex
 ARG make_args=-j4
