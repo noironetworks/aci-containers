@@ -408,7 +408,9 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	}
 	obj := c.CreateAciContainersOperatorObj()
 	log.Info("Unmarshalling the Config-Map...")
+        log.Info(string(raw))
 	err = json.Unmarshal(raw, &obj.Spec)
+        err = json.Unmarshal(raw, &obj.Status)
 	if err != nil {
 		log.Error(err)
 		return err
