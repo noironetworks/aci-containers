@@ -1,13 +1,11 @@
 go 1.15
 
 require (
-	code.cloudfoundry.org/cfhttp v2.0.0+incompatible // indirect
 	github.com/Shopify/sarama v1.26.1
 	github.com/aws/aws-sdk-go v1.33.11
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd // indirect
-	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201030145137-e8daddee3a97 // indirect
 	github.com/containernetworking/cni v0.8.0
 	github.com/containernetworking/plugins v0.8.7
 	github.com/coreos/bbolt v1.3.3 // indirect
