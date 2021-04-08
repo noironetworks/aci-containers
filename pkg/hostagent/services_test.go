@@ -34,10 +34,14 @@ import (
 
 func service(uuid string, namespace string, name string,
 	clusterIp string, externalIp string, ports []int32, topokeys []string) *v1.Service {
+	var timeout int32
+	timeout = 10000
 	s := &v1.Service{
 		Spec: v1.ServiceSpec{
-			ClusterIP:    clusterIp,
-			TopologyKeys: topokeys,
+			ClusterIP:             clusterIp,
+			TopologyKeys:          topokeys,
+			SessionAffinity:       "ClientIP",
+			SessionAffinityConfig: &v1.SessionAffinityConfig{ClientIP: &v1.ClientIPConfig{TimeoutSeconds: &timeout}},
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			UID:         apitypes.UID(uuid),
@@ -174,12 +178,13 @@ func (agent *testHostAgent) checkAs(t *testing.T, st *serviceTest,
 		desc, st.name, "domain")
 	assert.Equal(t, "loadbalancer", as.ServiceMode,
 		desc, st.name, "domain")
-
 	if assert.Equal(t, 1, len(as.ServiceMappings), desc, "service-mappings") {
 		sm := &as.ServiceMappings[0]
 		assert.Equal(t, st.nextHopIps, sm.NextHopIps, desc, "next-hop")
 		assert.Equal(t, st.ports[0], int32(sm.NextHopPort), desc, "next-hop-port")
 		assert.Equal(t, st.ports[0], int32(sm.ServicePort), desc, "service-port")
+		assert.Equal(t, int32(10000),
+			sm.SessionAffinity.ClientIP.TimeoutSeconds, desc, "sessionAffinity")
 	}
 }
 
