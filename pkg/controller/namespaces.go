@@ -69,6 +69,13 @@ func (cont *AciController) writeApicNs(ns *v1.Namespace) {
 	aobj := apicapi.NewVmmInjectedNs(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		ns.Name)
+	if ns.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.2" {
+		for key, val := range ns.ObjectMeta.Labels {
+			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
+				key, val)
+			aobj.AddChild(label)
+		}
+	}
 	cont.apicConn.WriteApicContainer(cont.aciNameForKey("ns", ns.Name),
 		apicapi.ApicSlice{aobj})
 }

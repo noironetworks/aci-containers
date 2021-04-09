@@ -188,6 +188,13 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 			break
 		}
 	}
+	if pod.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
+		for key, val := range pod.ObjectMeta.Labels {
+			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
+				key, val)
+			aobj.AddChild(label)
+		}
+	}
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
 }
 

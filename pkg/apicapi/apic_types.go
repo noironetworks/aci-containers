@@ -1218,3 +1218,11 @@ func NewVmmClusterFaultInfo(parentDn string, faultCode string) ApicObject {
 		fmt.Sprintf("%s/clusterfaultinfo-%s", parentDn, faultCode)
 	return ret
 }
+func NewVmmInjectedLabel(parentDn string, name string, value string) ApicObject {
+	ret := newApicObject("vmmInjectedLabel")
+	ret["vmmInjectedLabel"].Attributes["name"] = name
+	ret["vmmInjectedLabel"].Attributes["value"] = value
+	ret["vmmInjectedLabel"].Attributes["dn"] =
+		fmt.Sprintf("%s/key-[%s]-val-%s", parentDn, name, value)
+	return ret
+}
