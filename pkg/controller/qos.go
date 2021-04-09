@@ -83,7 +83,11 @@ func (cont *AciController) initQosInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (cont *AciController) qosPolicyUpdated(obj interface{}) {
-	qosPolicy := obj.(*qospolicy.QosPolicy)
+	qosPolicy, ok := obj.(*qospolicy.QosPolicy)
+	if !ok {
+		cont.log.Error("qosPolicyUpdated: Bad object type")
+		return
+	}
 	key, err := cache.MetaNamespaceKeyFunc(qosPolicy)
 	if err != nil {
 		QosPolicyLogger(cont.log, qosPolicy).
@@ -91,6 +95,7 @@ func (cont *AciController) qosPolicyUpdated(obj interface{}) {
 		return
 	}
 	cont.queueQosUpdateByKey(key)
+	cont.log.Infof("qos policy updated: %s", qosPolicy.ObjectMeta.Name)
 
 }
 
@@ -125,17 +130,14 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 		return false
 	}
 	labelKey := cont.aciNameForKey("qp", key)
-	cont.log.Debug("create qospolicy")
+	cont.log.Infof("Creating qos policy: %s", qp.ObjectMeta.Name)
 	qr := apicapi.NewQosRequirement(cont.config.AciPolicyTenant, labelKey)
 	qrDn := qr.GetDn()
 	apicSlice := apicapi.ApicSlice{qr}
 
-	// Pushing EpDscpMarking Mo if dscp_mark not equal to 0
-	if qp.Spec.Mark != 0 {
-		DscpMarking := apicapi.NewQosEpDscpMarking(qrDn, "EpDscpMarking")
-		DscpMarking.SetAttr("mark", strconv.Itoa(qp.Spec.Mark))
-		qr.AddChild(DscpMarking)
-	}
+	DscpMarking := apicapi.NewQosEpDscpMarking(qrDn, "EpDscpMarking")
+	DscpMarking.SetAttr("mark", strconv.Itoa(qp.Spec.Mark))
+	qr.AddChild(DscpMarking)
 
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
@@ -162,7 +164,7 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 		qr.AddChild(RsEgressDppPol)
 		apicSlice = append(apicSlice, DppPolEgress)
 	}
-
+	cont.log.Info("qos APIC slice: ", apicSlice)
 	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 
 	return false
