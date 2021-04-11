@@ -22,13 +22,21 @@ type QosPolicySpec struct {
 	Selector PodSelector  `json:"selector,omitempty"`
 	Ingress  PolicingType `json:"ingress,omitempty"`
 	Egress   PolicingType `json:"egress,omitempty"`
-	Mark     int          `json:"dscpmark,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=63
+	// +kubebuilder:default:=0
+	// +optional
+	Mark int `json:"dscpmark,omitempty"`
 }
 
 //PolicingType
 type PolicingType struct {
-	PolicingRate  int `json:"policing_rate"`
-	PolicingBurst int `json:"policing_burst"`
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	PolicingRate int `json:"policing_rate,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	PolicingBurst int `json:"policing_burst,omitempty"`
 }
 
 // QosPolicyStatus defines the observed state of QosPolicy
