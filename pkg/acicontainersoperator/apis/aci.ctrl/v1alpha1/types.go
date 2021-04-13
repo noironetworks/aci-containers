@@ -23,7 +23,7 @@ type AciContainersOperatorSpec struct {
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	Flavor            string `json:"flavor"`
 	Config            string `json:"config"`
-	AccProvisionInput AccProvisionSpec `json:"acc_provision_input"`
+        AccProvisionInput AccProvisionSpec `json:"acc_provision_input"`
 }
 
 type AccProvisionSpec struct {
@@ -102,7 +102,55 @@ type AciContainersOperatorStatus struct {
 	// Important: Run "acioperator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	Status bool `json:"Successful"`
-        Custom string `json:"Custom"`
+        AccProvisionInput AccProvisionStatus `json:"acc_provision_input"`
+}
+
+type AccProvisionStatus struct {
+        DeploymentOperator bool `json:"deployment_operator"`
+        AciConfig          AciConfigStatus `json:"aci_config,omitempty"`
+        NetConfig          NetConfigStatus `json:"net_config,omitempty"`
+        Registry           RegistrySpec `json:"registry,omitempty"`
+        Logging            LoggingSpec `json:"logging,omitempty"`
+        IstioConfig        IstioConfigSpec `json:"istio_config,omitempty"`
+        DropLogConfig      DropLogConfigSpec `json:"drop_log_config,omitempty"`
+        Multus             MultusSpec `json:"multus,omitempty"`
+        KubeConfig         KubeConfigSpec `json:"kube_config,omitempty"`
+}
+
+type AciConfigStatus struct {
+	ClusterTenant string `json:"cluster_tenant,omitempty"`
+	SyncLogin     SyncLoginSpec `json:"sync_login,omitempty"`
+	ClientSSL     bool `json:"client_ssl,omitempty"`
+        SystemID      string `json:"system_id"`
+        ApicHosts     []string `json:"apic_hosts"`
+        AEP           string `json:"aep,omitempty"`
+        VRF           VRFStatus `json:"vrf"`
+        L3Out         L3OutStatus `json:"l3out"`
+        CustomEPGs    []string `json:"custom_epgs,omitempty"`
+}
+
+type VRFStatus struct {
+      Name string `json:"name"`
+      Tenant string `json:"tenant"`
+}
+
+type L3OutStatus struct {
+     Name string `json:"name"`
+     ExternalNetworks []string `json:"external_networks"`
+}
+
+type NetConfigStatus struct {
+	InterfaceMTU       int `json:"interface_mtu,omitempty"`
+	SvcMonitorInterval int `json:"service_monitor_interval,omitempty"`
+	PBRTrackingNonSNAT bool `json:"pbr_tracking_non_snat,omitempty"`
+        NodeSubnet         string `json:"node_subnet"`
+        PodSubnet          string `json:"pod_subnet"`
+        ExternDynamic      string `json:"extern_dynamic"`
+        ExternStatic       string `json:"extern_static"`
+        NodeServiceSubnet  string `json:"node_svc_subnet"`
+        KubeAPIVLAN        string `json:"kubeapi_vlan"`
+        ServiceVLAN        string `json:"service_vlan"`
+        InfraVLAN          string `json:"infra_vlan"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

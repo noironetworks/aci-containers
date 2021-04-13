@@ -379,8 +379,8 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 	}
 	return acicnioperator, nil
 }
-func (c *Controller) ReadConfigMap() ([]byte, error) {
-	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+func (c *Controller) ReadConfigMap(field string) ([]byte, error) {
+	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/" + field)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -395,29 +395,35 @@ func (c *Controller) CreateAciContainersOperatorObj() *operators.AciContainersOp
 			Name:      "acicnioperator",
 			Namespace: os.Getenv("SYSTEM_NAMESPACE")},
 	}
-	obj.Status.Status = true //Setting it default true
+	//obj.Status.Status = true //Setting it default true
 	return &obj
 }
 
 func (c *Controller) CreateAciContainersOperatorCR() error {
 	log.Info("Reading the Config Map providing CR")
-	raw, err := c.ReadConfigMap()
+	rawSpec, err := c.ReadConfigMap("spec")
 	if err != nil {
 		log.Error(err)
 		return err
 	}
+        rawStatus, err := c.ReadConfigMap("status")
+        if err != nil {
+                log.Error(err)
+                return err
+        }
 	obj := c.CreateAciContainersOperatorObj()
 	log.Info("Unmarshalling the Config-Map...")
-        log.Info(string(raw))
-	err = json.Unmarshal(raw, &obj.Spec)
-        err = json.Unmarshal(raw, &obj.Status)
+	err = json.Unmarshal(rawSpec, &obj.Spec)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
+        err = json.Unmarshal(rawStatus, &obj.Status)
+        if err != nil {
+                log.Error(err)
+                return err
+        }
 	log.Info("Unmarshalling Successful....")
-	log.Debug("acicnioperator CR recieved is", (obj.Spec))
-        log.Info("acicnioperator !!!!!!!!!!!!!! CR recieved is", (obj.Status.Custom))
 	log.Info("acicnioperator !!!!!!!!!!!!!! CR recieved is", (obj.Status.Status))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
 		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
@@ -429,9 +435,6 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 			log.Info("Waiting for CRD to get registered to etcd....: ", err)
 			return false, nil
 		}
-		obj.Status.Status = true
-		c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).UpdateStatus(context.TODO(), obj, metav1.UpdateOptions{})
-		log.Info("///////////////////")
 		return true, nil
 	}); err != nil {
 		return err
@@ -452,16 +455,26 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	} else {
 		log.Info("acicnioperator CR already present")
 		log.Debug("Reading current configmap")
-		raw, err := c.ReadConfigMap()
-		if err != nil {
-			log.Error(err)
+		rawSpec, errSpec := c.ReadConfigMap("spec")
+                rawStatus, errStatus := c.ReadConfigMap("status")
+		if errSpec != nil || errStatus != nil {
+                        if errSpec != nil {
+			        log.Error(errSpec)
+                        }
+                        if errStatus != nil {
+                                log.Error(errStatus)
+                        }
 		} else {
 			obj := c.CreateAciContainersOperatorObj()
 			log.Debug("Unmarshalling the Config-Map...")
-			err = json.Unmarshal(raw, &obj.Spec)
+			err = json.Unmarshal(rawSpec, &obj.Spec)
 			if err != nil {
 				log.Error(err)
 			}
+                        err = json.Unmarshal(rawStatus, &obj.Status)
+                        if err != nil {
+                                log.Error(err)
+                        }
 			if acicnioperator.Spec.Config != obj.Spec.Config {
 				acicnioperator.Spec.Config = obj.Spec.Config
 				log.Info("New Configuration detected...applying changes")
