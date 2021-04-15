@@ -158,8 +158,10 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 
 	eg := &metadata.OpflexGroup{}
 	sg := make([]metadata.OpflexGroup, 0)
+	qp := metadata.OpflexGroup{}
 	json.Unmarshal([]byte(pt.eg), eg)
 	json.Unmarshal([]byte(pt.sg), &sg)
+	json.Unmarshal([]byte(pt.qp), &qp)
 
 	epidstr := pt.uuid + "_" + pt.cont + "_" + pt.veth
 	assert.Equal(t, epidstr, ep.Uuid, desc, pt.name, "uuid")
@@ -168,6 +170,8 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 	assert.Equal(t, eg.AppProfile+"|"+eg.Name, ep.EndpointGroup,
 		desc, pt.name, "eg")
 	assert.Equal(t, sg, ep.SecurityGroup, desc, pt.name, "secgroup")
+	assert.Equal(t, qp, ep.QosPolicy, desc, pt.name, "qos")
+
 }
 
 func TestPodSync(t *testing.T) {
