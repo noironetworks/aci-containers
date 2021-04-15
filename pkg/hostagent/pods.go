@@ -54,7 +54,6 @@ type opflexEndpoint struct {
 	EndpointGroup string                 `json:"endpoint-group-name,omitempty"`
 	SecurityGroup []metadata.OpflexGroup `json:"security-group,omitempty"`
 	QosPolicy     metadata.OpflexGroup   `json:"qos-policy,omitempty"`
-	QoSPolicies   []metadata.OpflexGroup `json:"qos-policies,omitempty"`
 
 	IpAddress  []string `json:"ip,omitempty"`
 	MacAddress string   `json:"mac,omitempty"`
@@ -488,15 +487,14 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	if epAttributes == nil {
 		epAttributes = make(map[string]string)
 	}
-	qosPolicies, _ := agent.assignqosPolicies(pod)
 	epAttributes["vm-name"] = pod.ObjectMeta.Name
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
-	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, qosPolicies, epAttributes, logger)
+	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, epAttributes, logger)
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
-	epSecGroups []metadata.OpflexGroup, epQosPolicy metadata.OpflexGroup, epQoSPolicies []metadata.OpflexGroup, epAttributes map[string]string,
+	epSecGroups []metadata.OpflexGroup, epQosPolicy metadata.OpflexGroup, epAttributes map[string]string,
 	logger *logrus.Entry) {
 	if logger == nil {
 		logger = agent.log.WithFields(logrus.Fields{})
@@ -556,7 +554,6 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			}
 			ep.SecurityGroup = epSecGroups
 			ep.QosPolicy = epQosPolicy
-			ep.QoSPolicies = epQoSPolicies
 
 			neweps = append(neweps, ep)
 		}
