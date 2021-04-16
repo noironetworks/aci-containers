@@ -83,6 +83,13 @@ func (cont *AciController) writeApicRs(rs *appsv1.ReplicaSet) {
 			break
 		}
 	}
+	if rs.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
+		for key, val := range rs.ObjectMeta.Labels {
+			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
+				key, val)
+			aobj.AddChild(label)
+		}
+	}
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
 }
 

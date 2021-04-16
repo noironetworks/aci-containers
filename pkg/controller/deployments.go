@@ -107,6 +107,13 @@ func (cont *AciController) writeApicDepl(dep *appsv1.Deployment) {
 	} else {
 		aobj.SetAttr("replicas", "1")
 	}
+	if dep.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
+		for key, val := range dep.ObjectMeta.Labels {
+			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
+				key, val)
+			aobj.AddChild(label)
+		}
+	}
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aobj})
 }
 

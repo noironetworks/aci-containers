@@ -1076,6 +1076,13 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		p.SetAttr("nodePort", strconv.Itoa(int(port.NodePort)))
 		aobj.AddChild(p)
 	}
+	if service.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.2" {
+		for key, val := range service.ObjectMeta.Labels {
+			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
+				key, val)
+			aobj.AddChild(label)
+		}
+	}
 	name := cont.aciNameForKey("service-vmm", key)
 	cont.log.Debug("Write Service Object: ", aobj)
 	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
