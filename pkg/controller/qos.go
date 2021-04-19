@@ -73,7 +73,7 @@ func (cont *AciController) initQosInformerBase(listWatch *cache.ListWatch) {
 				cont.qosPolicyUpdated(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				cont.qosPolicyDelete(obj)
+				cont.qosPolicyDeleted(obj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -103,10 +103,23 @@ func (cont *AciController) queueQosUpdateByKey(key string) {
 	cont.qosQueue.Add(key)
 }
 
-func (cont *AciController) qosPolicyDelete(qosobj interface{}) {
-	qr := qosobj.(*qospolicy.QosPolicy)
+func (cont *AciController) qosPolicyDeleted(qosobj interface{}) {
+	qr, isQr := qosobj.(*qospolicy.QosPolicy)
+	if !isQr {
+		deletedState, ok := qosobj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			QosPolicyLogger(cont.log, qr).
+				Error("Received unexpected object: ", qosobj)
+			return
+		}
+		qr, ok = deletedState.Obj.(*qospolicy.QosPolicy)
+		if !ok {
+			QosPolicyLogger(cont.log, qr).
+				Error("DeletedFinalStateUnknown contained non-qos object: ", deletedState.Obj)
+			return
+		}
+	}
 	qrkey, err := cache.MetaNamespaceKeyFunc(qr)
-
 	if err != nil {
 		QosPolicyLogger(cont.log, qr).
 			Error("Could not create qos policy key: ", err)
@@ -118,6 +131,14 @@ func (cont *AciController) qosPolicyDelete(qosobj interface{}) {
 }
 
 func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
+
+	// Ability to configure Qos Policy is available only in APIC versions >= 5.1(x).
+	if apicapi.ApicVersion < "5.1" {
+		cont.log.Error("Cannot create Qos Policy in APIC versions < 5.1(x). Actual APIC version: ",
+			apicapi.ApicVersion)
+		return false
+	}
+
 	qp, ok := obj.(*qospolicy.QosPolicy)
 	if !ok {
 		cont.log.Error("handleQosPolUpdate: Bad object type")
