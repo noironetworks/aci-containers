@@ -86,7 +86,10 @@ type opflexClientIPConfig struct {
 }
 
 // Default Session value is 10800(for 3 hours)
-const DefaultSessionAffinityTimer = 10800
+const (
+	DefaultSessionAffinityTimer = 10800
+	TempSessionAffinityTimer    = 1
+)
 
 // Name of the Openshift Service
 const (
@@ -626,9 +629,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 			} else {
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
-			if as.Spec.SessionAffinityConfig != nil && as.Spec.SessionAffinity == "ClientIP" {
-				sm.SessionAffinity = getSessionAffinity(as.Spec.SessionAffinityConfig)
-			}
+			sm.SessionAffinity = getSessionAffinity(as)
 			for _, a := range e.Addresses {
 				if !external ||
 					(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
@@ -644,12 +645,16 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	return hasValidMapping
 }
 
-func getSessionAffinity(config *v1.SessionAffinityConfig) *opflexSessionAffinityConfig {
-	if config.ClientIP != nil && config.ClientIP.TimeoutSeconds != nil {
-		return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: *config.ClientIP.TimeoutSeconds}}
-	} else {
-		return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: DefaultSessionAffinityTimer}}
+func getSessionAffinity(as *v1.Service) *opflexSessionAffinityConfig {
+	if as.Spec.SessionAffinityConfig != nil && as.Spec.SessionAffinity == "ClientIP" {
+		config := as.Spec.SessionAffinityConfig
+		if config.ClientIP != nil && config.ClientIP.TimeoutSeconds != nil {
+			return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: *config.ClientIP.TimeoutSeconds}}
+		} else {
+			return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: DefaultSessionAffinityTimer}}
+		}
 	}
+	return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: TempSessionAffinityTimer}}
 }
 
 func checkKeyMatch(topology, nodelabels map[string]string, key string) bool {
@@ -746,9 +751,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 				hasValidMapping = true
 			}
-			if as.Spec.SessionAffinityConfig != nil && as.Spec.SessionAffinity == "ClientIP" {
-				sm.SessionAffinity = getSessionAffinity(as.Spec.SessionAffinityConfig)
-			}
+			sm.SessionAffinity = getSessionAffinity(as)
 			ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 		}
 	}
