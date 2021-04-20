@@ -132,13 +132,10 @@ cp docker/launch-opflexagent.sh build/opflex/dist/bin/
 cp docker/launch-mcastdaemon.sh build/opflex/dist/bin/
 cp docker/launch-opflexserver.sh build/opflex/dist/bin/
 cp $DOCKER_DIR/Dockerfile-opflex build/opflex/dist/
-cp $DOCKER_DIR/Dockerfile-opflexserver build/opflex/dist/
 cp -Rf $DOCKER_DIR/licenses build/opflex/dist/
 
 docker build -t $DOCKER_HUB_ID/opflex$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
-docker build -t $DOCKER_HUB_ID/opflex-server$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflexserver build/opflex/dist
-docker push $DOCKER_HUB_ID/opflex-server$DOCKER_TAG
 
 echo "starting aci-containers build"
 make all-static
