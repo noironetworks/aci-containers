@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
+	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	configv1 "github.com/openshift/api/config/v1"
@@ -61,25 +63,26 @@ type AciResources struct {
 // Object and apply the aci_deployment.yaml in the cluster after creation/updation
 
 type Controller struct {
-	Logger              *log.Entry
-	indexMutex          sync.Mutex
-	Operator_Clientset  operatorclientset.Interface
-	K8s_Clientset       kubernetes.Interface
-	Operator_Queue      workqueue.RateLimitingInterface
-	Deployment_Queue    workqueue.RateLimitingInterface
-	Daemonset_Queue     workqueue.RateLimitingInterface
-	Node_Queue          workqueue.RateLimitingInterface
-	Route_Queue         workqueue.RateLimitingInterface
-	Informer_Operator   cache.SharedIndexInformer
-	Informer_Deployment cache.SharedIndexInformer
-	Informer_Daemonset  cache.SharedIndexInformer
-	Informer_Node       cache.SharedIndexInformer
-	Informer_Route      cache.SharedIndexInformer
-	Resources           AciResources
-	DnsOperatorClient   client.Client             // This client is specific dnsopenshift operator
-	RoutesClient        routesClientset.Interface // This client is specific routes openshift operator
-	Openshiftflavor     bool
-	routes              map[string]bool // local cache to check the routes
+	Logger                      *log.Entry
+	indexMutex                  sync.Mutex
+	Operator_Clientset          operatorclientset.Interface
+	AccProvisionInput_Clientset accprovisioninputclientset.Interface
+	K8s_Clientset               kubernetes.Interface
+	Operator_Queue              workqueue.RateLimitingInterface
+	Deployment_Queue            workqueue.RateLimitingInterface
+	Daemonset_Queue             workqueue.RateLimitingInterface
+	Node_Queue                  workqueue.RateLimitingInterface
+	Route_Queue                 workqueue.RateLimitingInterface
+	Informer_Operator           cache.SharedIndexInformer
+	Informer_Deployment         cache.SharedIndexInformer
+	Informer_Daemonset          cache.SharedIndexInformer
+	Informer_Node               cache.SharedIndexInformer
+	Informer_Route              cache.SharedIndexInformer
+	Resources                   AciResources
+	DnsOperatorClient           client.Client             // This client is specific dnsopenshift operator
+	RoutesClient                routesClientset.Interface // This client is specific routes openshift operator
+	Openshiftflavor             bool
+	routes                      map[string]bool // local cache to check the routes
 }
 
 var Version = map[string]bool{
@@ -104,6 +107,7 @@ const aciContainersOvsDaemonset = "aci-containers-openvswitch"
 
 func NewAciContainersOperator(
 	acicnioperatorclient operatorclientset.Interface,
+	accprovisioninputclient accprovisioninputclientset.Interface,
 	k8sclient kubernetes.Interface) *Controller {
 
 	log.Info("Setting up the Queue")
@@ -204,24 +208,25 @@ func NewAciContainersOperator(
 	}
 
 	controller := &Controller{
-		Logger:              log.NewEntry(log.New()),
-		Operator_Clientset:  acicnioperatorclient,
-		K8s_Clientset:       k8sclient,
-		Informer_Operator:   aci_operator_informer,
-		Informer_Deployment: aci_deployment_informer,
-		Informer_Daemonset:  aci_daemonset_informer,
-		Informer_Node:       node_informer,
-		Informer_Route:      route_informer,
-		Operator_Queue:      operator_queue,
-		Deployment_Queue:    deployment_queue,
-		Daemonset_Queue:     daemonset_queue,
-		Node_Queue:          node_queue,
-		Route_Queue:         route_queue,
-		Resources:           AciResources{},
-		DnsOperatorClient:   nil,
-		RoutesClient:        routesClient,
-		Openshiftflavor:     opflavor,
-		routes:              make(map[string]bool),
+		Logger:                      log.NewEntry(log.New()),
+		Operator_Clientset:          acicnioperatorclient,
+		AccProvisionInput_Clientset: accprovisioninputclient,
+		K8s_Clientset:               k8sclient,
+		Informer_Operator:           aci_operator_informer,
+		Informer_Deployment:         aci_deployment_informer,
+		Informer_Daemonset:          aci_daemonset_informer,
+		Informer_Node:               node_informer,
+		Informer_Route:              route_informer,
+		Operator_Queue:              operator_queue,
+		Deployment_Queue:            deployment_queue,
+		Daemonset_Queue:             daemonset_queue,
+		Node_Queue:                  node_queue,
+		Route_Queue:                 route_queue,
+		Resources:                   AciResources{},
+		DnsOperatorClient:           nil,
+		RoutesClient:                routesClient,
+		Openshiftflavor:             opflavor,
+		routes:                      make(map[string]bool),
 	}
 
 	log.Info("Adding Event Handlers")
@@ -382,8 +387,8 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 	}
 	return acicnioperator, nil
 }
-func (c *Controller) ReadConfigMap() ([]byte, error) {
-	raw, err := ioutil.ReadFile("/usr/local/etc/aci-containers/aci-operator.conf")
+func (c *Controller) ReadConfigMap(field string) ([]byte, error) {
+	raw, err := ioutil.ReadFile("/usr/local/etc/" + field)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -403,19 +408,22 @@ func (c *Controller) CreateAciContainersOperatorObj() *operators.AciContainersOp
 }
 
 func (c *Controller) CreateAciContainersOperatorCR() error {
-	log.Info("Reading the Config Map providing CR")
-	raw, err := c.ReadConfigMap()
+	log.Info("Reading the aci-operator-config Config Map providing CR")
+	rawSpec, err := c.ReadConfigMap("aci-containers/aci-operator.conf")
 	if err != nil {
+		log.Info("Failed to read aci-operator-config Config Map")
 		log.Error(err)
 		return err
 	}
 	obj := c.CreateAciContainersOperatorObj()
-	log.Info("Unmarshalling the Config-Map...")
-	err = json.Unmarshal(raw, &obj.Spec)
+	log.Info("Unmarshalling the aci-operator-config Config-Map...")
+	err = json.Unmarshal(rawSpec, &obj.Spec)
 	if err != nil {
+		log.Info("Failed to unmarshal aci-operator-config Config Map")
 		log.Error(err)
 		return err
 	}
+
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
@@ -425,7 +433,63 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 				log.Info(er)
 				return true, nil
 			}
-			log.Info("Waiting for CRD to get registered to etcd....: ", err)
+			log.Info("Waiting for CRD to get registered to etcd....: ", er)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Controller) GetAccProvisionInputCR() (*accprovisioninput.AccProvisionInput, error) {
+	var options metav1.GetOptions
+	accprovisioninput, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "accprovisioninput", options)
+	if er != nil {
+		return accprovisioninput, er
+	}
+	return accprovisioninput, nil
+}
+
+func (c *Controller) CreateAccProvisionInputObj() *accprovisioninput.AccProvisionInput {
+	obj := accprovisioninput.AccProvisionInput{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "accprovisioninput",
+			Namespace: os.Getenv("SYSTEM_NAMESPACE")},
+	}
+	obj.Status.Status = true //Setting it default true
+	return &obj
+}
+
+func (c *Controller) CreateAccProvisionInputCR() error {
+
+	obj := c.CreateAccProvisionInputObj()
+	log.Info("Reading the acc-provision-operator-config Config Map providing CR")
+	rawACCSpec, errACC := c.ReadConfigMap("acc-provision/acc-provision-operator.conf")
+	if errACC != nil {
+		log.Info("Failed to read acc-provision-operator-config Config Map")
+		log.Error(errACC)
+		return errACC
+	}
+	log.Info("Unmarshalling the acc-provision-operator-config Config-Map...")
+	errACC = json.Unmarshal(rawACCSpec, &obj.Spec)
+	if errACC != nil {
+		log.Info("Failed to unmarshal acc-provision-operator-config Config Map")
+		log.Error(errACC)
+		return errACC
+	}
+	log.Info("Unmarshalling Successful....")
+	log.Debug("accprovisioninput CR recieved is ", (obj.Spec))
+
+	if err := wait.PollInfinite(time.Second*2, func() (bool, error) {
+		_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
+		if er != nil {
+			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
+				log.Info(er)
+				return true, nil
+			}
+			log.Info("Waiting for CRD to get registered to etcd....: ", er)
 			return false, nil
 		}
 		return true, nil
@@ -438,25 +502,29 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 func (c *Controller) Run(stopCh <-chan struct{}) {
 	c.Logger.Info("Controller.Run: initiating")
 	log.Info("Checking if acicnioperator CR already present")
+	acicnioperatorsuccess := true
 	acicnioperator, err := c.GetAciContainersOperatorCR()
 	if err != nil {
 		log.Info("Not Present ..Creating acicnioperator CR")
 		er := c.CreateAciContainersOperatorCR()
 		if er != nil {
-			log.Error(err)
+			log.Error(er)
+			acicnioperatorsuccess = false
 		}
 	} else {
 		log.Info("acicnioperator CR already present")
-		log.Debug("Reading current configmap")
-		raw, err := c.ReadConfigMap()
-		if err != nil {
-			log.Error(err)
+		log.Debug("Reading current aci-operator-config configmap")
+		rawSpec, errSpec := c.ReadConfigMap("aci-containers/aci-operator.conf")
+		if errSpec != nil {
+			log.Error(errSpec)
+			acicnioperatorsuccess = false
 		} else {
 			obj := c.CreateAciContainersOperatorObj()
-			log.Debug("Unmarshalling the Config-Map...")
-			err = json.Unmarshal(raw, &obj.Spec)
+			log.Debug("Unmarshalling the ConfigMaps...")
+			err = json.Unmarshal(rawSpec, &obj.Spec)
 			if err != nil {
 				log.Error(err)
+				acicnioperatorsuccess = false
 			}
 			if acicnioperator.Spec.Config != obj.Spec.Config {
 				acicnioperator.Spec.Config = obj.Spec.Config
@@ -465,10 +533,45 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 					Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
 				if er != nil {
 					log.Error(er)
+					acicnioperatorsuccess = false
 				}
 			}
 		}
 	}
+	if acicnioperatorsuccess == true {
+		log.Info("Checking if accprovisioninput CR already present")
+		accprovisioninput, err := c.GetAccProvisionInputCR()
+		if err != nil {
+			log.Info("Not Present ..Creating accprovisioninput CR")
+			er := c.CreateAccProvisionInputCR()
+			if er != nil {
+				log.Error(er)
+			}
+		} else {
+			log.Info("accprovisioninput CR already present")
+			log.Debug("Reading current acc-provision-operator-config Config Map")
+			rawACCSpec, errACCSpec := c.ReadConfigMap("acc-provision/acc-provision-operator.conf")
+			if errACCSpec != nil {
+				log.Error(errACCSpec)
+			} else {
+				obj := c.CreateAccProvisionInputObj()
+				log.Debug("Unmarshalling the ConfigMap...")
+				err = json.Unmarshal(rawACCSpec, &obj.Spec)
+				if err != nil {
+					log.Error(err)
+				}
+				if accprovisioninput.Spec.Config != obj.Spec.Config {
+					accprovisioninput.Spec.Config = obj.Spec.Config
+					log.Info("New Configuration detected...applying changes")
+					_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
+					if er != nil {
+						log.Error(er)
+					}
+				}
+			}
+		}
+	}
+
 	// Run informer to start watching and listening
 	go c.Informer_Operator.Run(stopCh)
 	go c.Informer_Deployment.Run(stopCh)
