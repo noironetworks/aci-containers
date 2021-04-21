@@ -15,6 +15,7 @@
 package main
 
 import (
+	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/controller"
 	log "github.com/sirupsen/logrus"
@@ -42,6 +43,23 @@ func getOperatorClient() operatorclientset.Interface {
 	return OperatorClient
 }
 
+// Create ACC provision Client
+func getAccProvisionClient() accprovisioninputclientset.Interface {
+
+	restconfig, err := restclient.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+
+	AccProvisionClient, err := accprovisioninputclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Fatalf("Failed to intialize ACC Provision operator client %v", err)
+	}
+
+	log.Info("Successfully constructed ACC Provision operator client")
+	return AccProvisionClient
+}
+
 func getk8sClient() kubernetes.Interface {
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
@@ -65,6 +83,13 @@ func main() {
 		return
 	}
 
+	log.Debug("Initializing ACC Provision Operator client")
+	accprovision_client := getAccProvisionClient()
+	if accprovision_client == nil {
+		log.Fatalf("Failed to intialize ACC Provision Operator client")
+		return
+	}
+
 	log.Debug("Initializing K8s client")
 	k8s_client := getk8sClient()
 	if k8s_client == nil {
@@ -72,7 +97,7 @@ func main() {
 		return
 	}
 
-	cont := controller.NewAciContainersOperator(operator_client, k8s_client)
+	cont := controller.NewAciContainersOperator(operator_client, accprovision_client, k8s_client)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)

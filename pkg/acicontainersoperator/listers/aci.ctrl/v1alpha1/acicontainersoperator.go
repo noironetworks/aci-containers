@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import (
 )
 
 // AciContainersOperatorLister helps list AciContainersOperators.
+// All objects returned here must be treated as read-only.
 type AciContainersOperatorLister interface {
 	// List lists all AciContainersOperators in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.AciContainersOperator, err error)
 	// AciContainersOperators returns an object that can list and get AciContainersOperators.
 	AciContainersOperators(namespace string) AciContainersOperatorNamespaceLister
@@ -57,10 +59,13 @@ func (s *aciContainersOperatorLister) AciContainersOperators(namespace string) A
 }
 
 // AciContainersOperatorNamespaceLister helps list and get AciContainersOperators.
+// All objects returned here must be treated as read-only.
 type AciContainersOperatorNamespaceLister interface {
 	// List lists all AciContainersOperators in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.AciContainersOperator, err error)
 	// Get retrieves the AciContainersOperator from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.AciContainersOperator, error)
 	AciContainersOperatorNamespaceListerExpansion
 }
