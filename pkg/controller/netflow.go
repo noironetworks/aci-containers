@@ -145,13 +145,6 @@ func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 // netflowPolObjs is used to build Netflow Policy objects
 func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apicapi.ApicSlice {
 
-	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
-	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
-	if apicapi.ApicVersion < "5.0" {
-		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ",
-			apicapi.ApicVersion)
-	}
-
 	key, _ := cache.MetaNamespaceKeyFunc(nfp)
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.log.Debug("create netflowpolicy")
@@ -183,6 +176,14 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 
 // func returns false if exceuted without error, true if the caller has to requeue.
 func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
+
+	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
+	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
+	if apicapi.ApicVersion < "5.0" {
+		cont.log.Error("Cannot create Netflow Policy in APIC versions < 5.0(x). Actual APIC version: ",
+			apicapi.ApicVersion)
+		return false
+	}
 	nfp, ok := obj.(*netflowpolicy.NetflowPolicy)
 	if !ok {
 		cont.log.Error("handleNetflowPolUpdate: Bad object type")
