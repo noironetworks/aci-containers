@@ -42,25 +42,36 @@ func addGroup(gset map[metadata.OpflexGroup]bool, g []metadata.OpflexGroup,
 	return g
 }
 
-func (agent *HostAgent) assignqosPolicies(pod *v1.Pod) ([]metadata.OpflexGroup, error) {
-	//var policies []metadata.OpflexGroup
-
-	logger := podLogger(agent.log, pod)
-
-	var g []metadata.OpflexGroup
-	podkey, err := cache.MetaNamespaceKeyFunc(pod)
-	if err != nil {
-		logger.Error("Could not create pod key: ", err)
-		return g, err
+func addPolicy(gset map[metadata.OpflexGroup]bool, g metadata.OpflexGroup,
+	tenant string, name string) metadata.OpflexGroup {
+	newg := metadata.OpflexGroup{
+		PolicySpace: tenant,
+		Name:        name,
 	}
-	gset := make(map[metadata.OpflexGroup]bool)
+	if _, ok := gset[newg]; !ok {
+		gset[newg] = true
+		g = newg
+	}
+	return g
+}
 
-	// Add qos policies that directly select this pod
+func (agent *HostAgent) mergeQosPolicy(podkey string, qpval metadata.OpflexGroup) metadata.OpflexGroup {
+
+	gset := make(map[metadata.OpflexGroup]bool)
+	var g metadata.OpflexGroup
+
+	// Add qos policy that directly select this pod
 	for _, qpkey := range agent.qosPolPods.GetObjForPod(podkey) {
-		g = addGroup(gset, g, agent.config.DefaultEg.PolicySpace,
+		g = addPolicy(gset, g, agent.config.DefaultEg.PolicySpace,
 			util.AciNameForKey(agent.config.AciPrefix, "qp", qpkey))
 	}
-	return g, nil
+
+	// When the pod is not selected by any qos policy, return the
+	// existing value from the user annotation
+	if len(gset) == 0 {
+		return qpval
+	}
+	return g
 }
 
 func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
@@ -130,7 +141,7 @@ func decodeAnnotation(annStr string, into interface{}, logger *logrus.Entry, com
 	}
 }
 
-// Gets eg, sg annotations on associated deployment or rc
+// Gets eg, sg and qos policy annotations on associated deployment or rc
 func (agent *HostAgent) getParentAnn(podKey string) (string, string, string, bool) {
 	set := []struct {
 		indexer  *index.PodSelectorIndex
@@ -170,7 +181,7 @@ func (agent *HostAgent) getParentAnn(podKey string) (string, string, string, boo
 	return "", "", "", false
 }
 
-// assignGroups assigns epg and security groups based on annotations on the
+// assignGroups assigns epg, security groups and qos policy based on annotations on the
 // namespace, deployment and pod.
 func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metadata.OpflexGroup, metadata.OpflexGroup, error) {
 	var egval metadata.OpflexGroup
@@ -256,6 +267,8 @@ func (agent *HostAgent) assignGroups(pod *v1.Pod) (metadata.OpflexGroup, []metad
 		logger.Error("Could not generate network policy ",
 			"security groups:", err)
 	}
+
+	qpval = agent.mergeQosPolicy(podkey, qpval)
 
 	return egval, sgval, qpval, nil
 }
