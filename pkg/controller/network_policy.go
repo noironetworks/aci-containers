@@ -750,6 +750,8 @@ func portProto(protocol *v1.Protocol) string {
 	proto := "tcp"
 	if protocol != nil && *protocol == v1.ProtocolUDP {
 		proto = "udp"
+	} else if protocol != nil && *protocol == v1.ProtocolSCTP {
+		proto = "sctp"
 	}
 	return proto
 }
