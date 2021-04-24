@@ -34,6 +34,7 @@ import (
 
 var tcp = "TCP"
 var udp = "UDP"
+var sctp = "SCTP"
 var port80 = 80
 var port443 = 443
 
@@ -430,6 +431,12 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_14_s.SetAttr("protocol", "tcp")
 	rule_14_s.SetAttr("toPort", "8080")
 	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
+
+	rule_15_0 := apicapi.NewHostprotRule(np1SDnI, "0_0")
+	rule_15_0.SetAttr("direction", "ingress")
+	rule_15_0.SetAttr("ethertype", "ipv4")
+	rule_15_0.SetAttr("protocol", "sctp")
+	rule_15_0.SetAttr("toPort", "80")
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil, nil)},
@@ -464,6 +471,12 @@ func TestNetworkPolicy(t *testing.T) {
 					port(&udp, &port80)}, nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_3_0}, nil, name),
 			nil, "allow-80-udp"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{
+					port(&sctp, &port80)}, nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_15_0}, nil, name),
+			nil, "allow-80-sctp"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{
