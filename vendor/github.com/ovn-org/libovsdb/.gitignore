@@ -55,5 +55,5 @@ Temporary Items
 *.iml
 
 ### Project-Specific
-
-coverage.out
+*.out
+*.cov

@@ -25,7 +25,7 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 	case "select":
 		where := o.Where
 		if where == nil {
-			where = make([]interface{}, 0, 0)
+			where = make([]interface{}, 0)
 		}
 		return json.Marshal(&struct {
 			Where []interface{} `json:"where"`
@@ -48,7 +48,7 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 // The only option is to go with raw map[string]interface{} option :-( that sucks !
 // Refer to client.go : MonitorAll() function for more details
 type MonitorRequests struct {
-	Requests map[string]MonitorRequest `json:"requests,overflow"`
+	Requests map[string]MonitorRequest `json:"requests"`
 }
 
 // MonitorRequest represents a monitor request according to RFC7047
@@ -71,19 +71,18 @@ type MonitorSelect struct {
 // The only option is to go with raw map[string]map[string]interface{} option :-( that sucks !
 // Refer to client.go : MonitorAll() function for more details
 type TableUpdates struct {
-	Updates map[string]TableUpdate `json:"updates,overflow"`
+	Updates map[string]TableUpdate `json:"updates"`
 }
 
 // TableUpdate represents a table update according to RFC7047
 type TableUpdate struct {
-	Rows map[string]RowUpdate `json:"rows,overflow"`
+	Rows map[string]RowUpdate `json:"rows"`
 }
 
 // RowUpdate represents a row update according to RFC7047
 type RowUpdate struct {
-	UUID UUID `json:"-,omitempty"`
-	New  Row  `json:"new,omitempty"`
-	Old  Row  `json:"old,omitempty"`
+	New Row `json:"new,omitempty"`
+	Old Row `json:"old,omitempty"`
 }
 
 // OvsdbError is an OVS Error Condition
@@ -110,24 +109,23 @@ type TransactResponse struct {
 
 // OperationResult is the result of an Operation
 type OperationResult struct {
-	Count   int                      `json:"count,omitempty"`
-	Error   string                   `json:"error,omitempty"`
-	Details string                   `json:"details,omitempty"`
-	UUID    UUID                     `json:"uuid,omitempty"`
-	Rows    []map[string]interface{} `json:"rows,omitempty"`
+	Count   int         `json:"count,omitempty"`
+	Error   string      `json:"error,omitempty"`
+	Details string      `json:"details,omitempty"`
+	UUID    UUID        `json:"uuid,omitempty"`
+	Rows    []ResultRow `json:"rows,omitempty"`
 }
 
 func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
-	switch val.(type) {
+	switch sl := val.(type) {
 	case []interface{}:
-		sl := val.([]interface{})
 		bsliced, err := json.Marshal(sl)
 		if err != nil {
 			return nil, err
 		}
 
 		switch sl[0] {
-		case "uuid":
+		case "uuid", "named-uuid":
 			var uuid UUID
 			err = json.Unmarshal(bsliced, &uuid)
 			return uuid, err

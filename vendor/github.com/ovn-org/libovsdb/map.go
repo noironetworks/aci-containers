@@ -2,7 +2,7 @@ package libovsdb
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -19,16 +19,19 @@ type OvsMap struct {
 
 // MarshalJSON marshalls an OVSDB style Map to a byte array
 func (o OvsMap) MarshalJSON() ([]byte, error) {
-	var ovsMap, innerMap []interface{}
-	ovsMap = append(ovsMap, "map")
-	for key, val := range o.GoMap {
-		var mapSeg []interface{}
-		mapSeg = append(mapSeg, key)
-		mapSeg = append(mapSeg, val)
-		innerMap = append(innerMap, mapSeg)
+	if len(o.GoMap) > 0 {
+		var ovsMap, innerMap []interface{}
+		ovsMap = append(ovsMap, "map")
+		for key, val := range o.GoMap {
+			var mapSeg []interface{}
+			mapSeg = append(mapSeg, key)
+			mapSeg = append(mapSeg, val)
+			innerMap = append(innerMap, mapSeg)
+		}
+		ovsMap = append(ovsMap, innerMap)
+		return json.Marshal(ovsMap)
 	}
-	ovsMap = append(ovsMap, innerMap)
-	return json.Marshal(ovsMap)
+	return []byte("[\"map\",[]]"), nil
 }
 
 // UnmarshalJSON unmarshalls an OVSDB style Map from a byte array
@@ -49,7 +52,7 @@ func (o *OvsMap) UnmarshalJSON(b []byte) (err error) {
 func NewOvsMap(goMap interface{}) (*OvsMap, error) {
 	v := reflect.ValueOf(goMap)
 	if v.Kind() != reflect.Map {
-		return nil, errors.New("OvsMap supports only Go Map types")
+		return nil, fmt.Errorf("OvsMap supports only Go Map types")
 	}
 
 	genMap := make(map[interface{}]interface{})

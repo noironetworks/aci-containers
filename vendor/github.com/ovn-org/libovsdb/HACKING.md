@@ -5,14 +5,14 @@ HACKING
 
 Assuming you already have a Go environment set up.
 
-    go get github.com/socketplane/libovsdb
-    cd $GOPATH/src/github.com/socketplane/libovsdb
+    go get github.com/ovn-org/libovsdb
+    cd $GOPATH/src/github.com/ovn-org/libovsdb
 
 You can use [`hub`](https://hub.github.com) to fork the repo
 
     hub fork
 
-... or alternatively, fork socketplane/libovsdb on GitHub and add your fork as a remote
+... or alternatively, fork ovn-org/libovsdb on GitHub and add your fork as a remote
 
     git remote add <github-user> git@github.com:<github-user>/libovsdb
 

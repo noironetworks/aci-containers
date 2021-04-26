@@ -1,7 +1,7 @@
 libovsdb
 ========
 
-[![Circle CI](https://circleci.com/gh/socketplane/libovsdb.png?style=badge&circle-token=17838d6362be941ed8478bf9d10de5307d4b917d)](https://circleci.com/gh/socketplane/libovsdb) [![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png?branch=master)](https://coveralls.io/r/socketplane/libovsdb?branch=master)
+[![libovsb-ci](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/ovn-org/libovsdb/badge.svg?branch=main)](https://coveralls.io/github/ovn-org/libovsdb?branch=main)
 
 An OVSDB Library written in Go
 
@@ -11,7 +11,7 @@ OVSDB is the Open vSwitch Database Protocol.
 It's defined in [RFC 7047](http://tools.ietf.org/html/rfc7047)
 It's used mainly for managing the configuration of Open vSwitch, but it could also be used to manage your stamp collection. Philatelists Rejoice!
 
-## Running the tests
+## Running the tests
 
 To run integration tests, you'll need access to docker to run an Open vSwitch container.
 Mac users can use [boot2docker](http://boot2docker.io)
@@ -27,10 +27,3 @@ Mac users can use [boot2docker](http://boot2docker.io)
 By invoking the command **make**, you will automatically get the same behaviour as what
 is shown above. In other words, it will start the two containers and execute
 **make test-local** from the test container.
-
-## Dependency Management
-
-We use [godep](https://github.com/tools/godep) for dependency management with rewritten import paths.
-This allows the repo to be `go get`able.
-
-To bump the version of a dependency, follow these [instructions](https://github.com/tools/godep#update-a-dependency)
