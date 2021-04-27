@@ -17,7 +17,7 @@ package hostagent
 import (
 	"testing"
 
-	"github.com/socketplane/libovsdb"
+	"github.com/ovn-org/libovsdb"
 	"github.com/stretchr/testify/assert"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"

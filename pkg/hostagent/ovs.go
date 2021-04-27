@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
-	"github.com/socketplane/libovsdb"
+	"github.com/ovn-org/libovsdb"
 	"reflect"
 	"strconv"
 )
@@ -110,7 +110,7 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 func (agent *HostAgent) syncPorts(socket string) error {
 	agent.log.Debug("Syncing OVS ports")
 
-	ovs, err := libovsdb.ConnectWithUnixSocket(socket)
+	ovs, err := libovsdb.Connect("unix:"+socket, nil)
 	if err != nil {
 		return err
 	}

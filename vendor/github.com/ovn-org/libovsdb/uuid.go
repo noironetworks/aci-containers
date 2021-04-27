@@ -2,7 +2,7 @@ package libovsdb
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"regexp"
 )
 
@@ -35,13 +35,13 @@ func (u *UUID) UnmarshalJSON(b []byte) (err error) {
 
 func (u UUID) validateUUID() error {
 	if len(u.GoUUID) != 36 {
-		return errors.New("uuid exceeds 36 characters")
+		return fmt.Errorf("uuid exceeds 36 characters")
 	}
 
 	var validUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 	if !validUUID.MatchString(u.GoUUID) {
-		return errors.New("uuid does not match regexp")
+		return fmt.Errorf("uuid does not match regexp")
 	}
 
 	return nil
