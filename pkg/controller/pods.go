@@ -102,7 +102,7 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 		return
 	}
 
-	key := cont.aciNameForKey("pod", podkey)
+	key := cont.aciNameForKey("podfs", podkey)
 	epGroup, ok := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := major
@@ -117,7 +117,9 @@ func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, 
 	var egval metadata.OpflexGroup
 	notExist, egval := cont.checkVrfCache(epGroup, "EpgAnnotation")
 
-	if notExist && egval.Name != "" {
+	if !notExist {
+		cont.apicConn.ClearApicObjects(key)
+	} else if notExist && egval.Name != "" {
 		desc := fmt.Sprintf("Annotation failed for  %s, Reason being: Cannot resolve the EPG %s for the tenant %s and app-profile %s",
 			entity, egval.Name, egval.Tenant, egval.AppProfile)
 		faultcode := strconv.Itoa(faultCode)
@@ -265,7 +267,7 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	}
 
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", podkey))
-
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("podfs", podkey))
 	cont.depPods.DeletePod(pod)
 	cont.erspanPolPods.DeletePod(pod)
 	cont.netPolPods.DeletePod(pod)
