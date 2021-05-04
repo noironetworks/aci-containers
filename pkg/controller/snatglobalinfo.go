@@ -304,7 +304,9 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 	glInfoCache := make(map[string]snatglobalinfo.GlobalInfoList)
 	for _, glinfos := range cont.snatGlobalInfoCache {
 		for name, v := range glinfos {
-			glInfoCache[name] = append(glInfoCache[name], *v)
+			globalinfo := &snatglobalinfo.GlobalInfo{}
+			util.DeepCopyObj(*v, globalinfo)
+			glInfoCache[name] = append(glInfoCache[name], *globalinfo)
 		}
 	}
 	cont.indexMutex.Unlock()
@@ -329,10 +331,10 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 		return false
 	}
 	snatglobalInfo.Spec.GlobalInfos = glInfoCache
-	cont.log.Debug("Update GlobalInfo: ", glInfoCache)
+	cont.log.Info("Update GlobalInfo: ", glInfoCache)
 	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
 	if err != nil {
-		cont.log.Debug("Update Failed: ", err)
+		cont.log.Info("Update Failed: ", err)
 		return true
 	}
 	return false
@@ -345,18 +347,18 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 	ip := net.ParseIP(snatIp)
 	snatIpUuid, _ := uuid.FromBytes(ip)
 	cont.log.Debug("SnatIP and Port range: ", snatIp, portrange)
-	glinfo := snatglobalinfo.GlobalInfo{
+	cont.indexMutex.Lock()
+	glinfo := &snatglobalinfo.GlobalInfo{
 		MacAddress:     macaddr,
 		PortRanges:     portlist,
 		SnatIp:         snatIp,
 		SnatIpUid:      snatIpUuid.String(),
 		SnatPolicyName: plcyname,
 	}
-	cont.indexMutex.Lock()
 	if _, ok := cont.snatGlobalInfoCache[snatIp]; !ok {
 		cont.snatGlobalInfoCache[snatIp] = make(map[string]*snatglobalinfo.GlobalInfo)
 	}
-	cont.snatGlobalInfoCache[snatIp][nodename] = &glinfo
+	cont.snatGlobalInfoCache[snatIp][nodename] = glinfo
 	cont.indexMutex.Unlock()
 	cont.log.Debug("Node name and globalinfo: ", nodename, glinfo)
 }
@@ -402,8 +404,11 @@ func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename st
 					}
 				}
 			} else {
+				ip := globalInfo[nodename].SnatIp
+				portrange := &snatglobalinfo.PortRange{}
+				util.DeepCopyObj(globalInfo[nodename].PortRanges[0], portrange)
 				cont.indexMutex.Unlock()
-				return globalInfo[nodename].SnatIp, globalInfo[nodename].PortRanges[0], true
+				return ip, *portrange, true
 			}
 		}
 		cont.indexMutex.Unlock()
@@ -461,9 +466,15 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 		expandedIps = cont.getServiceIps(contSnatPolicy)
 	}
 	for _, snatip := range expandedIps {
-		if _, ok := cont.snatGlobalInfoCache[snatip]; ok {
+		if v, ok := cont.snatGlobalInfoCache[snatip]; ok {
 			if len(nodename) > 0 {
-				delete(cont.snatGlobalInfoCache[snatip], nodename)
+				if _, exists := v[nodename]; exists {
+					delete(v, nodename)
+					if len(v) == 0 {
+						delete(cont.snatGlobalInfoCache, snatip)
+					}
+					break
+				}
 			} else {
 				delete(cont.snatGlobalInfoCache, snatip)
 			}
