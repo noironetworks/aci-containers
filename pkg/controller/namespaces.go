@@ -125,24 +125,25 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 		}
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("ns", ns.Name))
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nsfs", ns.Name))
 	cont.depPods.DeleteNamespace(ns)
 	cont.netPolPods.DeleteNamespace(ns)
 	cont.netPolIngressPods.DeleteNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
 
-func (cont *AciController) checkIfEpgExistNs(namespaceobj *v1.Namespace) {
+func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {
 
-	nskey := cont.aciNameForKey("ns", namespaceobj.Name)
+	nskey := cont.aciNameForKey("nsfs", ns.Name)
 	if nskey == "" {
 		cont.log.Error("Could not retrieve namespace key")
 		return
 	}
-	epGroup, ok := namespaceobj.ObjectMeta.Annotations[metadata.EgAnnotation]
+	epGroup, ok := ns.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := critical
 		faultCode := 11
-		cont.handleEpgAnnotationUpdate(nskey, faultCode, severity, namespaceobj.Name, epGroup)
+		cont.handleEpgAnnotationUpdate(nskey, faultCode, severity, ns.Name, epGroup)
 	}
 
 	return

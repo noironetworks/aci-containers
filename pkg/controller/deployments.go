@@ -176,6 +176,7 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 	} else {
 		key := cont.aciNameForKey("deployment", depkey)
 		cont.apicConn.ClearApicObjects(key)
+		cont.apicConn.ClearApicObjects(cont.aciNameForKey("depfs", depkey))
 	}
 	cont.depPods.DeleteSelectorObj(obj)
 }
@@ -189,7 +190,7 @@ func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
 		return
 	}
 
-	key := cont.aciNameForKey("deployment", depkey)
+	key := cont.aciNameForKey("depfs", depkey)
 	epGroup, ok := dep.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := major
