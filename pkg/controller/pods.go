@@ -79,10 +79,7 @@ func podLogger(log *logrus.Logger, pod *v1.Pod) *logrus.Entry {
 }
 
 func podFilter(pod *v1.Pod) bool {
-	if pod.Spec.HostNetwork {
-		return false
-	}
-	return true
+	return !(pod.Spec.HostNetwork)
 }
 
 func (cont *AciController) queuePodUpdate(pod *v1.Pod) {

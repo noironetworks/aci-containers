@@ -34,11 +34,6 @@ type erspanTest struct {
 	erspanPol   *erspanpolicy.ErspanPolicy
 	writeToApic bool
 	desc        string
-	spanDel     bool
-}
-
-func staticErspanKey() string {
-	return "kube_nfp_static"
 }
 
 func erspanpol(name string, namespace string, dest erspanpolicy.ErspanDestType,
@@ -140,11 +135,11 @@ func TestErspanPolicy(t *testing.T) {
 
 	var spanTests = []erspanTest{
 		{erspanpol("test", "testns", dest0, src0, labels),
-			buildSpanObjs(name, "172.51.1.2", 10, "start", "out", macs, vpcs), "test1", true},
+			buildSpanObjs(name, "172.51.1.2", 10, "start", "out", macs, vpcs), "test1"},
 		{erspanpol("test", "testns", dest0, src1, labels),
-			buildSpanObjs(name, "172.51.1.2", 10, "start", "both", macs, vpcs), "test2", true},
+			buildSpanObjs(name, "172.51.1.2", 10, "start", "both", macs, vpcs), "test2"},
 		{erspanpol("test", "testns", dest1, src1, labels),
-			buildSpanObjs(name, "172.51.1.2", 1, "start", "both", macs, vpcs), "test3", true},
+			buildSpanObjs(name, "172.51.1.2", 1, "start", "both", macs, vpcs), "test3"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()

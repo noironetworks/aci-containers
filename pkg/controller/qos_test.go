@@ -34,10 +34,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func staticQosReqKey() string {
-	return "kube_qr_static"
-}
-
 type qrTestAugment struct {
 	endpoints []*v1.Endpoints
 	services  []*v1.Service
@@ -90,22 +86,6 @@ func makeQr(ingress apicapi.ApicSlice, egress apicapi.ApicSlice, name string, po
 		qr1.AddChild(qr1rsdpppE)
 	}
 	return qr1
-}
-
-func checkQr(t *testing.T, qt *qrTest, category string, cont *testAciController) {
-	tu.WaitFor(t, category+"/"+qt.desc, 500*time.Millisecond,
-		func(last bool) (bool, error) {
-			slice := apicapi.ApicSlice{qt.aciObj}
-			key := cont.aciNameForKey("qr",
-				qt.qosPol.Namespace+"_"+qt.qosPol.Name)
-			apicapi.PrepareApicSlice(slice, "kube", key)
-
-			if !tu.WaitEqual(t, last, slice,
-				cont.apicConn.GetDesiredState(key), qt.desc, key) {
-				return false, nil
-			}
-			return true, nil
-		})
 }
 
 func checkDeleteQr(t *testing.T, qt qrTest, cont *testAciController) {

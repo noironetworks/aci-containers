@@ -427,27 +427,6 @@ func getOutfile(output string) (string, *os.File, error) {
 	}
 }
 
-func outputCmd(cmd *cobra.Command, cmdArgs []string) {
-	output, err := cmd.PersistentFlags().GetString("output")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	outfile := os.Stdout
-	if output != "" {
-		outfile, err := os.Create(output)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
-		}
-		defer outfile.Close()
-	}
-	err = execKubectl(cmdArgs, outfile)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-	}
-}
-
 func accLogCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-controller",

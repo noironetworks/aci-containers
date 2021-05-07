@@ -41,6 +41,7 @@ TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
 GOFMT_CHK_CMD := gofmt -s -l
 GOFMT_FIX_CMD := gofmt -s -w
+LINT_CMD := golangci-lint
 GIT_COMMIT=$(shell scripts/getGitCommit.sh)
 PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
@@ -195,6 +196,9 @@ check-gofmt:
 
 fix-gofmt:
 	@${GOFMT_FIX_CMD} pkg
+
+lint:
+	@${LINT_CMD} run
 
 check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver
 check-ipam:
