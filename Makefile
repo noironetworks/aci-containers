@@ -184,7 +184,7 @@ container-opflex-build-base:
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/openvswitch${DOCKER_TAG} -f ./docker/Dockerfile-openvswitch .
 container-cnideploy:
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy docker
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy .
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 container-operator: dist-static/aci-containers-operator
