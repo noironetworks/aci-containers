@@ -115,30 +115,37 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 
 func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, severity int, entity string, epGroup string) bool {
 	var egval metadata.OpflexGroup
-	notExist, egval := cont.checkVrfCache(epGroup, "EpgAnnotation")
+	epgExist, egval, setFaultInst := cont.checkVrfCache(epGroup, "EpgAnnotation")
 
-	if !notExist {
+	if epgExist {
+		//clearing existing faults upon correct annotation
 		cont.apicConn.ClearApicObjects(key)
-	} else if notExist && egval.Name != "" {
-		desc := fmt.Sprintf("Annotation failed for  %s, Reason being: Cannot resolve the EPG %s for the tenant %s and app-profile %s",
-			entity, egval.Name, egval.Tenant, egval.AppProfile)
-		faultcode := strconv.Itoa(faultCode)
-		severity := strconv.Itoa(severity)
+	} else if !epgExist {
 
-		aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
-			cont.config.AciVmmDomain, cont.config.AciVmmController)
-		aPrObjDn := aPrObj.GetDn()
-		aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, faultcode)
-		aObj.SetAttr("faultDesc", desc)
-		aObj.SetAttr("faultCode", faultcode)
-		aObj.SetAttr("faultSeverity", severity)
+		if setFaultInst {
+			desc := fmt.Sprintf("Annotation failed on Ns/Dep/Pod for the entity %s, Reason being: Cannot resolve the EPG:%s for the tenant:%s and app-profile:%s",
 
-		if faultCode == 11 {
-			cont.apicConn.WriteApicContainer(key, apicapi.ApicSlice{aObj})
-		} else {
-			cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
+				entity, egval.Name, egval.Tenant, egval.AppProfile)
+
+			cont.log.Error(desc)
+			faultcode := strconv.Itoa(faultCode)
+			severity := strconv.Itoa(severity)
+
+			aPrObj := apicapi.NewVmmInjectedClusterInfo(cont.vmmDomainProvider(),
+				cont.config.AciVmmDomain, cont.config.AciVmmController)
+			aPrObjDn := aPrObj.GetDn()
+			aObj := apicapi.NewVmmClusterFaultInfo(aPrObjDn, faultcode)
+			aObj.SetAttr("faultDesc", desc)
+			aObj.SetAttr("faultCode", faultcode)
+			aObj.SetAttr("faultSeverity", severity)
+
+			if faultCode == 11 {
+				cont.apicConn.WriteApicContainer(key, apicapi.ApicSlice{aObj})
+			} else {
+				cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})
+			}
+			return true
 		}
-		return true
 	}
 	return false
 }

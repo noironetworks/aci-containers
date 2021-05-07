@@ -157,7 +157,8 @@ type AciController struct {
 	// named networkPolicies
 	nmPortNp map[string]bool
 	// cache to look for VRF Epg DNs
-	cachedVRFDns []string
+	cachedVRFDns     []string
+	faultInstCleared bool
 }
 
 type nodeServiceMeta struct {
@@ -630,6 +631,19 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		func(dn string) {
 			cont.opflexDeviceDeleted(dn)
 		})
+
+	cont.apicConn.AddSubscriptionClass("fvAEPg",
+		[]string{"fvAEPg"}, "")
+
+	cont.apicConn.SetSubscriptionHooks("fvAEPg",
+		func(obj apicapi.ApicObject) bool {
+			cont.epgClassChanged(obj)
+			return true
+		},
+		func(dn string) {
+			cont.epgClassDeleted(dn)
+		})
+
 	go cont.apicConn.Run(stopCh)
 }
 
