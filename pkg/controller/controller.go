@@ -129,8 +129,7 @@ type AciController struct {
 	// index of pods matched by erspan policies
 	erspanPolPods *index.PodSelectorIndex
 
-	apicConn     *apicapi.ApicConnection
-	tunnelIdBase int64
+	apicConn *apicapi.ApicConnection
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodeOpflexDevice     map[string]apicapi.ApicSlice

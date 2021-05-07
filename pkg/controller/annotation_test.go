@@ -21,13 +21,8 @@ import (
 )
 
 type podTest struct {
-	uuid      string
-	cont      string
-	veth      string
 	namespace string
 	name      string
-	ip        string
-	mac       string
 	eg        string
 	sg        string
 	qp        string
@@ -35,13 +30,8 @@ type podTest struct {
 
 var podTests = []podTest{
 	{
-		"730a8e7a-8455-4d46-8e6e-f4fdf0e3a667",
-		"cont1",
-		"veth1",
 		"testns",
 		"pod1",
-		"10.1.1.1",
-		"00:0c:29:92:fe:d0",
 		egAnnot,
 		sgAnnot,
 		qpAnnot,
@@ -53,8 +43,6 @@ const egAnnot = "{\"tenant\": \"testps\", " +
 const sgAnnot = "[{\"tenant\": \"testps\", \"name\": \"test-sg\"}]"
 const qpAnnot = "{\"tenant\": \"testps\", " +
 	"\"app-profile\": \"test\", \"name\": \"test-qp\"}"
-
-var vrfEpgDn string = "uni/testps/test/test-eg"
 
 type loginSucc struct {
 	cert bool
@@ -69,14 +57,6 @@ type SocketHandler struct {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-}
-
-type syncTest struct {
-	desiredState   map[string]apicapi.ApicSlice
-	containerState map[string]apicapi.ApicSlice
-	existing       apicapi.ApicSlice
-	expected       []Request
-	desc           string
 }
 
 type Request struct {

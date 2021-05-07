@@ -433,10 +433,7 @@ func (agent *HostAgent) creatNullMacEp() {
 }
 
 func podFilter(pod *v1.Pod) bool {
-	if pod.Spec.HostNetwork {
-		return false
-	}
-	return true
+	return !(pod.Spec.HostNetwork)
 }
 
 func (agent *HostAgent) podUpdated(obj interface{}) {

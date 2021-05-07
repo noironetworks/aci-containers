@@ -37,8 +37,6 @@ import (
 	"strconv"
 )
 
-type set map[string]bool
-
 func (cont *AciController) initSnatNodeInformerFromClient(
 	snatClient *nodeinfoclset.Clientset) {
 	cont.initSnatNodeInformerBase(
@@ -377,7 +375,6 @@ func (cont *AciController) getIpAndPortRange(nodename string, snatpolicy *ContSn
 		snatIps = append(snatIps, serviceIp)
 		return cont.allocateIpSnatPortRange(snatIps, nodename, expandedsnatports)
 	}
-	return "", snatglobalinfo.PortRange{}, false
 }
 
 func (cont *AciController) allocateIpSnatPortRange(snatIps []string, nodename string,

@@ -105,16 +105,6 @@ func (cont *AciController) queueNetflowUpdateByKey(key string) {
 	cont.netflowQueue.Add(key)
 }
 
-func (cont *AciController) queueNetflowUpdate(netflowpolicy *netflowpolicy.NetflowPolicy) {
-	key, err := cache.MetaNamespaceKeyFunc(netflowpolicy)
-	if err != nil {
-		NetflowPolicyLogger(cont.log, netflowpolicy).
-			Error("Could not create key:" + err.Error())
-		return
-	}
-	cont.netflowQueue.Add(key)
-}
-
 func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 	nf, isNf := obj.(*netflowpolicy.NetflowPolicy)
 	if !isNf {

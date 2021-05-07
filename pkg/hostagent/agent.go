@@ -84,7 +84,6 @@ type HostAgent struct {
 	ignoreOvsPorts        map[string][]string
 	netNsFuncChan         chan func()
 	vtepIP                string
-	vtepIface             string
 	gbpServerIP           string
 	opflexSnatGlobalInfos map[string][]*opflexSnatGlobalInfo
 	opflexSnatLocalInfos  map[string]*opflexSnatLocalInfo
@@ -101,11 +100,6 @@ type HostAgent struct {
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
-}
-
-type Vtep struct {
-	vtepIP    string
-	vtepIface string
 }
 
 type ServiceEndPointType interface {

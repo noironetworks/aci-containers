@@ -466,7 +466,7 @@ func init() {
 		}
 		cmd.PersistentFlags().
 			BoolP("raw", "", false,
-				fmt.Sprintf("Get the raw annotation value without formatting"))
+				"Get the raw annotation value without formatting")
 		getDefaultEgCmd.AddCommand(cmd)
 
 		// Set default security group commands
@@ -516,7 +516,7 @@ func init() {
 		}
 		cmd.PersistentFlags().
 			BoolP("raw", "", false,
-				fmt.Sprintf("Get the raw annotation value without formatting"))
+				"Get the raw annotation value without formatting")
 		getDefaultSgCmd.AddCommand(cmd)
 
 	}
