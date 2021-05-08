@@ -102,14 +102,14 @@ func (cont *AciController) initSnatCfgInformerBase(listWatch *cache.ListWatch) {
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.log.Debug("Initializing SnatCfg  Informers: ")
+	cont.log.Info("Initializing SnatCfg  Informers: ")
 }
 
 // Handle any changes to snatOperator Config
 func (cont *AciController) snatCfgUpdate(obj interface{}) {
 	snatcfg := obj.(*v1.ConfigMap)
 	var portRange snatglobalinfo.PortRange
-	cont.log.Debug("snatCfgUpdated: ", snatcfg)
+	cont.log.Info("snatCfgUpdated: ", snatcfg)
 	data := snatcfg.Data
 	start, err1 := strconv.Atoi(data["start"])
 	end, err2 := strconv.Atoi(data["end"])
@@ -141,7 +141,7 @@ func (cont *AciController) snatNodeInfoAdded(obj interface{}) {
 	if err != nil {
 		return
 	}
-	cont.log.Debug("Node Info Added: ", nodeinfokey)
+	cont.log.Info("Node Info Added: ", nodeinfokey)
 	cont.indexMutex.Lock()
 	cont.snatNodeInfoCache[nodeinfo.ObjectMeta.Name] = nodeinfo
 	cont.indexMutex.Unlock()
@@ -331,7 +331,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 		return false
 	}
 	snatglobalInfo.Spec.GlobalInfos = glInfoCache
-	cont.log.Info("Update GlobalInfo: ", glInfoCache)
+	cont.log.Debug("Update GlobalInfo: ", glInfoCache)
 	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
 	if err != nil {
 		cont.log.Info("Update Failed: ", err)
@@ -360,7 +360,7 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 	}
 	cont.snatGlobalInfoCache[snatIp][nodename] = glinfo
 	cont.indexMutex.Unlock()
-	cont.log.Debug("Node name and globalinfo: ", nodename, glinfo)
+	cont.log.Info("Node name and globalinfo: ", nodename, glinfo)
 }
 
 func (cont *AciController) getIpAndPortRange(nodename string, snatpolicy *ContSnatPolicy, serviceIp string) (string,
@@ -426,6 +426,7 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) bool {
 					return true
 				}
 			}
+			cont.log.Info("Deleting following node from globalinfo: ", nodename)
 			delete(glinfos, nodename)
 			if len(glinfos) == 0 {
 				delete(cont.snatGlobalInfoCache, snatip)
@@ -471,11 +472,13 @@ func (cont *AciController) clearSnatGlobalCache(policyName string, nodename stri
 				if _, exists := v[nodename]; exists {
 					delete(v, nodename)
 					if len(v) == 0 {
+						cont.log.Info("Clearing following snat IP from snatglobalinfo: ", snatip)
 						delete(cont.snatGlobalInfoCache, snatip)
 					}
 					break
 				}
 			} else {
+				cont.log.Info("Clearing following snat IP from snatglobalinfo: ", snatip)
 				delete(cont.snatGlobalInfoCache, snatip)
 			}
 		} else {
