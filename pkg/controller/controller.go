@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -630,6 +632,67 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.opflexDeviceDeleted(dn)
 		})
 	go cont.apicConn.Run(stopCh)
+	go cont.enableGlobalSync(stopCh)
+}
+
+func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
+	time.Sleep(time.Minute)
+	for {
+		cont.log.Debug("Running code to sync GlobalInfo with Node infos")
+		var nodeInfos []*nodeinfo.NodeInfo
+		cont.indexMutex.Lock()
+		cache.ListAll(cont.snatNodeInfoIndexer, labels.Everything(),
+			func(nodeInfoObj interface{}) {
+				nodeInfo := nodeInfoObj.(*nodeinfo.NodeInfo)
+				nodeInfos = append(nodeInfos, nodeInfo)
+			})
+		expected := make(map[string][]string)
+		for _, glinfo := range cont.snatGlobalInfoCache {
+			for nodename, entry := range glinfo {
+				expected[nodename] = append(expected[nodename], entry.SnatPolicyName)
+			}
+		}
+		cont.indexMutex.Unlock()
+
+		for _, value := range nodeInfos {
+			marked := false
+			policyNames := value.Spec.SnatPolicyNames
+			nodeName := value.ObjectMeta.Name
+			_, ok := expected[nodeName]
+			if !ok && len(policyNames) > 0 {
+				cont.log.Debug("Missing entry in snatglobalinfo for node: ", nodeName)
+				marked = true
+				break
+			}
+			if len(policyNames) != len(expected[nodeName]) {
+				cont.log.Debug("Missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
+				marked = true
+			} else {
+				expectedList := expected[nodeName]
+				expectedMap := make(map[string]bool)
+				for _, v := range expectedList {
+					expectedMap[v] = true
+				}
+				eq := reflect.DeepEqual(expectedMap, policyNames)
+				if !eq {
+					cont.log.Debug("Wrong snatpolicy entry in snatglobalinfo for node: ", nodeName)
+					marked = true
+				}
+			}
+			if marked {
+				cont.log.Info("Nodeinfo and globalinfo out of sync for node: ", nodeName)
+				nodeinfokey, err := cache.MetaNamespaceKeyFunc(value)
+				if err != nil {
+					cont.log.Error("Not able to get key for node: ", nodeName)
+					continue
+				}
+				cont.queueNodeInfoUpdateByKey(nodeinfokey)
+			} else {
+				cont.log.Debug("Nodeinfo and globalinfo in sync for node: ", nodeName)
+			}
+		}
+		time.Sleep(time.Minute)
+	}
 }
 
 func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterface,
