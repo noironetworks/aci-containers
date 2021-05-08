@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -86,6 +88,7 @@ type AciController struct {
 	snatInformer          cache.Controller
 	snatNodeInfoIndexer   cache.Indexer
 	snatNodeInformer      cache.Controller
+	snatGlobalInformer    cache.SharedIndexInformer
 	crdInformer           cache.Controller
 	qosIndexer            cache.Indexer
 	qosInformer           cache.Controller
@@ -630,6 +633,92 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.opflexDeviceDeleted(dn)
 		})
 	go cont.apicConn.Run(stopCh)
+	go cont.enableGlobalSync(stopCh)
+}
+
+func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
+        time.Sleep(time.Minute)
+	for {
+		cont.log.Info("-------- Running global sync ------")
+		var nodeInfos []*nodeinfo.NodeInfo
+		cont.indexMutex.Lock()
+		cache.ListAll(cont.snatNodeInfoIndexer, labels.Everything(),
+			func(nodeInfoObj interface{}) {
+				nodeInfo := nodeInfoObj.(*nodeinfo.NodeInfo)
+				nodeInfos = append(nodeInfos, nodeInfo)
+			})
+		expected := make(map[string][]string)
+		for _, glinfo := range cont.snatGlobalInfoCache {
+			cont.log.Info("******************")
+			cont.log.Info(glinfo)
+			for nodename, entry := range glinfo {
+				cont.log.Info("................")
+				cont.log.Info(nodename)
+				cont.log.Info(entry)
+				expected[nodename] = append(expected[nodename], entry.SnatPolicyName)
+			}
+		}
+		cont.indexMutex.Unlock()
+		cont.log.Info("Done getting values.........")
+
+		for _, value := range nodeInfos {
+			marked := false
+			// check if value cross checks with expected or
+				// else queue 
+			policyNames := value.Spec.SnatPolicyNames
+			nodeName := value.ObjectMeta.Name
+			cont.log.Info("Node name is :::: ", nodeName)
+			_, ok := expected[nodeName]
+			if !ok {
+				cont.log.Info("OK failed for::::  ", nodeName)
+				marked = true
+				break
+			}
+			if len(policyNames) != len(expected[nodeName]) {
+				cont.log.Info("LEN CHECK failed for :::: ", nodeName)
+				marked = true
+			} else {
+				// Compare sorted lists of policy names
+				cont.log.Info("Comparing list items now :::: ", nodeName)
+				expectedList := expected[nodeName]
+				expectedMap := make(map[string]bool)
+				for _, v := range expectedList {
+					expectedMap[v] = true
+				}
+				eq := reflect.DeepEqual(expectedMap, policyNames)
+				if !eq {
+					marked = true
+				}
+				//sort.Strings(expectedList)
+				//policyNamesStr := make([]string, 0, len(policyNames))
+				//for k := range policyNames {
+				//	policyNamesStr = append(policyNamesStr, k)
+				//}
+				//sort.Strings(policyNamesStr)
+					// for comparison, look for
+					// better options --- make a map
+					// and compare, this would tak
+					// away sorting 
+				//for item := range policyNamesStr {
+				//	if expectedList[item] != policyNamesStr[item] {
+				//		marked = true
+				//		break
+				//	}
+				//}
+			}
+			if marked {
+				cont.log.Info("Nodeinfo and globalinfo out of sync for node: ", nodeName)
+				nodeinfokey, err := cache.MetaNamespaceKeyFunc(value)
+				if err != nil {
+					// whats the best thing to do
+					// here?
+					return
+				}
+				cont.queueNodeInfoUpdateByKey(nodeinfokey)
+			}
+		}
+		time.Sleep(time.Minute)
+	}
 }
 
 func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterface,
@@ -668,5 +757,5 @@ func (cont *AciController) scheduleRdConfig() {
 	cont.syncQueue.AddRateLimited("rdConfig")
 }
 func (cont *AciController) scheduleCreateIstioCR() {
-	cont.syncQueue.AddRateLimited("istioCR")
+       cont.syncQueue.AddRateLimited("istioCR")
 }

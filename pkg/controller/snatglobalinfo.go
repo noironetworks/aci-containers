@@ -20,6 +20,7 @@ import (
 	uuid "github.com/google/uuid"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -70,6 +71,36 @@ func (cont *AciController) initSnatNodeInformerBase(listWatch *cache.ListWatch) 
 	cont.log.Debug("Initializing Node Informers: ")
 }
 
+func (cont *AciController) initSnatGlobalInformerFromClient(
+	snatClient *snatglobalclset.Clientset) {
+	cont.initSnatGlobalInformerBase(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+			},
+		})
+}
+
+func (cont *AciController) initSnatGlobalInformerBase(listWatch *cache.ListWatch) {
+	cont.snatGlobalInformer = cache.NewSharedIndexInformer(
+		listWatch,
+		&snatglobalinfo.SnatGlobalInfo{}, 0,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	cont.snatGlobalInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.snatGlobalInfoUpdate(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.snatGlobalInfoUpdate(obj)
+		},
+	})
+	cont.log.Info("Initializing SnatGlobal Info Informers")
+}
+
 func (cont *AciController) initSnatCfgFromClient(
 	kubeClient kubernetes.Interface) {
 	cont.initSnatCfgInformerBase(
@@ -101,6 +132,10 @@ func (cont *AciController) initSnatCfgInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing SnatCfg  Informers: ")
+}
+
+func (cont *AciController) snatGlobalInfoUpdate(obj interface{}) {
+	cont.log.Info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 }
 
 // Handle any changes to snatOperator Config
