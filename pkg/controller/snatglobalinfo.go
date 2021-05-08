@@ -21,6 +21,7 @@ import (
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
+	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"k8s.io/api/core/v1"
@@ -70,6 +71,36 @@ func (cont *AciController) initSnatNodeInformerBase(listWatch *cache.ListWatch) 
 	cont.log.Debug("Initializing Node Informers: ")
 }
 
+func (cont *AciController) initSnatGlobalInformerFromClient(
+	snatClient *snatglobalclset.Clientset) {
+	cont.initSnatGlobalInformerBase(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+			},
+		})
+}
+
+func (cont *AciController) initSnatGlobalInformerBase(listWatch *cache.ListWatch) {
+	cont.snatGlobalInformer = cache.NewSharedIndexInformer(
+		listWatch,
+		&snatglobalinfo.SnatGlobalInfo{}, 0,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	cont.snatGlobalInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cont.snatGlobalInfoUpdate(obj)
+		},
+		UpdateFunc: func(_ interface{}, obj interface{}) {
+			cont.snatGlobalInfoUpdate(obj)
+		},
+	})
+	cont.log.Info("Initializing SnatGlobal Info Informers")
+}
+
 func (cont *AciController) initSnatCfgFromClient(
 	kubeClient kubernetes.Interface) {
 	cont.initSnatCfgInformerBase(
@@ -101,6 +132,57 @@ func (cont *AciController) initSnatCfgInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing SnatCfg  Informers: ")
+}
+
+func (cont *AciController) snatGlobalInfoUpdate(obj interface{}) {
+	cont.log.Debug("Running code to sync GlobalInfo with Node infos")
+	snat := obj.(*snatglobalinfo.SnatGlobalInfo)
+	globalInfo := snat.Spec.GlobalInfos
+	expected := make(map[string][]string)
+	for nodename, nodeEntry := range globalInfo {
+		for _, entry := range nodeEntry {
+			expected[nodename] = append(expected[nodename], entry.SnatPolicyName)
+		}
+	}
+	var nodeInfos []*nodeinfo.NodeInfo
+	cache.ListAll(cont.snatNodeInfoIndexer, labels.Everything(),
+		func(nodeInfoObj interface{}) {
+			nodeInfo := nodeInfoObj.(*nodeinfo.NodeInfo)
+			nodeInfos = append(nodeInfos, nodeInfo)
+		})
+	for _, value := range nodeInfos {
+		marked := false
+		policyNames := value.Spec.SnatPolicyNames
+		nodeName := value.ObjectMeta.Name
+		_, ok := expected[nodeName]
+		if !ok {
+			cont.log.Debug("Missing entry in snatglobalinfo for node: ", nodeName)
+			marked = true
+		} else if len(policyNames) != len(expected[nodeName]) {
+			cont.log.Debug("Missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
+			marked = true
+		} else {
+			// Compare sorted lists of policy names
+			expectedList := expected[nodeName]
+			expectedMap := make(map[string]bool)
+			for _, v := range expectedList {
+				expectedMap[v] = true
+			}
+			eq := reflect.DeepEqual(expectedMap, policyNames)
+			if !eq {
+				cont.log.Debug("Wrong snatpolicy entry in snatglobalinfo for node: ", nodeName)
+				marked = true
+			}
+		}
+		if marked {
+			cont.log.Info("Nodeinfo and globalinfo out of sync for node: ", nodeName)
+			nodeinfokey, err := cache.MetaNamespaceKeyFunc(value)
+			if err != nil {
+				continue
+			}
+			cont.queueNodeInfoUpdateByKey(nodeinfokey)
+		}
+	}
 }
 
 // Handle any changes to snatOperator Config

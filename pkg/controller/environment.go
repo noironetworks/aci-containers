@@ -172,6 +172,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initCRDInformer()
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+	cont.initSnatGlobalInformerFromClient(env.snatGlobalClient)
 	cont.initSnatCfgFromClient(kubeClient)
 	if cont.config.InstallIstio {
 		cont.initIstioInformerFromClient(env.istioClient)
@@ -259,6 +260,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
 		}, stopCh)
+	go cont.snatGlobalInformer.Run(stopCh)
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
 	if cont.config.InstallIstio {
 		go cont.istioInformer.Run(stopCh)

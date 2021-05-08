@@ -51,6 +51,7 @@ type testAciController struct {
 	fakeAimSource           *framework.FakeControllerSource
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
+	fakeSnatGlobalSource    *framework.FakeControllerSource
 	fakeSnatCfgSource       *framework.FakeControllerSource
 	fakeCRDSource           *framework.FakeControllerSource
 	podUpdates              []*v1.Pod
@@ -172,6 +173,12 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeNodeInfoSource.List,
 			WatchFunc: cont.fakeNodeInfoSource.Watch,
+		})
+	cont.fakeSnatGlobalSource = framework.NewFakeControllerSource()
+	cont.initSnatGlobalInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeSnatGlobalSource.List,
+			WatchFunc: cont.fakeSnatGlobalSource.Watch,
 		})
 
 	cont.fakeIstioSource = framework.NewFakeControllerSource()
