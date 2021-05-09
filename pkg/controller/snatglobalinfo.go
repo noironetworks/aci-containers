@@ -162,6 +162,7 @@ func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interf
 		return
 	}
 	cont.indexMutex.Lock()
+	cont.log.Info("Updating nodeinfo to: ", newnodeinfo)
 	cont.updateSnatIpandPorts(oldnodeinfo.Spec.SnatPolicyNames,
 		newnodeinfo.Spec.SnatPolicyNames, newnodeinfo.ObjectMeta.Name)
 	cont.snatNodeInfoCache[newnodeinfo.ObjectMeta.Name] = newnodeinfo
@@ -176,6 +177,7 @@ func (cont *AciController) snatNodeInfoDeleted(obj interface{}) {
 		return
 	}
 	cont.indexMutex.Lock()
+	cont.log.Info("Deleting nodeinfo object with name: ", nodeinfo.ObjectMeta.Name)
 	delete(cont.snatNodeInfoCache, nodeinfo.ObjectMeta.Name)
 	cont.indexMutex.Unlock()
 	cont.queueNodeInfoUpdateByKey(nodeinfokey)
@@ -357,8 +359,8 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 		cont.snatGlobalInfoCache[snatIp] = make(map[string]*snatglobalinfo.GlobalInfo)
 	}
 	cont.snatGlobalInfoCache[snatIp][nodename] = glinfo
-	cont.indexMutex.Unlock()
 	cont.log.Info("Node name and globalinfo: ", nodename, glinfo)
+	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) getIpAndPortRange(nodename string, snatpolicy *ContSnatPolicy, serviceIp string) (string,
@@ -501,6 +503,7 @@ func (cont *AciController) setSnatPoliciesState(names map[string]bool, status sn
 	ret := false
 	for name := range names {
 		if cont.setSnatPolicyStaus(name, status) == true {
+			cont.log.Info("Set status true for policy name: ", name)
 			ret = true
 		}
 	}

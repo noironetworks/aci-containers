@@ -191,6 +191,10 @@ type ControllerConfig struct {
 	// Maximum number of nodes permitted in a svc graph
 	MaxSvcGraphNodes int `json:"max-nodes-svc-graph,omitempty"`
 
+	// Disable routine to sync snatglobalinfo with nodeinfo
+	// periodically
+	DisablePeriodicSnatGlobalInfoSync bool `json:"disable-periodic-snat-global-info-sync,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 
