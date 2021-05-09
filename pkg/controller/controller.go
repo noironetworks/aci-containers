@@ -633,13 +633,17 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.opflexDeviceDeleted(dn)
 		})
 	go cont.apicConn.Run(stopCh)
-	go cont.enableGlobalSync(stopCh)
 }
 
 func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 	time.Sleep(time.Minute)
+	cont.log.Info("Go routine to periodically sync globalinfo and nodeinfo started")
+	iteration := 0
 	for {
-		cont.log.Debug("Running code to sync GlobalInfo with Node infos")
+		// To avoid noisy logs, only printing once in 5 minutes
+		if iteration%5 == 0 {
+			cont.log.Debug("Syncing GlobalInfo with Node infos")
+		}
 		var nodeInfos []*nodeinfo.NodeInfo
 		cont.indexMutex.Lock()
 		cache.ListAll(cont.snatNodeInfoIndexer, labels.Everything(),
@@ -647,10 +651,18 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 				nodeInfo := nodeInfoObj.(*nodeinfo.NodeInfo)
 				nodeInfos = append(nodeInfos, nodeInfo)
 			})
-		expected := make(map[string][]string)
+		expectedmap := make(map[string]map[string]bool)
 		for _, glinfo := range cont.snatGlobalInfoCache {
 			for nodename, entry := range glinfo {
-				expected[nodename] = append(expected[nodename], entry.SnatPolicyName)
+				if _, found := expectedmap[nodename]; !found {
+					newentry := make(map[string]bool)
+					newentry[entry.SnatPolicyName] = true
+					expectedmap[nodename] = newentry
+				} else {
+					currententry := expectedmap[nodename]
+					currententry[entry.SnatPolicyName] = true
+					expectedmap[nodename] = currententry
+				}
 			}
 		}
 		cont.indexMutex.Unlock()
@@ -659,24 +671,27 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 			marked := false
 			policyNames := value.Spec.SnatPolicyNames
 			nodeName := value.ObjectMeta.Name
-			_, ok := expected[nodeName]
+			_, ok := expectedmap[nodeName]
 			if !ok && len(policyNames) > 0 {
-				cont.log.Debug("Missing entry in snatglobalinfo for node: ", nodeName)
+				cont.log.Info("Missing entry in snatglobalinfo for node: ", nodeName)
+				cont.log.Info("No snat policies found in snatglobalinfo")
+				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
-				break
-			}
-			if len(policyNames) != len(expected[nodeName]) {
-				cont.log.Debug("Missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
+			} else if len(policyNames) != len(expectedmap[nodeName]) {
+				cont.log.Info("Missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
+				cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
+				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
 			} else {
-				expectedList := expected[nodeName]
-				expectedMap := make(map[string]bool)
-				for _, v := range expectedList {
-					expectedMap[v] = true
+				if len(policyNames) == 0 && len(expectedmap[nodeName]) == 0 {
+					// No snatpolicies present
+					continue
 				}
-				eq := reflect.DeepEqual(expectedMap, policyNames)
+				eq := reflect.DeepEqual(expectedmap[nodeName], policyNames)
 				if !eq {
-					cont.log.Debug("Wrong snatpolicy entry in snatglobalinfo for node: ", nodeName)
+					cont.log.Info("Wrong snatpolicy entry in snatglobalinfo for node: ", nodeName)
+					cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
+					cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 					marked = true
 				}
 			}
@@ -689,10 +704,13 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 				}
 				cont.queueNodeInfoUpdateByKey(nodeinfokey)
 			} else {
-				cont.log.Debug("Nodeinfo and globalinfo in sync for node: ", nodeName)
+				if iteration%5 == 0 {
+					cont.log.Debug("Nodeinfo and globalinfo in sync for node: ", nodeName)
+				}
 			}
 		}
 		time.Sleep(time.Minute)
+		iteration = iteration + 1
 	}
 }
 
