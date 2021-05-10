@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 
+	droplogclientset "github.com/noironetworks/aci-containers/pkg/droplog/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
@@ -52,6 +53,7 @@ type K8sEnvironment struct {
 	nodeInfo            *nodeinfoclientset.Clientset
 	rdConfig            *rdconfigclset.Clientset
 	snatLocalInfoClient *snatlocalinfoclset.Clientset
+	dropLogClient       *droplogclientset.Clientset
 	agent               *HostAgent
 	podInformer         cache.SharedIndexInformer
 	endpointsInformer   cache.SharedIndexInformer
@@ -129,8 +131,15 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize snatpolicy info client")
 		return nil, err
 	}
+	dropLogClient, err := droplogclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize droplog info client")
+		return nil, err
+	}
+	log.Debug("Intialize droplog client")
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient,
+		rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, dropLogClient: dropLogClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -149,6 +158,8 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initSnatPolicyInformerFromClient(env.snatPolicyClient)
 	env.agent.initQoSPolicyInformerFromClient(env.qosPolicyClient)
 	env.agent.initRdConfigInformerFromClient(env.rdConfig)
+	env.agent.initEnableDropLogInformerFromClient(env.dropLogClient)
+	env.agent.initPruneDropLogInformerFromClient(env.dropLogClient)
 	env.agent.initQoSPolPodIndex()
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
@@ -183,6 +194,8 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.snatPolicyInformer.Run(stopCh)
 	go env.agent.qosPolicyInformer.Run(stopCh)
 	go env.agent.rdConfigInformer.Run(stopCh)
+	go env.agent.enableDropLogInformer.Run(stopCh)
+	go env.agent.pruneDropLogInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
 		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,

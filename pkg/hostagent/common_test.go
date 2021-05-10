@@ -48,6 +48,8 @@ type testHostAgent struct {
 	fakeSnatPolicySource    *framework.FakeControllerSource
 	fakeSnatGlobalSource    *framework.FakeControllerSource
 	fakeRdConfigSource      *framework.FakeControllerSource
+	fakeEnableDropLogSource *framework.FakeControllerSource
+	fakePruneDropLogSource  *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -162,6 +164,18 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 		&cache.ListWatch{
 			ListFunc:  agent.fakeRdConfigSource.List,
 			WatchFunc: agent.fakeRdConfigSource.Watch,
+		})
+	agent.fakeEnableDropLogSource = framework.NewFakeControllerSource()
+	agent.initEnableDropLogInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeEnableDropLogSource.List,
+			WatchFunc: agent.fakeEnableDropLogSource.Watch,
+		})
+	agent.fakePruneDropLogSource = framework.NewFakeControllerSource()
+	agent.initPruneDropLogInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakePruneDropLogSource.List,
+			WatchFunc: agent.fakePruneDropLogSource.Watch,
 		})
 	agent.poster = &EventPoster{
 		recorder:           record.NewFakeRecorder(100),
