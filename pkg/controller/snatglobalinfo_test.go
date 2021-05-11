@@ -132,16 +132,20 @@ func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.Glob
 			val, ok := actual[key]
 			if ok {
 				result := tu.WaitEqual(t, last, v.SnatIp, val.SnatIp, "snatIp does not match") &&
-					tu.WaitEqual(t, last, v.PortRanges[0], val.PortRanges[0], "Portrange does not match")
-				return result, nil
+					tu.WaitEqual(t, last,
+						v.PortRanges[0], val.PortRanges[0], "Portrange does not match") &&
+					tu.WaitEqual(t, last, v.SnatPolicyName, val.SnatPolicyName, "snatPolicyName does not match")
+				if !result {
+					return false, nil
+				}
 			} else {
 				return false, nil
 			}
 		}
 		return true, nil
 	})
-
 }
+
 func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
 	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
 		if len(actual) > 0 {
@@ -161,6 +165,7 @@ func snatWaitForIpUpdated(t *testing.T, desc string, snatIp string, actual map[s
 	})
 
 }
+
 func TestSnatnodeInfo(t *testing.T) {
 	cont := testController()
 	for _, pt := range snatTests {
@@ -183,11 +188,11 @@ func TestSnatnodeInfo(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": {SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
-		"node-2": {SnatIp: "10.1.1.8", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
+		"node-1": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
 	}
 	expected1 := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": {SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"])
 	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
@@ -202,6 +207,67 @@ func TestSnatnodeInfo(t *testing.T) {
 		cont.fakeSnatPolicySource.Delete(snatObj)
 	}
 	snatdeleted(t, "snat test", cont.AciController.snatGlobalInfoCache)
+	cont.stop()
+}
+
+func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
+	cont := testController()
+	for _, pt := range snatTests {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Add(snatObj)
+	}
+	cont.run()
+	nodinfo := make(map[string]bool)
+	for _, pt := range nodeTests {
+		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
+		if _, ok := nodinfo[pt.name]; !ok {
+			cont.fakeNodeInfoSource.Add(nodeobj)
+			cont.log.Debug("NodeInfo Added: ", nodeobj)
+			nodinfo[pt.name] = true
+		} else {
+			cont.log.Debug("NodeInfo Modified: ", nodeobj)
+			cont.fakeNodeInfoSource.Modify(nodeobj)
+		}
+	}
+	time.Sleep(time.Millisecond * 100)
+	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
+	expected := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
+	}
+
+	expected1 := map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+	}
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
+
+	snatWait(t, "snat test", expected1,
+		cont.AciController.snatGlobalInfoCache["10.1.1.9"])
+
+	// Remove a node entry from snatglobalcache
+	delete(cont.AciController.snatGlobalInfoCache["10.1.1.8"], "node-2")
+
+	go cont.snatGlobalInfoSync(cont.stopCh, 1)
+	time.Sleep(time.Second * 2)
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
+
+	// Remove a policy entry from snatglobalcache
+	delete(cont.AciController.snatGlobalInfoCache, "10.1.1.8")
+	time.Sleep(time.Second * 2)
+
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
+
+	// Edit an associated policyname with node
+	node1item := cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"]
+	node1item.SnatPolicyName = "wrongpolicyname"
+	cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"] = node1item
+	time.Sleep(time.Second * 2)
+
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
 	cont.stop()
 }
 
@@ -244,9 +310,10 @@ func TestSnatCfgChangeTest(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected := map[string]snatglobalinfo.GlobalInfo{
-		"node-1": {SnatIp: "10.1.1.9", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
 	}
-	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.9"])
 	modconfigmap = &v1.ConfigMap{
 		Data: map[string]string{"start": "5000", "end": "65000", "ports-per-node": "60000"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -256,6 +323,10 @@ func TestSnatCfgChangeTest(t *testing.T) {
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
 	expected = map[string]snatglobalinfo.GlobalInfo{}
-	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.9"])
+	expected = map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
+	}
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.9"])
 	cont.stop()
 }
