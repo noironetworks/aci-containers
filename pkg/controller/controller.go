@@ -635,8 +635,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	go cont.apicConn.Run(stopCh)
 }
 
-func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
-	time.Sleep(time.Minute)
+func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds time.Duration) {
+	time.Sleep(seconds * time.Second)
 	cont.log.Info("Go routine to periodically sync globalinfo and nodeinfo started")
 	iteration := 0
 	for {
@@ -673,12 +673,12 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 			nodeName := value.ObjectMeta.Name
 			_, ok := expectedmap[nodeName]
 			if !ok && len(policyNames) > 0 {
-				cont.log.Info("Missing entry in snatglobalinfo for node: ", nodeName)
+				cont.log.Info("Adding missing entry in snatglobalinfo for node: ", nodeName)
 				cont.log.Info("No snat policies found in snatglobalinfo")
 				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
 			} else if len(policyNames) != len(expectedmap[nodeName]) {
-				cont.log.Info("Missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
+				cont.log.Info("Adding missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
 				cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
 				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
@@ -689,7 +689,7 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 				}
 				eq := reflect.DeepEqual(expectedmap[nodeName], policyNames)
 				if !eq {
-					cont.log.Info("Wrong snatpolicy entry in snatglobalinfo for node: ", nodeName)
+					cont.log.Info("Syncing inconsistent snatpolicy entry in snatglobalinfo for node: ", nodeName)
 					cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
 					cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
 					marked = true
@@ -702,6 +702,7 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 					cont.log.Error("Not able to get key for node: ", nodeName)
 					continue
 				}
+				cont.log.Info("Queuing nodeinfokey for globalinfo sync: ", nodeinfokey)
 				cont.queueNodeInfoUpdateByKey(nodeinfokey)
 			} else {
 				if iteration%5 == 0 {
@@ -709,7 +710,7 @@ func (cont *AciController) enableGlobalSync(stopCh <-chan struct{}) {
 				}
 			}
 		}
-		time.Sleep(time.Minute)
+		time.Sleep(seconds * time.Second)
 		iteration = iteration + 1
 	}
 }
