@@ -166,7 +166,9 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 		DppPolIngressName := labelKey + "_ingress"
 		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolIngressName)
 		DppPolIngress.SetAttr("rate", strconv.Itoa(qp.Spec.Ingress.PolicingRate))
+		DppPolIngress.SetAttr("rateUnit", "kilo")
 		DppPolIngress.SetAttr("burst", strconv.Itoa(qp.Spec.Ingress.PolicingBurst))
+		DppPolIngress.SetAttr("burstUnit", "kilo")
 
 		RsIngressDppPol := apicapi.NewRsIngressDppPol(qrDn, DppPolIngressName)
 		qr.AddChild(RsIngressDppPol)
@@ -179,7 +181,9 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 		DppPolEgressName := labelKey + "_egress"
 		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolEgressName)
 		DppPolEgress.SetAttr("rate", strconv.Itoa(qp.Spec.Egress.PolicingRate))
+		DppPolEgress.SetAttr("rateUnit", "kilo")
 		DppPolEgress.SetAttr("burst", strconv.Itoa(qp.Spec.Egress.PolicingBurst))
+		DppPolEgress.SetAttr("burstUnit", "kilo")
 
 		RsEgressDppPol := apicapi.NewRsEgressDppPol(qrDn, DppPolEgressName)
 		qr.AddChild(RsEgressDppPol)
