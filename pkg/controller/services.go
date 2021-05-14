@@ -27,7 +27,8 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	epv1 "k8s.io/api/discovery/v1"
+	"k8s.io/api/discovery/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -55,13 +56,13 @@ func (cont *AciController) initEndpointSliceInformerFromClient(
 
 	cont.initEndpointSliceInformerBase(
 		cache.NewListWatchFromClient(
-			kubeClient.DiscoveryV1beta1().RESTClient(), "endpointslices",
+			kubeClient.DiscoveryV1().RESTClient(), "endpointslices",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initEndpointSliceInformerBase(listWatch *cache.ListWatch) {
 	cont.endpointSliceIndexer, cont.endpointSliceInformer = cache.NewIndexerInformer(
-		listWatch, &v1beta1.EndpointSlice{}, 0,
+		listWatch, &epv1.EndpointSlice{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.endpointSliceAdded(obj)
@@ -1424,7 +1425,7 @@ func (cont *AciController) serviceFullSync() {
 		})
 }
 
-func (cont *AciController) getEndpointSliceIps(endpointSlice *v1beta1.EndpointSlice) map[string]bool {
+func (cont *AciController) getEndpointSliceIps(endpointSlice *epv1.EndpointSlice) map[string]bool {
 	ips := make(map[string]bool)
 	for _, endpoints := range endpointSlice.Endpoints {
 		for _, addr := range endpoints.Addresses {
@@ -1435,7 +1436,7 @@ func (cont *AciController) getEndpointSliceIps(endpointSlice *v1beta1.EndpointSl
 }
 
 func (cont *AciController) endpointSliceAdded(obj interface{}) {
-	endpointslice, ok := obj.(*v1beta1.EndpointSlice)
+	endpointslice, ok := obj.(*epv1.EndpointSlice)
 	if !ok {
 		cont.log.Error("error processing Endpointslice object: ", obj)
 		return
@@ -1457,14 +1458,14 @@ func (cont *AciController) endpointSliceAdded(obj interface{}) {
 }
 
 func (cont *AciController) endpointSliceDeleted(obj interface{}) {
-	endpointslice, isEndpointslice := obj.(*v1beta1.EndpointSlice)
+	endpointslice, isEndpointslice := obj.(*epv1.EndpointSlice)
 	if !isEndpointslice {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			cont.log.Error("Received unexpected object: ", obj)
 			return
 		}
-		endpointslice, ok = deletedState.Obj.(*v1beta1.EndpointSlice)
+		endpointslice, ok = deletedState.Obj.(*epv1.EndpointSlice)
 		if !ok {
 			cont.log.Error("DeletedFinalStateUnknown contained non-Endpointslice object: ", deletedState.Obj)
 			return
@@ -1484,12 +1485,12 @@ func (cont *AciController) endpointSliceDeleted(obj interface{}) {
 }
 
 func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj interface{}) {
-	oldendpointslice, ok := oldobj.(*v1beta1.EndpointSlice)
+	oldendpointslice, ok := oldobj.(*epv1.EndpointSlice)
 	if !ok {
 		cont.log.Error("error processing Endpointslice object: ", oldobj)
 		return
 	}
-	newendpointslice, ok := newobj.(*v1beta1.EndpointSlice)
+	newendpointslice, ok := newobj.(*epv1.EndpointSlice)
 	if !ok {
 		cont.log.Error("error processing Endpointslice object: ", newobj)
 		return
@@ -1517,7 +1518,7 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 
 }
 
-func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta1.EndpointSlice) {
+func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *epv1.EndpointSlice) {
 	for _, endpoint := range endpointslice.Endpoints {
 		if endpoint.TargetRef == nil || endpoint.TargetRef.Kind != "Pod" ||
 			endpoint.TargetRef.Namespace == "" || endpoint.TargetRef.Name == "" {
@@ -1538,8 +1539,8 @@ func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta
 	}
 }
 
-func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
-	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+func getServiceKey(endPointSlice *epv1.EndpointSlice) (string, bool) {
+	serviceName, ok := endPointSlice.Labels[epv1.LabelServiceName]
 	if !ok {
 		return "", false
 	}
@@ -1576,10 +1577,9 @@ func (seps *serviceEndpointSlice) UpdateServicesForNode(nodename string) {
 	visited := make(map[string]bool)
 	cache.ListAll(cont.endpointSliceIndexer, labels.Everything(),
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*epv1.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
-				_, ok := endpoint.Topology["kubernetes.io/hostname"]
-				if ok && endpoint.Topology["kubernetes.io/hostname"] == nodename {
+				if *endpoint.NodeName == nodename {
 					servicekey, valid := getServiceKey(endpointSlices)
 					if !valid {
 						return
@@ -1637,11 +1637,12 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*epv1.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
-				nodeName, ok := endpoint.Topology["kubernetes.io/hostname"]
-				if ok {
-					cont.setNodeMap(nodeMap, nodeName)
+				nodeName := endpoint.NodeName
+				if nodeName != nil {
+					//TODO:Check if nodeName can be empty in code path
+					cont.setNodeMap(nodeMap, *nodeName)
 				}
 			}
 		})

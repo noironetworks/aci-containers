@@ -28,7 +28,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	epv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -150,10 +150,10 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 	agent.initEndpointSliceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+				return kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
 			},
 		})
 }
@@ -161,7 +161,7 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 func (agent *HostAgent) initEndpointSliceInformerBase(listWatch *cache.ListWatch) {
 	agent.endpointSliceInformer = cache.NewSharedIndexInformer(
 		listWatch,
-		&v1beta1.EndpointSlice{},
+		&epv1.EndpointSlice{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
@@ -424,8 +424,8 @@ func (agent *HostAgent) endpointsChanged(obj interface{}) {
 	}
 	agent.doUpdateService(key)
 }
-func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
-	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+func getServiceKey(endPointSlice *epv1.EndpointSlice) (string, bool) {
+	serviceName, ok := endPointSlice.Labels[epv1.LabelServiceName]
 	if !ok {
 		return "", false
 	}
@@ -435,7 +435,7 @@ func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
 func (agent *HostAgent) endpointSliceChanged(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-	endpointslice := obj.(*v1beta1.EndpointSlice)
+	endpointslice := obj.(*epv1.EndpointSlice)
 	servicekey, ok := getServiceKey(endpointslice)
 	if !ok {
 		return
@@ -664,12 +664,12 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	external bool, key string, sp v1.ServicePort) bool {
 	agent := seps.agent
 	hasValidMapping := false
-	var endpointSlices []*v1beta1.EndpointSlice
+	var endpointSlices []*epv1.EndpointSlice
 	label := map[string]string{"kubernetes.io/service-name": as.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(agent.endpointSliceInformer.GetIndexer(), as.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
+			endpointSlices = append(endpointSlices, endpointSliceobj.(*epv1.EndpointSlice))
 		})
 	for _, endpointSlice := range endpointSlices {
 		for _, p := range endpointSlice.Ports {
@@ -701,8 +701,9 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			nexthops := make(map[string][]string)
 			for _, e := range endpointSlice.Endpoints {
 				for _, a := range e.Addresses {
-					nodeName, ok := e.Topology["kubernetes.io/hostname"]
-					if !external || (ok && nodeName == agent.config.NodeName) {
+					nodeName := e.NodeName
+					//TODO: check for empty nodeName
+					if !external || (*nodeName == agent.config.NodeName) {
 						obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
 						if err != nil {
 							agent.log.Error("Could not lookup node: ", err)
@@ -719,7 +720,8 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							nexthops["any"] = append(nexthops["any"], a)
 						} else {
 							for _, key := range as.Spec.TopologyKeys {
-								if checkKeyMatch(e.Topology, node.ObjectMeta.Labels, key) {
+								//TODO: check wif only nodeName and zone need to be matched?
+								if checkKeyMatch(e.DeprecatedTopology, node.ObjectMeta.Labels, key) {
 									nexthops[key] = append(nexthops[key], a)
 								}
 							}
