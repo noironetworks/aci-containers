@@ -142,8 +142,7 @@ func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {
 	epGroup, ok := ns.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := critical
-		faultCode := 11
-		cont.handleEpgAnnotationUpdate(nskey, faultCode, severity, ns.Name, epGroup)
+		cont.handleEpgAnnotationUpdate(nskey, nsFaultCode, severity, ns.Name, epGroup)
 	}
 
 	return

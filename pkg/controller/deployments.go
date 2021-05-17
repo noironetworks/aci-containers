@@ -194,8 +194,7 @@ func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
 	epGroup, ok := dep.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := major
-		faultCode := 12
-		cont.handleEpgAnnotationUpdate(key, faultCode, severity, dep.Name, epGroup)
+		cont.handleEpgAnnotationUpdate(key, depFaultCode, severity, dep.Name, epGroup)
 	}
 
 	return

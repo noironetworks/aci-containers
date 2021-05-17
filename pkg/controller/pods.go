@@ -43,6 +43,12 @@ const (
 	critical          = iota
 )
 
+const (
+	podFaultCode = 10
+	nsFaultCode  = 11
+	depFaultCode = 12
+)
+
 func (cont *AciController) initPodInformerFromClient(
 	kubeClient kubernetes.Interface) {
 
@@ -103,8 +109,7 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 	epGroup, ok := pod.ObjectMeta.Annotations[metadata.EgAnnotation]
 	if ok {
 		severity := major
-		faultCode := 10
-		cont.handleEpgAnnotationUpdate(key, faultCode, severity, pod.Name, epGroup)
+		cont.handleEpgAnnotationUpdate(key, podFaultCode, severity, pod.Name, epGroup)
 	}
 
 	return
@@ -112,7 +117,7 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 
 func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, severity int, entity string, epGroup string) bool {
 	var egval metadata.OpflexGroup
-	epgExist, egval, setFaultInst := cont.checkVrfCache(epGroup, "EpgAnnotation")
+	epgExist, egval, setFaultInst := cont.checkEpgCache(epGroup, "EpgAnnotation")
 
 	if epgExist {
 		//clearing existing faults upon correct annotation
@@ -136,7 +141,7 @@ func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, 
 			aObj.SetAttr("faultCode", faultcode)
 			aObj.SetAttr("faultSeverity", severity)
 
-			if faultCode == 11 {
+			if faultCode == nsFaultCode {
 				cont.apicConn.WriteApicContainer(key, apicapi.ApicSlice{aObj})
 			} else {
 				cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{aObj})

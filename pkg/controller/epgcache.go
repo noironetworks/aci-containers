@@ -26,54 +26,57 @@ import (
 )
 
 func (cont *AciController) clearFaultInstances() {
-
+	queryfilter := fmt.Sprintf("query-target-filter=and(wcard(vmmClusterFaultInfo.dn,\"comp/prov-%s/ctrlr-\\[%s\\]-%s\"))",
+		cont.vmmDomainProvider(), cont.config.AciVmmDomain, cont.config.AciVmmDomain)
 	args := []string{
+		queryfilter,
 		"order-by=vmmClusterFaultInfo.modTs|desc",
 	}
+
 	faultUri := fmt.Sprintf("/api/node/class/vmmClusterFaultInfo.json?%s", strings.Join(args, "&"))
 	apicresp, err := cont.apicConn.GetApicResponse(faultUri)
-
 	if err != nil {
 		return
 	}
-
 	for _, obj := range apicresp.Imdata {
 		for _, body := range obj {
 			dn, ok := body.Attributes["dn"].(string)
 			if ok {
-				if cont.apicConn.DeleteDn(dn) {
-					cont.log.Debug("Cleared existing Fault Instance", dn)
-				} else {
-					cont.log.Warn("Failed to clear existing Fault Instance", dn)
-				}
+				cont.indexMutex.Lock()
+				cont.apicConn.DeleteDn(dn)
+				cont.log.Debug("Clearing existing Fault Instance: ", dn)
+				cont.indexMutex.Unlock()
 			}
 		}
 	}
 	return
 }
 
-func (cont *AciController) epgClassChanged(obj apicapi.ApicObject) {
-
-	if !cont.faultInstCleared {
-		cont.clearFaultInstances()
-		cont.faultInstCleared = true
-	}
-	dn := obj.GetAttrStr("dn")
-	cont.indexMutex.Lock()
-	if ok := !cont.contains(cont.cachedVRFDns, dn); ok {
-		cont.cachedVRFDns = append(cont.cachedVRFDns, dn)
-	}
-	cont.indexMutex.Unlock()
-	sort.Strings(cont.cachedVRFDns)
+func (cont *AciController) getEpgFromEppd(dn string) string {
+	delimiterStringEpg := fmt.Sprintf("uni/vmmp-%s/dom-%s/eppd-[", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
+	epgDn := strings.Split(dn, delimiterStringEpg)[1]
+	epgDn = strings.Replace(epgDn, "]", "", -1)
+	return epgDn
 }
 
-func (cont *AciController) epgClassDeleted(dn string) {
-
-	if cont.contains(cont.cachedVRFDns, dn) {
-		cont.indexMutex.Lock()
-		cont.removeSlice(cont.cachedVRFDns, dn)
-		cont.indexMutex.Unlock()
+func (cont *AciController) vmmEpPDChanged(obj apicapi.ApicObject) {
+	dn := obj.GetAttrStr("dn")
+	epgDn := cont.getEpgFromEppd(dn)
+	cont.indexMutex.Lock()
+	if ok := !cont.contains(cont.cachedEpgDns, epgDn); ok {
+		cont.cachedEpgDns = append(cont.cachedEpgDns, epgDn)
 	}
+	sort.Strings(cont.cachedEpgDns)
+	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) vmmEpPDDeleted(dn string) {
+	epgDn := cont.getEpgFromEppd(dn)
+	cont.indexMutex.Lock()
+	if cont.contains(cont.cachedEpgDns, epgDn) {
+		cont.removeSlice(cont.cachedEpgDns, epgDn)
+	}
+	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) removeSlice(s []string, searchterm string) {
@@ -84,11 +87,7 @@ func (cont *AciController) removeSlice(s []string, searchterm string) {
 	return
 }
 
-func (cont *AciController) getCachedVRFDns() []string {
-	return cont.cachedVRFDns
-}
-
-func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, metadata.OpflexGroup, bool) {
+func (cont *AciController) checkEpgCache(epGroup string, comment string) (bool, metadata.OpflexGroup, bool) {
 	var egval metadata.OpflexGroup
 	var setFaultInst bool
 
@@ -106,12 +105,13 @@ func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, 
 	}
 
 	if len(egval.Name) != 0 {
-		epgDns := cont.getCachedVRFDns()
 
-		if len(epgDns) != 0 {
+		if len(cont.cachedEpgDns) != 0 {
 			if egval.Tenant != "" && egval.AppProfile != "" {
 				dn := fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", egval.Tenant, egval.AppProfile, egval.Name)
-				exist := cont.contains(epgDns, dn)
+				cont.indexMutex.Lock()
+				exist := cont.contains(cont.cachedEpgDns, dn)
+				cont.indexMutex.Unlock()
 				if !exist {
 					setFaultInst = true
 					return false, egval, setFaultInst
@@ -120,8 +120,6 @@ func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, 
 					return true, egval, setFaultInst
 				}
 			}
-		} else {
-			cont.log.Warn("EPG dn cache is empty")
 		}
 	}
 	return false, egval, setFaultInst
