@@ -126,14 +126,6 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 		})
 }
 
-func getsnat(snatfile string) (string, error) {
-	raw, err := ioutil.ReadFile(snatfile)
-	if err != nil {
-		return "", err
-	}
-	return string(raw), err
-}
-
 func writeSnat(snatfile string, snat *OpflexSnatIp) (bool, error) {
 	newdata, err := json.MarshalIndent(snat, "", "  ")
 	if err != nil {

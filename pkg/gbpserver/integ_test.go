@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -724,7 +723,6 @@ func TestGRPC(t *testing.T) {
 			moMap[o.Uri] = o
 		}
 
-		//testPrintSorted(moMap, "testPolicy.json")
 		verifyPolicy(t, moMap)
 	}
 
@@ -847,34 +845,5 @@ func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
 			log.Infof("%+v  not equal to %+v", m, n)
 			t.Fatal(fmt.Errorf("Object %s did not match in received policy", m.Uri))
 		}
-	}
-}
-
-func testPrintSorted(mos map[string]*GBPObject, outFile string) {
-	var keys []string
-
-	for k := range mos {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	var sortedMos []*GBPObject
-	for _, kk := range keys {
-		m, ok := mos[kk]
-		if !ok {
-			fmt.Printf("ERROR: missing mo %s", kk)
-			continue
-		}
-		sortedMos = append(sortedMos, m)
-	}
-
-	policyJson, err := json.MarshalIndent(sortedMos, "", "    ")
-	if err != nil {
-		fmt.Printf("ERROR: %v", err)
-	}
-	err = ioutil.WriteFile(outFile, policyJson, 0644)
-	if err != nil {
-		log.Errorf("%s - %v", outFile, err)
 	}
 }

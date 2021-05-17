@@ -672,8 +672,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	}
 	sort.Strings(nodes)
 	name := cont.aciNameForKey("snat", key)
-	var conScope string
-	conScope = cont.config.SnatSvcContractScope
+	var conScope = cont.config.SnatSvcContractScope
 	sharedSecurity := true
 
 	graphName := cont.aciNameForKey("svc", "global")
@@ -1695,10 +1694,7 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 				cont.log.Debug("EndPoint added: ", endpoint.TargetRef.Name)
 			}
 		})
-	if epcount == 0 {
-		return false
-	}
-	return true
+	return epcount != 0
 }
 func getProtocolStr(proto v1.Protocol) string {
 	var protostring string

@@ -117,7 +117,7 @@ func (pso *PodStatsObj) getLabels(stats *PodStatsType, tuple Tuple, dir string) 
 			l[srcKey] = strings.Join(svcList, "|")
 			l[srcTypeKey] = "service"
 		} else {
-			l[srcKey] = fmt.Sprintf("%s", tuple.srcIP)
+			l[srcKey] = tuple.srcIP
 			l[srcTypeKey] = "cidr"
 		}
 	}

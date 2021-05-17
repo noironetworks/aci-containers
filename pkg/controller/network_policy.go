@@ -41,7 +41,6 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
-	"github.com/noironetworks/aci-containers/pkg/util"
 	v1beta "k8s.io/api/discovery/v1beta1"
 )
 
@@ -71,10 +70,6 @@ func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWa
 			},
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
-}
-
-func (cont *AciController) getNetPolPolicyTypes(key string) []v1net.PolicyType {
-	return util.GetNetPolPolicyTypes(cont.networkPolicyIndexer, key)
 }
 
 func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,

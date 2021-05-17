@@ -136,8 +136,7 @@ func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpo
 		if err == nil {
 			ep.Mac = existing.Mac
 		} else {
-			var mac net.HardwareAddr
-			mac = make([]byte, 6)
+			var mac net.HardwareAddr = make([]byte, 6)
 			_, err := rand.Read(mac)
 			if err != nil {
 				return err

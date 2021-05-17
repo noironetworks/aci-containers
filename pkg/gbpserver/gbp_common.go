@@ -64,7 +64,6 @@ const (
 	propGw            = "virtualRouterIp"
 	propPrefix        = "prefixLen"
 	propNw            = "address"
-	propMac           = "macAddress"
 	propEther         = "etherT"
 	propProt          = "prot"
 	propDToPort       = "dToPort"

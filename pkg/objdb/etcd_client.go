@@ -47,9 +47,6 @@ type EtcdClient struct {
 	root   string
 }
 
-// Max retry count
-const maxEtcdRetries = 10
-
 // Initialize the etcd client
 func NewClient(endpoints []string, root string) (API, error) {
 	var err error
@@ -161,11 +158,8 @@ func (ec *EtcdClient) DelObj(key string) error {
 	defer cancel()
 	_, err := ec.kapi.Delete(ctx, keyName, nil)
 	if err != nil {
-		// Retry few times if cluster is unavailable
-		if err != nil {
-			log.Errorf("Error removing key %s, Err: %v", keyName, err)
-			return err
-		}
+		log.Errorf("Error removing key %s, Err: %v", keyName, err)
+		return err
 	}
 
 	return nil

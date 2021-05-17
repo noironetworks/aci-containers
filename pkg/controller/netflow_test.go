@@ -30,10 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func staticNetflowPolKey() string {
-	return "consul_netflow-policy"
-}
-
 type nfTest struct {
 	netflowPol  *netflowpolicy.NetflowPolicy
 	aciObjSlice apicapi.ApicSlice
@@ -63,21 +59,6 @@ func makeNf(name string, dstAddr string, dstPort int,
 	apicSlice = append(apicSlice, nf1VmmVSwitch)
 
 	return apicSlice
-}
-
-func checkNf(t *testing.T, nt *nfTest, category string, cont *testAciController) {
-	tu.WaitFor(t, nt.desc, 500*time.Millisecond,
-		func(last bool) (bool, error) {
-			slice := apicapi.ApicSlice{nt.aciObj}
-			key := cont.aciNameForKey("nf", nt.netflowPol.Name)
-			apicapi.PrepareApicSlice(slice, "kube", key)
-
-			if !tu.WaitEqual(t, last, slice,
-				cont.apicConn.GetDesiredState(key), nt.desc, key) {
-				return false, nil
-			}
-			return true, nil
-		})
 }
 
 func checkDeleteNf(t *testing.T, nt nfTest, cont *testAciController) {

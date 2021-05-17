@@ -41,6 +41,7 @@ TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
 GOFMT_CHK_CMD := gofmt -s -l
 GOFMT_FIX_CMD := gofmt -s -w
+LINT_CMD := golangci-lint
 GIT_COMMIT=$(shell scripts/getGitCommit.sh)
 PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
@@ -184,7 +185,7 @@ container-opflex-build-base:
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/openvswitch${DOCKER_TAG} -f ./docker/Dockerfile-openvswitch .
 container-cnideploy:
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy docker
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/cnideploy${DOCKER_TAG} -f ./docker/Dockerfile-cnideploy .
 container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 container-operator: dist-static/aci-containers-operator
@@ -195,6 +196,9 @@ check-gofmt:
 
 fix-gofmt:
 	@${GOFMT_FIX_CMD} pkg
+
+lint:
+	@${LINT_CMD} run
 
 check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver
 check-ipam:
