@@ -66,8 +66,9 @@ func execKubectl(args []string, out io.Writer) error {
 }
 
 type reportCmdElem struct {
-	name string
-	args []string
+	name           string
+	args           []string
+	skipOutputFile bool
 }
 
 type reportNodeCmd struct {
@@ -95,12 +96,12 @@ func addFileToTarball(path string, tarWriter *tar.Writer) error {
 		header.ModTime = time.Now()
 		// write the header to the tarball archive
 		if err := tarWriter.WriteHeader(header); err != nil {
-			fmt.Fprintln(os.Stderr, "Can not write file %s header to tarball", path)
+			fmt.Fprintf(os.Stderr, "Can not write file %s header to tarball", path)
 			return err
 		}
 		// copy the file data to the tarball
 		if _, err := io.Copy(tarWriter, file); err != nil {
-			fmt.Fprintln(os.Stderr, "Can not copy file %s to tarball", path)
+			fmt.Fprintf(os.Stderr, "Can not copy file %s to tarball", path)
 			return err
 		}
 	}
@@ -109,7 +110,7 @@ func addFileToTarball(path string, tarWriter *tar.Writer) error {
 
 func createTarForClusterReport(tarWriter *tar.Writer) error {
 	// Create tar file out for all kubectl cp files
-	createTarCmd := exec.Command("tar", "-cvf", "hostfiles.tar", "cluster-report/hostfiles/")
+	createTarCmd := exec.Command("tar", "-cvf", "hostfiles.tar", "hostfiles/")
 	err := createTarCmd.Run()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error while running command")
@@ -126,6 +127,7 @@ func createTarForClusterReport(tarWriter *tar.Writer) error {
 	// Delete tar and cluster-report/files dir
 	deleteCmds := []string{"rm -rf cluster-report/",
 		"rm -rf hostfiles.tar",
+		"rm -rf hostfiles",
 	}
 
 	for _, cmd := range deleteCmds {
@@ -167,6 +169,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		{
 			name: "cluster-report/logs/controller/acc.log",
 			args: accLogCmdArgs(systemNamespace),
+		},
+		{
+			name: "cluster-report/logs/controller/acc-version.log",
+			args: accVersionCmdArgs(systemNamespace),
 		},
 		{
 			name: "cluster-report/logs/operator/acioperator.log",
@@ -354,13 +360,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 					continue
 				}
 			}
-
 			// Prepare kubectl cp command for opflex-agent-ovs
-			tempName := fmt.Sprintf("cluster-report/hostfiles/node-%s/opflex-agent-ovs", node.Name)
+			tempName := fmt.Sprintf("hostfiles/node-%s/opflex-agent-ovs/", node.Name)
 			cmds = append(cmds, reportCmdElem{
 				name: tempName,
 				args: []string{"cp", systemNamespace + "/" + podName + ":" +
 					"/usr/local/var/lib/opflex-agent-ovs", tempName},
+				skipOutputFile: true,
 			})
 
 			cmds = append(cmds, reportCmdElem{
@@ -368,7 +374,22 @@ func clusterReport(cmd *cobra.Command, args []string) {
 				args: nodeItem.argFunc(systemNamespace, podName,
 					nodeItem.cont, nodeItem.args),
 			})
+
+			//Prepare kubectl cp command for aci-conatiners-host
+			tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/k8s-pod-network/", node.Name)
+			cmds = append(cmds, reportCmdElem{
+				name: tempName,
+				args: []string{"cp", systemNamespace + "/" + podName + ":" +
+					"/usr/local/var/lib/aci-containers/k8s-pod-network", tempName},
+				skipOutputFile: true,
+			})
 		}
+		//Prepare kubectl exec command for aci-conatiners-host version
+		tempName := fmt.Sprintf("cluster-report/logs/node-%s/aci-containers-host-version.log", node.Name)
+		cmds = append(cmds, reportCmdElem{
+			name: tempName,
+			args: aciContainerHostVersionCmdArgs(systemNamespace),
+		})
 	}
 	output, outfile, err := getOutfile(output)
 	if err != nil {
@@ -381,7 +402,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	tarWriter := tar.NewWriter(gzWriter)
 	now := time.Now()
 	hasErrors := false
-
 	// Execute kubectl commands
 	for _, cmd := range cmds {
 		buffer := new(bytes.Buffer)
@@ -393,14 +413,16 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			hasErrors = true
 			continue
 		}
-
-		tarWriter.WriteHeader(&tar.Header{
-			Name:    cmd.name,
-			Mode:    0644,
-			ModTime: now,
-			Size:    int64(buffer.Len()),
-		})
-		buffer.WriteTo(tarWriter)
+		//To avoid having double hostfiles
+		if !cmd.skipOutputFile {
+			tarWriter.WriteHeader(&tar.Header{
+				Name:    cmd.name,
+				Mode:    0644,
+				ModTime: now,
+				Size:    int64(buffer.Len()),
+			})
+			buffer.WriteTo(tarWriter)
+		}
 	}
 
 	createTarForClusterReport(tarWriter)
@@ -458,6 +480,18 @@ func acioperatorLogCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-operator",
 		"-c", "aci-containers-operator"}
+}
+
+func accVersionCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "exec", "deployment/aci-containers-controller",
+		"-c", "aci-containers-controller", "-i", "--",
+		"aci-containers-controller", "--version"}
+}
+
+func aciContainerHostVersionCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "exec", "daemonsets/aci-containers-host",
+		"-c", "aci-containers-host", "-i", "--",
+		"aci-containers-host-agent", "--version"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
