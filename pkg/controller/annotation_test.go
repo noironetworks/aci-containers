@@ -205,7 +205,7 @@ func TestEpgAnnotation(t *testing.T) {
 			return
 		}
 
-		cont.cachedVRFDns = append(cont.cachedVRFDns, "uni/tn-bashokba/ap-aci-containers-bashokba/epg-aci-containers-system")
+		cont.cachedEpgDns = append(cont.cachedEpgDns, "uni/tn-bashokba/ap-aci-containers-bashokba/epg-aci-containers-system")
 
 		expected := cont.handleEpgAnnotationUpdate(nskey, 11, critical, namespace.Name, pt.eg)
 		assert.Equal(t, actual, expected)

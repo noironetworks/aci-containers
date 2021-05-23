@@ -17,9 +17,7 @@ package controller
 import (
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/metadata"
 
-	"encoding/json"
 	"sort"
 	"strings"
 )
@@ -130,9 +128,6 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 	}
 	sort.Strings(vrfEpgDns)
 	cont.log.Debug("aciVrfEpgDns: ", vrfEpgDns)
-	cont.indexMutex.Lock()
-	cont.cachedVRFDns = vrfEpgDns
-	cont.indexMutex.Unlock()
 	apicresp, err = cont.apicConn.GetApicResponse(SubnetUri)
 	if err != nil {
 		return
@@ -158,37 +153,4 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 func (cont *AciController) contains(s []string, searchterm string) bool {
 	i := sort.SearchStrings(s, searchterm)
 	return i < len(s) && s[i] == searchterm
-}
-
-func (cont *AciController) getCachedVRFDns() []string {
-	return cont.cachedVRFDns
-}
-
-func (cont *AciController) checkVrfCache(epGroup string, comment string) (bool, metadata.OpflexGroup) {
-	var egval metadata.OpflexGroup
-	var dn string
-
-	if len(epGroup) != 0 {
-		err := json.Unmarshal([]byte(epGroup), &egval)
-		if err != nil {
-			cont.log.Warn("Could not decode the annotation : ", comment)
-			return false, egval
-		}
-	}
-
-	if len(egval.Name) != 0 {
-		vrfDns := cont.getCachedVRFDns()
-
-		if len(vrfDns) != 0 {
-			dn = fmt.Sprintf("uni/epg-%s", egval.Name)
-			if egval.Tenant != "" && egval.AppProfile != "" {
-				dn = fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", egval.Tenant, egval.AppProfile, egval.Name)
-			}
-			exist := cont.contains(vrfDns, dn)
-			if !exist {
-				return true, egval
-			}
-		}
-	}
-	return false, egval
 }

@@ -157,8 +157,9 @@ type AciController struct {
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
 	nmPortNp map[string]bool
-	// cache to look for VRF Epg DNs
-	cachedVRFDns []string
+	// cache to look for Epg DNs which are bound to Vmm domain
+	cachedEpgDns             []string
+	vmmClusterFaultSupported bool
 }
 
 type nodeServiceMeta struct {
@@ -526,6 +527,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		} else {
 			cont.apicConn.SnatPbrFltrChain = false
 		}
+		if version >= "5.2" {
+			cont.vmmClusterFaultSupported = true
+		}
 	} else { // For unit-tests
 		cont.apicConn.SnatPbrFltrChain = true
 	}
@@ -541,6 +545,26 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.log.Error("Pod/NodeBDs and AciL3Out VRF association is incorrect")
 			panic(err)
 		}
+	}
+
+	if len(cont.config.ApicHosts) != 0 && cont.vmmClusterFaultSupported {
+		//Clear fault instances when the controller starts
+		cont.clearFaultInstances()
+		//Subscribe for vmmEpPD for a given domain
+		var tnTargetFilterEpg string
+		tnTargetFilterEpg += fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
+		subnetTargetFilterEpg := fmt.Sprintf("and(wcard(vmmEpPD.dn,\"%s\"))", tnTargetFilterEpg)
+		cont.apicConn.AddSubscriptionClass("vmmEpPD",
+			[]string{"vmmEpPD"}, subnetTargetFilterEpg)
+		cont.apicConn.SetSubscriptionHooks("vmmEpPD",
+			func(obj apicapi.ApicObject) bool {
+				cont.vmmEpPDChanged(obj)
+				return true
+			},
+			func(dn string) {
+				cont.vmmEpPDDeleted(dn)
+			})
+
 	}
 
 	cont.initStaticObjs()

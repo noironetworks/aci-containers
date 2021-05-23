@@ -372,7 +372,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
-			requeue = conn.deleteDn(dn)
+			requeue = conn.DeleteDn(dn)
 		}
 	}
 
@@ -1028,7 +1028,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	return false
 }
 
-func (conn *ApicConnection) deleteDn(dn string) bool {
+func (conn *ApicConnection) DeleteDn(dn string) bool {
 	conn.log.Debug("Deleting ", dn)
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
