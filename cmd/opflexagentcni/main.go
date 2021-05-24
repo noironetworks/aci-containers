@@ -239,7 +239,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, 10*time.Second)
+		waitForAllNetwork(result, id, 180*time.Second)
 	}
 
 	logger.Debug("ADD result: ", result)
@@ -315,7 +315,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, 10*time.Second)
+		waitForAllNetwork(result, id, 180*time.Second)
 	}
 	logger.Debug("Check result: ", result)
 	return nil
