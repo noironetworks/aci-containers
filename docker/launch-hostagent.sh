@@ -37,6 +37,7 @@ EOF
    "name": "k8s-pod-network",
    "type": "opflex-agent-cni",
    "wait-for-network": true,
+   "wait-for-network-duration": 210,
    "ipam": {"type": "opflex-agent-cni-ipam"}
 }
 EOF
