@@ -57,11 +57,12 @@ type K8SArgs struct {
 
 type NetConf struct {
 	types.NetConf
-	LogLevel       string `json:"log-level,omitempty"`
-	LogFile        string `json:"log-file,omitempty"`
-	WaitForNetwork bool   `json:"wait-for-network"`
-	EpRpcSock      string `json:"ep-rpc-sock,omitempty"`
-	DomainType     string `json:"domain-type,omitempty"`
+	LogLevel               string `json:"log-level,omitempty"`
+	LogFile                string `json:"log-file,omitempty"`
+	WaitForNetwork         bool   `json:"wait-for-network"`
+	WaitForNetworkDuration uint16 `json:"wait-for-network-duration"`
+	EpRpcSock              string `json:"ep-rpc-sock,omitempty"`
+	DomainType             string `json:"domain-type,omitempty"`
 }
 
 func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
@@ -88,7 +89,12 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 	if err == nil {
 		log.Level = logLevel
 	}
-	log.Debug("NetConf: ", n)
+
+	if n.WaitForNetwork && n.WaitForNetworkDuration == 0 {
+		n.WaitForNetworkDuration = 210
+	}
+
+	log.Debug("NetConf: %v", n)
 
 	k8sArgs := &K8SArgs{}
 	err = types.LoadArgs(args.Args, k8sArgs)
@@ -234,7 +240,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, 10*time.Second)
+		waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
 	}
 
 	logger.Debug("ADD result: ", result)
@@ -310,7 +316,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, 10*time.Second)
+		waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
 	}
 	logger.Debug("Check result: ", result)
 	return nil
