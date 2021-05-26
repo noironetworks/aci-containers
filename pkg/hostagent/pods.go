@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -46,6 +47,7 @@ import (
 )
 
 const NullMac = "null-mac"
+var cumulativeTime = time.Time{}
 
 type opflexEndpoint struct {
 	Uuid string `json:"uuid"`
@@ -72,7 +74,16 @@ func (agent *HostAgent) getPodIFName(ns, podName string) string {
 	return fmt.Sprintf("%s.%s.%s", ns, podName, agent.vtepIP)
 }
 
+func timeTrack(agent *HostAgent, start time.Time) {
+    elapsed := time.Since(start)
+    agent.log.Debug("EPRegAdd took %s", elapsed)
+    cumulativeTime = cumulativeTime.Add(elapsed)
+    agent.log.Debug("Cumulative time in EPRegAdd %s", cumulativeTime)
+}
+
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
+
+        defer timeTrack(agent, time.Now())
 
 	if agent.crdClient == nil {
 		ep.registered = true
