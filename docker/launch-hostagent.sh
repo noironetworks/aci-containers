@@ -17,6 +17,10 @@ if [ -w /mnt/cni-bin ]; then
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
 if [ -w /mnt/cni-conf ]; then
+    INT_DURATION_WAIT_FOR_NETWORK=210
+    if [ -z != $DURATION_WAIT_FOR_NETWORK ]; then
+        INT_DURATION_WAIT_FOR_NETWORK=$((DURATION_WAIT_FOR_NETWORK))
+    fi
     # Install CNI configuration
     mkdir -p /mnt/cni-conf/cni/net.d
     if [  -z !=  $DISABLE_WAIT_FOR_NETWORK ] && [ $DISABLE_WAIT_FOR_NETWORK = "True" ]; then
@@ -37,6 +41,7 @@ EOF
    "name": "k8s-pod-network",
    "type": "opflex-agent-cni",
    "wait-for-network": true,
+   "wait-for-network-duration": $((INT_DURATION_WAIT_FOR_NETWORK)),
    "ipam": {"type": "opflex-agent-cni-ipam"}
 }
 EOF
