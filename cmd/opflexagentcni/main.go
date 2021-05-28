@@ -137,9 +137,15 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 			pinger := fastping.NewPinger()
 			pinger.MaxRTT = time.Millisecond * 100
 			expected := 0
+			i := 1
 			for _, ip := range result.IPs {
 				if ip.Gateway == nil ||
 					(ip.Interface != nil && *ip.Interface != index) {
+					logger.WithFields(logrus.Fields{
+						"index": i,
+						"id":    id,
+					}).Debug("qwerty checking gateway")
+					i++
 					continue
 				}
 				pinger.AddIPAddr(&net.IPAddr{IP: ip.Gateway})
