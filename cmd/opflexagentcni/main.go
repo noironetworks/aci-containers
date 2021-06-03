@@ -155,7 +155,7 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 				logger.Debug("Network configuration has no gateway")
 				return nil
 			}
-
+			st := time.Now()
 			count := 0
 			pinger.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
 				logger.WithFields(logrus.Fields{
@@ -164,7 +164,8 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 				}).Debug("Received")
 				count += 1
 			}
-
+			logger.Debug("Ping for:  ", result.IPs)
+			logger.Debug("Ends:  ", time.Since(st))
 			err := pinger.Run()
 			if err != nil {
 				return err
