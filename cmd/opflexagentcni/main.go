@@ -165,11 +165,12 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 				count += 1
 			}
 			logger.Debug("Ping for:  ", result.IPs)
-			logger.Debug("Ends:  ", time.Since(st))
+			logger.Debug("pinger.OnRecv:  ", time.Since(st))
 			err := pinger.Run()
 			if err != nil {
 				return err
 			}
+			logger.Debug("pinger.Run:  ", time.Since(st))
 			if count >= expected {
 				return nil
 			}
