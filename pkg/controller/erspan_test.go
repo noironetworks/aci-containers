@@ -68,13 +68,13 @@ func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
 	srcGrp := apicapi.NewSpanVSrcGrp(name)
 	srcGrp.SetAttr("adminSt", adminSt)
 	apicSlice := apicapi.ApicSlice{srcGrp}
-	srcName := name + "_Src"
-	src := apicapi.NewSpanVSrc(srcGrp.GetDn(), srcName)
-	src.SetAttr("dir", dir)
-	srcGrp.AddChild(src)
 	for _, mac := range macs {
 		fvCEpDn := fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s/cep-%s",
 			"consul", "test-ap", "default", mac)
+		srcName := name + "_Src"
+		src := apicapi.NewSpanVSrc(srcGrp.GetDn(), srcName)
+		src.SetAttr("dir", dir)
+		srcGrp.AddChild(src)
 		srcCEp := apicapi.NewSpanRsSrcToVPort(src.GetDn(), fvCEpDn)
 		src.AddChild(srcCEp)
 	}
