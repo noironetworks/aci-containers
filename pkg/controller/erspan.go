@@ -237,6 +237,11 @@ func (cont *AciController) getAccLeafPorts() []string {
 	return accPorts
 }
 
+func transformMac(mac string) string {
+	m := strings.ReplaceAll(mac, ":", "-")
+	return m
+}
+
 func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apicapi.ApicSlice {
 
 	spankey, _ := cache.MetaNamespaceKeyFunc(span)
@@ -245,12 +250,8 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 
 	// Source policies
 	srcGrp := apicapi.NewSpanVSrcGrp(labelKey)
-	srcName := labelKey + "_Src"
 	apicSlice := apicapi.ApicSlice{srcGrp}
 	srcGrp.SetAttr("adminSt", span.Spec.Source.AdminState)
-	src := apicapi.NewSpanVSrc(srcGrp.GetDn(), srcName)
-	srcGrp.AddChild(src)
-	src.SetAttr("dir", span.Spec.Source.Direction)
 
 	// Build fvCEp for matching pods
 	cont.indexMutex.Lock()
@@ -264,8 +265,12 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 		mac := strings.ToUpper(macRaw)
 		epg := cont.podIftoEp[podkey].EPG
 		appProfile := cont.podIftoEp[podkey].AppProfile
+		srcName := labelKey + "_Src_" + transformMac(mac)
 		fvCEpDn := fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s/cep-%s",
 			cont.config.AciPolicyTenant, appProfile, epg, mac)
+		src := apicapi.NewSpanVSrc(srcGrp.GetDn(), srcName)
+		srcGrp.AddChild(src)
+		src.SetAttr("dir", span.Spec.Source.Direction)
 		srcCEp := apicapi.NewSpanRsSrcToVPort(src.GetDn(), fvCEpDn)
 		src.AddChild(srcCEp)
 	}
@@ -297,8 +302,8 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 		accBndlGrp.AddChild(infraRsSpanVDstGrp)
 		apicSlice = append(apicSlice, infraRsSpanVDstGrp)
 	}
-	// Erspan policy binding to Leaf Access Ports.
 
+	// Erspan policy binding to Leaf Access Ports.
 	accPorts := cont.getAccLeafPorts()
 	if len(accPorts) == 0 {
 		cont.log.Info("No Leaf Access Ports found for erspan binding.")
