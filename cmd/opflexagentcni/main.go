@@ -166,6 +166,14 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 			}
 			logger.Debug("Ping for:  ", result.IPs)
 			logger.Debug("pinger.OnRecv:  ", time.Since(st))
+
+			pinger.OnIdle = func() {
+				//ip := result.IPs
+				logger.WithFields(logrus.Fields{
+					"IP": result.IPs,
+				}).Debug("Max RTT passed")
+			}
+
 			err := pinger.Run()
 			if err != nil {
 				return err
