@@ -173,12 +173,12 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 					"IP": result.IPs,
 				}).Debug("Max RTT passed")
 			}
-
+			str := time.Now()
 			err := pinger.Run()
 			if err != nil {
 				return err
 			}
-			logger.Debug("pinger.Run:  ", time.Since(st))
+			logger.Debug("pinger.Run:  ", time.Since(str))
 			if count >= expected {
 				return nil
 			}
