@@ -928,7 +928,7 @@ func (conn *ApicConnection) PostTestAPI(data interface{}) error {
 
 	complete(resp)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Staus: %v", resp.StatusCode)
+		return fmt.Errorf("Status: %v", resp.StatusCode)
 	}
 	return nil
 }
@@ -965,7 +965,7 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 
 	complete(resp)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Staus: %v", resp.StatusCode)
+		return fmt.Errorf("Status: %v", resp.StatusCode)
 	}
 	return nil
 }
