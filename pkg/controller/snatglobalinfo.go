@@ -183,7 +183,7 @@ func (cont *AciController) snatNodeInfoDeleted(obj interface{}) {
 	cont.queueNodeInfoUpdateByKey(nodeinfokey)
 }
 
-func (cont *AciController) setSnatPolicyStaus(snatPolicyName string, status snatv1.PolicyState) bool {
+func (cont *AciController) setSnatPolicyStatus(snatPolicyName string, status snatv1.PolicyState) bool {
 	obj, exists, err := cont.snatIndexer.GetByKey(snatPolicyName)
 	if err == nil && exists && obj != nil {
 		snatpolicy := obj.(*snatv1.SnatPolicy)
@@ -421,7 +421,7 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) bool {
 	for snatip, glinfos := range cont.snatGlobalInfoCache {
 		if v, ok := glinfos[nodename]; ok {
 			if cont.checksnatPolicyPortExhausted(v.SnatPolicyName) {
-				if cont.setSnatPolicyStaus(v.SnatPolicyName, snatv1.Ready) == true {
+				if cont.setSnatPolicyStatus(v.SnatPolicyName, snatv1.Ready) == true {
 					return true
 				}
 			}
@@ -502,7 +502,7 @@ func (cont *AciController) setSnatPoliciesState(names map[string]bool, status sn
 	// Any alloc failures mark the policy with Status IpPortsExhausted
 	ret := false
 	for name := range names {
-		if cont.setSnatPolicyStaus(name, status) == true {
+		if cont.setSnatPolicyStatus(name, status) == true {
 			cont.log.Info("Set status true for policy name: ", name)
 			ret = true
 		}

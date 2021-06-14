@@ -136,9 +136,9 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 		}
 		if status, err := cont.validateCr(snatPolicy); !status {
 			cont.log.Error("SnatPolicy Failed: ", err)
-			return cont.setSnatPolicyStaus(policyName, snatpolicy.Failed)
+			return cont.setSnatPolicyStatus(policyName, snatpolicy.Failed)
 		}
-		return cont.setSnatPolicyStaus(policyName, snatpolicy.Ready)
+		return cont.setSnatPolicyStatus(policyName, snatpolicy.Ready)
 	}
 	cont.updateSnatPolicyCache(policyName, snatPolicy)
 	var requeue bool
