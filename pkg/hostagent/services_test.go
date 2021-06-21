@@ -195,7 +195,7 @@ func (agent *testHostAgent) doTestService(t *testing.T, tempdir string,
 	as := &opflexService{}
 	asexternal := &opflexService{}
 
-	tu.WaitFor(t, st.name, 100*time.Millisecond,
+	tu.WaitFor(t, st.name, 1000*time.Millisecond,
 		func(last bool) (bool, error) {
 			var err error
 			{
@@ -291,7 +291,7 @@ func TestServiceSync(t *testing.T) {
 			st.clusterIp, st.externalIp, st.ports, topokeys)
 		agent.fakeServiceSource.Delete(service)
 
-		tu.WaitFor(t, st.name, 500*time.Millisecond,
+		tu.WaitFor(t, st.name, 1000*time.Millisecond,
 			func(last bool) (bool, error) {
 				r := true
 				{
@@ -370,7 +370,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 			st.clusterIp, st.externalIp, st.ports, topokeys)
 		agent.fakeServiceSource.Delete(service)
 
-		tu.WaitFor(t, st.name, 500*time.Millisecond,
+		tu.WaitFor(t, st.name, 1000*time.Millisecond,
 			func(last bool) (bool, error) {
 				r := true
 				{
@@ -452,7 +452,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 			st.clusterIp, st.externalIp, st.ports, topokeys)
 		agent.fakeServiceSource.Delete(service)
 
-		tu.WaitFor(t, st.name, 500*time.Millisecond,
+		tu.WaitFor(t, st.name, 700*time.Millisecond,
 			func(last bool) (bool, error) {
 				r := true
 				{

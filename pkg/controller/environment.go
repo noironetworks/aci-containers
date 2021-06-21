@@ -24,6 +24,7 @@ import (
 	netpolclientset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	nodepodifclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
@@ -64,6 +65,7 @@ type K8sEnvironment struct {
 	istioClient      *istioclientset.Clientset
 	restConfig       *restclient.Config
 	cont             *AciController
+	nodePodifClient  *nodepodifclientset.Clientset
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -287,7 +289,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	// Intialize all the CRD's
 	cont.registerCRDHook(qosCRDName, qosInit)
 	cont.registerCRDHook(netflowCRDName, netflowInit)
-	cont.registerCRDHook(podIfCRDName, podIfInit)
+	cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
 	cont.registerCRDHook(erspanCRDName, erspanInit)
 	cont.registerCRDHook(dnsNetpolCRDName, dnsnetpolInit)
 	go cont.crdInformer.Run(stopCh)

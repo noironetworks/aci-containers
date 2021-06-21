@@ -39,6 +39,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
@@ -467,6 +468,28 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
 		nodeinfokey, _ := cache.MetaNamespaceKeyFunc(nodeinfo)
 		cont.queueNodeInfoUpdateByKey(nodeinfokey)
+	}
+	np, ok := obj.(*nodePodIf.NodePodIF)
+	if !ok {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		np, ok = deletedState.Obj.(*nodePodIf.NodePodIF)
+		if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-NodePodIF object: ", deletedState.Obj)
+			return
+		}
+	}
+	env := cont.env.(*K8sEnvironment)
+	nodepodifc1 := env.nodePodifClient
+	if nodepodifc1 != nil {
+		err := util.DeleteNodePodIfCR(*nodepodifc1, np.ObjectMeta.Name)
+		if err != nil {
+			cont.log.Error("Could not delete the NodePodIF", np.ObjectMeta.Name)
+			return
+		}
 	}
 }
 

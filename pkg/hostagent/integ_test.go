@@ -691,7 +691,7 @@ func (it *integ) checkEpSnatUids(id int, uids []string, sg string) {
 	epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)
 	epfile := it.ta.FormEPFilePath(epid)
 	var ep opflexEndpoint
-	tu.WaitFor(it.t, "checking epg in epfile", 2000*time.Millisecond,
+	tu.WaitFor(it.t, "checking epg in epfile", 2500*time.Millisecond,
 		func(last bool) (bool, error) {
 			epRaw, err := getEp(epfile)
 			if !tu.WaitNil(it.t, last, err, "create", "Epfile", "read pod") {
@@ -953,7 +953,7 @@ func TestSnatPolicyService(t *testing.T) {
 	it.testNS = "annNS"
 	it.cniAddParallel(6, 10)
 	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	snatlabel := map[string]string{
 		"app": "sample-app",
 	}
@@ -963,25 +963,25 @@ func TestSnatPolicyService(t *testing.T) {
 		"tier": "sample-tier",
 	}
 	it.addPodObj(6, "annNS", "", "", podLabels)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	snatobj1 := snatpolicydata("policy1", "annNS", []string{}, []string{"10.10.0.0/16", "172.192.153.0/26"}, map[string]string{"app": "sample-app"})
 	it.ta.fakeSnatPolicySource.Add(snatobj1)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	var uids []string
 	uids = append(uids, "uid-policy1")
 	it.checkEpSnatUids(6, uids, emptyJSON)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	it.ta.fakeServiceSource.Delete(mkservice("annNS", "testService", snatlabel))
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
 	var uids1 []string
 	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel))
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	it.checkEpSnatUids(6, uids, emptyJSON)
 	it.cniDelParallel(6, 10)
 }

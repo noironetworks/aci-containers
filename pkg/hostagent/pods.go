@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	nodepodif "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -43,6 +44,7 @@ import (
 	uuid "github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const NullMac = "null-mac"
@@ -128,6 +130,74 @@ func (agent *HostAgent) EPRegDelEP(name string) {
 		return
 	}
 	agent.log.Infof("podif: %s deleted", name)
+}
+
+func (agent *HostAgent) getNodePodIFName(nodeName string) string {
+	return fmt.Sprintf("%s.%s", nodeName, agent.vtepIP)
+}
+
+func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bool {
+
+	if agent.nodePodIFClient == nil {
+		agent.log.Debug("NodePodIF client or Kube clients are not intialized")
+		return false // crd not used
+	}
+
+	var podifs []nodepodif.PodIF
+	for _, ep := range nodePodIfEPs {
+		ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
+		opflexEpLogger(agent.log, ep).Info("ipRemEP")
+		var podif nodepodif.PodIF
+		podif.PodNS = ep.Attributes["namespace"]
+		podif.PodName = ep.Attributes["vm-name"]
+		podif.ContainerID = ep.Uuid
+		podif.MacAddr = ep.MacAddress
+		podif.IPAddr = ipRemEP
+		// could change
+		podif.EPG = ep.EndpointGroup
+		podif.VTEP = agent.vtepIP
+		podif.IFName = ep.IfaceName
+		podifs = append(podifs, podif)
+	}
+
+	nodePodif, err := agent.nodePodIFClient.NodePodIFs("kube-system").Get(context.TODO(), agent.getNodePodIFName(agent.config.NodeName), metav1.GetOptions{})
+	if err != nil {
+		// create nodepodif
+		if apierrors.IsNotFound(err) {
+			remEP := &nodepodif.NodePodIF{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agent.getNodePodIFName(agent.config.NodeName),
+					Namespace: "kube-system",
+				},
+				Spec: nodepodif.NodePodIFSpec{
+					PodIFs: podifs,
+				},
+			}
+
+			_, err := agent.nodePodIFClient.NodePodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
+			agent.log.Debugf("nodepodif: %s created for node", remEP.ObjectMeta.Name)
+			if err != nil {
+				logrus.Errorf("Create error %v, nodepodif: %+v", err, remEP)
+				return true
+			}
+		}
+
+	} else {
+		// update nodepodif
+		if !reflect.DeepEqual(nodePodif.Spec.PodIFs, podifs) {
+			nodePodif.Spec.PodIFs = podifs
+			_, err := agent.nodePodIFClient.NodePodIFs("kube-system").Update(context.TODO(), nodePodif, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.Errorf("Update error %v, nodepodif: %+v", err, nodePodif)
+				return true
+			}
+		}
+	}
+	if err == nil {
+		agent.log.Debugf("nodepodif: %s updated for node", nodePodif.ObjectMeta.Name)
+		return true
+	}
+	return false
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -357,14 +427,21 @@ func (agent *HostAgent) syncEps() bool {
 				} else if wrote || !ep.registered {
 					needRetry = agent.EPRegAdd(ep)
 				}
+				if _, ok := agent.nodePodIfEPs[ep.Uuid]; !ok {
+					agent.nodePodIfEPs[ep.Uuid] = ep
+				}
 				seen[epidstr] = true
 			}
 		}
+
 		if !ok || (ok && !seen[epidstr]) {
 			staleEp, err := readEp(epfile)
 			if err == nil {
 				k := agent.getPodIFName(staleEp.Attributes["namespace"], staleEp.Attributes["vm-name"])
 				agent.EPRegDelEP(k)
+				if _, ok := agent.nodePodIfEPs[staleEp.Uuid]; ok {
+					delete(agent.nodePodIfEPs, staleEp.Uuid)
+				}
 			}
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
@@ -388,14 +465,29 @@ func (agent *HostAgent) syncEps() bool {
 				needRetry = true
 			} else {
 				needRetry = agent.EPRegAdd(ep)
+				agent.nodePodIfEPs[ep.Uuid] = ep
 			}
 		}
 	}
+
 	if !nullMacFile {
 		agent.creatNullMacEp()
 	}
 	agent.log.Debug("Finished endpoint sync")
 	return needRetry
+}
+
+// syncNodePodIfs syncs the NodePodIfs with Eps
+func (agent *HostAgent) syncNodePodIfs() bool {
+	if !agent.syncEnabled {
+		return false
+	}
+	agent.log.Debug("Syncing NodePodIfs")
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	agent.NodeEPRegAdd(agent.nodePodIfEPs)
+	agent.log.Debug("Finished NodePodIfs sync")
+	return false
 }
 
 func (agent *HostAgent) getEpFileName(epGroupName string) string {

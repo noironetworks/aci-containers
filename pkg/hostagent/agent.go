@@ -25,6 +25,8 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	nodepodifclset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+	nodepodifv1 "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned/typed/acipolicy/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
@@ -54,6 +56,7 @@ type HostAgent struct {
 	podUidToName          map[string]string
 	serviceEp             md.ServiceEndpoint
 	crdClient             aciv1.AciV1Interface
+	nodePodIFClient       nodepodifv1.AciV1Interface
 	podInformer           cache.SharedIndexInformer
 	endpointsInformer     cache.SharedIndexInformer
 	serviceInformer       cache.SharedIndexInformer
@@ -100,6 +103,7 @@ type HostAgent struct {
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
+	nodePodIfEPs     map[string]*opflexEndpoint
 }
 
 type ServiceEndPointType interface {
@@ -145,6 +149,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
 		podUidToName:   make(map[string]string),
+		nodePodIfEPs:   make(map[string]*opflexEndpoint),
 
 		podIps: ipam.NewIpCache(),
 
@@ -177,7 +182,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"snat":          ha.syncSnat,
 		"snatnodeInfo":  ha.syncSnatNodeInfo,
 		"rdconfig":      ha.syncRdConfig,
-		"snatLocalInfo": ha.UpdateLocalInfoCr}
+		"snatLocalInfo": ha.UpdateLocalInfoCr,
+		"nodepodifs":    ha.syncNodePodIfs}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -191,6 +197,19 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			return ha
 		}
 		ha.crdClient = aciawClient.AciV1()
+	}
+	if ha.config.EnableNodePodIF {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			log.Errorf("ERROR getting cluster config: %v", err)
+			return ha
+		}
+		nodepodifClient, err := nodepodifclset.NewForConfig(cfg)
+		if err != nil {
+			log.Errorf("ERROR getting nodepodif client for enabling NodePodIF: %v", err)
+			return ha
+		}
+		ha.nodePodIFClient = nodepodifClient.AciV1()
 	}
 	return ha
 }
@@ -245,6 +264,7 @@ func (agent *HostAgent) ScheduleSync(syncType string) {
 
 func (agent *HostAgent) scheduleSyncEps() {
 	agent.ScheduleSync("eps")
+	agent.scheduleSyncNodePodIfs()
 }
 
 func (agent *HostAgent) scheduleSyncServices() {
@@ -266,6 +286,9 @@ func (agent *HostAgent) scheduleSyncRdConfig() {
 }
 func (agent *HostAgent) scheduleSyncLocalInfo() {
 	agent.ScheduleSync("snatLocalInfo")
+}
+func (agent *HostAgent) scheduleSyncNodePodIfs() {
+	agent.ScheduleSync("nodepodifs")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
@@ -326,6 +349,7 @@ func (agent *HostAgent) EnableSync() (changed bool) {
 		agent.scheduleSyncEps()
 		agent.scheduleSyncSnats()
 		agent.scheduleSyncNodeInfo()
+		agent.scheduleSyncNodePodIfs()
 	}
 	return
 }

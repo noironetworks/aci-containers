@@ -99,8 +99,8 @@ type AciController struct {
 	netflowInformer          cache.Controller
 	erspanIndexer            cache.Indexer
 	erspanInformer           cache.Controller
-	podIfIndexer             cache.Indexer
-	podIfInformer            cache.Controller
+	nodePodIfIndexer         cache.Indexer
+	nodePodIfInformer        cache.Controller
 	istioIndexer             cache.Indexer
 	istioInformer            cache.Controller
 	endpointSliceIndexer     cache.Indexer
