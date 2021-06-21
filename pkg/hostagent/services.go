@@ -110,6 +110,7 @@ type opflexOcService struct {
 var Version = map[string]bool{
 	"openshift-4.4-esx": true,
 	"openshift-4.5-esx": true,
+	"openshift-4.6-esx": true,
 }
 
 func (agent *HostAgent) initEndpointsInformerFromClient(
