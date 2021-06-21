@@ -203,6 +203,9 @@ type ControllerConfig struct {
 	CSRTunnelIDBase int `json:"csr-tunnel-id-base,omitempty"`
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
+
+	// Cluster Flavour
+	Flavor string `json:"flavor,omitempty"`
 }
 
 type netIps struct {

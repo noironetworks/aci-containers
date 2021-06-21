@@ -1027,6 +1027,15 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	if !cont.serviceEndPoints.SetServiceApicObject(aobj, service) {
 		return
 	}
+	var setApicSvcDnsName bool
+	if len(cont.config.ApicHosts) != 0 {
+		version, err := cont.apicConn.GetVersion()
+		if err != nil {
+			cont.log.Error("Could not get APIC version")
+		} else if version >= "5.1" {
+			setApicSvcDnsName = true
+		}
+	}
 	// APIC model only allows one of these
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
 		if ingress.IP != "" && ingress.IP != "0.0.0.0" {
@@ -1044,6 +1053,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	if service.Spec.ClusterIP != "" && service.Spec.ClusterIP != "None" {
 		aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
 	}
+
 	var t string
 	switch service.Spec.Type {
 	case v1.ServiceTypeClusterIP:
@@ -1057,6 +1067,21 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	}
 	if t != "" {
 		aobj.SetAttr("type", t)
+	}
+
+	if setApicSvcDnsName || cont.config.Flavor == "k8s-overlay" {
+		dnsName := fmt.Sprintf("%s.%s.svc.cluster.local", service.Name, service.Namespace)
+
+		for _, ingress := range service.Status.LoadBalancer.Ingress {
+			if ingress.Hostname != "" {
+				aobj.SetAttr("dnsName", ingress.Hostname)
+			} else if ingress.IP != "" && ingress.IP != "0.0.0.0" {
+				aobj.SetAttr("dnsName", dnsName)
+			}
+		}
+		if t == "clusterIp" || t == "nodePort" || t == "externalName" {
+			aobj.SetAttr("dnsName", dnsName)
+		}
 	}
 	for _, port := range service.Spec.Ports {
 		proto := getProtocolStr(port.Protocol)
