@@ -247,7 +247,7 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 	podKeys := cont.erspanPolPods.GetPodForObj(spankey)
 	for _, podkey := range podKeys {
 		if podkey, ok := cont.podIftoEp[podkey]; !ok {
-			cont.log.Warning("Could not find podif data for ", podkey)
+			cont.log.Warningf("Could not find podif data for %s", podkey)
 			continue
 		}
 		macRaw := cont.podIftoEp[podkey].MacAddr

@@ -28,7 +28,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -43,6 +43,7 @@ import (
 	uuid "github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const NullMac = "null-mac"
@@ -72,62 +73,87 @@ func (agent *HostAgent) getPodIFName(ns, podName string) string {
 	return fmt.Sprintf("%s.%s.%s", ns, podName, agent.vtepIP)
 }
 
-func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
+func (agent *HostAgent) getNodePodIFName(nodeName string) string {
+	return fmt.Sprintf("%s.%s", nodeName, agent.vtepIP)
+}
+
+func (agent *HostAgent) NodeEPRegAdd(eps []*opflexEndpoint) bool {
 
 	if agent.crdClient == nil {
-		ep.registered = true
+		for _, ep := range eps {
+			ep.registered = true
+		}
 		return false // crd not used
 	}
 
-	// force the mask to /32
-	ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
-	remEP := &aciv1.PodIF{
-		Status: aciv1.PodIFStatus{
-			PodNS:       ep.Attributes["namespace"],
-			PodName:     ep.Attributes["vm-name"],
-			ContainerID: ep.Uuid,
-			MacAddr:     ep.MacAddress,
-			IPAddr:      ipRemEP,
-			EPG:         ep.EndpointGroup,
-			VTEP:        agent.vtepIP,
-			IFName:      ep.IfaceName,
-		},
+	var podifs []aciv1.PodIF
+	for _, ep := range eps {
+		ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
+		opflexEpLogger(agent.log, ep).Info("ipRemEP")
+		var podif aciv1.PodIF
+		podif.PodNS = ep.Attributes["namespace"]
+		podif.PodName = ep.Attributes["vm-name"]
+		podif.ContainerID = ep.Uuid
+		podif.MacAddr = ep.MacAddress
+		podif.IPAddr = ipRemEP
+		podif.EPG = ep.EndpointGroup
+		podif.VTEP = agent.vtepIP
+		podif.IFName = ep.IfaceName
+		podifs = append(podifs, podif)
 	}
-	remEP.ObjectMeta.Name = agent.getPodIFName(ep.Attributes["namespace"], ep.Attributes["vm-name"])
 
-	podif, err := agent.crdClient.PodIFs("kube-system").Get(context.TODO(), remEP.ObjectMeta.Name, metav1.GetOptions{})
-	if err != nil {
-		// create podif
-		_, err := agent.crdClient.PodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
+	if agent.crdClient.NodePodIFs("kube-system") != nil {
+		nodePodif, err := agent.crdClient.NodePodIFs("kube-system").Get(context.TODO(), agent.getNodePodIFName(agent.config.NodeName), metav1.GetOptions{})
 		if err != nil {
-			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
-			return true
-		}
+			// create nodepodif
+			if apierrors.IsNotFound(err) {
+				remEP := &aciv1.NodePodIF{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      agent.getNodePodIFName(agent.config.NodeName),
+						Namespace: "kube-system",
+					},
+					Spec: aciv1.NodePodIFSpec{
+						PodIFs: podifs,
+					},
+				}
 
-	} else {
-		// update it
-		podif.Status = remEP.Status
-		_, err := agent.crdClient.PodIFs("kube-system").Update(context.TODO(), podif, metav1.UpdateOptions{})
-		if err != nil {
-			logrus.Errorf("Update error %v, podif: %+v", err, remEP)
-			return true
+				_, err := agent.crdClient.NodePodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
+				agent.log.Debugf("nodepodif: %s created for node", remEP.ObjectMeta.Name)
+				if err != nil {
+					logrus.Errorf("Create error %v, nodepodif: %+v", err, remEP)
+					return true
+				}
+			}
+
+		} else {
+			// update nodepodif
+			if !reflect.DeepEqual(nodePodif.Spec.PodIFs, podifs) {
+				agent.log.Debugf("nodePodif.Spec.PodIFs: %+q, podifs: %+q", nodePodif.Spec.PodIFs, podifs)
+				nodePodif.Spec.PodIFs = podifs
+				_, err := agent.crdClient.NodePodIFs("kube-system").Update(context.TODO(), nodePodif, metav1.UpdateOptions{})
+				agent.log.Debugf("nodepodif: %s updated for node", nodePodif.ObjectMeta.Name)
+				if err != nil {
+					logrus.Errorf("Update error %v, nodepodif: %+v", err, nodePodif)
+					return true
+				}
+			}
 		}
 	}
-	ep.registered = true
-	opflexEpLogger(agent.log, ep).Info("Updated podif")
+	for _, ep := range eps {
+		ep.registered = true
+	}
 	return false
 }
 
-func (agent *HostAgent) EPRegDelEP(name string) {
-	if agent.crdClient == nil {
-		return // crd not used
-	}
-	err := agent.crdClient.PodIFs("kube-system").Delete(context.TODO(), name, metav1.DeleteOptions{})
+// DeleteNodePodIfCR Deletes a NodePodIf CR
+func (agent *HostAgent) DeleteNodePodIfCR(name string) error {
+	err := agent.crdClient.NodePodIFs("kube-system").Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
-		agent.log.Errorf("Error %v, podif: %s", err, name)
-		return
+		agent.log.Errorf("Error %v, nodepodif: %s", err, name)
+		return err
 	}
-	agent.log.Infof("podif: %s deleted", name)
+	agent.log.Infof("nodepodif: %s deleted", name)
+	return nil
 }
 
 func (agent *HostAgent) initPodInformerFromClient(
@@ -283,6 +309,7 @@ func (agent *HostAgent) syncEps() bool {
 	agent.log.Debug("Syncing endpoints")
 	agent.indexMutex.Lock()
 	opflexEps := make(map[string][]*opflexEndpoint)
+	var podifEPs []*opflexEndpoint
 	for k, v := range agent.opflexEps {
 		ep := []*opflexEndpoint{}
 		for _, op := range v {
@@ -294,6 +321,7 @@ func (agent *HostAgent) syncEps() bool {
 			ep = append(ep, val)
 		}
 		opflexEps[k] = ep
+		agent.log.Debugf("Synced endpoint %v", ep)
 	}
 	agent.indexMutex.Unlock()
 
@@ -355,21 +383,21 @@ func (agent *HostAgent) syncEps() bool {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
 				} else if wrote || !ep.registered {
-					needRetry = agent.EPRegAdd(ep)
+					// populate the eps list
+					podifEPs = append(podifEPs, ep)
+					opflexEpLogger(agent.log, ep).Info("Added ep in podifEPs list------------1")
 				}
 				seen[epidstr] = true
 			}
 		}
+
 		if !ok || (ok && !seen[epidstr]) {
-			staleEp, err := readEp(epfile)
-			if err == nil {
-				k := agent.getPodIFName(staleEp.Attributes["namespace"], staleEp.Attributes["vm-name"])
-				agent.EPRegDelEP(k)
-			}
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
 		}
 	}
+	needRetry = agent.NodeEPRegAdd(podifEPs)
+	agent.log.Debugf("podifEPs list is ========%v", podifEPs)
 
 	for _, eps := range opflexEps {
 		for _, ep := range eps {
@@ -382,12 +410,15 @@ func (agent *HostAgent) syncEps() bool {
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
+			opflexEpLogger(agent.log, ep).Info("wrote endpoint")
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
-				needRetry = true
-			} else {
-				needRetry = agent.EPRegAdd(ep)
+				// } else {
+				// populate the eps list
+				// podifEPs = append(podifEPs, ep)
+				// opflexEpLogger(agent.log, ep).Info("Added ep in podifEPs list")
+				// }
 			}
 		}
 	}

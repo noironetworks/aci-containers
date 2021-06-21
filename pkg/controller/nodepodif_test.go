@@ -16,7 +16,7 @@
 package controller
 
 import (
-	podIfpolicy "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
@@ -29,18 +29,23 @@ type podifdata struct {
 }
 
 func podifinfodata(name string, namespace string, macaddr string,
-	epg string) *podIfpolicy.PodIF {
-	podifinfo := &podIfpolicy.PodIF{
-		Status: podIfpolicy.PodIFStatus{
-			MacAddr: macaddr,
-			EPG:     epg,
+	epg string) *nodePodIf.NodePodIF {
+	nodepodifinfo := &nodePodIf.NodePodIF{
+		Spec: nodePodIf.NodePodIFSpec{
+			PodIFs: []nodePodIf.PodIF{
+				nodePodIf.PodIF{
+					MacAddr: macaddr,
+					EPG:     epg,
+					PodNS:   namespace,
+				},
+			},
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: "kube-system",
 		},
 	}
-	return podifinfo
+	return nodepodifinfo
 }
 
 var podifTests = []podifdata{
@@ -64,7 +69,7 @@ var podifTests = []podifdata{
 	},
 }
 
-func TestPodIF(t *testing.T) {
+func TestNodePodIF(t *testing.T) {
 	cont := testController()
 
 	ips := []string{
@@ -78,13 +83,13 @@ func TestPodIF(t *testing.T) {
 		addPods(cont, true, ips, true)
 		podifObj := podifinfodata(pt.name, pt.macAddr, pt.epg, pt.namespace)
 		if _, ok := pinfo[pt.name]; !ok {
-			cont.fakePodIFSource.Add(podifObj)
+			cont.fakeNodePodIFSource.Add(podifObj)
 			cont.log.Infof("podif Added: %s", pt.name)
 			pinfo[pt.name] = true
 		} else {
 			cont.log.Infof("podif updated: %s", pt.name)
 		}
-		cont.fakePodIFSource.Delete(podifObj)
+		cont.fakeNodePodIFSource.Delete(podifObj)
 		cont.log.Infof("podif Deleted: %s", pt.name)
 
 	}

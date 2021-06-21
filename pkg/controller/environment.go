@@ -276,7 +276,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	// Intialize all the CRD's
 	cont.registerCRDHook(qosCRDName, qosInit)
 	cont.registerCRDHook(netflowCRDName, netflowInit)
-	cont.registerCRDHook(podIfCRDName, podIfInit)
+	cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
 	cont.registerCRDHook(erspanCRDName, erspanInit)
 	go cont.crdInformer.Run(stopCh)
 

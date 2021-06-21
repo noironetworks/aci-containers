@@ -20,11 +20,11 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
-	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	crdclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned/typed/acipolicy/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"

@@ -160,6 +160,7 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 
 func (agent *HostAgent) registerHostVeth() {
 	go func() {
+		var podifEPs []*opflexEndpoint
 		for {
 			ep := &opflexEndpoint{}
 			epfile := filepath.Join(agent.config.OpFlexEndpointDir, hostVethEP)
@@ -180,13 +181,17 @@ func (agent *HostAgent) registerHostVeth() {
 				vmName = fmt.Sprintf("%s.%s", vmName, agent.vtepIP)
 				ep.Attributes["vm-name"] = vmName
 			}
-			agent.log.Infof("-- Adding %+v to registry", ep)
-			agent.EPRegAdd(ep)
+			agent.log.Infof("-- Adding %+v to list of podifEPs", ep)
+			// agent.NodeEPRegAdd(ep)
+			podifEPs = append(podifEPs, ep)
+
 			if ep.registered {
 				return
 			}
 			time.Sleep(5 * time.Second)
 		}
+		agent.log.Infof("-- Adding %+v to registry", podifEPs)
+		agent.NodeEPRegAdd(podifEPs)
 	}()
 }
 
