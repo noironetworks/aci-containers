@@ -1219,6 +1219,12 @@ func NewVmmClusterFaultInfo(parentDn string, faultCode string) ApicObject {
 	return ret
 }
 func NewVmmInjectedLabel(parentDn string, name string, value string) ApicObject {
+	if name == "" {
+		name = " "
+	}
+	if value == "" {
+		value = " "
+	}
 	ret := newApicObject("vmmInjectedLabel")
 	ret["vmmInjectedLabel"].Attributes["name"] = name
 	ret["vmmInjectedLabel"].Attributes["value"] = value
