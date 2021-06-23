@@ -150,7 +150,11 @@ func (agent *HostAgent) getNetAttachment(pod *v1.Pod) {
 
 	//}
 
+	agent.log.Debug("inside network attachment method")
+	agent.log.Debug("kubeletPodResourceDefaultPath  ", kubeletPodResourceDefaultPath)
+	agent.log.Debug("podresources.Socket", podresources.Socket)
 	socket, err := util.LocalEndpoint(kubeletPodResourceDefaultPath, podresources.Socket)
+	agent.log.Debug("connecting to local endpoint")
 	if err != nil {
 		fmt.Errorf("Could not retreive the kubelet sock %v", err)
 	}
