@@ -159,18 +159,22 @@ func (agent *HostAgent) getNetAttachment(pod *v1.Pod) {
 		fmt.Errorf("Could not retreive the kubelet sock %v", err)
 	}
 	client, conn, err := podresources.GetV1Client(socket, 10*time.Second, defaultPodResourcesMaxSize)
+	agent.log.Debug("Connecting to V1 client ", client)
 	if err != nil {
 		fmt.Errorf("Could not retreive the pod resource client %v", err)
 	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	agent.log.Debug("Connecting to ctx ", client)
 	defer cancel()
 	resp, err := client.List(ctx, &podresourcesv1.ListPodResourcesRequest{})
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
+	agent.log.Debug("getting the response ", resp)
 	podResource := &KubeletPodResources{}
 	podResource.resp = resp.PodResources
+	agent.log.Debug("assigning  the response ", podResource.resp)
 	//*kubeletpodresourcesv1.ListPodResourcesResponse
 
 	deviceIdMap := make(map[string][]string)
