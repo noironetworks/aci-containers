@@ -572,6 +572,7 @@ func NewPodResourcesListerClient(cc *grpc.ClientConn) PodResourcesListerClient {
 
 func (c *podResourcesListerClient) List(ctx context.Context, in *ListPodResourcesRequest, opts ...grpc.CallOption) (*ListPodResourcesResponse, error) {
 	out := new(ListPodResourcesResponse)
+	fmt.Printf("inside pod ResourcesListerClient ")
 	err := c.cc.Invoke(ctx, "/v1.PodResourcesLister/List", in, out, opts...)
 	if err != nil {
 		return nil, err

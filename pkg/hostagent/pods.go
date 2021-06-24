@@ -489,9 +489,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 
 	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, epAttributes, logger)
 
-	if pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation] != "" {
-		agent.getNetAttachment(pod)
-	}
+	//	if pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation] != "" {
+	//		agent.getNetAttachment(pod)
+	//	}
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
