@@ -52,7 +52,7 @@ type ClientInfo struct {
 	NetClient netattclient.K8sCniCncfIoV1Interface
 }
 
-type KubeletPodResources struct {
+type kubeletPodResources struct {
 	resp []*podresourcesv1.PodResources
 }
 
@@ -144,37 +144,25 @@ type DeviceId struct {
 }
 
 func (agent *HostAgent) getNetAttachment(pod *v1.Pod) {
-	//to-do
-	//netAttDef := pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation]
-	//if netattdefmap[netAttDef].(string) != nil {
-
-	//}
 
 	agent.log.Debug("inside network attachment method")
-	agent.log.Debug("kubeletPodResourceDefaultPath  ", kubeletPodResourceDefaultPath)
-	agent.log.Debug("podresources.Socket", podresources.Socket)
 	socket, err := util.LocalEndpoint(kubeletPodResourceDefaultPath, podresources.Socket)
 	agent.log.Debug("connecting to local endpoint")
 	if err != nil {
 		fmt.Errorf("Could not retreive the kubelet sock %v", err)
 	}
 	client, conn, err := podresources.GetV1Client(socket, 10*time.Second, defaultPodResourcesMaxSize)
-	agent.log.Debug("Connecting to V1 client ", client)
 	if err != nil {
 		fmt.Errorf("Could not retreive the pod resource client %v", err)
 	}
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	agent.log.Debug("Connecting to ctx ", client)
-	defer cancel()
-	resp, err := client.List(ctx, &podresourcesv1.ListPodResourcesRequest{})
+
+	podResource := &kubeletPodResources{}
+	err = podResource.getPodResourceList(client)
+
 	if err != nil {
-		fmt.Errorf("%v", err)
+		fmt.Errorf("Could not get pod resource from the client %v", err)
 	}
-	agent.log.Debug("getting the response ", resp)
-	podResource := &KubeletPodResources{}
-	podResource.resp = resp.PodResources
-	agent.log.Debug("assigning  the response ", podResource.resp)
 	//*kubeletpodresourcesv1.ListPodResourcesResponse
 
 	deviceIdMap := make(map[string][]string)
@@ -199,4 +187,15 @@ func (agent *HostAgent) getNetAttachment(pod *v1.Pod) {
 		}
 	}
 
+}
+
+func (podResource *kubeletPodResources) getPodResourceList(client podresourcesv1.PodResourcesListerClient) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := client.List(ctx, &podresourcesv1.ListPodResourcesRequest{})
+	if err != nil {
+		fmt.Errorf("%v", err)
+	}
+	podResource.resp = resp.PodResources
+	return nil
 }
