@@ -102,6 +102,7 @@ func (cont *AciController) snatPolicyUpdated(obj interface{}) {
 }
 
 func (cont *AciController) queueSnatUpdateByKey(key string) {
+	cont.log.Info("Added snatpolicy key: ", key)
 	cont.snatQueue.Add(key)
 }
 
@@ -112,6 +113,7 @@ func (cont *AciController) queueSnatUpdate(snatpolicy *snatpolicy.SnatPolicy) {
 			Error("Could not create key:" + err.Error())
 		return
 	}
+	cont.log.Info("Add snatpolicy key: ", key)
 	cont.snatQueue.Add(key)
 }
 
@@ -122,6 +124,7 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 			Error("Could not create key:" + err.Error())
 		return false
 	}
+	cont.log.Info("Handle update for snatpolicy: ", snatPolicy.ObjectMeta.Name)
 	policyName := snatPolicy.ObjectMeta.Name
 	if snatPolicy.Status.State != snatpolicy.Ready {
 		if snatPolicy.Status.State == snatpolicy.IpPortsExhausted {
@@ -199,6 +202,7 @@ func (cont *AciController) handleSnatPolicyForServices(snatpolicy *snatpolicy.Sn
 
 func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpolicy.SnatPolicy) {
 	cont.indexMutex.Lock()
+	cont.log.Debug("Updating snatpolicy cache for policy: ", snatpolicy.ObjectMeta.Name)
 	var policy ContSnatPolicy
 	env := cont.env.(*K8sEnvironment)
 	policy.SnatIp = snatpolicy.Spec.SnatIp
@@ -214,7 +218,9 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 	policy.Selector = ContPodSelector{Labels: snatpolicy.Spec.Selector.Labels, Namespace: snatpolicy.Spec.Selector.Namespace}
 	Update := false
 	if snatInfo, ok := cont.snatPolicyCache[key]; ok {
+		cont.log.Debug("Snatpolicy already exists in cache: ", snatpolicy.ObjectMeta.Name)
 		if !reflect.DeepEqual(policy.SnatIp, snatInfo.SnatIp) {
+			cont.log.Debug("Snatpolicy info found in cache marked to be updated: ", snatpolicy.ObjectMeta.Name)
 			cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
 			Update = true
 		}
@@ -232,6 +238,7 @@ func (cont *AciController) updateSnatPolicyCache(key string, snatpolicy *snatpol
 
 func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 	snatpolicy := snatobj.(*snatpolicy.SnatPolicy)
+	cont.log.Info("Snatpolicy marked for deletion: ", snatpolicy.ObjectMeta.Name)
 	cont.indexMutex.Lock()
 	cont.clearSnatGlobalCache(snatpolicy.ObjectMeta.Name, "")
 	delete(cont.snatPolicyCache, snatpolicy.ObjectMeta.Name)
