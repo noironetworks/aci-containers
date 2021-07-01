@@ -410,9 +410,11 @@ var metadata = map[string]*apicMeta{
 	},
 	"qosDppPol": {
 		attributes: map[string]interface{}{
-			"name":  "",
-			"burst": "unspecified",
-			"rate":  "0",
+			"name":      "",
+			"burst":     "unspecified",
+			"burstUnit": "kilo",
+			"rate":      "0",
+			"rateUnit":  "kilo",
 		},
 	},
 	"qosEpDscpMarking": {

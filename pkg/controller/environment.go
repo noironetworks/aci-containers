@@ -288,5 +288,8 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.networkPolicyInformer.HasSynced,
 		cont.snatNodeInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
+	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
+		go cont.snatGlobalInfoSync(stopCh, 60)
+	}
 	return nil
 }
