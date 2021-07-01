@@ -44,6 +44,10 @@ type NetIps struct {
 	V6 []ipam.IpRange `json:"V6,omitempty"`
 }
 
+type VfResourceMetadata struct {
+	Netattach string `json:"netattach,omitempty"`
+}
+
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
@@ -70,3 +74,6 @@ const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
 
 // Network attachment definition annotation for pod
 const NetAttDefAnnotation = "opflex.cisco.com/default-networks"
+
+//Sriov resource requests
+//const resoureName = "mellanox.com/mlnx_sriov_rdma"

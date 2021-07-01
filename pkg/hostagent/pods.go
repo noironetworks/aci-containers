@@ -42,6 +42,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
@@ -489,9 +490,14 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 
 	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, epAttributes, logger)
 
-	//	if pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation] != "" {
-	//		agent.getNetAttachment(pod)
-	//	}
+	netAttachDef, ok := pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation]
+	if ok {
+		agent.sriovMetadata = md.VfResourceMetadata{
+			Netattach: netAttachDef,
+		}
+	} else {
+		agent.log.Error("Network attachment definition is missing")
+	}
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,

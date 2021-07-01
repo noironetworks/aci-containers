@@ -53,6 +53,7 @@ type HostAgent struct {
 	cniToPodID            map[string]string
 	podUidToName          map[string]string
 	serviceEp             md.ServiceEndpoint
+	sriovMetadata         md.VfResourceMetadata
 	crdClient             aciv1.AciV1Interface
 	podInformer           cache.SharedIndexInformer
 	endpointsInformer     cache.SharedIndexInformer

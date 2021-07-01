@@ -260,9 +260,6 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"container": metadata.Id.ContId,
 	})
 
-	//if pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation] != "" {
-	agent.getNetAttachment()
-	//	}
 	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
 	logger.Debug("Setting up veth")
 	if len(metadata.Ifaces) == 0 {
@@ -377,6 +374,11 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	agent.env.CniDeviceChanged(&podid, &metadata.Id)
 
 	logger.Info("Successfully configured container interface")
+
+	err = agent.getNetAttachment()
+	if err != nil {
+		fmt.Println(err)
+	}
 	return result, nil
 }
 

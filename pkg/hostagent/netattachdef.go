@@ -143,9 +143,7 @@ type kubeletPodResources struct {
 	resp []*podresourcesv1.PodResources
 }
 
-//func (agent *HostAgent) getNetAttachment(pod *v1.Pod) {
-
-func (agent *HostAgent) getNetAttachment() {
+func (agent *HostAgent) getNetAttachment() error {
 	agent.log.Debug("inside network attachment method")
 	socket, err := util.LocalEndpoint(kubeletPodResourceDefaultPath, podresources.Socket)
 	agent.log.Debug("connecting to local endpoint")
@@ -159,11 +157,14 @@ func (agent *HostAgent) getNetAttachment() {
 	defer conn.Close()
 
 	podResource := &kubeletPodResources{}
+	//	var temp []*podresourcesv1.PodResources
 	err = podResource.getPodResourceList(client)
 
 	if err != nil {
 		fmt.Errorf("Could not get pod resource from the client %v", err)
+		return err
 	}
+
 	//*kubeletpodresourcesv1.ListPodResourcesResponse
 
 	//deviceIdMap := make(map[string][]string)
@@ -187,6 +188,7 @@ func (agent *HostAgent) getNetAttachment() {
 	//			}
 	//		}
 	//	}
+	return nil
 
 }
 
@@ -195,11 +197,12 @@ func (podResource *kubeletPodResources) getPodResourceList(client podresourcesv1
 	defer cancel()
 	resp, err := client.List(ctx, &podresourcesv1.ListPodResourcesRequest{})
 	if err != nil {
-		fmt.Errorf("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	if resp == nil {
 		return nil
 	}
+
 	podResource.resp = resp.PodResources
 	return nil
 }
