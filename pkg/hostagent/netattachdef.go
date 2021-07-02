@@ -37,7 +37,7 @@ import (
 const (
 	defaultAnnot                  = "aci-cni/default-network"
 	netAttachDefCRDName           = "network-attachment-definitions.k8s.cni.cncf.io"
-	kubeletPodResourceDefaultPath = "/var/lib/kubelet/pod-resources"
+	kubeletPodResourceDefaultPath = "/usr/local/var/lib/kubelet/pod-resources"
 	defaultPodResourcesMaxSize    = 1024 * 1024 * 16 // 16 Mb
 )
 
