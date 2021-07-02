@@ -919,6 +919,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 
 	if (devType == cont.env.OpFlexDeviceType()) && (domName == cont.config.AciVmmDomain) && (ctrlrName == cont.config.AciVmmController) {
 		cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Processing opflex device update")
+		cont.log.Debug("Processing opflex device update for obj: ", obj)
 		if obj.GetAttrStr("state") == "disconnected" {
 			cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Opflex device disconnected")
 			return
