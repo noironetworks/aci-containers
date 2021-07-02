@@ -889,6 +889,7 @@ func (cont *AciController) updateDeviceCluster() {
 	dc, dcDn := apicDeviceCluster(name, cont.config.AciVrfTenant,
 		cont.config.AciServicePhysDom, cont.config.AciServiceEncap,
 		nodes, nodeMap)
+	cont.log.Debug("Device cluster Dn for tenant : ", cont.config.AciVrfTenant, dcDn)
 	serviceObjs = append(serviceObjs, dc)
 
 	// 2. Service graph template
