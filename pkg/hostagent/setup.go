@@ -375,10 +375,10 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 
 	logger.Info("Successfully configured container interface")
 
-	err = agent.getNetAttachment()
-	if err != nil {
-		fmt.Println(err)
-	}
+	//err = agent.getNetAttachment()
+	//	if err != nil {
+	//		fmt.Println(err)
+	//	}
 	return result, nil
 }
 

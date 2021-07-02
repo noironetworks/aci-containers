@@ -25,7 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	//"k8s.io/apimachinery/pkg/fields"
-	//v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
@@ -143,7 +143,8 @@ type kubeletPodResources struct {
 	resp []*podresourcesv1.PodResources
 }
 
-func (agent *HostAgent) getNetAttachment() error {
+func (agent *HostAgent) getNetAttachment(pod *v1.Pod) error {
+
 	agent.log.Debug("inside network attachment method")
 	socket, err := util.LocalEndpoint(kubeletPodResourceDefaultPath, podresources.Socket)
 	agent.log.Debug("connecting to local endpoint")
@@ -167,27 +168,26 @@ func (agent *HostAgent) getNetAttachment() error {
 
 	//*kubeletpodresourcesv1.ListPodResourcesResponse
 
-	//deviceIdMap := make(map[string][]string)
+	deviceIdMap := make(map[string][]string)
 	// need to take care of overwriting,
 	// multiple device ids extraction
-	//	podName := pod.ObjectMeta.Name
-	//	podNamespace := pod.ObjectMeta.Namespace
-	//
-	//	agent.log.Debug("podName ", podName)
-	//	agent.log.Debug("podNamespace ", podNamespace)
-	//	for _, podResource := range podResource.resp {
-	//		agent.log.Debug("inside first for loop")
-	//		if podName == podResource.Name && podNamespace == podResource.Namespace {
-	//			for _, container := range podResource.Containers {
-	//				agent.log.Debug("inside containes")
-	//				for _, devices := range container.Devices {
-	//					agent.log.Debug("inside container devices")
-	//					deviceIdMap[devices.ResourceName] = devices.DeviceIds
-	//					agent.log.Debug("device ids ", devices.DeviceIds)
-	//				}
-	//			}
-	//		}
-	//	}
+	podName := pod.ObjectMeta.Name
+	podNamespace := pod.ObjectMeta.Namespace
+	agent.log.Debug("podName ", podName)
+	agent.log.Debug("podNamespace ", podNamespace)
+	for _, podResource := range podResource.resp {
+		agent.log.Debug("inside first for loop")
+		if podName == podResource.Name && podNamespace == podResource.Namespace {
+			for _, container := range podResource.Containers {
+				agent.log.Debug("inside containes")
+				for _, devices := range container.Devices {
+					agent.log.Debug("inside container devices")
+					deviceIdMap[devices.ResourceName] = devices.DeviceIds
+					agent.log.Debug("device ids ", devices.DeviceIds)
+				}
+			}
+		}
+	}
 	return nil
 
 }

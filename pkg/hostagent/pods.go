@@ -498,6 +498,11 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	} else {
 		agent.log.Error("Network attachment definition is missing")
 	}
+	err := agent.getNetAttachment(pod)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
