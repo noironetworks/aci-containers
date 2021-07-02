@@ -76,6 +76,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+	logLevel = logrus.DebugLevel
 	log.Level = logLevel
 
 	log.WithFields(logrus.Fields{

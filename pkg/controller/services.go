@@ -886,9 +886,16 @@ func (cont *AciController) updateDeviceCluster() {
 	// The device cluster is a set of physical paths that need to be
 	// created for each node in the cluster, that correspond to the
 	// service interface for each node.
+	cont.log.Debug("Creating device cluster for name: ", name)
+	cont.log.Debug("Creating device cluster for tenant: ", cont.config.AciVrfTenant)
+	cont.log.Debug("Creating device cluster for PhyDom: ", cont.config.AciServicePhysDom)
+	cont.log.Debug("Creating device cluster for encap: ", cont.config.AciServiceEncap)
+	cont.log.Debug("Creating device cluster for nodes: ", nodes)
+	cont.log.Debug("Creating device cluster for nodeMap: ", nodeMap)
 	dc, dcDn := apicDeviceCluster(name, cont.config.AciVrfTenant,
 		cont.config.AciServicePhysDom, cont.config.AciServiceEncap,
 		nodes, nodeMap)
+	cont.log.Debug("Device cluster Dn and dc: ", dcDn, dc)
 	serviceObjs = append(serviceObjs, dc)
 
 	// 2. Service graph template
@@ -916,8 +923,11 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	domName := obj.GetAttrStr("domName")
 	ctrlrName := obj.GetAttrStr("ctrlrName")
 
+	cont.log.Debug("opflexDevicechanged notification before filtering: ", obj)
+
 	if (devType == cont.env.OpFlexDeviceType()) && (domName == cont.config.AciVmmDomain) && (ctrlrName == cont.config.AciVmmController) {
 		cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Processing opflex device update")
+		cont.log.Debug("Processing opflex device update for obj: ", obj)
 		if obj.GetAttrStr("state") == "disconnected" {
 			cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Opflex device disconnected")
 			return
@@ -981,6 +991,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			cont.env.NodeServiceChanged(node)
 			cont.erspanSyncOpflexDev()
 		}
+		cont.log.Debug("updateDeviceCluster called for opflexDeviceChanged for obj: ", obj)
 		cont.updateDeviceCluster()
 
 	}
@@ -989,6 +1000,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 func (cont *AciController) opflexDeviceDeleted(dn string) {
 	var nodeUpdates []string
 	var dnFound bool //to check if the dn belongs to this cluster
+	cont.log.Debug("opflexDeviceDeleted notification before filtering for Dn: ", dn)
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		for i, device := range devices {
@@ -1010,6 +1022,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 	cont.indexMutex.Unlock()
 
 	if dnFound {
+		cont.log.Debug("updateDeviceCluster called inside opflexDeviceDeleted for dn: ", dn)
 		cont.updateDeviceCluster()
 		for _, node := range nodeUpdates {
 			cont.env.NodeServiceChanged(node)
