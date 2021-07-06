@@ -17,6 +17,8 @@ package hostagent
 import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -240,8 +242,8 @@ func mkRC(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot
 func mkNetPol(namespace string, name string, podSelector *metav1.LabelSelector,
 	irules []v1net.NetworkPolicyIngressRule,
 	erules []v1net.NetworkPolicyEgressRule,
-	ptypes []v1net.PolicyType) *v1net.NetworkPolicy {
-	return &v1net.NetworkPolicy{
+	ptypes []v1net.PolicyType) *v1netpol.NetworkPolicy {
+	return util.GetInternalPolicy(&v1net.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -252,5 +254,5 @@ func mkNetPol(namespace string, name string, podSelector *metav1.LabelSelector,
 			Ingress:     irules,
 			Egress:      erules,
 		},
-	}
+	})
 }

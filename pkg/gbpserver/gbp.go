@@ -607,6 +607,38 @@ func (ss *GBPFloodMcast) Validate() error {
 	return nil
 }
 
+type GBPDnsNames struct {
+	gbpBaseMo
+}
+
+func (dnss *GBPDnsNames) Make(name, uri string) error {
+	dnss.Subject = subjDnsNames
+	dnss.Uri = uri
+	dnss.AddProperty(propName, name)
+	dnss.save()
+	return nil
+}
+
+func (dnss *GBPDnsNames) Validate() error {
+	return nil
+}
+
+type GBPDnsName struct {
+	gbpBaseMo
+}
+
+func (dns *GBPDnsName) Make(name, uri string) error {
+	dns.Subject = subjDnsName
+	dns.Uri = uri
+	dns.AddProperty(propName, name)
+	dns.save()
+	return nil
+}
+
+func (dns *GBPDnsName) Validate() error {
+	return nil
+}
+
 func CreateDefVrf() {
 	vrf := &GBPRoutingDomain{}
 	// TODO: add subnet ref if necessary

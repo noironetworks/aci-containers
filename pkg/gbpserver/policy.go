@@ -897,6 +897,8 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	linkParentChild(ruleMo, &toCF.gbpCommonMo)
 	addActionRef(ruleMo)
 	hsc.addSubnets(ruleMo, cname)
+	hsc.addDnsNames(ruleMo, cname)
+	log.Debugf("DnsNames are: %v", hsc)
 	return nil
 }
 
@@ -946,6 +948,40 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	}
 	ssRef.AddProperty(propTarget, ref)
 	linkParentChild(p, &ssRef.gbpCommonMo)
+}
+
+func (hsc *HpSubjChild) getDnsNames() []string {
+	var res []string
+	for _, cm := range hsc.Children {
+		hri, ok := cm["hostprotDnsName"]
+		if ok {
+			name, ok := hri.Attributes["name"]
+			if ok {
+				res = append(res, name)
+			}
+		}
+	}
+
+	return res
+}
+func (hsc *HpSubjChild) addDnsNames(p *gbpCommonMo, name string) {
+	dnsNames := hsc.getDnsNames()
+	//	if len(ipSet) == 0 {
+	//		log.Infof("No subnets in network policy")
+	//		return
+	//	}
+	log.Debugf("DnsNames are: %v", dnsNames)
+	ss := &GBPDnsNames{}
+	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpDnsNames/%s/", getTenantName(), escapeName(name, false))
+	ss.Make(name, ssUri)
+	hsc.subnetSetUri = ssUri
+	for _, name := range dnsNames {
+		s := &GBPDnsName{}
+		sUri := fmt.Sprintf("%sGbpDnsName/%s/", ssUri, escapeName(name, false))
+		s.Make(name, sUri)
+		linkParentChild(&ss.gbpCommonMo, &s.gbpCommonMo)
+	}
+
 }
 
 // postNP rest handler to create a network policy

@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	v1betadnsntp "github.com/noironetworks/aci-containers/pkg/dnsnetworkpolicy/apis/dnsnetpolicy/v1beta"
+	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +30,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/stretchr/testify/assert"
 	v1beta1 "k8s.io/api/discovery/v1beta1"
 )
@@ -908,18 +911,18 @@ func TestNetworkPolicy(t *testing.T) {
 		addPods(cont, true, ips, true)
 		addServices(cont, nt.augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		checkNp(t, &nt, "podsfirst", cont)
 
 		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Delete(util.GetInternalPolicy(nt.netPol))
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		cont.run()
 		addServices(cont, nt.augment)
 		addPods(cont, false, ips, true)
@@ -1464,11 +1467,11 @@ func TestNetworkPolicyv6(t *testing.T) {
 		addPods(cont, true, ips, false)
 		addServices(cont, nt.augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		checkNp(t, &nt, "podsfirst", cont)
 
 		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Delete(util.GetInternalPolicy(nt.netPol))
 		checkDelete(t, np6Tests[0], cont)
 		cont.stop()
 	}
@@ -1476,7 +1479,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	for _, nt := range np6Tests {
 		cont := initCont()
 		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		cont.run()
 		addServices(cont, nt.augment)
 		addPods(cont, false, ips, false)
@@ -1887,18 +1890,18 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 		addPods(cont, true, ips, true)
 		addServices(cont, nt.augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		checkNp(t, &nt, "podsfirst", cont)
 
 		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Delete(util.GetInternalPolicy(nt.netPol))
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		cont.run()
 		addServices(cont, nt.augment)
 		addPods(cont, false, ips, true)
@@ -2050,17 +2053,17 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
 		addServices(cont, nt.augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		checkNp(t, &nt, "podsfirst", cont)
 		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Delete(util.GetInternalPolicy(nt.netPol))
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
 	for _, nt := range npTests {
 		cont := initCont()
 		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(nt.netPol))
 		cont.run()
 		addServices(cont, nt.augment)
 		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
@@ -2068,4 +2071,91 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 		checkNp(t, &nt, "npfirst", cont)
 		cont.stop()
 	}
+}
+
+func TestNetworkPolicyDnsPolicy(t *testing.T) {
+	/*
+		name := "kube_np_testns_np2"
+		baseDn := makeNp(nil, nil, name).GetDn()
+		np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+		rule_1_0 := apicapi.NewHostprotRule(np1SDnE, "0_0")
+		rule_1_0.SetAttr("direction", "egress")
+		rule_1_0.SetAttr("ethertype", "ipv4")
+		rule_1_0.SetAttr("protocol", "tcp")
+		rule_1_0.SetAttr("toPort", "80")
+
+		rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080")
+		rule_1_s.SetAttr("direction", "egress")
+		rule_1_s.SetAttr("ethertype", "ipv4")
+		rule_1_s.SetAttr("protocol", "tcp")
+		rule_1_s.SetAttr("toPort", "8080")
+		rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
+	*/
+	np := &v1betadnsntp.DnsNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-np",
+			Namespace: "tesns",
+		},
+		Spec: v1betadnsntp.DnsNetworkPolicySpec{
+			AppliedTo: v1netpol.AppliedTo{PodSelector: &metav1.LabelSelector{}},
+			Egress:    v1betadnsntp.NetworkPolicyEgressRule{ToFqdn: &v1netpol.FQDN{MatchNames: []string{"*.google.com", "*.yahoo.com"}}},
+		},
+	}
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	{
+		cont := testController()
+		cont.run()
+		static := cont.staticNetPolObjs()
+		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
+		assert.Equal(t, static,
+			cont.apicConn.GetDesiredState(staticNetPolKey()), staticNetPolKey())
+		cont.stop()
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+	cont := initCont()
+	addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, nil)
+	addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, nil)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(util.GetInternalPolicy(np))
+	time.Sleep(2000 * time.Millisecond)
+	//	checkNp(t, &nt, "podsfirst", cont)
+
+	cont.fakeNetworkPolicySource.Delete(util.GetInternalPolicy(np))
+	//	checkDelete(t, npTests[0], cont)
+	cont.stop()
 }

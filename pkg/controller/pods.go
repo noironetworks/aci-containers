@@ -24,8 +24,8 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
 	v1 "k8s.io/api/core/v1"
-	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -319,7 +319,7 @@ func (cont *AciController) updateCtrNmPortForPod(pod *v1.Pod, podkey string) {
 		for npkey := range cont.nmPortNp {
 			obj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
 			if exists && err == nil {
-				np := obj.(*v1net.NetworkPolicy)
+				np := obj.(*v1netpol.NetworkPolicy)
 				if !cont.checkPodNmpMatchesNp(npkey, podkey) {
 					continue
 				}
