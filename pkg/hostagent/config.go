@@ -233,6 +233,9 @@ type HostAgentConfig struct {
 	Flavor string `json:"flavor,omitempty"`
 	// Installer lb Ip provisioned for Openshift on Esx
 	InstallerProvlbIp string `json:"installer-provisioned-lb-ip,omitempty"`
+
+	// Sriov and Ovs Hardward Offload enabled
+	OvsHardwareOffload bool `json:"enable-ovs-hw-offload,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -303,4 +306,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")
 	flag.StringVar(&config.EPRegistry, "ep-registry", "", "Enable PodIF")
+	flag.BoolVar(&config.OvsHardwareOffload, "enable-sriov-config", false, "SRIOV config and ovs hardware offload feature")
 }
