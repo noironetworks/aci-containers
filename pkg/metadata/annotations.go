@@ -67,3 +67,9 @@ const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
 
 // Computed security groups for pod
 const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
+
+// Network attachment definition annotation for pod
+const NetAttDefAnnotation = "k8s.v1.cni.cncf.io/networks"
+
+// Network attachment definition annotation for pod requesting multus-cni
+const MultusNetAnnotation = "v1.multus-cni.io/default-network"

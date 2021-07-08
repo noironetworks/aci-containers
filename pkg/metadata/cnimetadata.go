@@ -34,12 +34,14 @@ type ContainerIfaceMd struct {
 	Mac          string             `json:"mac,omitempty"`
 	Sandbox      string             `json:"sandbox,omitempty"`
 	IPs          []ContainerIfaceIP `json:"ips"`
+	VfNetDevice  string
 }
 
 type ContainerId struct {
 	Namespace string `json:"namespace,omitempty"`
 	Pod       string `json:"pod,omitempty"`
 	ContId    string `json:"cont-id,omitempty"`
+	DeviceId  string
 }
 
 type ContainerMetadata struct {

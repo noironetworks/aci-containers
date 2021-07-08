@@ -594,6 +594,16 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
 	agent.epChanged(&epUuid, &epMetaKey, &epGroup, secGroup, qpGroup, epAttributes, logger)
+	var netAttachDef []string
+	if pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation] != "" {
+		netAttachDef = strings.Split(pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation], ",")
+	} else if pod.ObjectMeta.Annotations[metadata.MultusNetAnnotation] != "" {
+		netAttachDef = strings.Split(pod.ObjectMeta.Annotations[metadata.MultusNetAnnotation], ",")
+	}
+	if netAttachDef != nil {
+		podKey := pod.ObjectMeta.Name + "-" + pod.ObjectMeta.Namespace
+		agent.podToNetAttachDef[podKey] = netAttachDef
+	}
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,

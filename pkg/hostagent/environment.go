@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 
+	netClientSet "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
@@ -57,6 +58,7 @@ type K8sEnvironment struct {
 	endpointsInformer   cache.SharedIndexInformer
 	serviceInformer     cache.SharedIndexInformer
 	nodeInformer        cache.SharedIndexInformer
+	netClient           *netClientSet.Clientset
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -129,8 +131,14 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize snatpolicy info client")
 		return nil, err
 	}
+	netClient, err := netClientSet.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize network attachment definition info client")
+		return nil, err
+	}
+
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -154,6 +162,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initDepPodIndex()
 	env.agent.initRCPodIndex()
 	env.agent.initEventPoster(env.kubeClient)
+	env.agent.initNetworkAttDefInformerFromClient(env.netClient)
 	return nil
 }
 
@@ -183,6 +192,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.snatPolicyInformer.Run(stopCh)
 	go env.agent.qosPolicyInformer.Run(stopCh)
 	go env.agent.rdConfigInformer.Run(stopCh)
+	go env.agent.netAttDefInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
 	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
 		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,
