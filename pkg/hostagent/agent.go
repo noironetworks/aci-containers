@@ -52,7 +52,9 @@ type HostAgent struct {
 	podIpToName           map[string]string
 	cniToPodID            map[string]string
 	podUidToName          map[string]string
+	podToNetAttachDef     map[string]string
 	serviceEp             md.ServiceEndpoint
+	sriovMetadata         md.VfResourceMetadata
 	crdClient             aciv1.AciV1Interface
 	podInformer           cache.SharedIndexInformer
 	endpointsInformer     cache.SharedIndexInformer
@@ -75,6 +77,7 @@ type HostAgent struct {
 	podNetAnnotation      string
 	podIps                *ipam.IpCache
 	usedIPs               map[string]string
+	netAttDefInformer     cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -100,6 +103,9 @@ type HostAgent struct {
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
+	//network attachment definition map
+	netattdefmap map[string]*NetworkAttachmentData
+	deviceIdMap  map[string][]string
 }
 
 type ServiceEndPointType interface {
@@ -145,8 +151,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		podIpToName:    make(map[string]string),
 		cniToPodID:     make(map[string]string),
 		podUidToName:   make(map[string]string),
-
-		podIps: ipam.NewIpCache(),
+		podIps:         ipam.NewIpCache(),
 
 		ignoreOvsPorts: make(map[string][]string),
 
@@ -158,6 +163,9 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		snatPolicyCache:       make(map[string]*snatpolicy.SnatPolicy),
 		servicetoPodUids:      make(map[string]map[string]struct{}),
 		podtoServiceUids:      make(map[string]map[string]string),
+		netattdefmap:          make(map[string]*NetworkAttachmentData),
+		deviceIdMap:           make(map[string][]string),
+		podToNetAttachDef:     make(map[string]string),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),

@@ -1,0 +1,258 @@
+// Copyright 2021 Cisco Systems, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package hostagent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	netpolicy "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	netClient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
+	netattclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1"
+	//"github.com/noironetworks/aci-containers/pkg/metadata"
+	//v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
+	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
+	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
+	"k8s.io/kubernetes/pkg/kubelet/util"
+)
+
+const (
+	defaultAnnot                  = "aci-cni/default-network"
+	resourceNameAnnot             = "k8s.v1.cni.cncf.io/resourceName"
+	netAttachDefCRDName           = "network-attachment-definitions.k8s.cni.cncf.io"
+	kubeletPodResourceDefaultPath = "/usr/local/var/lib/kubelet/pod-resources"
+	defaultPodResourcesMaxSize    = 1024 * 1024 * 16 // 16 Mb
+)
+
+type NetworkAttachmentData struct {
+	Name      string
+	Namespace string
+	Config    string
+	Annot     string
+}
+
+type ClientInfo struct {
+	NetClient netattclient.K8sCniCncfIoV1Interface
+}
+
+func (agent *HostAgent) initNetworkAttDefInformerFromClient(
+	netClientSet *netClient.Clientset) {
+
+	agent.log.Debug("running initNetworkAttachmentDefinitionFromClient")
+	agent.initNetworkAttachmentDefinitionInformerBase(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return netClientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions(metav1.NamespaceAll).List(context.TODO(), options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return netClientSet.K8sCniCncfIoV1().NetworkAttachmentDefinitions(metav1.NamespaceAll).Watch(context.TODO(), options)
+			},
+		})
+}
+
+func (agent *HostAgent) initNetworkAttachmentDefinitionInformerBase(listWatch *cache.ListWatch) {
+	agent.log.Debug("running initNetworkAttachmentDefinitionBase")
+	agent.netAttDefInformer = cache.NewSharedIndexInformer(
+		listWatch, &netpolicy.NetworkAttachmentDefinition{}, controller.NoResyncPeriodFunc(),
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	agent.netAttDefInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			agent.networkAttDefAdded(obj)
+		},
+		UpdateFunc: func(oldobj interface{}, newobj interface{}) {
+			agent.networkAttDefUpdated(oldobj, newobj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			agent.networkAttDefDeleted(obj)
+		},
+	})
+}
+
+type Config struct {
+	Name       string    `json:"name"`
+	Plugins    []Plugins `json:"plugins"`
+	CniVersion string    `json:"cniVersion"`
+}
+
+type Plugins struct {
+	Type string `json:"type,omitempty"`
+	IPAM IPAM   `json:"ipam,omitempty"`
+}
+
+type IPAM struct {
+	Type string `json:"type,omitempty"`
+}
+
+func (agent *HostAgent) networkAttDefAdded(obj interface{}) {
+	ntd := obj.(*netpolicy.NetworkAttachmentDefinition)
+	agent.log.Infof("network atttachment Added: %s", ntd.ObjectMeta.Name)
+	agent.networkAttDefChanged(ntd)
+}
+
+func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDefinition) {
+
+	netattdata := NetworkAttachmentData{
+		Name:      ntd.ObjectMeta.Name,
+		Namespace: ntd.ObjectMeta.Namespace,
+		Config:    ntd.Spec.Config,
+		Annot:     ntd.ObjectMeta.Annotations[resourceNameAnnot],
+	}
+	var config Config
+	json.Unmarshal([]byte(ntd.Spec.Config), &config)
+	agent.log.Debug("config ", config)
+	for i := 0; i < len(config.Plugins); i++ {
+		fmt.Println("plugin type :", config.Plugins[i].Type)
+		fmt.Println("plugin type :", config.Plugins[i].IPAM.Type)
+	}
+
+	//Since the above Network attachments is aci cni specific, thos which has plugin type and ipam has "opflex-agent-cni" and "opflex-agent-cni-ipam" will be processed and any other network attachments which requests for other cni will be ignored.
+	for i := 0; i < len(config.Plugins); i++ {
+
+		if config.Name == "k8s-pod-network" {
+			if config.Plugins[i].Type == "opflex-agent-cni" && config.Plugins[i].IPAM.Type == "opflex-agent-cni-ipam" {
+				if ntd.ObjectMeta.Name != "" {
+					agent.log.Info("Inside the loop")
+					agent.indexMutex.Lock()
+					agent.netattdefmap[ntd.ObjectMeta.Name] = &netattdata
+					agent.log.Info("net data", netattdata)
+					agent.indexMutex.Unlock()
+					break
+				} else {
+					agent.log.Warn("network attachmentdefinition name is not provided")
+				}
+			}
+		} else {
+			agent.log.Warn("network atttachment doesnt not match k8s-pod-network requirment")
+		}
+	}
+}
+
+func (agent *HostAgent) networkAttDefUpdated(oldobj interface{}, newobj interface{}) {
+	ntd := newobj.(*netpolicy.NetworkAttachmentDefinition)
+	agent.networkAttDefChanged(ntd)
+	agent.log.Infof("network atttachment Changed: %s", ntd.ObjectMeta.Name)
+}
+
+func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
+	ntd := obj.(*netpolicy.NetworkAttachmentDefinition)
+	agent.log.Infof("network atttachment Deleted: %s", ntd.ObjectMeta.Name)
+	agent.indexMutex.Lock()
+	delete(agent.netattdefmap, ntd.ObjectMeta.Name)
+	agent.indexMutex.Unlock()
+}
+
+// ResourceInfo is struct to hold Pod device allocation information
+
+type kubeletPodResources struct {
+	resp []*podresourcesv1.PodResources
+}
+
+type DeviceInfo struct {
+	DeviceId     string
+	ResourceName string
+}
+
+func (agent *HostAgent) getNetAttachment(podName string, podNamespace string) (string, error) {
+
+	var isAcicniNetwork bool
+	//	annotation := pod.ObjectMeta.Annotations[metadata.NetAttDefAnnotation]
+	//	if agent.netattdefmap[annotation] != nil {
+	//		agent.log.Debug("pod's network attachment and ntd definition matches")
+	//		agent.log.Debug("name is --- ", agent.netattdefmap[annotation])
+	//		isAcicniNetwork = true
+	//	}
+
+	agent.log.Debug("pod to net attach ", agent.podToNetAttachDef[podName+"-"+podNamespace])
+	if agent.netattdefmap[agent.podToNetAttachDef[podName+"-"+podNamespace]] != nil {
+		agent.log.Debug("pod's network attachment and ntd definition matches")
+		isAcicniNetwork = true
+	}
+
+	if isAcicniNetwork {
+		agent.log.Debug("inside network attachment method")
+		socket, err := util.LocalEndpoint(kubeletPodResourceDefaultPath, podresources.Socket)
+		agent.log.Debug("connecting to local endpoint")
+		if err != nil {
+			fmt.Errorf("Could not retreive the kubelet sock %v", err)
+		}
+		client, conn, err := podresources.GetV1Client(socket, 10*time.Second, defaultPodResourcesMaxSize)
+		if err != nil {
+			fmt.Errorf("Could not retreive the pod resource client %v", err)
+		}
+		defer conn.Close()
+
+		podResource := &kubeletPodResources{}
+		//	var temp []*podresourcesv1.PodResources
+		err = podResource.getPodResourceList(client)
+
+		if err != nil {
+			fmt.Errorf("Could not get pod resource from the client %v", err)
+			return "", err
+		}
+
+		// does pod can have more than one device allocated? if yes, we need append more device ids
+		// need to take care of overwriting,
+		// multiple device ids extraction
+		// we would only let one device per pod
+		// test for the replica set of a pod. 12 replicase requests for 12 vf. how does this behave
+		// if we run out of VFs, how to put a warning sign
+		podName := podName
+		podNamespace := podNamespace
+		for _, podResource := range podResource.resp {
+			if podName == podResource.Name && podNamespace == podResource.Namespace {
+				for _, container := range podResource.Containers {
+					for _, devices := range container.Devices {
+						DeviceList := devices.DeviceIds
+						if len(DeviceList) != 1 {
+							agent.log.Error("Virtual fucntion allocation failed : Multiple device requested ")
+						} else {
+							deviceInfo := &DeviceInfo{
+								DeviceId:     strings.Join(DeviceList, " "),
+								ResourceName: devices.ResourceName,
+							}
+							return deviceInfo.DeviceId, nil
+						}
+					}
+				}
+			}
+		}
+
+	}
+	return "", nil
+}
+
+func (podResource *kubeletPodResources) getPodResourceList(client podresourcesv1.PodResourcesListerClient) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := client.List(ctx, &podresourcesv1.ListPodResourcesRequest{})
+	if err != nil {
+		return fmt.Errorf("%v", err)
+	}
+	if resp == nil {
+		return nil
+	}
+
+	podResource.resp = resp.PodResources
+	return nil
+}

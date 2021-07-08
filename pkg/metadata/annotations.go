@@ -44,6 +44,11 @@ type NetIps struct {
 	V6 []ipam.IpRange `json:"V6,omitempty"`
 }
 
+// annotation type for network attachment definition name
+type VfResourceMetadata struct {
+	Netattach string `json:"netattach,omitempty"`
+}
+
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
@@ -67,3 +72,6 @@ const CompEgAnnotation = "opflex.cisco.com/computed-endpoint-group"
 
 // Computed security groups for pod
 const CompSgAnnotation = "opflex.cisco.com/computed-security-group"
+
+// Network attachment definition annotation for pod
+const NetAttDefAnnotation = "opflex.cisco.com/default-networks"

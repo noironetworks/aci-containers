@@ -34,6 +34,7 @@ type ContainerIfaceMd struct {
 	Mac          string             `json:"mac,omitempty"`
 	Sandbox      string             `json:"sandbox,omitempty"`
 	IPs          []ContainerIfaceIP `json:"ips"`
+	VfNetDevice  string
 }
 
 type ContainerId struct {
