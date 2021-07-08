@@ -717,7 +717,29 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 						// don't apply the topology constraint if there are no Keys
 						// or external service as we have check above for local to the node
 						if len(as.Spec.TopologyKeys) == 0 || external {
-							nexthops["any"] = append(nexthops["any"], a)
+							// Topology aware hints are used only when TopologyKeys are
+							// not enabled. Services need an annotation to inform the
+							// endpointslice controller to add hints
+							// Currently-1.22 only zones are used as hints.
+							// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
+							var hintsEnabled bool = false
+							if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
+								hintsEnabled = true
+							}
+							if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (val2 == "auto") {
+								hintsEnabled = true
+							}
+							nodeZone, zoneOk := node.ObjectMeta.Labels["kubernetes.io/zone"]
+							if !external && zoneOk && hintsEnabled && e.Hints != nil {
+								for _, hintZone := range e.Hints.ForZones {
+									if nodeZone == hintZone.Name {
+										nexthops["topologyawarehints"] =
+											append(nexthops["topologyawarehints"], a)
+									}
+								}
+							} else {
+								nexthops["any"] = append(nexthops["any"], a)
+							}
 						} else {
 							for _, key := range as.Spec.TopologyKeys {
 								if checkKeyMatch(e.Topology, node.ObjectMeta.Labels, key) {
@@ -739,7 +761,11 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					}
 				}
 			} else {
-				sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
+				if _, ok := nexthops["topologyawarehints"]; ok {
+					sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
+				} else {
+					sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
+				}
 			}
 			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 				hasValidMapping = true
