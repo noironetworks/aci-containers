@@ -702,6 +702,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				sm.ServiceIp = as.Spec.ClusterIP
 			}
 			nexthops := make(map[string][]string)
+			var nodeZone string
 			for _, e := range endpointSlice.Endpoints {
 				for _, a := range e.Addresses {
 					nodeName, ok := e.Topology["kubernetes.io/hostname"]
@@ -716,30 +717,36 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							continue
 						}
 						node := obj.(*v1.Node)
-						// don't apply the topology constraint if there are no Keys
-						// or external service as we have check above for local to the node
-						if len(as.Spec.TopologyKeys) == 0 || external {
-							nexthops["any"] = append(nexthops["any"], a)
-						} else {
-							for _, key := range as.Spec.TopologyKeys {
-								if checkKeyMatch(e.Topology, node.ObjectMeta.Labels, key) {
-									nexthops[key] = append(nexthops[key], a)
+						// Services need an annotation to inform the
+						// endpointslice controller to add hints
+						// Currently-1.22 only zones are used as hints.
+						// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
+						var hintsEnabled bool = false
+						if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
+							hintsEnabled = true
+						}
+						if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (val2 == "auto") {
+							hintsEnabled = true
+						}
+						zone, zoneOk := node.ObjectMeta.Labels["kubernetes.io/zone"]
+						nodeZone = zone
+						if !external && zoneOk && hintsEnabled && e.Hints != nil {
+							for _, hintZone := range e.Hints.ForZones {
+								if nodeZone == hintZone.Name {
+									nexthops["topologyawarehints"] =
+										append(nexthops["topologyawarehints"], a)
 								}
 							}
+						} else {
+							nexthops["any"] = append(nexthops["any"], a)
 						}
 					}
 				}
 			}
-			// Check if the service is configured with TopologyKeys
 			// Select the high priority keys as datapath doesn't have support for fallback
-			if len(as.Spec.TopologyKeys) > 0 && !external {
-				for _, key := range as.Spec.TopologyKeys {
-					if v, ok := nexthops[key]; ok {
-						sm.NextHopIps = append(sm.NextHopIps, v...)
-						agent.log.Infof("Topology matching key: %s Nexthops: %s", key, sm.NextHopIps)
-						break
-					}
-				}
+			if _, ok := nexthops["topologyawarehints"]; ok {
+				sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
+				agent.log.Infof("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
 			} else {
 				sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
 			}
