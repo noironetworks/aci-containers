@@ -102,40 +102,41 @@ func (agent *HostAgent) NodeEPRegAdd(eps []*opflexEndpoint) bool {
 		podifs = append(podifs, podif)
 	}
 
-	if agent.crdClient.NodePodIFs("kube-system") != nil {
-		nodePodif, err := agent.crdClient.NodePodIFs("kube-system").Get(context.TODO(), agent.getNodePodIFName(agent.config.NodeName), metav1.GetOptions{})
-		if err != nil {
-			// create nodepodif
-			if apierrors.IsNotFound(err) {
-				remEP := &aciv1.NodePodIF{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      agent.getNodePodIFName(agent.config.NodeName),
-						Namespace: "kube-system",
-					},
-					Spec: aciv1.NodePodIFSpec{
-						PodIFs: podifs,
-					},
-				}
-
-				_, err := agent.crdClient.NodePodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
-				agent.log.Debugf("nodepodif: %s created for node", remEP.ObjectMeta.Name)
-				if err != nil {
-					logrus.Errorf("Create error %v, nodepodif: %+v", err, remEP)
-					return true
-				}
+	nodePodif, err := agent.crdClient.NodePodIFs("kube-system").Get(context.TODO(), agent.getNodePodIFName(agent.config.NodeName), metav1.GetOptions{})
+	if err != nil {
+		// create nodepodif
+		if apierrors.IsNotFound(err) {
+			remEP := &aciv1.NodePodIF{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      agent.getNodePodIFName(agent.config.NodeName),
+					Namespace: "kube-system",
+				},
+				Spec: aciv1.NodePodIFSpec{
+					PodIFs: podifs,
+				},
 			}
 
-		} else {
-			// update nodepodif
-			if !reflect.DeepEqual(nodePodif.Spec.PodIFs, podifs) {
-				agent.log.Debugf("nodePodif.Spec.PodIFs: %+q, podifs: %+q", nodePodif.Spec.PodIFs, podifs)
-				nodePodif.Spec.PodIFs = podifs
-				_, err := agent.crdClient.NodePodIFs("kube-system").Update(context.TODO(), nodePodif, metav1.UpdateOptions{})
-				agent.log.Debugf("nodepodif: %s updated for node", nodePodif.ObjectMeta.Name)
-				if err != nil {
-					logrus.Errorf("Update error %v, nodepodif: %+v", err, nodePodif)
-					return true
-				}
+			_, err := agent.crdClient.NodePodIFs("kube-system").Create(context.TODO(), remEP, metav1.CreateOptions{})
+			agent.log.Debugf("nodepodif: %s created for node", remEP.ObjectMeta.Name)
+			if err != nil {
+				logrus.Errorf("Create error %v, nodepodif: %+v", err, remEP)
+				return true
+			}
+		}
+
+	} else {
+		Spec := aciv1.NodePodIFSpec{
+			PodIFs: podifs,
+		}
+		// update nodepodif
+		if !reflect.DeepEqual(nodePodif.Spec, Spec) {
+			agent.log.Debugf("nodePodif.Spec: %+q, Spec: %+q", nodePodif.Spec, Spec)
+			nodePodif.Spec = Spec
+			_, err := agent.crdClient.NodePodIFs("kube-system").Update(context.TODO(), nodePodif, metav1.UpdateOptions{})
+			agent.log.Debugf("nodepodif: %s updated for node", nodePodif.ObjectMeta.Name)
+			if err != nil {
+				logrus.Errorf("Update error %v, nodepodif: %+v", err, nodePodif)
+				return true
 			}
 		}
 	}
@@ -397,7 +398,7 @@ func (agent *HostAgent) syncEps() bool {
 		}
 	}
 	needRetry = agent.NodeEPRegAdd(podifEPs)
-	agent.log.Debugf("podifEPs list is ========%v", podifEPs)
+	agent.log.Debugf("podifEPs list is ========%+v", podifEPs)
 
 	for _, eps := range opflexEps {
 		for _, ep := range eps {
@@ -410,7 +411,6 @@ func (agent *HostAgent) syncEps() bool {
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
-			opflexEpLogger(agent.log, ep).Info("wrote endpoint")
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
