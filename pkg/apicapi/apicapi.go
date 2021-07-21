@@ -606,7 +606,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 			if !ok {
 				conn.log.Debug("No version attribute in the response??!")
 				conn.logger.WithFields(logrus.Fields{
-					"mod":                            "APICAPI",
+					"mod": "APICAPI",
 					"firmwareCtrlrRunning":           vresp,
 					"firmwareCtrlRunning Attributes": vresp.Attributes,
 				}).Debug("Response:")

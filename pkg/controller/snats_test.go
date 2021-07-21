@@ -150,6 +150,7 @@ func TestSnatGraph(t *testing.T) {
 	opflexDevice1.SetAttr("devType", "k8s")
 	opflexDevice1.SetAttr("domName", "kube")
 	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
@@ -158,6 +159,7 @@ func TestSnatGraph(t *testing.T) {
 	opflexDevice2.SetAttr("devType", "k8s")
 	opflexDevice2.SetAttr("domName", "kube")
 	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
 
 	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
