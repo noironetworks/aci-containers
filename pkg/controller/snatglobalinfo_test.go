@@ -27,6 +27,8 @@ import (
 
 var dummy struct{}
 
+const globalInfoSyncWaitTime = 5 // seconds
+
 func snatpolicydata(name string, namespace string,
 	snatIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
 	policy := &snatpolicy.SnatPolicy{
@@ -249,13 +251,13 @@ func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 	delete(cont.AciController.snatGlobalInfoCache["10.1.1.8"], "node-2")
 
 	go cont.snatGlobalInfoSync(cont.stopCh, 1)
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * globalInfoSyncWaitTime)
 	snatWait(t, "snat test", expected,
 		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
 
 	// Remove a policy entry from snatglobalcache
 	delete(cont.AciController.snatGlobalInfoCache, "10.1.1.8")
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * globalInfoSyncWaitTime)
 
 	snatWait(t, "snat test", expected,
 		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
@@ -264,7 +266,7 @@ func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 	node1item := cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"]
 	node1item.SnatPolicyName = "wrongpolicyname"
 	cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"] = node1item
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * globalInfoSyncWaitTime)
 
 	snatWait(t, "snat test", expected,
 		cont.AciController.snatGlobalInfoCache["10.1.1.8"])
