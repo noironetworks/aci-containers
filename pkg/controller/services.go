@@ -276,6 +276,12 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 // must have index lock
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	for _, device := range cont.nodeOpflexDevice[name] {
+		if device.GetAttrStr("state") == "connected" {
+			return device.GetAttrStr("fabricPathDn"), true
+		}
+	}
+
+	for _, device := range cont.nodeOpflexDevice[name] {
 		return device.GetAttrStr("fabricPathDn"), true
 	}
 	return "", false

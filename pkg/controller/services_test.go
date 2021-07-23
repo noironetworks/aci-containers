@@ -334,6 +334,15 @@ func TestServiceAnnotation(t *testing.T) {
 	node2.ObjectMeta.Annotations[metadata.ServiceEpAnnotation] =
 		"{\"mac\":\"a2:7e:45:57:a0:d4\",\"ipv4\":\"10.6.1.2\"}"
 
+	opflexDevice0 := apicapi.EmptyApicObject("opflexODev", "dev0")
+	opflexDevice0.SetAttr("hostName", "node1")
+	opflexDevice0.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/32]")
+	opflexDevice0.SetAttr("devType", "k8s")
+	opflexDevice0.SetAttr("domName", "kube")
+	opflexDevice0.SetAttr("ctrlrName", "kube")
+	opflexDevice0.SetAttr("state", "disconnected")
+
 	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1.SetAttr("hostName", "node1")
 	opflexDevice1.SetAttr("fabricPathDn",
@@ -341,6 +350,7 @@ func TestServiceAnnotation(t *testing.T) {
 	opflexDevice1.SetAttr("devType", "k8s")
 	opflexDevice1.SetAttr("domName", "kube")
 	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
@@ -349,6 +359,7 @@ func TestServiceAnnotation(t *testing.T) {
 	opflexDevice2.SetAttr("devType", "k8s")
 	opflexDevice2.SetAttr("domName", "kube")
 	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
 
 	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
@@ -357,6 +368,7 @@ func TestServiceAnnotation(t *testing.T) {
 	cont.fakeNodeSource.Add(node2)
 	cont.fakeServiceSource.Add(service2)
 	cont.run()
+	cont.opflexDeviceChanged(opflexDevice0)
 	cont.opflexDeviceChanged(opflexDevice1)
 	cont.opflexDeviceChanged(opflexDevice2)
 	cont.fakeEndpointsSource.Add(endpoints1)
@@ -522,6 +534,7 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice1.SetAttr("devType", "k8s")
 	opflexDevice1.SetAttr("domName", "kube")
 	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
@@ -530,6 +543,7 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice2.SetAttr("devType", "k8s")
 	opflexDevice2.SetAttr("domName", "kube")
 	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
 
 	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice3.SetAttr("hostName", "node3")
@@ -538,6 +552,7 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice3.SetAttr("devType", "k8s")
 	opflexDevice3.SetAttr("domName", "kube")
 	opflexDevice3.SetAttr("ctrlrName", "kube")
+	opflexDevice3.SetAttr("state", "connected")
 
 	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice4.SetAttr("hostName", "node4")
@@ -546,6 +561,7 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice4.SetAttr("devType", "k8s")
 	opflexDevice4.SetAttr("domName", "kube")
 	opflexDevice4.SetAttr("ctrlrName", "kube")
+	opflexDevice4.SetAttr("state", "connected")
 
 	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1_alt.SetAttr("hostName", "node1")
@@ -554,6 +570,7 @@ func TestServiceGraph(t *testing.T) {
 	opflexDevice1_alt.SetAttr("devType", "k8s")
 	opflexDevice1_alt.SetAttr("domName", "kube")
 	opflexDevice1_alt.SetAttr("ctrlrName", "kube")
+	opflexDevice1_alt.SetAttr("state", "connected")
 
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
@@ -921,6 +938,7 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	opflexDevice1.SetAttr("devType", "k8s")
 	opflexDevice1.SetAttr("domName", "kube")
 	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
@@ -929,6 +947,7 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	opflexDevice2.SetAttr("devType", "k8s")
 	opflexDevice2.SetAttr("domName", "kube")
 	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
 
 	cont := sgCont()
 	cont.serviceEndPoints = &serviceEndpointSlice{}
@@ -1133,6 +1152,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	opflexDevice1.SetAttr("devType", "k8s")
 	opflexDevice1.SetAttr("domName", "kube")
 	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
 
 	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice2.SetAttr("hostName", "node2")
@@ -1141,6 +1161,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	opflexDevice2.SetAttr("devType", "k8s")
 	opflexDevice2.SetAttr("domName", "kube")
 	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
 
 	opflexDevice3 := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice3.SetAttr("hostName", "node3")
@@ -1149,6 +1170,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	opflexDevice3.SetAttr("devType", "k8s")
 	opflexDevice3.SetAttr("domName", "kube")
 	opflexDevice3.SetAttr("ctrlrName", "kube")
+	opflexDevice3.SetAttr("state", "connected")
 
 	opflexDevice4 := apicapi.EmptyApicObject("opflexODev", "dev2")
 	opflexDevice4.SetAttr("hostName", "node4")
@@ -1157,6 +1179,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	opflexDevice4.SetAttr("devType", "k8s")
 	opflexDevice4.SetAttr("domName", "kube")
 	opflexDevice4.SetAttr("ctrlrName", "kube")
+	opflexDevice4.SetAttr("state", "connected")
 
 	opflexDevice1_alt := apicapi.EmptyApicObject("opflexODev", "dev1")
 	opflexDevice1_alt.SetAttr("hostName", "node1")
@@ -1165,6 +1188,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	opflexDevice1_alt.SetAttr("devType", "k8s")
 	opflexDevice1_alt.SetAttr("domName", "kube")
 	opflexDevice1_alt.SetAttr("ctrlrName", "kube")
+	opflexDevice1_alt.SetAttr("state", "connected")
 
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
