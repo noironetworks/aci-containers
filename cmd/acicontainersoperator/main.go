@@ -15,6 +15,7 @@
 package main
 
 import (
+	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/controller"
 	log "github.com/sirupsen/logrus"
@@ -30,16 +31,36 @@ func getOperatorClient() operatorclientset.Interface {
 
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
+		log.Error("Failed to obtain rest client config %v", err)
 		return nil
 	}
 
 	OperatorClient, err := operatorclientset.NewForConfig(restconfig)
 	if err != nil {
 		log.Fatalf("Failed to intialize Aci Operator client %v", err)
+		return nil
 	}
 
 	log.Info("Successfully constructed Aci Operator client")
 	return OperatorClient
+}
+
+// Create ACC provision Client
+func getAccProvisionClient() accprovisioninputclientset.Interface {
+
+	restconfig, err := restclient.InClusterConfig()
+	if err != nil {
+		log.Error("Failed to obtain rest client config %v", err)
+		return nil
+	}
+
+	AccProvisionClient, err := accprovisioninputclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Fatalf("Failed to intialize ACC Provision operator client %v", err)
+	}
+
+	log.Info("Successfully constructed ACC Provision operator client")
+	return AccProvisionClient
 }
 
 func getk8sClient() kubernetes.Interface {
@@ -62,17 +83,21 @@ func main() {
 	operator_client := getOperatorClient()
 	if operator_client == nil {
 		log.Fatalf("Failed to intialize Aci Operator client")
-		return
+	}
+
+	log.Debug("Initializing ACC Provision Operator client")
+	accprovision_client := getAccProvisionClient()
+	if accprovision_client == nil {
+		log.Fatalf("Failed to intialize ACC Provision Operator client")
 	}
 
 	log.Debug("Initializing K8s client")
 	k8s_client := getk8sClient()
 	if k8s_client == nil {
 		log.Fatalf("Failed to intialize k8s client")
-		return
 	}
 
-	cont := controller.NewAciContainersOperator(operator_client, k8s_client)
+	cont := controller.NewAciContainersOperator(operator_client, accprovision_client, k8s_client)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)

@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +25,13 @@ import (
 )
 
 // SnatPolicyLister helps list SnatPolicies.
+// All objects returned here must be treated as read-only.
 type SnatPolicyLister interface {
 	// List lists all SnatPolicies in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.SnatPolicy, err error)
 	// Get retrieves the SnatPolicy from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.SnatPolicy, error)
 	SnatPolicyListerExpansion
 }
