@@ -18,22 +18,22 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1alpha1"
+	v1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeAciV1alpha1 struct {
+type FakeAciV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeAciV1alpha1) AccProvisionInputs(namespace string) v1alpha1.AccProvisionInputInterface {
+func (c *FakeAciV1) AccProvisionInputs(namespace string) v1.AccProvisionInputInterface {
 	return &FakeAccProvisionInputs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeAciV1alpha1) RESTClient() rest.Interface {
+func (c *FakeAciV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

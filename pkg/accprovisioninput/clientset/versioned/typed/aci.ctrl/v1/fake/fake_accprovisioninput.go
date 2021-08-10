@@ -20,7 +20,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
+	acictrlv1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,29 +31,29 @@ import (
 
 // FakeAccProvisionInputs implements AccProvisionInputInterface
 type FakeAccProvisionInputs struct {
-	Fake *FakeAciV1alpha1
+	Fake *FakeAciV1
 	ns   string
 }
 
-var accprovisioninputsResource = schema.GroupVersionResource{Group: "aci.ctrl", Version: "v1alpha1", Resource: "accprovisioninputs"}
+var accprovisioninputsResource = schema.GroupVersionResource{Group: "aci.ctrl", Version: "v1", Resource: "accprovisioninputs"}
 
-var accprovisioninputsKind = schema.GroupVersionKind{Group: "aci.ctrl", Version: "v1alpha1", Kind: "AccProvisionInput"}
+var accprovisioninputsKind = schema.GroupVersionKind{Group: "aci.ctrl", Version: "v1", Kind: "AccProvisionInput"}
 
 // Get takes name of the accProvisionInput, and returns the corresponding accProvisionInput object, and an error if there is any.
-func (c *FakeAccProvisionInputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AccProvisionInput, err error) {
+func (c *FakeAccProvisionInputs) Get(ctx context.Context, name string, options v1.GetOptions) (result *acictrlv1.AccProvisionInput, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(accprovisioninputsResource, c.ns, name), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewGetAction(accprovisioninputsResource, c.ns, name), &acictrlv1.AccProvisionInput{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.AccProvisionInput), err
+	return obj.(*acictrlv1.AccProvisionInput), err
 }
 
 // List takes label and field selectors, and returns the list of AccProvisionInputs that match those selectors.
-func (c *FakeAccProvisionInputs) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.AccProvisionInputList, err error) {
+func (c *FakeAccProvisionInputs) List(ctx context.Context, opts v1.ListOptions) (result *acictrlv1.AccProvisionInputList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(accprovisioninputsResource, accprovisioninputsKind, c.ns, opts), &v1alpha1.AccProvisionInputList{})
+		Invokes(testing.NewListAction(accprovisioninputsResource, accprovisioninputsKind, c.ns, opts), &acictrlv1.AccProvisionInputList{})
 
 	if obj == nil {
 		return nil, err
@@ -63,8 +63,8 @@ func (c *FakeAccProvisionInputs) List(ctx context.Context, opts v1.ListOptions) 
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.AccProvisionInputList{ListMeta: obj.(*v1alpha1.AccProvisionInputList).ListMeta}
-	for _, item := range obj.(*v1alpha1.AccProvisionInputList).Items {
+	list := &acictrlv1.AccProvisionInputList{ListMeta: obj.(*acictrlv1.AccProvisionInputList).ListMeta}
+	for _, item := range obj.(*acictrlv1.AccProvisionInputList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -80,43 +80,43 @@ func (c *FakeAccProvisionInputs) Watch(ctx context.Context, opts v1.ListOptions)
 }
 
 // Create takes the representation of a accProvisionInput and creates it.  Returns the server's representation of the accProvisionInput, and an error, if there is any.
-func (c *FakeAccProvisionInputs) Create(ctx context.Context, accProvisionInput *v1alpha1.AccProvisionInput, opts v1.CreateOptions) (result *v1alpha1.AccProvisionInput, err error) {
+func (c *FakeAccProvisionInputs) Create(ctx context.Context, accProvisionInput *acictrlv1.AccProvisionInput, opts v1.CreateOptions) (result *acictrlv1.AccProvisionInput, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(accprovisioninputsResource, c.ns, accProvisionInput), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewCreateAction(accprovisioninputsResource, c.ns, accProvisionInput), &acictrlv1.AccProvisionInput{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.AccProvisionInput), err
+	return obj.(*acictrlv1.AccProvisionInput), err
 }
 
 // Update takes the representation of a accProvisionInput and updates it. Returns the server's representation of the accProvisionInput, and an error, if there is any.
-func (c *FakeAccProvisionInputs) Update(ctx context.Context, accProvisionInput *v1alpha1.AccProvisionInput, opts v1.UpdateOptions) (result *v1alpha1.AccProvisionInput, err error) {
+func (c *FakeAccProvisionInputs) Update(ctx context.Context, accProvisionInput *acictrlv1.AccProvisionInput, opts v1.UpdateOptions) (result *acictrlv1.AccProvisionInput, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(accprovisioninputsResource, c.ns, accProvisionInput), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewUpdateAction(accprovisioninputsResource, c.ns, accProvisionInput), &acictrlv1.AccProvisionInput{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.AccProvisionInput), err
+	return obj.(*acictrlv1.AccProvisionInput), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeAccProvisionInputs) UpdateStatus(ctx context.Context, accProvisionInput *v1alpha1.AccProvisionInput, opts v1.UpdateOptions) (*v1alpha1.AccProvisionInput, error) {
+func (c *FakeAccProvisionInputs) UpdateStatus(ctx context.Context, accProvisionInput *acictrlv1.AccProvisionInput, opts v1.UpdateOptions) (*acictrlv1.AccProvisionInput, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(accprovisioninputsResource, "status", c.ns, accProvisionInput), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewUpdateSubresourceAction(accprovisioninputsResource, "status", c.ns, accProvisionInput), &acictrlv1.AccProvisionInput{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.AccProvisionInput), err
+	return obj.(*acictrlv1.AccProvisionInput), err
 }
 
 // Delete takes name of the accProvisionInput and deletes it. Returns an error if one occurs.
 func (c *FakeAccProvisionInputs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(accprovisioninputsResource, c.ns, name), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewDeleteAction(accprovisioninputsResource, c.ns, name), &acictrlv1.AccProvisionInput{})
 
 	return err
 }
@@ -125,17 +125,17 @@ func (c *FakeAccProvisionInputs) Delete(ctx context.Context, name string, opts v
 func (c *FakeAccProvisionInputs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(accprovisioninputsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.AccProvisionInputList{})
+	_, err := c.Fake.Invokes(action, &acictrlv1.AccProvisionInputList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched accProvisionInput.
-func (c *FakeAccProvisionInputs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AccProvisionInput, err error) {
+func (c *FakeAccProvisionInputs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acictrlv1.AccProvisionInput, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(accprovisioninputsResource, c.ns, name, pt, data, subresources...), &v1alpha1.AccProvisionInput{})
+		Invokes(testing.NewPatchSubresourceAction(accprovisioninputsResource, c.ns, name, pt, data, subresources...), &acictrlv1.AccProvisionInput{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.AccProvisionInput), err
+	return obj.(*acictrlv1.AccProvisionInput), err
 }

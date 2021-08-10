@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
+	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1"
 	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
@@ -446,7 +446,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 
 func (c *Controller) GetAccProvisionInputCR() (*accprovisioninput.AccProvisionInput, error) {
 	var options metav1.GetOptions
-	accprovisioninput, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "accprovisioninput", options)
+	accprovisioninput, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "accprovisioninput", options)
 	if er != nil {
 		return accprovisioninput, er
 	}
@@ -484,7 +484,7 @@ func (c *Controller) CreateAccProvisionInputCR() error {
 	log.Debug("accprovisioninput CR recieved is ", (obj.Spec))
 
 	if err := wait.PollInfinite(time.Second*2, func() (bool, error) {
-		_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
+		_, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if er != nil {
 			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
 				log.Info(er)
@@ -564,7 +564,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 				if accprovisioninput.Spec.Config != obj.Spec.Config {
 					accprovisioninput.Spec.Config = obj.Spec.Config
 					log.Info("New Configuration detected...applying changes")
-					_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
+					_, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
 					if er != nil {
 						log.Error(er)
 					}
