@@ -197,6 +197,9 @@ type HostAgentConfig struct {
 	// EP Registry specifies where to send ep updates
 	EPRegistry string `json:"ep-registry,omitempty"`
 
+	// EnableNodePodIF enabled
+	EnableNodePodIF bool `json:"enable-nodepodif,omitempty"`
+
 	// OpflexMode selects overlay vs physical fabric. Default is physical
 	OpflexMode string `json:"opflex-mode,omitempty"`
 
@@ -294,4 +297,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
 	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
+	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")
 }

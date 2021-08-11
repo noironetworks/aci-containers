@@ -143,7 +143,7 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 	var raw []byte
 	ep := &opflexEndpoint{}
 
-	tu.WaitFor(t, pt.name, 100*time.Millisecond,
+	tu.WaitFor(t, pt.name, 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			var err error
 			epfile := filepath.Join(tempdir,
@@ -221,7 +221,7 @@ func TestPodSync(t *testing.T) {
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		agent.fakePodSource.Delete(pod)
 
-		tu.WaitFor(t, pt.name, 100*time.Millisecond,
+		tu.WaitFor(t, pt.name, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				epfile := filepath.Join(tempdir,
 					pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep")

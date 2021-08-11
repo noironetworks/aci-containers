@@ -197,7 +197,7 @@ func TestErspanPolicy(t *testing.T) {
 		assert.Equal(t, actualPost, expectedPost)
 
 		cont.log.Info("Testing erspan delete", spanTest.desc)
-		cont.fakeNetflowPolicySource.Delete(spanTest.erspanPol)
+		cont.fakeErspanPolicySource.Delete(spanTest.erspanPol)
 		checkDeleteErspan(t, spanTests[0], cont)
 		cont.stop()
 	}
