@@ -332,10 +332,12 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 			poduids = append(poduids, uids...)
 			key, err := cache.MetaNamespaceKeyFunc(service)
 			if err == nil {
+				agent.snatMutex.Lock()
 				_, ok := agent.snatPolicyLabels[key]
 				if ok && len(policy.Spec.Selector.Labels) > 0 {
 					agent.snatPolicyLabels[key][policy.ObjectMeta.Name] = SERVICE
 				}
+				agent.snatMutex.Unlock()
 			}
 		}
 		uids[SERVICE] = poduids
@@ -374,9 +376,11 @@ func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname strin
 	uids, res := agent.getPodsMatchingObjet(obj, policyname)
 	if len(uids) > 0 {
 		key, _ := cache.MetaNamespaceKeyFunc(obj)
+		agent.snatMutex.Lock()
 		if _, ok := agent.snatPolicyLabels[key]; ok {
 			agent.snatPolicyLabels[key][policyname] = res
 		}
+		agent.snatMutex.Unlock()
 	}
 	return uids
 }
@@ -490,7 +494,9 @@ func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy) {
 	agent.scheduleSyncNodeInfo()
 	for key, v := range agent.snatPolicyLabels {
 		if _, ok := v[policy.GetName()]; ok {
+			agent.snatMutex.Lock()
 			delete(agent.snatPolicyLabels[key], policy.GetName())
+			agent.snatMutex.Unlock()
 		}
 	}
 	return
@@ -1051,10 +1057,12 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	if err != nil {
 		return
 	}
+	agent.snatMutex.Lock()
 	plcynames, ok := agent.snatPolicyLabels[objKey]
 	if !ok {
 		agent.snatPolicyLabels[objKey] = make(map[string]ResourceType)
 	}
+	agent.snatMutex.Unlock()
 	sync := false
 	if len(plcynames) == 0 {
 		polcies := agent.getMatchingSnatPolicy(obj)
@@ -1065,7 +1073,9 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 					agent.applyPolicy(poduids, res, name)
 				} else {
 					agent.applyPolicy(poduids, res, name)
+					agent.snatMutex.Lock()
 					agent.snatPolicyLabels[objKey][name] = res
+					agent.snatMutex.Unlock()
 				}
 				if len(poduids) > 0 {
 					sync = true
@@ -1085,7 +1095,9 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 					agent.deleteSnatLocalInfo(uid, res, name)
 				}
 				delpodlist = append(delpodlist, poduids...)
+				agent.snatMutex.Lock()
 				delete(agent.snatPolicyLabels[objKey], name)
+				agent.snatMutex.Unlock()
 			}
 			seen[name] = true
 		}
@@ -1100,7 +1112,9 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 			for _, res := range resources {
 				poduids, _ := agent.getPodsMatchingObjet(obj, name)
 				agent.applyPolicy(poduids, res, name)
+				agent.snatMutex.Lock()
 				agent.snatPolicyLabels[objKey][name] = res
+				agent.snatMutex.Unlock()
 				sync = true
 			}
 		}
@@ -1135,7 +1149,9 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 		podidlist = append(podidlist, poduids...)
 		sync = true
 	}
+	agent.snatMutex.Lock()
 	delete(agent.snatPolicyLabels, objKey)
+	agent.snatMutex.Unlock()
 	// Delete any Policy entries present for POD
 	if getResourceType(obj) == POD {
 		uid := string(obj.(*v1.Pod).ObjectMeta.UID)
