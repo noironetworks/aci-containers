@@ -47,6 +47,7 @@ type HostAgent struct {
 
 	indexMutex sync.Mutex
 	ipamMutex  sync.Mutex
+	snatMutex  sync.RWMutex
 
 	opflexEps             map[string][]*opflexEndpoint
 	opflexServices        map[string]*opflexService
@@ -229,6 +230,47 @@ func addPodRoute(ipn types.IPNet, dev string, src string) error {
 	}
 	route := netlink.Route{LinkIndex: link.Attrs().Index, Dst: dst, Src: ipsrc}
 	return netlink.RouteAdd(&route)
+}
+
+func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]ResourceType, bool) {
+	agent.snatMutex.RLock()
+	defer agent.snatMutex.RUnlock()
+	value, ok := agent.snatPolicyLabels[key]
+	return value, ok
+}
+
+func (agent *HostAgent) WriteSnatPolicyLabel(key string, policy string, res ResourceType) {
+	agent.snatMutex.Lock()
+	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabels[key][policy] = res
+}
+
+func (agent *HostAgent) WriteNewSnatPolicyLabel(key string) {
+	agent.snatMutex.Lock()
+	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabels[key] = make(map[string]ResourceType)
+}
+
+func (agent *HostAgent) DeleteSnatPolicyLabelEntry(key string, policy string) {
+	agent.snatMutex.Lock()
+	defer agent.snatMutex.Unlock()
+	delete(agent.snatPolicyLabels[key], policy)
+}
+
+func (agent *HostAgent) DeleteSnatPolicyLabel(key string) {
+	agent.snatMutex.Lock()
+	defer agent.snatMutex.Unlock()
+	delete(agent.snatPolicyLabels, key)
+}
+
+func (agent *HostAgent) DeleteMatchingSnatPolicyLabel(policy string) {
+	agent.snatMutex.Lock()
+	defer agent.snatMutex.Unlock()
+	for key, v := range agent.snatPolicyLabels {
+		if _, ok := v[policy]; ok {
+			delete(agent.snatPolicyLabels[key], policy)
+		}
+	}
 }
 
 func (agent *HostAgent) Init() {
