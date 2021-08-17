@@ -126,6 +126,10 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 	allocIP := func(isv4 bool, nc *cniNetConfig) {
 		var ip net.IP
 		ip, err = agent.podIps.AllocateIp(isv4)
+		fmt.Printf("Vishal check Allocateip")
+		//fmt.Printf(ip,err)
+		fmt.Printf("cross check nc")
+		//fmt.Printf(nc)
 		if err != nil {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %v", err)
@@ -141,6 +145,9 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 	}
 
 	for _, nc := range agent.config.NetConfig {
+		//fmt.Printf(nc)
+		fmt.Printf("Vishal inside for loop")
+		//fmt.Printf(type(nc))
 		if nc.Subnet.IP != nil {
 			if nc.Subnet.IP.To4() != nil {
 				allocIP(true, &nc)
