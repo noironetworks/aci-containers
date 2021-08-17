@@ -78,6 +78,7 @@ func (agent *HostAgent) updatePodsForNamespace(ns string) {
 func (agent *HostAgent) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
 	agent.log.Infof("Namespace %+v added", ns)
+	agent.dummy["hey"] = "test"
 	agent.netPolPods.UpdateNamespace(ns)
 	agent.updatePodsForNamespace(ns.ObjectMeta.Name)
 	agent.handleObjectUpdateForSnat(obj)

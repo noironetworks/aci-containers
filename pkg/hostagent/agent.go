@@ -105,6 +105,7 @@ type HostAgent struct {
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
 	nodePodIfEPs     map[string]*opflexEndpoint
+	dummy            map[string]string
 }
 
 type ServiceEndPointType interface {
@@ -151,6 +152,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		cniToPodID:     make(map[string]string),
 		podUidToName:   make(map[string]string),
 		nodePodIfEPs:   make(map[string]*opflexEndpoint),
+		dummy:          make(map[string]string),
 
 		podIps: ipam.NewIpCache(),
 
