@@ -35,7 +35,7 @@ DIST_FILE=aci-containers.tgz
 
 DOCKER_HUB_ID ?= noiro
 DOCKER_TAG ?=
-BUILD_CMD ?= go build -v -trimpath
+BUILD_CMD ?= go build -v -trimpath -race
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
@@ -46,7 +46,7 @@ PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
 PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
 PKG_NAME_ACI_CONTAINERS_OPERATOR=github.com/noironetworks/aci-containers/pkg/acicontainersoperator
-STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
+STATIC_BUILD_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
         -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
