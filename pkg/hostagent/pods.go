@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -539,18 +538,6 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.qosPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.handleObjectUpdateForSnat(obj)
 	agent.podChangedLocked(obj)
-	agent.dummy["hey"] = "test"
-	agent.log.Info(agent.dummy)
-	agent.log.Info("..................................")
-	var wg sync.WaitGroup
-	wg.Add(5)
-	for i := 0; i < 5; i++ {
-		go func() {
-			fmt.Println(i) // Not the 'i' you are looking
-			wg.Done()
-		}()
-	}
-	wg.Wait()
 }
 
 func (agent *HostAgent) podChanged(podkey *string) {
