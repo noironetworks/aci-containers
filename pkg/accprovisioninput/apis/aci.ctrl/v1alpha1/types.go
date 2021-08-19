@@ -40,9 +40,8 @@ type AccProvisionSpec struct {
 }
 
 type AciConfigSpec struct {
-	ClusterTenant string         `json:"cluster_tenant,omitempty"`
-	SyncLogin     *SyncLoginSpec `json:"sync_login,omitempty"`
-	ClientSSL     bool           `json:"client_ssl,omitempty"`
+	SyncLogin *SyncLoginSpec `json:"sync_login,omitempty"`
+	ClientSSL bool           `json:"client_ssl,omitempty"`
 }
 
 type SyncLoginSpec struct {
