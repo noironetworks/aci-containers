@@ -18,6 +18,7 @@ package hostagent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
@@ -107,13 +108,36 @@ func convertRoutes(routes []route) (cniroutes []*cnitypes.Route) {
 	return
 }
 
-func makeIFaceIp(nc *cniNetConfig, ip net.IP) metadata.ContainerIfaceIP {
+func (agent *HostAgent) getIPMetadata(ip net.IP) (net.IP, net.IPMask) {
+	nc := agent.config.NetConfig
+	for _, n := range nc {
+		subnet := net.IPNet{
+			IP:   n.Subnet.IP,
+			Mask: n.Subnet.Mask,
+		}
+		if subnet.Contains(ip) {
+			return n.Gateway, n.Subnet.Mask
+		}
+	}
+	return nil, nil
+}
+
+func makeIFaceIp(nc *cniNetConfig, ip net.IP, g net.IP, m net.IPMask) metadata.ContainerIfaceIP {
+	if g == nil || m == nil {
+		return metadata.ContainerIfaceIP{
+			Address: net.IPNet{
+				IP:   ip,
+				Mask: nc.Subnet.Mask,
+			},
+			Gateway: nc.Gateway,
+		}
+	}
 	return metadata.ContainerIfaceIP{
 		Address: net.IPNet{
 			IP:   ip,
-			Mask: nc.Subnet.Mask,
+			Mask: m,
 		},
-		Gateway: nc.Gateway,
+		Gateway: g,
 	}
 }
 
@@ -125,7 +149,17 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 
 	allocIP := func(isv4 bool, nc *cniNetConfig) {
 		var ip net.IP
+		var gateway net.IP
+		var mask net.IPMask
 		ip, err = agent.podIps.AllocateIp(isv4)
+		if isv4 == true {
+			gateway, mask := agent.getIPMetadata(ip)
+			if gateway == nil || mask == nil {
+				err := errors.New("Unable to find Gateway")
+				result =
+					fmt.Errorf("Could not allocate IPv4 address: %v", err)
+			}
+		}
 		if err != nil {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %v", err)
@@ -135,7 +169,7 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 				agent.log.Errorf("Duplicate IP %v allocated prev: %s", ip.String(), oldKey)
 			}
 			iface.IPs =
-				append(iface.IPs, makeIFaceIp(nc, ip))
+				append(iface.IPs, makeIFaceIp(nc, ip, gateway, mask))
 			agent.usedIPs[ip.String()] = podKey
 		}
 	}
