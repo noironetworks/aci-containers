@@ -772,6 +772,7 @@ var metadata = map[string]*apicMeta{
 			"hostName":        "",
 			"computeNodeName": "",
 		},
+		children: []string{},
 	},
 	"vmmInjectedDepl": {
 		attributes: map[string]interface{}{
@@ -779,6 +780,7 @@ var metadata = map[string]*apicMeta{
 			"name":     "",
 			"replicas": "",
 		},
+		children: []string{},
 	},
 	"vmmInjectedReplSet": {
 		attributes: map[string]interface{}{
@@ -786,6 +788,7 @@ var metadata = map[string]*apicMeta{
 			"name":           "",
 			"deploymentName": "",
 		},
+		children: []string{},
 	},
 	"vmmInjectedSvc": {
 		attributes: map[string]interface{}{
@@ -995,6 +998,12 @@ var metadata = map[string]*apicMeta{
 			"faultDesc":     "",
 			"faultSeverity": "",
 			"faultCode":     "",
+		},
+	},
+	"vmmInjectedLabel": {
+		attributes: map[string]interface{}{
+			"name":  "",
+			"value": "",
 		},
 	},
 }

@@ -620,6 +620,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
 		cont.env.VmmPolicy(), cont.config.AciVmmDomain,
 		cont.config.AciVmmController)
+	// Before subscribing to vmm objects, add vmmInjectedLabel as a child after explicit APIC version check
+	// Since it is not supported for APIC versions < "5.0"
+	cont.addVmmInjectedLabel()
 	cont.apicConn.AddSubscriptionDn(vmmDn,
 		[]string{"vmmInjectedHost", "vmmInjectedNs",
 			"vmmInjectedContGrp", "vmmInjectedDepl",
@@ -779,4 +782,31 @@ func (cont *AciController) scheduleRdConfig() {
 }
 func (cont *AciController) scheduleCreateIstioCR() {
 	cont.syncQueue.AddRateLimited("istioCR")
+}
+
+func (cont *AciController) addVmmInjectedLabel() {
+	if apicapi.ApicVersion >= "5.2" {
+		err := apicapi.AddMetaDataChild("vmmInjectedNs", "vmmInjectedLabel")
+		if err != nil {
+			panic(err.Error())
+		}
+		err = apicapi.AddMetaDataChild("vmmInjectedSvc", "vmmInjectedLabel")
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	if apicapi.ApicVersion >= "5.0" {
+		err := apicapi.AddMetaDataChild("vmmInjectedReplSet", "vmmInjectedLabel")
+		if err != nil {
+			panic(err.Error())
+		}
+		err = apicapi.AddMetaDataChild("vmmInjectedContGrp", "vmmInjectedLabel")
+		if err != nil {
+			panic(err.Error())
+		}
+		err = apicapi.AddMetaDataChild("vmmInjectedDepl", "vmmInjectedLabel")
+		if err != nil {
+			panic(err.Error())
+		}
+	}
 }
