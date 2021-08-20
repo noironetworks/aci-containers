@@ -254,8 +254,8 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					continue
 				}
 				snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, "")
-				cont.log.Info("Handling nodeinfo for node and snatpolicy: ", nodename, name)
-				cont.log.Info("Allocated SNAT IP and Port Range: ", snatIp, portrange)
+				//cont.log.Info("Handling nodeinfo for node and snatpolicy: ", nodename, name)
+				cont.log.Info("Allocated SNAT IP and Port Range for nodename and policy: ", nodename, name, snatIp, portrange)
 				if alloc == false {
 					cont.log.Error("Port Range Exhausted: ", name)
 					allocfailed[name] = true
