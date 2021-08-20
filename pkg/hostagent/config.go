@@ -298,4 +298,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")
+	flag.StringVar(&config.EPRegistry, "ep-registry", "", "Enable PodIF")
 }
