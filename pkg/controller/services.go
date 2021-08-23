@@ -277,11 +277,13 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	for _, device := range cont.nodeOpflexDevice[name] {
 		if device.GetAttrStr("state") == "connected" {
+			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node")
 			return device.GetAttrStr("fabricPathDn"), true
 		}
 	}
 
 	for _, device := range cont.nodeOpflexDevice[name] {
+		cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node")
 		return device.GetAttrStr("fabricPathDn"), true
 	}
 	return "", false
@@ -926,6 +928,20 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 		cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Processing opflex device update")
 		if obj.GetAttrStr("state") == "disconnected" {
 			cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Opflex device disconnected")
+			cont.indexMutex.Lock()
+			for node, devices := range cont.nodeOpflexDevice {
+				if node == obj.GetAttrStr("hostName") {
+					for _, device := range devices {
+						if device.GetDn() == obj.GetDn() {
+							device.SetAttr("state", "disconnected")
+							cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Debug("Opflex device cache updated for disconnected node")
+						}
+					}
+					cont.log.Info("Opflex device list for node ", obj.GetAttrStr("hostName"), ": ", devices)
+					break
+				}
+			}
+			cont.indexMutex.Unlock()
 			return
 		}
 		var nodeUpdates []string
@@ -981,6 +997,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			cont.nodeOpflexDevice[node] = apicapi.ApicSlice{obj}
 			nodeUpdates = append(nodeUpdates, node)
 		}
+		cont.log.Info("Opflex device list for node ", obj.GetAttrStr("hostName"), ": ", cont.nodeOpflexDevice[obj.GetAttrStr("hostName")])
 		cont.indexMutex.Unlock()
 
 		for _, node := range nodeUpdates {
