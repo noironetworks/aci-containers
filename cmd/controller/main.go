@@ -119,7 +119,7 @@ func main() {
 		}
 		defer nslb.Stop()
 	}
-	cont := controller.NewController(config, env, log)
+	cont := controller.NewController(config, env, log, false)
 	cont.Init()
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
