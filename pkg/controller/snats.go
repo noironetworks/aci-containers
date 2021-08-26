@@ -17,6 +17,7 @@ package controller
 
 import (
 	"fmt"
+	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
@@ -267,6 +268,52 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 		}
 	}
 	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) createGlobalInfoCache(unittestmode bool) bool {
+	cont.log.Info("Checking if snatglobalinfo CR already exists")
+
+	var nodeInfos []*nodeinfo.NodeInfo
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	cache.ListAll(cont.snatNodeInfoIndexer, labels.Everything(),
+		func(nodeInfoObj interface{}) {
+			nodeInfo := nodeInfoObj.(*nodeinfo.NodeInfo)
+			nodeInfos = append(nodeInfos, nodeInfo)
+		})
+	env := cont.env.(*K8sEnvironment)
+	globalcl := env.snatGlobalClient
+	if globalcl == nil {
+		if unittestmode {
+			return false
+		}
+		cont.log.Fatalf("snatglobalinfo client not found")
+	}
+	snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
+
+	if err != nil {
+		cont.log.Info("No existing snatglobalinfo CR found in controller bootstrap")
+	} else {
+		cont.log.Info("Syncing snatglobalinfo cache with existing CR")
+		macAddressToNodeName := make(map[string]string)
+		for _, value := range nodeInfos {
+			nodeName := value.ObjectMeta.Name
+			macAddress := value.Spec.Macaddress
+			macAddressToNodeName[macAddress] = nodeName
+		}
+
+		for _, glinfos := range snatglobalInfo.Spec.GlobalInfos {
+			for _, v := range glinfos {
+				nodeName := macAddressToNodeName[v.MacAddress]
+				snatIP := v.SnatIp
+				if _, ok := cont.snatGlobalInfoCache[snatIP]; !ok {
+					cont.snatGlobalInfoCache[snatIP] = make(map[string]*snatglobalinfo.GlobalInfo)
+				}
+				cont.snatGlobalInfoCache[snatIP][nodeName] = &v
+			}
+		}
+	}
+	return true
 }
 
 func (cont *AciController) snatFullSync() {
