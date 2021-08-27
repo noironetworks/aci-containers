@@ -294,22 +294,27 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		for _, ip := range iface.IPs {
 			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
 			//We are guaranteed to derive the MAC address from IPv4 if it is assigned
-			if ip.Address.IP != nil && ip.Address.IP.To4() != nil {
-				iface.HostVethName, iface.Mac, err =
-					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
-				if err != nil {
-					return nil, err
-				} else {
-					break
+			if metadata.Id.Namespace != "trial" {
+				if ip.Address.IP != nil && ip.Address.IP.To4() != nil {
+					iface.HostVethName, iface.Mac, err =
+						runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
+					if err != nil {
+						return nil, err
+					} else {
+						break
+					}
 				}
 			}
 		}
 		// if no mac is assigned, set it to the default Mac.
-		if len(iface.Mac) == 0 {
-			iface.HostVethName, iface.Mac, err =
-				runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
-			if err != nil {
-				return nil, err
+		logger.Debug("No Mac assigned, assigning default")
+		if metadata.Id.Namespace != "trial" {
+			if len(iface.Mac) == 0 {
+				iface.HostVethName, iface.Mac, err =
+					runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 

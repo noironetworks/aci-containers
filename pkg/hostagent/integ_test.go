@@ -111,6 +111,25 @@ var updIpams = []buildIpam{
 	},
 }
 
+var hackIpams = []buildIpam{
+	{
+		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.34\"}],\"V6\":null}",
+		[]ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.3.1")},
+		},
+		[]ipam.IpRange{},
+		"v4 with duplicates",
+	},
+	{
+		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.15\"}],\"V6\":null}",
+		[]ipam.IpRange{
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.3.1")},
+		},
+		[]ipam.IpRange{},
+		"v4 with duplicates",
+	},
+}
+
 // hostagent integration set up
 type integ struct {
 	t      *testing.T
@@ -284,7 +303,7 @@ func (it *integ) cniAdd(podName, cid, ifname string) error {
 	md := metadata.ContainerMetadata{
 		Id: metadata.ContainerId{
 			ContId:    cid,
-			Namespace: it.testNS,
+			Namespace: "trial",
 			Pod:       podName,
 		},
 		Ifaces: []*metadata.ContainerIfaceMd{
@@ -340,6 +359,91 @@ func mkPod(uuid string, namespace string, name string,
 			Labels: labels,
 		},
 	}
+}
+
+func TestLeaksbtwnControllerAndHost(t *testing.T) {
+	poolSizes := make([]int64, len(hackIpams))
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "node1",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+	}
+
+	it := SetupInteg(t, hcf)
+	defer it.tearDown()
+
+	ipCounter := func() int64 {
+		var total int64
+		it.ta.ipamMutex.Lock()
+		defer it.ta.ipamMutex.Unlock()
+
+		ipaList := it.ta.podIps.GetV4IpCache()
+		fmt.Printf("ipalist: %v", ipaList)
+		for _, ipa := range ipaList {
+			total += ipa.GetSize()
+		}
+		return total
+	}
+
+	for ix, am := range hackIpams {
+		it.setupNode(am, true)
+		poolSizes[ix] = ipCounter()
+		log.Infof("IP pool size is %v", poolSizes[ix])
+	}
+
+	// schedule annotation update in the background
+	stopCh := make(chan bool)
+	go func() {
+		var ix int
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-time.After(2 * time.Millisecond):
+				it.setupNode(hackIpams[ix], false)
+			}
+
+			ix++
+			if ix > 1 {
+				ix = 0
+			}
+		}
+	}()
+
+	for jx := 0; jx < 2000; jx++ {
+		count := 16
+		it.cniAddParallel(0, count)
+
+		used, err := metadata.CheckMetadata(it.hcf.CniMetadataDir, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// check for leaks
+		avail := ipCounter()
+		ipCount := used + avail
+		if ipCount != poolSizes[0] && ipCount != poolSizes[1] {
+			t.Fatalf("ADD Iter: %d IP addr leak -- total: %v used: %v avail: %v", jx, poolSizes, used, avail)
+		}
+
+		it.cniDelParallel(0, count)
+		// check for leaks
+		used, err = metadata.CheckMetadata(it.hcf.CniMetadataDir, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		avail = ipCounter()
+		ipCount = used + avail
+		if ipCount != poolSizes[0] && ipCount != poolSizes[1] {
+			t.Fatalf("DEL Iter: %d IP addr leak -- total: %v used: %v avail: %v", jx, poolSizes, used, avail)
+		}
+
+	}
+
+	close(stopCh)
+	time.Sleep(200 * time.Millisecond)
+
 }
 
 func TestIPAM(t *testing.T) {

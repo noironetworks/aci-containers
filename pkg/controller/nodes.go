@@ -209,15 +209,20 @@ func (cont *AciController) syncPodNet(obj interface{}) {
 	})
 
 	if node.ObjectMeta.Annotations == nil {
+		//we know this is not nil
 		return // nothing to sync
 	}
 
 	netval, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if !ok {
+		//this too is not nil
 		return // nothing to sync
 	}
 
+	cont.log.Debug("netVAL: %v\n", netval)
+
 	nodePodNet := newNodePodNetMeta()
+	cont.log.Debug("nodePodNet: %v\n", nodePodNet)
 	cont.mergePodNet(nodePodNet, netval, logger)
 	cont.nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
 }
@@ -526,6 +531,7 @@ func (cont *AciController) recomputePodNetAnnotation(podnet *nodePodNetMeta) {
 // must have index lock
 func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotation string, logger *logrus.Entry) {
 	existing := &metadata.NetIps{}
+	logger.Infof("Existing net ips: %v", existing)
 	err := json.Unmarshal([]byte(existingAnnotation), existing)
 	if err != nil {
 		cont.log.Error("Could not parse existing pod network ",
@@ -554,6 +560,9 @@ func (cont *AciController) mergePodNet(podnet *nodePodNetMeta, existingAnnotatio
 
 		// verify allocation was successful
 		newSize := cont.podNetworkIps.V4.GetSize()
+
+		logger.Infof("existing ann size: %v,\n prev size: %v,\nnew Size: %v\n", annSize, prevSize, newSize)
+
 		if (newSize + annSize) != prevSize {
 			logger.Warn("Existing annotation failed allocation: ",
 				existingAnnotation)
