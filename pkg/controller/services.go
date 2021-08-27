@@ -314,7 +314,7 @@ func apicRedirectDst(rpDn string, ip string, mac string,
 	return dst
 }
 
-func apicRedirectPol(name string, tenantName string, nodes []string,
+func (cont *AciController) apicRedirectPol(name string, tenantName string, nodes []string,
 	nodeMap map[string]*metadata.ServiceEndpoint,
 	monPolDn string, enablePbrTracking bool) (apicapi.ApicObject, string) {
 
@@ -322,6 +322,7 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 	rp.SetAttr("thresholdDownAction", "deny")
 	rpDn := rp.GetDn()
 	for _, node := range nodes {
+		cont.indexMutex.Lock()
 		serviceEp, ok := nodeMap[node]
 		if !ok {
 			continue
@@ -334,6 +335,7 @@ func apicRedirectPol(name string, tenantName string, nodes []string,
 			rp.AddChild(apicRedirectDst(rpDn, serviceEp.Ipv6.String(),
 				serviceEp.Mac, node, serviceEp.HealthGroupDn, enablePbrTracking))
 		}
+		cont.indexMutex.Unlock()
 	}
 	if monPolDn != "" && enablePbrTracking {
 		rp.AddChild(apicapi.NewVnsRsIPSLAMonitoringPol(rpDn, monPolDn))
@@ -600,7 +602,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// each node that hosts a pod for this service.  The
 		// example below shows the case of two nodes.
 		rp, rpDn :=
-			apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+			cont.apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
 				nodeMap, cont.staticMonPolDn(), cont.config.AciPbrTrackingNonSnat)
 		serviceObjs = append(serviceObjs, rp)
 
@@ -650,12 +652,11 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	nodeList := cont.nodeIndexer.List()
-	nodeMap := make(map[string]*metadata.ServiceEndpoint)
-
 	if len(cont.nodeServiceMetaCache) == 0 {
 		return nil
 	}
 	cont.indexMutex.Lock()
+	nodeMap := make(map[string]*metadata.ServiceEndpoint)
 	for itr, nodeItem := range nodeList {
 		if itr == cont.config.MaxSvcGraphNodes {
 			break
@@ -697,17 +698,17 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		var rp apicapi.ApicObject
 		if cont.apicConn.SnatPbrFltrChain {
 			rpCons, rpDnCons :=
-				apicRedirectPol(name+"_Cons", cont.config.AciVrfTenant, nodes,
+				cont.apicRedirectPol(name+"_Cons", cont.config.AciVrfTenant, nodes,
 					nodeMap, cont.staticMonPolDn(), true)
 			serviceObjs = append(serviceObjs, rpCons)
 			rpProv, _ :=
-				apicRedirectPol(name+"_Prov", cont.config.AciVrfTenant, nodes,
+				cont.apicRedirectPol(name+"_Prov", cont.config.AciVrfTenant, nodes,
 					nodeMap, cont.staticMonPolDn(), true)
 			serviceObjs = append(serviceObjs, rpProv)
 			rpDn = strings.TrimSuffix(rpDnCons, "_Cons")
 		} else {
 			rp, rpDn =
-				apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
+				cont.apicRedirectPol(name, cont.config.AciVrfTenant, nodes,
 					nodeMap, cont.staticMonPolDn(), true)
 			serviceObjs = append(serviceObjs, rp)
 		}

@@ -51,6 +51,7 @@ func testsnatpolicy(name string, namespace string, deploy string,
 }
 
 func TestSnatGraph(t *testing.T) {
+	cont := sgCont()
 	name := "kube_snat_" + snatGraphName
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
@@ -78,7 +79,7 @@ func TestSnatGraph(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name+relation, "common", nodes,
+		dc, _ := cont.apicRedirectPol(name+relation, "common", nodes,
 			nmap, monPolDn, true)
 		return dc
 	}
@@ -161,7 +162,6 @@ func TestSnatGraph(t *testing.T) {
 	opflexDevice2.SetAttr("ctrlrName", "kube")
 	opflexDevice2.SetAttr("state", "connected")
 
-	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
 	cont.config.AciVmmController = "kube"
 	cont.config.MaxSvcGraphNodes = 2

@@ -236,6 +236,7 @@ func sgWait(t *testing.T, desc string, cont *testAciController, expected map[str
 }
 
 func TestServiceAnnotation(t *testing.T) {
+	cont := sgCont()
 	name := "kube_svc_testns_service1"
 	nameS2 := "kube_svc_testns_service2"
 	graphName := "kube_svc_global"
@@ -263,7 +264,7 @@ func TestServiceAnnotation(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name, "common", nodes,
+		dc, _ := cont.apicRedirectPol(name, "common", nodes,
 			nmap, monPolDn, false)
 		return dc
 	}
@@ -361,7 +362,6 @@ func TestServiceAnnotation(t *testing.T) {
 	opflexDevice2.SetAttr("ctrlrName", "kube")
 	opflexDevice2.SetAttr("state", "connected")
 
-	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
 	cont.config.AciVmmController = "kube"
 	cont.fakeNodeSource.Add(node1)
@@ -419,7 +419,7 @@ func TestServiceAnnotation(t *testing.T) {
 }
 
 func TestServiceGraph(t *testing.T) {
-
+	cont := sgCont()
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
@@ -452,7 +452,7 @@ func TestServiceGraph(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name, "common", nodes,
+		dc, _ := cont.apicRedirectPol(name, "common", nodes,
 			nmap, monPolDn, false)
 		return dc
 	}
@@ -597,7 +597,6 @@ func TestServiceGraph(t *testing.T) {
 		nameS2: nil,
 	}
 
-	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
 	cont.config.AciVmmController = "kube"
 	cont.fakeNodeSource.Add(node1)
@@ -816,6 +815,7 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 
 // Service annotation test with EndPointSlice
 func TestServiceAnnotationWithEps(t *testing.T) {
+	cont := sgCont()
 	name := "kube_svc_testns_service1"
 	nameS2 := "kube_svc_testns_service2"
 	graphName := "kube_svc_global"
@@ -843,7 +843,7 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name, "common", nodes,
+		dc, _ := cont.apicRedirectPol(name, "common", nodes,
 			nmap, monPolDn, false)
 		return dc
 	}
@@ -949,7 +949,6 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	opflexDevice2.SetAttr("ctrlrName", "kube")
 	opflexDevice2.SetAttr("state", "connected")
 
-	cont := sgCont()
 	cont.serviceEndPoints = &serviceEndpointSlice{}
 	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 	cont.config.AciVmmDomain = "kube"
@@ -1009,7 +1008,7 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 
 //Service graph test with EndPoint slices
 func TestServiceGraphiWithEps(t *testing.T) {
-
+	cont := sgCont()
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
@@ -1042,7 +1041,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 		sort.Strings(nodes)
 		monPolDn := fmt.Sprintf("uni/tn-%s/ipslaMonitoringPol-%s",
 			"common", "kube_monPol_kubernetes-service")
-		dc, _ := apicRedirectPol(name, "common", nodes,
+		dc, _ := cont.apicRedirectPol(name, "common", nodes,
 			nmap, monPolDn, false)
 		return dc
 	}
@@ -1215,7 +1214,6 @@ func TestServiceGraphiWithEps(t *testing.T) {
 		nameS2: nil,
 	}
 
-	cont := sgCont()
 	cont.config.AciVmmDomain = "kube"
 	cont.config.AciVmmController = "kube"
 	cont.serviceEndPoints = &serviceEndpointSlice{}
