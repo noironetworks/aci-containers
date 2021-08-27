@@ -179,6 +179,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: acioperatorLogCmdArgs(systemNamespace),
 		},
 		{
+			name: "cluster-report/logs/operator/accprovisionoperator.log",
+			args: accprovisionoperatorLogCmdArgs(systemNamespace),
+		},
+		{
 			name: "cluster-report/status/describe_nodes_status.log",
 			args: []string{"-n", systemNamespace, "describe", "nodes"},
 		},
@@ -227,6 +231,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
 		},
 		{
+			name: "cluster-report/status/configmap_accprovisionoperator.log",
+			args: []string{"-n", systemNamespace, "describe", "configmap", "acc-provision-config"},
+		},
+		{
 			name: "cluster-report/status/snat_policy.log",
 			args: []string{"describe", "snatpolicy"},
 		},
@@ -237,6 +245,26 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		{
 			name: "cluster-report/status/snat_globalinfo.log",
 			args: []string{"-n", systemNamespace, "describe", "snatglobalinfo"},
+		},
+		{
+			name: "cluster-report/status/node_info.log",
+			args: []string{"describe", "nodeinfo", "--all-namespaces"},
+		},
+		{
+			name: "cluster-report/status/node_podifs.log",
+			args: []string{"describe", "nodepodifs", "--all-namespaces"},
+		},
+		{
+			name: "cluster-report/status/erspan_policy.log",
+			args: []string{"describe", "erspanpolicy", "--all-namespaces"},
+		},
+		{
+			name: "cluster-report/status/netflow_policy.log",
+			args: []string{"describe", "netflowpolicy", "--all-namespaces"},
+		},
+		{
+			name: "cluster-report/status/qos_policy.log",
+			args: []string{"describe", "qospolicy", "--all-namespaces"},
 		},
 	}
 
@@ -453,6 +481,12 @@ func accLogCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
 		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
+}
+
+func accprovisionoperatorLogCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+		"deployment/aci-containers-operator",
+		"-c", "acc-provision-operator"}
 }
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
