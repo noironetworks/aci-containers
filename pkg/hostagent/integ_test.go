@@ -113,17 +113,17 @@ var updIpams = []buildIpam{
 
 var hackIpams = []buildIpam{
 	{
-		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.34\"}],\"V6\":null}",
+		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.34\"} ],\"V6\":null}",
 		[]ipam.IpRange{
-			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.3.1")},
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.2.250")},
 		},
 		[]ipam.IpRange{},
 		"v4 with duplicates",
 	},
 	{
-		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.15\"}],\"V6\":null}",
+		"{\"V4\":[{\"start\":\"10.128.2.3\",\"end\":\"10.128.2.15\"} ],\"V6\":null}",
 		[]ipam.IpRange{
-			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.3.1")},
+			{Start: net.ParseIP("10.128.2.2"), End: net.ParseIP("10.128.2.125")},
 		},
 		[]ipam.IpRange{},
 		"v4 with duplicates",
@@ -363,7 +363,7 @@ func mkPod(uuid string, namespace string, name string,
 
 func TestLeaksbtwnControllerAndHost(t *testing.T) {
 	poolSizes := make([]int64, len(hackIpams))
-	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 24)}}
 	hcf := &HostAgentConfig{
 		NodeName:  "node1",
 		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",

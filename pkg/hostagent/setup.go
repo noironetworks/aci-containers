@@ -285,7 +285,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
 
-			logger.Debug("Allocating IP address(es) for ", iface.Name)
+			logger.Infof("Allocating IP address(es) for %v", iface.Name)
 			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
@@ -299,6 +299,11 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 					iface.HostVethName, iface.Mac, err =
 						runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
 					if err != nil {
+						//deallocate ip if veth setup fails.
+						logger.Infof("Deallocating IP address(es) 303 \nMetadata: %+v", metadata)
+						agent.ipamMutex.Lock()
+						agent.deallocateIpsLocked(iface)
+						agent.ipamMutex.Unlock()
 						return nil, err
 					} else {
 						break
@@ -307,14 +312,29 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			}
 		}
 		// if no mac is assigned, set it to the default Mac.
-		logger.Debug("No Mac assigned, assigning default")
-		if metadata.Id.Namespace != "trial" {
-			if len(iface.Mac) == 0 {
+		if len(iface.Mac) == 0 {
+			logger.Infof("No Mac assigned, assigning default")
+			if metadata.Id.Namespace != "trial" {
 				iface.HostVethName, iface.Mac, err =
 					runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
 				if err != nil {
+					//deallocate ip if veth setup fails.
+					logger.Infof("Deallocating IP address(es) 322 \nMetadata: %+v", metadata)
+					agent.ipamMutex.Lock()
+					agent.deallocateIpsLocked(iface)
+					agent.ipamMutex.Unlock()
 					return nil, err
 				}
+			}
+		}
+		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
+			if metadata.Id.Namespace == "trial" {
+				logger.Infof("iface: %v", iface)
+				logger.Infof("Deallocating IP address(es) 329 \nMetadata: %+v", metadata)
+				agent.ipamMutex.Lock()
+				agent.deallocateIpsLocked(iface)
+				agent.ipamMutex.Unlock()
+				return nil, fmt.Errorf("Unable to allocate IP")
 			}
 		}
 
