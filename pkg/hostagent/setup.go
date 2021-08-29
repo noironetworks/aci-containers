@@ -267,6 +267,14 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 	result := &cnicur.Result{}
 
+	//deallocate IP's incase if container interface creation fails
+	deallocIP := func(iface *md.ContainerIfaceMd) {
+		logger.Infof("Deallocating IP address(es) 272 \nMetadata: %+v", metadata)
+		agent.ipamMutex.Lock()
+		agent.deallocateIpsLocked(iface)
+		agent.ipamMutex.Unlock()
+	}
+
 	for _, nc := range agent.config.NetConfig {
 		result.Routes =
 			append(result.Routes, convertRoutes(nc.Routes)...)
@@ -281,16 +289,18 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		} else {
 			mtu = agent.config.InterfaceMtu
 		}
-
+		//question: when can an IP be assigned before this? is it during a reallocation?
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
 
-			logger.Debug("Allocating IP address(es) for ", iface.Name)
+			//change back to debug
+			logger.Infof("Allocating IP address(es) for %v", iface.Name)
 			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
 			}
 		}
+		//Can we check if pod still exists here, and gracefully fail?
 		for _, ip := range iface.IPs {
 			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
 			//We are guaranteed to derive the MAC address from IPv4 if it is assigned
@@ -298,6 +308,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				iface.HostVethName, iface.Mac, err =
 					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
 				if err != nil {
+					deallocIP(iface)
 					return nil, err
 				} else {
 					break
@@ -306,11 +317,18 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		}
 		// if no mac is assigned, set it to the default Mac.
 		if len(iface.Mac) == 0 {
+			logger.Infof("No Mac assigned, assigning default")
 			iface.HostVethName, iface.Mac, err =
 				runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
 			if err != nil {
+				deallocIP(iface)
 				return nil, err
 			}
+		}
+
+		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
+			deallocIP(iface)
+			return nil, fmt.Errorf("Unable to Configure Container Interface")
 		}
 
 		agent.addToResult(iface, ifaceind, result)
@@ -318,9 +336,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
 		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
 		if err != nil {
-			agent.ipamMutex.Lock()
-			agent.deallocateIpsLocked(iface)
-			agent.ipamMutex.Unlock()
+			deallocIP(iface)
 			return nil, err
 		}
 	}
