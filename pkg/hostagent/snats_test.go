@@ -311,6 +311,6 @@ func TestSnatPortExhausted(t *testing.T) {
 	agent.log.Info("SnatLocal Info #### ", agent.snatPods)
 	// check the policy is deleted from local information as ip/port is not allocated
 	_, ok := agent.snatPods["policy1"]
-	assert.Equal(t, false, ok, "create", "Epfile", "uids")
+	assert.Equal(t, true, ok, "create", "Epfile", "uids")
 	agent.stop()
 }
