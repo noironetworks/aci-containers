@@ -268,8 +268,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	result := &cnicur.Result{}
 
 	//deallocate IP's incase if container interface creation fails
-	deallocIP := func(iface *md.ContainerIfaceMd) {
-		logger.Infof("Deallocating IP address(es) 272 \nMetadata: %+v", metadata)
+	deallocIP := func(iface *md.ContainerIfaceMd, err error) {
+		logger.Infof("Deallocating IP address(es) \nError: %+v", err)
 		agent.ipamMutex.Lock()
 		agent.deallocateIpsLocked(iface)
 		agent.ipamMutex.Unlock()
@@ -308,7 +308,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				iface.HostVethName, iface.Mac, err =
 					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
 				if err != nil {
-					deallocIP(iface)
+					deallocIP(iface, err)
 					return nil, err
 				} else {
 					break
@@ -321,14 +321,16 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			iface.HostVethName, iface.Mac, err =
 				runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
 			if err != nil {
-				deallocIP(iface)
+				deallocIP(iface, err)
 				return nil, err
 			}
 		}
 
 		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
-			deallocIP(iface)
-			return nil, fmt.Errorf("Unable to Configure Container Interface")
+			l := fmt.Sprintf("Container: %v\nHostVethName: %v, lenght: %v\nMAC: %v, length: %v\n", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
+			er := fmt.Errorf("Unable to Configure Container Interface, Err: %v", l)
+			deallocIP(iface, er)
+			return nil, er
 		}
 
 		agent.addToResult(iface, ifaceind, result)
@@ -336,7 +338,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
 		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
 		if err != nil {
-			deallocIP(iface)
+			deallocIP(iface, err)
 			return nil, err
 		}
 	}
