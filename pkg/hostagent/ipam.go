@@ -149,7 +149,6 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 			}
 		}
 	}
-
 	if result != nil {
 		agent.deallocateIpsLocked(iface)
 	} else {
@@ -166,6 +165,7 @@ func (agent *HostAgent) deallocateIpsLocked(iface *metadata.ContainerIfaceMd) {
 		if ip.Address.IP == nil {
 			continue
 		}
+		agent.log.Infof("Deallocating IP: %v", ip.Address.IP)
 		if ip.Address.IP.To4() != nil {
 			agent.podIps.DeallocateIp(ip.Address.IP)
 			delete(agent.usedIPs, ip.Address.IP.String())
@@ -192,6 +192,7 @@ func (agent *HostAgent) deallocateMdIps(md *metadata.ContainerMetadata) {
 				continue
 			}
 
+			agent.log.Infof("Deallocating IP: %v", ip.Address.IP)
 			if ip.Address.IP.To4() != nil {
 				agent.podIps.DeallocateIp(ip.Address.IP)
 				delete(agent.usedIPs, ip.Address.IP.String())
