@@ -142,7 +142,9 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 			subnetIp, _ := body.Attributes["ip"].(string)
 			cont.log.Debug("subnetDn: ", subnetDn, " subnetParentDn: ", subnetParentDn, " subnetIp: ", subnetIp)
 			if cont.contains(vrfBdDns, subnetParentDn) || cont.contains(vrfEpgDns, subnetParentDn) {
+				cont.indexMutex.Lock()
 				cont.apicConn.CachedSubnetDns[subnetDn] = subnetIp
+				cont.indexMutex.Unlock()
 			}
 		}
 	}
