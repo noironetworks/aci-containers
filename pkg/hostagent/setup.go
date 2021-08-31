@@ -327,7 +327,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		}
 
 		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
-			l := fmt.Sprintf("Container: %v\nHostVethName: %v, lenght: %v\nMAC: %v, length: %v\n", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
+			l := fmt.Sprintf("Failed to setup Veth.\nContainer: %v\nHostVethName: %v, lenght: %v\nMAC: %v, length: %v\n", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
 			er := fmt.Errorf("Unable to Configure Container Interface, Err: %v", l)
 			deallocIP(iface, er)
 			return nil, er
