@@ -293,6 +293,7 @@ func (it *integ) cniAdd(podName, cid, ifname string) error {
 				HostVethName: "eth0",
 				Name:         ifname,
 				Sandbox:      testNetNS,
+				Mac:          "00:00:00:00:00:00",
 			},
 		},
 	}
