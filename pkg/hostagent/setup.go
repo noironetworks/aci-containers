@@ -301,6 +301,11 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				return nil, err
 			}
 		}
+		logger.Infof("305 iface: %v", iface)
+		var hostVethName, mac string
+		if metadata.Id.IntegTest != nil {
+			hostVethName, mac = iface.HostVethName, iface.Mac
+		}
 		for _, ip := range iface.IPs {
 			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
 			//We are guaranteed to derive the MAC address from IPv4 if it is assigned
@@ -324,7 +329,10 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				return nil, err
 			}
 		}
-
+		logger.Infof("329 iface: %v", iface)
+		if metadata.Id.IntegTest != nil {
+			iface.HostVethName, iface.Mac = hostVethName, mac
+		}
 		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
 			l := fmt.Sprintf("Failed to setup Veth.{ContainerName= %v, HostVethName: { Name=%v, Lenght=%v} ,MAC: {Name=%v, Length=%v}}", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
 			er := fmt.Errorf("Unable to Configure Container Interface, Error: %v", l)
