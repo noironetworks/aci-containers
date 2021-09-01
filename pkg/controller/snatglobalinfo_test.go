@@ -129,7 +129,7 @@ var nodeTests = []nodedata{
 
 func snatWait(t *testing.T, desc string, expected map[string]snatglobalinfo.GlobalInfo,
 	actual map[string]*snatglobalinfo.GlobalInfo) {
-	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
+	tu.WaitFor(t, desc, 1000*time.Millisecond, func(last bool) (bool, error) {
 		for key, v := range expected {
 			val, ok := actual[key]
 			if ok {
