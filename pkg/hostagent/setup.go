@@ -259,6 +259,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"namespace": metadata.Id.Namespace,
 		"container": metadata.Id.ContId,
 	})
+	logger.Infof("262 metadata.ID : %v", metadata.Id)
 
 	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
 	logger.Debug("Setting up veth")
@@ -303,7 +304,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		}
 		logger.Infof("305 iface: %v", iface)
 		var hostVethName, mac string
-		if metadata.Id.IntegTest != nil {
+		if metadata.Id.IntegTest != nil && *metadata.Id.IntegTest == "true" {
+			logger.Infof("307 metadata.ID : %v", metadata.Id)
 			hostVethName, mac = iface.HostVethName, iface.Mac
 		}
 		for _, ip := range iface.IPs {
@@ -330,7 +332,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			}
 		}
 		logger.Infof("329 iface: %v", iface)
-		if metadata.Id.IntegTest != nil {
+		if metadata.Id.IntegTest != nil && *metadata.Id.IntegTest == "true" {
+			logger.Infof("307 metadata.ID : %v", metadata.Id)
 			iface.HostVethName, iface.Mac = hostVethName, mac
 		}
 		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
