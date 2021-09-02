@@ -37,10 +37,9 @@ type ContainerIfaceMd struct {
 }
 
 type ContainerId struct {
-	Namespace string  `json:"namespace,omitempty"`
-	Pod       string  `json:"pod,omitempty"`
-	ContId    string  `json:"cont-id,omitempty"`
-	IntegTest *string `json:"integ-test,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Pod       string `json:"pod,omitempty"`
+	ContId    string `json:"cont-id,omitempty"`
 }
 
 type ContainerMetadata struct {

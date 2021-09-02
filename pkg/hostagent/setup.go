@@ -259,7 +259,6 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"namespace": metadata.Id.Namespace,
 		"container": metadata.Id.ContId,
 	})
-	logger.Infof("262 metadata.ID : %v", metadata.Id)
 
 	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
 	logger.Debug("Setting up veth")
@@ -295,18 +294,11 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
 
-			//change back to debug
-			logger.Infof("Allocating IP address(es) for %v", iface.Name)
+			logger.Debugf("Allocating IP address(es) for %v", iface.Name)
 			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
 			}
-		}
-		logger.Infof("305 iface: %v", iface)
-		var hostVethName, mac string
-		if metadata.Id.IntegTest != nil && *metadata.Id.IntegTest == "true" {
-			logger.Infof("307 metadata.ID : %v", metadata.Id)
-			hostVethName, mac = iface.HostVethName, iface.Mac
 		}
 		for _, ip := range iface.IPs {
 			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
@@ -331,16 +323,14 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				return nil, err
 			}
 		}
-		logger.Infof("329 iface: %v", iface)
-		if metadata.Id.IntegTest != nil && *metadata.Id.IntegTest == "true" {
-			logger.Infof("307 metadata.ID : %v", metadata.Id)
-			iface.HostVethName, iface.Mac = hostVethName, mac
-		}
-		if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
-			l := fmt.Sprintf("Failed to setup Veth.{ContainerName= %v, HostVethName: { Name=%v, Lenght=%v} ,MAC: {Name=%v, Length=%v}}", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
-			er := fmt.Errorf("Unable to Configure Container Interface, Error: %v", l)
-			deallocIP(iface, er)
-			return nil, er
+		//Todo: Remove dependency on integ_test flag.
+		if agent.integ_test == nil {
+			if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
+				l := fmt.Sprintf("Failed to setup Veth.{ContainerName= %v, HostVethName: { Name=%v, Lenght=%v} ,MAC: {Name=%v, Length=%v}}", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
+				er := fmt.Errorf("Unable to Configure Container Interface, Error: %v", l)
+				deallocIP(iface, er)
+				return nil, er
+			}
 		}
 
 		agent.addToResult(iface, ifaceind, result)

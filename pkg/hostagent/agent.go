@@ -105,6 +105,8 @@ type HostAgent struct {
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
 	nodePodIfEPs     map[string]*opflexEndpoint
+	// integration test checker
+	integ_test *string `json:",omitempty"`
 }
 
 type ServiceEndPointType interface {

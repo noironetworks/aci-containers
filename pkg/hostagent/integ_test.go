@@ -280,13 +280,11 @@ func (it *integ) addPodObj(id int, ns, eg, sg string, labels map[string]string) 
 }
 
 func (it *integ) cniAdd(podName, cid, ifname string) error {
-	integ_test := "true"
 	md := metadata.ContainerMetadata{
 		Id: metadata.ContainerId{
 			ContId:    cid,
 			Namespace: it.testNS,
 			Pod:       podName,
-			IntegTest: &integ_test,
 		},
 		Ifaces: []*metadata.ContainerIfaceMd{
 			{
@@ -342,74 +340,6 @@ func mkPod(uuid string, namespace string, name string,
 			Labels: labels,
 		},
 	}
-}
-
-func TestIPAMadd(t *testing.T) {
-	poolSizes := make([]int64, len(updIpams))
-	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
-	hcf := &HostAgentConfig{
-		NodeName:  "node1",
-		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
-		NetConfig: []cniNetConfig{ncf},
-	}
-
-	it := SetupInteg(t, hcf)
-	defer it.tearDown()
-
-	ipCounter := func() int64 {
-		var total int64
-		it.ta.ipamMutex.Lock()
-		defer it.ta.ipamMutex.Unlock()
-
-		ipaList := it.ta.podIps.GetV4IpCache()
-		for _, ipa := range ipaList {
-			total += ipa.GetSize()
-		}
-
-		return total
-	}
-
-	for ix, am := range updIpams {
-		it.setupNode(am, true)
-		poolSizes[ix] = ipCounter()
-		log.Infof("IP pool size is %v", poolSizes[ix])
-	}
-
-	// schedule annotation update in the background
-	stopCh := make(chan bool)
-	go func() {
-		var ix int
-		for {
-			select {
-			case <-stopCh:
-				return
-			case <-time.After(2 * time.Millisecond):
-				it.setupNode(updIpams[ix], false)
-			}
-
-			ix++
-			if ix > 1 {
-				ix = 0
-			}
-		}
-	}()
-
-	//	for jx := 0; jx < 2000; jx++ {
-	count := 1
-	it.cniAddParallel(0, count)
-
-	used, err := metadata.CheckMetadata(it.hcf.CniMetadataDir, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// check for leaks
-	avail := ipCounter()
-	ipCount := used + avail
-	if ipCount != poolSizes[0] && ipCount != poolSizes[1] {
-		t.Fatalf("ADD Iter: IP addr leak -- total: %v used: %v avail: %v", poolSizes, used, avail)
-	}
-	//}
 }
 
 func TestIPAM(t *testing.T) {
