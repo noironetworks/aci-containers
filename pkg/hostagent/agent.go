@@ -104,6 +104,8 @@ type HostAgent struct {
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
 	podtoServiceUids map[string]map[string]string
+	// integration test checker
+	integ_test *string `json:",omitempty"`
 }
 
 type Vtep struct {
