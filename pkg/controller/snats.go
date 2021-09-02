@@ -309,7 +309,9 @@ func (cont *AciController) createGlobalInfoCache(unittestmode bool) bool {
 				if _, ok := cont.snatGlobalInfoCache[snatIP]; !ok {
 					cont.snatGlobalInfoCache[snatIP] = make(map[string]*snatglobalinfo.GlobalInfo)
 				}
-				cont.snatGlobalInfoCache[snatIP][nodeName] = &v
+				copiedValue := v
+				cont.snatGlobalInfoCache[snatIP][nodeName] = &copiedValue
+				cont.log.Info("Adding globalinfo entry for snatIP ", snatIP, " and node name ", nodeName, ": ", cont.snatGlobalInfoCache[snatIP][nodeName])
 			}
 		}
 	}
