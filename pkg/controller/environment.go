@@ -253,13 +253,16 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.indexMutex.Lock()
 	cont.snatSyncEnabled = true
 	cont.indexMutex.Unlock()
+	go cont.snatNodeInformer.Run(stopCh)
+	cont.log.Debug("Waiting for snat nodeinfo cache sync")
+	cache.WaitForCacheSync(stopCh, cont.snatNodeInformer.HasSynced)
+	cont.createGlobalInfoCache(cont.unitTestMode)
 	cont.snatFullSync()
 	cont.log.Info("Snat cache sync successful")
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, stopCh)
-	go cont.snatNodeInformer.Run(stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
@@ -299,8 +302,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.k8sNetworkPolicyInformer.HasSynced,
-		cont.snatNodeInformer.HasSynced)
+		cont.k8sNetworkPolicyInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
 		go cont.snatGlobalInfoSync(stopCh, 60)
