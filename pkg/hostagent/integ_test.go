@@ -280,7 +280,6 @@ func (it *integ) addPodObj(id int, ns, eg, sg string, labels map[string]string) 
 }
 
 func (it *integ) cniAdd(podName, cid, ifname string) error {
-
 	md := metadata.ContainerMetadata{
 		Id: metadata.ContainerId{
 			ContId:    cid,
@@ -292,6 +291,7 @@ func (it *integ) cniAdd(podName, cid, ifname string) error {
 				HostVethName: "eth0",
 				Name:         ifname,
 				Sandbox:      testNetNS,
+				Mac:          "00:00:00:00:00:00",
 			},
 		},
 	}
