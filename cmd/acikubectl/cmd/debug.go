@@ -266,6 +266,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/qos_policy.log",
 			args: []string{"describe", "qospolicy", "--all-namespaces"},
 		},
+		{
+			name: "cluster-report/logs/versions/kubectl_version.log",
+			args: []string{"version"},
+		},
+		{
+			name: "cluster-report/status/describe_aci_namespace_status.log",
+			args: []string{"describe", "-n", systemNamespace, "all"},
+		},
 	}
 
 	// Get all nodes of k8s cluster
