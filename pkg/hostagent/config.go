@@ -175,6 +175,9 @@ type HostAgentConfig struct {
 	// Interface MTU to use when configuring container interfaces
 	InterfaceMtu int `json:"interface-mtu,omitempty"`
 
+	// Interface MTU headroom for VXLAN
+	InterfaceMtuHeadroom int `json:"interface-mtu-headroom,omitempty"`
+
 	// Configuration for CNI networks
 	NetConfig []cniNetConfig `json:"cni-netconfig,omitempty"`
 
@@ -272,6 +275,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.AccessBridgeName, "access-bridge-name", "br-access", "Name of the OVS access bridge")
 
 	flag.IntVar(&config.InterfaceMtu, "interface-mtu", 0, "Interface MTU to use when configuring container interfaces")
+	flag.IntVar(&config.InterfaceMtuHeadroom, "interface-mtu-headroom", 100, "Interface MTU headroom for VXLAN")
 
 	flag.UintVar(&config.ServiceVlan, "service-vlan", 4003, "VLAN for service traffic")
 

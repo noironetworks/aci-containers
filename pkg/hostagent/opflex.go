@@ -26,6 +26,7 @@ import (
 	"text/template"
 
 	"encoding/json"
+
 	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -105,10 +106,10 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			// if the interface MTU was not explicitly set by
 			// the user, use the link MTU
 			if agent.config.InterfaceMtu == 0 {
-				agent.config.InterfaceMtu = link.MTU - 100
+				agent.config.InterfaceMtu = link.MTU - agent.config.InterfaceMtuHeadroom
 			}
-			// giving extra headroom of 100 bytes
-			configMtu := 100 + agent.config.InterfaceMtu
+			// giving extra headroom of 100 bytes unless specified otherwise
+			configMtu := agent.config.InterfaceMtuHeadroom + agent.config.InterfaceMtu
 			if link.MTU < configMtu {
 				agent.log.WithFields(logrus.Fields{
 					"name": link.Name,
