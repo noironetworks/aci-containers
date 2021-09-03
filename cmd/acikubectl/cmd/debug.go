@@ -165,6 +165,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	ipam_path := "-o=jsonpath={range.items[*]}{@.metadata.name}\n{@.metadata.annotations.opflex\\.cisco\\.com/pod-network-ranges}\n"
+
 	cmds := []reportCmdElem{
 		{
 			name: "cluster-report/logs/controller/acc.log",
@@ -273,6 +275,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		{
 			name: "cluster-report/status/describe_aci_namespace_status.log",
 			args: []string{"describe", "-n", systemNamespace, "all"},
+		},
+		{
+			name: "cluster-report/status/ipam_details_all_nodes.log",
+			args: []string{"get", "nodes", ipam_path},
 		},
 	}
 
