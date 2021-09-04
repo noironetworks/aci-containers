@@ -586,6 +586,7 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	} else if pod.ObjectMeta.Annotations[metadata.MultusNetAnnotation] != "" {
 		netAttachDef = strings.Split(pod.ObjectMeta.Annotations[metadata.MultusNetAnnotation], ",")
 	}
+	agent.log.Debug("netattachname", netAttachDef)
 	if netAttachDef != nil {
 		podKey := pod.ObjectMeta.Name + "-" + pod.ObjectMeta.Namespace
 		agent.podToNetAttachDef[podKey] = netAttachDef

@@ -124,6 +124,7 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 			if config.Plugins[i].Type == "opflex-agent-cni" && config.Plugins[i].IPAM.Type == "opflex-agent-cni-ipam" {
 				if ntd.ObjectMeta.Annotations[resourceNameAnnot] != "" {
 					if ntd.ObjectMeta.Name != "" {
+						agent.log.Debug("adding network attachment name ", ntd.ObjectMeta.Name)
 						agent.indexMutex.Lock()
 						agent.netattdefmap[ntd.ObjectMeta.Name] = &netattdata
 						agent.indexMutex.Unlock()
@@ -172,15 +173,19 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 	netList := agent.podToNetAttachDef[metadata.Id.Pod+"-"+metadata.Id.Namespace]
 	agent.indexMutex.Unlock()
 	for _, netAttName := range netList {
+		agent.log.Debug("netlist")
 		if agent.netattdefmap[netAttName] != nil {
+			agent.log.Error("netattach matches")
 			isAcicniNetwork = true
 		} else {
 			return nil
 		}
 	}
 	if isAcicniNetwork {
+		agent.log.Debug("aci cni is set")
 		podResourceSock := filepath.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
 		if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
+			agent.log.Error("Could not retreive the kubelet sock")
 			return fmt.Errorf("Could not retreive the kubelet sock %v", err)
 		}
 
@@ -189,6 +194,7 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 
 		podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(podResourceSock, timeout, podResourcesMaxSizeDefault)
 		if err != nil {
+			agent.log.Error("Could not retreive the pod resource client")
 			return fmt.Errorf("Could not retreive the pod resource client %v", err)
 		}
 		defer podResourcesConn.Close()
@@ -196,9 +202,11 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 		resp, err := podResourcesClient.List(ctx, &podresourcesv1alpha1.ListPodResourcesRequest{})
 
 		if err != nil {
+			agent.log.Error("Could not get pod resource from the client")
 			return fmt.Errorf("Could not get pod resource from the client %v", err)
 		}
 		if resp == nil {
+			agent.log.Error("Not able to process PodResourcesResponse")
 			return fmt.Errorf("Not able to process PodResourcesResponse")
 		}
 
@@ -219,6 +227,7 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 								ResourceName: devices.ResourceName,
 							}
 							metadata.Id.DeviceId = deviceInfo.DeviceId
+							agent.log.Error("Device id ", metadata.Id.DeviceId)
 							return nil
 						}
 					}
