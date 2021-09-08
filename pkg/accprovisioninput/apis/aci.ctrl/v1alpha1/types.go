@@ -51,6 +51,7 @@ type SyncLoginSpec struct {
 
 type NetConfigSpec struct {
 	InterfaceMTU           int  `json:"interface_mtu,omitempty"`
+	InterfaceMtuHeadroom   int  `json:"interface_mtu_headroom,omitempty"`
 	SvcMonitorInterval     int  `json:"service_monitor_interval,omitempty"`
 	PBRTrackingNonSNAT     bool `json:"pbr_tracking_non_snat,omitempty"`
 	PodSubnetChunkSize     int  `json:"pod_subnet_chunk_size,omitempty"`
