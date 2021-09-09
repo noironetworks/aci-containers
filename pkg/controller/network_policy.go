@@ -55,11 +55,11 @@ const (
 )
 
 func dnsnetpolInit(cont *AciController, stopCh <-chan struct{}) {
-	cont.log.Debug("Initializing Dns network policy client")
+	cont.log.Debug("Initializing Dns client")
 	restconfig := cont.env.RESTConfig()
 	dnsNetpolClient, err := dnsnetpolclientset.NewForConfig(restconfig)
 	if err != nil {
-		cont.log.Errorf("Failed to intialize Dns network policy client")
+		cont.log.Errorf("Failed to intialize erspan client")
 		return
 	}
 	cont.initDnsNetworkPolicyInformerFromClient(dnsNetpolClient)
