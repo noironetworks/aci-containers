@@ -19,6 +19,7 @@ package util
 
 import (
 	"context"
+
 	v1betadnsnetpol "github.com/noironetworks/aci-containers/pkg/dnsnetworkpolicy/apis/dnsnetpolicy/v1beta"
 	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
 	v1netpolclset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
@@ -46,7 +47,7 @@ func GetNetPolPolicyTypes(indexer cache.Indexer, key string) []v1net.PolicyType 
 	}
 }
 
-// CreateNodeInfoCR Creates a NodeInfo CR
+// CreateNetPol Creates a downstream NetworkPolicy CR
 func CreateNetPol(c *v1netpolclset.Clientset, netpol *v1netpol.NetworkPolicy) error {
 	_, err := c.AciV1().NetworkPolicies(netpol.ObjectMeta.Namespace).Create(context.TODO(), netpol, metav1.CreateOptions{})
 	if err != nil {

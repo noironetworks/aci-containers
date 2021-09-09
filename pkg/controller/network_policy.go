@@ -20,13 +20,14 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/yl2chen/cidranger"
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"github.com/yl2chen/cidranger"
 
 	v1betadnsntp "github.com/noironetworks/aci-containers/pkg/dnsnetworkpolicy/apis/dnsnetpolicy/v1beta"
 	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
@@ -1293,6 +1294,7 @@ func (cont *AciController) k8sNetworkPolicyAdded(obj interface{}) {
 		//	Error("Could not create network policy key: ", err)
 		return
 	}
+	cont.log.Infof("Creating k8sNetwork Policy. NP: %+v ", np)
 	cont.createInternalNetPol(np)
 }
 
@@ -1309,12 +1311,14 @@ func (cont *AciController) k8sNetworkPolicyUpdated(obj interface{}) {
 
 func (cont *AciController) createInternalNetPol(obj interface{}) {
 	np := util.GetInternalPolicy(obj)
+	cont.log.Infof("Internal Network Policy. NP: %+v ", np)
 	err := util.GetNetPol(cont.env.(*K8sEnvironment).netPolClient, np.ObjectMeta.Namespace, np.ObjectMeta.Name)
 	if errors.IsNotFound(err) {
 		err := util.CreateNetPol(cont.env.(*K8sEnvironment).netPolClient, np)
 		if err != nil {
 			cont.log.Error("Failed to Create Internal Policy#: ", err)
 			// requeue
+			//not failing due to reque logic right?
 		}
 	} else {
 		err := util.UpdateNetPol(cont.env.(*K8sEnvironment).netPolClient, np)
@@ -1363,6 +1367,7 @@ func (cont *AciController) k8sNetworkPolicyDeleted(obj interface{}) {
 	}
 	cont.deleteInternalNetPol(obj)
 }
+
 func (cont *AciController) dnsNetworkPolicyAdded(obj interface{}) {
 	np := obj.(*v1betadnsntp.DnsNetworkPolicy)
 	_, err := cache.MetaNamespaceKeyFunc(np)
@@ -1371,6 +1376,7 @@ func (cont *AciController) dnsNetworkPolicyAdded(obj interface{}) {
 		//	Error("Could not create network policy key: ", err)
 		return
 	}
+	cont.log.Infof("Creating dnsNetwork Policy. NP: %+v ", np)
 	cont.createInternalNetPol(np)
 	cont.log.Info("DNSpolicy Created#: ", np.Spec)
 }
