@@ -383,11 +383,6 @@ var metadata = map[string]*apicMeta{
 		},
 		normalizer: ruleNormalizer,
 	},
-	"hostprotDnsName": {
-		attributes: map[string]interface{}{
-			"name": "",
-		},
-	},
 	"hostprotRemoteIp": {
 		attributes: map[string]interface{}{
 			"addr": "",

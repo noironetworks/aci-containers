@@ -21,13 +21,12 @@ import (
 	"reflect"
 
 	"github.com/noironetworks/aci-containers/pkg/index"
-	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
-	netpolclientset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
 	qospolicy "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -107,18 +106,18 @@ func (agent *HostAgent) namespaceDeleted(obj interface{}) {
 }
 
 func (agent *HostAgent) initNetworkPolicyInformerFromClient(
-	netPolClient *netpolclientset.Clientset) {
+	kubeClient kubernetes.Interface) {
 
 	agent.initNetworkPolicyInformerBase(
 		cache.NewListWatchFromClient(
-			netPolClient.AciV1().RESTClient(), "networkpolicies",
+			kubeClient.NetworkingV1().RESTClient(), "networkpolicies",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (agent *HostAgent) initNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
 	agent.netPolInformer =
 		cache.NewSharedIndexInformer(
-			listWatch, &v1netpol.NetworkPolicy{}, 0,
+			listWatch, &v1net.NetworkPolicy{}, 0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 
@@ -141,9 +140,9 @@ func (agent *HostAgent) networkPolicyAdded(obj interface{}) {
 }
 
 func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
-	oldnp := oldobj.(*v1netpol.NetworkPolicy)
-	newnp := newobj.(*v1netpol.NetworkPolicy)
-	if !reflect.DeepEqual(oldnp.Spec.AppliedTo, newnp.Spec.AppliedTo) {
+	oldnp := oldobj.(*v1net.NetworkPolicy)
+	newnp := newobj.(*v1net.NetworkPolicy)
+	if !reflect.DeepEqual(oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
 		agent.netPolPods.UpdateSelectorObjNoCallback(newobj)
 	}
 
@@ -171,9 +170,9 @@ func (agent *HostAgent) initNetPolPodIndex() {
 		agent.podInformer.GetIndexer(), agent.nsInformer.GetIndexer(), agent.netPolInformer.GetIndexer(),
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			np := obj.(*v1netpol.NetworkPolicy)
+			np := obj.(*v1net.NetworkPolicy)
 			return index.PodSelectorFromNsAndSelector(np.ObjectMeta.Namespace,
-				np.Spec.AppliedTo.PodSelector)
+				&np.Spec.PodSelector)
 		},
 	)
 	agent.netPolPods.SetPodUpdateCallback(func(podkey string) {

@@ -28,8 +28,6 @@ import (
 	"strconv"
 	"strings"
 
-	v1betadnsntp "github.com/noironetworks/aci-containers/pkg/dnsnetworkpolicy/apis/dnsnetpolicy/v1beta"
-	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,79 +39,24 @@ import (
 	k8util "k8s.io/kubectl/pkg/util"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	dnsnetpolclientset "github.com/noironetworks/aci-containers/pkg/dnsnetworkpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
-	netpolclientset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
-	"github.com/noironetworks/aci-containers/pkg/util"
 	v1beta "k8s.io/api/discovery/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 )
-
-const (
-	dnsNetpolCRDName = "dnsnetworkpolicies.aci.dnsnetpol"
-)
-
-func dnsnetpolInit(cont *AciController, stopCh <-chan struct{}) {
-	cont.log.Debug("Initializing Dns network policy client")
-	restconfig := cont.env.RESTConfig()
-	dnsNetpolClient, err := dnsnetpolclientset.NewForConfig(restconfig)
-	if err != nil {
-		cont.log.Errorf("Failed to intialize Dns network policy client")
-		return
-	}
-	cont.initDnsNetworkPolicyInformerFromClient(dnsNetpolClient)
-	go cont.dnsNetworkPolicyInformer.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, cont.dnsNetworkPolicyInformer.HasSynced)
-}
 
 func (cont *AciController) initNetworkPolicyInformerFromClient(
 	kubeClient kubernetes.Interface) {
-	cont.initk8sNetworkPolicyInformerBase(
+
+	cont.initNetworkPolicyInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.NetworkingV1().RESTClient(), "networkpolicies",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
-func (cont *AciController) initInternalNetworkPolicyInformerFromClient(
-	netPolClient *netpolclientset.Clientset) {
-	cont.initInternalNetworkPolicyInformerBase(
-		cache.NewListWatchFromClient(
-			netPolClient.AciV1().RESTClient(), "networkpolicies",
-			metav1.NamespaceAll, fields.Everything()))
-}
-
-func (cont *AciController) initDnsNetworkPolicyInformerFromClient(
-	netPolClient *dnsnetpolclientset.Clientset) {
-	cont.initdnsNetworkPolicyInformerBase(
-		cache.NewListWatchFromClient(
-			netPolClient.AciV1beta().RESTClient(), "dnsnetworkpolicies",
-			metav1.NamespaceAll, fields.Everything()))
-}
-
-func (cont *AciController) initk8sNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
-	cont.k8sNetworkPolicyIndexer, cont.k8sNetworkPolicyInformer =
-		cache.NewIndexerInformer(
-			listWatch, &v1net.NetworkPolicy{}, 0,
-			cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					cont.k8sNetworkPolicyAdded(obj)
-				},
-				UpdateFunc: func(_, newobj interface{}) {
-					cont.k8sNetworkPolicyUpdated(newobj)
-				},
-				DeleteFunc: func(obj interface{}) {
-					cont.k8sNetworkPolicyDeleted(obj)
-				},
-			},
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-}
-
-func (cont *AciController) initInternalNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
+func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
 	cont.networkPolicyIndexer, cont.networkPolicyInformer =
 		cache.NewIndexerInformer(
-			listWatch, &v1netpol.NetworkPolicy{}, 0,
+			listWatch, &v1net.NetworkPolicy{}, 0,
 			cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
 					cont.networkPolicyAdded(obj)
@@ -129,31 +72,8 @@ func (cont *AciController) initInternalNetworkPolicyInformerBase(listWatch *cach
 		)
 }
 
-func (cont *AciController) initdnsNetworkPolicyInformerBase(listWatch *cache.ListWatch) {
-	cont.dnsNetworkPolicyIndexer, cont.dnsNetworkPolicyInformer =
-		cache.NewIndexerInformer(
-			listWatch, &v1betadnsntp.DnsNetworkPolicy{}, 0,
-			cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					cont.dnsNetworkPolicyAdded(obj)
-				},
-				UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-					cont.dnsNetworkPolicyUpdated(newobj)
-				},
-				DeleteFunc: func(obj interface{}) {
-					cont.dnsNetworkPolicyDeleted(obj)
-				},
-			},
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-}
-
-func (cont *AciController) getNetPolPolicyTypes(key string) []v1net.PolicyType {
-	return util.GetNetPolPolicyTypes(cont.networkPolicyIndexer, key)
-}
-
-func (cont *AciController) peerPodSelector(np *v1netpol.NetworkPolicy,
-	peers []v1netpol.NetworkPolicyPeer) []index.PodSelector {
+func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,
+	peers []v1net.NetworkPolicyPeer) []index.PodSelector {
 
 	var ret []index.PodSelector
 	for _, peer := range peers {
@@ -195,7 +115,7 @@ func (cont *AciController) peerPodSelector(np *v1netpol.NetworkPolicy,
 	return ret
 }
 
-func (cont *AciController) egressPodSelector(np *v1netpol.NetworkPolicy) []index.PodSelector {
+func (cont *AciController) egressPodSelector(np *v1net.NetworkPolicy) []index.PodSelector {
 	var ret []index.PodSelector
 
 	for _, egress := range np.Spec.Egress {
@@ -205,7 +125,7 @@ func (cont *AciController) egressPodSelector(np *v1netpol.NetworkPolicy) []index
 	return ret
 }
 
-func (cont *AciController) ingressPodSelector(np *v1netpol.NetworkPolicy) []index.PodSelector {
+func (cont *AciController) ingressPodSelector(np *v1net.NetworkPolicy) []index.PodSelector {
 	var ret []index.PodSelector
 
 	for _, ingress := range np.Spec.Ingress {
@@ -221,9 +141,9 @@ func (cont *AciController) initNetPolPodIndex() {
 		cont.podIndexer, cont.namespaceIndexer, cont.networkPolicyIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			np := obj.(*v1netpol.NetworkPolicy)
+			np := obj.(*v1net.NetworkPolicy)
 			return index.PodSelectorFromNsAndSelector(np.ObjectMeta.Namespace,
-				np.Spec.AppliedTo.PodSelector)
+				&np.Spec.PodSelector)
 		},
 	)
 	cont.netPolPods.SetPodUpdateCallback(func(podkey string) {
@@ -238,7 +158,7 @@ func (cont *AciController) initNetPolPodIndex() {
 		cont.podIndexer, cont.namespaceIndexer, cont.networkPolicyIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			return cont.ingressPodSelector(obj.(*v1netpol.NetworkPolicy))
+			return cont.ingressPodSelector(obj.(*v1net.NetworkPolicy))
 		},
 	)
 	cont.netPolEgressPods = index.NewPodSelectorIndex(
@@ -246,13 +166,13 @@ func (cont *AciController) initNetPolPodIndex() {
 		cont.podIndexer, cont.namespaceIndexer, cont.networkPolicyIndexer,
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
-			return cont.egressPodSelector(obj.(*v1netpol.NetworkPolicy))
+			return cont.egressPodSelector(obj.(*v1net.NetworkPolicy))
 		},
 	)
 	npupdate := func(npkey string) {
 		npobj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
 		if exists && err == nil {
-			cont.queueNetPolUpdate(npobj.(*v1netpol.NetworkPolicy))
+			cont.queueNetPolUpdate(npobj.(*v1net.NetworkPolicy))
 		}
 	}
 	nphash := func(pod *v1.Pod) string {
@@ -384,22 +304,6 @@ func (cont *AciController) initStaticNetPolObjs() {
 }
 
 func networkPolicyLogger(log *logrus.Logger,
-	np *v1netpol.NetworkPolicy) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		"namespace": np.ObjectMeta.Namespace,
-		"name":      np.ObjectMeta.Name,
-	})
-}
-
-func dnsNetworkPolicyLogger(log *logrus.Logger,
-	np *v1betadnsntp.DnsNetworkPolicy) *logrus.Entry {
-	return log.WithFields(logrus.Fields{
-		"namespace": np.ObjectMeta.Namespace,
-		"name":      np.ObjectMeta.Name,
-	})
-}
-
-func k8sNetworkPolicyLogger(log *logrus.Logger,
 	np *v1net.NetworkPolicy) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": np.ObjectMeta.Namespace,
@@ -411,7 +315,7 @@ func (cont *AciController) queueNetPolUpdateByKey(key string) {
 	cont.netPolQueue.Add(key)
 }
 
-func (cont *AciController) queueNetPolUpdate(netpol *v1netpol.NetworkPolicy) {
+func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
 	key, err := cache.MetaNamespaceKeyFunc(netpol)
 	if err != nil {
 		networkPolicyLogger(cont.log, netpol).
@@ -422,7 +326,7 @@ func (cont *AciController) queueNetPolUpdate(netpol *v1netpol.NetworkPolicy) {
 }
 
 func (cont *AciController) peerMatchesPod(npNs string,
-	peer *v1netpol.NetworkPolicyPeer, pod *v1.Pod, podNs *v1.Namespace) bool {
+	peer *v1net.NetworkPolicyPeer, pod *v1.Pod, podNs *v1.Namespace) bool {
 	if peer.PodSelector != nil && npNs == pod.ObjectMeta.Namespace {
 		selector, err :=
 			metav1.LabelSelectorAsSelector(peer.PodSelector)
@@ -638,7 +542,7 @@ func (cont *AciController) getPortNumsFromPortName(podKeys []string, portName st
 }
 
 // get a map of target ports for egress rules that have no "To" clause
-func (cont *AciController) getNetPolTargetPorts(np *v1netpol.NetworkPolicy) map[string]targetPort {
+func (cont *AciController) getNetPolTargetPorts(np *v1net.NetworkPolicy) map[string]targetPort {
 	ports := make(map[string]targetPort)
 	for _, egress := range np.Spec.Egress {
 		if len(egress.To) != 0 && !isNamedPortPresenInNp(np) {
@@ -692,7 +596,7 @@ func (cont *AciController) getNetPolTargetPorts(np *v1netpol.NetworkPolicy) map[
 	return ports
 }
 
-func (cont *AciController) getPeerRemoteSubnets(peers []v1netpol.NetworkPolicyPeer,
+func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	namespace string, peerPods []*v1.Pod, peerNs map[string]*v1.Namespace,
 	logger *logrus.Entry) ([]string, map[string]bool) {
 
@@ -754,36 +658,10 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	subj.AddChild(rule)
 }
 
-///PolicyUniverse/PolicySpace/test/GbpSecGroup/sec1/GbpSecGroupSubject/sec1_sub1/GbpSecGroupRule/sec1_sub1_rule1/GbpDnsName/google.com
-func (cont *AciController) buildNetPolDnsSubjRules(subj apicapi.ApicObject, direction string,
-	logger *logrus.Entry, np *v1netpol.NetworkPolicy) {
-
-	if !cont.configuredPodNetworkIps.V4.Empty() {
-		buildNetPolSubjDnsRule(subj, strconv.Itoa(0), direction,
-			"ipv4", np.Spec.Egress[0].ToFqdn.MatchNames)
-		cont.log.Info("buildNetPolSubjDnsRule#: ", subj)
-	}
-	if !cont.configuredPodNetworkIps.V6.Empty() {
-		buildNetPolSubjDnsRule(subj, strconv.Itoa(0), direction,
-			"ipv6", np.Spec.Egress[0].ToFqdn.MatchNames)
-	}
-}
-
-func buildNetPolSubjDnsRule(subj apicapi.ApicObject, ruleName string,
-	direction string, ethertype string, dnsNames []string) {
-	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleName)
-	rule.SetAttr("direction", direction)
-	rule.SetAttr("ethertype", ethertype)
-	for _, dnsName := range dnsNames {
-		rule.AddChild(apicapi.NewHostprotDnsName(rule.GetDn(), dnsName))
-	}
-	subj.AddChild(rule)
-}
-
 func (cont *AciController) buildNetPolSubjRules(ruleName string,
-	subj apicapi.ApicObject, direction string, peers []v1netpol.NetworkPolicyPeer,
-	remoteSubnets []string, ports []v1netpol.NetworkPolicyPort,
-	logger *logrus.Entry, npKey string, np *v1netpol.NetworkPolicy) {
+	subj apicapi.ApicObject, direction string, peers []v1net.NetworkPolicyPeer,
+	remoteSubnets []string, ports []v1net.NetworkPolicyPort,
+	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy) {
 
 	if len(peers) > 0 && len(remoteSubnets) == 0 {
 		// nonempty From matches no pods or IPBlocks; don't
@@ -814,7 +692,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 						portnums = append(portnums, cont.getPortNums(&p)...)
 					} else {
 						// TODO need to handle empty Pod Selector
-						if reflect.DeepEqual(np.Spec.AppliedTo.PodSelector, metav1.LabelSelector{}) {
+						if reflect.DeepEqual(np.Spec.PodSelector, metav1.LabelSelector{}) {
 							logger.Warning("Empty PodSelctor for NamedPort is not supported in ingress direction"+
 								"port in network policy: ", p.Port.String())
 							continue
@@ -846,7 +724,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	}
 }
 
-func (cont *AciController) getPortNums(port *v1netpol.NetworkPolicyPort) []int {
+func (cont *AciController) getPortNums(port *v1net.NetworkPolicyPort) []int {
 	portkey := portKey(port)
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
@@ -873,7 +751,7 @@ func portProto(protocol *v1.Protocol) string {
 	return proto
 }
 
-func portKey(p *v1netpol.NetworkPolicyPort) string {
+func portKey(p *v1net.NetworkPolicyPort) string {
 	portType := ""
 	port := ""
 	if p != nil && p.Port != nil {
@@ -921,13 +799,13 @@ func checkEndpointslices(subnetIndex cidranger.Ranger,
 }
 
 type portRemoteSubnet struct {
-	port           *v1netpol.NetworkPolicyPort
+	port           *v1net.NetworkPolicyPort
 	subnetMap      map[string]bool
 	hasNamedTarget bool
 }
 
 func updatePortRemoteSubnets(portRemoteSubs map[string]*portRemoteSubnet,
-	portkey string, port *v1netpol.NetworkPolicyPort, subnetMap map[string]bool,
+	portkey string, port *v1net.NetworkPolicyPort, subnetMap map[string]bool,
 	hasNamedTarget bool) {
 
 	if prs, ok := portRemoteSubs[portkey]; ok {
@@ -1181,7 +1059,7 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
-func (cont *AciController) handleNetPolUpdate(np *v1netpol.NetworkPolicy) bool {
+func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
@@ -1217,8 +1095,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1netpol.NetworkPolicy) bool {
 	labelKey := cont.aciNameForKey("np", key)
 	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
 	// Generate ingress policies
-	if (np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress]) &&
-		(np.Spec.Type != v1netpol.DnsAwareNetworkPolicy) {
+	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 		subjIngress :=
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
 		for i, ingress := range np.Spec.Ingress {
@@ -1233,46 +1110,42 @@ func (cont *AciController) handleNetPolUpdate(np *v1netpol.NetworkPolicy) bool {
 	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeEgress] {
 		subjEgress :=
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-egress")
-		if np.Spec.Type == v1netpol.DnsAwareNetworkPolicy {
-			cont.buildNetPolDnsSubjRules(subjEgress, "egress", logger, np)
-		} else {
-			portRemoteSubs := make(map[string]*portRemoteSubnet)
 
-			for i, egress := range np.Spec.Egress {
-				remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
-					np.Namespace, peerPods, peerNs, logger)
-				cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-					"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
+		portRemoteSubs := make(map[string]*portRemoteSubnet)
 
-				// creating a rule to egress to all on a given port needs
-				// to enable access to any service IPs/ports that have
-				// that port as their target port.
-				if len(egress.To) == 0 {
-					subnetMap = map[string]bool{
-						"0.0.0.0/0": true,
-					}
-				}
-				for _, p := range egress.Ports {
-					portkey := portKey(&p)
-					port := p
-					updatePortRemoteSubnets(portRemoteSubs, portkey, &port, subnetMap,
-						p.Port != nil && p.Port.Type == intstr.Int)
-				}
-				if len(egress.Ports) == 0 {
-					updatePortRemoteSubnets(portRemoteSubs, "", nil, subnetMap,
-						false)
+		for i, egress := range np.Spec.Egress {
+			remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
+				np.Namespace, peerPods, peerNs, logger)
+			cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
+				"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
+
+			// creating a rule to egress to all on a given port needs
+			// to enable access to any service IPs/ports that have
+			// that port as their target port.
+			if len(egress.To) == 0 {
+				subnetMap = map[string]bool{
+					"0.0.0.0/0": true,
 				}
 			}
-			cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
+			for _, p := range egress.Ports {
+				portkey := portKey(&p)
+				port := p
+				updatePortRemoteSubnets(portRemoteSubs, portkey, &port, subnetMap,
+					p.Port != nil && p.Port.Type == intstr.Int)
+			}
+			if len(egress.Ports) == 0 {
+				updatePortRemoteSubnets(portRemoteSubs, "", nil, subnetMap,
+					false)
+			}
 		}
+		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
-	cont.log.Info("HPP ##: ", hpp)
 	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
 	return false
 }
 
-func getNetworkPolicyEgressIpBlocks(np *v1netpol.NetworkPolicy) map[string]bool {
+func getNetworkPolicyEgressIpBlocks(np *v1net.NetworkPolicy) map[string]bool {
 	subnets := make(map[string]bool)
 
 	for _, egress := range np.Spec.Egress {
@@ -1285,135 +1158,8 @@ func getNetworkPolicyEgressIpBlocks(np *v1netpol.NetworkPolicy) map[string]bool 
 	return subnets
 }
 
-func (cont *AciController) k8sNetworkPolicyAdded(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		//networkPolicyLogger(cont.log, np).
-		//	Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.createInternalNetPol(np)
-}
-
-func (cont *AciController) k8sNetworkPolicyUpdated(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		//networkPolicyLogger(cont.log, np).
-		//	Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.updateInternalNetPol(np)
-}
-
-func (cont *AciController) createInternalNetPol(obj interface{}) {
-	np := util.GetInternalPolicy(obj)
-	err := util.GetNetPol(cont.env.(*K8sEnvironment).netPolClient, np.ObjectMeta.Namespace, np.ObjectMeta.Name)
-	if errors.IsNotFound(err) {
-		err := util.CreateNetPol(cont.env.(*K8sEnvironment).netPolClient, np)
-		if err != nil {
-			cont.log.Error("Failed to Create Internal Policy#: ", err)
-			// requeue
-		}
-	} else {
-		err := util.UpdateNetPol(cont.env.(*K8sEnvironment).netPolClient, np)
-		if err != nil {
-			// requeue
-		}
-	}
-}
-
-func (cont *AciController) updateInternalNetPol(obj interface{}) {
-	err := util.UpdateNetPol(cont.env.(*K8sEnvironment).netPolClient, util.GetInternalPolicy(obj))
-	if err != nil {
-		// requeue
-	}
-}
-
-func (cont *AciController) deleteInternalNetPol(obj interface{}) {
-	object := util.GetInternalPolicy(obj)
-	err := util.DeleteNetPol(cont.env.(*K8sEnvironment).netPolClient, object.ObjectMeta.Name, object.ObjectMeta.Namespace)
-	if err != nil {
-		// requeue
-	}
-}
-
-func (cont *AciController) k8sNetworkPolicyDeleted(obj interface{}) {
-	np, isNetworkpolicy := obj.(*v1net.NetworkPolicy)
-	if !isNetworkpolicy {
-		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			k8sNetworkPolicyLogger(cont.log, np).
-				Error("Received unexpected object: ", obj)
-			return
-		}
-		np, ok = deletedState.Obj.(*v1net.NetworkPolicy)
-		if !ok {
-			k8sNetworkPolicyLogger(cont.log, np).
-				Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
-			return
-		}
-	}
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		k8sNetworkPolicyLogger(cont.log, np).
-			Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.deleteInternalNetPol(obj)
-}
-func (cont *AciController) dnsNetworkPolicyAdded(obj interface{}) {
-	np := obj.(*v1betadnsntp.DnsNetworkPolicy)
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		//networkPolicyLogger(cont.log, np).
-		//	Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.createInternalNetPol(np)
-	cont.log.Info("DNSpolicy Created#: ", np.Spec)
-}
-
-func (cont *AciController) dnsNetworkPolicyUpdated(obj interface{}) {
-	np := obj.(*v1betadnsntp.DnsNetworkPolicy)
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		//networkPolicyLogger(cont.log, np).
-		//	Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.updateInternalNetPol(np)
-	cont.log.Info("DNSpolicy Upated #: ", np.Spec)
-}
-
-func (cont *AciController) dnsNetworkPolicyDeleted(obj interface{}) {
-	np, isNetworkpolicy := obj.(*v1betadnsntp.DnsNetworkPolicy)
-	if !isNetworkpolicy {
-		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			dnsNetworkPolicyLogger(cont.log, np).
-				Error("Received unexpected object: ", obj)
-			return
-		}
-		np, ok = deletedState.Obj.(*v1betadnsntp.DnsNetworkPolicy)
-		if !ok {
-			dnsNetworkPolicyLogger(cont.log, np).
-				Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
-			return
-		}
-	}
-	_, err := cache.MetaNamespaceKeyFunc(np)
-	if err != nil {
-		dnsNetworkPolicyLogger(cont.log, np).
-			Error("Could not create network policy key: ", err)
-		return
-	}
-	cont.deleteInternalNetPol(obj)
-}
-
 func (cont *AciController) networkPolicyAdded(obj interface{}) {
-	np := obj.(*v1netpol.NetworkPolicy)
+	np := obj.(*v1net.NetworkPolicy)
 	npkey, err := cache.MetaNamespaceKeyFunc(np)
 	if err != nil {
 		networkPolicyLogger(cont.log, np).
@@ -1422,24 +1168,22 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 	}
 	cont.writeApicNP(npkey, np)
 	cont.netPolPods.UpdateSelectorObj(obj)
-	if np.Spec.Type != v1netpol.DnsAwareNetworkPolicy {
-		cont.netPolIngressPods.UpdateSelectorObj(obj)
-		cont.netPolEgressPods.UpdateSelectorObj(obj)
-		cont.indexMutex.Lock()
-		subnets := getNetworkPolicyEgressIpBlocks(np)
-		cont.updateIpIndex(cont.netPolSubnetIndex, nil, subnets, npkey)
+	cont.netPolIngressPods.UpdateSelectorObj(obj)
+	cont.netPolEgressPods.UpdateSelectorObj(obj)
+	cont.indexMutex.Lock()
+	subnets := getNetworkPolicyEgressIpBlocks(np)
+	cont.updateIpIndex(cont.netPolSubnetIndex, nil, subnets, npkey)
 
-		ports := cont.getNetPolTargetPorts(np)
-		cont.updateTargetPortIndex(false, npkey, nil, ports)
-		if isNamedPortPresenInNp(np) {
-			cont.nmPortNp[npkey] = true
-		}
-		cont.indexMutex.Unlock()
+	ports := cont.getNetPolTargetPorts(np)
+	cont.updateTargetPortIndex(false, npkey, nil, ports)
+	if isNamedPortPresenInNp(np) {
+		cont.nmPortNp[npkey] = true
 	}
+	cont.indexMutex.Unlock()
 	cont.queueNetPolUpdateByKey(npkey)
 }
 
-func (cont *AciController) writeApicNP(npKey string, np *v1netpol.NetworkPolicy) {
+func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
 	if cont.config.LBType == lbTypeAci {
 		return
 	}
@@ -1459,7 +1203,7 @@ func (cont *AciController) writeApicNP(npKey string, np *v1netpol.NetworkPolicy)
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{npObj})
 }
 
-func peersToStr(peers []v1netpol.NetworkPolicyPeer) string {
+func peersToStr(peers []v1net.NetworkPolicyPeer) string {
 	pStr := "["
 	for _, p := range peers {
 		if p.IPBlock != nil {
@@ -1480,7 +1224,7 @@ func peersToStr(peers []v1netpol.NetworkPolicyPeer) string {
 	return pStr
 }
 
-func portsToStr(ports []v1netpol.NetworkPolicyPort) string {
+func portsToStr(ports []v1net.NetworkPolicyPort) string {
 	pStr := "["
 
 	for _, p := range ports {
@@ -1499,7 +1243,7 @@ func portsToStr(ports []v1netpol.NetworkPolicyPort) string {
 
 }
 
-func ingressStr(np *v1netpol.NetworkPolicy) string {
+func ingressStr(np *v1net.NetworkPolicy) string {
 	iStr := ""
 	for _, rule := range np.Spec.Ingress {
 		iStr += peersToStr(rule.From)
@@ -1510,7 +1254,7 @@ func ingressStr(np *v1netpol.NetworkPolicy) string {
 	return iStr
 }
 
-func egressStr(np *v1netpol.NetworkPolicy) string {
+func egressStr(np *v1net.NetworkPolicy) string {
 	eStr := ""
 	for _, rule := range np.Spec.Egress {
 		eStr += peersToStr(rule.To)
@@ -1524,8 +1268,8 @@ func egressStr(np *v1netpol.NetworkPolicy) string {
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	newobj interface{}) {
 
-	oldnp := oldobj.(*v1netpol.NetworkPolicy)
-	newnp := newobj.(*v1netpol.NetworkPolicy)
+	oldnp := oldobj.(*v1net.NetworkPolicy)
+	newnp := newobj.(*v1net.NetworkPolicy)
 	npkey, err := cache.MetaNamespaceKeyFunc(newnp)
 	if err != nil {
 		networkPolicyLogger(cont.log, newnp).
@@ -1544,7 +1288,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	cont.updateTargetPortIndex(false, npkey, oldPorts, newPorts)
 	cont.indexMutex.Unlock()
 
-	if !reflect.DeepEqual(oldnp.Spec.AppliedTo, newnp.Spec.AppliedTo) {
+	if !reflect.DeepEqual(oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
 		cont.netPolPods.UpdateSelectorObjNoCallback(newobj)
 	}
 	if !reflect.DeepEqual(oldnp.Spec.PolicyTypes, newnp.Spec.PolicyTypes) {
@@ -1568,7 +1312,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 }
 
 func (cont *AciController) networkPolicyDeleted(obj interface{}) {
-	np, isNetworkpolicy := obj.(*v1netpol.NetworkPolicy)
+	np, isNetworkpolicy := obj.(*v1net.NetworkPolicy)
 	if !isNetworkpolicy {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -1576,7 +1320,7 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 				Error("Received unexpected object: ", obj)
 			return
 		}
-		np, ok = deletedState.Obj.(*v1netpol.NetworkPolicy)
+		np, ok = deletedState.Obj.(*v1net.NetworkPolicy)
 		if !ok {
 			networkPolicyLogger(cont.log, np).
 				Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
@@ -1730,7 +1474,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 		})
 }
 
-func isNamedPortPresenInNp(np *v1netpol.NetworkPolicy) bool {
+func isNamedPortPresenInNp(np *v1net.NetworkPolicy) bool {
 	for _, egress := range np.Spec.Egress {
 		for _, p := range egress.Ports {
 			if p.Port.Type == intstr.String {
@@ -1752,7 +1496,7 @@ func (cont *AciController) checkPodNmpMatchesNp(npkey, podkey string) bool {
 	pod := podobj.(*v1.Pod)
 	npobj, npexists, nperr := cont.networkPolicyIndexer.GetByKey(npkey)
 	if npexists && nperr == nil && npobj != nil {
-		np := npobj.(*v1netpol.NetworkPolicy)
+		np := npobj.(*v1net.NetworkPolicy)
 		for _, egress := range np.Spec.Egress {
 			for _, p := range egress.Ports {
 				if p.Port.Type == intstr.String {
