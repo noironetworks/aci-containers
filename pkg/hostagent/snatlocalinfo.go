@@ -49,6 +49,8 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 	for _, ginfo := range ginfos {
 		var localInfo SnatLocalInfo
 		localInfo.snatIp = ginfo.SnatIp
+		agent.snatPolicyCacheMutex.RLock()
+		defer agent.snatPolicyCacheMutex.RUnlock()
 		if _, ok := agent.snatPolicyCache[ginfo.SnatPolicyName]; ok {
 			if len(agent.snatPolicyCache[ginfo.SnatPolicyName].Spec.DestIp) == 0 {
 				localInfo.destIps = []string{"0.0.0.0/0"}
