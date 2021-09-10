@@ -27,16 +27,21 @@ type AccProvisionInputSpec struct {
 }
 
 type AccProvisionSpec struct {
-	AciConfig       AciConfigSpec       `json:"aci_config,omitempty"`
-	NetConfig       NetConfigSpec       `json:"net_config,omitempty"`
-	Registry        RegistrySpec        `json:"registry,omitempty"`
-	Logging         LoggingSpec         `json:"logging,omitempty"`
-	IstioConfig     IstioConfigSpec     `json:"istio_config,omitempty"`
-	DropLogConfig   DropLogConfigSpec   `json:"drop_log_config,omitempty"`
-	Multus          MultusSpec          `json:"multus,omitempty"`
-	KubeConfig      KubeConfigSpec      `json:"kube_config,omitempty"`
-	SriovConfig     SriovConfigSpec     `json:"sriov_config,omitempty"`
-	NodePodIFConfig NodePodIFConfigSpec `json:"nodepodif_config,omitempty"`
+	OperatorManagedConfig OperatorConfigSpec  `json:"operator_managed_config"`
+	AciConfig             AciConfigSpec       `json:"aci_config,omitempty"`
+	NetConfig             NetConfigSpec       `json:"net_config,omitempty"`
+	Registry              RegistrySpec        `json:"registry,omitempty"`
+	Logging               LoggingSpec         `json:"logging,omitempty"`
+	IstioConfig           IstioConfigSpec     `json:"istio_config,omitempty"`
+	DropLogConfig         DropLogConfigSpec   `json:"drop_log_config,omitempty"`
+	Multus                MultusSpec          `json:"multus,omitempty"`
+	KubeConfig            KubeConfigSpec      `json:"kube_config,omitempty"`
+	SriovConfig           SriovConfigSpec     `json:"sriov_config,omitempty"`
+	NodePodIFConfig       NodePodIFConfigSpec `json:"nodepodif_config,omitempty"`
+}
+
+type OperatorConfigSpec struct {
+	EnableUpdates bool `json:"enable_updates"`
 }
 
 type AciConfigSpec struct {
