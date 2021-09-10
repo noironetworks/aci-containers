@@ -241,7 +241,7 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	// 2. if it is not present then delete the policy from localInfo as the portinfo is not allocated  for node
 	if newpolicyinfo.Status.State == snatpolicy.IpPortsExhausted {
 		agent.log.Info("Ports exhausted: ", newpolicyinfo.ObjectMeta.Name)
-		ginfo, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
+		/*ginfo, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 		present := false
 		if ok {
 			for _, v := range ginfo {
@@ -252,7 +252,7 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 		}
 		if !ok || !present {
 			agent.deletePolicy(newpolicyinfo)
-		}
+		}*/
 		return
 	}
 	if newpolicyinfo.Status.State != snatpolicy.Ready {
