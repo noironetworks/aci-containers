@@ -58,6 +58,8 @@ type AciController struct {
 	defaultEg string
 	defaultSg string
 
+	unitTestMode bool
+
 	podQueue          workqueue.RateLimitingInterface
 	netPolQueue       workqueue.RateLimitingInterface
 	qosQueue          workqueue.RateLimitingInterface
@@ -281,13 +283,14 @@ func createQueue(name string) workqueue.RateLimitingInterface {
 		"delta")
 }
 
-func NewController(config *ControllerConfig, env Environment, log *logrus.Logger) *AciController {
+func NewController(config *ControllerConfig, env Environment, log *logrus.Logger, unittestmode bool) *AciController {
 	cont := &AciController{
-		log:       log,
-		config:    config,
-		env:       env,
-		defaultEg: "",
-		defaultSg: "",
+		log:          log,
+		config:       config,
+		env:          env,
+		defaultEg:    "",
+		defaultSg:    "",
+		unitTestMode: unittestmode,
 
 		podQueue:          createQueue("pod"),
 		netPolQueue:       createQueue("networkPolicy"),

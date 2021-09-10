@@ -66,7 +66,7 @@ func testController() *testAciController {
 	}
 
 	cont := &testAciController{
-		AciController: *NewController(NewConfig(), &K8sEnvironment{}, log),
+		AciController: *NewController(NewConfig(), &K8sEnvironment{}, log, true),
 	}
 	cont.env.(*K8sEnvironment).cont = &cont.AciController
 	cont.serviceEndPoints = &serviceEndpoint{}
