@@ -45,9 +45,10 @@ type HostAgent struct {
 	config *HostAgentConfig
 	env    Environment
 
-	indexMutex sync.Mutex
-	ipamMutex  sync.Mutex
-	snatMutex  sync.RWMutex
+	indexMutex           sync.Mutex
+	ipamMutex            sync.Mutex
+	snatPolicyLabelMutex sync.RWMutex
+	snatPolicyCacheMutex sync.RWMutex
 
 	opflexEps             map[string][]*opflexEndpoint
 	opflexServices        map[string]*opflexService
@@ -235,39 +236,39 @@ func addPodRoute(ipn types.IPNet, dev string, src string) error {
 }
 
 func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]ResourceType, bool) {
-	agent.snatMutex.RLock()
-	defer agent.snatMutex.RUnlock()
+	agent.snatPolicyLabelMutex.RLock()
+	defer agent.snatPolicyLabelMutex.RUnlock()
 	value, ok := agent.snatPolicyLabels[key]
 	return value, ok
 }
 
 func (agent *HostAgent) WriteSnatPolicyLabel(key string, policy string, res ResourceType) {
-	agent.snatMutex.Lock()
-	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
 	agent.snatPolicyLabels[key][policy] = res
 }
 
 func (agent *HostAgent) WriteNewSnatPolicyLabel(key string) {
-	agent.snatMutex.Lock()
-	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
 	agent.snatPolicyLabels[key] = make(map[string]ResourceType)
 }
 
 func (agent *HostAgent) DeleteSnatPolicyLabelEntry(key string, policy string) {
-	agent.snatMutex.Lock()
-	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
 	delete(agent.snatPolicyLabels[key], policy)
 }
 
 func (agent *HostAgent) DeleteSnatPolicyLabel(key string) {
-	agent.snatMutex.Lock()
-	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
 	delete(agent.snatPolicyLabels, key)
 }
 
 func (agent *HostAgent) DeleteMatchingSnatPolicyLabel(policy string) {
-	agent.snatMutex.Lock()
-	defer agent.snatMutex.Unlock()
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
 	for key, v := range agent.snatPolicyLabels {
 		if _, ok := v[policy]; ok {
 			delete(agent.snatPolicyLabels[key], policy)
