@@ -267,6 +267,15 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 	result := &cnicur.Result{}
 
+	//deallocate IP's incase if container interface creation fails
+	deallocIP := func(iface *md.ContainerIfaceMd, err error) {
+		logger.Infof("Deallocating IP address(es).")
+		logger.Infof("Error: %+v", err)
+		agent.ipamMutex.Lock()
+		agent.deallocateIpsLocked(iface)
+		agent.ipamMutex.Unlock()
+	}
+
 	for _, nc := range agent.config.NetConfig {
 		result.Routes =
 			append(result.Routes, convertRoutes(nc.Routes)...)
@@ -285,7 +294,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		if len(iface.IPs) == 0 {
 			// We're doing ip address management
 
-			logger.Debug("Allocating IP address(es) for ", iface.Name)
+			logger.Debugf("Allocating IP address(es) for %v", iface.Name)
 			err = agent.allocateIps(iface, podKey)
 			if err != nil {
 				return nil, err
@@ -298,6 +307,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				iface.HostVethName, iface.Mac, err =
 					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
 				if err != nil {
+					deallocIP(iface, err)
 					return nil, err
 				} else {
 					break
@@ -309,7 +319,17 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			iface.HostVethName, iface.Mac, err =
 				runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
 			if err != nil {
+				deallocIP(iface, err)
 				return nil, err
+			}
+		}
+		//Todo: Remove dependency on integ_test flag.
+		if agent.integ_test == nil {
+			if len(iface.HostVethName) == 0 || len(iface.Mac) == 0 {
+				l := fmt.Sprintf("Failed to setup Veth.{ContainerName= %v, HostVethName: { Name=%v, Lenght=%v} ,MAC: {Name=%v, Length=%v}}", metadata.Id.ContId, iface.HostVethName, len(iface.HostVethName), iface.Mac, len(iface.Mac))
+				er := fmt.Errorf("Unable to Configure Container Interface, Error: %v", l)
+				deallocIP(iface, er)
+				return nil, er
 			}
 		}
 
@@ -318,9 +338,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		logger.Debug("Configuring network for ", iface.Name, ": ", *result)
 		err = runSetupNetwork(iface.Sandbox, iface.Name, result)
 		if err != nil {
-			agent.ipamMutex.Lock()
-			agent.deallocateIpsLocked(iface)
-			agent.ipamMutex.Unlock()
+			deallocIP(iface, err)
 			return nil, err
 		}
 	}

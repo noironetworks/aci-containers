@@ -15,6 +15,9 @@
 package hostagent
 
 import (
+	"net"
+	"time"
+
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/sirupsen/logrus"
@@ -25,8 +28,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 	record "k8s.io/client-go/tools/record"
-	"net"
-	"time"
 )
 
 const nodename = "test-node"
@@ -172,6 +173,9 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	agent.initDepPodIndex()
 	agent.initRCPodIndex()
 	agent.initQoSPolPodIndex()
+
+	integ_test := "true"
+	agent.integ_test = &integ_test
 
 	return agent
 }

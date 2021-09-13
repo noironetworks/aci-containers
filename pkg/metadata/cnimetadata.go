@@ -100,7 +100,7 @@ func CheckMetadata(datadir string, network string) (int64, error) {
 				for _, ip := range ifc.IPs {
 					curr, ok := ipMap[ip.Address.String()]
 					if ok {
-						return 0, fmt.Errorf("pod: %s alreay has IP: %s, clashes with pod: %s", curr, ip.Address.String(), podId)
+						return 0, fmt.Errorf("pod: %s already has IP: %s, clashes with pod: %s", curr, ip.Address.String(), podId)
 					}
 
 					ipMap[ip.Address.String()] = podId
