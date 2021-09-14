@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -1122,6 +1123,12 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		}
 	}
 	name := cont.aciNameForKey("service-vmm", key)
+	prettyObj, err := json.Marshal(aobj)
+	if err != nil {
+		cont.log.Error("Could not serialize object")
+	}
+	a := apicapi.UnQuote(string(prettyObj))
+	fmt.Println("#####################Write Service Object#####################:", a)
 	cont.log.Debug("Write Service Object: ", aobj)
 	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
 	cont.log.Debugf("svcObject: %+v", aobj)

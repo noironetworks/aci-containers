@@ -267,13 +267,17 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						pendingKind = pendingChangeUpdate
 					}
 					conn.indexMutex.Lock()
-
+					prettyObj, err := json.Marshal(obj)
+					if err != nil {
+						conn.log.Error("Could not serialize object")
+					}
+					a := UnQuote(string(prettyObj))
+					fmt.Println("##########Processing websocket notification for obj#############:", a)
 					conn.logger.WithFields(logrus.Fields{
 						"mod": "APICAPI",
 						"dn":  obj.GetDn(),
-						"obj": obj,
+						"obj": a,
 					}).Debug("Processing websocket notification for:")
-
 					conn.pendingSubDnUpdate[dn] = pendingChange{
 						kind:    pendingKind,
 						subIds:  subIds,
@@ -862,6 +866,12 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	}
 
 	for _, obj := range apicresp.Imdata {
+		prettyObj, err := json.Marshal(obj)
+		if err != nil {
+			conn.log.Error("Could not serialize object")
+		}
+		a := UnQuote(string(prettyObj))
+		fmt.Println("#################Object updated on APIC#############:", a)
 		conn.logger.WithFields(logrus.Fields{
 			"mod": "APICAPI",
 			"dn":  obj.GetDn(),
@@ -989,10 +999,16 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 }
 
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
+	prettyObj, err := json.Marshal(obj)
+	if err != nil {
+		conn.log.Error("Could not serialize object")
+	}
+	a := UnQuote(string(prettyObj))
+	fmt.Println("############################Posting update for obj####################:", a)
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
-		//"obj": obj,
+		"obj": obj,
 	}).Debug("Posting update")
 
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)

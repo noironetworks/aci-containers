@@ -17,7 +17,9 @@ package apicapi
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -354,6 +356,19 @@ func (o ApicObject) Copy() ApicObject {
 	}
 
 	return res
+}
+
+func UnQuote(obj interface{}) string {
+	json, err := json.Marshal(obj)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(json))
+
+	st, err := strconv.Unquote(string(json))
+	fmt.Println(st)
+	return st
+
 }
 
 func NewFvTenant(name string) ApicObject {
