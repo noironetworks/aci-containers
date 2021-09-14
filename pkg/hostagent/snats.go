@@ -152,6 +152,14 @@ func SnatGlobalInfoLogger(log *logrus.Logger, snat *snatglobal.SnatGlobalInfo) *
 	})
 }
 
+func SnatPolicyLogger(log *logrus.Logger, snatPol *snatpolicy.SnatPolicy) *logrus.Entry {
+	return log.WithFields(logrus.Fields{
+		"namespace": snatPol.ObjectMeta.Namespace,
+		"name":      snatPol.ObjectMeta.Name,
+		"spec":      snatPol.Spec,
+	})
+}
+
 func opflexSnatIpLogger(log *logrus.Logger, snatip *OpflexSnatIp) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"uuid":           snatip.Uuid,
@@ -209,7 +217,11 @@ func (agent *HostAgent) initSnatPolicyInformerBase(listWatch *cache.ListWatch) {
 func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
-	policyinfo := obj.(*snatpolicy.SnatPolicy)
+	policyinfo, ok := obj.(*snatpolicy.SnatPolicy)
+	if !ok {
+		agent.log.Error("snatPolicyAdded: Bad object type")
+		return
+	}
 	agent.log.Info("Policy Info Added: ", policyinfo.ObjectMeta.Name)
 	if policyinfo.Status.State != snatpolicy.Ready {
 		return
@@ -225,7 +237,7 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	oldpolicyinfo := oldobj.(*snatpolicy.SnatPolicy)
 	newpolicyinfo := newobj.(*snatpolicy.SnatPolicy)
 	agent.log.Info("Policy Info Updated: ", newpolicyinfo.ObjectMeta.Name)
-	agent.log.Info("Policy Status: ", newpolicyinfo.Status.State)
+	agent.log.Info("Policy Status: ", newpolicyinfo.Status.State, "for policy: ", newpolicyinfo.ObjectMeta.Name)
 	if reflect.DeepEqual(oldpolicyinfo, newpolicyinfo) {
 		return
 	}
@@ -301,9 +313,25 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
-	policyinfo := obj.(*snatpolicy.SnatPolicy)
+	policyinfo, isSnat := obj.(*snatpolicy.SnatPolicy)
+	if !isSnat {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			SnatPolicyLogger(agent.log, policyinfo).
+				Error("Received unexpected object: ", obj)
+			return
+		}
+		policyinfo, ok = deletedState.Obj.(*snatpolicy.SnatPolicy)
+		if !ok {
+			SnatPolicyLogger(agent.log, policyinfo).
+				Error("DeletedFinalStateUnknown contained non-snatPolicy object: ", deletedState.Obj)
+			return
+		}
+	}
+
 	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)
+	agent.log.Infof("Snat Policy Deleted: %s", policyinfo.ObjectMeta.Name)
 }
 
 func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
@@ -486,7 +514,7 @@ func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy) {
 	}
 	agent.updateEpFiles(poduids)
 	delete(agent.snatPods, policy.GetName())
-	agent.log.Info("SnatPolicy deleted update Nodeinfo: ", policy.GetName())
+	agent.log.Info("SnatPolicy deleted: ", policy.GetName())
 	agent.scheduleSyncNodeInfo()
 	agent.DeleteMatchingSnatPolicyLabel(policy.GetName())
 	return
@@ -539,14 +567,18 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 func (agent *HostAgent) snatGlobalInfoUpdate(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-	snat := obj.(*snatglobal.SnatGlobalInfo)
+	snat, ok := obj.(*snatglobal.SnatGlobalInfo)
+	if !ok {
+		agent.log.Error("snatGlobalInfoUpdate: Bad object type")
+		return
+	}
 	key, err := cache.MetaNamespaceKeyFunc(snat)
 	if err != nil {
 		SnatGlobalInfoLogger(agent.log, snat).
 			Error("Could not create key:" + err.Error())
 		return
 	}
-	agent.log.Info("Snat Global Object added/Updated: ", snat)
+	agent.log.Infof("Snat Global info added/updated: %s", snat.ObjectMeta.Name)
 	agent.doUpdateSnatGlobalInfo(key)
 }
 
@@ -563,7 +595,7 @@ func (agent *HostAgent) doUpdateSnatGlobalInfo(key string) {
 	}
 	snat := snatobj.(*snatglobal.SnatGlobalInfo)
 	logger := SnatGlobalInfoLogger(agent.log, snat)
-	agent.snaGlobalInfoChanged(snatobj, logger)
+	agent.snatGlobalInfoChanged(snatobj, logger)
 }
 
 func fileExists(filename string) bool {
@@ -574,10 +606,14 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus.Entry) {
+func (agent *HostAgent) snatGlobalInfoChanged(snatobj interface{}, logger *logrus.Entry) {
 	agent.snatPolicyCacheMutex.RLock()
 	defer agent.snatPolicyCacheMutex.RUnlock()
-	snat := snatobj.(*snatglobal.SnatGlobalInfo)
+	snat, ok := snatobj.(*snatglobal.SnatGlobalInfo)
+	if !ok {
+		agent.log.Error("snatGlobalInfoChanged: Bad object type")
+		return
+	}
 	syncSnat := false
 	updateLocalInfo := false
 	if logger == nil {
@@ -592,6 +628,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 				delete(agent.opflexSnatGlobalInfos, nodename)
 				syncSnat = true
 			}
+			agent.log.Debugf("Deleting entry from opflexSnatGlobalInfos for node name: %s", nodename)
 		}
 	}
 	for nodename, val := range globalInfo {
@@ -643,9 +680,9 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		if !file_exists {
 			wrote, err := writeAs(filePath, as)
 			if err != nil {
-				agent.log.Debug("Unable to write snat ext service file:")
+				agent.log.Debugf("Unable to write snat ext service file: %s", snatFileName)
 			} else if wrote {
-				agent.log.Debug("Created snat ext service file")
+				agent.log.Debugf("Created snat ext service file: %s", snatFileName)
 			}
 
 		}
@@ -655,9 +692,9 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		if file_exists {
 			err := os.Remove(filePath)
 			if err != nil {
-				agent.log.Debug("Unable to delete snat ext service file")
+				agent.log.Infof("Unable to delete snat ext service file: %s", snatFileName)
 			} else {
-				agent.log.Debug("Deleted snat ext service file")
+				agent.log.Infof("Deleted snat ext service file: %s", snatFileName)
 			}
 		}
 	}
@@ -677,8 +714,21 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 }
 
 func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
-	agent.log.Debug("Snat Global Info Obj Delete")
-	snat := obj.(*snatglobal.SnatGlobalInfo)
+	snat, isSnat := obj.(*snatglobal.SnatGlobalInfo)
+	if !isSnat {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			SnatGlobalInfoLogger(agent.log, snat).
+				Error("Received unexpected object: ", obj)
+			return
+		}
+		snat, ok = deletedState.Obj.(*snatglobal.SnatGlobalInfo)
+		if !ok {
+			SnatGlobalInfoLogger(agent.log, snat).
+				Error("DeletedFinalStateUnknown contained non-snatGlobalInfo object: ", deletedState.Obj)
+			return
+		}
+	}
 	globalInfo := snat.Spec.GlobalInfos
 	agent.indexMutex.Lock()
 	for nodename := range globalInfo {
@@ -686,6 +736,7 @@ func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
 			delete(agent.opflexSnatGlobalInfos, nodename)
 		}
 	}
+	agent.log.Debugf("Snat Global Info Obj Deleted: %s", snat.ObjectMeta.Name)
 	agent.indexMutex.Unlock()
 }
 
@@ -768,7 +819,9 @@ func (agent *HostAgent) syncSnat() bool {
 
 		snatfile := filepath.Join(agent.config.OpFlexSnatDir, f.Name())
 		logger := agent.log.WithFields(
-			logrus.Fields{"Uuid": uuid})
+			logrus.Fields{
+				"FileName": snatfile,
+				"Uuid":     uuid})
 		existing, ok := opflexSnatIps[uuid]
 		if ok {
 			fmt.Printf("snatfile:%s\n", snatfile)
