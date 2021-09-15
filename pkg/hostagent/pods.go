@@ -208,12 +208,20 @@ func (agent *HostAgent) initPodInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list Pods during initialization of PodInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"spec.nodeName": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch Pods during initialization of PodInformer")
+				}
+				return obj, err
 			},
 		})
 
@@ -222,12 +230,20 @@ func (agent *HostAgent) initPodInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
 				//options.LabelSelector = "name=aci-containers-controller"
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list Pods during initialization of ControllerInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
 				//options.LabelSelector = "name=aci-containers-controller"
-				return kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch Pods during initialization of ControllerInformer")
+				}
+				return obj, err
 			},
 		})
 }

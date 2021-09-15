@@ -42,10 +42,18 @@ func (cont *AciController) initSnatNodeInformerFromClient(
 	cont.initSnatNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to list NodeInfos during initialization of SnatNodeInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
+				}
+				return obj, err
 			},
 		})
 }
@@ -77,14 +85,20 @@ func (cont *AciController) initSnatCfgFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				return kubeClient.CoreV1().ConfigMaps(
-					"aci-containers-system").List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").List(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to list ConfigMap during initialization of SnatCfg")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				return kubeClient.CoreV1().ConfigMaps(
-					"aci-containers-system").Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Watch(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
+				}
+				return obj, err
 			},
 		})
 }
