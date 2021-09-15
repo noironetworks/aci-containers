@@ -52,12 +52,20 @@ func (agent *HostAgent) initNodeInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Nodes().List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list Nodes during initialization of NodeInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				return kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch Nodes during initialization of NodeInformer")
+				}
+				return obj, err
 			},
 		})
 }

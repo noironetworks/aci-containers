@@ -123,10 +123,18 @@ func (agent *HostAgent) initEndpointsInformerFromClient(
 	agent.initEndpointsInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list Endpoints during initialization of EndpointsInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch Endpoints during initialization of EndpointsInformer")
+				}
+				return obj, err
 			},
 		})
 }
@@ -156,10 +164,18 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 	agent.initEndpointSliceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list EndpointSlices during initialization of EndpointSliceInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch EndpointSlices during initialization of EndpointSliceInformer")
+				}
+				return obj, err
 			},
 		})
 }
@@ -189,10 +205,18 @@ func (agent *HostAgent) initServiceInformerFromClient(
 	agent.initServiceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to list Services during initialization of ServiceInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatal("Failed to watch Services during initialization of ServiceInformer")
+				}
+				return obj, err
 			},
 		})
 }
