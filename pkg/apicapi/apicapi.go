@@ -388,6 +388,7 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if quit {
 				break
 			}
+			conn.log.Debug("Processing Requeue for:", dn)
 			var requeue bool
 			switch dn := dn.(type) {
 			case string:
@@ -934,6 +935,11 @@ func (conn *ApicConnection) PostTestAPI(data interface{}) error {
 }
 
 func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+		"obj": obj,
+	}).Debug("Posting Dn Inline")
 	if conn.token == "" {
 		token, err := conn.login()
 		if err != nil {
@@ -971,6 +977,10 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 }
 
 func (conn *ApicConnection) DeleteDnInline(dn string) error {
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+	}).Debug("Deleting Dn Inline")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
@@ -992,8 +1002,8 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
-		//"obj": obj,
-	}).Debug("Posting update")
+		"obj": obj,
+	}).Debug("Posting Dn")
 
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
@@ -1029,7 +1039,10 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 }
 
 func (conn *ApicConnection) DeleteDn(dn string) bool {
-	conn.log.Debug("Deleting ", dn)
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+	}).Debug("Deleting Dn")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
@@ -1115,6 +1128,10 @@ func (conn *ApicConnection) AddSubscriptionClass(class string,
 
 func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	targetClasses []string) {
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+	}).Debug("Adding Subscription for Dn")
 
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[dn] = &subscription{
@@ -1269,7 +1286,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			"mod": "APICAPI",
 			"dn":  dn,
 			"tag": tag,
-			//"obj": obj,
+			"obj": obj,
 		}).Debug("Caching")
 
 		prepareApicCache("", obj)
