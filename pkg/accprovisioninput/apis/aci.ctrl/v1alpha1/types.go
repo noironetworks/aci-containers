@@ -68,6 +68,7 @@ type RegistrySpec struct {
 	ImagePrefix                    string `json:"image_prefix,omitempty"`
 	ImagePullSecret                string `json:"image_pull_secret,omitempty"`
 	AccProvisionOperatorVersion    string `json:"acc_provision_operator_version,omitempty"`
+	AciCniOperatorVersion          string `json:"aci_cni_operator_version,omitempty"`
 	AciContainersOperatorVersion   string `json:"aci_containers_operator_version,omitempty"`
 	AciContainersControllerVersion string `json:"aci_containers_controller_version,omitempty"`
 	AciContainersHostVersion       string `json:"aci_containers_host_version,omitempty"`
