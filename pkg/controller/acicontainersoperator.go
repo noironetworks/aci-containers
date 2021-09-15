@@ -36,6 +36,7 @@ import (
 	routesClientset "github.com/openshift/client-go/route/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,11 +74,13 @@ type Controller struct {
 	Daemonset_Queue             workqueue.RateLimitingInterface
 	Node_Queue                  workqueue.RateLimitingInterface
 	Route_Queue                 workqueue.RateLimitingInterface
+	Config_Map_Queue            workqueue.RateLimitingInterface
 	Informer_Operator           cache.SharedIndexInformer
 	Informer_Deployment         cache.SharedIndexInformer
 	Informer_Daemonset          cache.SharedIndexInformer
 	Informer_Node               cache.SharedIndexInformer
 	Informer_Route              cache.SharedIndexInformer
+	Informer_Config             cache.SharedIndexInformer
 	Resources                   AciResources
 	DnsOperatorClient           client.Client             // This client is specific dnsopenshift operator
 	RoutesClient                routesClientset.Interface // This client is specific routes openshift operator
@@ -109,6 +112,9 @@ const aciContainersController = "aci-containers-controller"
 const aciContainersHostDaemonset = "aci-containers-host"
 const aciContainersOvsDaemonset = "aci-containers-openvswitch"
 
+var Aci_operator_config_path = "/usr/local/etc/aci-containers/aci-operator.conf"
+var Acc_provision_config_path = "/usr/local/etc/acc-provision/acc-provision-operator.conf"
+
 func NewAciContainersOperator(
 	acicnioperatorclient operatorclientset.Interface,
 	accprovisioninputclient accprovisioninputclientset.Interface,
@@ -120,6 +126,7 @@ func NewAciContainersOperator(
 	daemonset_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	node_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	route_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	config_map_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	log.Info("Intializing Informer")
 
@@ -177,6 +184,21 @@ func NewAciContainersOperator(
 		0,
 		cache.Indexers{},
 	)
+
+	config_map_informer := cache.NewSharedIndexInformer(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+			},
+		},
+		&v1.ConfigMap{},
+		0,
+		cache.Indexers{},
+	)
+
 	var routesClient routesClientset.Interface
 	var route_informer cache.SharedIndexInformer
 	flavor := os.Getenv("ACC_PROVISION_FLAVOR")
@@ -221,11 +243,13 @@ func NewAciContainersOperator(
 		Informer_Daemonset:          aci_daemonset_informer,
 		Informer_Node:               node_informer,
 		Informer_Route:              route_informer,
+		Informer_Config:             config_map_informer,
 		Operator_Queue:              operator_queue,
 		Deployment_Queue:            deployment_queue,
 		Daemonset_Queue:             daemonset_queue,
 		Node_Queue:                  node_queue,
 		Route_Queue:                 route_queue,
+		Config_Map_Queue:            config_map_queue,
 		Resources:                   AciResources{},
 		DnsOperatorClient:           nil,
 		RoutesClient:                routesClient,
@@ -329,6 +353,35 @@ func NewAciContainersOperator(
 			}
 		},
 	})
+
+	config_map_informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			current_Obj := obj.(*corev1.ConfigMap)
+			if current_Obj.Name == "aci-operator-config" {
+				log.Info("In AddFunc for ConfigMap : ", current_Obj.Name)
+				if err == nil {
+					config_map_queue.Add(key)
+				}
+			}
+
+		},
+		UpdateFunc: func(prevObj, currentObj interface{}) {
+			current_Obj := currentObj.(*corev1.ConfigMap)
+			if current_Obj.Name == "aci-operator-config" {
+				log.Info("In UpdateFunc for ConfigMap : ", current_Obj.Name)
+				controller.handleConfigMapUpdate(prevObj, currentObj, config_map_queue)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			current_Obj := obj.(*corev1.ConfigMap)
+			if current_Obj.Name == "aci-operator-config" {
+				log.Info("In DeleteFunc for ConfigMap : ", current_Obj.Name)
+				controller.handleConfigMapDelete(obj)
+			}
+		},
+	})
+
 	if opflavor { //openshift flavor
 		route_informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
@@ -365,7 +418,7 @@ func (c *Controller) handledeploymentUpdate(oldobj interface{}, newobj interface
 			queue.Add(key)
 		}
 	} else {
-		log.Info("Owner Reference is intact for ", new_dep.Name)
+		log.Info("Owner Reference is unchanged for ", new_dep.Name)
 	}
 }
 
@@ -379,8 +432,76 @@ func (c *Controller) handledaemonsetUpdate(oldobj interface{}, newobj interface{
 			queue.Add(key)
 		}
 	} else {
-		log.Info("Owner Reference is intact for ", new_ds.Name)
+		log.Info("Owner Reference is unchanged for ", new_ds.Name)
 	}
+}
+
+func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
+	new_config := newobj.(*corev1.ConfigMap)
+	if _, err := os.Stat("/tmp/aci-operator.conf"); os.IsNotExist(err) {
+		log.Info("File not present. Writing initial aci-operator-config configmap")
+		err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
+		if err != nil {
+			return true
+		}
+		return false
+	}
+
+	log.Info("Writing new aci-operator-config configmap")
+	err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
+	if err != nil {
+		return true
+	}
+
+	log.Info("Reading current aci-operator-config configmap")
+	rawSpec, err := c.ReadConfigMap("/tmp/aci-operator.conf")
+	if err != nil {
+		return true
+	}
+
+	obj := c.CreateAciContainersOperatorObj()
+	log.Info("Unmarshalling the ConfigMap...")
+	err = json.Unmarshal(rawSpec, &obj.Spec)
+	if err != nil {
+		log.Info(err)
+		return true
+	}
+
+	acicnioperator, err := c.GetAciContainersOperatorCR()
+	if err != nil {
+		return true
+	}
+
+	if (acicnioperator.Spec.Flavor != obj.Spec.Flavor) || (acicnioperator.Spec.Config != obj.Spec.Config) {
+		acicnioperator.Spec.Flavor = obj.Spec.Flavor
+		acicnioperator.Spec.Config = obj.Spec.Config
+		_, err = c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
+			Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
+		if err != nil {
+		}
+	}
+	return false
+}
+
+func (c *Controller) handleConfigMapUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+	old_cm := oldobj.(*corev1.ConfigMap)
+	new_cm := newobj.(*corev1.ConfigMap)
+	log.Info("In ConfigMap update handler: ", new_cm.Name)
+
+	if !reflect.DeepEqual(old_cm.Data, new_cm.Data) {
+		key, err := cache.MetaNamespaceKeyFunc(newobj)
+		if err == nil {
+			queue.Add(key)
+		}
+	} else {
+		log.Info("ConfigMap is unchanged for ", new_cm.Name)
+	}
+}
+
+func (c *Controller) handleConfigMapDelete(obj interface{}) bool {
+	new_obj := obj.(*corev1.ConfigMap)
+	log.Info("aci-containers-operator ConfigMap deleted: ", new_obj.Name)
+	return false
 }
 
 func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOperator, error) {
@@ -392,13 +513,29 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 	return acicnioperator, nil
 }
 func (c *Controller) ReadConfigMap(field string) ([]byte, error) {
-	raw, err := ioutil.ReadFile("/usr/local/etc/" + field)
+	raw, err := ioutil.ReadFile(field)
 	if err != nil {
 		log.Error(err)
 		return nil, err
 	}
-	log.Debug("Config-Map is:  ", string(raw))
+	log.Debug("ConfigMap is:  ", string(raw))
 	return raw, err
+}
+
+func (c *Controller) WriteConfigMap(field string, data *corev1.ConfigMap) error {
+	log.Info("Writing the ConfigMap: ", data.Name, " in the file")
+	rawIn := json.RawMessage(data.Data["spec"])
+	data_byte, err := rawIn.MarshalJSON()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	err = ioutil.WriteFile(field, data_byte, 0777)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
 }
 
 func (c *Controller) CreateAciContainersOperatorObj() *operators.AciContainersOperator {
@@ -412,18 +549,18 @@ func (c *Controller) CreateAciContainersOperatorObj() *operators.AciContainersOp
 }
 
 func (c *Controller) CreateAciContainersOperatorCR() error {
-	log.Info("Reading the aci-operator-config Config Map providing CR")
-	rawSpec, err := c.ReadConfigMap("aci-containers/aci-operator.conf")
+	log.Info("Reading the aci-operator-config ConfigMap providing CR")
+	rawSpec, err := c.ReadConfigMap(Aci_operator_config_path)
 	if err != nil {
-		log.Info("Failed to read aci-operator-config Config Map")
+		log.Info("Failed to read aci-operator-config ConfigMap")
 		log.Error(err)
 		return err
 	}
 	obj := c.CreateAciContainersOperatorObj()
-	log.Info("Unmarshalling the aci-operator-config Config-Map...")
+	log.Info("Unmarshalling the aci-operator-config ConfigMap...")
 	err = json.Unmarshal(rawSpec, &obj.Spec)
 	if err != nil {
-		log.Info("Failed to unmarshal aci-operator-config Config Map")
+		log.Info("Failed to unmarshal aci-operator-config ConfigMap")
 		log.Error(err)
 		return err
 	}
@@ -469,17 +606,17 @@ func (c *Controller) CreateAccProvisionInputObj() *accprovisioninput.AccProvisio
 func (c *Controller) CreateAccProvisionInputCR() error {
 
 	obj := c.CreateAccProvisionInputObj()
-	log.Info("Reading the acc-provision-operator-config Config Map providing CR")
-	rawACCSpec, errACC := c.ReadConfigMap("acc-provision/acc-provision-operator.conf")
+	log.Info("Reading the acc-provision-operator-config ConfigMap providing CR")
+	rawACCSpec, errACC := c.ReadConfigMap(Acc_provision_config_path)
 	if errACC != nil {
-		log.Info("Failed to read acc-provision-operator-config Config Map")
+		log.Info("Failed to read acc-provision-operator-config ConfigMap")
 		log.Error(errACC)
 		return errACC
 	}
-	log.Info("Unmarshalling the acc-provision-operator-config Config-Map...")
+	log.Info("Unmarshalling the acc-provision-operator-config ConfigMap...")
 	errACC = json.Unmarshal(rawACCSpec, &obj.Spec)
 	if errACC != nil {
-		log.Info("Failed to unmarshal acc-provision-operator-config Config Map")
+		log.Info("Failed to unmarshal acc-provision-operator-config ConfigMap")
 		log.Error(errACC)
 		return errACC
 	}
@@ -518,13 +655,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	} else {
 		log.Info("acicnioperator CR already present")
 		log.Debug("Reading current aci-operator-config configmap")
-		rawSpec, errSpec := c.ReadConfigMap("aci-containers/aci-operator.conf")
+		rawSpec, errSpec := c.ReadConfigMap(Aci_operator_config_path)
 		if errSpec != nil {
 			log.Error(errSpec)
 			acicnioperatorsuccess = false
 		} else {
 			obj := c.CreateAciContainersOperatorObj()
-			log.Debug("Unmarshalling the ConfigMaps...")
+			log.Debug("Unmarshalling the ConfigMap...")
 			err = json.Unmarshal(rawSpec, &obj.Spec)
 			if err != nil {
 				log.Error(err)
@@ -553,8 +690,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			}
 		} else {
 			log.Info("accprovisioninput CR already present")
-			log.Debug("Reading current acc-provision-operator-config Config Map")
-			rawACCSpec, errACCSpec := c.ReadConfigMap("acc-provision/acc-provision-operator.conf")
+			log.Debug("Reading current acc-provision-operator-config ConfigMap")
+			rawACCSpec, errACCSpec := c.ReadConfigMap(Acc_provision_config_path)
 			if errACCSpec != nil {
 				log.Error(errACCSpec)
 			} else {
@@ -581,9 +718,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	go c.Informer_Deployment.Run(stopCh)
 	go c.Informer_Daemonset.Run(stopCh)
 	go c.Informer_Node.Run(stopCh)
+	go c.Informer_Config.Run(stopCh)
 	// Sync the current resources
 	if !cache.WaitForCacheSync(stopCh, c.Informer_Operator.HasSynced,
-		c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced) {
+		c.Informer_Deployment.HasSynced, c.Informer_Daemonset.HasSynced, c.Informer_Node.HasSynced,
+		c.Informer_Config.HasSynced) {
 		utilruntime.HandleError(fmt.Errorf("Controller.Sync: Error syncing the cache"))
 	}
 
@@ -619,6 +758,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			return c.handleNodeCreate(obj)
 		}, func(obj interface{}) bool {
 			return c.handleNodeDelete(obj)
+		},
+		stopCh)
+	go c.processQueue(c.Config_Map_Queue, c.Informer_Config.GetIndexer(),
+		func(obj interface{}) bool {
+			return c.handleConfigMapCreate(obj)
+		}, func(obj interface{}) bool {
+			return c.handleConfigMapDelete(obj)
 		},
 		stopCh)
 	if c.Openshiftflavor {
@@ -701,7 +847,7 @@ func (c *Controller) UpdateDeploymentOwnerReference(acicontainersoperator *opera
 		}
 		log.Infof("Successfully updated owner reference to the %s deployment", aciContainersController)
 	} else {
-		log.Infof("Owner reference is intact for %s", aciContainersController)
+		log.Infof("Owner reference is unchanged for %s", aciContainersController)
 	}
 
 	return true
@@ -732,7 +878,7 @@ func (c *Controller) UpdateHostDaemonsetOwnerReference(acicontainersoperator *op
 		}
 		log.Infof("Successfully updated owner reference to the %s daemonset", aciContainersHostDaemonset)
 	} else {
-		log.Infof("Owner reference is intact for %s", aciContainersHostDaemonset)
+		log.Infof("Owner reference is unchanged for %s", aciContainersHostDaemonset)
 	}
 
 	return true
@@ -764,7 +910,7 @@ func (c *Controller) UpdateOvsDaemonsetOwnerReference(acicontainersoperator *ope
 		}
 		log.Infof("Successfully updated owner reference to the %s daemonset", aciContainersOvsDaemonset)
 	} else {
-		log.Infof("Owner reference is intact for %s", aciContainersOvsDaemonset)
+		log.Infof("Owner reference is unchanged for %s", aciContainersOvsDaemonset)
 	}
 	return true
 }
