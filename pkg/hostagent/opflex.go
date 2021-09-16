@@ -251,12 +251,18 @@ var opflexConfigVxlan = initTempl("opflex-config-vxlan", `{
             "flowid-cache-dir": "{{.OpFlexFlowIdCacheDir | js}}",
             "mcast-group-file": "{{.OpFlexMcastFile | js}}",
             "drop-log": {
-		"geneve" : {
-		    "int-br-iface": "{{.DropLogIntInterface | js}}",
-		    "access-br-iface": "{{.DropLogAccessInterface | js}}",
-		    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}"
-		}
-	    }
+                "geneve" : {
+                    "int-br-iface": "{{.DropLogIntInterface | js}}",
+                    "access-br-iface": "{{.DropLogAccessInterface | js}}",
+                    "remote-ip": "{{.OpFlexDropLogRemoteIp | js}}"
+                }
+            },
+            "statistics": {
+                "service": {
+                    "flow-disabled": "true",
+                    "enabled": "false"
+                }
+            }
         }
     }
 }
