@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -930,11 +931,37 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Opflex device disconnected")
 			cont.indexMutex.Lock()
 			for node, devices := range cont.nodeOpflexDevice {
+				disconnected_device := false
+				controllerPodHostName, err := os.Hostname()
+				if err != nil {
+					panic(err)
+				}
 				if node == obj.GetAttrStr("hostName") {
+					// Since the cache can have two devices during a live migration case
+					// one in "connected" state and the other in "disconnected" state
+					// we check if there is a disconnected device
+					// After the restart the cache will not have the disconnected opflex device
 					for _, device := range devices {
 						if device.GetDn() == obj.GetDn() {
-							device.SetAttr("state", "disconnected")
-							cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Debug("Opflex device cache updated for disconnected node")
+							disconnected_device = true
+							break
+						}
+					}
+					if disconnected_device {
+						for _, device := range devices {
+							if obj.GetAttrStr("hostName") == controllerPodHostName {
+								if cont.config.RestartAfterLiveMigration && (device.GetDn() != obj.GetDn()) &&
+									(device.GetAttr("state") == "connected") {
+									cont.log.Info("Found two opflex devices associated with this node,",
+										"one in connected state and another one transitioned to disconnected state")
+									cont.log.Info("Restarting container")
+									os.Exit(0)
+								}
+							}
+							if device.GetDn() == obj.GetDn() {
+								device.SetAttr("state", "disconnected")
+								cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Debug("Opflex device cache updated for disconnected node")
+							}
 						}
 					}
 					cont.log.Info("Opflex device list for node ", obj.GetAttrStr("hostName"), ": ", devices)

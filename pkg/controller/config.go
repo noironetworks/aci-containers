@@ -206,6 +206,8 @@ type ControllerConfig struct {
 
 	// Cluster Flavour
 	Flavor string `json:"flavor,omitempty"`
+
+	RestartAfterLiveMigration bool `json:"restart-after-live-migration,omitempty"`
 }
 
 type netIps struct {
@@ -243,6 +245,8 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")
 	flag.IntVar(&config.MaxCSRTunnels, "max-csr-tunnels", 16, "Number of CSR tunnels")
 	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
+	flag.BoolVar(&config.RestartAfterLiveMigration, "restart-after-live-migration,omitempty", true,
+		"Restart the containers-controller pod after a live migration")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,
