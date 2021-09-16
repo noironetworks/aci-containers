@@ -260,6 +260,16 @@ func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 
 	go cont.snatGlobalInfoSync(cont.stopCh, 1)
 	time.Sleep(time.Second * globalInfoSyncWaitTime)
+
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
+
+	// Edit an associated policyname with node
+	node1item := cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"]
+	node1item.SnatPolicyName = "wrongpolicyname"
+	cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"] = node1item
+	time.Sleep(time.Second * globalInfoSyncWaitTime)
+
 	snatWait(t, "snat test", expected,
 		cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
 
@@ -270,14 +280,6 @@ func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 	snatWait(t, "snat test", expected,
 		cont.AciController.snatGlobalInfoCache["10.1.1.8"], false)
 
-	// Edit an associated policyname with node
-	node1item := cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"]
-	node1item.SnatPolicyName = "wrongpolicyname"
-	cont.AciController.snatGlobalInfoCache["10.1.1.8"]["node-1"] = node1item
-	time.Sleep(time.Second * globalInfoSyncWaitTime)
-
-	snatWait(t, "snat test", expected,
-		cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
 	cont.stop()
 }
 
