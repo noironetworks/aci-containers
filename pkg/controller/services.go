@@ -1663,14 +1663,23 @@ func (sep *serviceEndpoint) GetnodesMetadata(key string,
 		cont.log.Error("Could not lookup endpoints for " +
 			key + ": " + err.Error())
 	}
+	cont.log.Debug("#######################exists: ", exists)
+	cont.log.Debug("#######################endpointsobj: ", endpointsobj)
 	if exists && endpointsobj != nil {
 		endpoints := endpointsobj.(*v1.Endpoints)
+		cont.log.Debug("#######################endpoints: ", endpoints)
+		cont.log.Debug("#######################Subsets in endpoints: ", endpoints.Subsets)
 		for _, subset := range endpoints.Subsets {
+			cont.log.Debug("#######################subset: ", subset)
+			cont.log.Debug("#######################Addresses in subset: ", subset.Addresses)
 			for _, addr := range subset.Addresses {
+				cont.log.Debug("#######################Adress: ", addr)
+				cont.log.Debug("#######################NodeName: ", addr.NodeName)
 				if addr.NodeName == nil {
 					continue
 				}
 				cont.setNodeMap(nodeMap, *addr.NodeName)
+				cont.log.Debug("#######################Setting NodeMap for: ", addr.NodeName)
 			}
 		}
 	}
