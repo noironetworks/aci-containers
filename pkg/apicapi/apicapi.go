@@ -103,7 +103,7 @@ func (conn *ApicConnection) login() (string, error) {
 		method = "GET"
 	}
 	uri := fmt.Sprintf("/api/%s.json", path)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 
 	var reqBody io.Reader
 	var raw []byte
@@ -222,7 +222,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		dialer:              dialer,
 		logger:              log,
 		log:                 log.WithField("mod", "APICAPI"),
-		apic:                apic,
+		Apic:                apic,
 		user:                user,
 		password:            password,
 		prefix:              prefix,
@@ -388,7 +388,7 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if quit {
 				break
 			}
-			conn.log.Debug("Processing Requeue for:", dn)
+			conn.log.Debug("Processing queue for:", dn)
 			var requeue bool
 			switch dn := dn.(type) {
 			case string:
@@ -545,13 +545,13 @@ loop:
 func (conn *ApicConnection) GetVersion() (string, error) {
 	versionMo := "firmwareCtrlrRunning"
 
-	if len(conn.apic) == 0 {
+	if len(conn.Apic) == 0 {
 		return "", errors.New("No APIC configuration")
 	}
 
 	conn.checkVersion = true // enable version check on websocket reconnect
 	// To Handle unit-tests
-	if strings.Contains(conn.apic[conn.apicIndex], "127.0.0.1") {
+	if strings.Contains(conn.Apic[conn.ApicIndex], "127.0.0.1") {
 		conn.version = "4.2(4i)"
 		conn.SnatPbrFltrChain = true
 		conn.log.Debug("Returning APIC version 4.2(4i) for test server")
@@ -559,12 +559,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 	}
 
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
-
-	conn.logger.WithFields(logrus.Fields{
-		"mod":  "APICAPI",
-		"host": conn.apic[conn.apicIndex],
-	}).Info("Connecting to APIC to determine the Version")
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 
 	for conn.version == "" {
 		// Wait before Retry.
@@ -617,7 +612,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 				case string:
 					version_split := strings.Split(version, "(")
 					version_number, err := strconv.ParseFloat(version_split[0], 64)
-					conn.log.Debug("Actual APIC version:", version, " Stripped out version:", version_number)
+					conn.log.Info("Actual APIC version:", version, " Stripped out version:", version_number)
 					if err == nil {
 						conn.version = version //return the actual version
 					}
@@ -629,7 +624,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 }
 
 func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
-	if len(conn.apic) == 0 {
+	if len(conn.Apic) == 0 {
 		conn.log.Warning("APIC connection not configured")
 		return
 	}
@@ -637,14 +632,14 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 	for !conn.stopped {
 		func() {
 			defer func() {
-				conn.apicIndex = (conn.apicIndex + 1) % len(conn.apic)
+				conn.ApicIndex = (conn.ApicIndex + 1) % len(conn.Apic)
 				time.Sleep(conn.ReconnectInterval)
 
 			}()
 
 			conn.logger.WithFields(logrus.Fields{
 				"mod":  "APICAPI",
-				"host": conn.apic[conn.apicIndex],
+				"host": conn.Apic[conn.ApicIndex],
 			}).Info("Connecting to APIC")
 
 			conn.subscriptions.ids = make(map[string]string)
@@ -658,7 +653,7 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 
 			uri := fmt.Sprintf("/socket%s", token)
 			url := fmt.Sprintf("wss://%s%s",
-				conn.apic[conn.apicIndex], uri)
+				conn.Apic[conn.ApicIndex], uri)
 			header := make(http.Header)
 			if conn.signer != nil {
 				sig, err := conn.signer.sign("GET", uri, nil)
@@ -683,7 +678,7 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 func (conn *ApicConnection) refresh() {
 	if conn.signer == nil {
 		url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
-			conn.apic[conn.apicIndex])
+			conn.Apic[conn.ApicIndex])
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			conn.log.Error("Could not create request: ", err)
@@ -707,7 +702,7 @@ func (conn *ApicConnection) refresh() {
 
 	for _, sub := range conn.subscriptions.subs {
 		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
-		url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+		url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			conn.log.Error("Could not create request: ", err)
@@ -773,7 +768,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 	}
 
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", acivrfdn, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
@@ -831,7 +826,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	}
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	conn.log.Debugf("URL: %v", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -907,7 +902,7 @@ func (conn *ApicConnection) PostTestAPI(data interface{}) error {
 		conn.token = token
 	}
 	uri := "/testapi/cloudpe/mo/.json"
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(data)
 	if err != nil {
 		conn.log.Errorf("Could not serialize object for testapi %v", err)
@@ -949,7 +944,7 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 		conn.token = token
 	}
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
@@ -982,7 +977,7 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 		"dn":  dn,
 	}).Debug("Deleting Dn Inline")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
@@ -1006,7 +1001,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	}).Debug("Posting Dn")
 
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
@@ -1044,7 +1039,7 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 		"dn":  dn,
 	}).Debug("Deleting Dn")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
@@ -1154,8 +1149,8 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 }
 
 func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
-	conn.log.Debug("apicIndex: ", conn.apic[conn.apicIndex], " uri: ", uri)
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	var apicresp ApicResponse
 	conn.log.Debug("Apic Get url: ", url)
 	req, err := http.NewRequest("GET", url, nil)
@@ -1209,7 +1204,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
 		kind, value, refresh_interval, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.apic[conn.apicIndex], uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	conn.log.Info("APIC connection URL: ", url)
 
 	req, err := http.NewRequest("GET", url, nil)

@@ -81,8 +81,8 @@ type pendingChange struct {
 }
 
 type ApicConnection struct {
-	apic      []string
-	apicIndex int
+	Apic      []string
+	ApicIndex int
 	user      string
 	password  string
 	prefix    string
