@@ -277,7 +277,8 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	for _, device := range cont.nodeOpflexDevice[name] {
 		if device.GetAttrStr("state") == "connected" {
-			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node")
+			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
+				"when connected device state is found")
 			return device.GetAttrStr("fabricPathDn"), true
 		}
 	}
@@ -873,6 +874,7 @@ func (cont *AciController) updateDeviceCluster() {
 
 	cont.indexMutex.Lock()
 	for node := range cont.nodeOpflexDevice {
+		cont.log.Debug("Processing node in nodeOpflexDevice cache : ", node)
 		fabricPath, ok := cont.fabricPathForNode(node)
 		if !ok {
 			continue
@@ -915,6 +917,7 @@ func (cont *AciController) fabricPathLogger(node string,
 		"fabricPath": obj.GetAttr("fabricPathDn"),
 		"mac":        obj.GetAttr("mac"),
 		"node":       node,
+		"obj":        obj,
 	})
 }
 
@@ -942,6 +945,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 				}
 			}
 			cont.indexMutex.Unlock()
+			cont.updateDeviceCluster()
 			return
 		}
 		var nodeUpdates []string
@@ -970,8 +974,8 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 					nodeUpdates = append(nodeUpdates, node)
 					break
 				} else if (device.GetAttrStr("mac") != obj.GetAttrStr("mac")) ||
-					(device.GetAttrStr("fabricPathDn") !=
-						obj.GetAttrStr("fabricPathDn")) {
+					(device.GetAttrStr("fabricPathDn") != obj.GetAttrStr("fabricPathDn")) ||
+					(device.GetAttrStr("state") != obj.GetAttrStr("state")) {
 
 					cont.fabricPathLogger(node, obj).
 						Debug("Updating opflex device")
