@@ -201,8 +201,9 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 	}
 	if pod.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
 		for key, val := range pod.ObjectMeta.Labels {
+			newLabelKey := cont.aciNameForKey("label", key)
 			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
-				key, val)
+				newLabelKey, val)
 			aobj.AddChild(label)
 		}
 	}

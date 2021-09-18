@@ -1116,8 +1116,9 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	}
 	if service.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.2" {
 		for key, val := range service.ObjectMeta.Labels {
+			newLabelKey := cont.aciNameForKey("label", key)
 			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
-				key, val)
+				newLabelKey, val)
 			aobj.AddChild(label)
 		}
 	}
