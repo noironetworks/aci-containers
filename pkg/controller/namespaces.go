@@ -71,8 +71,9 @@ func (cont *AciController) writeApicNs(ns *v1.Namespace) {
 		ns.Name)
 	if ns.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.2" {
 		for key, val := range ns.ObjectMeta.Labels {
+			newLabelKey := cont.aciNameForKey("label", key)
 			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
-				key, val)
+				newLabelKey, val)
 			aobj.AddChild(label)
 		}
 	}
