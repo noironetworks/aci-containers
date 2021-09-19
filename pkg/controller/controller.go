@@ -518,6 +518,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	if len(cont.config.ApicHosts) != 0 {
+		cont.log.WithFields(logrus.Fields{
+			"mod":  "APICAPI",
+			"host": cont.apicConn.Apic[cont.apicConn.ApicIndex],
+		}).Debug("Connecting to APIC to determine the Version")
+
 		version, err := cont.apicConn.GetVersion()
 		if err != nil {
 			cont.log.Error("Could not get APIC version")
@@ -533,6 +538,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		if version >= "5.2" {
 			cont.vmmClusterFaultSupported = true
 		}
+
 	} else { // For unit-tests
 		cont.apicConn.SnatPbrFltrChain = true
 	}
