@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -178,6 +179,9 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 		j++
 	}
 
+	conn.log.Debug("Apic object updates are :", updates)
+	conn.log.Debug("Apic object deletes are :", deletes)
+
 	return
 }
 
@@ -322,6 +326,7 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 		for _, body := range obj {
 			for _, child := range body.Children {
 				conn.removeFromDnIndex(child.GetDn())
+				conn.log.Debug("Removing child dn :", child.GetDn())
 			}
 		}
 	}
@@ -329,11 +334,39 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	container bool) {
+
 	tag := getTagFromKey(conn.prefix, key)
 	prepareApicSliceTag(objects, tag)
 
 	conn.indexMutex.Lock()
 	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
+
+	// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
+	// found in deletes
+	var temp_deletes []string
+	for _, delete := range deletes {
+		if strings.Contains(delete, "svcRedirectPol") {
+			temp_deletes = append(temp_deletes, delete)
+		}
+	}
+	for _, temp_del := range temp_deletes {
+		vns_svc_redirect_pol_obj, ok := conn.desiredStateDn[temp_del]
+		if !ok {
+			conn.log.Error("no svc_obj found in desiredStateDn cache")
+			return
+		}
+		// Explicitly remove vnsRedirectDest from svcRedirectPol's list of children
+		for _, body := range vns_svc_redirect_pol_obj {
+			for _, child := range body.Children {
+				for class := range child {
+					if class == "vnsRedirectDest" {
+						deletes = append(deletes, child.GetDn())
+					}
+				}
+			}
+		}
+	}
+	conn.log.Debug("Updated apic object deletes list is :", deletes)
 
 	conn.updateDnIndex(objects)
 	for _, del := range deletes {
