@@ -9,6 +9,8 @@ SYS_ID=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
 
 # Start OVS
 ${OVSCTL} start --system-id=${SYS_ID}
+${VSCTL} set Open_vSwitch . other_config:hw-offload=true
+${OVSCTL} restart --system-id=${SYS_ID}
 
 # Create OVS bridges if needed
 dpid=0

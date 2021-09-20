@@ -49,6 +49,7 @@ type testHostAgent struct {
 	fakeSnatPolicySource    *framework.FakeControllerSource
 	fakeSnatGlobalSource    *framework.FakeControllerSource
 	fakeRdConfigSource      *framework.FakeControllerSource
+	fakeNetAttachDefSource  *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -168,6 +169,12 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 		recorder:           record.NewFakeRecorder(100),
 		eventSubmitTimeMap: make(map[string]time.Time),
 	}
+	agent.fakeNetAttachDefSource = framework.NewFakeControllerSource()
+	agent.initNetworkAttachmentDefinitionInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeNetAttachDefSource.List,
+			WatchFunc: agent.fakeNetAttachDefSource.Watch,
+		})
 	agent.initNetPolPodIndex()
 	agent.initNetPolPodIndex()
 	agent.initDepPodIndex()

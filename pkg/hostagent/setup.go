@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/Mellanox/sriovnet"
 	cnicur "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
@@ -135,6 +136,106 @@ func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error 
 	})
 }
 
+type SetupVfResult struct {
+	HostVfName string
+	Mac        string
+	VfNetDev   string
+}
+
+type SetupVfArgs struct {
+	Sandbox       string
+	IfName        string
+	Mtu           int
+	Ip            net.IP
+	SriovDeviceId string
+}
+
+func runSetupVf(sandbox string, ifName string,
+	mtu int, ip net.IP, sriovDeviceId string) (string, string, string, error) {
+	result := &SetupVfResult{}
+	err := PluginCloner.runPluginCmd("ClientRPC.SetupVf",
+		&SetupVfArgs{sandbox, ifName, mtu, ip, sriovDeviceId}, result)
+	return result.HostVfName, result.Mac, result.VfNetDev, err
+}
+
+func (*ClientRPC) SetupVf(args *SetupVfArgs, result *SetupVfResult) error {
+	netns, err := ns.GetNS(args.Sandbox)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+	}
+	uplink, err := sriovnet.GetUplinkRepresentor(args.SriovDeviceId)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve uplink interface for pci address %s: %v", args.SriovDeviceId, err)
+	}
+	vfIndex, err := sriovnet.GetVfIndexByPciAddress(args.SriovDeviceId)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve vfIndex for pci address %s: %v", args.SriovDeviceId, err)
+	}
+	vfRep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve vf representator for pci address %s and vfIndex %d: %v", args.SriovDeviceId, vfIndex, err)
+	}
+	hostIface, err := netlink.LinkByName(vfRep)
+	if hostIface == nil || err != nil {
+		return err
+	}
+	err = netlink.LinkSetUp(hostIface)
+	if err != nil {
+		return err
+	}
+	result.HostVfName = vfRep
+	netDevice, err := sriovnet.GetNetDevicesFromPci(args.SriovDeviceId)
+	if err != nil {
+		return fmt.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+	}
+	// move Vf netdevice to pod's namespace
+	netDeviceLink, err := netlink.LinkByName(netDevice[0])
+	if err != nil {
+		return fmt.Errorf("Failed to bring up the netlink %s :%v", netDevice[0], err)
+	}
+	err = netlink.LinkSetNsFd(netDeviceLink, int(netns.Fd()))
+	if err != nil {
+		return fmt.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+	}
+	defer netns.Close()
+	return netns.Do(func(hostNS ns.NetNS) error {
+		contLink, err := netlink.LinkByName(netDevice[0])
+		if err != nil {
+			return err
+		}
+		err = netlink.LinkSetDown(contLink)
+		if err != nil {
+			return err
+		}
+		err = netlink.LinkSetName(contLink, args.IfName)
+		if err != nil {
+			return err
+		}
+		//Set Mtu
+		err = netlink.LinkSetMTU(contLink, args.Mtu)
+		if err != nil {
+			return err
+		}
+		err = netlink.LinkSetUp(contLink)
+		if err != nil {
+			return err
+		}
+		if args.Ip.To4() != nil {
+			if err := ip.SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
+				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
+			}
+		}
+		contIface, err := netlink.LinkByName(args.IfName)
+		if err != nil {
+			return err
+		}
+
+		result.Mac = contIface.Attrs().HardwareAddr.String()
+		result.VfNetDev = netDevice[0]
+		return nil
+	})
+}
+
 type ClearVethArgs struct {
 	Sandbox string
 	IfName  string
@@ -164,6 +265,60 @@ func (c *ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
 		err = netlink.LinkDel(iface)
 		if err != nil {
 			return fmt.Errorf("failed to delete %q: %v", args.IfName, err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	*ack = true
+	return nil
+}
+
+type ClearVfArgs struct {
+	Sandbox       string
+	IfName        string
+	SriovDeviceId string
+	VfNetDev      string
+}
+
+func runClearVf(sandbox string, ifName string, sriovDeviceid string, vfnetdev string) error {
+	ack := false
+	err := PluginCloner.runPluginCmd("ClientRPC.ClearVf",
+		&ClearVfArgs{sandbox, ifName, sriovDeviceid, vfnetdev}, &ack)
+	return err
+}
+
+func (c *ClientRPC) ClearVf(args *ClearVfArgs, ack *bool) error {
+	netns, err := ns.GetNS(args.Sandbox)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+	}
+	defer netns.Close()
+
+	currentNs, err := ns.GetCurrentNS()
+	if err != nil {
+		return fmt.Errorf("failed to open current netns: %v", err)
+	}
+	*ack = false
+
+	if err := netns.Do(func(_ ns.NetNS) error {
+		vfNetLink, err := netlink.LinkByName(args.IfName)
+		if err != nil {
+			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
+		}
+		err = netlink.LinkSetDown(vfNetLink)
+		if err != nil {
+			return fmt.Errorf("failed to bring down Vf Netdevice link: %v", err)
+		}
+		err = netlink.LinkSetName(vfNetLink, args.VfNetDev)
+		if err != nil {
+			return err
+		}
+		err = netlink.LinkSetNsFd(vfNetLink, int(currentNs.Fd()))
+		if err != nil {
+			return fmt.Errorf("Failed to move Vf netdevice to host's namespace:%v", err)
 		}
 
 		return nil
@@ -260,8 +415,21 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"container": metadata.Id.ContId,
 	})
 
+	//Harware offload is in working state for overlaymode. We need to remove the overlay check after it is tested on ACI on-prem
+	if agent.config.OvsHardwareOffload && agent.config.OpflexMode == "overlay" {
+		err := agent.getAlloccatedDeviceId(metadata)
+		if err != nil {
+			logger.Error("VF allocation failed ", err)
+		}
+		if len(metadata.Id.DeviceId) == 0 {
+			logger.Error("VF allocation failed: Sriov resource not allocated")
+		} else {
+			logger.Debug("Sriov resource allocated: ", metadata.Id.DeviceId)
+		}
+
+	}
+
 	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
-	logger.Debug("Setting up veth")
 	if len(metadata.Ifaces) == 0 {
 		return nil, errors.New("No interfaces specified")
 	}
@@ -304,20 +472,37 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			//There are 4 cases: IPv4-only, IPv6-only, dual stack with either IPv4 or IPv6 as the first address.
 			//We are guaranteed to derive the MAC address from IPv4 if it is assigned
 			if ip.Address.IP != nil && ip.Address.IP.To4() != nil {
-				iface.HostVethName, iface.Mac, err =
-					runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
-				if err != nil {
-					deallocIP(iface, err)
-					return nil, err
+				if len(metadata.Id.DeviceId) > 0 && agent.config.OvsHardwareOffload {
+					logger.Debug("Setting up VF, deviceId/PCI address: ", metadata.Id.DeviceId)
+					iface.HostVethName, iface.Mac, iface.VfNetDevice, err =
+						runSetupVf(iface.Sandbox, iface.Name, mtu, ip.Address.IP, metadata.Id.DeviceId)
+					logger.Debug("VF Netdevice: ", iface.VfNetDevice, ", VF Representator: ", iface.HostVethName)
+					if err != nil {
+						deallocIP(iface, err)
+						fmt.Errorf("VF allocation failed :%v", err)
+					} else {
+						break
+					}
 				} else {
-					break
+					logger.Debug("Setting up veth")
+					iface.HostVethName, iface.Mac, err =
+						runSetupVeth(iface.Sandbox, iface.Name, mtu, ip.Address.IP)
+					logger.Debug("Vethname: ", iface.HostVethName)
+					if err != nil {
+						deallocIP(iface, err)
+						return nil, err
+					} else {
+						break
+					}
 				}
 			}
 		}
 		// if no mac is assigned, set it to the default Mac.
 		if len(iface.Mac) == 0 {
+			logger.Debug("Setting up veth")
 			iface.HostVethName, iface.Mac, err =
 				runSetupVeth(iface.Sandbox, iface.Name, agent.config.InterfaceMtu, nil)
+			logger.Debug("Vethname: ", iface.HostVethName)
 			if err != nil {
 				deallocIP(iface, err)
 				return nil, err
@@ -450,9 +635,17 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 
 	logger.Debug("Clearing container interface")
 	for _, iface := range metadata.Ifaces {
-		err = runClearVeth(iface.Sandbox, iface.Name)
-		if err != nil {
-			logger.Error("Could not clear Veth ports: ", err)
+		if len(metadata.Id.DeviceId) != 0 && agent.config.OvsHardwareOffload && len(iface.VfNetDevice) != 0 {
+			logger.Debug("VF Netdevice: ", iface.VfNetDevice, ", VF Representator: ", iface.HostVethName)
+			err = runClearVf(iface.Sandbox, iface.Name, metadata.Id.DeviceId, iface.VfNetDevice)
+			if err != nil {
+				logger.Error("Could not move VF to host's namespace: ", err)
+			}
+		} else {
+			err = runClearVeth(iface.Sandbox, iface.Name)
+			if err != nil {
+				logger.Error("Could not clear Veth ports: ", err)
+			}
 		}
 	}
 

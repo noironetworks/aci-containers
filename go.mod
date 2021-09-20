@@ -1,6 +1,7 @@
 go 1.16
 
 require (
+	github.com/Mellanox/sriovnet v1.0.2
 	github.com/Shopify/sarama v1.26.1
 	github.com/aws/aws-sdk-go v1.38.49
 	github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd // indirect
@@ -14,6 +15,7 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.1.0
 	github.com/mattn/goveralls v0.0.8 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20210416053915-d6dec2cca336
@@ -39,6 +41,7 @@ require (
 	k8s.io/client-go v0.22.0
 	k8s.io/code-generator v0.22.0
 	k8s.io/kubectl v0.22.0
+	k8s.io/kubelet v0.0.0
 	k8s.io/kubernetes v1.22.0
 	sigs.k8s.io/controller-runtime v0.6.1
 )
