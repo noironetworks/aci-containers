@@ -438,6 +438,7 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node", node.Name))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node-vmm", node.Name))
+	cont.log.Infof("Node deleted: %s", node.ObjectMeta.Name)
 
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()

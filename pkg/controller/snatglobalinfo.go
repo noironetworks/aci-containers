@@ -470,6 +470,12 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) bool {
 			if len(glinfos) == 0 {
 				delete(cont.snatGlobalInfoCache, snatip)
 			}
+		} else {
+			if cont.checksnatPolicyPortExhausted(v.SnatPolicyName) {
+				if cont.setSnatPolicyStatus(v.SnatPolicyName, snatv1.Ready) == true {
+					return true
+				}
+			}
 		}
 	}
 	return false
