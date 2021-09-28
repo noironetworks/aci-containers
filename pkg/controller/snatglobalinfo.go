@@ -470,12 +470,6 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(nodename string) bool {
 			if len(glinfos) == 0 {
 				delete(cont.snatGlobalInfoCache, snatip)
 			}
-		} else {
-			if cont.checksnatPolicyPortExhausted(v.SnatPolicyName) {
-				if cont.setSnatPolicyStatus(v.SnatPolicyName, snatv1.Ready) == true {
-					return true
-				}
-			}
 		}
 	}
 	return false
@@ -496,6 +490,11 @@ func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,
 	for oldkey := range oldPolicyNames {
 		if _, ok := newPolicynames[oldkey]; !ok {
 			cont.clearSnatGlobalCache(oldkey, nodename)
+			if cont.checksnatPolicyPortExhausted(oldkey) {
+				if cont.setSnatPolicyStatus(oldkey, snatv1.Ready) == false {
+					cont.log.Error("Failed to set the policy status", oldkey)
+				}
+			}
 		}
 	}
 }
