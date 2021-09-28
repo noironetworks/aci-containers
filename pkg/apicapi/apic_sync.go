@@ -143,25 +143,33 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	i := 0
 	j := 0
 
+	update := false
+	delete := false
+
 	for i < len(currentState) && j < len(desiredState) {
 		cmp := cmpApicObject(currentState[i], desiredState[j])
 		if cmp < 0 {
 			deletes = append(deletes, currentState[i].GetDn())
 			i++
+			delete = true
 		} else if cmp > 0 {
 			updates = append(updates, desiredState[j])
 			j++
+			update = true
 		} else {
 			if conn.containerDns[currentState[i].GetDn()] {
 				if !conn.apicCntCmp(currentState[i], desiredState[j]) {
 					updates = append(updates, desiredState[j])
+					update = true
 				}
 			} else {
 				cu, cd := conn.apicObjCmp(currentState[i], desiredState[j])
 				if cu {
 					updates = append(updates, desiredState[j])
+					update = true
 				}
 				deletes = append(deletes, cd...)
+				delete = true
 			}
 
 			i++
@@ -172,15 +180,21 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	for i < len(currentState) {
 		deletes = append(deletes, currentState[i].GetDn())
 		i++
+		delete = true
 	}
 	// extra new objects
 	for j < len(desiredState) {
 		updates = append(updates, desiredState[j])
 		j++
+		update = true
 	}
 
-	conn.log.Debug("Apic object updates are :", updates)
-	conn.log.Debug("Apic object deletes are :", deletes)
+	if update && len(updates) != 0 {
+		conn.log.Debug("Apic object updates are :", updates)
+	}
+	if delete && len(deletes) != 0 {
+		conn.log.Debug("Apic object deletes are :", deletes)
+	}
 
 	return
 }
@@ -349,6 +363,7 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 			temp_deletes = append(temp_deletes, delete)
 		}
 	}
+	newDelete := false
 	for _, temp_del := range temp_deletes {
 		vns_svc_redirect_pol_obj, ok := conn.desiredStateDn[temp_del]
 		if !ok {
@@ -361,12 +376,16 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 				for class := range child {
 					if class == "vnsRedirectDest" {
 						deletes = append(deletes, child.GetDn())
+						newDelete = true
+
 					}
 				}
 			}
 		}
 	}
-	conn.log.Debug("Updated apic object deletes list is :", deletes)
+	if newDelete && len(deletes) != 0 {
+		conn.log.Debug("Updated apic object deletes list is :", deletes)
+	}
 
 	conn.updateDnIndex(objects)
 	for _, del := range deletes {
