@@ -57,7 +57,7 @@ func (cont *AciController) syncRdConfig() bool {
 			}
 			_, err = rdConfigClient.AciV1().RdConfigs(ns).Create(context.TODO(), rdConfigInstance, metav1.CreateOptions{})
 			if err != nil {
-				cont.log.Debugf("Unable to create RDConfig: %s, err: %v", name, err)
+				cont.log.Debugf("Unable to create RDConfig: %s, err: %v, instance: %+v", name, err, rdConfigInstance)
 				return true
 			}
 			cont.log.Debug("RdConfig Created: ", rdConfigInstance, err)
