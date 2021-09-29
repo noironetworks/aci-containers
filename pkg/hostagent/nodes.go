@@ -36,6 +36,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 
 	"context"
+
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -54,7 +55,7 @@ func (agent *HostAgent) initNodeInformerFromClient(
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
 				obj, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list Nodes during initialization of NodeInformer")
+					agent.log.Fatalf("Failed to list Nodes during initialization of NodeInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -63,7 +64,7 @@ func (agent *HostAgent) initNodeInformerFromClient(
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
 				obj, err := kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch Nodes during initialization of NodeInformer")
+					agent.log.Fatalf("Failed to watch Nodes during initialization of NodeInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -98,7 +99,7 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 		node = obj[1].(*v1.Node)
 		if !reflect.DeepEqual(node.ObjectMeta.Labels, oldnode.ObjectMeta.Labels) {
 			updateServices = true
-			agent.log.Info("Node label changed, Updating services")
+			agent.log.Infof("Node label changed for: %s, Updating services", node.ObjectMeta.Name)
 		}
 	} else {
 		node = obj[0].(*v1.Node)

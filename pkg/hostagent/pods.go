@@ -277,11 +277,9 @@ func (agent *HostAgent) initControllerInformerBase(listWatch *cache.ListWatch) {
 	)
 	agent.controllerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			agent.log.Infof("== controller update ==")
 			agent.updateGbpServerInfo(obj.(*v1.Pod))
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
-			agent.log.Infof("== controller update ==")
 			agent.updateGbpServerInfo(obj.(*v1.Pod))
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -545,7 +543,7 @@ func podFilter(pod *v1.Pod) bool {
 }
 
 func (agent *HostAgent) podUpdated(obj interface{}) {
-	agent.log.Infof("podUpdated %s/%s", obj.(*v1.Pod).Namespace, obj.(*v1.Pod).Name)
+	agent.log.Infof("Pod updated: namespace=%s name=%s", obj.(*v1.Pod).Namespace, obj.(*v1.Pod).Name)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
@@ -608,7 +606,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	logger.Debug("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
-		logger.Debug("No metadata")
+		logger.Debug("No metadata found for ep: ")
 		delete(agent.opflexEps, *epUuid)
 		agent.scheduleSyncEps()
 		return
@@ -689,7 +687,8 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 }
 
 func (agent *HostAgent) podDeleted(obj interface{}) {
-	agent.log.Info("podDeleted")
+	pod := obj.(*v1.Pod)
+	agent.log.Infof("Pod deleted: name %s namespace %s", pod.ObjectMeta.Name, pod.ObjectMeta.Namespace)
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.podDeletedLocked(obj)
@@ -704,7 +703,7 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	u := string(pod.ObjectMeta.UID)
 	if _, ok := agent.opflexEps[u]; ok {
-		agent.log.Infof("podDeleted: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+		agent.log.Infof("podDeletedLocked: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		delete(agent.opflexEps, u)
 		agent.scheduleSyncEps()
 	}

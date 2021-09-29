@@ -125,14 +125,14 @@ func (agent *HostAgent) initEndpointsInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list Endpoints during initialization of EndpointsInformer")
+					agent.log.Fatalf("Failed to list Endpoints during initialization of EndpointsInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch Endpoints during initialization of EndpointsInformer")
+					agent.log.Fatalf("Failed to watch Endpoints during initialization of EndpointsInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -166,14 +166,14 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list EndpointSlices during initialization of EndpointSliceInformer")
+					agent.log.Fatalf("Failed to list EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch EndpointSlices during initialization of EndpointSliceInformer")
+					agent.log.Fatalf("Failed to watch EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -207,14 +207,14 @@ func (agent *HostAgent) initServiceInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list Services during initialization of ServiceInformer")
+					agent.log.Fatalf("Failed to list Services during initialization of ServiceInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch Services during initialization of ServiceInformer")
+					agent.log.Fatalf("Failed to watch Services during initialization of ServiceInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -351,7 +351,7 @@ func (agent *HostAgent) syncServices() bool {
 // Must have index lock
 func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service, key string) bool {
 	if as.Spec.ClusterIP == "None" {
-		agent.log.Debug("ClusterIP is set to None")
+		agent.log.Debugf("ClusterIP of service %s is set to None", as.ObjectMeta.Name)
 		return true
 	}
 
@@ -446,6 +446,8 @@ func (agent *HostAgent) endpointsChanged(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 
 	endpoints := obj.(*v1.Endpoints)
+	agent.log.Debugf("Endpoint changed: name=%s namespace=%s",
+		endpoints.ObjectMeta.Name, endpoints.ObjectMeta.Namespace)
 
 	key, err := cache.MetaNamespaceKeyFunc(endpoints)
 	if err != nil {
@@ -466,6 +468,8 @@ func (agent *HostAgent) endpointSliceChanged(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	endpointslice := obj.(*v1beta1.EndpointSlice)
+	agent.log.Debugf("endpointslice changed: name=%s namespace=%s",
+		endpointslice.ObjectMeta.Name, endpointslice.ObjectMeta.Namespace)
 	servicekey, ok := getServiceKey(endpointslice)
 	if !ok {
 		return
@@ -478,11 +482,13 @@ func (agent *HostAgent) serviceChanged(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 
 	as := obj.(*v1.Service)
+	agent.log.Debugf("Service changed: name=%s namespace=%s",
+		as.ObjectMeta.Name, as.ObjectMeta.Namespace)
 
 	key, err := cache.MetaNamespaceKeyFunc(as)
 	if err != nil {
 		serviceLogger(agent.log, as).
-			Error("Could not create key:" + err.Error())
+			Error("Could not create service object key:" + err.Error())
 		return
 	}
 	agent.doUpdateService(key)
@@ -494,6 +500,8 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 
 	as := obj.(*v1.Service)
+	agent.log.Debugf("Service deleted: name=%s namespace=%s",
+		as.ObjectMeta.Name, as.ObjectMeta.Namespace)
 
 	u := string(as.ObjectMeta.UID)
 	if _, ok := agent.opflexServices[u]; ok {

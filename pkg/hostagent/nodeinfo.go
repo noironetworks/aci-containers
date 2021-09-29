@@ -18,11 +18,12 @@ package hostagent
 
 import (
 	"context"
+	"reflect"
+
 	nodeInfov1 "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeInfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 )
 
 func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]bool) bool {
@@ -44,11 +45,17 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 				},
 			}
 			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(context.TODO(), nodeInfoInstance, metav1.CreateOptions{})
+			if err != nil {
+				agent.log.Debugf("Failed to create NodeInfo: %s, err: %v, instance: %+v", nodeInfo.ObjectMeta.Name, err, nodeInfoInstance)
+			}
 		}
 	} else {
 		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) {
 			nodeInfo.Spec.SnatPolicyNames = snatpolicies
 			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(context.TODO(), nodeInfo, metav1.UpdateOptions{})
+			if err != nil {
+				agent.log.Debugf("Failed to update NodeInfo: %s, err: %v", nodeInfo.ObjectMeta.Name, err)
+			}
 		} else {
 			// This case can hit restart of the Hostagent and having  same number of policeis present in nodinfo crd.
 			agent.indexMutex.Lock()
@@ -63,7 +70,7 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		}
 	}
 	if err == nil {
-		agent.log.Debug("NodeInfo Update Successful..")
+		agent.log.Debugf("NodeInfo Update Successful for: %s", nodeInfo.ObjectMeta.Name)
 		return true
 	}
 	agent.log.Warn("NodeInfo update failed: ", err)
