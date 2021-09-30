@@ -36,6 +36,7 @@ DIST_FILE=aci-containers.tgz
 DOCKER_HUB_ID ?= noiro
 DOCKER_TAG ?=
 BUILD_CMD ?= go build -v -trimpath
+BUILD_CMD_RACE ?= go build -v -trimpath -race
 TEST_CMD ?= go test -cover
 TEST_ARGS ?=
 INSTALL_CMD ?= go install -v
@@ -60,6 +61,18 @@ STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
          -s -w" -a -installsuffix cgo
 DOCKER_BUILD_CMD ?= docker build
 
+STATIC_BUILD_RACE_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD_RACE} \
+        -ldflags="\
+        -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_GBPSERVER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_GBPSERVER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
+         -s -w" -a -installsuffix cgo
+
 .PHONY: clean goinstall check all
 
 all: dist/aci-containers-host-agent dist/opflex-agent-cni \
@@ -71,6 +84,11 @@ all-static: dist-static/aci-containers-host-agent \
 	dist-static/ovsresync dist-static/gbpserver \
     dist-static/aci-containers-operator
 
+all-static-race: dist-static-race/aci-containers-host-agent \
+	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
+	dist-static-race/ovsresync dist-static-race/gbpserver \
+	dist-static-race/aci-containers-operator
+
 go-targets: nodep-opflex-agent-cni nodep-aci-containers-host-agent nodep-aci-containers-controller gbpserver
 go-build:
 	docker run --rm -m 16g -v ${PWD}:/go/src/github.com/noironetworks/aci-containers -w /go/src/github.com/noironetworks/aci-containers --network=host -it ${GOBUILD} make go-targets
@@ -81,6 +99,8 @@ go-gbp-target: gbpserver
 
 clean-dist-static:
 	rm -rf dist-static/*
+clean-dist-static-race:
+	rm -rf dist-static-race/*
 clean-dist:
 	rm -rf dist
 clean-vendor:
@@ -134,6 +154,19 @@ dist/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
 dist-static/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
+
+dist-static-race/aci-containers-host-agent: ${HOSTAGENT_DEPS}
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/hostagent
+dist-static-race/opflex-agent-cni: ${AGENTCNI_DEPS}
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+dist-static-race/aci-containers-controller: ${CONTROLLER_DEPS}
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/controller
+dist-static-race/gbpserver:
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/gbpserver
+dist-static-race/aci-containers-operator:
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
+dist-static-race/ovsresync:
+	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/ovsresync
 
 dist/aci-containers-controller: ${CONTROLLER_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/controller
