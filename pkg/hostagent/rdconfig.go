@@ -19,17 +19,18 @@ package hostagent
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"reflect"
+
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdConClSet "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
-	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"os"
-	"path/filepath"
-	"reflect"
 )
 
 type opflexRdConfig struct {
@@ -43,10 +44,18 @@ func (agent *HostAgent) initRdConfigInformerFromClient(
 	agent.initRdConfigInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatalf("Failed to list RdConfigs during initialization of RdConfigInformer")
+				}
+				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					agent.log.Fatalf("Failed to watch RdConfigs during initialization of RdConfigInformer")
+				}
+				return obj, err
 			},
 		})
 }

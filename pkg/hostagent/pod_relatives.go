@@ -103,6 +103,7 @@ func (agent *HostAgent) namespaceDeleted(obj interface{}) {
 	ns := obj.(*v1.Namespace)
 	agent.handleObjectDeleteForSnat(obj)
 	agent.netPolPods.DeleteNamespace(ns)
+	agent.log.Infof("Namespace %+v deleted", ns)
 }
 
 func (agent *HostAgent) initNetworkPolicyInformerFromClient(
@@ -136,12 +137,15 @@ func (agent *HostAgent) initNetworkPolicyInformerBase(listWatch *cache.ListWatch
 }
 
 func (agent *HostAgent) networkPolicyAdded(obj interface{}) {
+	np := obj.(*v1net.NetworkPolicy)
 	agent.netPolPods.UpdateSelectorObj(obj)
+	agent.log.Infof("Network policy added: %s", np.ObjectMeta.Name)
 }
 
 func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 	oldnp := oldobj.(*v1net.NetworkPolicy)
 	newnp := newobj.(*v1net.NetworkPolicy)
+	agent.log.Infof("Network policy changed: %s", oldnp.ObjectMeta.Name)
 	if !reflect.DeepEqual(oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
 		agent.netPolPods.UpdateSelectorObjNoCallback(newobj)
 	}
@@ -161,7 +165,9 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 }
 
 func (agent *HostAgent) networkPolicyDeleted(obj interface{}) {
+	np := obj.(*v1net.NetworkPolicy)
 	agent.netPolPods.DeleteSelectorObj(obj)
+	agent.log.Infof("Network policy deleted: %s", np.ObjectMeta.Name)
 }
 
 func (agent *HostAgent) initNetPolPodIndex() {
@@ -213,12 +219,16 @@ func (agent *HostAgent) initQoSPolicyInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (agent *HostAgent) qosPolicyAdded(obj interface{}) {
+	qp := obj.(*qospolicy.QosPolicy)
 	agent.qosPolPods.UpdateSelectorObj(obj)
+	agent.log.Infof("qos policy added: %s", qp.ObjectMeta.Name)
+
 }
 
 func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
 	oldqp := oldobj.(*qospolicy.QosPolicy)
 	newqp := newobj.(*qospolicy.QosPolicy)
+	agent.log.Infof("qos policy changed: %s", oldqp.ObjectMeta.Name)
 	if !reflect.DeepEqual(oldqp.Spec.Selector, newqp.Spec.Selector) {
 		agent.qosPolPods.UpdateSelectorObjNoCallback(newobj)
 	}
@@ -244,7 +254,9 @@ func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
 }
 
 func (agent *HostAgent) qosPolicyDeleted(obj interface{}) {
+	qp := obj.(*qospolicy.QosPolicy)
 	agent.qosPolPods.DeleteSelectorObj(obj)
+	agent.log.Infof("qos policy deleted: %s", qp.ObjectMeta.Name)
 }
 
 func (agent *HostAgent) initQoSPolPodIndex() {
@@ -321,7 +333,8 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 }
 
 func (agent *HostAgent) deploymentAdded(obj interface{}) {
-	agent.log.Infof("deploymentAdded => ")
+	depObj := obj.(*appsv1.Deployment)
+	deploymentLogger(agent.log, depObj).Info("Deployment added:")
 	agent.depPods.UpdateSelectorObj(obj)
 	agent.handleObjectUpdateForSnat(obj)
 }
@@ -334,6 +347,7 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 
 	olddep := oldobj.(*appsv1.Deployment)
 	newdep := newobj.(*appsv1.Deployment)
+	deploymentLogger(agent.log, olddep).Info("Deployment changed:")
 	if !reflect.DeepEqual(olddep.Spec.Selector, newdep.Spec.Selector) {
 		agent.depPods.UpdateSelectorObj(newobj)
 	}
@@ -357,8 +371,10 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 }
 
 func (agent *HostAgent) deploymentDeleted(obj interface{}) {
+	depObj := obj.(*appsv1.Deployment)
 	agent.handleObjectDeleteForSnat(obj)
 	agent.depPods.DeleteSelectorObj(obj)
+	deploymentLogger(agent.log, depObj).Info("Deployment deleted:")
 }
 
 func (agent *HostAgent) initRCInformerFromClient(
@@ -420,7 +436,8 @@ func rcLogger(log *logrus.Logger, rc *v1.ReplicationController) *logrus.Entry {
 }
 
 func (agent *HostAgent) rcAdded(obj interface{}) {
-	agent.log.Infof("rcAdded => ")
+	rc := obj.(*v1.ReplicationController)
+	rcLogger(agent.log, rc).Info("rcAdded: ")
 	agent.rcPods.UpdateSelectorObj(obj)
 }
 
@@ -432,6 +449,7 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 
 	oldrc := oldobj.(*v1.ReplicationController)
 	newrc := newobj.(*v1.ReplicationController)
+	rcLogger(agent.log, oldrc).Info("rcChanged: ")
 
 	if !reflect.DeepEqual(oldrc.Spec.Selector, newrc.Spec.Selector) {
 		agent.rcPods.UpdateSelectorObj(newobj)
@@ -452,5 +470,7 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 }
 
 func (agent *HostAgent) rcDeleted(obj interface{}) {
+	rc := obj.(*v1.ReplicationController)
 	agent.rcPods.DeleteSelectorObj(obj)
+	rcLogger(agent.log, rc).Info("rcDeleted: ")
 }

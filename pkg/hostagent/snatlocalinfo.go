@@ -18,11 +18,12 @@ package hostagent
 
 import (
 	"context"
+	"reflect"
+
 	snatLocalInfov1 "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 )
 
 type SnatLocalInfo struct {
@@ -81,7 +82,7 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 			pod := podobj.(*v1.Pod)
 			localinfo.PodName = pod.ObjectMeta.Name
 			localinfo.PodNamespace = pod.ObjectMeta.Namespace
-			agent.log.Debug("PodName:", localinfo.PodName)
+			agent.log.Debugf("Adding pod %s to snatLocalInfo:", localinfo.PodName)
 		}
 		localinfo.PodUid = uid
 		localinfo.SnatPolicies = policies

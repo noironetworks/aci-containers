@@ -152,7 +152,7 @@ func (agent *HostAgent) getParentAnn(podKey string) (string, string, string, boo
 	}
 	for _, parent := range set {
 		for _, pkey := range parent.indexer.GetObjForPod(podKey) {
-			agent.log.Infof("deployment/rc found!")
+			agent.log.Debugf("deployment/rc found for pod: %s", pkey)
 			obj, exists, err :=
 				parent.informer.GetIndexer().GetByKey(pkey)
 			if err != nil {

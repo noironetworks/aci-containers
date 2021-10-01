@@ -18,10 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/ovn-org/libovsdb"
-	"reflect"
-	"strconv"
 )
 
 type ovsBridge struct {
@@ -229,7 +229,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			if _, pok := intbr.ports[iface]; pok {
 				found[agent.config.IntBridgeName][iface] = true
 			} else {
-				agent.log.Debug("Adding uplink port ", iface)
+				agent.log.Debugf("Adding uplink port: %s", iface)
 				adds, err := uplinks[iface](agent.config,
 					bridges[agent.config.IntBridgeName].uuid)
 				if err != nil {
@@ -242,7 +242,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			if _, pok := intbr.ports[agent.config.DropLogIntInterface]; pok {
 				found[agent.config.IntBridgeName][agent.config.DropLogIntInterface] = true
 			} else {
-				agent.log.Debug("Adding drop log integration port ", agent.config.DropLogIntInterface)
+				agent.log.Debugf("Adding drop log integration port: %s", agent.config.DropLogIntInterface)
 				adds, err := addDropLogIfaceOps(agent,
 					"int_",
 					bridges[agent.config.IntBridgeName].uuid,
@@ -259,7 +259,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 				if _, dlpok := accbr.ports[agent.config.DropLogAccessInterface]; dlpok {
 					found[agent.config.AccessBridgeName][agent.config.DropLogAccessInterface] = true
 				} else {
-					agent.log.Debug("Adding drop log access port ", agent.config.DropLogAccessInterface)
+					agent.log.Debugf("Adding drop log access port: %s", agent.config.DropLogAccessInterface)
 					adds, err := addDropLogIfaceOps(agent,
 						"access_",
 						bridges[agent.config.AccessBridgeName].uuid,
@@ -401,7 +401,6 @@ func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, e
 	const dropLogIngressPolicingBurst = 100
 	uuidDropLogI := bridgeType + "genv_iface"
 	uuidDropLogP := bridgeType + "genv_port"
-	agent.log.Debug(reflect.TypeOf(uuidDropLogI))
 	opti, err := libovsdb.NewOvsMap(map[string]interface{}{
 		"key":       encapKey,
 		"remote_ip": "flow",

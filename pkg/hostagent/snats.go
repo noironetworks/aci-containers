@@ -21,13 +21,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
-	"io/ioutil"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -37,12 +44,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"net"
-	"os"
-	"path/filepath"
-	"reflect"
-	"sort"
-	"strings"
 )
 
 // Filename used to create external service file on host
@@ -107,14 +108,14 @@ func (agent *HostAgent) initSnatGlobalInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list SnatGlobalInfo during initialization of SnatGlobalInformer")
+					agent.log.Fatalf("Failed to list SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch SnatGlobalInfo during initialization of SnatGlobalInformer")
+					agent.log.Fatalf("Failed to watch SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -128,14 +129,14 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				obj, err := snatClient.AciV1().SnatPolicies().List(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to list SnatPolicies during initialization of SnatPolicyInformer")
+					agent.log.Fatalf("Failed to list SnatPolicies during initialization of SnatPolicyInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				obj, err := snatClient.AciV1().SnatPolicies().Watch(context.TODO(), options)
 				if err != nil {
-					agent.log.Fatal("Failed to watch SnatPolicies during initialization of SnatPolicyInformer")
+					agent.log.Fatalf("Failed to watch SnatPolicies during initialization of SnatPolicyInformer: %s", err)
 				}
 				return obj, err
 			},
@@ -226,7 +227,7 @@ func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
-	agent.log.Info("Policy Info Added: ", policyinfo.ObjectMeta.Name)
+	agent.log.Info("Snat Policy Info Added: ", policyinfo.ObjectMeta.Name)
 	if policyinfo.Status.State != snatpolicy.Ready {
 		return
 	}
@@ -240,15 +241,15 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	defer agent.snatPolicyCacheMutex.Unlock()
 	oldpolicyinfo := oldobj.(*snatpolicy.SnatPolicy)
 	newpolicyinfo := newobj.(*snatpolicy.SnatPolicy)
-	agent.log.Info("Policy Info Updated: ", newpolicyinfo.ObjectMeta.Name)
-	agent.log.Info("Policy Status: ", newpolicyinfo.Status.State)
+	agent.log.Info("Snat Policy Info Updated: ", newpolicyinfo.ObjectMeta.Name)
+	agent.log.Info("Snat Policy Status: ", newpolicyinfo.Status.State)
 	if reflect.DeepEqual(oldpolicyinfo, newpolicyinfo) {
 		return
 	}
 	//1. check if the local nodename is  present in globalinfo
 	// 2. if it is not present then delete the policy from localInfo as the portinfo is not allocated  for node
 	if newpolicyinfo.Status.State == snatpolicy.IpPortsExhausted {
-		agent.log.Info("Ports exhausted: ", newpolicyinfo.ObjectMeta.Name)
+		agent.log.Info("Snat Ports exhausted: ", newpolicyinfo.ObjectMeta.Name)
 		/*ginfo, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 		present := false
 		if ok {
@@ -318,6 +319,7 @@ func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
+	agent.log.Info("Snat Policy Info Deleted: ", policyinfo.ObjectMeta.Name)
 	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)
 }
@@ -524,7 +526,7 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 					l := k - deletedcount
 					// delete the matching policy from  policy stack
 					if plcyname == localinfo.Snatpolicies[ResourceType(i)][l] {
-						agent.log.Info("Delete the Policy name: ", plcyname)
+						agent.log.Info("Delete the Snat Policy name from SnatLocalInfo: ", plcyname)
 						localinfo.Snatpolicies[ResourceType(i)] =
 							append(localinfo.Snatpolicies[ResourceType(i)][:l],
 								localinfo.Snatpolicies[ResourceType(i)][l+1:]...)
@@ -538,7 +540,6 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 				if v, ok := agent.snatPods[plcyname]; ok {
 					if _, ok := v[poduid]; ok {
 						agent.snatPods[plcyname][poduid] &= ^(res) // clear the bit
-						agent.log.Debug("Res:  ", agent.snatPods[plcyname][poduid])
 						if agent.snatPods[plcyname][poduid] == 0 { // delete the pod if no resource is pointing for the policy
 							delete(agent.snatPods[plcyname], poduid)
 							if len(agent.snatPods[plcyname]) == 0 {
@@ -724,7 +725,7 @@ func (agent *HostAgent) syncSnat() bool {
 			}
 		}
 	}
-	agent.log.Debug("RemoteInfo: ", remoteinfo)
+	agent.log.Debug("Opflex SnatIp RemoteInfo map is: ", remoteinfo)
 	// set the Opflex Snat IP information
 	localportrange := make(map[string][]OpflexPortRange)
 	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
@@ -1067,6 +1068,7 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	defer agent.snatPolicyCacheMutex.RUnlock()
 	objKey, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
+		agent.log.Error("Could not create snatUpdate object key:" + err.Error())
 		return
 	}
 	plcynames, ok := agent.ReadSnatPolicyLabel(objKey)
@@ -1131,6 +1133,7 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 	objKey, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
+		agent.log.Error("Could not create snatDelete object key:" + err.Error())
 		return
 	}
 	plcynames := agent.getMatchingSnatPolicy(obj)
