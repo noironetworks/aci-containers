@@ -17,9 +17,10 @@ package controller
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
@@ -57,7 +58,7 @@ func erspanInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
 		func(obj interface{}) bool {
 			return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
-		}, stopCh)
+		}, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.erspanInformer.HasSynced)
 	cont.erspanSyncOpflexDev()
 }

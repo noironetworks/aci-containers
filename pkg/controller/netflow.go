@@ -16,8 +16,9 @@
 package controller
 
 import (
-	"github.com/sirupsen/logrus"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	netflowpolicy "github.com/noironetworks/aci-containers/pkg/netflowpolicy/apis/aci.netflow/v1alpha"
 	netflowclientset "github.com/noironetworks/aci-containers/pkg/netflowpolicy/clientset/versioned"
@@ -52,7 +53,7 @@ func netflowInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
 		func(obj interface{}) bool {
 			return cont.handleNetflowPolUpdate(obj)
-		}, stopCh)
+		}, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.netflowInformer.HasSynced)
 }
 

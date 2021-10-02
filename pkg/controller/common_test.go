@@ -44,6 +44,7 @@ type testAciController struct {
 	fakeDeploymentSource    *framework.FakeControllerSource
 	fakeNetworkPolicySource *framework.FakeControllerSource
 	fakeSnatPolicySource    *framework.FakeControllerSource
+	fakeRdConfigSource      *framework.FakeControllerSource
 	fakeQosPolicySource     *framework.FakeControllerSource
 	fakeNetflowPolicySource *framework.FakeControllerSource
 	fakeErspanPolicySource  *framework.FakeControllerSource
@@ -137,6 +138,13 @@ func testController() *testAciController {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeSnatPolicySource.List,
 			WatchFunc: cont.fakeSnatPolicySource.Watch,
+		})
+
+	cont.fakeRdConfigSource = framework.NewFakeControllerSource()
+	cont.initRdConfigInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeRdConfigSource.List,
+			WatchFunc: cont.fakeRdConfigSource.Watch,
 		})
 
 	cont.fakeQosPolicySource = framework.NewFakeControllerSource()

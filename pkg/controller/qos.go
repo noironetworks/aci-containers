@@ -16,8 +16,9 @@
 package controller
 
 import (
-	"github.com/sirupsen/logrus"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	qospolicy "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
 	qosclientset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
@@ -49,7 +50,7 @@ func qosInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.processQueue(cont.qosQueue, cont.qosIndexer,
 		func(obj interface{}) bool {
 			return cont.handleQosPolUpdate(obj)
-		}, stopCh)
+		}, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.qosInformer.HasSynced)
 }
 

@@ -41,6 +41,7 @@ import (
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
+	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"k8s.io/client-go/kubernetes"
@@ -68,6 +69,7 @@ type AciController struct {
 	netflowQueue      workqueue.RateLimitingInterface
 	erspanQueue       workqueue.RateLimitingInterface
 	snatNodeInfoQueue workqueue.RateLimitingInterface
+	rdConfigQueue     workqueue.RateLimitingInterface
 	istioQueue        workqueue.RateLimitingInterface
 
 	namespaceIndexer      cache.Indexer
@@ -91,6 +93,8 @@ type AciController struct {
 	snatNodeInfoIndexer   cache.Indexer
 	snatNodeInformer      cache.Controller
 	crdInformer           cache.Controller
+	rdConfigInformer      cache.Controller
+	rdConfigIndexer       cache.Indexer
 	qosIndexer            cache.Indexer
 	qosInformer           cache.Controller
 	netflowIndexer        cache.Indexer
@@ -142,6 +146,8 @@ type AciController struct {
 	snatPolicyCache      map[string]*ContSnatPolicy
 	snatServices         map[string]bool
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
+	rdConfigCache        map[string]*rdConfig.RdConfig
+	rdConfigSubnetCache  map[string]*rdConfig.RdConfigSpec
 	istioCache           map[string]*istiov1.AciIstioOperator
 	podIftoEp            map[string]*EndPointData
 	// Node Name and Policy Name
@@ -300,6 +306,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		serviceQueue:      createQueue("service"),
 		snatQueue:         createQueue("snat"),
 		snatNodeInfoQueue: createQueue("snatnodeinfo"),
+		rdConfigQueue:     createQueue("rdconfig"),
 		istioQueue:        createQueue("istio"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
@@ -320,6 +327,8 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatPolicyCache:      make(map[string]*ContSnatPolicy),
 		snatServices:         make(map[string]bool),
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:        make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:  make(map[string]*rdConfig.RdConfigSpec),
 		podIftoEp:            make(map[string]*EndPointData),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
@@ -380,7 +389,7 @@ func (cont *AciController) Init() {
 
 func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 	store cache.Store, handler func(interface{}) bool,
-	stopCh <-chan struct{}) {
+	postDelHandler func() bool, stopCh <-chan struct{}) {
 	go wait.Until(func() {
 		for {
 			key, quit := queue.Get()
@@ -394,8 +403,16 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				close(key)
 			case string:
 				obj, exists, err := store.GetByKey(key)
-				if err == nil && exists {
+				if err != nil {
+					cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+				}
+				//Handle Add/Update/Delete
+				if exists && handler != nil {
 					requeue = handler(obj)
+				}
+				//Handle Post Delete
+				if !exists && postDelHandler != nil {
+					requeue = postDelHandler()
 				}
 			}
 			if requeue {
@@ -594,7 +611,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			qs = []workqueue.RateLimitingInterface{
 				cont.podQueue, cont.netPolQueue, cont.qosQueue,
 				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
-				cont.snatNodeInfoQueue, cont.erspanQueue,
+				cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
 			}
 		}
 		for _, q := range qs {
