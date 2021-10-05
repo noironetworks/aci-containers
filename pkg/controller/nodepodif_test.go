@@ -16,11 +16,10 @@
 package controller
 
 import (
-	"testing"
-	"time"
-
 	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
+	"time"
 )
 
 type nodepodif struct {

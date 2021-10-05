@@ -56,6 +56,8 @@ const (
 	subjSGSubj        = "GbpSecGroupSubject"
 	subjSGRule        = "GbpSecGroupRule"
 	subjSGRuleToCidr  = "GbpSecGroupRuleToRemoteAddressRSrc"
+	subjDnsName       = "GbpDnsName"
+	subjDnsNames      = "GbpDnsNames"
 	propRoutingMode   = "routingMode"
 	defRoutingMode    = "enabled"
 	propEncapID       = "encapId"
