@@ -91,7 +91,7 @@ type NetworkPolicyEgressRule struct {
 	// +optinal
 	EnableLogging bool `json:"enableLogging"`
 	// +optinal
-	ToFqdn *FQDN `json:"toFqDn" protobuf:"bytes,1,name=matchname"`
+	ToFqdn *FQDN `json:"toFqDn" protobuf:"bytes,1,name=matchname, omitempty"`
 }
 
 type FQDN struct {
