@@ -464,9 +464,11 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 				cont.log.Error("Could not delete the NodeInfo", node.ObjectMeta.Name)
 				return
 			}
+			cont.log.Debug("Successfully Deleted NodeInfoCR for node: ", node.ObjectMeta.Name)
 		}
 		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
+		cont.log.Debug("Node deleted from snatNodeInfoCache: ", node.ObjectMeta.Name)
 		nodeinfokey, _ := cache.MetaNamespaceKeyFunc(nodeinfo)
 		cont.queueNodeInfoUpdateByKey(nodeinfokey)
 	}
