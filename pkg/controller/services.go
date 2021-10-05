@@ -275,6 +275,7 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 
 // must have index lock
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
+	sz := len(cont.nodeOpflexDevice[name])
 	for _, device := range cont.nodeOpflexDevice[name] {
 		if device.GetAttrStr("state") == "connected" {
 			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
@@ -282,10 +283,14 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 			return device.GetAttrStr("fabricPathDn"), true
 		}
 	}
-
-	for _, device := range cont.nodeOpflexDevice[name] {
-		cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node")
-		return device.GetAttrStr("fabricPathDn"), true
+	if sz > 0 {
+		// When the opflex-device for a node changes, for example during a live migration,
+		// we end up with both the old and the new device objects till the old object
+		// ages out on APIC. The new object is at end of the devices list (see opflexDeviceChanged),
+		// so we return the fabricPathDn of the last opflex-device.
+		cont.fabricPathLogger(cont.nodeOpflexDevice[name][sz-1].GetAttrStr("hostName"),
+			cont.nodeOpflexDevice[name][sz-1]).Info("Processing fabricPathDn for node")
+		return cont.nodeOpflexDevice[name][sz-1].GetAttrStr("fabricPathDn"), true
 	}
 	return "", false
 }
