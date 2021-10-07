@@ -20,7 +20,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
+	v1 "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -51,9 +51,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=aci.ctrl, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("acicontainersoperators"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1alpha1().AciContainersOperators().Informer()}, nil
+	// Group=aci.ctrl, Version=v1
+	case v1.SchemeGroupVersion.WithResource("acicontainersoperators"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().AciContainersOperators().Informer()}, nil
 
 	}
 
