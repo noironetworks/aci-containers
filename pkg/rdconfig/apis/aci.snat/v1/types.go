@@ -24,7 +24,7 @@ type RdConfigSpec struct {
 	DiscoveredSubnets []string `json:"discoveredsubnets,omitempty"`
 }
 
-// NodeinfoStatus defines the observed state of Nodeinfo
+// RdConfigStatus defines the observed state of RdConfig
 type RdConfigStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
@@ -32,7 +32,7 @@ type RdConfigStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// NodeinfoList contains a list of Nodeinfo
+// RdConfigList contains a list of RdConfig
 type RdConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

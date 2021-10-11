@@ -23,6 +23,7 @@ import (
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	nodepodifclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
@@ -174,6 +175,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initCRDInformer()
 	cont.initSnatInformerFromClient(snatClient)
 	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+	cont.initRdConfigInformerFromClient(env.rdConfigClient)
 	cont.initSnatCfgFromClient(kubeClient)
 	if cont.config.InstallIstio {
 		cont.initIstioInformerFromClient(env.istioClient)
@@ -222,7 +224,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
 		func(obj interface{}) bool {
 			return cont.handleServiceUpdate(obj.(*v1.Service))
-		}, stopCh)
+		}, nil, stopCh)
 	cont.log.Debug("Waiting for service cache sync")
 	cont.serviceEndPoints.Wait(stopCh)
 	cont.indexMutex.Lock()
@@ -238,7 +240,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.processQueue(cont.snatQueue, cont.snatIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatUpdate(obj.(*snatpolicy.SnatPolicy))
-		}, stopCh)
+		}, nil, stopCh)
 	cont.log.Debug("Waiting for snat cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.snatInformer.HasSynced)
@@ -255,27 +257,36 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
-		}, stopCh)
+		}, nil, stopCh)
 	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
-		}, stopCh)
+		}, nil, stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
-		}, stopCh)
+		}, nil, stopCh)
 	go cont.processSyncQueue(cont.syncQueue, stopCh)
 	if cont.config.InstallIstio {
 		go cont.istioInformer.Run(stopCh)
 		go cont.processQueue(cont.istioQueue, cont.istioIndexer,
 			func(obj interface{}) bool {
 				return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
-			}, stopCh)
+			}, nil, stopCh)
 		cont.log.Debug("Waiting for AciIstio cache sync")
 		cache.WaitForCacheSync(stopCh,
 			cont.istioInformer.HasSynced)
 		cont.scheduleCreateIstioCR()
 	}
+	go cont.rdConfigInformer.Run(stopCh)
+	cont.log.Debug("Waiting for RdConfig cache sync")
+	cache.WaitForCacheSync(stopCh, cont.rdConfigInformer.HasSynced)
+	go cont.processQueue(cont.rdConfigQueue, cont.rdConfigIndexer,
+		func(obj interface{}) bool {
+			return cont.handleRdConfig(obj.(*rdConfig.RdConfig))
+		}, func() bool {
+			return cont.postDelHandleRdConfig()
+		}, stopCh)
 	cont.log.Info("Waiting for cache sync for remaining objects")
 	go cont.snatCfgInformer.Run(stopCh)
 	// Intialize all the CRD's
