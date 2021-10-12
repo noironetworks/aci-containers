@@ -50,6 +50,21 @@ func getNodes() (*v1.NodeList, error) {
 	return nodes, err
 }
 
+func execoc(args []string, out io.Writer) error {
+	baseargs := []string{"--kubeconfig", kubeconfig, "--context", context}
+	cmd := exec.Command("oc", append(baseargs, args...)...)
+
+	cmd.Stdout = out
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	cmd.Wait()
+	return nil
+}
+
 func execKubectl(args []string, out io.Writer) error {
 	baseargs := []string{"--kubeconfig", kubeconfig, "--context", context}
 	cmd := exec.Command("kubectl", append(baseargs, args...)...)
@@ -69,6 +84,7 @@ type reportCmdElem struct {
 	name           string
 	args           []string
 	skipOutputFile bool
+	ocCheck        bool
 }
 
 type reportNodeCmd struct {
@@ -432,6 +448,20 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: tempName,
 			args: aciContainerHostVersionCmdArgs(systemNamespace),
 		})
+
+		tempName = fmt.Sprintf("cluster-report/logs/node-%s/oc-ipam.log", node.Name)
+		cmds = append(cmds, reportCmdElem{
+			name:    tempName,
+			args:    ocipamLogCmdArgs(node.Name),
+			ocCheck: true,
+		})
+
+		tempName = fmt.Sprintf("cluster-report/logs/node-%s/oc-status.log", node.Name)
+		cmds = append(cmds, reportCmdElem{
+			name:    tempName,
+			args:    ocstatusLogCmdArgs(node.Name),
+			ocCheck: true,
+		})
 	}
 	output, outfile, err := getOutfile(output)
 	if err != nil {
@@ -448,13 +478,24 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	for _, cmd := range cmds {
 		buffer := new(bytes.Buffer)
 
-		fmt.Fprintln(os.Stderr, "Running command: kubectl", strings.Join(cmd.args, " "))
-		err := execKubectl(cmd.args, buffer)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			hasErrors = true
-			continue
+		if cmd.ocCheck {
+			fmt.Fprintln(os.Stderr, "Running command: oc", strings.Join(cmd.args, " "))
+			err := execoc(cmd.args, buffer)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "No oc execution as it's a kubernetes setup")
+				continue
+			}
+
+		} else {
+			fmt.Fprintln(os.Stderr, "Running command: kubectl", strings.Join(cmd.args, " "))
+			err := execKubectl(cmd.args, buffer)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				hasErrors = true
+				continue
+			}
 		}
+
 		//To avoid having double hostfiles
 		if !cmd.skipOutputFile {
 			tarWriter.WriteHeader(&tar.Header{
@@ -519,6 +560,14 @@ func aciContainerHostVersionCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "exec", "daemonsets/aci-containers-host",
 		"-c", "aci-containers-host", "-i", "--",
 		"aci-containers-host-agent", "--version"}
+}
+
+func ocipamLogCmdArgs(node string) []string {
+	return []string{"debug", "node/" + node, "--", "curl", "-s", "localhost:8090/ipam"}
+}
+
+func ocstatusLogCmdArgs(node string) []string {
+	return []string{"debug", "node/" + node, "--", "curl", "-s", "localhost:8090/status"}
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
