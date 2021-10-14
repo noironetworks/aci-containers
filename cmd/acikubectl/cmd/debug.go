@@ -173,6 +173,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: accLogCmdArgs(systemNamespace),
 		},
 		{
+			name: "cluster-report/logs/controller/controller-config.log",
+			args: controllerConfigCmdArgs(systemNamespace),
+		},
+		{
+			name: "cluster-report/logs/controller/controller-status.log",
+			args: controllerStatusCmdArgs(systemNamespace),
+		},
+		{
 			name: "cluster-report/logs/controller/acc-version.log",
 			args: accVersionCmdArgs(systemNamespace),
 		},
@@ -303,6 +311,41 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			cont:     "aci-containers-host",
 			selector: hostAgentSelector,
 			argFunc:  nodeLogCmdArgs,
+		},
+		{
+			path:     "cluster-report/logs/node-%s/host-ipam.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "curl", "-s", "localhost:8090/ipam"},
+		},
+		{
+			path:     "cluster-report/logs/node-%s/host-status.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "curl", "-s", "localhost:8090/status"},
+		},
+		{
+			path:     "cluster-report/logs/node-%s/host-services.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "curl", "-s", "localhost:8090/services"},
+		},
+		{
+			path:     "cluster-report/logs/node-%s/host-config.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "curl", "-s", "localhost:8090/config"},
+		},
+		{
+			path:     "cluster-report/logs/node-%s/host-endpoints.log",
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "curl", "-s", "localhost:8090/endpoints"},
 		},
 		{
 			path:     "cluster-report/logs/node-%s/aci-containers-openvswitch.log",
@@ -515,10 +558,25 @@ func accVersionCmdArgs(systemNamespace string) []string {
 		"aci-containers-controller", "--version"}
 }
 
+func controllerConfigCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "exec", "deployment/aci-containers-controller",
+		"-c", "aci-containers-controller", "--", "curl", "-s", "localhost:8091/config"}
+}
+
+func controllerStatusCmdArgs(systemNamespace string) []string {
+	return []string{"-n", systemNamespace, "exec", "deployment/aci-containers-controller",
+		"-c", "aci-containers-controller", "--", "curl", "-s", "localhost:8091/status"}
+}
+
 func aciContainerHostVersionCmdArgs(systemNamespace string) []string {
 	return []string{"-n", systemNamespace, "exec", "daemonsets/aci-containers-host",
 		"-c", "aci-containers-host", "-i", "--",
 		"aci-containers-host-agent", "--version"}
+}
+
+func hostAgentLogCmdArgs(systemNamespace string, podName string, containerName string, args []string) []string {
+	return append([]string{"-n", systemNamespace, "exec", podName,
+		"-c", containerName}, args...)
 }
 
 type nodeCmdArgFunc func(string, string, string, []string) []string
