@@ -138,7 +138,7 @@ func (cont *AciController) queueIPNetPolUpdates(ips map[string]bool) {
 		}
 		entries, err := cont.netPolSubnetIndex.ContainingNetworks(ip)
 		if err != nil {
-			cont.log.Error("Corrupted network policy IP index")
+			cont.log.Error("Corrupted network policy IP index, err: ", err)
 			return
 		}
 		for _, entry := range entries {
@@ -1064,7 +1064,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	if len(cont.config.ApicHosts) != 0 {
 		version, err := cont.apicConn.GetVersion()
 		if err != nil {
-			cont.log.Error("Could not get APIC version")
+			cont.log.Error("Could not get APIC version, err: ", err)
 		} else if version >= "5.1" {
 			setApicSvcDnsName = true
 		}
@@ -1267,6 +1267,8 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 			cont.indexMutex.Unlock()
 			err = cont.updateServiceDeviceInstance(servicekey, service)
 			if err != nil {
+				serviceLogger(cont.log, service).
+					Error("Failed to update service device Instance: ", err)
 				return true
 			}
 		} else {

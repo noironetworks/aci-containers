@@ -20,13 +20,14 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/yl2chen/cidranger"
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"github.com/yl2chen/cidranger"
 
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"

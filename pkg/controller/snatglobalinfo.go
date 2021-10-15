@@ -152,6 +152,7 @@ func (cont *AciController) snatNodeInfoAdded(obj interface{}) {
 	nodeinfo := obj.(*nodeinfo.NodeInfo)
 	nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
 	if err != nil {
+		cont.log.Error("Could not create key, err: ", err)
 		return
 	}
 	cont.log.Info("Node Info Added: ", nodeinfokey)
@@ -171,6 +172,7 @@ func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interf
 	newnodeinfo := newobj.(*nodeinfo.NodeInfo)
 	nodeinfokey, err := cache.MetaNamespaceKeyFunc(newnodeinfo)
 	if err != nil {
+		cont.log.Debug("Could not create key, err: ", err)
 		return
 	}
 	if reflect.DeepEqual(oldnodeinfo.Spec, newnodeinfo.Spec) {

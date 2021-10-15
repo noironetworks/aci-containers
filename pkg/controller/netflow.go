@@ -136,7 +136,11 @@ func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 // netflowPolObjs is used to build Netflow Policy objects
 func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apicapi.ApicSlice {
 
-	key, _ := cache.MetaNamespaceKeyFunc(nfp)
+	key, err := cache.MetaNamespaceKeyFunc(nfp)
+	if err != nil {
+		NetflowPolicyLogger(cont.log, nfp).
+			Error("Could not create netflow key: ", err)
+	}
 	labelKey := cont.aciNameForKey("nfp", key)
 	cont.log.Debug("create netflowpolicy")
 	nf := apicapi.NewNetflowVmmExporterPol(labelKey)

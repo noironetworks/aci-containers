@@ -16,6 +16,7 @@ package controller
 
 import (
 	"fmt"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 
 	"sort"
@@ -94,6 +95,7 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 
 	apicresp, err := cont.apicConn.GetApicResponse(bdUri)
 	if err != nil {
+		cont.log.Debugf("Failed to get APIC response, err: %v", err)
 		return
 	}
 	for _, obj := range apicresp.Imdata {
@@ -110,6 +112,7 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 
 	apicresp, err = cont.apicConn.GetApicResponse(epgUri)
 	if err != nil {
+		cont.log.Debugf("Failed to get APIC response, err: %v", err)
 		return
 	}
 	for _, obj := range apicresp.Imdata {
@@ -130,6 +133,7 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 	cont.log.Debug("aciVrfEpgDns: ", vrfEpgDns)
 	apicresp, err = cont.apicConn.GetApicResponse(SubnetUri)
 	if err != nil {
+		cont.log.Debugf("Failed to get APIC response, err: %v", err)
 		return
 	}
 	for _, obj := range apicresp.Imdata {

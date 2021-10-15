@@ -63,12 +63,6 @@ func checkRdConfig(c *testAciController, expected *rdconfig.RdConfig, op string)
 	return ret
 }
 
-/*
-create rdconfig
-update it, check cache's
-TODO: delete, wait for delhandler, check cache's
-*/
-//go test -v -timeout 30s -run ^TestRdConfig$ github.com/noironetworks/aci-containers/pkg/controller
 func TestRdConfig(t *testing.T) {
 	//setting ACI_SNAT_NAMESPACE, ACI_RDCONFIG_NAME for rdconfig listerwatcher
 	os.Setenv("ACI_SNAT_NAMESPACE", "aci-test")
