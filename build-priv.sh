@@ -139,7 +139,7 @@ docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
 
 echo "starting aci-containers build"
 make all-static
-make go-gbp-build
+#make go-gbp-build
 
 docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-controller .
 docker push $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG
