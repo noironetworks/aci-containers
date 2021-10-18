@@ -132,7 +132,7 @@ cp docker/launch-opflexagent.sh build/opflex/dist/bin/
 cp docker/launch-mcastdaemon.sh build/opflex/dist/bin/
 cp docker/launch-opflexserver.sh build/opflex/dist/bin/
 cp $DOCKER_DIR/Dockerfile-opflex build/opflex/dist/
-cp -Rf $DOCKER_DIR/licenses build/opflex/dist/
+cp -r docker/licenses build/opflex/dist/
 
 docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/opflex$DOCKER_TAG --no-cache=true --pull=true -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
