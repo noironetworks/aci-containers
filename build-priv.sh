@@ -65,13 +65,13 @@ echo "starting opflex build"
 
 pushd $ACICONTAINERS_DIR
 rm -Rf build
-docker build -t $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build-base docker
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-opflex-build-base docker
 #docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
 
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
 popd
-docker build -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/opflex-build$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
 #docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
 
 mkdir -p build/opflex/dist
@@ -134,28 +134,28 @@ cp docker/launch-opflexserver.sh build/opflex/dist/bin/
 cp $DOCKER_DIR/Dockerfile-opflex build/opflex/dist/
 cp -Rf $DOCKER_DIR/licenses build/opflex/dist/
 
-docker build -t $DOCKER_HUB_ID/opflex$DOCKER_TAG -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/opflex$DOCKER_TAG --no-cache=true --pull=true -f ./build/opflex/dist/Dockerfile-opflex build/opflex/dist
 docker push $DOCKER_HUB_ID/opflex$DOCKER_TAG
 
 echo "starting aci-containers build"
 make all-static
 make go-gbp-build
 
-docker build -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-controller .
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-controller .
 docker push $DOCKER_HUB_ID/aci-containers-controller$DOCKER_TAG
 
 docker/copy_iptables.sh $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG dist-static
-docker build -t $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-host .
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-host .
 docker push $DOCKER_HUB_ID/aci-containers-host$DOCKER_TAG
 
-docker build -t $DOCKER_HUB_ID/cnideploy$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-cnideploy docker
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/cnideploy$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-cnideploy docker
 docker push $DOCKER_HUB_ID/cnideploy$DOCKER_TAG
 
-docker build -t $DOCKER_HUB_ID/gbp-server$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-gbpserver .
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/gbp-server$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-gbpserver .
 docker push $DOCKER_HUB_ID/gbp-server$DOCKER_TAG
 
 echo "starting openvswitch build"
-docker build -t $DOCKER_HUB_ID/openvswitch$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-openvswitch .
+docker build --build-arg https_proxy=http://proxy.esl.cisco.com:80 --build-arg no_proxy=10.30.120.20 -t $DOCKER_HUB_ID/openvswitch$DOCKER_TAG --no-cache=true --pull=true -f $DOCKER_DIR/Dockerfile-openvswitch .
 docker push $DOCKER_HUB_ID/openvswitch$DOCKER_TAG
 
 popd
