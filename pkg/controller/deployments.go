@@ -183,11 +183,10 @@ func (cont *AciController) deploymentDeleted(obj interface{}) {
 }
 
 func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
-
 	depkey, err := cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {
 		deploymentLogger(cont.log, dep).
-			Error("Could not  create deployment key: ", err)
+			Error("Could not create deployment key: ", err)
 		return
 	}
 

@@ -341,7 +341,7 @@ func NewAciContainersOperator(
 			}
 		},
 		UpdateFunc: func(prevObj, currentObj interface{}) {
-			//@TODO need to handle update
+			//TODO: need to handle update
 			log.Debug("In UpdateFunc for Node")
 			controller.handleNodeUpdate(prevObj, currentObj, node_queue)
 		},
@@ -392,7 +392,7 @@ func NewAciContainersOperator(
 				}
 			},
 			UpdateFunc: func(prevObj, currentObj interface{}) {
-				//@TODO need to handle update
+				//TODO: need to handle update
 				log.Debug("In UpdateFunc for Route")
 			},
 			DeleteFunc: func(obj interface{}) {
@@ -442,6 +442,7 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 		log.Info("File not present. Writing initial aci-operator-config configmap")
 		err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
 		if err != nil {
+			log.Debugf("Failed to write ConfigMap, err: %v", err)
 			return true
 		}
 		return false
@@ -450,12 +451,14 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 	log.Info("Writing new aci-operator-config configmap")
 	err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
 	if err != nil {
+		log.Debugf("Failed to write ConfigMap, err: %v", err)
 		return true
 	}
 
 	log.Info("Reading current aci-operator-config configmap")
 	rawSpec, err := c.ReadConfigMap("/tmp/aci-operator.conf")
 	if err != nil {
+		log.Debugf("Failed to read ConfigMap, err: %v", err)
 		return true
 	}
 
@@ -463,12 +466,13 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 	log.Info("Unmarshalling the ConfigMap...")
 	err = json.Unmarshal(rawSpec, &obj.Spec)
 	if err != nil {
-		log.Info(err)
+		log.Infof("Failed to unmarshal ConfigMap, err: %v", err)
 		return true
 	}
 
 	acicnioperator, err := c.GetAciContainersOperatorCR()
 	if err != nil {
+		log.Errorf("Failed to find acicnioperator CR, err: %v", err)
 		return true
 	}
 
@@ -478,6 +482,7 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 		_, err = c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
 			Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
 		if err != nil {
+			log.Errorf("Failed to update acicnioperator CR, err: %v", err)
 		}
 	}
 	return false
@@ -976,6 +981,7 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 
 		rclient, err := client.New(cfg, client.Options{Scheme: scheme})
 		if err != nil {
+			log.Errorf("Failed to create client, err: %v", err)
 			return true
 		}
 
@@ -1125,16 +1131,19 @@ func (c *Controller) updatednsOperator() error {
 		scheme := runtime.NewScheme()
 		err := operatorv1.Install(scheme)
 		if err != nil {
+			log.Debugf("Failed to create operator, err: %v", err)
 			return err
 		}
 		c.DnsOperatorClient, err = client.New(cfg, client.Options{Scheme: scheme})
 		if err != nil {
+			log.Debugf("Failed to get client, err: %v", err)
 			return err
 		}
 	}
 	err := c.DnsOperatorClient.Get(context.TODO(), types.NamespacedName{
 		Name: "default"}, dnsInfo)
 	if err != nil {
+		log.Debugf("Failed to get dnsInfo, err: %v", err)
 		return err
 	}
 	if c.RoutesClient == nil {
@@ -1144,6 +1153,7 @@ func (c *Controller) updatednsOperator() error {
 	var options metav1.ListOptions
 	routes, err := c.RoutesClient.RouteV1().Routes(metav1.NamespaceAll).List(context.TODO(), options)
 	if err != nil {
+		log.Debugf("Failed to list Routes, err: %v", err)
 		return err
 	}
 	if len(routes.Items) == 0 {
@@ -1152,6 +1162,7 @@ func (c *Controller) updatednsOperator() error {
 	var nodeAddress []string
 	nodeAddress, err = c.getNodeAddress()
 	if err != nil {
+		log.Debugf("Failed to get nodeAddress, err: %v", err)
 		return err
 	}
 	if len(nodeAddress) == 0 {
@@ -1172,6 +1183,7 @@ func (c *Controller) updatednsOperator() error {
 		dnsInfo.Spec.Servers = servers
 		err = c.DnsOperatorClient.Update(context.TODO(), dnsInfo)
 		if err != nil {
+			log.Debugf("Failed to update dnsInfo, err: %v", err)
 			return err
 		}
 	}
@@ -1247,6 +1259,7 @@ func (c *Controller) updateDnsOperatorSpec(add bool) bool {
 	var nodeAddress []string
 	nodeAddress, err = c.getNodeAddress()
 	if err != nil {
+		log.Debugf("Failed to get nodeAddress, err: %v", err)
 		return true
 	}
 
@@ -1300,6 +1313,7 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 	}
 	dnsInfo, err := c.getDnsInfo()
 	if err != nil {
+		log.Errorf("Failed to get dnsInfo, err: %v", err)
 		return true
 	}
 	// Check if already exists in dnsInfo then no need to update dnsinfo
@@ -1317,6 +1331,7 @@ func (c *Controller) handleRouteCreate(obj interface{}) bool {
 	} else { // compute the node ip's fresh
 		nodeaddr, err := c.getNodeAddress()
 		if err != nil {
+			log.Errorf("Failed to get Node list, err: %v", err)
 			return true
 		}
 		if len(nodeaddr) == 0 {
@@ -1353,6 +1368,7 @@ func (c *Controller) handleRouteDelete(obj interface{}) bool {
 	}
 	dnsInfo, err := c.getDnsInfo()
 	if err != nil {
+		log.Errorf("Failed to get dnsInfo, err: %v", err)
 		return true
 	}
 	for i := range dnsInfo.Spec.Servers {

@@ -17,6 +17,9 @@ package controller
 
 import (
 	"fmt"
+	"net"
+	"reflect"
+
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
@@ -28,8 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	"net"
-	"reflect"
 )
 
 const snatGraphName = "svcgraph"
@@ -156,6 +157,7 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 			err = cont.updateServiceDeviceInstanceSnat(snatGraphName)
 		}
 		if err != nil {
+			cont.log.Errorf("Failed to handle Snat Update, err: %v", err)
 			requeue = true
 		}
 	} else {

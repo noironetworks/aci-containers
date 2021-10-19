@@ -16,8 +16,13 @@ package controller
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"reflect"
+
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	iopv1alpha1 "istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -28,9 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-	"os"
-	"os/exec"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
@@ -72,6 +74,7 @@ func (cont *AciController) istioSpecAdded(obj interface{}) {
 	istiospec := obj.(*istiov1.AciIstioOperator)
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(istiospec)
 	if err != nil {
+		IstioLogger(cont.log, istiospec).Error("Could not create key:" + err.Error())
 		return
 	}
 	cont.log.Debug("AciIstio CR Added:", istiospeckey)
@@ -89,6 +92,7 @@ func (cont *AciController) istioSpecUpdated(oldobj interface{}, newobj interface
 	newistio := newobj.(*istiov1.AciIstioOperator)
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(newistio)
 	if err != nil {
+		IstioLogger(cont.log, newistio).Error("Could not create key:" + err.Error())
 		return
 	}
 	if reflect.DeepEqual(oldistio.Spec, newistio.Spec) {
@@ -105,6 +109,7 @@ func (cont *AciController) istioSpecUpdated(oldobj interface{}, newobj interface
 func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator) bool {
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(istiospec)
 	if err != nil {
+		IstioLogger(cont.log, istiospec).Error("Could not create key:" + err.Error())
 		return true
 	}
 	cont.log.Debug("AciIstioCR Create/Update:", istiospeckey)
@@ -211,6 +216,7 @@ func (cont *AciController) istioSpecDeleted(obj interface{}) {
 	istiospec := obj.(*istiov1.AciIstioOperator)
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(istiospec)
 	if err != nil {
+		IstioLogger(cont.log, istiospec).Error("Could not create key:" + err.Error())
 		return
 	}
 	//ToDo: Move this "kubectl delete" to k8s API
@@ -276,4 +282,12 @@ func (cont *AciController) isOwnerReferenceMarked(reference []metav1.OwnerRefere
 		}
 	}
 	return false
+}
+
+func IstioLogger(log *logrus.Logger, i *istiov1.AciIstioOperator) *logrus.Entry {
+	return log.WithFields((logrus.Fields{
+		"name":      i.ObjectMeta.Name,
+		"namespace": i.ObjectMeta.Namespace,
+		"spec":      i.Spec,
+	}))
 }
