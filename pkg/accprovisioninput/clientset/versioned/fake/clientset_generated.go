@@ -19,8 +19,8 @@ package fake
 
 import (
 	clientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1"
-	fakeaciv1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1/fake"
+	aciv1alpha1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1alpha1"
+	fakeaciv1alpha1 "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned/typed/aci.ctrl/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -78,7 +78,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// AciV1 retrieves the AciV1Client
-func (c *Clientset) AciV1() aciv1.AciV1Interface {
-	return &fakeaciv1.FakeAciV1{Fake: &c.Fake}
+// AciV1alpha1 retrieves the AciV1alpha1Client
+func (c *Clientset) AciV1alpha1() aciv1alpha1.AciV1alpha1Interface {
+	return &fakeaciv1alpha1.FakeAciV1alpha1{Fake: &c.Fake}
 }

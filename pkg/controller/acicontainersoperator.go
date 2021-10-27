@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
-	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1"
+	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
 	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
-	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1"
+	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -133,10 +133,10 @@ func NewAciContainersOperator(
 	aci_operator_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return acicnioperatorclient.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return acicnioperatorclient.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
 			},
 		},
 		&operators.AciContainersOperator{},
@@ -479,7 +479,7 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 	if (acicnioperator.Spec.Flavor != obj.Spec.Flavor) || (acicnioperator.Spec.Config != obj.Spec.Config) {
 		acicnioperator.Spec.Flavor = obj.Spec.Flavor
 		acicnioperator.Spec.Config = obj.Spec.Config
-		_, err = c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
+		_, err = c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
 			Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
 		if err != nil {
 			log.Errorf("Failed to update acicnioperator CR, err: %v", err)
@@ -511,7 +511,7 @@ func (c *Controller) handleConfigMapDelete(obj interface{}) bool {
 
 func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOperator, error) {
 	var options metav1.GetOptions
-	acicnioperator, er := c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "acicnioperator", options)
+	acicnioperator, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "acicnioperator", options)
 	if er != nil {
 		return acicnioperator, er
 	}
@@ -573,7 +573,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 	log.Info("Unmarshalling Successful....")
 	log.Debug("acicnioperator CR recieved is", (obj.Spec))
 	if err = wait.PollInfinite(time.Second*2, func() (bool, error) {
-		_, er := c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
+		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if er != nil {
 			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
 				log.Info(er)
@@ -591,7 +591,7 @@ func (c *Controller) CreateAciContainersOperatorCR() error {
 
 func (c *Controller) GetAccProvisionInputCR() (*accprovisioninput.AccProvisionInput, error) {
 	var options metav1.GetOptions
-	accprovisioninput, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "accprovisioninput", options)
+	accprovisioninput, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Get(context.TODO(), "accprovisioninput", options)
 	if er != nil {
 		return accprovisioninput, er
 	}
@@ -629,7 +629,7 @@ func (c *Controller) CreateAccProvisionInputCR() error {
 	log.Debug("accprovisioninput CR recieved is ", (obj.Spec))
 
 	if err := wait.PollInfinite(time.Second*2, func() (bool, error) {
-		_, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
+		_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Create(context.TODO(), obj, metav1.CreateOptions{})
 		if er != nil {
 			if errors.IsAlreadyExists(er) { //Happens due to etcd timeout
 				log.Info(er)
@@ -675,7 +675,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			if acicnioperator.Spec.Config != obj.Spec.Config {
 				acicnioperator.Spec.Config = obj.Spec.Config
 				log.Info("New Configuration detected...applying changes")
-				_, er := c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
+				_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
 					Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
 				if er != nil {
 					log.Error(er)
@@ -709,7 +709,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 				if accprovisioninput.Spec.Config != obj.Spec.Config {
 					accprovisioninput.Spec.Config = obj.Spec.Config
 					log.Info("New Configuration detected...applying changes")
-					_, er := c.AccProvisionInput_Clientset.AciV1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
+					_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
 					if er != nil {
 						log.Error(er)
 					}
@@ -931,7 +931,7 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 	if acicontainersoperator.Spec.Config == "" {
 		log.Info("acicnioperator CR config is Nil...Exiting")
 		acicontainersoperator.Status.Status = false
-		_, er := c.Operator_Clientset.AciV1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), acicontainersoperator, metav1.UpdateOptions{})
+		_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), acicontainersoperator, metav1.UpdateOptions{})
 		if er != nil {
 			log.Error(er)
 		}
