@@ -109,28 +109,35 @@ func (cont *AciController) initSnatCfgInformerBase(listWatch *cache.ListWatch) {
 		listWatch,
 		&v1.ConfigMap{}, 0,
 		cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(_, obj interface{}) {
-				cont.snatCfgUpdate(obj)
+			UpdateFunc: func(oldObj interface{}, newObj interface{}) {
+				cont.snatCfgUpdate(oldObj, newObj)
 			},
 		},
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	cont.log.Info("Initializing SnatCfg  Informers: ")
+	cont.log.Info("Initializing SnatCfg Informers: ")
 }
 
 // Handle any changes to snatOperator Config
-func (cont *AciController) snatCfgUpdate(obj interface{}) {
-	snatcfg := obj.(*v1.ConfigMap)
-	var portRange snatglobalinfo.PortRange
-	cont.log.Info("snatCfgUpdated: ", snatcfg)
-	data := snatcfg.Data
-	start, err1 := strconv.Atoi(data["start"])
-	end, err2 := strconv.Atoi(data["end"])
-	portsPerNode, err3 := strconv.Atoi(data["ports-per-node"])
-	if err1 != nil || err2 != nil || err3 != nil ||
-		start < 5000 || end > 65000 || start > end || portsPerNode > end-start+1 {
+func (cont *AciController) snatCfgUpdate(oldObj interface{}, newObj interface{}) {
+	oldSnatcfg := oldObj.(*v1.ConfigMap)
+	newSnatcfg := newObj.(*v1.ConfigMap)
+	oldData := oldSnatcfg.Data
+	newData := newSnatcfg.Data
+	if reflect.DeepEqual(oldData, newData) {
+		cont.log.Info("ConfigMap is unchanged for: ", oldSnatcfg.Name)
 		return
 	}
+	cont.log.Infof("snatCfgUpdated from %+v to %+v: ", oldSnatcfg, newSnatcfg)
+	start, err1 := strconv.Atoi(newData["start"])
+	end, err2 := strconv.Atoi(newData["end"])
+	portsPerNode, err3 := strconv.Atoi(newData["ports-per-node"])
+	if err1 != nil || err2 != nil || err3 != nil ||
+		start < 5000 || end > 65000 || start > end || portsPerNode > end-start+1 {
+		cont.log.Error("Invalid values provided for ConfigMap: ", newSnatcfg.Name)
+		return
+	}
+	var portRange snatglobalinfo.PortRange
 	portRange.Start = start
 	portRange.End = end
 	var currPortRange []snatglobalinfo.PortRange
