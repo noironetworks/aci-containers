@@ -15,14 +15,15 @@
 package controller
 
 import (
+	"testing"
+	"time"
+
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 var dummy struct{}
@@ -311,7 +312,22 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		}
 	}
 	time.Sleep(time.Millisecond * 100)
+	// When the config map values are not modified, it should log and return
 	modconfigmap := &v1.ConfigMap{
+		Data: map[string]string{"start": "5000", "end": "65000", "ports-per-node": "3000"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "snat-operator-config",
+			Namespace: "aci-containers-system",
+		},
+	}
+	cont.fakeSnatCfgSource.Modify(modconfigmap)
+	expected := map[string]snatglobalinfo.GlobalInfo{}
+	expected = map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+	}
+	snatWait(t, "snat test", expected,
+		cont.AciController.snatGlobalInfoCache["10.1.1.9"], true)
+	modconfigmap = &v1.ConfigMap{
 		Data: map[string]string{"start": "10000", "end": "65000", "ports-per-node": "5000"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "snat-operator-config",
@@ -321,7 +337,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
-	expected := map[string]snatglobalinfo.GlobalInfo{
+	expected = map[string]snatglobalinfo.GlobalInfo{
 		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
 	}
 	snatWait(t, "snat test", expected,
