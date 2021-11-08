@@ -55,18 +55,18 @@ const (
 )
 
 type subscription struct {
-	kind          int
-	id            string
-	targetClasses []string
-	respClasses   []string
-	targetFilter  string
-	updateHook    ApicObjectHandler
-	deleteHook    ApicDnHandler
+	Kind          int
+	Id            string
+	TargetClasses []string
+	RespClasses   []string
+	TargetFilter  string
+	UpdateHook    ApicObjectHandler
+	DeleteHook    ApicDnHandler
 }
 
 type subIndex struct {
-	subs map[string]*subscription
-	ids  map[string]string
+	Subs map[string]*subscription
+	Ids  map[string]string
 }
 
 const (
@@ -75,18 +75,18 @@ const (
 )
 
 type pendingChange struct {
-	kind    int
-	subIds  []string
-	isDirty bool
+	Kind    int
+	SubIds  []string
+	IsDirty bool
 }
 
 type ApicConnection struct {
 	Apic      []string
 	ApicIndex int
-	user      string
-	password  string
-	prefix    string
-	version   string // APIC version
+	User      string
+	Password  string
+	Prefix    string
+	Version   string // APIC version
 
 	CachedVersion       string
 	ReconnectInterval   time.Duration
@@ -96,31 +96,31 @@ type ApicConnection struct {
 	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
 	FullSyncHook        func()
 
-	dialer        *websocket.Dialer
-	connection    *websocket.Conn
-	client        *http.Client
-	restartCh     chan struct{}
-	subscriptions subIndex
-	logger        *logrus.Logger
-	log           *logrus.Entry
-	signer        *signer
-	token         string
+	Dialer        *websocket.Dialer
+	Connection    *websocket.Conn
+	Client        *http.Client
+	RestartCh     chan struct{}
+	Subscriptions subIndex
+	Logger        *logrus.Logger
+	Log           *logrus.Entry
+	Signer        *signer
+	Token         string
 
-	indexMutex   sync.Mutex
-	syncEnabled  bool
-	stopped      bool
-	checkVersion bool
+	IndexMutex   sync.Mutex
+	SyncEnabled  bool
+	Stopped      bool
+	CheckVersion bool
 
-	desiredState       map[string]ApicSlice
-	desiredStateDn     map[string]ApicObject
-	keyHashes          map[string]string
-	containerDns       map[string]bool
-	cachedState        map[string]ApicSlice
-	cacheDnSubIds      map[string]map[string]bool
-	pendingSubDnUpdate map[string]pendingChange
+	DesiredState       map[string]ApicSlice
+	DesiredStateDn     map[string]ApicObject
+	KeyHashes          map[string]string
+	ContainerDns       map[string]bool
+	CachedState        map[string]ApicSlice
+	CacheDnSubIds      map[string]map[string]bool
+	PendingSubDnUpdate map[string]pendingChange
 	CachedSubnetDns    map[string]string
 
-	deltaQueue workqueue.RateLimitingInterface
+	DeltaQueue workqueue.RateLimitingInterface
 }
 
 func (s ApicSlice) Len() int {
@@ -131,9 +131,9 @@ func (s ApicSlice) Swap(i, j int) {
 }
 
 func (conn *ApicConnection) GetDesiredState(key string) ApicSlice {
-	conn.indexMutex.Lock()
-	defer conn.indexMutex.Unlock()
-	return conn.desiredState[key]
+	conn.IndexMutex.Lock()
+	defer conn.IndexMutex.Unlock()
+	return conn.DesiredState[key]
 }
 
 func truncatedName(name string) string {
