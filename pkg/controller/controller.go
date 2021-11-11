@@ -533,6 +533,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		panic(err)
 	}
+	cont.log.Debug("APIC is: ", cont.config.ApicHosts)
+	cont.log.Debug("apicCert is: ", apicCert)
+	cont.log.Debug("privKey is: ", privKey)
+	cont.log.Debug("username is: ", cont.config.ApicUsername)
+	cont.log.Debug("password is: ", cont.config.ApicPassword)
 
 	if len(cont.config.ApicHosts) != 0 {
 		cont.log.WithFields(logrus.Fields{
