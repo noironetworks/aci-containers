@@ -607,15 +607,6 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 	}
 	logger.Debug("Snat Global info Changed...")
 	globalInfo := snat.Spec.GlobalInfos
-	// This case is possible when all the pods will be deleted from that node
-	if len(globalInfo) < len(agent.opflexSnatGlobalInfos) {
-		for nodename := range agent.opflexSnatGlobalInfos {
-			if _, ok := globalInfo[nodename]; !ok {
-				delete(agent.opflexSnatGlobalInfos, nodename)
-				syncSnat = true
-			}
-		}
-	}
 	for nodename, val := range globalInfo {
 		var newglobalinfos []*opflexSnatGlobalInfo
 		for _, v := range val {
@@ -701,12 +692,11 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
 	agent.log.Debug("Snat Global Info Obj Delete")
 	snat := obj.(*snatglobal.SnatGlobalInfo)
-	globalInfo := snat.Spec.GlobalInfos
+	nodename := snat.Spec.NodeName
 	agent.indexMutex.Lock()
-	for nodename := range globalInfo {
-		if _, ok := agent.opflexSnatGlobalInfos[nodename]; ok {
-			delete(agent.opflexSnatGlobalInfos, nodename)
-		}
+
+	if _, ok := agent.opflexSnatGlobalInfos[nodename]; ok {
+		delete(agent.opflexSnatGlobalInfos, nodename)
 	}
 	agent.indexMutex.Unlock()
 }
