@@ -201,9 +201,15 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.rdConfigInformer.Run(stopCh)
 	go env.agent.netAttDefInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
-	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
-		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,
-		env.agent.rdConfigInformer.HasSynced)
+	//testig seperately
+	env.agent.log.Info("svcinformer sync")
+	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced)
+	env.agent.log.Info("snatglobalinformer sync")
+	cache.WaitForCacheSync(stopCh, env.agent.snatGlobalInformer.HasSynced)
+	env.agent.log.Info("snatPolicyInformer sync")
+	cache.WaitForCacheSync(stopCh, env.agent.snatPolicyInformer.HasSynced)
+	env.agent.log.Info("rdConfogInformer sync")
+	cache.WaitForCacheSync(stopCh, env.agent.rdConfigInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }

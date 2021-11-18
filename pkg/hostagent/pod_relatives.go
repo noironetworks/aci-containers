@@ -138,7 +138,7 @@ func (agent *HostAgent) initNetworkPolicyInformerBase(listWatch *cache.ListWatch
 }
 
 func (agent *HostAgent) networkPolicyAdded(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
+	np := obj.(*v1netpol.NetworkPolicy)
 	agent.netPolPods.UpdateSelectorObj(obj)
 	agent.log.Infof("Network policy added: %s", np.ObjectMeta.Name)
 }
@@ -166,7 +166,7 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 }
 
 func (agent *HostAgent) networkPolicyDeleted(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
+	np := obj.(*v1netpol.NetworkPolicy)
 	agent.netPolPods.DeleteSelectorObj(obj)
 	agent.log.Infof("Network policy deleted: %s", np.ObjectMeta.Name)
 }
