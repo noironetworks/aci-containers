@@ -20,6 +20,8 @@ import (
 
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
+	v1netpol "github.com/noironetworks/aci-containers/pkg/networkpolicy/apis/netpolicy/v1"
+	netpolclientset "github.com/noironetworks/aci-containers/pkg/networkpolicy/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	nodepodifclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
@@ -31,7 +33,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 	v1 "k8s.io/api/core/v1"
-	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -61,6 +62,7 @@ type K8sEnvironment struct {
 	snatGlobalClient *snatglobalclset.Clientset
 	nodeInfoClient   *nodeinfoclientset.Clientset
 	rdConfigClient   *rdconfigclientset.Clientset
+	netPolClient     *netpolclientset.Clientset
 	istioClient      *istioclientset.Clientset
 	restConfig       *restclient.Config
 	cont             *AciController
@@ -120,10 +122,15 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize AciIstio client")
 		return nil, err
 	}
+	netPolClient, err := netpolclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize internal netpol  client")
+		return nil, err
+	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
 		nodeInfoClient: nodeInfoClient, rdConfigClient: rdConfigClient,
-		istioClient: istioClient}, nil
+		istioClient: istioClient, netPolClient: netPolClient}, nil
 }
 
 func (env *K8sEnvironment) RESTConfig() *restclient.Config {
@@ -180,6 +187,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	if cont.config.InstallIstio {
 		cont.initIstioInformerFromClient(env.istioClient)
 	}
+	cont.initInternalNetworkPolicyInformerFromClient(env.netPolClient)
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
 	cont.initNetPolPodIndex()
@@ -253,14 +261,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.createGlobalInfoCache(cont.unitTestMode)
 	cont.snatFullSync()
 	cont.log.Info("Snat cache sync successful")
-	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
-		}, nil, stopCh)
-	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
-		func(obj interface{}) bool {
-			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, nil, stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
@@ -278,6 +281,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			cont.istioInformer.HasSynced)
 		cont.scheduleCreateIstioCR()
 	}
+	go cont.networkPolicyInformer.Run(stopCh)
+	go cont.k8sNetworkPolicyInformer.Run(stopCh)
+	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
+		func(obj interface{}) bool {
+			return cont.handleNetPolUpdate(obj.(*v1netpol.NetworkPolicy))
+		}, nil, stopCh)
+	cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)
 	go cont.rdConfigInformer.Run(stopCh)
 	cont.log.Debug("Waiting for RdConfig cache sync")
 	cache.WaitForCacheSync(stopCh, cont.rdConfigInformer.HasSynced)
@@ -294,6 +304,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.registerCRDHook(netflowCRDName, netflowInit)
 	cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
 	cont.registerCRDHook(erspanCRDName, erspanInit)
+	cont.registerCRDHook(dnsNetpolCRDName, dnsnetpolInit)
 	go cont.crdInformer.Run(stopCh)
 
 	cache.WaitForCacheSync(stopCh,
@@ -301,7 +312,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.replicaSetInformer.HasSynced,
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced,
-		cont.networkPolicyInformer.HasSynced)
+		cont.k8sNetworkPolicyInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
 		go cont.snatGlobalInfoSync(stopCh, 60)
