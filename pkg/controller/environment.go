@@ -265,10 +265,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, nil, stopCh)
-	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
-		func(obj interface{}) bool {
-			return cont.handleNetPolUpdate(obj.(*v1netpol.NetworkPolicy))
-		}, nil, stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))

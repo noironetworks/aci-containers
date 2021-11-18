@@ -133,6 +133,7 @@ func testController() *testAciController {
 			ListFunc:  cont.fakeNetworkPolicySource.List,
 			WatchFunc: cont.fakeNetworkPolicySource.Watch,
 		})
+
 	cont.fakek8sNetworkPolicySource = framework.NewFakeControllerSource()
 	cont.initk8sNetworkPolicyInformerBase(
 		&cache.ListWatch{

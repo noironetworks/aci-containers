@@ -115,7 +115,8 @@ type AciController struct {
 	updatePod                podUpdateFunc
 	updateNode               nodeUpdateFunc
 	updateServiceStatus      serviceUpdateFunc
-	indexMutex               sync.Mutex
+
+	indexMutex sync.Mutex
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
