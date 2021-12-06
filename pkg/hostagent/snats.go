@@ -1011,11 +1011,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 				}
 				if res == POD {
 					if len(item.Spec.SnatIp) == 0 {
-						var services []*v1.Service
-						cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
-							func(servobj interface{}) {
-								services = append(services, servobj.(*v1.Service))
-							})
+						services := util.GetServicesByOneOfLables(agent.serviceInformer.GetIndexer(), namespace, label)
 						// list the pods and apply the policy at service target
 						for _, service := range services {
 							if util.MatchLabels(item.Spec.Selector.Labels,
