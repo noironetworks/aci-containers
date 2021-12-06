@@ -278,7 +278,7 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	sz := len(cont.nodeOpflexDevice[name])
 	for _, device := range cont.nodeOpflexDevice[name] {
 		if device.GetAttrStr("state") == "connected" {
-			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
+			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Debug("Processing fabric path for node ",
 				"when connected device state is found")
 			return device.GetAttrStr("fabricPathDn"), true
 		}
@@ -1701,7 +1701,7 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 				}
 			}
 		})
-	cont.log.Info("NodeMap: ", nodeMap)
+	cont.log.Debug("NodeMap: ", nodeMap)
 }
 
 func (sep *serviceEndpoint) SetServiceApicObject(aobj apicapi.ApicObject, service *v1.Service) bool {
