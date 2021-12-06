@@ -85,11 +85,11 @@ func (agent *HostAgent) rdConfigUpdate(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	rdCon := obj.(*rdConfig.RdConfig)
-	agent.log.Info("RdConfig  Added: ", rdCon)
+	agent.log.Infof("RdConfig Updated: name=%s, namespace=%s", rdCon.ObjectMeta.Name, rdCon.ObjectMeta.Namespace)
 	var intsubnets []string
 	intsubnets = append(intsubnets, rdCon.Spec.UserSubnets...)
 	intsubnets = append(intsubnets, rdCon.Spec.DiscoveredSubnets...)
-	agent.log.Info("intsubnets: ", intsubnets)
+	agent.log.Debug("intsubnets: ", intsubnets)
 	opflexRdConfig := &opflexRdConfig{
 		InternalSubnets:   intsubnets,
 		DomainPolicySpace: agent.config.AciVrfTenant,
@@ -97,7 +97,7 @@ func (agent *HostAgent) rdConfigUpdate(obj interface{}) {
 	}
 	if !reflect.DeepEqual(agent.rdConfig, opflexRdConfig) {
 		agent.rdConfig = opflexRdConfig
-		agent.log.Info("synrdConfig: ", opflexRdConfig)
+		agent.log.Debug("synrdConfig: ", opflexRdConfig)
 		agent.scheduleSyncRdConfig()
 	}
 }
@@ -106,7 +106,7 @@ func (agent *HostAgent) rdConfigDelete(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	rdCon := obj.(*rdConfig.RdConfig)
-	agent.log.Info("RdConfig  Deleted: ", rdCon.ObjectMeta.Name)
+	agent.log.Infof("RdConfig Deleted: name=%s, namespace=%s", rdCon.ObjectMeta.Name, rdCon.ObjectMeta.Namespace)
 	agent.rdConfig = &opflexRdConfig{}
 	agent.scheduleSyncRdConfig()
 }

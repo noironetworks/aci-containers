@@ -437,7 +437,7 @@ func rcLogger(log *logrus.Logger, rc *v1.ReplicationController) *logrus.Entry {
 
 func (agent *HostAgent) rcAdded(obj interface{}) {
 	rc := obj.(*v1.ReplicationController)
-	rcLogger(agent.log, rc).Info("rcAdded: ")
+	rcLogger(agent.log, rc).Info("rcAdded:")
 	agent.rcPods.UpdateSelectorObj(obj)
 }
 
@@ -449,7 +449,7 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 
 	oldrc := oldobj.(*v1.ReplicationController)
 	newrc := newobj.(*v1.ReplicationController)
-	rcLogger(agent.log, oldrc).Info("rcChanged: ")
+	rcLogger(agent.log, oldrc).Info("rcChanged:")
 
 	if !reflect.DeepEqual(oldrc.Spec.Selector, newrc.Spec.Selector) {
 		agent.rcPods.UpdateSelectorObj(newobj)
@@ -472,5 +472,5 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 func (agent *HostAgent) rcDeleted(obj interface{}) {
 	rc := obj.(*v1.ReplicationController)
 	agent.rcPods.DeleteSelectorObj(obj)
-	rcLogger(agent.log, rc).Info("rcDeleted: ")
+	rcLogger(agent.log, rc).Info("rcDeleted:")
 }

@@ -103,7 +103,7 @@ func (cont *AciController) RdConfigUpdated(oldobj interface{}, newobj interface{
 	if reflect.DeepEqual(oldrdcon.Spec, newrdcon.Spec) {
 		return
 	}
-	cont.log.Debugf("Updating RdConfig:%s, from: %v, to: %v", rdconkey, oldrdcon, newrdcon)
+	cont.log.Infof("Updating RdConfig:%s, from: %v, to: %v", rdconkey, oldrdcon, newrdcon)
 	cont.indexMutex.Lock()
 	cont.rdConfigCache[newrdcon.ObjectMeta.Name] = newrdcon
 	cont.indexMutex.Unlock()
