@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -227,7 +226,7 @@ func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
-	agent.log.Info("Snat Policy Info Added: ", policyinfo.ObjectMeta.Name)
+	agent.log.Infof("Snat Policy Added: name=%s", policyinfo.ObjectMeta.Name)
 	if policyinfo.Status.State != snatpolicy.Ready {
 		return
 	}
@@ -241,15 +240,14 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 	defer agent.snatPolicyCacheMutex.Unlock()
 	oldpolicyinfo := oldobj.(*snatpolicy.SnatPolicy)
 	newpolicyinfo := newobj.(*snatpolicy.SnatPolicy)
-	agent.log.Info("Snat Policy Info Updated: ", newpolicyinfo.ObjectMeta.Name)
-	agent.log.Info("Snat Policy Status: ", newpolicyinfo.Status.State)
+	agent.log.Infof("Snat Policy Updated: name=%s, policy status=%s", newpolicyinfo.ObjectMeta.Name, newpolicyinfo.Status.State)
 	if reflect.DeepEqual(oldpolicyinfo, newpolicyinfo) {
 		return
 	}
 	//1. check if the local nodename is  present in globalinfo
 	// 2. if it is not present then delete the policy from localInfo as the portinfo is not allocated  for node
 	if newpolicyinfo.Status.State == snatpolicy.IpPortsExhausted {
-		agent.log.Info("Snat Ports exhausted: ", newpolicyinfo.ObjectMeta.Name)
+		agent.log.Infof("Ports exhausted for snat policy: %s", newpolicyinfo.ObjectMeta.Name)
 		/*ginfo, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 		present := false
 		if ok {
@@ -319,7 +317,7 @@ func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
-	agent.log.Info("Snat Policy Info Deleted: ", policyinfo.ObjectMeta.Name)
+	agent.log.Infof("Snat Policy Deleted: name=%s", policyinfo.ObjectMeta.Name)
 	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)
 }
@@ -504,7 +502,7 @@ func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy) {
 	}
 	agent.updateEpFiles(poduids)
 	delete(agent.snatPods, policy.GetName())
-	agent.log.Info("SnatPolicy deleted update Nodeinfo: ", policy.GetName())
+	agent.log.Infof("SnatPolicy deleted update Nodeinfo: %s", policy.GetName())
 	agent.scheduleSyncNodeInfo()
 	agent.DeleteMatchingSnatPolicyLabel(policy.GetName())
 	return
@@ -526,7 +524,7 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 					l := k - deletedcount
 					// delete the matching policy from  policy stack
 					if plcyname == localinfo.Snatpolicies[ResourceType(i)][l] {
-						agent.log.Info("Delete the Snat Policy name from SnatLocalInfo: ", plcyname)
+						agent.log.Infof("Delete the Snat Policy name from SnatLocalInfo: %s", plcyname)
 						localinfo.Snatpolicies[ResourceType(i)] =
 							append(localinfo.Snatpolicies[ResourceType(i)][:l],
 								localinfo.Snatpolicies[ResourceType(i)][l+1:]...)
@@ -563,7 +561,7 @@ func (agent *HostAgent) snatGlobalInfoUpdate(obj interface{}) {
 			Error("Could not create key:" + err.Error())
 		return
 	}
-	agent.log.Info("Snat Global Object added/Updated: ", snat)
+	agent.log.Info("Snat Global Object Added/Updated: ", snat)
 	agent.doUpdateSnatGlobalInfo(key)
 }
 
@@ -688,7 +686,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 				poduids = append(poduids, uuid)
 			}
 		}
-		agent.log.Info("Updating EpFile GlobalInfo Context: ", poduids)
+		agent.log.Debug("Updating EpFile GlobalInfo Context: ", poduids)
 		agent.updateEpFiles(poduids)
 	}
 }
@@ -788,7 +786,7 @@ func (agent *HostAgent) syncSnat() bool {
 			logrus.Fields{"Uuid": uuid})
 		existing, ok := opflexSnatIps[uuid]
 		if ok {
-			fmt.Printf("snatfile:%s\n", snatfile)
+			agent.log.Debugf("snatfile:%s\n", snatfile)
 			wrote, err := writeSnat(snatfile, existing)
 			if err != nil {
 				opflexSnatIpLogger(agent.log, existing).Error("Error writing snat file: ", err)
@@ -831,7 +829,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 	case *v1.Pod:
 		pod, _ := obj.(*v1.Pod)
 		poduids = append(poduids, string(pod.ObjectMeta.UID))
-		agent.log.Info("Matching pod uids: ", poduids)
+		if len(poduids) != 0 {
+			agent.log.Info("Matching pod uids: ", poduids)
+		}
 	case *appsv1.Deployment:
 		deployment, _ := obj.(*appsv1.Deployment)
 		depkey, _ :=
@@ -848,7 +848,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 			}
 			poduids = append(poduids, string(podobj.(*v1.Pod).ObjectMeta.UID))
 		}
-		agent.log.Info("Matching deployment pod uids: ", poduids)
+		if len(poduids) != 0 {
+			agent.log.Info("Matching deployment pod uids: ", poduids)
+		}
 		res = DEPLOYMENT
 	case *v1.Service:
 		service, _ := obj.(*v1.Service)
@@ -861,7 +863,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 					poduids = append(poduids, string(pod.ObjectMeta.UID))
 				}
 			})
-		agent.log.Info("Matcing service pod uids: ", poduids)
+		if len(poduids) != 0 {
+			agent.log.Info("Matching service pod uids: ", poduids)
+		}
 		res = SERVICE
 	case *v1.Namespace:
 		ns, _ := obj.(*v1.Namespace)
@@ -873,7 +877,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 					poduids = append(poduids, string(pod.ObjectMeta.UID))
 				}
 			})
-		agent.log.Info("Matching namespace pod uids: ", poduids)
+		if len(poduids) != 0 {
+			agent.log.Info("Matching namespace pod uids: ", poduids)
+		}
 		res = NAMESPACE
 	default:
 	}
@@ -1140,7 +1146,7 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 	var podidlist []string
 	sync := false
 	for name, resources := range plcynames {
-		agent.log.Infof("Handle snatpolicy as object deleted: %s,  ObjectKey: %s", name, objKey)
+		agent.log.Infof("Handle snatpolicy as object deleted: %s, ObjectKey: %s", name, objKey)
 		poduids, _ := agent.getPodsMatchingObject(obj, name)
 		for _, uid := range poduids {
 			if getResourceType(obj) == SERVICE {

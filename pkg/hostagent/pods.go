@@ -146,7 +146,7 @@ func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bo
 	var podifs []nodepodif.PodIF
 	for _, ep := range nodePodIfEPs {
 		ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
-		opflexEpLogger(agent.log, ep).Info("ipRemEP")
+		opflexEpLogger(agent.log, ep).Debug("ipRemEP")
 		var podif nodepodif.PodIF
 		podif.PodNS = ep.Attributes["namespace"]
 		podif.PodName = ep.Attributes["vm-name"]
@@ -560,7 +560,7 @@ func (agent *HostAgent) podChanged(podkey *string) {
 		agent.log.Error("Could not lookup pod: ", err)
 	}
 	if !exists || podobj == nil {
-		agent.log.Info("Object doesn't exist yet ", *podkey)
+		agent.log.Debug("Object doesn't exist yet ", *podkey)
 		return
 	}
 
@@ -682,7 +682,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			"id": *epMetaKey,
 			"ep": neweps,
 		}).Debug("Updated endpoints for pod")
-		logger.Infof("EP: %+v", neweps[0])
+		logger.Infof("EP updated: %+v", neweps[0])
 
 		agent.opflexEps[*epUuid] = neweps
 		agent.scheduleSyncEps()

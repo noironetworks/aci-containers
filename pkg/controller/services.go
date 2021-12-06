@@ -1706,7 +1706,7 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 				}
 			}
 		})
-	cont.log.Info("NodeMap: ", nodeMap)
+	cont.log.Debug("NodeMap: ", nodeMap)
 }
 
 func (sep *serviceEndpoint) SetServiceApicObject(aobj apicapi.ApicObject, service *v1.Service) bool {
