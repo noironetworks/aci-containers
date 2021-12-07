@@ -542,6 +542,8 @@ loop:
 	conn.log.Debug("Exiting websocket handler")
 }
 
+//This function should only to be called before we make the first connection to APIC.
+//Use the cached Apic version when determining the version elsewhere. This can lead to inconsistent tokens.
 func (conn *ApicConnection) GetVersion() (string, error) {
 	versionMo := "firmwareCtrlrRunning"
 
