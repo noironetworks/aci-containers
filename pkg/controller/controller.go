@@ -469,9 +469,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			panic(err)
 		}
 	}
-	// If not defined, default is 900
+	// If not defined, default is 1800
 	if cont.config.ApicRefreshTimer == "" {
-		cont.config.ApicRefreshTimer = "900"
+		cont.config.ApicRefreshTimer = "1800"
 	}
 	refreshTimeout, err := strconv.Atoi(cont.config.ApicRefreshTimer)
 	if err != nil {
@@ -479,15 +479,15 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 	cont.log.Info("ApicRefreshTimer conf is set to: ", refreshTimeout)
 
-	// Bailout if the refreshTimeout is more than 12Hours
-	if refreshTimeout > (12 * 60 * 60) {
-		cont.log.Info("ApicRefreshTimer can't be more than 12Hrs")
+	// Bailout if the refreshTimeout is more than 12Hours or less than 5Mins
+	if refreshTimeout > (12*60*60) || refreshTimeout < (5*60) {
+		cont.log.Info("ApicRefreshTimer can't be more than 12Hrs or less than 5Mins")
 		panic(err)
 	}
 
-	// If RefreshTickerAdjustInterval is not defined, default to 5Sec.
+	// If RefreshTickerAdjustInterval is not defined, default to 150Sec.
 	if cont.config.ApicRefreshTickerAdjust == "" {
-		cont.config.ApicRefreshTickerAdjust = "5"
+		cont.config.ApicRefreshTickerAdjust = "150"
 	}
 	refreshTickerAdjust, err := strconv.Atoi(cont.config.ApicRefreshTickerAdjust)
 	if err != nil {
