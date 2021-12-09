@@ -107,7 +107,7 @@ func (cont *AciController) writeApicDepl(dep *appsv1.Deployment) {
 	} else {
 		aobj.SetAttr("replicas", "1")
 	}
-	if dep.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
+	if cont.config.EnableVmmInjectedLabels && dep.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
 		for key, val := range dep.ObjectMeta.Labels {
 			newLabelKey := cont.aciNameForKey("label", key)
 			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
