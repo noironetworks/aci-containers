@@ -206,6 +206,9 @@ type ControllerConfig struct {
 
 	// Cluster Flavour
 	Flavor string `json:"flavor,omitempty"`
+
+	// Enable creation of VmmInjectedLabel, default is false
+	EnableVmmInjectedLabels bool `json:"enable-vmm-injected-labels,omitempty"`
 }
 
 type netIps struct {
@@ -243,6 +246,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")
 	flag.IntVar(&config.MaxCSRTunnels, "max-csr-tunnels", 16, "Number of CSR tunnels")
 	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
+	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,

@@ -18,9 +18,10 @@ package controller
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -199,7 +200,7 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 			break
 		}
 	}
-	if pod.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
+	if cont.config.EnableVmmInjectedLabels && pod.ObjectMeta.Labels != nil && apicapi.ApicVersion >= "5.0" {
 		for key, val := range pod.ObjectMeta.Labels {
 			newLabelKey := cont.aciNameForKey("label", key)
 			label := apicapi.NewVmmInjectedLabel(aobj.GetDn(),
