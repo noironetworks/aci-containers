@@ -65,7 +65,7 @@ type ControllerConfig struct {
 
 	// The number of seconds that APIC should wait before timing
 	// out a subscription on a websocket connection. If not
-	// explicitly set, then a default of 900 seconds will
+	// explicitly set, then a default of 1800 seconds will
 	// be sent in websocket subscriptions. If it is set to 0,
 	// then a timeout will not be sent in websocket
 	// subscriptions, and APIC will use it's default timeout
@@ -79,7 +79,7 @@ type ControllerConfig struct {
 	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
 	// How early (seconds) the subscriptions to be refreshed than
-	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
+	// actual subscription refresh-timeout. Will be defaulted to 150Seconds.
 	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
 
 	// A path for a PEM-encoded private key for client certificate
