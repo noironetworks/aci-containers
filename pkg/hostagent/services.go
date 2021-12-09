@@ -781,7 +781,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			// Select the high priority keys as datapath doesn't have support for fallback
 			if _, ok := nexthops["topologyawarehints"]; ok {
 				sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
-				agent.log.Infof("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
+				agent.log.Debugf("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
 			} else {
 				sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
 			}
