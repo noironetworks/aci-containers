@@ -352,13 +352,13 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 		if globalcl != nil {
 			err := util.CreateSnatGlobalInfoCR(*globalcl, spec)
 			if err != nil {
-				cont.log.Info("SnatGlobalInfoCR Create failed requeue the request", err)
+				cont.log.Error("SnatGlobalInfoCR Create failed requeue the request", err)
 				return true
 			}
 		}
 		return false
 	} else if err != nil {
-		cont.log.Info("SnatGlobalInfoCR Create failed requeue the request-1: ", err)
+		cont.log.Error("SnatGlobalInfoCR Create failed requeue the request-1: ", err)
 		return true
 	}
 	if reflect.DeepEqual(snatglobalInfo.Spec.GlobalInfos, glInfoCache) {
@@ -369,7 +369,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 	cont.log.Debug("Updating GlobalInfo CR")
 	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
 	if err != nil {
-		cont.log.Info("GlobalInfo CR Update Failed: ", err)
+		cont.log.Error("GlobalInfo CR Update Failed: ", err)
 		return true
 	}
 	cont.log.Debug("GlobalInfo CR successfully updated")

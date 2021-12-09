@@ -689,7 +689,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds time.Duration) {
 	time.Sleep(seconds * time.Second)
-	cont.log.Info("Go routine to periodically sync globalinfo and nodeinfo started")
+	cont.log.Debug("Go routine to periodically sync globalinfo and nodeinfo started")
 	iteration := 0
 	for {
 		// To avoid noisy logs, only printing once in 5 minutes
@@ -726,13 +726,13 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds ti
 			_, ok := expectedmap[nodeName]
 			if !ok && len(policyNames) > 0 {
 				cont.log.Info("Adding missing entry in snatglobalinfo for node: ", nodeName)
-				cont.log.Info("No snat policies found in snatglobalinfo")
-				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
+				cont.log.Debug("No snat policies found in snatglobalinfo")
+				cont.log.Debug("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
 			} else if len(policyNames) != len(expectedmap[nodeName]) {
 				cont.log.Info("Adding missing snatpolicy entry in snatglobalinfo for node: ", nodeName)
-				cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
-				cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
+				cont.log.Debug("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
+				cont.log.Debug("Snatpolicy list according to nodeinfo: ", policyNames)
 				marked = true
 			} else {
 				if len(policyNames) == 0 && len(expectedmap[nodeName]) == 0 {
@@ -741,9 +741,9 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds ti
 				}
 				eq := reflect.DeepEqual(expectedmap[nodeName], policyNames)
 				if !eq {
-					cont.log.Info("Syncing inconsistent snatpolicy entry in snatglobalinfo for node: ", nodeName)
-					cont.log.Info("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
-					cont.log.Info("Snatpolicy list according to nodeinfo: ", policyNames)
+					cont.log.Debug("Syncing inconsistent snatpolicy entry in snatglobalinfo for node: ", nodeName)
+					cont.log.Debug("Snatpolicy list according to snatglobalinfo: ", expectedmap[nodeName])
+					cont.log.Debug("Snatpolicy list according to nodeinfo: ", policyNames)
 					marked = true
 				}
 			}
@@ -758,7 +758,7 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds ti
 				cont.queueNodeInfoUpdateByKey(nodeinfokey)
 			} else {
 				if iteration%5 == 0 {
-					cont.log.Debug("Nodeinfo and globalinfo in sync for node: ", nodeName)
+					cont.log.Info("Nodeinfo and globalinfo in sync for node: ", nodeName)
 				}
 			}
 		}
