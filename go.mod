@@ -4,24 +4,18 @@ require (
 	github.com/Mellanox/sriovnet v1.0.2
 	github.com/Shopify/sarama v1.26.1
 	github.com/aws/aws-sdk-go v1.38.49
-	github.com/caddyserver/caddy v1.0.3 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd // indirect
-	github.com/checkpoint-restore/go-criu/v4 v4.1.0 // indirect
 	github.com/containernetworking/cni v0.8.1
 	github.com/containernetworking/plugins v0.9.1
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/davecgh/go-spew v1.1.1
-	github.com/go-bindata/go-bindata v3.1.1+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.1.0
-	github.com/kr/pty v1.1.5 // indirect
-	github.com/mattn/goveralls v0.0.8 // indirect
-	github.com/miekg/dns v1.1.35 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20210416053915-d6dec2cca336
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
@@ -29,16 +23,13 @@ require (
 	github.com/ovn-org/libovsdb v0.0.0-20210422150337-f29ae9b43ea5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
-	github.com/robfig/cron v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tatsushid/go-fastping v0.0.0-20160109021039-d7bb493dee3e
-	github.com/thecodeteam/goscaleio v0.1.0 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
 	github.com/yl2chen/cidranger v1.0.0
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489 // indirect
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	google.golang.org/grpc v1.38.0
@@ -48,7 +39,6 @@ require (
 	k8s.io/apimachinery v0.22.0
 	k8s.io/client-go v0.22.0
 	k8s.io/code-generator v0.22.0
-	k8s.io/heapster v1.2.0-beta.1 // indirect
 	k8s.io/kubectl v0.22.0
 	k8s.io/kubelet v0.0.0
 	k8s.io/kubernetes v1.22.0
