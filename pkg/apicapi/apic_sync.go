@@ -251,16 +251,16 @@ func prepareApicSliceTag(objects ApicSlice, tag string) ApicSlice {
 	return objects
 }
 
-func prepareApicCache(parentDn string, obj ApicObject) {
+func prepareApicCache(parentDn string, obj ApicObject, count *int) {
 	for _, body := range obj {
 		if body.Attributes == nil {
 			body.Attributes = make(map[string]interface{})
 		}
 		dn := obj.BuildDn(parentDn)
 		body.Attributes["dn"] = dn
-
+		(*count)++
 		for _, c := range body.Children {
-			prepareApicCache(dn, c)
+			prepareApicCache(dn, c, count)
 		}
 		sort.Sort(body.Children)
 		break

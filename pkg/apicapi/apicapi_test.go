@@ -28,6 +28,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -910,4 +913,104 @@ func TestReconcile(t *testing.T) {
 			})
 		close(stopCh)
 	}
+}
+
+type recorderMuxer struct {
+	requests []request
+	id       string
+	response ApicSlice
+	ns       ApicObject
+	depl     ApicObject
+	replSet  ApicObject
+}
+
+func (h *recorderMuxer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var reqBody ApicObject
+	json.NewDecoder(req.Body).Decode(&reqBody)
+	fmt.Println(req.Method, req.URL)
+	h.requests = append(h.requests, request{
+		method: req.Method,
+		uri:    req.URL.RequestURI(),
+		body:   reqBody,
+	})
+	switch {
+	case strings.Contains(req.URL.RequestURI(), "vmmInjectedNs"):
+		h.response = PrepareApicSlice(ApicSlice{h.ns}, "kube", "kube-key1")
+	case strings.Contains(req.URL.RequestURI(), "vmmInjectedDepl"):
+		h.response = PrepareApicSlice(ApicSlice{h.depl}, "kube", "kube-key1")
+	case strings.Contains(req.URL.RequestURI(), "vmmInjectedReplSet"):
+		h.response = PrepareApicSlice(ApicSlice{h.replSet}, "kube", "kube-key1")
+	default:
+		h.response = ApicSlice{}
+	}
+	result := map[string]interface{}{
+		"subscriptionId": h.id,
+		"imdata":         h.response,
+	}
+	json.NewEncoder(w).Encode(result)
+	currId, _ := strconv.Atoi(h.id)
+	currId++
+	h.id = strconv.Itoa(currId)
+}
+
+func TestSplitSubscribe(t *testing.T) {
+	nsName := "test1"
+	ns := NewVmmInjectedNs("v", "d", "c", nsName)
+	depl := NewVmmInjectedDepl("v", "d", "c", nsName, "depl1")
+	replSet := NewVmmInjectedReplSet("v", "d", "c", nsName, "repl1")
+	server := newTestServer()
+	defer server.server.Close()
+	server.mux.Handle("/api/aaaLogin.json", &loginSucc{})
+	server.mux.Handle("/sockettesttoken", server.sh)
+	desiredState := map[string]ApicSlice{
+		"kube-key1": {ns, depl, replSet},
+	}
+	expectedSubscribe := []string{
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedHost&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedContGrp&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedSvc&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedSvcEp&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedSvcPort&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedDepl&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedReplSet&rsp-subtree-class=tagAnnotation`,
+		`/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json?subscription=yes&refresh-timeout=60&query-target=subtree&rsp-subtree=children&target-subtree-class=vmmInjectedNs&rsp-subtree-class=tagAnnotation`,
+	}
+	sort.Strings(expectedSubscribe)
+	rMux := recorderMuxer{
+		id:      "45",
+		ns:      NewVmmInjectedNs("v", "d", "c", nsName),
+		depl:    depl,
+		replSet: replSet,
+	}
+	server.mux.Handle(
+		"/api/mo/comp/prov-v/ctrlr-[d]-c/injcont.json",
+		&rMux,
+	)
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+
+	dn := "comp/prov-v/ctrlr-[d]-c/injcont"
+	conn.AddSubscriptionDn(dn, []string{"vmmInjectedHost", "vmmInjectedNs"})
+	for key, value := range desiredState {
+		conn.WriteApicObjects(key, value)
+	}
+	stopCh := make(chan struct{})
+	go conn.Run(stopCh)
+
+	tu.WaitFor(t, "login", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			return tu.WaitNotNil(t, last, server.sh.socketConn,
+				"socket connection"), nil
+		})
+	tu.WaitFor(t, "subscribe", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			var s []string
+			for i := range rMux.requests {
+				s = append(s, rMux.requests[i].uri)
+			}
+			sort.Strings(s)
+			return tu.WaitEqual(t, last, expectedSubscribe, s,
+				"split subscription requests"), nil
+		})
+	close(stopCh)
 }
