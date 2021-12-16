@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -131,7 +131,7 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 					}
 				}
 			} else {
-				agent.log.Debug("network atttachment does not specify opflex-agent-cni and opflex-agent-cni-ipam")
+				agent.log.Debug("Network Attachment Definition is not ACICNI specific")
 			}
 		}
 	}
@@ -175,11 +175,11 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 		if agent.netattdefmap[netAttName] != nil {
 			isAcicniNetwork = true
 		} else {
-			return nil
+			return fmt.Errorf("Network Attachment Definition CR not applied: Must mention ACICNI plugin")
 		}
 	}
 	if isAcicniNetwork {
-		podResourceSock := filepath.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
+		podResourceSock := path.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
 		if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
 			return fmt.Errorf("Could not retreive the kubelet sock %v", err)
 		}
