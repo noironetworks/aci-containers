@@ -120,6 +120,8 @@ func makeIFaceIp(nc *cniNetConfig, ip net.IP) metadata.ContainerIfaceIP {
 func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey string) error {
 	var result error
 	var err error
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.ipamMutex.Lock()
 	defer agent.ipamMutex.Unlock()
 
