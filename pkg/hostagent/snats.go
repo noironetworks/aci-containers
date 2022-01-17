@@ -223,6 +223,8 @@ func (agent *HostAgent) initSnatPolicyInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
@@ -236,6 +238,8 @@ func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 }
 
 func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	oldpolicyinfo := oldobj.(*snatpolicy.SnatPolicy)
@@ -314,6 +318,8 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 }
 
 func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
