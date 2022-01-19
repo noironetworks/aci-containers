@@ -1207,8 +1207,8 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 
 func (agent *HostAgent) getSnatUuids(poduuid string) []string {
 	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	val, check := agent.opflexSnatLocalInfos[poduuid]
-	agent.indexMutex.Unlock()
 	if check {
 		return val.PlcyUuids
 
