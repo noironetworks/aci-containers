@@ -1205,7 +1205,7 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 	return false
 }
 
-func (agent *HostAgent) getSnatUuids(poduuid string) []string {
+func (agent *HostAgent) getSnatUuids(poduuid string) ([]string, error) {
 	localInfo := &opflexSnatLocalInfo{}
 	plcyUuids := []string{}
 	agent.indexMutex.Lock()
@@ -1215,11 +1215,11 @@ func (agent *HostAgent) getSnatUuids(poduuid string) []string {
 		err := util.DeepCopyObj(val, localInfo)
 		if err != nil {
 			agent.log.Error(err.Error())
-			return plcyUuids
+			return nil, err
 		}
 		plcyUuids = localInfo.PlcyUuids
 	}
-	return plcyUuids
+	return plcyUuids, nil
 }
 
 func setDestIp(destIp []string) {
