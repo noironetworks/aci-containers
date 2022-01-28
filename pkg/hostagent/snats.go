@@ -968,6 +968,7 @@ func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
 	return sort
 }
 
+//Must acquire snatPolicyCacheMutex.RLock
 func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames map[string][]ResourceType) {
 	snatPolicyNames = make(map[string][]ResourceType)
 	_, err := cache.MetaNamespaceKeyFunc(obj)
@@ -981,8 +982,6 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 	namespace := metadata.GetNamespace()
 	label := metadata.GetLabels()
 	res := getResourceType(obj)
-	agent.snatPolicyCacheMutex.RLock()
-	defer agent.snatPolicyCacheMutex.RUnlock()
 	for _, item := range agent.snatPolicyCache {
 		// check for empty policy selctor
 		if reflect.DeepEqual(item.Spec.Selector, snatpolicy.PodSelector{}) {
@@ -1142,7 +1141,9 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 		agent.log.Error("Could not create snatDelete object key:" + err.Error())
 		return
 	}
+	agent.snatPolicyCacheMutex.RLock()
 	plcynames := agent.getMatchingSnatPolicy(obj)
+	agent.snatPolicyCacheMutex.RUnlock()
 	var podidlist []string
 	sync := false
 	for name, resources := range plcynames {
