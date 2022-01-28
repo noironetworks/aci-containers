@@ -432,7 +432,12 @@ func (agent *HostAgent) syncEps() bool {
 				if ep.Uuid != epidstr {
 					continue
 				}
-				ep.SnatUuid = agent.getSnatUuids(poduuid)
+				ep.SnatUuid, err = agent.getSnatUuids(poduuid)
+				if err != nil {
+					agent.log.Error("Error while getting snat uuids")
+					needRetry = true
+					continue
+				}
 				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
@@ -468,7 +473,12 @@ func (agent *HostAgent) syncEps() bool {
 				continue
 			}
 			poduuid := strings.Split(ep.Uuid, "_")[0]
-			ep.SnatUuid = agent.getSnatUuids(poduuid)
+			ep.SnatUuid, err = agent.getSnatUuids(poduuid)
+			if err != nil {
+				agent.log.Error("Error while getting snat uuids")
+				needRetry = true
+				continue
+			}
 			ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
