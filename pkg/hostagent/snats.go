@@ -223,6 +223,8 @@ func (agent *HostAgent) initSnatPolicyInformerBase(listWatch *cache.ListWatch) {
 }
 
 func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
@@ -236,6 +238,8 @@ func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 }
 
 func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	oldpolicyinfo := oldobj.(*snatpolicy.SnatPolicy)
@@ -314,6 +318,8 @@ func (agent *HostAgent) snatPolicyUpdated(oldobj interface{}, newobj interface{}
 }
 
 func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
 	policyinfo := obj.(*snatpolicy.SnatPolicy)
@@ -1200,16 +1206,21 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 	return false
 }
 
-func (agent *HostAgent) getSnatUuids(poduuid string) []string {
+func (agent *HostAgent) getSnatUuids(poduuid string) ([]string, error) {
+	localInfo := &opflexSnatLocalInfo{}
+	plcyUuids := []string{}
 	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	val, check := agent.opflexSnatLocalInfos[poduuid]
-	agent.indexMutex.Unlock()
 	if check {
-		return val.PlcyUuids
-
-	} else {
-		return []string{}
+		err := util.DeepCopyObj(val, localInfo)
+		if err != nil {
+			agent.log.Error(err.Error())
+			return nil, err
+		}
+		plcyUuids = localInfo.PlcyUuids
 	}
+	return plcyUuids, nil
 }
 
 func setDestIp(destIp []string) {
