@@ -278,10 +278,16 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	sz := len(cont.nodeOpflexDevice[name])
 	for i := range cont.nodeOpflexDevice[name] {
 		device := cont.nodeOpflexDevice[name][sz-1-i]
-		if device.GetAttrStr("state") == "connected" {
-			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
-				"when connected device state is found")
+		deviceState := device.GetAttrStr("state")
+		if deviceState == "connected" {
+			if deviceState != device.GetAttrStr("prevState") {
+				cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
+					"when connected device state is found")
+				device.SetAttr("prevState", deviceState)
+			}
 			return device.GetAttrStr("fabricPathDn"), true
+		} else {
+			device.SetAttr("prevState", deviceState)
 		}
 	}
 	if sz > 0 {
