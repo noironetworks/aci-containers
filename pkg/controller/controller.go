@@ -494,6 +494,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	// If DeviceDeleteTimeout is not defined, default to 1800s
+	if cont.config.DeviceDeleteTimeout == 0 {
+		cont.config.DeviceDeleteTimeout = 1800
+	}
+
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
@@ -685,6 +690,21 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.opflexDeviceDeleted(dn)
 		})
 	go cont.apicConn.Run(stopCh)
+}
+
+func (cont *AciController) syncOpflexDevices(stopCh <-chan struct{}, seconds time.Duration) {
+	cont.log.Debug("Go routine to periodically delete old opflexdevices started")
+	ticker := time.NewTicker(seconds * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			cont.deleteOldOpflexDevices()
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds time.Duration) {

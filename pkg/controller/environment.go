@@ -306,5 +306,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
 		go cont.snatGlobalInfoSync(stopCh, 60)
 	}
+	go cont.syncOpflexDevices(stopCh, 60)
 	return nil
 }
