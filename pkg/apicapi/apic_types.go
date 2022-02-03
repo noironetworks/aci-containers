@@ -46,17 +46,25 @@ type ApicDnHandler func(string)
 
 type ApicSlice []ApicObject
 
-const ApicNameAliasLength = 64
-
+const (
+	ApicNameAliasLength                = 64
+	ApicSubscriptionResponseMoMaxCount = 100000
+)
 const (
 	apicSubClass = iota
 	apicSubDn    = iota
 	apicSubTree
 )
 
+type subComponent struct {
+	TargetClasses []string
+	RespClasses   []string
+}
+
 type subscription struct {
 	Kind          int
 	Id            string
+	ChildSubs     map[string]subComponent
 	TargetClasses []string
 	RespClasses   []string
 	TargetFilter  string

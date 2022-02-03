@@ -20,6 +20,7 @@ import (
 )
 
 type apicMeta struct {
+	hints      map[string]interface{}
 	attributes map[string]interface{}
 	children   []string
 	normalizer func(*ApicObjectBody)
@@ -760,6 +761,9 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"vmmInjectedContGrp": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"guid":            "",
 			"name":            "",
@@ -770,6 +774,9 @@ var metadata = map[string]*apicMeta{
 		children: []string{},
 	},
 	"vmmInjectedDepl": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"guid":     "",
 			"name":     "",
@@ -778,6 +785,9 @@ var metadata = map[string]*apicMeta{
 		children: []string{},
 	},
 	"vmmInjectedReplSet": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"guid":           "",
 			"name":           "",
@@ -786,6 +796,9 @@ var metadata = map[string]*apicMeta{
 		children: []string{},
 	},
 	"vmmInjectedSvc": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"guid":      "",
 			"name":      "",
@@ -799,12 +812,18 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"vmmInjectedSvcEp": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"name":        "",
 			"contGrpName": "",
 		},
 	},
 	"vmmInjectedSvcPort": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"protocol":   "",
 			"port":       "",
@@ -996,6 +1015,9 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"vmmInjectedLabel": {
+		hints: map[string]interface{}{
+			"cardinality": "high",
+		},
 		attributes: map[string]interface{}{
 			"name":  "",
 			"value": "",

@@ -646,9 +646,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	// Since it is not supported for APIC versions < "5.0"
 	cont.addVmmInjectedLabel()
 	cont.apicConn.AddSubscriptionDn(vmmDn,
-		[]string{"vmmInjectedHost", "vmmInjectedNs",
-			"vmmInjectedContGrp", "vmmInjectedDepl",
-			"vmmInjectedSvc", "vmmInjectedReplSet"})
+		[]string{"vmmInjectedHost", "vmmInjectedNs"})
 
 	var tnTargetFilter string
 	if len(cont.config.AciVrfRelatedTenants) > 0 {
