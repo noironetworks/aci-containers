@@ -289,8 +289,8 @@ func (cont *AciController) getActiveFabricPathDn(node string) string {
 }
 
 func (cont *AciController) deleteOldOpflexDevices() {
+	var nodeUpdates []string
 	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
 	for node, devices := range cont.nodeOpflexDevice {
 		fabricPathDn := cont.getActiveFabricPathDn(node)
 		if fabricPathDn != "" {
@@ -307,14 +307,23 @@ func (cont *AciController) deleteOldOpflexDevices() {
 					diff := now.Sub(deleteTime)
 					if diff.Seconds() >= cont.config.DeviceDeleteTimeout {
 						devices = append(devices[:i], devices[i+1:]...)
+						cont.nodeOpflexDevice[node] = devices
 						updated = true
+					}
+					if len(devices) == 0 {
+						delete(cont.nodeOpflexDevice, node)
 					}
 				}
 			}
 			if updated {
 				cont.nodeOpflexDevice[node] = devices
+				nodeUpdates = append(nodeUpdates, node)
 			}
 		}
+	}
+	cont.indexMutex.Unlock()
+	if len(nodeUpdates) > 0 {
+		cont.postOpflexDeviceDelete(nodeUpdates)
 	}
 }
 
@@ -334,12 +343,18 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	sz := len(cont.nodeOpflexDevice[name])
 	for i := range cont.nodeOpflexDevice[name] {
 		device := cont.nodeOpflexDevice[name][sz-1-i]
-		if device.GetAttrStr("state") == "connected" {
-			cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
-				"when connected device state is found")
+		deviceState := device.GetAttrStr("state")
+		if deviceState == "connected" {
+			if deviceState != device.GetAttrStr("prevState") {
+				cont.fabricPathLogger(device.GetAttrStr("hostName"), device).Info("Processing fabric path for node ",
+					"when connected device state is found")
+				device.SetAttr("prevState", deviceState)
+			}
 			fabricPathDn := device.GetAttrStr("fabricPathDn")
 			cont.setDeleteFlagForOldDevices(name, fabricPathDn)
 			return fabricPathDn, true
+		} else {
+			device.SetAttr("prevState", deviceState)
 		}
 	}
 	if sz > 0 {
@@ -1077,6 +1092,14 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	}
 }
 
+func (cont *AciController) postOpflexDeviceDelete(nodes []string) {
+	cont.updateDeviceCluster()
+	for _, node := range nodes {
+		cont.env.NodeServiceChanged(node)
+		cont.erspanSyncOpflexDev()
+	}
+}
+
 func (cont *AciController) opflexDeviceDeleted(dn string) {
 	var nodeUpdates []string
 	var dnFound bool //to check if the dn belongs to this cluster
@@ -1101,11 +1124,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 	cont.indexMutex.Unlock()
 
 	if dnFound {
-		cont.updateDeviceCluster()
-		for _, node := range nodeUpdates {
-			cont.env.NodeServiceChanged(node)
-			cont.erspanSyncOpflexDev()
-		}
+		cont.postOpflexDeviceDelete(nodeUpdates)
 	}
 }
 

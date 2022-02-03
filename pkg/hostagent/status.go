@@ -68,6 +68,7 @@ func (agent *HostAgent) RunStatus() {
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
+		agent.ipamMutex.Lock()
 		status := &agentStatus{
 			Endpoints: len(agent.opflexEps),
 			Services:  len(agent.opflexServices),
@@ -78,11 +79,13 @@ func (agent *HostAgent) RunStatus() {
 			UsedIPs: len(agent.usedIPs),
 		}
 		json.NewEncoder(w).Encode(status)
+		agent.ipamMutex.Unlock()
 		agent.indexMutex.Unlock()
 	})
 	http.HandleFunc("/ipam", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
+		agent.ipamMutex.Lock()
 		is := &ipamStatus{
 			PodIps: metadata.NetIps{
 				V4: agent.podIps.CombineV4(),
@@ -91,6 +94,7 @@ func (agent *HostAgent) RunStatus() {
 			UsedIPs: agent.usedIPs,
 		}
 		json.NewEncoder(w).Encode(is)
+		agent.ipamMutex.Unlock()
 		agent.indexMutex.Unlock()
 	})
 	agent.log.Info("Starting status server")

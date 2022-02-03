@@ -290,8 +290,6 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 		}
 	}
 
-	agent.indexMutex.Unlock()
-
 	for _, brName := range brNames {
 		br, ok := bridges[brName]
 		if !ok {
@@ -321,7 +319,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			ops = append(ops, delBrPortOp(br.uuid, delports))
 		}
 	}
-
+	agent.indexMutex.Unlock()
 	return ops
 }
 
