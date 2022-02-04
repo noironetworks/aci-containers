@@ -288,14 +288,26 @@ func (cont *AciController) getActiveFabricPathDn(node string) string {
 	return fabricPathDn
 }
 
+func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSlice) apicapi.ApicSlice {
+	var newDevices apicapi.ApicSlice
+	for delDev := range delDevices {
+		for _, device := range devices {
+			if !reflect.DeepEqual(delDev, device) {
+				newDevices = append(newDevices, device)
+			}
+		}
+	}
+	return newDevices
+}
+
 func (cont *AciController) deleteOldOpflexDevices() {
 	var nodeUpdates []string
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
+		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
 		if fabricPathDn != "" {
-			updated := false
-			for i, device := range devices {
+			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
 					deleteTimeStr := device.GetAttrStr("deleteTime")
 					deleteTime, err := time.Parse(time.RFC3339, deleteTimeStr)
@@ -306,17 +318,16 @@ func (cont *AciController) deleteOldOpflexDevices() {
 					now := time.Now()
 					diff := now.Sub(deleteTime)
 					if diff.Seconds() >= cont.config.DeviceDeleteTimeout {
-						devices = append(devices[:i], devices[i+1:]...)
-						cont.nodeOpflexDevice[node] = devices
-						updated = true
-					}
-					if len(devices) == 0 {
-						delete(cont.nodeOpflexDevice, node)
+						delDevices = append(delDevices, device)
 					}
 				}
 			}
-			if updated {
-				cont.nodeOpflexDevice[node] = devices
+			if len(delDevices) > 0 {
+				newDevices := deleteDevicesFromList(delDevices, devices)
+				cont.nodeOpflexDevice[node] = newDevices
+				if len(newDevices) == 0 {
+					delete(cont.nodeOpflexDevice, node)
+				}
 				nodeUpdates = append(nodeUpdates, node)
 			}
 		}
