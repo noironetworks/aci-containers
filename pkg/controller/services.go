@@ -317,7 +317,7 @@ func (cont *AciController) deleteOldOpflexDevices() {
 					}
 					now := time.Now()
 					diff := now.Sub(deleteTime)
-					if diff.Seconds() >= cont.config.DeviceDeleteTimeout {
+					if diff.Seconds() >= cont.config.OpflexDeviceDeleteTimeout {
 						delDevices = append(delDevices, device)
 					}
 				}

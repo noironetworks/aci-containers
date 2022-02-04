@@ -494,9 +494,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
-	// If DeviceDeleteTimeout is not defined, default to 1800s
-	if cont.config.DeviceDeleteTimeout == 0 {
-		cont.config.DeviceDeleteTimeout = 1800
+	// If OpflexDeviceDeleteTimeout is not defined, default to 1800s
+	if cont.config.OpflexDeviceDeleteTimeout == 0 {
+		cont.config.OpflexDeviceDeleteTimeout = 1800
 	}
 
 	// If not defined, default to 32
