@@ -309,8 +309,13 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		conn.indexMutex.Lock()
 		if value, ok := conn.subscriptions.ids[id]; ok {
 			if sub, ok := conn.subscriptions.subs[value]; ok {
-				respClasses =
-					append(respClasses, sub.respClasses...)
+				if subComp, ok := sub.childSubs[id]; ok {
+					respClasses =
+						append(respClasses, subComp.respClasses...)
+				} else {
+					respClasses =
+						append(respClasses, sub.respClasses...)
+				}
 				if sub.updateHook != nil {
 					updateHandlers = append(updateHandlers, sub.updateHook)
 				}
@@ -703,28 +708,37 @@ func (conn *ApicConnection) refresh() {
 	}
 
 	for _, sub := range conn.subscriptions.subs {
-		uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", sub.id)
-		url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			conn.log.Error("Could not create request: ", err)
-			return
-		}
-		conn.sign(req, uri, nil)
-		resp, err := conn.client.Do(req)
-		if err != nil {
-			conn.log.Error("Failed to refresh APIC subscription: ", err)
-			conn.restart()
-			return
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			conn.logErrorResp("Error while refreshing subscription", resp)
+		refreshId := func(id string) {
+			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
+			url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				conn.log.Error("Could not create request: ", err)
+				return
+			}
+			conn.sign(req, uri, nil)
+			resp, err := conn.client.Do(req)
+			if err != nil {
+				conn.log.Error("Failed to refresh APIC subscription: ", err)
+				conn.restart()
+				return
+			}
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				conn.logErrorResp("Error while refreshing subscription", resp)
+				complete(resp)
+				conn.restart()
+				return
+			}
 			complete(resp)
-			conn.restart()
-			return
+			conn.log.Debugf("Refresh sub: url %v", url)
 		}
-		complete(resp)
-		conn.log.Debugf("Refresh sub: url %v", url)
+		if len(sub.childSubs) > 0 {
+			for id := range sub.childSubs {
+				refreshId(id)
+			}
+		} else {
+			refreshId(sub.id)
+		}
 	}
 }
 
@@ -865,8 +879,8 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 			"dn":  obj.GetDn(),
 			"obj": obj,
 		}).Debug("Object updated on APIC")
-
-		prepareApicCache("", obj)
+		var count int
+		prepareApicCache("", obj, &count)
 
 		handled := false
 		for _, handler := range updateHandlers {
@@ -1083,6 +1097,12 @@ func computeRespClasses(targetClasses []string) []string {
 	visited := make(map[string]bool)
 	doComputeRespClasses(targetClasses, visited)
 
+	// Don't include targetclasses in rsp-subtree
+	// because they are implicitly included
+	for i := range targetClasses {
+		delete(visited, targetClasses[i])
+	}
+
 	var respClasses []string
 	for class := range visited {
 		respClasses = append(respClasses, class)
@@ -1100,10 +1120,10 @@ func (conn *ApicConnection) AddSubscriptionTree(class string,
 		errStr := fmt.Sprintf("classDepth not for class %s", class)
 		panic(errStr)
 	}
-
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubTree,
+		childSubs:     make(map[string]subComponent),
 		targetClasses: targetClasses,
 		targetFilter:  targetFilter,
 	}
@@ -1116,6 +1136,7 @@ func (conn *ApicConnection) AddSubscriptionClass(class string,
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubClass,
+		childSubs:     make(map[string]subComponent),
 		targetClasses: targetClasses,
 		respClasses:   computeRespClasses(targetClasses),
 		targetFilter:  targetFilter,
@@ -1133,6 +1154,7 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[dn] = &subscription{
 		kind:          apicSubDn,
+		childSubs:     make(map[string]subComponent),
 		targetClasses: targetClasses,
 		respClasses:   computeRespClasses(targetClasses),
 	}
@@ -1179,29 +1201,8 @@ func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 	return apicresp, nil
 }
 
-func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
-	args := []string{
-		"query-target=subtree",
-		"rsp-subtree=full",
-		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
-	}
-	if sub.respClasses != nil {
-		args = append(args, "rsp-subtree-class="+strings.Join(sub.respClasses, ","))
-	}
-	if sub.targetFilter != "" {
-		args = append(args, "query-target-filter="+sub.targetFilter)
-	}
-
-	kind := "mo"
-	if sub.kind == apicSubClass || sub.kind == apicSubTree {
-		kind = "class"
-	}
-
-	refresh_interval := ""
-	if conn.RefreshInterval != 0 {
-		refresh_interval = fmt.Sprintf("refresh-timeout=%v&",
-			conn.RefreshInterval.Seconds())
-	}
+func (conn *ApicConnection) doSubscribe(args []string,
+	kind, value, refresh_interval string, apicresp *ApicResponse) bool {
 
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
@@ -1226,70 +1227,184 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		return false
 	}
 
-	var apicresp ApicResponse
-	err = json.NewDecoder(resp.Body).Decode(&apicresp)
+	err = json.NewDecoder(resp.Body).Decode(apicresp)
 	if err != nil {
 		conn.log.Error("Could not decode APIC response", err)
 		return false
 	}
+	return true
+}
 
-	var subId string
-	switch id := apicresp.SubscriptionId.(type) {
-	default:
-		conn.log.Error("Subscription ID is not a string")
-		return false
-	case string:
-		subId = id
+func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
+	baseArgs := []string{
+		"query-target=subtree",
+		"rsp-subtree=full",
+		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
 	}
 
-	conn.logger.WithFields(logrus.Fields{
-		"mod":   "APICAPI",
-		"value": value,
-		"kind":  kind,
-		"id":    subId,
-		"args":  args,
-	}).Debug("Subscribed")
-
-	conn.indexMutex.Lock()
-	conn.subscriptions.subs[value].id = subId
-	conn.subscriptions.ids[subId] = value
-	conn.indexMutex.Unlock()
-
-	for _, obj := range apicresp.Imdata {
-
-		dn := obj.GetDn()
-		if dn == "" {
-			continue
+	const defaultArgs = 1
+	var argCount int = defaultArgs
+	var combinableSubClasses, separableSubClasses []string
+	var splitTargetClasses [][]string
+	var splitRespClasses [][]string
+	var argSet [][]string
+	argSet = make([][]string, defaultArgs)
+	argSet[defaultArgs-1] = make([]string, len(baseArgs))
+	copy(argSet[defaultArgs-1], baseArgs)
+	if sub.respClasses != nil {
+		separateClasses := func(classes []string, combClasses, sepClasses *[]string) {
+			for i := range classes {
+				if classMeta, ok := metadata[classes[i]]; ok {
+					if classes[i] == "tagAnnotation" {
+						continue
+					}
+					if classMeta.hints != nil && classMeta.hints["cardinality"] == "high" {
+						*sepClasses = append(*sepClasses, classes[i])
+						continue
+					}
+					*combClasses = append(*combClasses, classes[i])
+				}
+			}
 		}
-		conn.indexMutex.Lock()
-		subIds, found := conn.cacheDnSubIds[dn]
-		if !found {
-			subIds = make(map[string]bool)
-			conn.cacheDnSubIds[dn] = subIds
-		}
-		subIds[subId] = true
-		conn.indexMutex.Unlock()
+		separateClasses(sub.respClasses, &combinableSubClasses, &separableSubClasses)
 
-		if sub.updateHook != nil && sub.updateHook(obj) {
-			continue
-		}
+		// In case there are high cardinality children, we register for all the classes individually.
+		// The concept of target-subtree and rsp-subtree class cannot be used because of the tagAnnotation object
+		// vmmInjectedLabel is added for every object, so getting it separately will not be scalable
+		if len(separableSubClasses) > 0 {
+			separateClasses(sub.targetClasses, &combinableSubClasses, &separableSubClasses)
+			separableSubClasses = append(separableSubClasses, combinableSubClasses...)
+			baseArgs = []string{
+				"query-target=subtree",
+				"rsp-subtree=children",
+			}
+			subscribingClasses := make(map[string]bool)
+			argSet = make([][]string, len(separableSubClasses))
+			splitTargetClasses = make([][]string, len(separableSubClasses))
+			splitRespClasses = make([][]string, len(separableSubClasses))
 
-		tag := obj.GetTag()
-		if !conn.isSyncTag(tag) {
-			continue
+			argCount = 0
+			for i := range separableSubClasses {
+				// Eliminate duplicates
+				if _, ok := subscribingClasses[separableSubClasses[i]]; ok {
+					continue
+				}
+				subscribingClasses[separableSubClasses[i]] = true
+				argSet[argCount] = make([]string, len(baseArgs))
+				copy(argSet[argCount], baseArgs)
+				argSet[argCount] = append(argSet[argCount], "target-subtree-class="+separableSubClasses[i])
+				argSet[argCount] = append(argSet[argCount], "rsp-subtree-class=tagAnnotation")
+				splitTargetClasses[argCount] = append(splitTargetClasses[argCount], separableSubClasses[i])
+				splitRespClasses[argCount] = computeRespClasses([]string{separableSubClasses[i]})
+				argCount++
+			}
+		} else {
+			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], "rsp-subtree-class="+strings.Join(combinableSubClasses, ",")+",tagAnnotation")
+		}
+	}
+	if sub.targetFilter != "" {
+		targetFilterArgs := "query-target-filter=" + sub.targetFilter
+		if len(separableSubClasses) == 0 {
+			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], targetFilterArgs)
+		} else {
+			for i := 0; i < argCount; i++ {
+				argSet[i] = append(argSet[i], targetFilterArgs)
+			}
+		}
+	}
+
+	kind := "mo"
+	if sub.kind == apicSubClass || sub.kind == apicSubTree {
+		kind = "class"
+	}
+
+	refresh_interval := ""
+	if conn.RefreshInterval != 0 {
+		refresh_interval = fmt.Sprintf("refresh-timeout=%v&",
+			conn.RefreshInterval.Seconds())
+	}
+	for i := 0; i < argCount; i++ {
+		var apicresp ApicResponse
+		if !conn.doSubscribe(argSet[i], kind, value, refresh_interval, &apicresp) {
+			return false
+		}
+		var subId string
+		switch id := apicresp.SubscriptionId.(type) {
+		default:
+			conn.log.Error("Subscription ID is not a string")
+			return false
+		case string:
+			subId = id
 		}
 
 		conn.logger.WithFields(logrus.Fields{
-			"mod": "APICAPI",
-			"dn":  dn,
-			"tag": tag,
-			"obj": obj,
-		}).Debug("Caching")
+			"mod":   "APICAPI",
+			"value": value,
+			"kind":  kind,
+			"id":    subId,
+			"args":  argSet[i],
+		}).Debug("Subscribed")
 
-		prepareApicCache("", obj)
 		conn.indexMutex.Lock()
-		conn.cachedState[tag] = append(conn.cachedState[tag], obj)
+		if argCount > defaultArgs {
+			sub.childSubs[subId] = subComponent{
+				targetClasses: splitTargetClasses[i],
+				respClasses:   splitRespClasses[i],
+			}
+		} else {
+			conn.subscriptions.subs[value].id = subId
+		}
+		conn.subscriptions.ids[subId] = value
 		conn.indexMutex.Unlock()
+		var respObjCount int
+		for _, obj := range apicresp.Imdata {
+
+			dn := obj.GetDn()
+			if dn == "" {
+				continue
+			}
+			conn.indexMutex.Lock()
+			subIds, found := conn.cacheDnSubIds[dn]
+			if !found {
+				subIds = make(map[string]bool)
+				conn.cacheDnSubIds[dn] = subIds
+			}
+			subIds[subId] = true
+			conn.indexMutex.Unlock()
+
+			if sub.updateHook != nil && sub.updateHook(obj) {
+				continue
+			}
+
+			tag := obj.GetTag()
+			if !conn.isSyncTag(tag) {
+				continue
+			}
+
+			conn.logger.WithFields(logrus.Fields{
+				"mod": "APICAPI",
+				"dn":  dn,
+				"tag": tag,
+				"obj": obj,
+			}).Debug("Caching")
+			var count int
+			prepareApicCache("", obj, &count)
+			respObjCount += count
+			conn.indexMutex.Lock()
+			conn.cachedState[tag] = append(conn.cachedState[tag], obj)
+			conn.indexMutex.Unlock()
+		}
+		if respObjCount >= ApicSubscriptionResponseMoMaxCount/10 {
+			conn.logger.WithFields(logrus.Fields{
+				"args":       argSet[i],
+				"moCount":    respObjCount,
+				"maxAllowed": ApicSubscriptionResponseMoMaxCount,
+			}).Warning("Subscription response is significantly large. Each new object will add 2 Mos atleast and twice the number of labels on the object")
+		} else {
+			conn.logger.WithFields(logrus.Fields{
+				"moCount": respObjCount,
+			}).Debug("ResponseObjCount")
+		}
 	}
 
 	return true

@@ -14,7 +14,6 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
-	github.com/mattn/goveralls v0.0.8 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20210416053915-d6dec2cca336
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
