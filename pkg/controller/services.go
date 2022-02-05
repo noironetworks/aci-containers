@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -274,6 +275,81 @@ func (cont *AciController) updateServicesForNode(nodename string) {
 }
 
 // must have index lock
+func (cont *AciController) getActiveFabricPathDn(node string) string {
+	var fabricPathDn string
+	sz := len(cont.nodeOpflexDevice[node])
+	for i := range cont.nodeOpflexDevice[node] {
+		device := cont.nodeOpflexDevice[node][sz-1-i]
+		if device.GetAttrStr("state") == "connected" {
+			fabricPathDn = device.GetAttrStr("fabricPathDn")
+			break
+		}
+	}
+	return fabricPathDn
+}
+
+func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSlice) apicapi.ApicSlice {
+	var newDevices apicapi.ApicSlice
+	for delDev := range delDevices {
+		for _, device := range devices {
+			if !reflect.DeepEqual(delDev, device) {
+				newDevices = append(newDevices, device)
+			}
+		}
+	}
+	return newDevices
+}
+
+func (cont *AciController) deleteOldOpflexDevices() {
+	var nodeUpdates []string
+	cont.indexMutex.Lock()
+	for node, devices := range cont.nodeOpflexDevice {
+		var delDevices apicapi.ApicSlice
+		fabricPathDn := cont.getActiveFabricPathDn(node)
+		if fabricPathDn != "" {
+			for _, device := range devices {
+				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
+					deleteTimeStr := device.GetAttrStr("deleteTime")
+					deleteTime, err := time.Parse(time.RFC3339, deleteTimeStr)
+					if err != nil {
+						cont.log.Error("Failed to parse opflex device delete time: ", err)
+						continue
+					}
+					now := time.Now()
+					diff := now.Sub(deleteTime)
+					if diff.Seconds() >= cont.config.OpflexDeviceDeleteTimeout {
+						delDevices = append(delDevices, device)
+					}
+				}
+			}
+			if len(delDevices) > 0 {
+				newDevices := deleteDevicesFromList(delDevices, devices)
+				cont.nodeOpflexDevice[node] = newDevices
+				if len(newDevices) == 0 {
+					delete(cont.nodeOpflexDevice, node)
+				}
+				nodeUpdates = append(nodeUpdates, node)
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+	if len(nodeUpdates) > 0 {
+		cont.postOpflexDeviceDelete(nodeUpdates)
+	}
+}
+
+// must have index lock
+func (cont *AciController) setDeleteFlagForOldDevices(node, fabricPathDn string) {
+	for _, device := range cont.nodeOpflexDevice[node] {
+		if device.GetAttrStr("fabricPathDn") != fabricPathDn {
+			t := time.Now()
+			device.SetAttr("delete", "true")
+			device.SetAttr("deleteTime", t.Format(time.RFC3339))
+		}
+	}
+}
+
+// must have index lock
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	sz := len(cont.nodeOpflexDevice[name])
 	for i := range cont.nodeOpflexDevice[name] {
@@ -285,7 +361,9 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 					"when connected device state is found")
 				device.SetAttr("prevState", deviceState)
 			}
-			return device.GetAttrStr("fabricPathDn"), true
+			fabricPathDn := device.GetAttrStr("fabricPathDn")
+			cont.setDeleteFlagForOldDevices(name, fabricPathDn)
+			return fabricPathDn, true
 		} else {
 			device.SetAttr("prevState", deviceState)
 		}
@@ -1025,6 +1103,14 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	}
 }
 
+func (cont *AciController) postOpflexDeviceDelete(nodes []string) {
+	cont.updateDeviceCluster()
+	for _, node := range nodes {
+		cont.env.NodeServiceChanged(node)
+		cont.erspanSyncOpflexDev()
+	}
+}
+
 func (cont *AciController) opflexDeviceDeleted(dn string) {
 	var nodeUpdates []string
 	var dnFound bool //to check if the dn belongs to this cluster
@@ -1049,11 +1135,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 	cont.indexMutex.Unlock()
 
 	if dnFound {
-		cont.updateDeviceCluster()
-		for _, node := range nodeUpdates {
-			cont.env.NodeServiceChanged(node)
-			cont.erspanSyncOpflexDev()
-		}
+		cont.postOpflexDeviceDelete(nodeUpdates)
 	}
 }
 

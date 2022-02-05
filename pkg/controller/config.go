@@ -209,6 +209,9 @@ type ControllerConfig struct {
 
 	// Enable creation of VmmInjectedLabel, default is false
 	EnableVmmInjectedLabels bool `json:"enable-vmm-injected-labels,omitempty"`
+
+	// Timeout to delete old opflex devices
+	OpflexDeviceDeleteTimeout float64 `json:"opflex-device-delete-timeout,omitempty"`
 }
 
 type netIps struct {
