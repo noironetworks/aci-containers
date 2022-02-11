@@ -78,6 +78,10 @@ type ControllerConfig struct {
 	// Also, note that this is a string.
 	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
+	// Delay in milliseconds after each subscription query
+	// Will be defaulted to 100ms.
+	ApicSubscriptionDelay int `json:"apic-subscription-delay,omitempty"`
+
 	// How early (seconds) the subscriptions to be refreshed than
 	// actual subscription refresh-timeout. Will be defaulted to 150Seconds.
 	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
