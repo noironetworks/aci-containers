@@ -100,6 +100,7 @@ type ApicConnection struct {
 	ReconnectInterval   time.Duration
 	RefreshInterval     time.Duration
 	RefreshTickerAdjust time.Duration
+	SubscriptionDelay   time.Duration
 	RetryInterval       time.Duration
 	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
 	FullSyncHook        func()
