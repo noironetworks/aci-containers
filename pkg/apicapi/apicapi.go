@@ -183,7 +183,8 @@ func configureTls(cert []byte) (*tls.Config, error) {
 
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
-	prefix string, refresh int, refreshTickerAdjust int) (*ApicConnection, error) {
+	prefix string, refresh int, refreshTickerAdjust int,
+	subscriptionDelay int) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -218,6 +219,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		ReconnectInterval:   time.Duration(5) * time.Second,
 		RefreshInterval:     time.Duration(refresh) * time.Second,
 		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
+		SubscriptionDelay:   time.Duration(subscriptionDelay) * time.Millisecond,
 		Signer:              signer,
 		Dialer:              dialer,
 		Logger:              log,
@@ -1233,6 +1235,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 		conn.Log.Error("Could not decode APIC response", err)
 		return false
 	}
+	time.Sleep(conn.SubscriptionDelay)
 	return true
 }
 
