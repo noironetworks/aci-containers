@@ -494,6 +494,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	//If ApicSubscriptionDelay is not defined, default to 100ms
+	if cont.config.ApicSubscriptionDelay == 0 {
+		cont.config.ApicSubscriptionDelay = 100
+	}
+	cont.log.Info("ApicSubscriptionDelay conf is set to: ", cont.config.ApicSubscriptionDelay)
+
 	// If OpflexDeviceDeleteTimeout is not defined, default to 1800s
 	if cont.config.OpflexDeviceDeleteTimeout == 0 {
 		cont.config.OpflexDeviceDeleteTimeout = 1800
@@ -534,7 +540,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
-		refreshTimeout, refreshTickerAdjust)
+		refreshTimeout, refreshTickerAdjust, cont.config.ApicSubscriptionDelay)
 	if err != nil {
 		panic(err)
 	}

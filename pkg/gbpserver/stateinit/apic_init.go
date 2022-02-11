@@ -122,7 +122,7 @@ func setupApicConn(cfg *gbpserver.GBPServerConfig) *apicapi.ApicConnection {
 	}
 
 	conn, err := apicapi.New(logger, cfg.Apic.Hosts, cfg.Apic.Username, cfg.Apic.Username,
-		privKey, apicCert, "k8s", refreshTime, 5)
+		privKey, apicCert, "k8s", refreshTime, 5, 5)
 	if err != nil {
 		panic(err)
 	}
