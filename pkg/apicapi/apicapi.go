@@ -733,6 +733,7 @@ func (conn *ApicConnection) refresh() {
 			}
 			complete(resp)
 			conn.log.Debugf("Refresh sub: url %v", url)
+			time.Sleep(conn.SubscriptionDelay)
 		}
 		if len(sub.childSubs) > 0 {
 			for id := range sub.childSubs {
