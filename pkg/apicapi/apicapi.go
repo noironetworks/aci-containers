@@ -651,6 +651,9 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 				"host": conn.Apic[conn.ApicIndex],
 			}).Info("Connecting to APIC")
 
+			for dn := range conn.Subscriptions.Subs {
+				conn.Subscriptions.Subs[dn].ChildSubs = make(map[string]subComponent)
+			}
 			conn.Subscriptions.Ids = make(map[string]string)
 
 			token, err := conn.login()
