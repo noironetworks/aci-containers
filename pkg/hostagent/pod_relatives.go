@@ -335,6 +335,8 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 func (agent *HostAgent) deploymentAdded(obj interface{}) {
 	depObj := obj.(*appsv1.Deployment)
 	deploymentLogger(agent.log, depObj).Info("Deployment added:")
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdateSelectorObj(obj)
 	agent.handleObjectUpdateForSnat(obj)
 }
