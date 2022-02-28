@@ -440,6 +440,7 @@ func (agent *HostAgent) syncEps() bool {
 				}
 				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 				wrote, err := writeEp(epfile, ep)
+				agent.log.Info("testt 1......writing ep file ", ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
@@ -483,6 +484,7 @@ func (agent *HostAgent) syncEps() bool {
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
 			epfile := agent.FormEPFilePath(ep.Uuid)
 			_, err = writeEp(epfile, ep)
+			agent.log.Info("testt 2......writing ep file ", ep)
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
