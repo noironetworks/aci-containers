@@ -165,13 +165,17 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.log.Debug("Starting node informer")
 	go env.agent.nodeInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for node cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.nodeInformer.HasSynced)
+	if !cache.WaitForCacheSync(stopCh, env.agent.nodeInformer.HasSynced) {
+		env.agent.log.Error("cache sync for node failed.")
+	}
 	env.agent.log.Info("Node cache sync successful")
 
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced)
+	if !cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced) {
+		env.agent.log.Error("cache sync for pod failed.")
+	}
 	go env.agent.controllerInformer.Run(stopCh)
 	env.agent.serviceEndPoints.Run(stopCh)
 	go env.agent.serviceInformer.Run(stopCh)
@@ -184,9 +188,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.qosPolicyInformer.Run(stopCh)
 	go env.agent.rdConfigInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for cache sync for remaining objects")
-	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
+	if !cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
 		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,
-		env.agent.rdConfigInformer.HasSynced)
+		env.agent.rdConfigInformer.HasSynced) {
+			env.agent.log.Error("cache sync for multiple informer failed.")
+	}
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }
