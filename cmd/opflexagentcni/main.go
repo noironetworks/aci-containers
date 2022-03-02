@@ -109,22 +109,27 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 }
 
 func waitForAllNetwork(result *current.Result, id string,
-	timeout time.Duration) {
+	timeout time.Duration) error {
 
 	for index, iface := range result.Interfaces {
 		netns, err := ns.GetNS(iface.Sandbox)
 		if err != nil {
 			log.Error("Could not open netns: ", err)
+			return err
 		} else {
-			waitForNetwork(netns, result, id, index, timeout)
+			err := waitForNetwork(netns, result, id, index, timeout)
 			netns.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 
 }
 
 func waitForNetwork(netns ns.NetNS, result *current.Result,
-	id string, index int, timeout time.Duration) {
+	id string, index int, timeout time.Duration) error {
 
 	logger := log.WithFields(logrus.Fields{
 		"id": id,
@@ -168,13 +173,14 @@ func waitForNetwork(netns ns.NetNS, result *current.Result,
 			}
 			return errors.New("Ping failed")
 		}); err == nil {
-			return
+			return nil
 		}
 
 		now = time.Now()
 	}
 
 	logger.Error("Gave up waiting for network")
+	return errors.New("Gave up waiting for network")
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
@@ -240,7 +246,16 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+		err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+		if err != nil {
+			logger.Error("Failed to setup network connectivity, error: ", err)
+			logger.Debug("Unregistering with host agent")
+			_, unreg_err := eprpc.Unregister(&metadata.Id)
+			if unreg_err != nil {
+				logger.Error("Failed to Unregisterd, error: ", unreg_err)
+			}
+			return err
+		}
 	}
 
 	logger.Debug("ADD result: ", result)
@@ -316,7 +331,10 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	if n.WaitForNetwork {
 		logger.Debug("Waiting for network connectivity")
-		waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+		err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+		if err != nil {
+			return err
+		}
 	}
 	logger.Debug("Check result: ", result)
 	return nil
