@@ -581,6 +581,20 @@ func (agent *HostAgent) podChanged(podkey *string) {
 	agent.podChangedLocked(podobj)
 }
 
+// Must have index lock
+func (agent *HostAgent) podChangedPostLock(podkey *string) {
+	podobj, exists, err := agent.podInformer.GetStore().GetByKey(*podkey)
+	if err != nil {
+		agent.log.Error("Could not lookup pod: ", err)
+	}
+	if !exists || podobj == nil {
+		agent.log.Debug("Object doesn't exist yet ", *podkey)
+		return
+	}
+
+	agent.podChangedLocked(podobj)
+}
+
 func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	pod := podobj.(*v1.Pod)
 	logger := podLogger(agent.log, pod)
