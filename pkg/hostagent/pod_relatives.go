@@ -321,7 +321,7 @@ func (agent *HostAgent) initDepPodIndex() {
 		},
 	)
 	agent.depPods.SetPodUpdateCallback(func(podkey string) {
-		agent.podChanged(&podkey)
+		agent.podChangedPostLock(&podkey)
 	})
 }
 
@@ -335,6 +335,8 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 func (agent *HostAgent) deploymentAdded(obj interface{}) {
 	depObj := obj.(*appsv1.Deployment)
 	deploymentLogger(agent.log, depObj).Info("Deployment added:")
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdateSelectorObj(obj)
 	agent.handleObjectUpdateForSnat(obj)
 }
@@ -349,7 +351,9 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 	newdep := newobj.(*appsv1.Deployment)
 	deploymentLogger(agent.log, olddep).Info("Deployment changed:")
 	if !reflect.DeepEqual(olddep.Spec.Selector, newdep.Spec.Selector) {
+		agent.indexMutex.Lock()
 		agent.depPods.UpdateSelectorObj(newobj)
+		agent.indexMutex.Unlock()
 	}
 	if !reflect.DeepEqual(olddep.ObjectMeta.Annotations,
 		newdep.ObjectMeta.Annotations) {
@@ -373,7 +377,9 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 func (agent *HostAgent) deploymentDeleted(obj interface{}) {
 	depObj := obj.(*appsv1.Deployment)
 	agent.handleObjectDeleteForSnat(obj)
+	agent.indexMutex.Lock()
 	agent.depPods.DeleteSelectorObj(obj)
+	agent.indexMutex.Unlock()
 	deploymentLogger(agent.log, depObj).Info("Deployment deleted:")
 }
 
