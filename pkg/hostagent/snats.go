@@ -96,6 +96,7 @@ type opflexSnatGlobalInfo struct {
 }
 
 type opflexSnatLocalInfo struct {
+	Existing     bool                      //True when existing snat-uuids in ep file is to be maintained
 	Snatpolicies map[ResourceType][]string //Each resource can represent multiple entries
 	PlcyUuids    []string                  //sorted policy uuids
 }
@@ -438,6 +439,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 	for _, uid := range poduids {
 		_, ok := agent.opflexSnatLocalInfos[uid]
 		if !ok {
+			agent.log.Debug("testt !ok ", uid)
 			var localinfo opflexSnatLocalInfo
 			localinfo.Snatpolicies = make(map[ResourceType][]string)
 			localinfo.Snatpolicies[res] = append(localinfo.Snatpolicies[res], snatPolicyName)
@@ -453,6 +455,10 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 				}
 			}
 			if present == false {
+				agent.log.Debug("testt okk ", uid)
+				if len(agent.opflexSnatLocalInfos[uid].Snatpolicies) < 1 {
+					agent.opflexSnatLocalInfos[uid].Snatpolicies = make(map[ResourceType][]string)
+				}
 				agent.opflexSnatLocalInfos[uid].Snatpolicies[res] =
 					append(agent.opflexSnatLocalInfos[uid].Snatpolicies[res], snatPolicyName)
 				agent.snatPods[snatPolicyName][uid] |= res
@@ -939,6 +945,7 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 		}
 		if !reflect.DeepEqual(agent.opflexSnatLocalInfos[uid].PlcyUuids, uids) {
 			agent.log.Debug("Update EpFile: ", uids)
+			agent.opflexSnatLocalInfos[uid].Existing = false
 			agent.opflexSnatLocalInfos[uid].PlcyUuids = uids
 			if len(uids) == 0 {
 				delete(agent.opflexSnatLocalInfos, uid)
@@ -1202,6 +1209,30 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 			policy.Spec.Selector.Namespace == namespace) {
 			return true
 		}
+	}
+	return false
+}
+
+func (agent *HostAgent) isSnatPolicyPopulated(poduuid string) bool {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	val, check := agent.opflexSnatLocalInfos[poduuid]
+	if check {
+		agent.log.Info("testt val.Snatpolicies ", val.Snatpolicies)
+		if len(val.Snatpolicies) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) isExisting(poduuid string) bool {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+	val, check := agent.opflexSnatLocalInfos[poduuid]
+	if check {
+		agent.log.Info("testt existing ", val.Existing)
+		return val.Existing
 	}
 	return false
 }

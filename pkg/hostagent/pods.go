@@ -432,11 +432,25 @@ func (agent *HostAgent) syncEps() bool {
 				if ep.Uuid != epidstr {
 					continue
 				}
-				ep.SnatUuid, err = agent.getSnatUuids(poduuid)
+				var snatUuid []string
+				snatUuid, err = agent.getSnatUuids(poduuid)
 				if err != nil {
 					agent.log.Error("Error while getting snat uuids")
 					needRetry = true
 					continue
+				}
+				agent.log.Info("testtt snatUuid ", snatUuid)
+				if len(snatUuid) > 0 && !agent.isSnatPolicyPopulated(poduuid) && agent.isExisting(poduuid) {
+					agent.log.Info("testt existing")
+					agent.log.Debug("Maintaining existing snat-uuids in ep file", epfile)
+					currentEp, err := readEp(epfile)
+					if err != nil {
+						agent.log.Error("Failed to read ep file ", err.Error())
+					} else if currentEp != nil {
+						ep.SnatUuid = currentEp.SnatUuid
+					}
+				} else {
+					ep.SnatUuid = snatUuid
 				}
 				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 				wrote, err := writeEp(epfile, ep)

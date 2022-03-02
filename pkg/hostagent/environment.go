@@ -180,6 +180,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.snatGlobalInformer.HasSynced)
 	env.agent.log.Info("Snat global cache sync successful")
 
+	err := env.agent.populateSnatLocalInfos()
+	if err != nil {
+		env.agent.log.Error("Failed to populate opflexSnatLocalInfos")
+	}
+
 	env.agent.log.Debug("Starting snat policy informer")
 	go env.agent.snatPolicyInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for snat policy sync")
