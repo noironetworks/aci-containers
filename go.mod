@@ -9,11 +9,13 @@ require (
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/davecgh/go-spew v1.1.1
+	github.com/emicklei/go-restful v2.10.0+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
+	github.com/mattn/goveralls v0.0.8 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20210416053915-d6dec2cca336
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
@@ -38,7 +40,7 @@ require (
 	k8s.io/client-go v0.22.0
 	k8s.io/code-generator v0.22.0
 	k8s.io/kubectl v0.22.0
-	k8s.io/kubernetes v1.22.0
+	k8s.io/kubernetes v1.22.4
 	sigs.k8s.io/controller-runtime v0.6.1
 )
 
