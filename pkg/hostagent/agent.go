@@ -400,7 +400,11 @@ func (agent *HostAgent) EnableSync() (changed bool) {
 }
 
 func (agent *HostAgent) Run(stopCh <-chan struct{}) {
-	syncEnabled, err := agent.env.PrepareRun(stopCh)
+	err := agent.populateSnatLocalInfos()
+	if err != nil {
+		agent.log.Error("Failed to populate opflexSnatLocalInfos")
+	}
+	syncEnabled, err = agent.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
 	}

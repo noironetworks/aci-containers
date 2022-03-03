@@ -43,10 +43,7 @@ func (agent *HostAgent) populateSnatLocalInfos() error {
 				_, ok := agent.opflexSnatLocalInfos[localInfo.PodUid]
 				if !ok {
 					var snatLocalInfo opflexSnatLocalInfo
-					for _, snatPolicy := range localInfo.SnatPolicies {
-						snatLocalInfo.PlcyUuids = append(snatLocalInfo.PlcyUuids, snatPolicy.Name)
-					}
-
+					snatlocalInfo.Snatpolicies = make(map[ResourceType][]string)
 					snatLocalInfo.Existing = true
 					agent.opflexSnatLocalInfos[localInfo.PodUid] = &snatLocalInfo
 					agent.log.Info("testt   ", localInfo.PodUid, agent.opflexSnatLocalInfos[localInfo.PodUid])

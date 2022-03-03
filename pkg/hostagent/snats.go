@@ -456,9 +456,6 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 			}
 			if present == false {
 				agent.log.Debug("testt okk ", uid)
-				if len(agent.opflexSnatLocalInfos[uid].Snatpolicies) < 1 {
-					agent.opflexSnatLocalInfos[uid].Snatpolicies = make(map[ResourceType][]string)
-				}
 				agent.opflexSnatLocalInfos[uid].Snatpolicies[res] =
 					append(agent.opflexSnatLocalInfos[uid].Snatpolicies[res], snatPolicyName)
 				agent.snatPods[snatPolicyName][uid] |= res
@@ -1213,43 +1210,30 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 	return false
 }
 
-func (agent *HostAgent) isSnatPolicyPopulated(poduuid string) bool {
-	agent.indexMutex.Lock()
-	defer agent.indexMutex.Unlock()
-	val, check := agent.opflexSnatLocalInfos[poduuid]
-	if check {
-		agent.log.Info("testt val.Snatpolicies ", val.Snatpolicies)
-		if len(val.Snatpolicies) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (agent *HostAgent) isExisting(poduuid string) bool {
-	agent.indexMutex.Lock()
-	defer agent.indexMutex.Unlock()
-	val, check := agent.opflexSnatLocalInfos[poduuid]
-	if check {
-		agent.log.Info("testt existing ", val.Existing)
-		return val.Existing
-	}
-	return false
-}
-
-func (agent *HostAgent) getSnatUuids(poduuid string) ([]string, error) {
+func (agent *HostAgent) getSnatUuids(poduuid, epfile string) ([]string, error) {
 	localInfo := &opflexSnatLocalInfo{}
 	plcyUuids := []string{}
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	val, check := agent.opflexSnatLocalInfos[poduuid]
 	if check {
-		err := util.DeepCopyObj(val, localInfo)
-		if err != nil {
-			agent.log.Error(err.Error())
-			return nil, err
-		}
-		plcyUuids = localInfo.PlcyUuids
+			err := util.DeepCopyObj(val, localInfo)
+			if err != nil {
+					agent.log.Error(err.Error())
+					return nil, err
+			}
+			if len(localInfo.PlcyUuids) < 1 && val.Existing {
+					agent.log.Debug("Getting existing snat-uuids in ep file : ", epfile)
+					currentEp, err := readEp(epfile)
+					if err != nil {
+							agent.log.Error("Failed to read ep file ", err.Error())
+							return nil, err
+					} else if currentEp != nil {
+							plcyUuids = currentEp.SnatUuid
+					}
+			} else {
+					plcyUuids = localInfo.PlcyUuids
+			}       
 	}
 	return plcyUuids, nil
 }
