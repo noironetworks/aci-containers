@@ -67,8 +67,6 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 github.com/beorn7/perks/quantile
 # github.com/blang/semver v3.5.1+incompatible
 github.com/blang/semver
-# github.com/caddyserver/caddy v1.0.3
-## explicit
 # github.com/cenkalti/hub v1.0.1
 github.com/cenkalti/hub
 # github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd
@@ -82,8 +80,6 @@ github.com/chai2010/gettext-go/gettext
 github.com/chai2010/gettext-go/gettext/mo
 github.com/chai2010/gettext-go/gettext/plural
 github.com/chai2010/gettext-go/gettext/po
-# github.com/checkpoint-restore/go-criu/v4 v4.1.0
-## explicit
 # github.com/containernetworking/cni v0.8.1
 ## explicit
 github.com/containernetworking/cni/pkg/invoke
@@ -213,8 +209,6 @@ github.com/exponent-io/jsonpath
 github.com/fsnotify/fsnotify
 # github.com/fvbommel/sortorder v1.0.1
 github.com/fvbommel/sortorder
-# github.com/go-bindata/go-bindata v3.1.1+incompatible
-## explicit
 # github.com/go-errors/errors v1.0.1
 github.com/go-errors/errors
 # github.com/go-logr/logr v0.4.0
@@ -328,8 +322,6 @@ github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/kr/pty v1.1.5
-## explicit
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 github.com/liggitt/tabwriter
 # github.com/magiconair/properties v1.8.1
@@ -338,12 +330,8 @@ github.com/magiconair/properties
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/mattn/goveralls v0.0.8
-## explicit
 # github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369
 github.com/matttproud/golang_protobuf_extensions/pbutil
-# github.com/miekg/dns v1.1.35
-## explicit
 # github.com/mitchellh/go-wordwrap v1.0.0
 github.com/mitchellh/go-wordwrap
 # github.com/mitchellh/mapstructure v1.1.2
@@ -370,7 +358,7 @@ github.com/natefinch/pie
 github.com/noironetworks/aci-containers/pkg/ipam
 # github.com/opencontainers/go-digest v1.0.0
 github.com/opencontainers/go-digest
-# github.com/opencontainers/runc v1.0.1
+# github.com/opencontainers/runc v1.0.2
 github.com/opencontainers/runc/libcontainer/apparmor
 github.com/opencontainers/runc/libcontainer/utils
 # github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
@@ -415,8 +403,6 @@ github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 github.com/rcrowley/go-metrics
-# github.com/robfig/cron v1.1.0
-## explicit
 # github.com/russross/blackfriday v1.5.2
 github.com/russross/blackfriday
 # github.com/safchain/ethtool v0.0.0-20190326074333-42ed695e3de8
@@ -449,8 +435,6 @@ github.com/subosito/gotenv
 # github.com/tatsushid/go-fastping v0.0.0-20160109021039-d7bb493dee3e
 ## explicit
 github.com/tatsushid/go-fastping
-# github.com/thecodeteam/goscaleio v0.1.0
-## explicit
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802
 github.com/tmc/grpc-websocket-proxy/wsproxy
 # github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
@@ -467,8 +451,6 @@ github.com/xlab/treeprint
 ## explicit
 github.com/yl2chen/cidranger
 github.com/yl2chen/cidranger/net
-# go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
-## explicit
 # go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5
 go.starlark.net/internal/compile
 go.starlark.net/internal/spell
@@ -1005,8 +987,6 @@ k8s.io/gengo/generator
 k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
-# k8s.io/heapster v1.2.0-beta.1 => k8s.io/heapster v1.2.0-beta.1
-## explicit
 # k8s.io/klog v1.0.0 => k8s.io/klog v1.0.0
 k8s.io/klog
 # k8s.io/klog/v2 v2.9.0
@@ -1039,7 +1019,7 @@ k8s.io/kubectl/pkg/validation
 ## explicit
 k8s.io/kubelet/pkg/apis/podresources/v1
 k8s.io/kubelet/pkg/apis/podresources/v1alpha1
-# k8s.io/kubernetes v1.22.0
+# k8s.io/kubernetes v1.22.3
 ## explicit
 k8s.io/kubernetes/pkg/api/legacyscheme
 k8s.io/kubernetes/pkg/api/service
@@ -1066,7 +1046,7 @@ k8s.io/kubernetes/pkg/security/apparmor
 k8s.io/kubernetes/pkg/util/hash
 k8s.io/kubernetes/pkg/util/parsers
 k8s.io/kubernetes/pkg/util/taints
-# k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9 => k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
+# k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a => k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
 k8s.io/utils/buffer
 k8s.io/utils/exec
 k8s.io/utils/integer

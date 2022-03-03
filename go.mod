@@ -41,7 +41,7 @@ require (
 	k8s.io/code-generator v0.22.0
 	k8s.io/kubectl v0.22.0
 	k8s.io/kubelet v0.0.0
-	k8s.io/kubernetes v1.22.0
+	k8s.io/kubernetes v1.22.3
 	sigs.k8s.io/controller-runtime v0.6.1
 )
 
