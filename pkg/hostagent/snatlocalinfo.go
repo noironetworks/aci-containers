@@ -32,6 +32,30 @@ type SnatLocalInfo struct {
 	snatpolicyName string
 }
 
+func (agent *HostAgent) populateSnatLocalInfos() error {
+	env := agent.env.(*K8sEnvironment)
+	snatLocalInfoClient := env.snatLocalInfoClient
+	snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
+	if err != nil {
+		agent.log.Error("getSnatLocalInfo() Error: %s", err)
+		return err
+	}
+	for _, localInfo := range snatLocalInfoCr.Spec.LocalInfos {
+		if localInfo.PodUid != "" {
+			agent.indexMutex.Lock()
+			_, ok := agent.opflexSnatLocalInfos[localInfo.PodUid]
+			if !ok {
+				var snatLocalInfo opflexSnatLocalInfo
+				snatLocalInfo.Snatpolicies = make(map[ResourceType][]string)
+				snatLocalInfo.Existing = true
+				agent.opflexSnatLocalInfos[localInfo.PodUid] = &snatLocalInfo
+			}
+			agent.indexMutex.Unlock()
+		}
+	}
+	return nil
+}
+
 func (agent *HostAgent) UpdateLocalInfoCr() bool {
 	env := agent.env.(*K8sEnvironment)
 	snatLocalInfoClient := env.snatLocalInfoClient

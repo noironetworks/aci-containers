@@ -96,6 +96,7 @@ type opflexSnatGlobalInfo struct {
 }
 
 type opflexSnatLocalInfo struct {
+	Existing     bool                      //True when existing snat-uuids in ep file is to be maintained
 	Snatpolicies map[ResourceType][]string //Each resource can represent multiple entries
 	PlcyUuids    []string                  //sorted policy uuids
 }
@@ -939,6 +940,7 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 		}
 		if !reflect.DeepEqual(agent.opflexSnatLocalInfos[uid].PlcyUuids, uids) {
 			agent.log.Debug("Update EpFile: ", uids)
+			agent.opflexSnatLocalInfos[uid].Existing = false
 			agent.opflexSnatLocalInfos[uid].PlcyUuids = uids
 			if len(uids) == 0 {
 				delete(agent.opflexSnatLocalInfos, uid)
@@ -1206,7 +1208,7 @@ func (agent *HostAgent) isPolicyNameSpaceMatches(policyName string, namespace st
 	return false
 }
 
-func (agent *HostAgent) getSnatUuids(poduuid string) ([]string, error) {
+func (agent *HostAgent) getSnatUuids(poduuid, epfile string) ([]string, error) {
 	localInfo := &opflexSnatLocalInfo{}
 	plcyUuids := []string{}
 	agent.indexMutex.Lock()
@@ -1218,7 +1220,18 @@ func (agent *HostAgent) getSnatUuids(poduuid string) ([]string, error) {
 			agent.log.Error(err.Error())
 			return nil, err
 		}
-		plcyUuids = localInfo.PlcyUuids
+		if len(localInfo.PlcyUuids) < 1 && val.Existing {
+			agent.log.Debug("Getting existing snat-uuids in ep file : ", epfile)
+			currentEp, err := readEp(epfile)
+			if err != nil {
+				agent.log.Error("Failed to read ep file ", err.Error())
+				return nil, err
+			} else if currentEp != nil {
+				plcyUuids = currentEp.SnatUuid
+			}
+		} else {
+			plcyUuids = localInfo.PlcyUuids
+		}
 	}
 	return plcyUuids, nil
 }
