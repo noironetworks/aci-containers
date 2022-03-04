@@ -177,29 +177,48 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.nodeInformer.HasSynced)
 	env.agent.log.Info("Node cache sync successful")
 
+	env.agent.log.Debug("Starting service informer")
+	go env.agent.serviceInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for service cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced)
+	env.agent.log.Info("Service cache sync successful")
+
+	env.agent.log.Debug("Starting snat global informer")
+	go env.agent.snatGlobalInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for snat global cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.snatGlobalInformer.HasSynced)
+	env.agent.log.Info("Snat global cache sync successful")
+
+	env.agent.log.Debug("Starting snat policy informer")
+	go env.agent.snatPolicyInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for snat policy sync")
+	cache.WaitForCacheSync(stopCh, env.agent.snatPolicyInformer.HasSynced)
+	env.agent.log.Info("Snat policy sync successful")
+
+	env.agent.log.Debug("Starting rdConfig informer")
+	go env.agent.rdConfigInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for rdConfig cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.rdConfigInformer.HasSynced)
+	env.agent.log.Info("RdConfig cache sync successful")
+
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
 	cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced)
+	env.agent.log.Info("Pod cache sync successful")
 	go env.agent.controllerInformer.Run(stopCh)
 	env.agent.serviceEndPoints.Run(stopCh)
-	go env.agent.serviceInformer.Run(stopCh)
 	go env.agent.nsInformer.Run(stopCh)
 	go env.agent.netPolInformer.Run(stopCh)
 	go env.agent.depInformer.Run(stopCh)
 	go env.agent.rcInformer.Run(stopCh)
-	go env.agent.snatGlobalInformer.Run(stopCh)
-	go env.agent.snatPolicyInformer.Run(stopCh)
 	go env.agent.qosPolicyInformer.Run(stopCh)
-	go env.agent.rdConfigInformer.Run(stopCh)
 	go env.agent.netAttDefInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for cache sync for remaining objects")
-	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced,
-		env.agent.snatGlobalInformer.HasSynced, env.agent.snatPolicyInformer.HasSynced,
-		env.agent.rdConfigInformer.HasSynced)
+	cache.WaitForCacheSync(stopCh, env.agent.netAttDefInformer.HasSynced)
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }
+
 func (env *K8sEnvironment) CniDeviceChanged(metadataKey *string, id *md.ContainerId) {
 	env.agent.podChanged(metadataKey)
 }
