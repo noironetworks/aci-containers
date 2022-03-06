@@ -736,6 +736,8 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	u := string(pod.ObjectMeta.UID)
+	podns, podname := pod.ObjectMeta.Namespace, pod.ObjectMeta.Name
+	podid := podns + "/" + podname
 	if _, ok := agent.opflexEps[u]; ok {
 		agent.log.Infof("podDeletedLocked: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		delete(agent.opflexEps, u)
@@ -746,6 +748,38 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	}
 	delete(agent.podUidToName, u)
 	agent.epDeleted(&u)
+	mdmap, ok := agent.epMetadata[podid]
+	if ok {
+		agent.log.Infof("podid is: %s: ", podid)
+		for contid, v := range mdmap {
+			delete(mdmap, v.Id.ContId)
+			if len(mdmap) == 0 {
+				delete(agent.epMetadata, podid)
+			}
+			for _, iface := range v.Ifaces {
+				for _, ip := range iface.IPs {
+					if ip.Address.IP != nil {
+						err := agent.cleanStatleMetadata(contid)
+						if err != nil {
+							agent.log.Errorf("Could not clear metadata for container: %s: ", contid)
+						}
+						agent.deallocateMdIps(v)
+
+					}
+				}
+				if iface.Sandbox != "" && iface.Name != "" {
+					ack := false
+					err := PluginCloner.runPluginCmd("ClientRPC.ClearVeth",
+						&ClearVethArgs{iface.Sandbox, iface.Name}, &ack)
+					if err != nil {
+						agent.log.Warnf("Could not clear Veth ports, %s", err)
+					}
+				}
+			}
+			agent.env.CniDeviceDeleted(&podid, &v.Id)
+
+		}
+	}
 }
 
 func (agent *HostAgent) cniEpDelete(cniKey string) {
