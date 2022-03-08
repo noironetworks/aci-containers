@@ -9,31 +9,39 @@ require (
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/davecgh/go-spew v1.1.1
+	github.com/docker/distribution v2.8.0+incompatible // indirect
+	github.com/elazarl/goproxy v0.0.0-20190630181448-f1e96bc0f4c5 // indirect
 	github.com/emicklei/go-restful v2.10.0+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
+	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/mattn/goveralls v0.0.8 // indirect
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20210416053915-d6dec2cca336
+	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/ovn-org/libovsdb v0.0.0-20210422150337-f29ae9b43ea5
+	github.com/pelletier/go-toml v1.3.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
-	github.com/spf13/viper v1.7.0
+	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tatsushid/go-fastping v0.0.0-20160109021039-d7bb493dee3e
+	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
-	github.com/yl2chen/cidranger v1.0.0
+	github.com/yl2chen/cidranger v1.0.2
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	google.golang.org/grpc v1.38.0
-	istio.io/istio v0.0.0-20200811212058-b18b33f83db7
+	helm.sh/helm/v3 v3.6.1 // indirect
+	istio.io/istio v0.0.0-20210820153838-5336ff0f12bc
 	k8s.io/api v0.22.0
 	k8s.io/apiextensions-apiserver v0.22.0
 	k8s.io/apimachinery v0.22.0
@@ -41,7 +49,7 @@ require (
 	k8s.io/code-generator v0.22.0
 	k8s.io/kubectl v0.22.0
 	k8s.io/kubernetes v1.22.4
-	sigs.k8s.io/controller-runtime v0.6.1
+	sigs.k8s.io/controller-runtime v0.7.0
 )
 
 replace (

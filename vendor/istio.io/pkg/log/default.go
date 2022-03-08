@@ -14,160 +14,116 @@
 
 package log
 
-import (
-	"fmt"
+// These functions enable logging using a global Scope. See scope.go for usage information.
 
-	"go.uber.org/zap/zapcore"
-)
+func registerDefaultScope() *Scope {
+	return RegisterScope(DefaultScopeName, "Unscoped logging messages.", 1)
+}
 
-var defaultScope = RegisterScope(DefaultScopeName, "Unscoped logging messages.", 0)
+var defaultScope = registerDefaultScope()
 
 // Fatal outputs a message at fatal level.
-func Fatal(msg string, fields ...zapcore.Field) {
-	if defaultScope.GetOutputLevel() >= FatalLevel {
-		defaultScope.emit(zapcore.FatalLevel, defaultScope.GetStackTraceLevel() >= FatalLevel, msg, fields)
-	}
+func Fatal(fields ...interface{}) {
+	defaultScope.Fatal(fields...)
 }
 
 // Fatala uses fmt.Sprint to construct and log a message at fatal level.
 func Fatala(args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= FatalLevel {
-		defaultScope.emit(zapcore.FatalLevel, defaultScope.GetStackTraceLevel() >= FatalLevel, fmt.Sprint(args...), nil)
-	}
+	defaultScope.Fatala(args...)
 }
 
 // Fatalf uses fmt.Sprintf to construct and log a message at fatal level.
-func Fatalf(template string, args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= FatalLevel {
-		msg := template
-		if len(args) > 0 {
-			msg = fmt.Sprintf(template, args...)
-		}
-		defaultScope.emit(zapcore.FatalLevel, defaultScope.GetStackTraceLevel() >= FatalLevel, msg, nil)
-	}
+func Fatalf(args ...interface{}) {
+	defaultScope.Fatalf(args...)
 }
 
 // FatalEnabled returns whether output of messages using this scope is currently enabled for fatal-level output.
 func FatalEnabled() bool {
-	return defaultScope.GetOutputLevel() >= FatalLevel
+	return defaultScope.FatalEnabled()
 }
 
 // Error outputs a message at error level.
-func Error(msg string, fields ...zapcore.Field) {
-	if defaultScope.GetOutputLevel() >= ErrorLevel {
-		defaultScope.emit(zapcore.ErrorLevel, defaultScope.GetStackTraceLevel() >= ErrorLevel, msg, fields)
-	}
+func Error(fields ...interface{}) {
+	defaultScope.Error(fields...)
 }
 
 // Errora uses fmt.Sprint to construct and log a message at error level.
 func Errora(args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= ErrorLevel {
-		defaultScope.emit(zapcore.ErrorLevel, defaultScope.GetStackTraceLevel() >= ErrorLevel, fmt.Sprint(args...), nil)
-	}
+	defaultScope.Errora(args...)
 }
 
 // Errorf uses fmt.Sprintf to construct and log a message at error level.
-func Errorf(template string, args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= ErrorLevel {
-		msg := template
-		if len(args) > 0 {
-			msg = fmt.Sprintf(template, args...)
-		}
-		defaultScope.emit(zapcore.ErrorLevel, defaultScope.GetStackTraceLevel() >= ErrorLevel, msg, nil)
-	}
+func Errorf(args ...interface{}) {
+	defaultScope.Errorf(args...)
 }
 
 // ErrorEnabled returns whether output of messages using this scope is currently enabled for error-level output.
 func ErrorEnabled() bool {
-	return defaultScope.GetOutputLevel() >= ErrorLevel
+	return defaultScope.ErrorEnabled()
 }
 
 // Warn outputs a message at warn level.
-func Warn(msg string, fields ...zapcore.Field) {
-	if defaultScope.GetOutputLevel() >= WarnLevel {
-		defaultScope.emit(zapcore.WarnLevel, defaultScope.GetStackTraceLevel() >= WarnLevel, msg, fields)
-	}
+func Warn(fields ...interface{}) {
+	defaultScope.Warn(fields...)
 }
 
 // Warna uses fmt.Sprint to construct and log a message at warn level.
 func Warna(args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= WarnLevel {
-		defaultScope.emit(zapcore.WarnLevel, defaultScope.GetStackTraceLevel() >= WarnLevel, fmt.Sprint(args...), nil)
-	}
+	defaultScope.Warna(args...)
 }
 
 // Warnf uses fmt.Sprintf to construct and log a message at warn level.
-func Warnf(template string, args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= WarnLevel {
-		msg := template
-		if len(args) > 0 {
-			msg = fmt.Sprintf(template, args...)
-		}
-		defaultScope.emit(zapcore.WarnLevel, defaultScope.GetStackTraceLevel() >= WarnLevel, msg, nil)
-	}
+func Warnf(args ...interface{}) {
+	defaultScope.Warnf(args...)
 }
 
 // WarnEnabled returns whether output of messages using this scope is currently enabled for warn-level output.
 func WarnEnabled() bool {
-	return defaultScope.GetOutputLevel() >= WarnLevel
+	return defaultScope.WarnEnabled()
 }
 
 // Info outputs a message at info level.
-func Info(msg string, fields ...zapcore.Field) {
-	if defaultScope.GetOutputLevel() >= InfoLevel {
-		defaultScope.emit(zapcore.InfoLevel, defaultScope.GetStackTraceLevel() >= InfoLevel, msg, fields)
-	}
+func Info(fields ...interface{}) {
+	defaultScope.Info(fields...)
 }
 
 // Infoa uses fmt.Sprint to construct and log a message at info level.
 func Infoa(args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= InfoLevel {
-		defaultScope.emit(zapcore.InfoLevel, defaultScope.GetStackTraceLevel() >= InfoLevel, fmt.Sprint(args...), nil)
-	}
+	defaultScope.Infoa(args...)
 }
 
 // Infof uses fmt.Sprintf to construct and log a message at info level.
-func Infof(template string, args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= InfoLevel {
-		msg := template
-		if len(args) > 0 {
-			msg = fmt.Sprintf(template, args...)
-		}
-		defaultScope.emit(zapcore.InfoLevel, defaultScope.GetStackTraceLevel() >= InfoLevel, msg, nil)
-	}
+func Infof(args ...interface{}) {
+	defaultScope.Infof(args...)
 }
 
 // InfoEnabled returns whether output of messages using this scope is currently enabled for info-level output.
 func InfoEnabled() bool {
-	return defaultScope.GetOutputLevel() >= InfoLevel
+	return defaultScope.InfoEnabled()
 }
 
 // Debug outputs a message at debug level.
-func Debug(msg string, fields ...zapcore.Field) {
-	if defaultScope.GetOutputLevel() >= DebugLevel {
-		defaultScope.emit(zapcore.DebugLevel, defaultScope.GetStackTraceLevel() >= DebugLevel, msg, fields)
-	}
+func Debug(fields ...interface{}) {
+	defaultScope.Debug(fields...)
 }
 
 // Debuga uses fmt.Sprint to construct and log a message at debug level.
 func Debuga(args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= DebugLevel {
-		defaultScope.emit(zapcore.DebugLevel, defaultScope.GetStackTraceLevel() >= DebugLevel, fmt.Sprint(args...), nil)
-	}
+	defaultScope.Debuga(args...)
 }
 
 // Debugf uses fmt.Sprintf to construct and log a message at debug level.
-func Debugf(template string, args ...interface{}) {
-	if defaultScope.GetOutputLevel() >= DebugLevel {
-		msg := template
-		if len(args) > 0 {
-			msg = fmt.Sprintf(template, args...)
-		}
-		defaultScope.emit(zapcore.DebugLevel, defaultScope.GetStackTraceLevel() >= DebugLevel, msg, nil)
-	}
+func Debugf(args ...interface{}) {
+	defaultScope.Debugf(args...)
 }
 
 // DebugEnabled returns whether output of messages using this scope is currently enabled for debug-level output.
 func DebugEnabled() bool {
-	return defaultScope.GetOutputLevel() >= DebugLevel
+	return defaultScope.DebugEnabled()
+}
+
+// WithLabels adds a key-value pairs to the labels in s. The key must be a string, while the value may be any type.
+// It returns a copy of the default scope, with the labels added.
+func WithLabels(kvlist ...interface{}) *Scope {
+	return defaultScope.WithLabels(kvlist...)
 }
