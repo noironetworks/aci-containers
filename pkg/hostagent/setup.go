@@ -420,7 +420,7 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 	agent.indexMutex.Lock()
 	mdmap, ok := agent.epMetadata[podid]
 	if !ok {
-		logger.Error("Unconfigure called for pod with no metadata")
+		logger.Info("Unconfigure called for pod with no metadata")
 		// Assume container is already unconfigured
 		agent.indexMutex.Unlock()
 		return nil
