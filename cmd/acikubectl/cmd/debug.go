@@ -535,19 +535,19 @@ func getOutfile(output string) (string, *os.File, error) {
 }
 
 func accLogCmdArgs(systemNamespace string) []string {
-	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+	return []string{"-n", systemNamespace, "logs",
 		"deployment/aci-containers-controller",
 		"-c", "aci-containers-controller"}
 }
 
 func accprovisionoperatorLogCmdArgs(systemNamespace string) []string {
-	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+	return []string{"-n", systemNamespace, "logs",
 		"deployment/aci-containers-operator",
 		"-c", "acc-provision-operator"}
 }
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
-	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+	return []string{"-n", systemNamespace, "logs",
 		"deployment/aci-containers-operator",
 		"-c", "aci-containers-operator"}
 }
@@ -584,7 +584,7 @@ type nodeCmdArgFunc func(string, string, string, []string) []string
 func nodeLogCmdArgs(systemNamespace string, podName string,
 	containerName string, args []string) []string {
 
-	return []string{"-n", systemNamespace, "logs", "--limit-bytes=10048576",
+	return []string{"-n", systemNamespace, "logs",
 		podName, "-c", containerName}
 }
 
