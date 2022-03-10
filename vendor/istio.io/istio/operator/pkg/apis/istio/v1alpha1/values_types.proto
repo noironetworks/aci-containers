@@ -70,6 +70,14 @@ message CNIConfig {
   CNIRepairConfig repair = 13;
 
   google.protobuf.BoolValue chained = 14;
+
+  CNITaintConfig taint  = 15;
+}
+
+
+message CNITaintConfig {
+  // Controls whether taint behavior is enabled.
+  google.protobuf.BoolValue enabled = 1;
 }
 
 message CNIRepairConfig {
@@ -108,63 +116,6 @@ message CPUTargetUtilizationConfig {
 message Resources {
   map<string, string> limits = 1;
   map<string, string> requests = 2;
-}
-
-// Configuration for Core DNS.
-message CoreDNSConfig {
-  // Controls whether CoreDNS is enabled.
-  google.protobuf.BoolValue enabled = 1;
-
-  // Image for Core DNS.
-  string coreDNSImage = 2;
-
-  string coreDNSTag = 3;
-
-  string coreDNSPluginImage = 4;
-
-  // K8s node selector.
-  //
-  // See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
-  TypeMapStringInterface nodeSelector = 5 [deprecated=true];
-
-  // Number of replicas for Core DNS.
-  uint32 replicaCount = 6 [deprecated=true];
-
-  // K8s annotations for pods.
-  //
-  // See: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  TypeMapStringInterface podAnnotations = 7 [deprecated=true];
-
-  // K8s resources settings.
-  //
-  // See https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container
-  Resources resources = 8 [deprecated=true];
-
-  // K8s rolling update strategy
-  TypeIntOrStringForPB rollingMaxSurge = 9 [deprecated=true];
-
-  // K8s rolling update strategy
-  TypeIntOrStringForPB rollingMaxUnavailable = 10 [deprecated=true];
-
-  TypeSliceOfMapStringInterface podAntiAffinityLabelSelector = 11 [deprecated=true];
-
-  TypeSliceOfMapStringInterface podAntiAffinityTermLabelSelector = 12 [deprecated=true];
-
-  TypeSliceOfMapStringInterface tolerations = 13 [deprecated=true];
-
-  // Controls whether auto scaling with a HorizontalPodAutoscaler is enabled.
-  google.protobuf.BoolValue autoscaleEnabled = 14;
-
-  // maxReplicas setting for HorizontalPodAutoscaler.
-  uint32 autoscaleMax = 15;
-
-  // minReplicas setting for HorizontalPodAutoscaler.
-  uint32 autoscaleMin = 16;
-
-  // K8s utilization setting for HorizontalPodAutoscaler target.
-  //
-  // See https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
-  CPUTargetUtilizationConfig cpu = 17 [deprecated=true];
 }
 
 // DefaultPodDisruptionBudgetConfig specifies the default pod disruption budget configuration.
@@ -282,7 +233,20 @@ message EgressGatewayConfig {
 
   google.protobuf.BoolValue runAsRoot = 26;
 
-  // Next available 27.
+  // The injection template to use for the gateway. If not set, no injection will be performed.
+  string injectionTemplate = 27;
+
+  string loadBalancerIP = 28;
+
+  repeated string loadBalancerSourceRanges = 29;
+
+  google.protobuf.BoolValue customService = 30;
+
+  TypeSliceOfMapStringInterface egressPorts = 31;
+
+  string externalTrafficPolicy = 32;
+
+  // Next available 31.
 }
 
 // Configuration for gateways.
@@ -346,9 +310,6 @@ message GlobalConfig {
 
   // Specifies the global logging level settings for the Istio control plane components.
   GlobalLoggingConfig logging = 17;
-
-  // Specifies the Configuration for Istio mesh expansion to bare metal.
-  MeshExpansionConfig meshExpansion = 18;
 
   string meshID = 53;
 
@@ -453,9 +414,10 @@ message GlobalConfig {
   // The address of the CA for CSR.
   string caAddress = 61;
 
-  // Controls whether one central istiod is enabled.
-  google.protobuf.BoolValue centralIstiod = 62;
-  // The next available key is 63
+  // Controls whether one external istiod is enabled.
+  google.protobuf.BoolValue externalIstiod = 62;
+
+  // The next available key is 64
 }
 
 // Configuration for Security Token Service (STS) server.
@@ -507,8 +469,6 @@ message IngressGatewayConfig {
   string loadBalancerIP = 16;
 
   repeated string loadBalancerSourceRanges = 17;
-
-  repeated PortsConfig meshExpansionPorts = 18;
 
   string name = 44;
 
@@ -571,7 +531,10 @@ message IngressGatewayConfig {
 
   google.protobuf.BoolValue runAsRoot = 45;
 
-  // Next available 46.
+  // The injection template to use for the gateway. If not set, no injection will be performed.
+  string injectionTemplate = 46;
+
+  // Next available 47.
 }
 
 // IngressGatewayZvpnConfig enables cross-cluster access using SNI matching.
@@ -582,15 +545,6 @@ message IngressGatewayZvpnConfig {
   string suffix = 2;
 }
 
-// Configuration for Istio mesh expansion to bare metal.
-message MeshExpansionConfig {
-  // Exposes Pilot and Citadel mTLS on the ingress gateway.
-  google.protobuf.BoolValue enabled = 1;
-
-  // Exposes Pilot and Citadel mTLS and the plain text Pilot ports on an internal gateway.
-  google.protobuf.BoolValue useILB = 2;
-}
-
 // MultiClusterConfig specifies the Configuration for Istio mesh across multiple clusters through the istio gateways.
 message MultiClusterConfig {
   // Enables the connection between two kubernetes clusters via their respective ingressgateway services.
@@ -598,6 +552,8 @@ message MultiClusterConfig {
   google.protobuf.BoolValue enabled = 1;
 
   string clusterName = 2;
+  string globalDomainSuffix = 3;
+  google.protobuf.BoolValue includeEnvoyFilter = 4;
 }
 
 // OutboundTrafficPolicyConfig controls the default behavior of the sidecar for handling outbound traffic from the application.
@@ -810,17 +766,33 @@ message TelemetryV2PrometheusConfig {
 
 // Conrols telemetry v2 stackdriver settings.
 message TelemetryV2StackDriverConfig {
+// Types of Access logs to export.
+  enum AccessLogging {
+    // No Logs.
+    NONE = 0;
+    // All logs including both success and error logs.
+    FULL = 1;
+    // All error logs. This is currently only available for outbound/client side
+    // logs. A request is classified as error when `status>=400 or
+    // response_flag != "-"`
+    ERRORS_ONLY = 2;
+  };
+
   google.protobuf.BoolValue enabled = 1;
 
-  google.protobuf.BoolValue logging = 2;
+  google.protobuf.BoolValue logging = 2 [deprecated=true];
 
   google.protobuf.BoolValue monitoring = 3;
 
-  google.protobuf.BoolValue topology = 4;
+  google.protobuf.BoolValue topology = 4 [deprecated=true];
 
   google.protobuf.BoolValue disableOutbound = 6;
 
   TypeMapStringInterface configOverride = 5;
+
+  AccessLogging outboundAccessLogging = 7;
+
+  AccessLogging inboundAccessLogging = 8;
 }
 
 // Conrols telemetry v2 access log policy filter settings.
@@ -851,6 +823,9 @@ message PortsConfig {
 
   // Target port number.
   int32 targetPort = 4;
+
+  // Protocol name.
+  string protocol = 5;
 }
 
 // Configuration for Proxy.
@@ -923,7 +898,9 @@ message ProxyConfig {
   TypeMapStringInterface lifecycle = 36;
 
   // Controls if sidecar is injected at the front of the container list and blocks the start of the other containers until the proxy is ready
-  google.protobuf.BoolValue holdApplicationUntilProxyStarts = 37;
+  //
+  // Deprecated: replaced by ProxyConfig setting which allows per-pod configuration of this behavior.
+  google.protobuf.BoolValue holdApplicationUntilProxyStarts = 37 [deprecated=true];
 }
 
 // Specifies which tracer to use.
@@ -932,6 +909,7 @@ enum tracer {
   lightstep = 1;
   datadog = 2;
   stackdriver = 3;
+  openCensusAgent = 4;
 }
 
 // Configuration for proxy_init container which sets the pods' networking to intercept the inbound/outbound traffic.
@@ -996,8 +974,6 @@ message SidecarInjectorConfig {
   //  If true, webhook or istioctl injector will rewrite PodSpec for liveness health check to redirect request to sidecar. This makes liveness check work even when mTLS is enabled.
   google.protobuf.BoolValue rewriteAppHTTPProbe = 16;
 
-  string injectLabel = 18;
-
   // injectedAnnotations are additional annotations that will be added to the pod spec after injection
   // This is primarily to support PSP annotations.
   TypeMapStringInterface injectedAnnotations = 19;
@@ -1007,6 +983,40 @@ message SidecarInjectorConfig {
 
   // Configure the injection url for sidecar injector webhook
   string injectionURL = 22;
+
+  // Templates defines a set of custom injection templates that can be used. For example, defining:
+  //
+  // templates:
+  //   hello: |
+  //     metadata:
+  //       labels:
+  //         hello: world
+  //
+  // Then starting a pod with the `inject.istio.io/templates: hello` annotation, will result in the pod
+  // being injected with the hello=world labels.
+  // This is intended for advanced configuration only; most users should use the built in template
+  TypeMapStringInterface templates = 23;
+
+  // If enabled, the legacy webhook selection logic will be used. This relies on filtering of webhook
+  // requests in Istiod, rather than at the webhook selection level.
+  // This is option is intended for migration purposes only and will be removed in Istio 1.10.
+  google.protobuf.BoolValue useLegacySelectors = 4;
+
+
+  // Default templates specifies a set of default templates that are used in sidecar injection.
+  // By default, a template `sidecar` is always provided, which contains the template of default sidecar.
+  // To inject other additional templates, define it using the `templates` option, and add it to
+  // the default templates list.
+  // For example:
+
+  // templates:
+  //   hello: |
+  //     metadata:
+  //       labels:
+  //         hello: world
+
+  // defaultTemplates: ["sidecar", "hello"]
+  repeated string defaultTemplates = 24;
 }
 
 // Configuration for each of the supported tracers.
@@ -1068,6 +1078,10 @@ message BaseConfig {
 
   // URL to use for validating webhook.
   string validationURL = 2;
+
+  // For istioctl usage to disable istio config crds in base
+  google.protobuf.BoolValue enableIstioConfigCRDs = 3;
+
 }
 
 message IstiodRemoteConfig {
@@ -1077,8 +1091,6 @@ message IstiodRemoteConfig {
 
 message Values {
   CNIConfig cni = 2;
-
-  CoreDNSConfig istiocoredns = 3;
 
   GatewaysConfig gateways = 5;
 
@@ -1091,11 +1103,11 @@ message Values {
 
   SidecarInjectorConfig sidecarInjectorWebhook = 13;
 
-  google.protobuf.BoolValue clusterResources = 17;
-
   CNIConfig istio_cni = 19;
 
   string revision = 21;
+
+  string ownerName = 22;
 
   // TODO can this import the real mesh config API?
   TypeInterface meshConfig = 36;

@@ -63,10 +63,14 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
+	"k8s.io/klog/v2"
 )
 
-// none is used to disable logging output as well as to disable stack tracing.
-const none zapcore.Level = 100
+const (
+	// none is used to disable logging output as well as to disable stack tracing.
+	none          zapcore.Level = 100
+	GrpcScopeName string        = "grpc"
+)
 
 var levelToZap = map[Level]zapcore.Level{
 	DebugLevel: zapcore.DebugLevel,
@@ -85,8 +89,14 @@ type patchTable struct {
 	errorSink   zapcore.WriteSyncer
 }
 
-// function table that can be replaced by tests
-var funcs = &atomic.Value{}
+var (
+	// function table that can be replaced by tests
+	funcs = &atomic.Value{}
+	// controls whether all output is JSON or CLI style. This makes it easier to query how the zap encoder is configured
+	// vs. reading it's internal state.
+	useJSON atomic.Value
+	logGrpc bool
+)
 
 func init() {
 	// use our defaults for starters so that logging works even before everything is fully configured
@@ -112,8 +122,10 @@ func prepZap(options *Options) (zapcore.Core, zapcore.Core, zapcore.WriteSyncer,
 	var enc zapcore.Encoder
 	if options.JSONEncoding {
 		enc = zapcore.NewJSONEncoder(encCfg)
+		useJSON.Store(true)
 	} else {
 		enc = zapcore.NewConsoleEncoder(encCfg)
+		useJSON.Store(false)
 	}
 
 	var rotaterSink zapcore.WriteSyncer
@@ -242,6 +254,11 @@ func updateScopes(options *Options) error {
 		}
 	}
 
+	// update LogGrpc if necessary
+	if logGrpc {
+		options.LogGrpc = true
+	}
+
 	return nil
 }
 
@@ -263,6 +280,11 @@ func processLevels(allScopes map[string]*Scope, arg string, setter func(*Scope, 
 				setter(scope, l)
 			}
 			return nil
+		} else if s == GrpcScopeName {
+			grpcScope := RegisterScope(GrpcScopeName, "", 0)
+			logGrpc = true
+			setter(grpcScope, l)
+			return nil
 		} else {
 			return fmt.Errorf("unknown scope '%s' specified", s)
 		}
@@ -270,6 +292,8 @@ func processLevels(allScopes map[string]*Scope, arg string, setter func(*Scope, 
 
 	return nil
 }
+
+var KlogScope = RegisterScope("klog", "", 0)
 
 // Configure initializes Istio's logging subsystem.
 //
@@ -327,6 +351,9 @@ func Configure(options *Options) error {
 	if options.LogGrpc {
 		grpclog.SetLogger(zapgrpc.NewLogger(captureLogger.WithOptions(zap.AddCallerSkip(2))))
 	}
+
+	// capture klog (Kubernetes logging) through our logging
+	klog.SetLogger(newLogrAdapter(KlogScope))
 
 	return nil
 }
