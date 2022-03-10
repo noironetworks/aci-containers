@@ -7,7 +7,7 @@ github.com/MakeNowJust/heredoc
 ## explicit
 github.com/Mellanox/sriovnet
 github.com/Mellanox/sriovnet/pkg/utils/filesystem
-# github.com/Microsoft/go-winio v0.4.15
+# github.com/Microsoft/go-winio v0.4.16
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 # github.com/PuerkitoBio/purell v1.1.1
@@ -189,7 +189,8 @@ github.com/cyphar/filepath-securejoin
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 github.com/dgrijalva/jwt-go
-# github.com/docker/distribution v2.7.1+incompatible
+# github.com/docker/distribution v2.8.0+incompatible
+## explicit
 github.com/docker/distribution/digestset
 github.com/docker/distribution/reference
 # github.com/eapache/go-resiliency v1.2.0
@@ -198,6 +199,8 @@ github.com/eapache/go-resiliency/breaker
 github.com/eapache/go-xerial-snappy
 # github.com/eapache/queue v1.1.0
 github.com/eapache/queue
+# github.com/elazarl/goproxy v0.0.0-20190630181448-f1e96bc0f4c5
+## explicit
 # github.com/emicklei/go-restful v2.10.0+incompatible
 github.com/emicklei/go-restful
 github.com/emicklei/go-restful/log
@@ -252,8 +255,9 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/gofuzz v1.1.0
+# github.com/google/gofuzz v1.2.0
 github.com/google/gofuzz
+github.com/google/gofuzz/bytesource
 # github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 github.com/google/shlex
 # github.com/google/uuid v1.2.0
@@ -271,6 +275,7 @@ github.com/gorilla/mux
 ## explicit
 github.com/gorilla/websocket
 # github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
+## explicit
 github.com/gregjones/httpcache
 github.com/gregjones/httpcache/diskcache
 # github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -294,7 +299,7 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
-# github.com/imdario/mergo v0.3.9
+# github.com/imdario/mergo v0.3.11
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
@@ -316,7 +321,7 @@ github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/scheme
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1
-# github.com/klauspost/compress v1.9.8
+# github.com/klauspost/compress v1.10.10
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
@@ -360,7 +365,8 @@ github.com/natefinch/pie
 github.com/noironetworks/aci-containers/pkg/ipam
 # github.com/opencontainers/go-digest v1.0.0
 github.com/opencontainers/go-digest
-# github.com/opencontainers/runc v1.0.2
+# github.com/opencontainers/runc v1.0.3
+## explicit
 github.com/opencontainers/runc/libcontainer/apparmor
 github.com/opencontainers/runc/libcontainer/utils
 # github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
@@ -377,6 +383,7 @@ github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
 ## explicit
 github.com/ovn-org/libovsdb
 # github.com/pelletier/go-toml v1.3.0
+## explicit
 github.com/pelletier/go-toml
 # github.com/peterbourgon/diskv v2.0.1+incompatible
 github.com/peterbourgon/diskv
@@ -423,10 +430,11 @@ github.com/spf13/cast
 ## explicit
 github.com/spf13/cobra
 # github.com/spf13/jwalterweatherman v1.1.0
+## explicit
 github.com/spf13/jwalterweatherman
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/spf13/viper v1.7.0
+# github.com/spf13/viper v1.7.1
 ## explicit
 github.com/spf13/viper
 # github.com/stretchr/testify v1.7.0
@@ -439,6 +447,8 @@ github.com/subosito/gotenv
 github.com/tatsushid/go-fastping
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802
 github.com/tmc/grpc-websocket-proxy/wsproxy
+# github.com/ulikunitz/xz v0.5.8
+## explicit
 # github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
 ## explicit
 github.com/vishvananda/netlink
@@ -449,7 +459,7 @@ github.com/vishvananda/netns
 github.com/xiang90/probing
 # github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca
 github.com/xlab/treeprint
-# github.com/yl2chen/cidranger v1.0.0
+# github.com/yl2chen/cidranger v1.0.2
 ## explicit
 github.com/yl2chen/cidranger
 github.com/yl2chen/cidranger/net
@@ -498,7 +508,7 @@ golang.org/x/net/ipv4
 golang.org/x/net/ipv6
 golang.org/x/net/proxy
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+# golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20210616094352-59db8d763f22
@@ -538,7 +548,7 @@ golang.org/x/tools/internal/imports
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# google.golang.org/appengine v1.6.6
+# google.golang.org/appengine v1.6.7
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
@@ -674,13 +684,16 @@ gopkg.in/jcmturner/rpc.v1/ndr
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
-# istio.io/api v0.0.0-20200808213952-0bb7e74acfe8
+# helm.sh/helm/v3 v3.6.1
+## explicit
+# istio.io/api v0.0.0-20210713181237-07d053cfb57e
 istio.io/api/operator/v1alpha1
-# istio.io/istio v0.0.0-20200811212058-b18b33f83db7
+# istio.io/istio v0.0.0-20210820153838-5336ff0f12bc
 ## explicit
 istio.io/istio/operator/pkg/apis/istio/v1alpha1
-# istio.io/pkg v0.0.0-20200721143030-6b837ddaf2ab
+# istio.io/pkg v0.0.0-20201230223204-2d0a1c8bd9e5
 istio.io/pkg/log
+istio.io/pkg/structured
 # k8s.io/api v0.22.0 => k8s.io/api v0.22.0
 ## explicit
 k8s.io/api/admission/v1
@@ -744,6 +757,7 @@ k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/api/validation
 k8s.io/apimachinery/pkg/apis/meta/internalversion
+k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme
 k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/apis/meta/v1/unstructured
 k8s.io/apimachinery/pkg/apis/meta/v1/unstructured/unstructuredscheme
@@ -890,6 +904,7 @@ k8s.io/client-go/kubernetes/typed/scheduling/v1beta1
 k8s.io/client-go/kubernetes/typed/storage/v1
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
+k8s.io/client-go/metadata
 k8s.io/client-go/pkg/apis/clientauthentication
 k8s.io/client-go/pkg/apis/clientauthentication/install
 k8s.io/client-go/pkg/apis/clientauthentication/v1
@@ -1056,7 +1071,7 @@ k8s.io/utils/net
 k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# sigs.k8s.io/controller-runtime v0.6.1
+# sigs.k8s.io/controller-runtime v0.7.0
 ## explicit
 sigs.k8s.io/controller-runtime/pkg/client
 sigs.k8s.io/controller-runtime/pkg/client/apiutil
