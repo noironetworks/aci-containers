@@ -713,6 +713,17 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 func (agent *HostAgent) podDeleted(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	agent.log.Infof("Pod deleted: name %s namespace %s", pod.ObjectMeta.Name, pod.ObjectMeta.Namespace)
+	podns, podname := pod.ObjectMeta.Namespace, pod.ObjectMeta.Name
+	podid := podns + "/" + podname
+	mdmap, ok := agent.epMetadata[podid]
+	if ok {
+		for contid, v := range mdmap {
+			err := agent.unconfigureContainerIfaces(&v.Id)
+			if err != nil {
+				agent.log.Warnf("Could not unconfigure container:%s, %s ", contid, err)
+			}
+		}
+	}
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 	agent.podDeletedLocked(obj)
