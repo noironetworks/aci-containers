@@ -1069,6 +1069,35 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 						}
 						// check for namespace match
 					}
+				} else if res == DEPLOYMENT {
+					if len(item.Spec.SnatIp) == 0 {
+						services := util.GetServicesByOneOfLabels(agent.serviceInformer.GetIndexer(), namespace, label)
+						for _, service := range services {
+							if util.MatchLabels(item.Spec.Selector.Labels,
+								service.ObjectMeta.Labels) {
+								agent.log.Debug("Deployment service : ", service.ObjectMeta.Name)
+								snatPolicyNames[item.ObjectMeta.Name] =
+									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
+								break
+							}
+						}
+					} else {
+						nsobj, exists, err := agent.nsInformer.GetStore().GetByKey(namespace)
+						if err != nil {
+							agent.log.Error("Could not lookup snat for " +
+								namespace + ": " + err.Error())
+							continue
+						}
+						if !exists || nsobj == nil {
+							continue
+						}
+						if util.MatchLabels(item.Spec.Selector.Labels,
+							nsobj.(*v1.Namespace).ObjectMeta.Labels) {
+							agent.log.Debug("Deployment namespace : ", nsobj.(*v1.Namespace).ObjectMeta.Name)
+							snatPolicyNames[item.ObjectMeta.Name] =
+								append(snatPolicyNames[item.ObjectMeta.Name], NAMESPACE)
+						}
+					}
 				}
 			}
 		}
