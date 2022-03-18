@@ -35,6 +35,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/noironetworks/aci-containers/pkg/hostagent"
+	_ "net/http/pprof"
 )
 
 func main() {
