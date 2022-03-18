@@ -197,13 +197,45 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	go env.agent.podInformer.Run(stopCh)
 	cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced)
 	env.agent.log.Info("Pod cache sync successful")
+
+	env.agent.log.Debug("Starting controller informers")
 	go env.agent.controllerInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for controller cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.controllerInformer.HasSynced)
+	env.agent.log.Info("controller cache sync successful")
+
 	env.agent.serviceEndPoints.Run(stopCh)
+
+	env.agent.log.Debug("Starting namespace informers")
 	go env.agent.nsInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for namespace cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.nsInformer.HasSynced)
+	env.agent.log.Info("namespace cache sync successful")
+
+	env.agent.log.Debug("Starting networkPolicy informers")
 	go env.agent.netPolInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for networkPolicy cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.netPolInformer.HasSynced)
+	env.agent.log.Info("networkPolicy cache sync successful")
+
+	env.agent.log.Debug("Starting deployment informers")
 	go env.agent.depInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for deployment cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.depInformer.HasSynced)
+	env.agent.log.Info("deployment cache sync successful")
+
+	env.agent.log.Debug("Starting ReplicationController informers")
 	go env.agent.rcInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for ReplicationController cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.rcInformer.HasSynced)
+	env.agent.log.Info("ReplicationController cache sync successful")
+
+	env.agent.log.Debug("Starting qosPolicy informers")
 	go env.agent.qosPolicyInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for qosPolicy cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.qosPolicyInformer.HasSynced)
+	env.agent.log.Info("qosPolicy cache sync successful")
+
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
 }
