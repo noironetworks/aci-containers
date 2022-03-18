@@ -29,6 +29,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/controller"
 	"github.com/noironetworks/aci-containers/pkg/loadbalancer"
+	_ "net/http/pprof"
 )
 
 func main() {
