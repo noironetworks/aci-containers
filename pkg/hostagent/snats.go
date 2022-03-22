@@ -989,6 +989,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 	}
 	namespace := metadata.GetNamespace()
 	label := metadata.GetLabels()
+	name := metadata.GetName()
 	res := getResourceType(obj)
 	for _, item := range agent.snatPolicyCache {
 		// check for empty policy selctor
@@ -1018,16 +1019,35 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 				}
 				if res == POD {
 					if len(item.Spec.SnatIp) == 0 {
-						services := util.GetServicesByOneOfLabels(agent.serviceInformer.GetIndexer(), namespace, label)
+						var services, matchingServices []*v1.Service
+						cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
+							func(servobj interface{}) {
+								services = append(services, servobj.(*v1.Service))
+							})
 						// list the pods and apply the policy at service target
 						for _, service := range services {
-							if util.MatchLabels(item.Spec.Selector.Labels,
-								service.ObjectMeta.Labels) {
-								snatPolicyNames[item.ObjectMeta.Name] =
-									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
-								break
+							var matchingPods []*v1.Pod
+							svcSelector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+							cache.ListAllByNamespace(agent.podInformer.GetIndexer(), namespace, svcSelector,
+								func(podobj interface{}) {
+									podRes := podobj.(*v1.Pod)
+									if podRes.Spec.NodeName == agent.config.NodeName {
+										matchingPods = append(matchingPods, podobj.(*v1.Pod))
+									}
+								})
+							for _, po := range matchingPods {
+								if po.ObjectMeta.Name == name {
+									matchingServices = append(matchingServices, service)
+								}
 							}
-
+							for _, matchingSvc := range matchingServices {
+								if util.MatchLabels(item.Spec.Selector.Labels,
+									matchingSvc.ObjectMeta.Labels) {
+									snatPolicyNames[item.ObjectMeta.Name] =
+										append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
+									break
+								}
+							}
 						}
 					} else {
 						podKey, _ := cache.MetaNamespaceKeyFunc(obj)
@@ -1067,16 +1087,35 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 					}
 				} else if res == DEPLOYMENT {
 					if len(item.Spec.SnatIp) == 0 {
-						services := util.GetServicesByOneOfLabels(agent.serviceInformer.GetIndexer(), namespace, label)
+						var services, matchingServices []*v1.Service
+						cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
+							func(servobj interface{}) {
+								services = append(services, servobj.(*v1.Service))
+							})
+						// list the pods and apply the policy at service target
 						for _, service := range services {
-							if util.MatchLabels(item.Spec.Selector.Labels,
-								service.ObjectMeta.Labels) {
-								agent.log.Debug("Deployment service : ", service.ObjectMeta.Name)
-								snatPolicyNames[item.ObjectMeta.Name] =
-									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
-								break
+							var matchingDeploys []*appsv1.Deployment
+							svcSelector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+							cache.ListAllByNamespace(agent.depInformer.GetIndexer(), namespace, svcSelector,
+								func(deployobj interface{}) {
+									matchingDeploys = append(matchingDeploys, deployobj.(*appsv1.Deployment))
+								})
+							for _, deploy := range matchingDeploys {
+								if deploy.ObjectMeta.Name == name {
+									matchingServices = append(matchingServices, service)
+								}
 							}
+							for _, matchingSvc := range matchingServices {
+								if util.MatchLabels(item.Spec.Selector.Labels,
+									matchingSvc.ObjectMeta.Labels) {
+									snatPolicyNames[item.ObjectMeta.Name] =
+										append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
+									break
+								}
+							}
+
 						}
+
 					} else {
 						nsobj, exists, err := agent.nsInformer.GetStore().GetByKey(namespace)
 						if err != nil {
