@@ -353,7 +353,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 		for _, service := range services {
 			uids, _ := agent.getPodsMatchingObject(service, policy.ObjectMeta.Name)
 			poduids = append(poduids, uids...)
-			key, err := cache.MetaNamespaceKeyFunc(service)
+			key, err := cache.MetaUIDKeyFunc(service)
 			if err == nil {
 				_, ok := agent.ReadSnatPolicyLabel(key)
 				if ok && len(policy.Spec.Selector.Labels) > 0 {
@@ -396,7 +396,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname string) (poduids []string) {
 	uids, res := agent.getPodsMatchingObject(obj, policyname)
 	if len(uids) > 0 {
-		key, _ := cache.MetaNamespaceKeyFunc(obj)
+		key, _ := cache.MetaUIDKeyFunc(obj)
 		if _, ok := agent.ReadSnatPolicyLabel(key); ok {
 			agent.WriteSnatPolicyLabel(key, policyname, res)
 		}
@@ -1143,7 +1143,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	agent.snatPolicyCacheMutex.RLock()
 	defer agent.snatPolicyCacheMutex.RUnlock()
-	objKey, err := cache.MetaNamespaceKeyFunc(obj)
+	objKey, err := cache.MetaUIDKeyFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatUpdate object key:" + err.Error())
 		return
@@ -1208,7 +1208,7 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 }
 
 func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
-	objKey, err := cache.MetaNamespaceKeyFunc(obj)
+	objKey, err := cache.MetaUIDKeyFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatDelete object key:" + err.Error())
 		return

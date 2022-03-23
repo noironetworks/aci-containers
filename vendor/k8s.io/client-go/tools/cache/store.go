@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Store is a generic object storage and processing interface.  A
@@ -113,6 +114,17 @@ func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
 		return meta.GetNamespace() + "/" + meta.GetName(), nil
 	}
 	return meta.GetName(), nil
+}
+
+func MetaUIDKeyFunc(obj interface{}) (types.UID, error) {
+	if key, ok := obj.(ExplicitKey); ok {
+		return types.UID(key), nil
+	}
+	meta, err := meta.Accessor(obj)
+	if err != nil {
+		return "", fmt.Errorf("object has no meta: %v", err)
+	}
+	return meta.GetUID(), nil
 }
 
 // SplitMetaNamespaceKey returns the namespace and name that
