@@ -353,7 +353,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 		for _, service := range services {
 			uids, _ := agent.getPodsMatchingObject(service, policy.ObjectMeta.Name)
 			poduids = append(poduids, uids...)
-			key, err := cache.MetaNamespaceKeyFunc(service)
+			key, err := agent.MetaNamespaceUIDFunc(service)
 			if err == nil {
 				_, ok := agent.ReadSnatPolicyLabel(key)
 				if ok && len(policy.Spec.Selector.Labels) > 0 {
@@ -396,7 +396,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname string) (poduids []string) {
 	uids, res := agent.getPodsMatchingObject(obj, policyname)
 	if len(uids) > 0 {
-		key, _ := cache.MetaNamespaceKeyFunc(obj)
+		key, _ := agent.MetaNamespaceUIDFunc(obj)
 		if _, ok := agent.ReadSnatPolicyLabel(key); ok {
 			agent.WriteSnatPolicyLabel(key, policyname, res)
 		}
@@ -998,7 +998,7 @@ func (agent *HostAgent) getMatchingServices(namespace string, label map[string]s
 //Must acquire snatPolicyCacheMutex.RLock
 func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames map[string][]ResourceType) {
 	snatPolicyNames = make(map[string][]ResourceType)
-	_, err := cache.MetaNamespaceKeyFunc(obj)
+	_, err := agent.MetaNamespaceUIDFunc(obj)
 	if err != nil {
 		return
 	}
@@ -1146,7 +1146,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	agent.snatPolicyCacheMutex.RLock()
 	defer agent.snatPolicyCacheMutex.RUnlock()
-	objKey, err := cache.MetaNamespaceKeyFunc(obj)
+	objKey, err := agent.MetaNamespaceUIDFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatUpdate object key:" + err.Error())
 		return
@@ -1211,7 +1211,7 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 }
 
 func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
-	objKey, err := cache.MetaNamespaceKeyFunc(obj)
+	objKey, err := agent.MetaNamespaceUIDFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatDelete object key:" + err.Error())
 		return
@@ -1351,4 +1351,20 @@ func getResourceType(obj interface{}) ResourceType {
 	default:
 	}
 	return res
+}
+
+type ExplicitKey string
+
+func (agent *HostAgent) MetaNamespaceUIDFunc(obj interface{}) (string, error) {
+	if key, ok := obj.(ExplicitKey); ok {
+		return string(key), nil
+	}
+	meta, err := meta.Accessor(obj)
+	if err != nil {
+		return "", err
+	}
+	if len(meta.GetNamespace()) > 0 {
+		return meta.GetNamespace() + "/" + string(meta.GetUID()), nil
+	}
+	return string(meta.GetUID()), nil
 }
