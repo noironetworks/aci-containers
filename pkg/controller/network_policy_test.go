@@ -36,7 +36,9 @@ var tcp = "TCP"
 var udp = "UDP"
 var sctp = "SCTP"
 var port80 = 80
+var eport90 = int32(90)
 var port443 = 443
+var eport460 = int32(460)
 
 func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	var portv intstr.IntOrString
@@ -50,6 +52,26 @@ func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	return v1net.NetworkPolicyPort{
 		Protocol: &protov,
 		Port:     &portv,
+	}
+}
+
+func rangedPort(proto *string, port *int, endport *int32) v1net.NetworkPolicyPort {
+	var portv intstr.IntOrString
+	var porte *int32
+	var protov v1.Protocol
+	if port != nil {
+		portv = intstr.FromInt(*port)
+	}
+	if endport != nil {
+		porte = endport
+	}
+	if proto != nil {
+		protov = v1.Protocol(*proto)
+	}
+	return v1net.NetworkPolicyPort{
+		Protocol: &protov,
+		Port:     &portv,
+		EndPort:  porte,
 	}
 }
 
@@ -304,6 +326,13 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_1_0.SetAttr("protocol", "tcp")
 	rule_1_0.SetAttr("toPort", "80")
 
+	rule_1_0_1 := apicapi.NewHostprotRule(np1SDnI, "0_0")
+	rule_1_0_1.SetAttr("direction", "ingress")
+	rule_1_0_1.SetAttr("ethertype", "ipv4")
+	rule_1_0_1.SetAttr("protocol", "tcp")
+	rule_1_0_1.SetAttr("fromPort", "80")
+	rule_1_0_1.SetAttr("toPort", "90")
+
 	rule_2_0 := apicapi.NewHostprotRule(np1SDnI, "0_0")
 	rule_2_0.SetAttr("direction", "ingress")
 	rule_2_0.SetAttr("ethertype", "ipv4")
@@ -449,6 +478,12 @@ func TestNetworkPolicy(t *testing.T) {
 					nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_1_0}, nil, name),
 			nil, "allow-http"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{rangedPort(&tcp, &port80, &eport90)},
+					nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_1_0_1}, nil, name),
+			nil, "allow-http-portrange"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
@@ -946,6 +981,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_1_0_v6.SetAttr("protocol", "tcp")
 	rule_1_0_v6.SetAttr("toPort", "80")
 
+	rule_1_0_1_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0")
+	rule_1_0_1_v6.SetAttr("direction", "ingress")
+	rule_1_0_1_v6.SetAttr("ethertype", "ipv6")
+	rule_1_0_1_v6.SetAttr("protocol", "tcp")
+	rule_1_0_1_v6.SetAttr("fromPort", "80")
+	rule_1_0_1_v6.SetAttr("toPort", "90")
+
 	rule_2_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0")
 	rule_2_0_v6.SetAttr("direction", "ingress")
 	rule_2_0_v6.SetAttr("ethertype", "ipv6")
@@ -1087,6 +1129,12 @@ func TestNetworkPolicyv6(t *testing.T) {
 					nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_1_0_v6}, nil, name),
 			nil, "allow-http"},
+		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{rangedPort(&tcp, &port80, &eport90)},
+					nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_1_0_1_v6}, nil, name),
+			nil, "allow-http-portrange"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
