@@ -235,6 +235,7 @@ func (agent *HostAgent) snatPolicyAdded(obj interface{}) {
 	}
 	agent.snatPolicyCache[policyinfo.ObjectMeta.Name] = policyinfo
 	setDestIp(agent.snatPolicyCache[policyinfo.ObjectMeta.Name].Spec.DestIp)
+	agent.log.Debug("testttt dest ip : ", policyinfo.ObjectMeta.Name, " ", agent.snatPolicyCache[policyinfo.ObjectMeta.Name].Spec.DestIp)
 	agent.handleSnatUpdate(policyinfo)
 }
 
@@ -430,6 +431,7 @@ func (agent *HostAgent) getPodUidsMatchingLabel(namespace string, label map[stri
 func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPolicyName string) {
 	nodeUpdate := false
 	if len(poduids) == 0 {
+		agent.log.Debug("testttt len 0")
 		return
 	}
 	if _, ok := agent.snatPods[snatPolicyName]; !ok {
@@ -444,7 +446,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 			localinfo.Snatpolicies[res] = append(localinfo.Snatpolicies[res], snatPolicyName)
 			agent.opflexSnatLocalInfos[uid] = &localinfo
 			agent.snatPods[snatPolicyName][uid] |= res
-			agent.log.Debug("Apply policy res: ", agent.snatPods[snatPolicyName][uid])
+			agent.log.Debug("Apply policy res: 111 ", agent.snatPods[snatPolicyName][uid])
 
 		} else {
 			present := false
@@ -453,6 +455,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 					present = true
 				}
 			}
+			agent.log.Debug("testttt present ", present)
 			if present == false {
 				agent.opflexSnatLocalInfos[uid].Snatpolicies[res] =
 					append(agent.opflexSnatLocalInfos[uid].Snatpolicies[res], snatPolicyName)
@@ -465,6 +468,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 		agent.log.Debug("Schedule the node Sync")
 		agent.scheduleSyncNodeInfo()
 	} else {
+		agent.log.Debug("testttt updateEpFiles called ", res, " ", snatPolicyName, " ", poduids)
 		// trigger update  the epfile
 		agent.updateEpFiles(poduids)
 	}
@@ -516,6 +520,7 @@ func (agent *HostAgent) deletePolicy(policy *snatpolicy.SnatPolicy) {
 }
 
 func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plcyname string) {
+	agent.log.Debug("deleteSnatLocalInfo ", poduid, " ", res, " ", plcyname)
 	localinfo, ok := agent.opflexSnatLocalInfos[poduid]
 	if ok {
 		i := uint(0)
@@ -910,6 +915,7 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 			pos = pos + 1
 			seen := make(map[string]bool)
 			policies, ok := localinfo.Snatpolicies[ResourceType(i)]
+			agent.log.Debug("testttttt  policies ", policies, " ", ResourceType(i))
 			var sortedpolicies []string
 			if ok {
 				for _, name := range policies {
@@ -928,12 +934,17 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 			policystack = append(policystack, sortedpolicies...)
 		}
 		var uids []string
+		agent.log.Debug("testttttt  policystack ", policystack, " ", uids)
 		for _, name := range policystack {
+			agent.log.Debug("testttttt  policystack iterating :", name)
 			for _, val := range agent.opflexSnatGlobalInfos[agent.config.NodeName] {
+				agent.log.Debug("testttttt val SnatPolicyName :", val.SnatPolicyName)
 				if val.SnatPolicyName == name {
+					agent.log.Debug("testttttt val added", val.SnatIpUid)
 					uids = append(uids, val.SnatIpUid)
 				}
 			}
+			agent.log.Debug("testttttt dest ip ", agent.snatPolicyCache[name].Spec.DestIp)
 			if len(agent.snatPolicyCache[name].Spec.DestIp) == 0 {
 				break
 			}
@@ -1113,9 +1124,11 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	if !ok {
 		agent.WriteNewSnatPolicyLabel(objKey)
 	}
+	agent.log.Info("testttt ", plcynames)
 	sync := false
 	if len(plcynames) == 0 {
 		polcies := agent.getMatchingSnatPolicy(obj)
+		agent.log.Info("testttt -- matching policies: ", polcies)
 		for name, resources := range polcies {
 			for _, res := range resources {
 				poduids, _ := agent.getPodsMatchingObject(obj, name)
@@ -1141,22 +1154,27 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 				poduids, _ := agent.getPodsMatchingObject(obj, name)
 				for _, uid := range poduids {
 					agent.deleteSnatLocalInfo(uid, res, name)
+					agent.log.Info("testtt   deleting ", uid, " ", res, " ", name)
 				}
 				delpodlist = append(delpodlist, poduids...)
 				agent.DeleteSnatPolicyLabelEntry(objKey, name)
 			}
 			seen[name] = true
+			agent.log.Info("testtt   seen ", name)
 		}
 		if len(delpodlist) > 0 {
 			agent.updateEpFiles(delpodlist)
 			sync = true
 		}
 		for name, resources := range matchnames {
+			agent.log.Info("testtt   iterating ", name)
 			if seen[name] == true {
+				agent.log.Info("testtt   not processing ", name)
 				continue
 			}
 			for _, res := range resources {
 				poduids, _ := agent.getPodsMatchingObject(obj, name)
+				agent.log.Info("testtt  matching :: ", poduids, " ", res, " ", name)
 				agent.applyPolicy(poduids, res, name)
 				agent.WriteSnatPolicyLabel(objKey, name, res)
 				sync = true
