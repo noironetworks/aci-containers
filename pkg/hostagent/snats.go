@@ -976,6 +976,25 @@ func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
 	return sort
 }
 
+func (agent *HostAgent) getMatchingServices(namespace string, label map[string]string) []*v1.Service {
+	var services, matchingServices []*v1.Service
+	cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
+		func(servobj interface{}) {
+			services = append(services, servobj.(*v1.Service))
+		})
+	for _, service := range services {
+		if service.Spec.Selector == nil {
+			continue
+		}
+		svcSelector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+		if svcSelector.Matches(labels.Set(label)) {
+			matchingServices = append(matchingServices, service)
+		}
+	}
+
+	return matchingServices
+}
+
 //Must acquire snatPolicyCacheMutex.RLock
 func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames map[string][]ResourceType) {
 	snatPolicyNames = make(map[string][]ResourceType)
@@ -989,6 +1008,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 	}
 	namespace := metadata.GetNamespace()
 	label := metadata.GetLabels()
+	name := metadata.GetName()
 	res := getResourceType(obj)
 	for _, item := range agent.snatPolicyCache {
 		// check for empty policy selctor
@@ -1018,16 +1038,15 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 				}
 				if res == POD {
 					if len(item.Spec.SnatIp) == 0 {
-						services := util.GetServicesByOneOfLabels(agent.serviceInformer.GetIndexer(), namespace, label)
-						// list the pods and apply the policy at service target
-						for _, service := range services {
+						matchingServices := agent.getMatchingServices(namespace, label)
+						agent.log.Debug("Matching services for pod ", name, " : ", matchingServices)
+						for _, matchingSvc := range matchingServices {
 							if util.MatchLabels(item.Spec.Selector.Labels,
-								service.ObjectMeta.Labels) {
+								matchingSvc.ObjectMeta.Labels) {
 								snatPolicyNames[item.ObjectMeta.Name] =
 									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
 								break
 							}
-
 						}
 					} else {
 						podKey, _ := cache.MetaNamespaceKeyFunc(obj)
@@ -1067,17 +1086,40 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 					}
 				} else if res == DEPLOYMENT {
 					if len(item.Spec.SnatIp) == 0 {
-						services := util.GetServicesByOneOfLabels(agent.serviceInformer.GetIndexer(), namespace, label)
-						for _, service := range services {
+						matchingServices := agent.getMatchingServices(namespace, label)
+						agent.log.Debug("Matching services for deployment ", name, " : ", matchingServices)
+						for _, matchingSvc := range matchingServices {
 							if util.MatchLabels(item.Spec.Selector.Labels,
-								service.ObjectMeta.Labels) {
-								agent.log.Debug("Deployment service : ", service.ObjectMeta.Name)
+								matchingSvc.ObjectMeta.Labels) {
 								snatPolicyNames[item.ObjectMeta.Name] =
 									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
 								break
 							}
 						}
 					} else {
+						dep := obj.(*appsv1.Deployment)
+						if dep.Spec.Selector != nil {
+							var matchingPods []*v1.Pod
+							depSelector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+							if err == nil {
+								cache.ListAllByNamespace(agent.podInformer.GetIndexer(), namespace, depSelector,
+									func(podobj interface{}) {
+										matchingPods = append(matchingPods, podobj.(*v1.Pod))
+									})
+								agent.log.Debug("Matching pods of deployment ", name, " : ", matchingPods)
+								for _, po := range matchingPods {
+									if util.MatchLabels(item.Spec.Selector.Labels,
+										po.ObjectMeta.Labels) {
+										snatPolicyNames[item.ObjectMeta.Name] =
+											append(snatPolicyNames[item.ObjectMeta.Name], POD)
+										break
+									}
+								}
+							} else {
+								agent.log.Error(err.Error())
+							}
+						}
+
 						nsobj, exists, err := agent.nsInformer.GetStore().GetByKey(namespace)
 						if err != nil {
 							agent.log.Error("Could not lookup snat for " +
