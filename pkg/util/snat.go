@@ -22,11 +22,8 @@ import (
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	"os"
 	"sort"
 	"strconv"
@@ -173,19 +170,6 @@ func MatchLabels(policylabels map[string]string, reslabels map[string]string) bo
 		}
 	}
 	return true
-}
-
-func GetServicesByOneOfLabels(indexer cache.Indexer, ns string, reslabels map[string]string) []*v1.Service {
-	var services []*v1.Service
-	for key, value := range reslabels {
-		label := make(map[string]string)
-		label[key] = value
-		cache.ListAllByNamespace(indexer, ns, labels.SelectorFromSet(label),
-			func(servobj interface{}) {
-				services = append(services, servobj.(*v1.Service))
-			})
-	}
-	return services
 }
 
 // UpdateSnatPolicy Updates a UpdateSnatPolicy CR
