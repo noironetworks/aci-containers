@@ -464,6 +464,16 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	go conn.processQueue(conn.DeltaQueue, queueStop)
 	conn.IndexMutex.Unlock()
 
+	refreshInterval := conn.RefreshInterval
+	if refreshInterval == 0 {
+		refreshInterval = defaultConnectionRefresh
+	}
+	// Adjust refreshTickerInterval.
+	// To refresh the subscriptions early than actual refresh timeout value
+	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
+	refreshTicker := time.NewTicker(refreshTickerInterval)
+	defer refreshTicker.Stop()
+
 	var hasErr bool
 	for value, subscription := range conn.Subscriptions.Subs {
 		if !(conn.subscribe(value, subscription)) {
@@ -494,16 +504,6 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			}
 		}()
 	}
-
-	refreshInterval := conn.RefreshInterval
-	if refreshInterval == 0 {
-		refreshInterval = defaultConnectionRefresh
-	}
-	// Adjust refreshTickerInterval.
-	// To refresh the subscriptions early than actual refresh timeout value
-	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
-	refreshTicker := time.NewTicker(refreshTickerInterval)
-	defer refreshTicker.Stop()
 
 	closeConn := func(stop bool) {
 		close(queueStop)
