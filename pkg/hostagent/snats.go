@@ -1143,6 +1143,34 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 	return
 }
 
+func (agent *HostAgent) isPresentInOpflexSnatLocalInfos(poduids []string, res ResourceType, name string) bool {
+	seen := true
+	for _, uid := range poduids {
+		localinfo, okUId := agent.opflexSnatLocalInfos[uid]
+		if !okUId {
+			seen = false
+			break
+		}
+		policies, okRes := localinfo.Snatpolicies[res]
+		if !okRes {
+			seen = false
+			break
+		}
+		found := false
+		for _, plcyname := range policies {
+			if plcyname == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			seen = false
+			break
+		}
+	}
+	return seen
+}
+
 func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	agent.snatPolicyCacheMutex.RLock()
 	defer agent.snatPolicyCacheMutex.RUnlock()
@@ -1172,22 +1200,23 @@ func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 				}
 			}
 		}
-
 	} else {
 		var delpodlist []string
 		matchnames := agent.getMatchingSnatPolicy(obj)
 		agent.log.Info("HandleObject matching policies: ", matchnames)
 		seen := make(map[string]bool)
 		for name, res := range plcynames {
+			poduids, _ := agent.getPodsMatchingObject(obj, name)
 			if _, ok := matchnames[name]; !ok {
-				poduids, _ := agent.getPodsMatchingObject(obj, name)
 				for _, uid := range poduids {
 					agent.deleteSnatLocalInfo(uid, res, name)
 				}
 				delpodlist = append(delpodlist, poduids...)
 				agent.DeleteSnatPolicyLabelEntry(objKey, name)
+				seen[name] = true
+			} else if agent.isPresentInOpflexSnatLocalInfos(poduids, res, name) {
+				seen[name] = true
 			}
-			seen[name] = true
 		}
 		if len(delpodlist) > 0 {
 			agent.updateEpFiles(delpodlist)
