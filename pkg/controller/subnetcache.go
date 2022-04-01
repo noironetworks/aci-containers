@@ -59,9 +59,86 @@ func (cont *AciController) UpdateSubnetDnCache(subnetDn string, subnetIp string,
 		}
 	}
 	if !inCache {
-		cont.BuildSubnetDnCache(subnetDn, aciVrfDn)
+		cont.UpdateSubnetDnCacheForDn(subnetDn, subnetIp)
 		cont.scheduleRdConfig()
 	}
+}
+
+func (cont *AciController) isBdPresentInVrf(bdDn string) bool {
+	bdsubnetParentArgs := []string{
+		"query-target=children&target-subtree-class=fvRsCtx",
+	}
+	bdsubnetParentDnUri := "/api/node/mo/" + bdDn + ".json?" + strings.Join(bdsubnetParentArgs, "&")
+	apicresp, err := cont.apicConn.GetApicResponse(bdsubnetParentDnUri)
+	if err != nil {
+		cont.log.Debugf("Failed to get APIC response, err: %v", err)
+		return false
+	}
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			tDn, ok := body.Attributes["tDn"].(string)
+			if !ok {
+				continue
+			}
+			if tDn == cont.config.AciVrfDn {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (cont *AciController) UpdateSubnetDnCacheForDn(subnetDn string, subnetIp string) {
+	cont.log.Debug("Updating SubnetDnCache for dn: ", subnetDn, "ip: ", subnetIp)
+	subnetDelimiter := "/subnet"
+	subnetParentDn := strings.Split(subnetDn, subnetDelimiter)[0]
+	subnetParentArgs := []string{
+		"query-target=self",
+	}
+	subnetParentDnUri := "/api/node/mo/" + subnetParentDn + ".json?" + strings.Join(subnetParentArgs, "&")
+	apicresp, err := cont.apicConn.GetApicResponse(subnetParentDnUri)
+	if err != nil {
+		cont.log.Debugf("Failed to get APIC response, err: %v", err)
+		return
+	}
+	for _, obj := range apicresp.Imdata {
+		for class := range obj {
+			if class == "fvBD" {
+				if cont.isBdPresentInVrf(subnetParentDn) {
+					cont.indexMutex.Lock()
+					cont.apicConn.CachedSubnetDns[subnetDn] = subnetIp
+					cont.log.Debug("fvBD: Adding to CachedSubnetDns: ", subnetDn)
+					cont.indexMutex.Unlock()
+				}
+				//if objClass is not fvBD, it will be fvAEPg
+			} else {
+				epgsubnetParentArgs := []string{
+					"query-target=children&target-subtree-class=fvRsBd",
+				}
+				epgsubnetParentDnUri := "/api/node/mo/" + subnetParentDn + ".json?" + strings.Join(epgsubnetParentArgs, "&")
+				apicepgresp, epgerr := cont.apicConn.GetApicResponse(epgsubnetParentDnUri)
+				if epgerr != nil {
+					cont.log.Debugf("Failed to get APIC response, err: %v", epgerr)
+					return
+				}
+				for _, epgobj := range apicepgresp.Imdata {
+					for _, epgbody := range epgobj {
+						epgParentDn, ok := epgbody.Attributes["tDn"].(string)
+						if !ok {
+							continue
+						}
+						if cont.isBdPresentInVrf(epgParentDn) {
+							cont.indexMutex.Lock()
+							cont.apicConn.CachedSubnetDns[subnetDn] = subnetIp
+							cont.log.Debug("fvAEPg: Adding to CachedSubnetDns: ", subnetDn)
+							cont.indexMutex.Unlock()
+						}
+					}
+				}
+			}
+		}
+	}
+
 }
 
 func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
