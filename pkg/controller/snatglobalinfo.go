@@ -20,6 +20,7 @@ import (
 	"net"
 	"reflect"
 	"strconv"
+	"strings"
 
 	uuid "github.com/google/uuid"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
@@ -43,14 +44,32 @@ func (cont *AciController) initSnatNodeInformerFromClient(
 	cont.initSnatNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to list NodeInfos during initialization of SnatNodeInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatal("Failed to list NodeInfos during initialization of SnatNodeInformer")
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to watch NodeInfos during initialization SnatNodeInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
 				}
@@ -86,7 +105,16 @@ func (cont *AciController) initSnatCfgFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().ConfigMaps("aci-containers-system").List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to list ConfigMap during initialization of SnatCfg :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatal("Failed to list ConfigMap during initialization of SnatCfg")
 				}
@@ -95,7 +123,16 @@ func (cont *AciController) initSnatCfgFromClient(
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().ConfigMaps("aci-containers-system").Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to watch NodeInfos during initialization SnatNodeInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
 				}

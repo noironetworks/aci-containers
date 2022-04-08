@@ -123,14 +123,32 @@ func (agent *HostAgent) initEndpointsInformerFromClient(
 	agent.initEndpointsInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list Endpoints during initialization of EndpointsInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list Endpoints during initialization of EndpointsInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch Endpoints during initialization of EndpointsInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch Endpoints during initialization of EndpointsInformer: %s", err)
 				}
@@ -164,14 +182,32 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 	agent.initEndpointSliceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list EndpointSlices during initialization of EndpointSliceInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch EndpointSlices during initialization of EndpointSliceInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
@@ -205,14 +241,32 @@ func (agent *HostAgent) initServiceInformerFromClient(
 	agent.initServiceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list Services during initialization of ServiceInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list Services during initialization of ServiceInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Services(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch Services during initialization of ServiceInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch Services during initialization of ServiceInformer: %s", err)
 				}
