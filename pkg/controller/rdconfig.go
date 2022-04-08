@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"strings"
 
 	rdConfigv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
@@ -41,7 +42,16 @@ func (cont *AciController) initRdConfigInformerFromClient(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector = fields.Set{"metadata.name": name}.String()
-				obj, err := rdConfigClient.AciV1().RdConfigs(ns).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = rdConfigClient.AciV1().RdConfigs(ns).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to list RdConfigs during initialization of RdConfigInformer with err: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatalf("Failed to list RdConfigs during initialization of RdConfigInformer with err: %v", err)
 				}
@@ -49,7 +59,16 @@ func (cont *AciController) initRdConfigInformerFromClient(
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector = fields.Set{"metadata.name": name}.String()
-				obj, err := rdConfigClient.AciV1().RdConfigs(ns).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = rdConfigClient.AciV1().RdConfigs(ns).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						cont.log.Error("Failed to watch RdConfigs during initialization RdConfigsInformer with err: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					cont.log.Fatalf("Failed to watch RdConfigs during initialization RdConfigsInformer with err: %v", err)
 				}

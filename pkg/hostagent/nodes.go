@@ -53,7 +53,16 @@ func (agent *HostAgent) initNodeInformerFromClient(
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				obj, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Nodes().List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list Nodes during initialization of NodeInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list Nodes during initialization of NodeInformer: %s", err)
 				}
@@ -62,7 +71,16 @@ func (agent *HostAgent) initNodeInformerFromClient(
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				obj, err := kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch Nodes during initialization of NodeInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch Nodes during initialization of NodeInformer: %s", err)
 				}
