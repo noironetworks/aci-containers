@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdConClSet "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
@@ -44,14 +45,32 @@ func (agent *HostAgent) initRdConfigInformerFromClient(
 	agent.initRdConfigInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list RdConfigs during initialization of RdConfigInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list RdConfigs during initialization of RdConfigInformer")
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch RdConfigs during initialization of RdConfigInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch RdConfigs during initialization of RdConfigInformer")
 				}
