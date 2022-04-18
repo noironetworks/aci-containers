@@ -19,11 +19,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	kubecontext "context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,8 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+var logFileSize string
 
 func getNodes() (*v1.NodeList, error) {
 	kubeClient := initClientPrintError()
@@ -50,18 +54,89 @@ func getNodes() (*v1.NodeList, error) {
 	return nodes, err
 }
 
+func getLogFileSize() (string, error) {
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		fmt.Fprintln(os.Stderr, "Could not get kubeclient", nil)
+		return "", nil
+	}
+
+	cfgMap, err :=
+		kubeClient.CoreV1().ConfigMaps("aci-containers-system").Get(kubecontext.TODO(), "acc-provision-config", metav1.GetOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not get config-map:", err)
+		return "", err
+	}
+
+	var result map[string]interface{}
+	if err = json.Unmarshal([]byte(cfgMap.Data["spec"]), &result); err != nil {
+		fmt.Fprintln(os.Stderr, "Could not Unmarshall configMap:", err)
+		return "", err
+	}
+	if _, ok := result["acc_provision_input"]; !ok {
+		fmt.Fprintln(os.Stderr, "Acc-provision-input is empty in configMap")
+		return "", nil
+	}
+	acc_provision_input := result["acc_provision_input"].(map[string]interface{})
+	if _, ok := acc_provision_input["logging"]; !ok {
+		fmt.Fprintln(os.Stderr, "Logging is not provided in acc-provision-input")
+		return "", nil
+	}
+	logging := acc_provision_input["logging"].(map[string]interface{})
+	if _, ok := logging["size"]; !ok {
+		fmt.Fprintln(os.Stderr, "Size is not provided in logging of acc-provision-input")
+		return "", nil
+	}
+	size := logging["size"].(float64)
+	return strconv.Itoa(int(size)), err
+}
+
 func execKubectl(args []string, out io.Writer) error {
 	baseargs := []string{"--kubeconfig", kubeconfig, "--context", context}
-	cmd := exec.Command("kubectl", append(baseargs, args...)...)
-
-	cmd.Stdout = out
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Start()
-	if err != nil {
-		return err
+	var argsNoPipe, argsAfterPipe []string
+	for i, str := range args {
+		if str == "|" {
+			argsAfterPipe = args[i+2:]
+			break
+		}
+		argsNoPipe = append(argsNoPipe, str)
 	}
-	cmd.Wait()
+	if len(argsAfterPipe) != 0 {
+		cmd1 := exec.Command("kubectl", append(baseargs, argsNoPipe...)...)
+		cmd2 := exec.Command("tail", argsAfterPipe...)
+
+		reader, writer := io.Pipe()
+		var buf bytes.Buffer
+		cmd1.Stdout = writer
+		cmd2.Stdin = reader
+		cmd2.Stdout = &buf
+
+		err := cmd1.Start()
+		if err != nil {
+			return err
+		}
+		err = cmd2.Start()
+		if err != nil {
+			return err
+		}
+
+		cmd1.Wait()
+		writer.Close()
+
+		cmd2.Wait()
+		reader.Close()
+
+		io.Copy(out, &buf)
+	} else {
+		cmd := exec.Command("kubectl", append(baseargs, argsNoPipe...)...)
+		cmd.Stdout = out
+		cmd.Stderr = os.Stderr
+		err := cmd.Start()
+		if err != nil {
+			return err
+		}
+		cmd.Wait()
+	}
 	return nil
 }
 
@@ -143,6 +218,10 @@ func createTarForClusterReport(tarWriter *tar.Writer) error {
 }
 
 func clusterReport(cmd *cobra.Command, args []string) {
+	logFileSize, _ = getLogFileSize()
+	if logFileSize == "" {
+		fmt.Fprintln(os.Stderr, "Generating cluster report with complete logs of containers.")
+	}
 	output, err := cmd.PersistentFlags().GetString("output")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -514,7 +593,6 @@ func clusterReport(cmd *cobra.Command, args []string) {
 
 	tarWriter.Close()
 	gzWriter.Close()
-
 	if hasErrors {
 		fmt.Fprintln(os.Stderr, "Wrote report (with errors) to", output)
 	} else {
@@ -535,21 +613,30 @@ func getOutfile(output string) (string, *os.File, error) {
 }
 
 func accLogCmdArgs(systemNamespace string) []string {
+	if logFileSize != "" {
+		return []string{"-n", systemNamespace, "logs",
+			"deployment/aci-containers-controller", "-c", "aci-containers-controller", "|", "tail", "-c", logFileSize}
+	}
 	return []string{"-n", systemNamespace, "logs",
-		"deployment/aci-containers-controller",
-		"-c", "aci-containers-controller"}
+		"deployment/aci-containers-controller", "-c", "aci-containers-controller"}
 }
 
 func accprovisionoperatorLogCmdArgs(systemNamespace string) []string {
+	if logFileSize != "" {
+		return []string{"-n", systemNamespace, "logs",
+			"deployment/aci-containers-operator", "-c", "acc-provision-operator", "|", "tail", "-c", logFileSize}
+	}
 	return []string{"-n", systemNamespace, "logs",
-		"deployment/aci-containers-operator",
-		"-c", "acc-provision-operator"}
+		"deployment/aci-containers-operator", "-c", "acc-provision-operator"}
 }
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
+	if logFileSize != "" {
+		return []string{"-n", systemNamespace, "logs", "--limit-bytes",
+			"deployment/aci-containers-operator", "-c", "aci-containers-operator", "|", "tail", "-c", logFileSize}
+	}
 	return []string{"-n", systemNamespace, "logs",
-		"deployment/aci-containers-operator",
-		"-c", "aci-containers-operator"}
+		"deployment/aci-containers-operator", "-c", "aci-containers-operator"}
 }
 
 func accVersionCmdArgs(systemNamespace string) []string {
@@ -583,9 +670,11 @@ type nodeCmdArgFunc func(string, string, string, []string) []string
 
 func nodeLogCmdArgs(systemNamespace string, podName string,
 	containerName string, args []string) []string {
-
-	return []string{"-n", systemNamespace, "logs",
-		podName, "-c", containerName}
+	if logFileSize != "" {
+		return []string{"-n", systemNamespace, "logs",
+			podName, "-c", containerName, "|", "tail", "-c", logFileSize}
+	}
+	return []string{"-n", systemNamespace, "logs", podName, "-c", containerName}
 }
 
 func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
