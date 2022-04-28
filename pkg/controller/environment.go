@@ -262,9 +262,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 		}, nil, stopCh)
-	go cont.processQueue(cont.mulNetPolQueue, cont.networkPolicyIndexer,
-		func(obj interface{}) bool {
-			return cont.handleMulNetPolUpdate(obj.([]*v1net.NetworkPolicy))
+	go cont.processMulQueue(cont.mulNetPolQueue, cont.networkPolicyIndexer,
+		func(obj []interface{}) bool {
+			return cont.handleMulNetPolUpdate(obj)
 		}, nil, stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {

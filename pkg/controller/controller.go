@@ -389,8 +389,8 @@ func (cont *AciController) Init() {
 	}
 }
 
-func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
-	store cache.Store, handler func(interface{}) bool,
+func (cont *AciController) processMulQueue(queue workqueue.RateLimitingInterface,
+	store cache.Store, handler func([]interface{}) bool,
 	postDelHandler func() bool, stopCh <-chan struct{}) {
 	go wait.Until(func() {
 		for {
@@ -423,19 +423,47 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 					if postDelHandler != nil && len(objs) > 0 {
 						requeue = postDelHandler()
 					}
-				} else {
-					obj, exists, err := store.GetByKey(key)
-					if err != nil {
-						cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
-					}
-					//Handle Add/Update/Delete
-					if exists && handler != nil {
-						requeue = handler(obj)
-					}
-					//Handle Post Delete
-					if !exists && postDelHandler != nil {
-						requeue = postDelHandler()
-					}
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
+	store cache.Store, handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
+				obj, exists, err := store.GetByKey(key)
+				if err != nil {
+					cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+				}
+				//Handle Add/Update/Delete
+				if exists && handler != nil {
+					requeue = handler(obj)
+				}
+				//Handle Post Delete
+				if !exists && postDelHandler != nil {
+					requeue = postDelHandler()
 				}
 			}
 			if requeue {

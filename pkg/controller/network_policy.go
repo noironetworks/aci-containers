@@ -1081,8 +1081,9 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
-func (cont *AciController) handleMulNetPolUpdate(nps []*v1net.NetworkPolicy) bool {
-	for _, np := range nps {
+func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
+	for _, netp := range nps {
+		np := netp.(*v1net.NetworkPolicy)
 		key, err := cache.MetaNamespaceKeyFunc(np)
 		logger := networkPolicyLogger(cont.log, np)
 		if err != nil {
