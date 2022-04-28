@@ -1028,7 +1028,8 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 	}
-	//conn.log.Debug(string(raw))
+	conn.log.Debug("testtttt : ", url)
+	conn.log.Debug(string(raw))
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
@@ -1068,6 +1069,7 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 		conn.restart()
 		return false
 	}
+	conn.log.Debug("Delete testtttt ", url)
 	conn.sign(req, uri, nil)
 	resp, err := conn.client.Do(req)
 	if err != nil {

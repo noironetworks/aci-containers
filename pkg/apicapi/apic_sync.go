@@ -355,6 +355,9 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	conn.indexMutex.Lock()
 	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
 
+	conn.log.Debug("testttt 1111111 deletes: ", deletes)
+	conn.log.Debug("testttt 1111111 updates: ", updates)
+
 	// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 	// found in deletes
 	var temp_deletes []string

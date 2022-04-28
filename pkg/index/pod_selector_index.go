@@ -15,15 +15,14 @@
 package index
 
 import (
-	"reflect"
-	"sync"
-
 	"github.com/sirupsen/logrus"
-
 	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
+	"reflect"
+	"sync"
 )
 
 type set map[string]bool
@@ -75,6 +74,9 @@ type GetKeyFunc func(interface{}) (string, error)
 // Callback function for SetPodUpdateCallback or SetObjUpdateCallback
 type UpdateFunc func(key string)
 
+// Callback function for SetPodUpdateCallback or SetObjUpdateCallback
+type MulUpdateFunc func(keys []string)
+
 // Calculate a hash over pod fields to detect pod changes that should
 // trigger an update
 type PodHashFunc func(pod *v1.Pod) string
@@ -95,9 +97,10 @@ type PodSelectorIndex struct {
 	getKey         GetKeyFunc
 	getPodSelector GetPodSelectorFunc
 
-	updatePod   UpdateFunc
-	updateObj   UpdateFunc
-	podHashFunc PodHashFunc
+	updatePod    UpdateFunc
+	updateObj    UpdateFunc
+	updateMulObj MulUpdateFunc
+	podHashFunc  PodHashFunc
 
 	indexMutex sync.Mutex
 
@@ -144,6 +147,12 @@ func (i *PodSelectorIndex) SetPodUpdateCallback(updatePod UpdateFunc) {
 // object change
 func (i *PodSelectorIndex) SetObjUpdateCallback(updateObj UpdateFunc) {
 	i.updateObj = updateObj
+}
+
+// Set a callback that will be called whenever the pods selected by
+// multiple objects change
+func (i *PodSelectorIndex) SetMulObjUpdateCallback(updateMulObj MulUpdateFunc) {
+	i.updateMulObj = updateMulObj
 }
 
 // Set a function to compute a hash over pod fields.  When the pod
@@ -267,7 +276,7 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		state.podHash = podHash
 	}
 	i.indexMutex.Unlock()
-
+	i.log.Debug("indexxx    111   ", updatedObjs)
 	i.updateObjs(updatedObjs)
 
 	return podUpdated
@@ -275,6 +284,8 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 
 // Call to update the index when a pod is deleted
 func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
+	i.log.Debug("Pod deleted : ", pod.ObjectMeta.Name)
+	var updatedMulObjs []string
 	updatedObjs := make(set)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
@@ -286,18 +297,39 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 	if state, ok := i.podIndex[podkey]; ok {
 		for objkey := range state.objKeys {
 			if objm, ok := i.objPodIndex[objkey]; ok {
+				i.log.Debug("indexxxxx.... ", objm)
 				delete(objm, podkey)
 				if len(objm) == 0 {
 					delete(i.objPodIndex, objkey)
 				}
+
+				npobj, exists, err := i.objIndexer.GetByKey(objkey)
+				if err != nil {
+					i.log.Error("Failed to get object from key : ", objkey, " error: ", err)
+				} else if exists {
+					_, ok := npobj.(*v1net.NetworkPolicy)
+					if ok {
+						i.log.Debug("typeee np ", objkey)
+						updatedMulObjs = append(updatedMulObjs, objkey)
+						continue
+					}
+				}
 				updatedObjs[objkey] = true
 			}
+		}
+		if len(updatedMulObjs) == 1 {
+			key := updatedMulObjs[0]
+			updatedObjs[key] = true
 		}
 		delete(i.podIndex, podkey)
 	}
 	i.indexMutex.Unlock()
 
 	i.updateObjs(updatedObjs)
+
+	if len(updatedMulObjs) > 1 {
+		i.updateMulObj(updatedMulObjs)
+	}
 }
 
 // Call to update the index when a namespace's labels change
@@ -487,6 +519,7 @@ func (i *PodSelectorIndex) updateObjs(updated set) {
 	if i.updateObj == nil {
 		return
 	}
+	i.log.Debug("indexxxxx ", updated)
 	for key := range updated {
 		i.updateObj(key)
 	}

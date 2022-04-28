@@ -63,6 +63,7 @@ type AciController struct {
 
 	podQueue          workqueue.RateLimitingInterface
 	netPolQueue       workqueue.RateLimitingInterface
+	mulNetPolQueue    workqueue.RateLimitingInterface
 	qosQueue          workqueue.RateLimitingInterface
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
@@ -300,6 +301,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 
 		podQueue:          createQueue("pod"),
 		netPolQueue:       createQueue("networkPolicy"),
+		mulNetPolQueue:    createQueue("multipleNetworkPolicy"),
 		qosQueue:          createQueue("qos"),
 		netflowQueue:      createQueue("netflow"),
 		erspanQueue:       createQueue("erspan"),
@@ -402,17 +404,38 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 			case chan struct{}:
 				close(key)
 			case string:
-				obj, exists, err := store.GetByKey(key)
-				if err != nil {
-					cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
-				}
-				//Handle Add/Update/Delete
-				if exists && handler != nil {
-					requeue = handler(obj)
-				}
-				//Handle Post Delete
-				if !exists && postDelHandler != nil {
-					requeue = postDelHandler()
+				if strings.Contains(key, "_") {
+					var objs []interface{}
+					keys := strings.Split(key, "_")
+					cont.log.Debug("Keysssss ", keys)
+					for _, singleKey := range keys {
+						obj, exists, err := store.GetByKey(singleKey)
+						if err != nil {
+							cont.log.Debugf("Error fetching object with key %s from store: %v", singleKey, err)
+						}
+						if exists {
+							objs = append(objs, obj)
+						}
+					}
+					if handler != nil && len(objs) > 0 {
+						requeue = handler(objs)
+					}
+					if postDelHandler != nil && len(objs) > 0 {
+						requeue = postDelHandler()
+					}
+				} else {
+					obj, exists, err := store.GetByKey(key)
+					if err != nil {
+						cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+					}
+					//Handle Add/Update/Delete
+					if exists && handler != nil {
+						requeue = handler(obj)
+					}
+					//Handle Post Delete
+					if !exists && postDelHandler != nil {
+						requeue = postDelHandler()
+					}
 				}
 			}
 			if requeue {
@@ -620,7 +643,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		_, ok := cont.env.(*K8sEnvironment)
 		if ok {
 			qs = []workqueue.RateLimitingInterface{
-				cont.podQueue, cont.netPolQueue, cont.qosQueue,
+				cont.podQueue, cont.netPolQueue, cont.mulNetPolQueue, cont.qosQueue,
 				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
 				cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
 			}

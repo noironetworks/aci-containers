@@ -173,13 +173,22 @@ func (cont *AciController) initNetPolPodIndex() {
 	npupdate := func(npkey string) {
 		npobj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
 		if exists && err == nil {
+			cont.log.Debug("loggggg npupdate ", npkey)
 			cont.queueNetPolUpdate(npobj.(*v1net.NetworkPolicy))
 		}
 	}
+	mulnpupdate := func(npkeys []string) {
+		if len(npkeys) > 0 {
+			cont.log.Debug("loggggg multttt npupdate ", npkeys)
+			cont.queueMulNetPolUpdateByKey(npkeys)
+		}
+	}
+
 	nphash := func(pod *v1.Pod) string {
 		return pod.Status.PodIP
 	}
 	cont.netPolIngressPods.SetObjUpdateCallback(npupdate)
+	cont.netPolIngressPods.SetMulObjUpdateCallback(mulnpupdate)
 	cont.netPolIngressPods.SetPodHashFunc(nphash)
 	cont.netPolEgressPods.SetObjUpdateCallback(npupdate)
 	cont.netPolEgressPods.SetPodHashFunc(nphash)
@@ -314,6 +323,18 @@ func networkPolicyLogger(log *logrus.Logger,
 
 func (cont *AciController) queueNetPolUpdateByKey(key string) {
 	cont.netPolQueue.Add(key)
+}
+
+func (cont *AciController) queueMulNetPolUpdateByKey(keys []string) {
+	var keyString string
+	for i, key := range keys {
+		if i == 0 {
+			keyString = key
+		} else {
+			keyString = keyString + "_" + key
+		}
+	}
+	cont.mulNetPolQueue.Add(keyString)
 }
 
 func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
@@ -1060,6 +1081,95 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
+func (cont *AciController) handleMulNetPolUpdate(nps []*v1net.NetworkPolicy) bool {
+	for _, np := range nps {
+		key, err := cache.MetaNamespaceKeyFunc(np)
+		logger := networkPolicyLogger(cont.log, np)
+		if err != nil {
+			logger.Error("Could not create network policy key: ", err)
+			return false
+		}
+
+		peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
+		peerPodKeys =
+			append(peerPodKeys, cont.netPolEgressPods.GetPodForObj(key)...)
+		var peerPods []*v1.Pod
+		peerNs := make(map[string]*v1.Namespace)
+		for _, podkey := range peerPodKeys {
+			podobj, exists, err := cont.podIndexer.GetByKey(podkey)
+			if exists && err == nil {
+				pod := podobj.(*v1.Pod)
+				if _, nsok := peerNs[pod.ObjectMeta.Namespace]; !nsok {
+					nsobj, exists, err :=
+						cont.namespaceIndexer.GetByKey(pod.ObjectMeta.Namespace)
+					if !exists || err != nil {
+						continue
+					}
+					peerNs[pod.ObjectMeta.Namespace] = nsobj.(*v1.Namespace)
+				}
+				peerPods = append(peerPods, pod)
+			}
+		}
+		ptypeset := make(map[v1net.PolicyType]bool)
+		for _, t := range np.Spec.PolicyTypes {
+			ptypeset[t] = true
+		}
+
+		labelKey := cont.aciNameForKey("np", key)
+		hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
+		// Generate ingress policies
+		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
+			subjIngress :=
+				apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
+			for i, ingress := range np.Spec.Ingress {
+				remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
+					np.Namespace, peerPods, peerNs, logger)
+				cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
+					"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np)
+			}
+			hpp.AddChild(subjIngress)
+		}
+		// Generate egress policies
+		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeEgress] {
+			subjEgress :=
+				apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-egress")
+
+			portRemoteSubs := make(map[string]*portRemoteSubnet)
+
+			for i, egress := range np.Spec.Egress {
+				remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
+					np.Namespace, peerPods, peerNs, logger)
+				cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
+					"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
+
+				// creating a rule to egress to all on a given port needs
+				// to enable access to any service IPs/ports that have
+				// that port as their target port.
+				if len(egress.To) == 0 {
+					subnetMap = map[string]bool{
+						"0.0.0.0/0": true,
+					}
+				}
+				for _, p := range egress.Ports {
+					portkey := portKey(&p)
+					port := p
+					updatePortRemoteSubnets(portRemoteSubs, portkey, &port, subnetMap,
+						p.Port != nil && p.Port.Type == intstr.Int)
+				}
+				if len(egress.Ports) == 0 {
+					updatePortRemoteSubnets(portRemoteSubs, "", nil, subnetMap,
+						false)
+				}
+			}
+			cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
+			hpp.AddChild(subjEgress)
+		}
+		cont.log.Debug("testtttt labelKey ", labelKey)
+		cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
+	}
+	return false
+}
+
 func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
@@ -1142,6 +1252,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
+	cont.log.Debug("testtttt labelKey ", labelKey)
 	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
 	return false
 }
@@ -1181,6 +1292,7 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 		cont.nmPortNp[npkey] = true
 	}
 	cont.indexMutex.Unlock()
+	cont.log.Debug("loggggggg networkPolicyAdded ", npkey)
 	cont.queueNetPolUpdateByKey(npkey)
 }
 
@@ -1308,6 +1420,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		queue = true
 	}
 	if queue {
+		cont.log.Debug("logggggg networkPolicyChanged ", npkey)
 		cont.queueNetPolUpdateByKey(npkey)
 	}
 }
@@ -1353,6 +1466,7 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 	cont.netPolIngressPods.DeleteSelectorObj(obj)
 	cont.netPolEgressPods.DeleteSelectorObj(obj)
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("np", npkey))
+	cont.log.Debug("testttt ClearApicObjects ", npkey)
 }
 
 func (sep *serviceEndpoint) SetNpServiceAugmentForService(servicekey string, service *v1.Service, prs *portRemoteSubnet,
