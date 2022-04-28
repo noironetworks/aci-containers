@@ -89,21 +89,29 @@ type Controller struct {
 }
 
 var Version = map[string]bool{
-	"openshift-4.3":           true,
-	"cloud":                   true,
-	"openshift-4.4-esx":       true,
-	"openshift-4.4-openstack": true,
-	"openshift-4.5-openstack": true,
-	"openshift-4.6-openstack": true,
-	"openshift-4.6-baremetal": true,
-	"openshift-4.7-baremetal": true,
-	"openshift-4.8-baremetal": true,
-	"openshift-4.7-openstack": true,
-	"openshift-4.5-esx":       true,
-	"openshift-4.6-esx":       true,
-	"openshift-4.7-esx":       true,
-	"openshift-4.8-esx":       true,
+	"openshift-4.3":            true,
+	"cloud":                    true,
+	"openshift-4.4-openstack":  true,
+	"openshift-4.5-openstack":  true,
+	"openshift-4.6-openstack":  true,
+	"openshift-4.7-openstack":  true,
+	"openshift-4.8-openstack":  true,
+	"openshift-4.9-openstack":  true,
+	"openshift-4.10-openstack": true,
+	"openshift-4.6-baremetal":  true,
+	"openshift-4.7-baremetal":  true,
+	"openshift-4.8-baremetal":  true,
+	"openshift-4.9-baremetal":  true,
+	"openshift-4.10-baremetal": true,
+	"openshift-4.4-esx":        true,
+	"openshift-4.5-esx":        true,
+	"openshift-4.6-esx":        true,
+	"openshift-4.7-esx":        true,
+	"openshift-4.8-esx":        true,
+	"openshift-4.9-esx":        true,
+	"openshift-4.10-esx":       true,
 }
+
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
 }
