@@ -104,6 +104,7 @@ var Version = map[string]bool{
 	"openshift-4.7-esx":       true,
 	"openshift-4.8-esx":       true,
 }
+
 var Dnsoper = map[string]bool{
 	"openshift-4.3": true,
 }
