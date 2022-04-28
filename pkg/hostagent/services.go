@@ -113,6 +113,8 @@ var Version = map[string]bool{
 	"openshift-4.6-esx":       true,
 	"openshift-4.7-esx":       true,
 	"openshift-4.8-esx":       true,
+	"openshift-4.9-esx":       true,
+	"openshift-4.10-esx":      true,
 	"openshift-4.6-baremetal": true,
 	"openshift-4.7-baremetal": true,
 	"openshift-4.8-baremetal": true,
