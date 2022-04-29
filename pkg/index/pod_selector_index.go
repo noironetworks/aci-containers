@@ -317,9 +317,11 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 				updatedObjs[objkey] = true
 			}
 		}
-		if len(updatedMulObjs) == 1 {
-			key := updatedMulObjs[0]
-			updatedObjs[key] = true
+		if len(updatedMulObjs) == 1 || i.updateMulObj == nil {
+			i.log.Debug("Not using multiple object callback")
+			for _, key := range updatedMulObjs {
+				updatedObjs[key] = true
+			}
 		}
 		delete(i.podIndex, podkey)
 	}
@@ -327,7 +329,7 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 
 	i.updateObjs(updatedObjs)
 
-	if len(updatedMulObjs) > 1 {
+	if len(updatedMulObjs) > 1 && i.updateMulObj != nil {
 		i.updateMulObj(updatedMulObjs)
 	}
 }

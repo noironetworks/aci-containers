@@ -1082,6 +1082,7 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 }
 
 func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
+	keyObjects := make(map[string]apicapi.ApicSlice)
 	for _, netp := range nps {
 		np := netp.(*v1net.NetworkPolicy)
 		key, err := cache.MetaNamespaceKeyFunc(np)
@@ -1165,9 +1166,11 @@ func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
 			cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 			hpp.AddChild(subjEgress)
 		}
-		cont.log.Debug("testtttt labelKey ", labelKey)
-		cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
+		cont.log.Debug("testtttt labelKey ", labelKey, apicapi.ApicSlice{hpp})
+		//cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
+		keyObjects[labelKey] = apicapi.ApicSlice{hpp}
 	}
+	cont.apicConn.WriteMulApicObjects(keyObjects)
 	return false
 }
 
