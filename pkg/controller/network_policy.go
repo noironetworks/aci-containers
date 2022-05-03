@@ -1170,7 +1170,7 @@ func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
 		//cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
 		keyObjects[labelKey] = apicapi.ApicSlice{hpp}
 	}
-	cont.apicConn.WriteMulApicObjects(keyObjects)
+	cont.apicConn.WriteMulApicObjects(keyObjects, cont.config.AciPolicyTenant)
 	return false
 }
 

@@ -144,9 +144,17 @@ func (conn *ApicConnection) setDeleteStatus(deleteBody *ApicObject, deldn string
 	for _, val := range *deleteBody {
 		dn, okdn := val.Attributes["dn"]
 		if okdn && dn == deldn {
-			val.Attributes["status"] = "deleted"
+			attrs := make(map[string]interface{})
+			attrs["dn"] = val.Attributes["dn"]
+			attrs["status"] = "deleted"
+			val.Attributes = attrs
 			conn.log.Debug("deleteBody: ", *deleteBody)
 			return
+		} else {
+			attrs := make(map[string]interface{})
+			attrs["dn"] = val.Attributes["dn"]
+			attrs["status"] = ""
+			val.Attributes = attrs
 		}
 		if len(val.Children) > 0 {
 			for _, child := range val.Children {
@@ -159,8 +167,8 @@ func (conn *ApicConnection) setDeleteStatus(deleteBody *ApicObject, deldn string
 }
 
 func (conn *ApicConnection) diffMulApicState(currentState ApicSlice,
-	desiredState ApicSlice) (updates ApicSlice, deletes ApicSlice) {
-
+	desiredState ApicSlice) (updates ApicSlice, deletes map[string]ApicObject) {
+	deletes = make(map[string]ApicObject)
 	i := 0
 	j := 0
 
@@ -168,9 +176,12 @@ func (conn *ApicConnection) diffMulApicState(currentState ApicSlice,
 	delete := false
 
 	for i < len(currentState) && j < len(desiredState) {
+		deleteBody := currentState[i]
 		cmp := cmpApicObject(currentState[i], desiredState[j])
 		if cmp < 0 {
-			deletes = append(deletes, currentState[i])
+			deldn := deleteBody.GetDn()
+			conn.setDeleteStatus(&deleteBody, deldn)
+			deletes[deldn] = deleteBody
 			i++
 			delete = true
 		} else if cmp > 0 {
@@ -192,10 +203,9 @@ func (conn *ApicConnection) diffMulApicState(currentState ApicSlice,
 				if len(cd) > 0 {
 					conn.log.Debug("dns to delete: ", cd)
 					for _, deldn := range cd {
-						deleteBody := desiredState[j]
 						conn.setDeleteStatus(&deleteBody, deldn)
+						deletes[deldn] = deleteBody
 					}
-					deletes = append(deletes, desiredState[j])
 					delete = true
 				}
 			}
@@ -206,7 +216,9 @@ func (conn *ApicConnection) diffMulApicState(currentState ApicSlice,
 	}
 	// extra old objects
 	for i < len(currentState) {
-		deletes = append(deletes, currentState[i])
+		deleteBody := currentState[i]
+		deldn := deleteBody.GetDn()
+		deletes[deldn] = deleteBody
 		i++
 		delete = true
 	}
@@ -436,7 +448,10 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 	}
 }
 
-func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlice, container bool) {
+func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlice, fvTenant string, container bool) {
+	var multiDeletes ApicSlice
+	var tempdeletes []string
+	tenantObj := NewFvTenant(fvTenant)
 	for key, objects := range keyObjects {
 		tag := getTagFromKey(conn.prefix, key)
 		prepareApicSliceTag(objects, tag)
@@ -444,9 +459,10 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 		conn.indexMutex.Lock()
 		updates, deletes := conn.diffMulApicState(conn.desiredState[key], objects)
 
-		conn.log.Debug("testttt mulllll 1111111 deletes: ", deletes)
+		for _, deleteobj := range deletes {
+			multiDeletes = append(multiDeletes, deleteobj)
+		}
 		conn.log.Debug("testttt mulllll 1111111 updates: ", updates)
-
 		// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 		// found in deletes
 		/*		var temp_deletes []string
@@ -478,36 +494,47 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 				if newDelete && len(deletes) != 0 {
 					conn.log.Debug("Updated apic object deletes list is :", deletes)
 				}
-
-				conn.updateDnIndex(objects)
-				for _, del := range deletes {
-					conn.removeFromDnIndex(del)
-					if container {
-						delete(conn.containerDns, del)
-					}
+		*/
+		conn.updateDnIndex(objects)
+		for deldn := range deletes {
+			conn.removeFromDnIndex(deldn)
+			if container {
+				delete(conn.containerDns, deldn)
+			}
+		}
+		/*
+			for _, update := range updates {
+				dn := update.GetDn()
+				if container {
+					conn.containerDns[dn] = true
 				}
-				for _, update := range updates {
-					dn := update.GetDn()
-					if container {
-						conn.containerDns[dn] = true
-					}
-				}
+			}
+		*/
+		if objects == nil {
+			delete(conn.desiredState, key)
+			delete(conn.keyHashes, tag)
+		} else {
+			conn.desiredState[key] = objects
+			conn.keyHashes[tag] = key
+		}
+		conn.indexMutex.Unlock()
 
-				if objects == nil {
-					delete(conn.desiredState, key)
-					delete(conn.keyHashes, tag)
-				} else {
-					conn.desiredState[key] = objects
-					conn.keyHashes[tag] = key
-				}
-
-				if conn.syncEnabled {
+		/*		if conn.syncEnabled {
 					conn.indexMutex.Unlock()
 					conn.applyDiff(updates, deletes, "write")
 				} else {
 					conn.indexMutex.Unlock()
 				}
 		*/
+	}
+	if conn.syncEnabled {
+		if len(multiDeletes) > 0 {
+			tenantObj["fvTenant"].Children = multiDeletes
+			tenantObj["fvTenant"].Attributes["status"] = "modified"
+			conn.desiredStateDn[tenantObj.GetDn()] = tenantObj
+			conn.log.Debug("testttt mulllll 1111111 deletes: ", tenantObj, tempdeletes, tenantObj.GetDn())
+			//conn.applyDiff(ApicSlice{tenantObj}, tempdeletes, "write")
+		}
 	}
 }
 
@@ -601,8 +628,8 @@ func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
 	conn.doWriteApicObjects(key, objects, false)
 }
 
-func (conn *ApicConnection) WriteMulApicObjects(keyObjects map[string]ApicSlice) {
-	conn.doWriteMulApicObjects(keyObjects, false)
+func (conn *ApicConnection) WriteMulApicObjects(keyObjects map[string]ApicSlice, fvTenant string) {
+	conn.doWriteMulApicObjects(keyObjects, fvTenant, false)
 }
 
 func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
