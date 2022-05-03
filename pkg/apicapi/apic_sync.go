@@ -533,7 +533,7 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 			tenantObj["fvTenant"].Attributes["status"] = "modified"
 			conn.desiredStateDn[tenantObj.GetDn()] = tenantObj
 			conn.log.Debug("testttt mulllll 1111111 deletes: ", tenantObj, tempdeletes, tenantObj.GetDn())
-			//conn.applyDiff(ApicSlice{tenantObj}, tempdeletes, "write")
+			conn.applyDiff(ApicSlice{tenantObj}, tempdeletes, "write")
 		}
 	}
 }
