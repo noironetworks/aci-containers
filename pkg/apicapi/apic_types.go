@@ -122,6 +122,7 @@ type ApicConnection struct {
 
 	desiredState       map[string]ApicSlice
 	desiredStateDn     map[string]ApicObject
+	multipleDn         map[string]map[string]ApicObject
 	keyHashes          map[string]string
 	containerDns       map[string]bool
 	cachedState        map[string]ApicSlice

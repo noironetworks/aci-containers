@@ -216,6 +216,7 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		return false
 	}
 
+	var updatedMulObjs []string
 	podUpdated := false
 	matched := make(set)
 	updatedObjs := make(set)
@@ -275,9 +276,26 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		state.objKeys = matched
 		state.podHash = podHash
 	}
+	for objkey := range updatedObjs {
+		npobj, exists, err := i.objIndexer.GetByKey(objkey)
+		if err != nil {
+			i.log.Error("Failed to get object from key : ", objkey, " error: ", err)
+		} else if exists {
+			_, ok := npobj.(*v1net.NetworkPolicy)
+			if ok {
+				updatedMulObjs = append(updatedMulObjs, objkey)
+			}
+		}
+	}
+
 	i.indexMutex.Unlock()
-	i.log.Debug("indexxx    111   ", updatedObjs)
-	i.updateObjs(updatedObjs)
+	if len(updatedMulObjs) > 1 && i.updateMulObj != nil {
+		i.log.Debug("indexxx  updatedMulObjs ", updatedMulObjs)
+		i.updateMulObj(updatedMulObjs)
+	} else {
+		i.log.Debug("indexxx    111   ", updatedObjs)
+		i.updateObjs(updatedObjs)
+	}
 
 	return podUpdated
 }

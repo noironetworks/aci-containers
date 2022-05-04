@@ -235,6 +235,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		},
 		desiredState:       make(map[string]ApicSlice),
 		desiredStateDn:     make(map[string]ApicObject),
+		multipleDn:         make(map[string]map[string]ApicObject),
 		keyHashes:          make(map[string]string),
 		containerDns:       make(map[string]bool),
 		cachedState:        make(map[string]ApicSlice),
@@ -334,18 +335,12 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		}
 		conn.indexMutex.Unlock()
 	}
-	prjdn := "uni/tn-prj_5cc3c29ec36a49cf942ff84f9e8deb30"
-	dsprj, ok := conn.desiredStateDn[prjdn]
-	if ok {
-		conn.log.Debug("Infooooooooooooooooooo dn ", dsprj)
-	} else {
-		conn.log.Debug("Infooooooooooooooooooo no dn ")
-	}
 	var requeue bool
 	conn.indexMutex.Lock()
 	pending, hasPendingChange := conn.pendingSubDnUpdate[dn]
 	conn.pendingSubDnUpdate[dn] = pendingChange{isDirty: true}
 	obj, hasDesiredState := conn.desiredStateDn[dn]
+	mulobj, hasMulDn := conn.multipleDn[dn]
 	conn.indexMutex.Unlock()
 
 	if hasPendingChange {
@@ -371,6 +366,14 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 			}
 		} else {
 			requeue = conn.postDn(dn, obj)
+		}
+	} else if hasMulDn {
+		for key, val := range mulobj {
+			requeue = conn.postDn(key, val)
+			if !requeue {
+				conn.removeFromMultipleDn(key)
+			}
+			break
 		}
 	} else {
 		if hasPendingChange {

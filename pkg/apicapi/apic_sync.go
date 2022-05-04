@@ -301,6 +301,20 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	return
 }
 
+func (conn *ApicConnection) applyMulDiff(updates string, deletes string,
+	context string) {
+	if deletes != "" {
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": deletes, "context": context}).
+			Debug("Applying APIC multiple object delete")
+		conn.queueDn(deletes)
+	}
+	if updates != "" {
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": updates, "context": context}).
+			Debug("Applying APIC multiple object update")
+		conn.queueDn(updates)
+	}
+}
+
 func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	context string) {
 	sort.Sort(updates)
@@ -435,6 +449,15 @@ func (conn *ApicConnection) updateDnIndex(objects ApicSlice) {
 	}
 }
 
+func (conn *ApicConnection) removeFromMultipleDn(dn string) {
+	conn.indexMutex.Lock()
+	if _, ok := conn.multipleDn[dn]; ok {
+		delete(conn.multipleDn, dn)
+
+	}
+	conn.indexMutex.Unlock()
+}
+
 func (conn *ApicConnection) removeFromDnIndex(dn string) {
 	if obj, ok := conn.desiredStateDn[dn]; ok {
 		delete(conn.desiredStateDn, dn)
@@ -450,8 +473,9 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 
 func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlice, fvTenant string, container bool) {
 	var multiDeletes ApicSlice
-	var tempdeletes []string
-	tenantObj := NewFvTenant(fvTenant)
+	var multiUpdates ApicSlice
+	var muldeldn string
+	var mulupdn string
 	for key, objects := range keyObjects {
 		tag := getTagFromKey(conn.prefix, key)
 		prepareApicSliceTag(objects, tag)
@@ -462,7 +486,10 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 		for _, deleteobj := range deletes {
 			multiDeletes = append(multiDeletes, deleteobj)
 		}
-		conn.log.Debug("testttt mulllll 1111111 updates: ", updates)
+
+		for _, updateobj := range updates {
+			multiUpdates = append(multiUpdates, updateobj)
+		}
 		// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 		// found in deletes
 		/*		var temp_deletes []string
@@ -497,19 +524,19 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 		*/
 		conn.updateDnIndex(objects)
 		for deldn := range deletes {
+			muldeldn = muldeldn + deldn
 			conn.removeFromDnIndex(deldn)
 			if container {
 				delete(conn.containerDns, deldn)
 			}
 		}
-		/*
-			for _, update := range updates {
-				dn := update.GetDn()
-				if container {
-					conn.containerDns[dn] = true
-				}
+		for _, update := range updates {
+			dn := update.GetDn()
+			mulupdn = mulupdn + dn
+			if container {
+				conn.containerDns[dn] = true
 			}
-		*/
+		}
 		if objects == nil {
 			delete(conn.desiredState, key)
 			delete(conn.keyHashes, tag)
@@ -529,12 +556,28 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 	}
 	if conn.syncEnabled {
 		if len(multiDeletes) > 0 {
+			mulobj := make(map[string]ApicObject)
+			tenantObj := NewFvTenant(fvTenant)
+			conn.indexMutex.Lock()
 			tenantObj["fvTenant"].Children = multiDeletes
 			tenantObj["fvTenant"].Attributes["status"] = "modified"
-			conn.desiredStateDn[tenantObj.GetDn()] = tenantObj
-			conn.log.Debug("testttt mulllll 1111111 deletes: ", tenantObj, tempdeletes, tenantObj.GetDn())
-			conn.applyDiff(ApicSlice{tenantObj}, tempdeletes, "write")
+			mulobj[tenantObj.GetDn()] = tenantObj
+			conn.multipleDn[muldeldn] = mulobj
+			conn.log.Debug("testttt mulllll 1111111 deletes: ", tenantObj, tenantObj.GetDn())
+			conn.indexMutex.Unlock()
 		}
+		if len(multiUpdates) > 0 {
+			mulobj := make(map[string]ApicObject)
+			tenantObj := NewFvTenant(fvTenant)
+			conn.indexMutex.Lock()
+			tenantObj["fvTenant"].Children = multiUpdates
+			tenantObj["fvTenant"].Attributes["status"] = "modified"
+			mulobj[tenantObj.GetDn()] = tenantObj
+			conn.multipleDn[mulupdn] = mulobj
+			conn.log.Debug("testttt mulllll 1111111 updates: ", tenantObj, tenantObj.GetDn())
+			conn.indexMutex.Unlock()
+		}
+		conn.applyMulDiff(mulupdn, muldeldn, "write")
 	}
 }
 
