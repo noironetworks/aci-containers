@@ -1081,105 +1081,12 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
-func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
-	keyObjects := make(map[string]apicapi.ApicSlice)
-	for _, netp := range nps {
-		np := netp.(*v1net.NetworkPolicy)
-		key, err := cache.MetaNamespaceKeyFunc(np)
-		logger := networkPolicyLogger(cont.log, np)
-		if err != nil {
-			logger.Error("Could not create network policy key: ", err)
-			return false
-		}
-
-		peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
-		peerPodKeys =
-			append(peerPodKeys, cont.netPolEgressPods.GetPodForObj(key)...)
-		var peerPods []*v1.Pod
-		peerNs := make(map[string]*v1.Namespace)
-		for _, podkey := range peerPodKeys {
-			podobj, exists, err := cont.podIndexer.GetByKey(podkey)
-			if exists && err == nil {
-				pod := podobj.(*v1.Pod)
-				if _, nsok := peerNs[pod.ObjectMeta.Namespace]; !nsok {
-					nsobj, exists, err :=
-						cont.namespaceIndexer.GetByKey(pod.ObjectMeta.Namespace)
-					if !exists || err != nil {
-						continue
-					}
-					peerNs[pod.ObjectMeta.Namespace] = nsobj.(*v1.Namespace)
-				}
-				peerPods = append(peerPods, pod)
-			}
-		}
-		ptypeset := make(map[v1net.PolicyType]bool)
-		for _, t := range np.Spec.PolicyTypes {
-			ptypeset[t] = true
-		}
-
-		labelKey := cont.aciNameForKey("np", key)
-		hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
-		// Generate ingress policies
-		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
-			subjIngress :=
-				apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
-			for i, ingress := range np.Spec.Ingress {
-				remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
-					np.Namespace, peerPods, peerNs, logger)
-				cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
-					"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np)
-			}
-			hpp.AddChild(subjIngress)
-		}
-		// Generate egress policies
-		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeEgress] {
-			subjEgress :=
-				apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-egress")
-
-			portRemoteSubs := make(map[string]*portRemoteSubnet)
-
-			for i, egress := range np.Spec.Egress {
-				remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
-					np.Namespace, peerPods, peerNs, logger)
-				cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-					"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
-
-				// creating a rule to egress to all on a given port needs
-				// to enable access to any service IPs/ports that have
-				// that port as their target port.
-				if len(egress.To) == 0 {
-					subnetMap = map[string]bool{
-						"0.0.0.0/0": true,
-					}
-				}
-				for _, p := range egress.Ports {
-					portkey := portKey(&p)
-					port := p
-					updatePortRemoteSubnets(portRemoteSubs, portkey, &port, subnetMap,
-						p.Port != nil && p.Port.Type == intstr.Int)
-				}
-				if len(egress.Ports) == 0 {
-					updatePortRemoteSubnets(portRemoteSubs, "", nil, subnetMap,
-						false)
-				}
-			}
-			cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
-			hpp.AddChild(subjEgress)
-		}
-		cont.log.Debug("testtttt labelKey ", labelKey, apicapi.ApicSlice{hpp})
-		//cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
-		keyObjects[labelKey] = apicapi.ApicSlice{hpp}
-	}
-	cont.apicConn.WriteMulApicObjects(keyObjects, cont.config.AciPolicyTenant)
-	return false
-}
-
-func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
+func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string, apicapi.ApicSlice) {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
 		logger.Error("Could not create network policy key: ", err)
-		return false
+		return "", apicapi.ApicSlice{}
 	}
 
 	peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
@@ -1256,8 +1163,29 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
-	cont.log.Debug("testtttt labelKey ", labelKey)
-	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
+	return labelKey, apicapi.ApicSlice{hpp}
+}
+
+func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
+	keyObjects := make(map[string]apicapi.ApicSlice)
+	for _, netp := range nps {
+		np := netp.(*v1net.NetworkPolicy)
+		labelKey, hpp := cont.dohandleNetPolUpdate(np)
+		if labelKey != "" && len(hpp) > 0 {
+			keyObjects[labelKey] = hpp
+		}
+	}
+	if len(keyObjects) > 0 {
+		cont.apicConn.WriteMulApicObjects(keyObjects, cont.config.AciPolicyTenant)
+	}
+	return false
+}
+
+func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
+	labelKey, hpp := cont.dohandleNetPolUpdate(np)
+	if labelKey != "" && len(hpp) > 0 {
+		cont.apicConn.WriteApicObjects(labelKey, hpp)
+	}
 	return false
 }
 
