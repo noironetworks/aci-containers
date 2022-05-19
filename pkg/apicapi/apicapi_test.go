@@ -459,11 +459,11 @@ func TestSubscription(t *testing.T) {
 	tu.WaitFor(t, "subscription", 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			if !tu.WaitEqual(t, last, "42",
-				conn.Subscriptions.Subs[dn].Id, "subscription id dn") {
+				conn.subscriptions.subs[dn].id, "subscription id dn") {
 				return false, nil
 			}
 			if !tu.WaitEqual(t, last, "43",
-				conn.Subscriptions.Subs[class].Id, "subscription id class") {
+				conn.subscriptions.subs[class].id, "subscription id class") {
 				return false, nil
 			}
 			return true, nil

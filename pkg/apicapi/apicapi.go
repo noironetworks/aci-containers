@@ -66,17 +66,17 @@ func complete(resp *http.Response) {
 
 // Yes, this is really stupid, but this is really how this works
 func (conn *ApicConnection) sign(req *http.Request, uri string, body []byte) {
-	if conn.Signer == nil {
+	if conn.signer == nil {
 		return
 	}
 
-	sig, err := conn.Signer.sign(req.Method, uri, body)
+	sig, err := conn.signer.sign(req.Method, uri, body)
 	if err != nil {
-		conn.Log.Error("Failed to sign request: ", err)
+		conn.log.Error("Failed to sign request: ", err)
 		return
 	}
 
-	req.Header.Set("Cookie", conn.apicSigCookie(sig, conn.Token))
+	req.Header.Set("Cookie", conn.apicSigCookie(sig, conn.token))
 }
 
 func (conn *ApicConnection) apicSigCookie(sig string, token string) string {
@@ -88,14 +88,14 @@ func (conn *ApicConnection) apicSigCookie(sig string, token string) string {
 		"APIC-Certificate-Algorithm=v1.0; "+
 		"APIC-Certificate-DN=uni/userext/user-%s/usercert-%s.crt; "+
 		"APIC-Certificate-Fingerprint=fingerprint%s",
-		sig, conn.User, conn.User, tokc)
+		sig, conn.user, conn.user, tokc)
 }
 
 func (conn *ApicConnection) login() (string, error) {
 	var path string
 	var method string
 
-	if conn.Signer == nil {
+	if conn.signer == nil {
 		path = "aaaLogin"
 		method = "POST"
 	} else {
@@ -108,12 +108,12 @@ func (conn *ApicConnection) login() (string, error) {
 	var reqBody io.Reader
 	var raw []byte
 	var err error
-	if conn.Signer == nil {
+	if conn.signer == nil {
 		login := &ApicObject{
 			"aaaUser": &ApicObjectBody{
 				Attributes: map[string]interface{}{
-					"name": conn.User,
-					"pwd":  conn.Password,
+					"name": conn.user,
+					"pwd":  conn.password,
 				},
 			},
 		}
@@ -127,10 +127,10 @@ func (conn *ApicConnection) login() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	conn.Log.Infof("Req: %+v", req)
+	conn.log.Infof("Req: %+v", req)
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -220,26 +220,26 @@ func New(log *logrus.Logger, apic []string, user string,
 		RefreshInterval:     time.Duration(refresh) * time.Second,
 		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
 		SubscriptionDelay:   time.Duration(subscriptionDelay) * time.Millisecond,
-		Signer:              signer,
-		Dialer:              dialer,
-		Logger:              log,
-		Log:                 log.WithField("mod", "APICAPI"),
+		signer:              signer,
+		dialer:              dialer,
+		logger:              log,
+		log:                 log.WithField("mod", "APICAPI"),
 		Apic:                apic,
-		User:                user,
-		Password:            password,
-		Prefix:              prefix,
-		Client:              client,
-		Subscriptions: subIndex{
-			Subs: make(map[string]*subscription),
-			Ids:  make(map[string]string),
+		user:                user,
+		password:            password,
+		prefix:              prefix,
+		client:              client,
+		subscriptions: subIndex{
+			subs: make(map[string]*subscription),
+			ids:  make(map[string]string),
 		},
-		DesiredState:       make(map[string]ApicSlice),
-		DesiredStateDn:     make(map[string]ApicObject),
-		KeyHashes:          make(map[string]string),
-		ContainerDns:       make(map[string]bool),
-		CachedState:        make(map[string]ApicSlice),
-		CacheDnSubIds:      make(map[string]map[string]bool),
-		PendingSubDnUpdate: make(map[string]pendingChange),
+		desiredState:       make(map[string]ApicSlice),
+		desiredStateDn:     make(map[string]ApicObject),
+		keyHashes:          make(map[string]string),
+		containerDns:       make(map[string]bool),
+		cachedState:        make(map[string]ApicSlice),
+		cacheDnSubIds:      make(map[string]map[string]bool),
+		pendingSubDnUpdate: make(map[string]pendingChange),
 		CachedSubnetDns:    make(map[string]string),
 	}
 	return conn, nil
@@ -268,23 +268,23 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					} else {
 						pendingKind = pendingChangeUpdate
 					}
-					conn.IndexMutex.Lock()
+					conn.indexMutex.Lock()
 
-					conn.Logger.WithFields(logrus.Fields{
+					conn.logger.WithFields(logrus.Fields{
 						"mod": "APICAPI",
 						"dn":  obj.GetDn(),
 						"obj": obj,
 					}).Debug("Processing websocket notification for:")
 
-					conn.PendingSubDnUpdate[dn] = pendingChange{
-						Kind:    pendingKind,
-						SubIds:  subIds,
-						IsDirty: false,
+					conn.pendingSubDnUpdate[dn] = pendingChange{
+						kind:    pendingKind,
+						subIds:  subIds,
+						isDirty: false,
 					}
-					if conn.DeltaQueue != nil {
-						conn.DeltaQueue.Add(dn)
+					if conn.deltaQueue != nil {
+						conn.deltaQueue.Add(dn)
 					}
-					conn.IndexMutex.Unlock()
+					conn.indexMutex.Unlock()
 				}
 			}
 		}
@@ -292,13 +292,13 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 }
 
 func (conn *ApicConnection) restart() {
-	conn.IndexMutex.Lock()
-	if conn.RestartCh != nil {
-		conn.Log.Debug("Restarting connection")
-		close(conn.RestartCh)
-		conn.RestartCh = nil
+	conn.indexMutex.Lock()
+	if conn.restartCh != nil {
+		conn.log.Debug("Restarting connection")
+		close(conn.restartCh)
+		conn.restartCh = nil
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) handleQueuedDn(dn string) bool {
@@ -308,42 +308,42 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 	var rootDn string
 
 	handleId := func(id string) {
-		conn.IndexMutex.Lock()
-		if value, ok := conn.Subscriptions.Ids[id]; ok {
-			if sub, ok := conn.Subscriptions.Subs[value]; ok {
-				if subComp, ok := sub.ChildSubs[id]; ok {
+		conn.indexMutex.Lock()
+		if value, ok := conn.subscriptions.ids[id]; ok {
+			if sub, ok := conn.subscriptions.subs[value]; ok {
+				if subComp, ok := sub.childSubs[id]; ok {
 					respClasses =
-						append(respClasses, subComp.RespClasses...)
+						append(respClasses, subComp.respClasses...)
 				} else {
 					respClasses =
-						append(respClasses, sub.RespClasses...)
+						append(respClasses, sub.respClasses...)
 				}
-				if sub.UpdateHook != nil {
-					updateHandlers = append(updateHandlers, sub.UpdateHook)
+				if sub.updateHook != nil {
+					updateHandlers = append(updateHandlers, sub.updateHook)
 				}
-				if sub.DeleteHook != nil {
-					deleteHandlers = append(deleteHandlers, sub.DeleteHook)
+				if sub.deleteHook != nil {
+					deleteHandlers = append(deleteHandlers, sub.deleteHook)
 				}
 
-				if sub.Kind == apicSubTree {
+				if sub.kind == apicSubTree {
 					rootDn = getRootDn(dn, value)
 				}
 			}
 		} else {
-			conn.Log.Warning("Unexpected subscription: ", id)
+			conn.log.Warning("Unexpected subscription: ", id)
 		}
-		conn.IndexMutex.Unlock()
+		conn.indexMutex.Unlock()
 	}
 
 	var requeue bool
-	conn.IndexMutex.Lock()
-	pending, hasPendingChange := conn.PendingSubDnUpdate[dn]
-	conn.PendingSubDnUpdate[dn] = pendingChange{IsDirty: true}
-	obj, hasDesiredState := conn.DesiredStateDn[dn]
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Lock()
+	pending, hasPendingChange := conn.pendingSubDnUpdate[dn]
+	conn.pendingSubDnUpdate[dn] = pendingChange{isDirty: true}
+	obj, hasDesiredState := conn.desiredStateDn[dn]
+	conn.indexMutex.Unlock()
 
 	if hasPendingChange {
-		for _, id := range pending.SubIds {
+		for _, id := range pending.subIds {
 			handleId(id)
 		}
 	}
@@ -354,13 +354,13 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 
 	if hasDesiredState {
 		if hasPendingChange {
-			if pending.Kind == pendingChangeDelete {
-				conn.Logger.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
+			if pending.kind == pendingChangeDelete {
+				conn.logger.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
 					Warning("Restoring unexpectedly deleted" +
 						" ACI object")
 				requeue = conn.postDn(dn, obj)
 			} else {
-				conn.Log.Debug("getSubtreeDn for:", rootDn)
+				conn.log.Debug("getSubtreeDn for:", rootDn)
 				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
@@ -368,14 +368,14 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		}
 	} else {
 		if hasPendingChange {
-			if pending.Kind == pendingChangeDelete {
+			if pending.kind == pendingChangeDelete {
 				for _, handler := range deleteHandlers {
 					handler(dn)
 				}
 			}
 
-			if (pending.Kind != pendingChangeDelete) || (dn != rootDn) {
-				conn.Log.Debug("getSubtreeDn for:", rootDn)
+			if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
+				conn.log.Debug("getSubtreeDn for:", rootDn)
 				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
@@ -395,7 +395,7 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if quit {
 				break
 			}
-			conn.Log.Debug("Processing queue for:", dn)
+			conn.log.Debug("Processing queue for:", dn)
 			var requeue bool
 			switch dn := dn.(type) {
 			case string:
@@ -404,11 +404,11 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			if requeue {
 				queue.AddRateLimited(dn)
 			} else {
-				conn.IndexMutex.Lock()
-				if conn.PendingSubDnUpdate[dn.(string)].IsDirty {
-					delete(conn.PendingSubDnUpdate, dn.(string))
+				conn.indexMutex.Lock()
+				if conn.pendingSubDnUpdate[dn.(string)].isDirty {
+					delete(conn.pendingSubDnUpdate, dn.(string))
 				}
-				conn.IndexMutex.Unlock()
+				conn.indexMutex.Unlock()
 				queue.Forget(dn)
 			}
 			queue.Done(dn)
@@ -425,21 +425,21 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	restart := make(chan struct{})
 	queueStop := make(chan struct{})
 	syncHook := make(chan fullSync, 1)
-	conn.RestartCh = restart
+	conn.restartCh = restart
 
 	go func() {
-		defer conn.Connection.Close()
+		defer conn.connection.Close()
 		defer close(done)
 
 		for {
 			var apicresp ApicResponse
-			err := conn.Connection.ReadJSON(&apicresp)
+			err := conn.connection.ReadJSON(&apicresp)
 			if c, k := err.(*websocket.CloseError); k {
-				conn.Log.Info("Websocket connection closed: ", c.Code)
+				conn.log.Info("Websocket connection closed: ", c.Code)
 				conn.restart()
 				break
 			} else if err != nil {
-				conn.Log.Error("Could not read web socket message:", err)
+				conn.log.Error("Could not read web socket message:", err)
 				conn.restart()
 				break
 			} else {
@@ -448,11 +448,11 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}
 	}()
 
-	conn.IndexMutex.Lock()
-	oldState := conn.CacheDnSubIds
-	conn.CachedState = make(map[string]ApicSlice)
-	conn.CacheDnSubIds = make(map[string]map[string]bool)
-	conn.DeltaQueue = workqueue.NewNamedRateLimitingQueue(
+	conn.indexMutex.Lock()
+	oldState := conn.cacheDnSubIds
+	conn.cachedState = make(map[string]ApicSlice)
+	conn.cacheDnSubIds = make(map[string]map[string]bool)
+	conn.deltaQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.NewMaxOfRateLimiter(
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
@@ -461,8 +461,8 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			},
 		),
 		"delta")
-	go conn.processQueue(conn.DeltaQueue, queueStop)
-	conn.IndexMutex.Unlock()
+	go conn.processQueue(conn.deltaQueue, queueStop)
+	conn.indexMutex.Unlock()
 
 	refreshInterval := conn.RefreshInterval
 	if refreshInterval == 0 {
@@ -475,7 +475,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	defer refreshTicker.Stop()
 
 	var hasErr bool
-	for value, subscription := range conn.Subscriptions.Subs {
+	for value, subscription := range conn.subscriptions.subs {
 		if !(conn.subscribe(value, subscription)) {
 			hasErr = true
 			conn.restart()
@@ -493,13 +493,13 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}
 
 	// Get APIC version if connection restarts
-	if conn.Version == "" && conn.CheckVersion {
+	if conn.version == "" && conn.checkVersion {
 		go func() {
 			version, err := conn.GetVersion()
 			if err != nil {
-				conn.Log.Error("Error while getting APIC version: ", err)
+				conn.log.Error("Error while getting APIC version: ", err)
 			} else {
-				conn.Log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
+				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
 				ApicVersion = version
 			}
 		}()
@@ -508,26 +508,26 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	closeConn := func(stop bool) {
 		close(queueStop)
 
-		conn.IndexMutex.Lock()
-		conn.DeltaQueue = nil
-		conn.Stopped = stop
-		conn.SyncEnabled = false
-		conn.Subscriptions.Ids = make(map[string]string)
-		conn.Version = ""
-		conn.IndexMutex.Unlock()
+		conn.indexMutex.Lock()
+		conn.deltaQueue = nil
+		conn.stopped = stop
+		conn.syncEnabled = false
+		conn.subscriptions.ids = make(map[string]string)
+		conn.version = ""
+		conn.indexMutex.Unlock()
 
-		conn.Log.Debug("Shutting down web socket")
-		err := conn.Connection.WriteMessage(websocket.CloseMessage,
+		conn.log.Debug("Shutting down web socket")
+		err := conn.connection.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		if err != nil {
-			conn.Log.Error("Error while closing socket: ", err)
+			conn.log.Error("Error while closing socket: ", err)
 		} else {
 			select {
 			case <-done:
 			case <-time.After(time.Second):
 			}
 		}
-		conn.Connection.Close()
+		conn.connection.Close()
 	}
 
 loop:
@@ -546,7 +546,7 @@ loop:
 		}
 	}
 
-	conn.Log.Debug("Exiting websocket handler")
+	conn.log.Debug("Exiting websocket handler")
 }
 
 //This function should only to be called before we make the first connection to APIC.
@@ -558,59 +558,59 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 		return "", errors.New("No APIC configuration")
 	}
 
-	conn.CheckVersion = true // enable version check on websocket reconnect
+	conn.checkVersion = true // enable version check on websocket reconnect
 	// To Handle unit-tests
 	if strings.Contains(conn.Apic[conn.ApicIndex], "127.0.0.1") {
-		conn.Version = "4.2(4i)"
+		conn.version = "4.2(4i)"
 		conn.SnatPbrFltrChain = true
-		conn.Log.Debug("Returning APIC version 4.2(4i) for test server")
-		return conn.Version, nil
+		conn.log.Debug("Returning APIC version 4.2(4i) for test server")
+		return conn.version, nil
 	}
 
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 
-	for conn.Version == "" {
+	for conn.version == "" {
 		// Wait before Retry.
 		time.Sleep(conn.ReconnectInterval)
 
 		token, err := conn.login()
 		if err != nil {
-			conn.Log.Error("Failed to log into APIC: ", err)
+			conn.log.Error("Failed to log into APIC: ", err)
 			continue
 		}
-		conn.Token = token
+		conn.token = token
 
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			conn.Log.Error("Could not create request:", err)
+			conn.log.Error("Could not create request:", err)
 			continue
 		}
 		conn.sign(req, uri, nil)
-		resp, err := conn.Client.Do(req)
+		resp, err := conn.client.Do(req)
 		if err != nil {
-			conn.Log.Error("Could not get response for ", versionMo, ": ", err)
+			conn.log.Error("Could not get response for ", versionMo, ": ", err)
 			continue
 		}
 		defer complete(resp)
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			conn.logErrorResp("Could not get response for "+versionMo, resp)
-			conn.Log.Debug("Request:", req)
+			conn.log.Debug("Request:", req)
 			continue
 		}
 
 		var apicresp ApicResponse
 		err = json.NewDecoder(resp.Body).Decode(&apicresp)
 		if err != nil {
-			conn.Log.Error("Could not parse APIC response: ", err)
+			conn.log.Error("Could not parse APIC response: ", err)
 			continue
 		}
 		for _, obj := range apicresp.Imdata {
 			vresp, _ := obj["firmwareCtrlrRunning"]
 			version, ok := vresp.Attributes["version"]
 			if !ok {
-				conn.Log.Debug("No version attribute in the response??!")
-				conn.Logger.WithFields(logrus.Fields{
+				conn.log.Debug("No version attribute in the response??!")
+				conn.logger.WithFields(logrus.Fields{
 					"mod":                            "APICAPI",
 					"firmwareCtrlrRunning":           vresp,
 					"firmwareCtrlRunning Attributes": vresp.Attributes,
@@ -621,24 +621,24 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 				case string:
 					version_split := strings.Split(version, "(")
 					version_number, err := strconv.ParseFloat(version_split[0], 64)
-					conn.Log.Info("Actual APIC version:", version, " Stripped out version:", version_number)
+					conn.log.Info("Actual APIC version:", version, " Stripped out version:", version_number)
 					if err == nil {
-						conn.Version = version //return the actual version
+						conn.version = version //return the actual version
 					}
 				}
 			}
 		}
 	}
-	return conn.Version, nil
+	return conn.version, nil
 }
 
 func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 	if len(conn.Apic) == 0 {
-		conn.Log.Warning("APIC connection not configured")
+		conn.log.Warning("APIC connection not configured")
 		return
 	}
 
-	for !conn.Stopped {
+	for !conn.stopped {
 		func() {
 			defer func() {
 				conn.ApicIndex = (conn.ApicIndex + 1) % len(conn.Apic)
@@ -646,59 +646,59 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 
 			}()
 
-			conn.Logger.WithFields(logrus.Fields{
+			conn.logger.WithFields(logrus.Fields{
 				"mod":  "APICAPI",
 				"host": conn.Apic[conn.ApicIndex],
 			}).Info("Connecting to APIC")
 
-			for dn := range conn.Subscriptions.Subs {
-				conn.Subscriptions.Subs[dn].ChildSubs = make(map[string]subComponent)
+			for dn := range conn.subscriptions.subs {
+				conn.subscriptions.subs[dn].childSubs = make(map[string]subComponent)
 			}
-			conn.Subscriptions.Ids = make(map[string]string)
+			conn.subscriptions.ids = make(map[string]string)
 
 			token, err := conn.login()
 			if err != nil {
-				conn.Log.Error("Failed to log into APIC: ", err)
+				conn.log.Error("Failed to log into APIC: ", err)
 				return
 			}
-			conn.Token = token
+			conn.token = token
 
 			uri := fmt.Sprintf("/socket%s", token)
 			url := fmt.Sprintf("wss://%s%s",
 				conn.Apic[conn.ApicIndex], uri)
 			header := make(http.Header)
-			if conn.Signer != nil {
-				sig, err := conn.Signer.sign("GET", uri, nil)
+			if conn.signer != nil {
+				sig, err := conn.signer.sign("GET", uri, nil)
 				if err != nil {
-					conn.Log.Error("Failed to sign request: ", err)
+					conn.log.Error("Failed to sign request: ", err)
 					return
 				}
 				header.Set("Cookie", conn.apicSigCookie(sig, token))
 			}
 
-			conn.Connection, _, err = conn.Dialer.Dial(url, header)
+			conn.connection, _, err = conn.dialer.Dial(url, header)
 			if err != nil {
-				conn.Log.Error("Failed to open APIC websocket: ", err)
+				conn.log.Error("Failed to open APIC websocket: ", err)
 				return
 			}
-			conn.Log.Info("Websocket connected!")
+			conn.log.Info("Websocket connected!")
 			conn.runConn(stopCh)
 		}()
 	}
 }
 
 func (conn *ApicConnection) refresh() {
-	if conn.Signer == nil {
+	if conn.signer == nil {
 		url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
 			conn.Apic[conn.ApicIndex])
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			conn.Log.Error("Could not create request: ", err)
+			conn.log.Error("Could not create request: ", err)
 			return
 		}
-		resp, err := conn.Client.Do(req)
+		resp, err := conn.client.Do(req)
 		if err != nil {
-			conn.Log.Error("Failed to refresh APIC session: ", err)
+			conn.log.Error("Failed to refresh APIC session: ", err)
 			conn.restart()
 			return
 		}
@@ -709,22 +709,22 @@ func (conn *ApicConnection) refresh() {
 			return
 		}
 		complete(resp)
-		conn.Log.Debugf("Refresh: url %v", url)
+		conn.log.Debugf("Refresh: url %v", url)
 	}
 
-	for _, sub := range conn.Subscriptions.Subs {
+	for _, sub := range conn.subscriptions.subs {
 		refreshId := func(id string) {
 			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
 			url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
-				conn.Log.Error("Could not create request: ", err)
+				conn.log.Error("Could not create request: ", err)
 				return
 			}
 			conn.sign(req, uri, nil)
-			resp, err := conn.Client.Do(req)
+			resp, err := conn.client.Do(req)
 			if err != nil {
-				conn.Log.Error("Failed to refresh APIC subscription: ", err)
+				conn.log.Error("Failed to refresh APIC subscription: ", err)
 				conn.restart()
 				return
 			}
@@ -735,15 +735,15 @@ func (conn *ApicConnection) refresh() {
 				return
 			}
 			complete(resp)
-			conn.Log.Debugf("Refresh sub: url %v", url)
+			conn.log.Debugf("Refresh sub: url %v", url)
 			time.Sleep(conn.SubscriptionDelay)
 		}
-		if len(sub.ChildSubs) > 0 {
-			for id := range sub.ChildSubs {
+		if len(sub.childSubs) > 0 {
+			for id := range sub.childSubs {
 				refreshId(id)
 			}
 		} else {
-			refreshId(sub.Id)
+			refreshId(sub.id)
 		}
 	}
 }
@@ -752,7 +752,7 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 	var apicresp ApicResponse
 	err := json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
-		conn.Log.Error("Could not parse APIC error response: ", err)
+		conn.log.Error("Could not parse APIC error response: ", err)
 	} else {
 		code := 0
 		text := ""
@@ -770,7 +770,7 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 				}
 			}
 		}
-		conn.Logger.WithFields(logrus.Fields{
+		conn.logger.WithFields(logrus.Fields{
 			"mod":    "APICAPI",
 			"text":   text,
 			"code":   code,
@@ -793,13 +793,13 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not get subtree for ", acivrfdn, ": ", err)
+		conn.log.Error("Could not get subtree for ", acivrfdn, ": ", err)
 		return err
 	}
 	defer complete(resp)
@@ -811,7 +811,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 	var apicresp ApicResponse
 	err = json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
-		conn.Log.Error("Could not parse APIC response: ", err)
+		conn.log.Error("Could not parse APIC response: ", err)
 		return err
 	}
 
@@ -825,11 +825,11 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 		}
 	}
 	sort.Strings(aciVrfBdL3OuttDns)
-	conn.Log.Debug("aciVrfBdL3OuttDns:", aciVrfBdL3OuttDns)
+	conn.log.Debug("aciVrfBdL3OuttDns:", aciVrfBdL3OuttDns)
 	for _, expectedDn := range expectedVrfRelations {
 		i := sort.SearchStrings(aciVrfBdL3OuttDns, expectedDn)
 		if !(i < len(aciVrfBdL3OuttDns) && aciVrfBdL3OuttDns[i] == expectedDn) {
-			conn.Log.Debug("Missing (or) Incorrect Vrf association: ", expectedDn)
+			conn.log.Debug("Missing (or) Incorrect Vrf association: ", expectedDn)
 			return errors.New("Incorrect Pod/NodeBD/L3OUT VRF association")
 		}
 	}
@@ -849,16 +849,16 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.Log.Debugf("URL: %v", url)
+	conn.log.Debugf("URL: %v", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not get subtree for ", dn, ": ", err)
+		conn.log.Error("Could not get subtree for ", dn, ": ", err)
 		conn.restart()
 		return
 	}
@@ -872,15 +872,15 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	var apicresp ApicResponse
 	err = json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
-		conn.Log.Error("Could not parse APIC response: ", err)
+		conn.log.Error("Could not parse APIC response: ", err)
 		return
 	}
 	if len(apicresp.Imdata) == 0 {
-		conn.Log.Debugf("No subtree found for dn %s", dn)
+		conn.log.Debugf("No subtree found for dn %s", dn)
 	}
 
 	for _, obj := range apicresp.Imdata {
-		conn.Logger.WithFields(logrus.Fields{
+		conn.logger.WithFields(logrus.Fields{
 			"mod": "APICAPI",
 			"dn":  obj.GetDn(),
 			"obj": obj,
@@ -903,44 +903,44 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 }
 
 func (conn *ApicConnection) queueDn(dn string) {
-	conn.IndexMutex.Lock()
-	if conn.DeltaQueue != nil {
-		conn.DeltaQueue.Add(dn)
+	conn.indexMutex.Lock()
+	if conn.deltaQueue != nil {
+		conn.deltaQueue.Add(dn)
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) ForceRelogin() {
-	conn.Token = ""
+	conn.token = ""
 }
 
 func (conn *ApicConnection) PostTestAPI(data interface{}) error {
-	if conn.Token == "" {
+	if conn.token == "" {
 		token, err := conn.login()
 		if err != nil {
-			conn.Log.Errorf("Login: %v", err)
+			conn.log.Errorf("Login: %v", err)
 			return err
 		}
-		conn.Token = token
+		conn.token = token
 	}
 	uri := "/testapi/cloudpe/mo/.json"
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(data)
 	if err != nil {
-		conn.Log.Errorf("Could not serialize object for testapi %v", err)
+		conn.log.Errorf("Could not serialize object for testapi %v", err)
 		return err
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return err
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	conn.Log.Infof("Post: %+v", req)
-	resp, err := conn.Client.Do(req)
+	conn.log.Infof("Post: %+v", req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Errorf("Could not update dn %v", err)
+		conn.log.Errorf("Could not update dn %v", err)
 		return err
 	}
 
@@ -952,37 +952,37 @@ func (conn *ApicConnection) PostTestAPI(data interface{}) error {
 }
 
 func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
-	conn.Logger.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
 		"obj": obj,
 	}).Debug("Posting Dn Inline")
-	if conn.Token == "" {
+	if conn.token == "" {
 		token, err := conn.login()
 		if err != nil {
-			conn.Log.Errorf("Login: %v", err)
+			conn.log.Errorf("Login: %v", err)
 			return err
 		}
-		conn.Token = token
+		conn.token = token
 	}
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
-		conn.Log.Error("Could not serialize object for dn ", dn, ": ", err)
+		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 		return err
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return err
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	conn.Log.Infof("Post: %+v", req)
-	resp, err := conn.Client.Do(req)
+	conn.log.Infof("Post: %+v", req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not update dn ", dn, ": ", err)
+		conn.log.Error("Could not update dn ", dn, ": ", err)
 		return err
 	}
 
@@ -994,7 +994,7 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 }
 
 func (conn *ApicConnection) DeleteDnInline(dn string) error {
-	conn.Logger.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
 	}).Debug("Deleting Dn Inline")
@@ -1002,13 +1002,13 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create delete request: ", err)
+		conn.log.Error("Could not create delete request: ", err)
 		return err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not delete dn ", dn, ": ", err)
+		conn.log.Error("Could not delete dn ", dn, ": ", err)
 		return err
 	}
 	defer complete(resp)
@@ -1016,7 +1016,7 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 }
 
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
-	conn.Logger.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
 		"obj": obj,
@@ -1026,20 +1026,20 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
-		conn.Log.Error("Could not serialize object for dn ", dn, ": ", err)
+		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 	}
 	//conn.log.Debug(string(raw))
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		conn.restart()
 		return false
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not update dn ", dn, ": ", err)
+		conn.log.Error("Could not update dn ", dn, ": ", err)
 		conn.restart()
 		return false
 	}
@@ -1056,7 +1056,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 }
 
 func (conn *ApicConnection) DeleteDn(dn string) bool {
-	conn.Logger.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
 	}).Debug("Deleting Dn")
@@ -1064,14 +1064,14 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create delete request: ", err)
+		conn.log.Error("Could not create delete request: ", err)
 		conn.restart()
 		return false
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not delete dn ", dn, ": ", err)
+		conn.log.Error("Could not delete dn ", dn, ": ", err)
 		conn.restart()
 		return false
 	}
@@ -1127,72 +1127,72 @@ func (conn *ApicConnection) AddSubscriptionTree(class string,
 		panic(errStr)
 	}
 
-	conn.IndexMutex.Lock()
-	conn.Subscriptions.Subs[class] = &subscription{
-		Kind:          apicSubTree,
-		ChildSubs:     make(map[string]subComponent),
-		TargetClasses: targetClasses,
-		TargetFilter:  targetFilter,
+	conn.indexMutex.Lock()
+	conn.subscriptions.subs[class] = &subscription{
+		kind:          apicSubTree,
+		childSubs:     make(map[string]subComponent),
+		targetClasses: targetClasses,
+		targetFilter:  targetFilter,
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) AddSubscriptionClass(class string,
 	targetClasses []string, targetFilter string) {
 
-	conn.IndexMutex.Lock()
-	conn.Subscriptions.Subs[class] = &subscription{
-		Kind:          apicSubClass,
-		ChildSubs:     make(map[string]subComponent),
-		TargetClasses: targetClasses,
-		RespClasses:   computeRespClasses(targetClasses),
-		TargetFilter:  targetFilter,
+	conn.indexMutex.Lock()
+	conn.subscriptions.subs[class] = &subscription{
+		kind:          apicSubClass,
+		childSubs:     make(map[string]subComponent),
+		targetClasses: targetClasses,
+		respClasses:   computeRespClasses(targetClasses),
+		targetFilter:  targetFilter,
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	targetClasses []string) {
-	conn.Logger.WithFields(logrus.Fields{
+	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
 	}).Debug("Adding Subscription for Dn")
 
-	conn.IndexMutex.Lock()
-	conn.Subscriptions.Subs[dn] = &subscription{
-		Kind:          apicSubDn,
-		ChildSubs:     make(map[string]subComponent),
-		TargetClasses: targetClasses,
-		RespClasses:   computeRespClasses(targetClasses),
+	conn.indexMutex.Lock()
+	conn.subscriptions.subs[dn] = &subscription{
+		kind:          apicSubDn,
+		childSubs:     make(map[string]subComponent),
+		targetClasses: targetClasses,
+		respClasses:   computeRespClasses(targetClasses),
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) SetSubscriptionHooks(value string,
 	updateHook ApicObjectHandler, deleteHook ApicDnHandler) {
 
-	conn.IndexMutex.Lock()
-	if s, ok := conn.Subscriptions.Subs[value]; ok {
-		s.UpdateHook = updateHook
-		s.DeleteHook = deleteHook
+	conn.indexMutex.Lock()
+	if s, ok := conn.subscriptions.subs[value]; ok {
+		s.updateHook = updateHook
+		s.deleteHook = deleteHook
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
-	conn.Log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
+	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	var apicresp ApicResponse
-	conn.Log.Debug("Apic Get url: ", url)
+	conn.log.Debug("Apic Get url: ", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return apicresp, err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Could not get response for ", url, ": ", err)
+		conn.log.Error("Could not get response for ", url, ": ", err)
 		return apicresp, err
 	}
 	defer complete(resp)
@@ -1202,7 +1202,7 @@ func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&apicresp)
 	if err != nil {
-		conn.Log.Error("Could not parse APIC response: ", err)
+		conn.log.Error("Could not parse APIC response: ", err)
 		return apicresp, err
 	}
 	return apicresp, nil
@@ -1215,17 +1215,17 @@ func (conn *ApicConnection) doSubscribe(args []string,
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
 		kind, value, refresh_interval, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.Log.Info("APIC connection URL: ", url)
+	conn.log.Info("APIC connection URL: ", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		conn.Log.Error("Could not create request: ", err)
+		conn.log.Error("Could not create request: ", err)
 		return false
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.Client.Do(req)
+	resp, err := conn.client.Do(req)
 	if err != nil {
-		conn.Log.Error("Failed to subscribe to ", value, ": ", err)
+		conn.log.Error("Failed to subscribe to ", value, ": ", err)
 		return false
 	}
 	defer complete(resp)
@@ -1236,7 +1236,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 
 	err = json.NewDecoder(resp.Body).Decode(apicresp)
 	if err != nil {
-		conn.Log.Error("Could not decode APIC response", err)
+		conn.log.Error("Could not decode APIC response", err)
 		return false
 	}
 	time.Sleep(conn.SubscriptionDelay)
@@ -1247,7 +1247,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	baseArgs := []string{
 		"query-target=subtree",
 		"rsp-subtree=full",
-		"target-subtree-class=" + strings.Join(sub.TargetClasses, ","),
+		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
 	}
 
 	const defaultArgs = 1
@@ -1259,7 +1259,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	argSet = make([][]string, defaultArgs)
 	argSet[defaultArgs-1] = make([]string, len(baseArgs))
 	copy(argSet[defaultArgs-1], baseArgs)
-	if sub.RespClasses != nil {
+	if sub.respClasses != nil {
 		separateClasses := func(classes []string, combClasses, sepClasses *[]string) {
 			for i := range classes {
 				if classMeta, ok := metadata[classes[i]]; ok {
@@ -1274,13 +1274,13 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 				}
 			}
 		}
-		separateClasses(sub.RespClasses, &combinableSubClasses, &separableSubClasses)
+		separateClasses(sub.respClasses, &combinableSubClasses, &separableSubClasses)
 
 		// In case there are high cardinality children, we register for all the classes individually.
 		// The concept of target-subtree and rsp-subtree class cannot be used because of the tagAnnotation object
 		// vmmInjectedLabel is added for every object, so getting it separately will not be scalable
 		if len(separableSubClasses) > 0 {
-			separateClasses(sub.TargetClasses, &combinableSubClasses, &separableSubClasses)
+			separateClasses(sub.targetClasses, &combinableSubClasses, &separableSubClasses)
 			separableSubClasses = append(separableSubClasses, combinableSubClasses...)
 			baseArgs = []string{
 				"query-target=subtree",
@@ -1310,8 +1310,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], "rsp-subtree-class="+strings.Join(combinableSubClasses, ",")+",tagAnnotation")
 		}
 	}
-	if sub.TargetFilter != "" {
-		targetFilterArgs := "query-target-filter=" + sub.TargetFilter
+	if sub.targetFilter != "" {
+		targetFilterArgs := "query-target-filter=" + sub.targetFilter
 		if len(separableSubClasses) == 0 {
 			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], targetFilterArgs)
 		} else {
@@ -1322,7 +1322,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	}
 
 	kind := "mo"
-	if sub.Kind == apicSubClass || sub.Kind == apicSubTree {
+	if sub.kind == apicSubClass || sub.kind == apicSubTree {
 		kind = "class"
 	}
 
@@ -1339,13 +1339,13 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		var subId string
 		switch id := apicresp.SubscriptionId.(type) {
 		default:
-			conn.Log.Error("Subscription ID is not a string")
+			conn.log.Error("Subscription ID is not a string")
 			return false
 		case string:
 			subId = id
 		}
 
-		conn.Logger.WithFields(logrus.Fields{
+		conn.logger.WithFields(logrus.Fields{
 			"mod":   "APICAPI",
 			"value": value,
 			"kind":  kind,
@@ -1353,17 +1353,17 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			"args":  argSet[i],
 		}).Debug("Subscribed")
 
-		conn.IndexMutex.Lock()
+		conn.indexMutex.Lock()
 		if argCount > defaultArgs {
-			sub.ChildSubs[subId] = subComponent{
-				TargetClasses: splitTargetClasses[i],
-				RespClasses:   splitRespClasses[i],
+			sub.childSubs[subId] = subComponent{
+				targetClasses: splitTargetClasses[i],
+				respClasses:   splitRespClasses[i],
 			}
 		} else {
-			conn.Subscriptions.Subs[value].Id = subId
+			conn.subscriptions.subs[value].id = subId
 		}
-		conn.Subscriptions.Ids[subId] = value
-		conn.IndexMutex.Unlock()
+		conn.subscriptions.ids[subId] = value
+		conn.indexMutex.Unlock()
 		var respObjCount int
 		for _, obj := range apicresp.Imdata {
 
@@ -1371,16 +1371,16 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			if dn == "" {
 				continue
 			}
-			conn.IndexMutex.Lock()
-			subIds, found := conn.CacheDnSubIds[dn]
+			conn.indexMutex.Lock()
+			subIds, found := conn.cacheDnSubIds[dn]
 			if !found {
 				subIds = make(map[string]bool)
-				conn.CacheDnSubIds[dn] = subIds
+				conn.cacheDnSubIds[dn] = subIds
 			}
 			subIds[subId] = true
-			conn.IndexMutex.Unlock()
+			conn.indexMutex.Unlock()
 
-			if sub.UpdateHook != nil && sub.UpdateHook(obj) {
+			if sub.updateHook != nil && sub.updateHook(obj) {
 				continue
 			}
 
@@ -1389,7 +1389,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 				continue
 			}
 
-			conn.Logger.WithFields(logrus.Fields{
+			conn.logger.WithFields(logrus.Fields{
 				"mod": "APICAPI",
 				"dn":  dn,
 				"tag": tag,
@@ -1398,18 +1398,18 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			var count int
 			prepareApicCache("", obj, &count)
 			respObjCount += count
-			conn.IndexMutex.Lock()
-			conn.CachedState[tag] = append(conn.CachedState[tag], obj)
-			conn.IndexMutex.Unlock()
+			conn.indexMutex.Lock()
+			conn.cachedState[tag] = append(conn.cachedState[tag], obj)
+			conn.indexMutex.Unlock()
 		}
 		if respObjCount >= ApicSubscriptionResponseMoMaxCount/10 {
-			conn.Logger.WithFields(logrus.Fields{
+			conn.logger.WithFields(logrus.Fields{
 				"args":       argSet[i],
 				"moCount":    respObjCount,
 				"maxAllowed": ApicSubscriptionResponseMoMaxCount,
 			}).Warning("Subscription response is significantly large. Each new object will add 2 Mos atleast and twice the number of labels on the object")
 		} else {
-			conn.Logger.WithFields(logrus.Fields{
+			conn.logger.WithFields(logrus.Fields{
 				"moCount": respObjCount,
 			}).Debug("ResponseObjCount")
 		}
@@ -1423,7 +1423,7 @@ var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
 
 func (conn *ApicConnection) isSyncTag(tag string) bool {
 	return tagRegexp.MatchString(tag) &&
-		strings.HasPrefix(tag, conn.Prefix+"-")
+		strings.HasPrefix(tag, conn.prefix+"-")
 }
 
 func getRootDn(dn, rootClass string) string {

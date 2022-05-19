@@ -28,7 +28,7 @@ func (conn *ApicConnection) apicBodyAttrCmp(class string,
 	bodyc *ApicObjectBody, bodyd *ApicObjectBody) bool {
 	meta, ok := metadata[class]
 	if !ok {
-		conn.Log.Warning("No metadata for class ", class)
+		conn.log.Warning("No metadata for class ", class)
 		return true
 	}
 	if bodyc.Attributes == nil {
@@ -73,7 +73,7 @@ func (conn *ApicConnection) apicCntCmp(current ApicObject,
 	for classc, bodyc := range current {
 		for classd, bodyd := range desired {
 			if classc != classd {
-				conn.Log.Warning("Invalid comparison ", classc, " != ", classd)
+				conn.log.Warning("Invalid comparison ", classc, " != ", classd)
 				return false
 			}
 
@@ -89,7 +89,7 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 	for classc, bodyc := range current {
 		for classd, bodyd := range desired {
 			if classc != classd {
-				conn.Log.Warning("Invalid comparison ", classc, " != ", classd)
+				conn.log.Warning("Invalid comparison ", classc, " != ", classd)
 				return
 			}
 
@@ -157,7 +157,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 			j++
 			update = true
 		} else {
-			if conn.ContainerDns[currentState[i].GetDn()] {
+			if conn.containerDns[currentState[i].GetDn()] {
 				if !conn.apicCntCmp(currentState[i], desiredState[j]) {
 					updates = append(updates, desiredState[j])
 					update = true
@@ -190,10 +190,10 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	}
 
 	if update && len(updates) != 0 {
-		conn.Log.Debug("Apic object updates are :", updates)
+		conn.log.Debug("Apic object updates are :", updates)
 	}
 	if delete && len(deletes) != 0 {
-		conn.Log.Debug("Apic object deletes are :", deletes)
+		conn.log.Debug("Apic object deletes are :", deletes)
 	}
 
 	return
@@ -205,13 +205,13 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	sort.Strings(deletes)
 
 	for _, delete := range deletes {
-		conn.Log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
 		conn.queueDn(delete)
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
-		conn.Log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
+		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
 			Debug("Applying APIC object update")
 		conn.queueDn(dn)
 	}
@@ -268,33 +268,33 @@ func prepareApicCache(parentDn string, obj ApicObject, count *int) {
 }
 
 func (conn *ApicConnection) fullSync() {
-	conn.Log.Info("Starting APIC full sync")
+	conn.log.Info("Starting APIC full sync")
 	var updates ApicSlice
 	var deletes []string
 
-	conn.IndexMutex.Lock()
-	for tag, current := range conn.CachedState {
+	conn.indexMutex.Lock()
+	for tag, current := range conn.cachedState {
 		sort.Sort(current)
-		key := conn.KeyHashes[tag]
-		u, d := conn.diffApicState(current, conn.DesiredState[key])
+		key := conn.keyHashes[tag]
+		u, d := conn.diffApicState(current, conn.desiredState[key])
 		updates = append(updates, u...)
 		deletes = append(deletes, d...)
 	}
 
-	for key, desired := range conn.DesiredState {
-		tag := getTagFromKey(conn.Prefix, key)
-		if _, ok := conn.CachedState[tag]; !ok {
+	for key, desired := range conn.desiredState {
+		tag := getTagFromKey(conn.prefix, key)
+		if _, ok := conn.cachedState[tag]; !ok {
 			// entire key not present in current state
 			a, _ := conn.diffApicState(nil, desired)
 			updates = append(updates, a...)
 		}
 	}
 
-	conn.SyncEnabled = true
-	conn.IndexMutex.Unlock()
+	conn.syncEnabled = true
+	conn.indexMutex.Unlock()
 
 	conn.applyDiff(updates, deletes, "sync")
-	conn.Log.WithFields(logrus.Fields{
+	conn.log.WithFields(logrus.Fields{
 		"mod":     "APICAPI",
 		"updates": len(updates),
 		"deletes": len(deletes),
@@ -302,31 +302,31 @@ func (conn *ApicConnection) fullSync() {
 }
 
 func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {
-	conn.IndexMutex.Lock()
+	conn.indexMutex.Lock()
 	for dn, ids := range oldState {
-		_, found := conn.CacheDnSubIds[dn]
+		_, found := conn.cacheDnSubIds[dn]
 		if !found {
 			for id := range ids {
-				value, ok := conn.Subscriptions.Ids[id]
+				value, ok := conn.subscriptions.ids[id]
 				if !ok {
 					continue
 				}
-				sub, ok := conn.Subscriptions.Subs[value]
+				sub, ok := conn.subscriptions.subs[value]
 				if !ok {
 					continue
 				}
-				if sub.DeleteHook != nil {
-					sub.DeleteHook(dn)
+				if sub.deleteHook != nil {
+					sub.deleteHook(dn)
 				}
 			}
 		}
 	}
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) updateDnIndex(objects ApicSlice) {
 	for _, obj := range objects {
-		conn.DesiredStateDn[obj.GetDn()] = obj
+		conn.desiredStateDn[obj.GetDn()] = obj
 		for _, body := range obj {
 			conn.updateDnIndex(body.Children)
 		}
@@ -334,13 +334,13 @@ func (conn *ApicConnection) updateDnIndex(objects ApicSlice) {
 }
 
 func (conn *ApicConnection) removeFromDnIndex(dn string) {
-	if obj, ok := conn.DesiredStateDn[dn]; ok {
-		delete(conn.DesiredStateDn, dn)
+	if obj, ok := conn.desiredStateDn[dn]; ok {
+		delete(conn.desiredStateDn, dn)
 
 		for _, body := range obj {
 			for _, child := range body.Children {
 				conn.removeFromDnIndex(child.GetDn())
-				conn.Log.Debug("Removing child dn :", child.GetDn())
+				conn.log.Debug("Removing child dn :", child.GetDn())
 			}
 		}
 	}
@@ -349,11 +349,11 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	container bool) {
 
-	tag := getTagFromKey(conn.Prefix, key)
+	tag := getTagFromKey(conn.prefix, key)
 	prepareApicSliceTag(objects, tag)
 
-	conn.IndexMutex.Lock()
-	updates, deletes := conn.diffApicState(conn.DesiredState[key], objects)
+	conn.indexMutex.Lock()
+	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
 
 	// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 	// found in deletes
@@ -365,9 +365,9 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	}
 	newDelete := false
 	for _, temp_del := range temp_deletes {
-		vns_svc_redirect_pol_obj, ok := conn.DesiredStateDn[temp_del]
+		vns_svc_redirect_pol_obj, ok := conn.desiredStateDn[temp_del]
 		if !ok {
-			conn.Log.Error("no svc_obj found in desiredStateDn cache")
+			conn.log.Error("no svc_obj found in desiredStateDn cache")
 			return
 		}
 		// Explicitly remove vnsRedirectDest from svcRedirectPol's list of children
@@ -384,36 +384,36 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 		}
 	}
 	if newDelete && len(deletes) != 0 {
-		conn.Log.Debug("Updated apic object deletes list is :", deletes)
+		conn.log.Debug("Updated apic object deletes list is :", deletes)
 	}
 
 	conn.updateDnIndex(objects)
 	for _, del := range deletes {
 		conn.removeFromDnIndex(del)
 		if container {
-			delete(conn.ContainerDns, del)
+			delete(conn.containerDns, del)
 		}
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
 		if container {
-			conn.ContainerDns[dn] = true
+			conn.containerDns[dn] = true
 		}
 	}
 
 	if objects == nil {
-		delete(conn.DesiredState, key)
-		delete(conn.KeyHashes, tag)
+		delete(conn.desiredState, key)
+		delete(conn.keyHashes, tag)
 	} else {
-		conn.DesiredState[key] = objects
-		conn.KeyHashes[tag] = key
+		conn.desiredState[key] = objects
+		conn.keyHashes[tag] = key
 	}
 
-	if conn.SyncEnabled {
-		conn.IndexMutex.Unlock()
+	if conn.syncEnabled {
+		conn.indexMutex.Unlock()
 		conn.applyDiff(updates, deletes, "write")
 	} else {
-		conn.IndexMutex.Unlock()
+		conn.indexMutex.Unlock()
 	}
 }
 
@@ -434,9 +434,9 @@ func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
 }
 
 func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
-	conn.IndexMutex.Lock()
-	if !conn.SyncEnabled {
-		conn.IndexMutex.Unlock()
+	conn.indexMutex.Lock()
+	if !conn.syncEnabled {
+		conn.indexMutex.Unlock()
 		return
 	}
 
@@ -445,11 +445,11 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 	var updates ApicSlice
 	var deletes []string
 
-	if eobj, ok := conn.DesiredStateDn[dn]; ok {
-		if conn.ContainerDns[dn] {
+	if eobj, ok := conn.desiredStateDn[dn]; ok {
+		if conn.containerDns[dn] {
 			if !conn.apicCntCmp(aci, eobj) {
 				updates = ApicSlice{eobj}
-				conn.Log.WithFields(logrus.Fields{
+				conn.log.WithFields(logrus.Fields{
 					"mod":      "APICAPI",
 					"DN":       dn,
 					"expected": eobj,
@@ -464,7 +464,7 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 			deletes = append(deletes, odels...)
 
 			if update || len(odels) != 0 {
-				conn.Log.WithFields(logrus.Fields{
+				conn.log.WithFields(logrus.Fields{
 					"mod":      "APICAPI",
 					"DN":       dn,
 					"expected": eobj,
@@ -475,13 +475,13 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 	} else {
 		tag := aci.GetTag()
 		if conn.isSyncTag(tag) {
-			conn.Log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
+			conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
 				Warning("Deleting unexpected ACI object")
 			deletes = append(deletes, dn)
 		}
 	}
 
-	conn.IndexMutex.Unlock()
+	conn.indexMutex.Unlock()
 
 	conn.applyDiff(updates, deletes, "reconcile "+dn)
 }
