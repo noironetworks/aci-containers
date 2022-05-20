@@ -176,10 +176,17 @@ func (cont *AciController) initNetPolPodIndex() {
 			cont.queueNetPolUpdate(npobj.(*v1net.NetworkPolicy))
 		}
 	}
+	mulnpupdate := func(npkeys []string) {
+		if len(npkeys) > 0 {
+			cont.queueMulNetPolUpdateByKey(npkeys)
+		}
+	}
+
 	nphash := func(pod *v1.Pod) string {
 		return pod.Status.PodIP
 	}
 	cont.netPolIngressPods.SetObjUpdateCallback(npupdate)
+	cont.netPolIngressPods.SetMulObjUpdateCallback(mulnpupdate)
 	cont.netPolIngressPods.SetPodHashFunc(nphash)
 	cont.netPolEgressPods.SetObjUpdateCallback(npupdate)
 	cont.netPolEgressPods.SetPodHashFunc(nphash)
@@ -314,6 +321,18 @@ func networkPolicyLogger(log *logrus.Logger,
 
 func (cont *AciController) queueNetPolUpdateByKey(key string) {
 	cont.netPolQueue.Add(key)
+}
+
+func (cont *AciController) queueMulNetPolUpdateByKey(keys []string) {
+	var keyString string
+	for i, key := range keys {
+		if i == 0 {
+			keyString = key
+		} else {
+			keyString = keyString + "_" + key
+		}
+	}
+	cont.mulNetPolQueue.Add(keyString)
 }
 
 func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
@@ -1060,12 +1079,12 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
-func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
+func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string, apicapi.ApicSlice) {
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
 		logger.Error("Could not create network policy key: ", err)
-		return false
+		return "", apicapi.ApicSlice{}
 	}
 
 	peerPodKeys := cont.netPolIngressPods.GetPodForObj(key)
@@ -1142,7 +1161,29 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
-	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
+	return labelKey, apicapi.ApicSlice{hpp}
+}
+
+func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
+	keyObjects := make(map[string]apicapi.ApicSlice)
+	for _, netp := range nps {
+		np := netp.(*v1net.NetworkPolicy)
+		labelKey, hpp := cont.dohandleNetPolUpdate(np)
+		if labelKey != "" && len(hpp) > 0 {
+			keyObjects[labelKey] = hpp
+		}
+	}
+	if len(keyObjects) > 0 {
+		cont.apicConn.WriteMulApicObjects(keyObjects, cont.config.AciPolicyTenant)
+	}
+	return false
+}
+
+func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
+	labelKey, hpp := cont.dohandleNetPolUpdate(np)
+	if labelKey != "" && len(hpp) > 0 {
+		cont.apicConn.WriteApicObjects(labelKey, hpp)
+	}
 	return false
 }
 
