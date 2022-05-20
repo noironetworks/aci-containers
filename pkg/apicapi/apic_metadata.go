@@ -154,8 +154,7 @@ func injectedSvcPortNormalizer(b *ApicObjectBody) {
 var metadata = map[string]*apicMeta{
 	"fvTenant": {
 		attributes: map[string]interface{}{
-			"name":      "",
-			"nameAlias": "",
+			"name": "",
 		},
 		children: []string{
 			"fvBD",
