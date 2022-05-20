@@ -159,6 +159,13 @@ func staticNetPolKey() string {
 	return "kube_np_static"
 }
 
+func newTenant(name string, children apicapi.ApicSlice) apicapi.ApicObject {
+	tenantObj := apicapi.NewFvTenant(name)
+	tenantObj["fvTenant"].Attributes["status"] = "modified"
+	tenantObj["fvTenant"].Children = children
+	return tenantObj
+}
+
 func addPods(cont *testAciController, incIps bool, ips []string, ipv4 bool) {
 	pods := []*v1.Pod{}
 	if ipv4 {
@@ -258,6 +265,41 @@ func makeEpSlice(namespace string, name string, endpoints []v1beta1.Endpoint,
 	}
 }
 
+func checkMulNp(t *testing.T, nts []*npTest, category string, cont *testAciController) {
+	tu.WaitFor(t, category, 2000*time.Millisecond,
+		func(last bool) (bool, error) {
+			var actual apicapi.ApicObject
+			tenant := newTenant("test-tenant", apicapi.ApicSlice{})
+			for _, nt := range nts {
+				slice := apicapi.ApicSlice{nt.aciObj}
+				key := cont.aciNameForKey("np",
+					nt.netPol.Namespace+"_"+nt.netPol.Name)
+				tenant["fvTenant"].Children = append(tenant["fvTenant"].Children,
+					apicapi.PrepareApicSlice(slice, "kube", key)...)
+			}
+			for _, val := range cont.apicConn.GetMultipleDn() {
+				actual = val[tenant.GetDn()]
+			}
+			if len(tenant["fvTenant"].Children) != len(actual["fvTenant"].Children) {
+				return false, nil
+			}
+			for _, actualchild := range actual["fvTenant"].Children {
+				found := false
+				for _, expchild := range tenant["fvTenant"].Children {
+					if tu.WaitEqual(t, last, expchild,
+						actualchild, category) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false, nil
+				}
+			}
+			return true, nil
+		})
+}
+
 func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController) {
 	tu.WaitFor(t, category+"/"+nt.desc, 2000*time.Millisecond,
 		func(last bool) (bool, error) {
@@ -265,7 +307,6 @@ func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController)
 			key := cont.aciNameForKey("np",
 				nt.netPol.Namespace+"_"+nt.netPol.Name)
 			apicapi.PrepareApicSlice(slice, "kube", key)
-
 			if !tu.WaitEqual(t, last, slice,
 				cont.apicConn.GetDesiredState(key), nt.desc, key) {
 				return false, nil
@@ -2068,4 +2109,125 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 		checkNp(t, &nt, "npfirst", cont)
 		cont.stop()
 	}
+}
+
+func TestMultipleNetworkPolicy(t *testing.T) {
+	name1 := "kube_np_testns1_np1"
+	name2 := "kube_np_testns2_np1"
+
+	baseDn1 := makeNp(nil, nil, name1).GetDn()
+	baseDn2 := makeNp(nil, nil, name2).GetDn()
+
+	np1SDnI := fmt.Sprintf("%s/subj-networkpolicy-ingress", baseDn1)
+	np2SDnI := fmt.Sprintf("%s/subj-networkpolicy-ingress", baseDn2)
+
+	rule1_1_0 := apicapi.NewHostprotRule(np1SDnI, "0")
+	rule1_1_0.SetAttr("direction", "ingress")
+	rule1_1_0.SetAttr("ethertype", "ipv4")
+	remip1_1 := apicapi.NewHostprotRemoteIp(rule1_1_0.GetDn(), "1.1.1.1")
+	remip1_2 := apicapi.NewHostprotRemoteIp(rule1_1_0.GetDn(), "1.1.1.2")
+	rule1_1_0.AddChild(remip1_1)
+	rule1_1_0.AddChild(remip1_2)
+
+	rule2_1_0 := apicapi.NewHostprotRule(np2SDnI, "0")
+	rule2_1_0.SetAttr("direction", "ingress")
+	rule2_1_0.SetAttr("ethertype", "ipv4")
+	remip2_1 := apicapi.NewHostprotRemoteIp(rule2_1_0.GetDn(), "1.1.1.1")
+	remip2_2 := apicapi.NewHostprotRemoteIp(rule2_1_0.GetDn(), "1.1.1.2")
+	rule2_1_0.AddChild(remip2_1)
+	rule2_1_0.AddChild(remip2_2)
+
+	var mulnpTests = []npTest{
+		{netpol("testns1", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{ingressRule(nil,
+				[]v1net.NetworkPolicyPeer{peer(nil,
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{"test": "testv"},
+					}),
+				}),
+			}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule1_1_0}, nil, name1),
+			nil, "allow-all-from-ns"},
+		{netpol("testns2", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{ingressRule(nil,
+				[]v1net.NetworkPolicyPeer{peer(nil,
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{"test": "testv"},
+					}),
+				}),
+			}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule2_1_0}, nil, name2),
+			nil, "allow-all-from-ns"},
+	}
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+
+		return cont
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ip string) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+			Status: v1.PodStatus{
+				PodIP: ip,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+	deletePod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ip string) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+			},
+			Status: v1.PodStatus{
+				PodIP: ip,
+			},
+		}
+		cont.fakePodSource.Delete(pod)
+	}
+
+	cont := initCont()
+	cont.run()
+
+	var nts []*npTest
+	for i := range mulnpTests {
+		nts = append(nts, &mulnpTests[i])
+	}
+	for _, nt := range mulnpTests {
+		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		addServices(cont, nt.augment)
+	}
+	cont.apicConn.SetSyncEnabled()
+	addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, "1.1.1.1")
+	addPod(cont, "testns", "pod2", map[string]string{"l1": "v1"}, "1.1.1.2")
+	time.Sleep(time.Millisecond * 100)
+	deletePod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, "1.1.1.1")
+	time.Sleep(time.Millisecond * 100)
+	addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, "1.1.1.1")
+	checkMulNp(t, nts, "multiple hpps", cont)
+	cont.stop()
 }
