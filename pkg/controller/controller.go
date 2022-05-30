@@ -30,6 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/discovery/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -145,6 +146,7 @@ type AciController struct {
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
 	snatPolicyCache      map[string]*ContSnatPolicy
+	delayedEpSlices      []*DelayedEpSlice
 	snatServices         map[string]bool
 	snatNodeInfoCache    map[string]*nodeinfo.NodeInfo
 	rdConfigCache        map[string]*rdConfig.RdConfig
@@ -169,6 +171,12 @@ type AciController struct {
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
+}
+
+type DelayedEpSlice struct {
+	OldEpSlice  *v1beta1.EndpointSlice
+	NewEpSlice  *v1beta1.EndpointSlice
+	DelayedTime time.Time
 }
 
 type nodeServiceMeta struct {
@@ -755,6 +763,21 @@ func (cont *AciController) syncOpflexDevices(stopCh <-chan struct{}, seconds tim
 		select {
 		case <-ticker.C:
 			cont.deleteOldOpflexDevices()
+		case <-stopCh:
+			return
+		}
+	}
+}
+
+func (cont *AciController) syncDelayedEpSlices(stopCh <-chan struct{}, seconds time.Duration) {
+	cont.log.Debug("Go routine to periodically check and process the epslices having delay adding in service")
+	ticker := time.NewTicker(seconds * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			cont.processDelayedEpSlices()
 		case <-stopCh:
 			return
 		}
