@@ -723,10 +723,14 @@ func TestEndpointsIpIndex(t *testing.T) {
 
 }
 func TestEndpointsliceIpIndex(t *testing.T) {
+	ready := true
 	endpoints := []v1beta1.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.1",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 		},
 	}
@@ -735,6 +739,9 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 		{
 			Addresses: []string{
 				"1.1.1.2",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 		},
 	}
@@ -758,6 +765,9 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 			Addresses: []string{
 				"1.1.1.3",
 			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
+			},
 		},
 	}
 
@@ -778,10 +788,16 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 			Addresses: []string{
 				"1.1.1.1",
 			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
+			},
 		},
 		{
 			Addresses: []string{
 				"1.1.1.3",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 		},
 	}
@@ -799,6 +815,9 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 		{
 			Addresses: []string{
 				"2001::1",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 		},
 	}
