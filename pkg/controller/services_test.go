@@ -724,6 +724,10 @@ func TestEndpointsIpIndex(t *testing.T) {
 }
 func TestEndpointsliceIpIndex(t *testing.T) {
 	ready := true
+	service1 := service("ns1", "service1", "")
+	service1.Spec.Type = ""
+	service2 := service("ns1", "service2", "")
+	service2.Spec.Type = ""
 	endpoints := []v1beta1.Endpoint{
 		{
 			Addresses: []string{
@@ -748,6 +752,9 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 	eps2 := endpointslice("ns1", "name2", endpoints, "service1")
 
 	cont := testController()
+
+	cont.fakeServiceSource.Add(service1)
+	cont.fakeServiceSource.Add(service2)
 	cont.serviceEndPoints = &serviceEndpointSlice{}
 	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 	cont.fakeEndpointSliceSource.Add(eps1)
