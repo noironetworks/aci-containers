@@ -26,6 +26,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/discovery/v1beta1"
@@ -1579,6 +1580,29 @@ func (cont *AciController) getEndpointSliceIps(endpointSlice *v1beta1.EndpointSl
 	return ips
 }
 
+func (cont *AciController) processDelayedEpSlices() {
+	var processEps []DelayedEpSlice
+	cont.indexMutex.Lock()
+	for i, delayedepslice := range cont.delayedEpSlices {
+		if time.Now().After(delayedepslice.DelayedTime) {
+			var toprocess DelayedEpSlice
+			err := util.DeepCopyObj(&delayedepslice, &toprocess)
+			if err != nil {
+				cont.log.Error(err)
+				continue
+			}
+			processEps = append(processEps, toprocess)
+			cont.delayedEpSlices = append(cont.delayedEpSlices[:i], cont.delayedEpSlices[i+1:]...)
+		}
+	}
+
+	cont.indexMutex.Unlock()
+	for _, epslice := range processEps {
+		cont.log.Debug("Processing update of epslice : ", epslice.NewEpSlice)
+		cont.doendpointSliceUpdated(epslice.OldEpSlice, epslice.NewEpSlice)
+	}
+}
+
 func (cont *AciController) endpointSliceAdded(obj interface{}) {
 	endpointslice, ok := obj.(*v1beta1.EndpointSlice)
 	if !ok {
@@ -1653,9 +1677,60 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 	if !valid {
 		return
 	}
+	serviceobj, _, err := cont.serviceIndexer.GetByKey(servicekey)
+	if err != nil {
+		cont.log.Error("Failed to get service ", err)
+		return
+	}
+	service, ok := serviceobj.(*v1.Service)
+	if !ok {
+		cont.log.Error("error processing Service object: ", service)
+		return
+	}
+	var delay int64
+	if service.ObjectMeta.Annotations != nil {
+		for key, val := range service.ObjectMeta.Annotations {
+			if key == "opflex.cisco.com/service-graph-endpoint-add-delay" {
+				if val != "" {
+					delay, err = strconv.ParseInt(val, 10, 64)
+					if err != nil {
+						cont.log.Error(err)
+					}
+				}
+				break
+			}
+		}
+	}
 	oldIps := cont.getEndpointSliceIps(oldendpointslice)
 	newIps := cont.getEndpointSliceIps(newendpointslice)
+	if delay > 0 {
+		isdelete := false
+		if len(newIps) < len(oldIps) {
+			isdelete = true
+		}
+		if !isdelete {
+			var delayedepslice DelayedEpSlice
+			delayedepslice.OldEpSlice = oldendpointslice
+			delayedepslice.NewEpSlice = newendpointslice
+			currentTime := time.Now()
+			delayedepslice.DelayedTime = currentTime.Add(time.Duration(delay) * time.Second)
+			cont.indexMutex.Lock()
+			cont.delayedEpSlices = append(cont.delayedEpSlices, &delayedepslice)
+			cont.indexMutex.Unlock()
+			return
+		}
+	}
+	cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
+}
 
+func (cont *AciController) doendpointSliceUpdated(oldendpointslice *v1beta1.EndpointSlice,
+	newendpointslice *v1beta1.EndpointSlice) {
+	servicekey, valid := getServiceKey(newendpointslice)
+	if !valid {
+		return
+	}
+	oldIps := cont.getEndpointSliceIps(oldendpointslice)
+	newIps := cont.getEndpointSliceIps(newendpointslice)
 	if !reflect.DeepEqual(oldendpointslice.Endpoints, newendpointslice.Endpoints) {
 		cont.indexMutex.Lock()
 		cont.queueIPNetPolUpdates(oldIps)
@@ -1668,7 +1743,6 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 	}
 	cont.log.Debug("EndPointSlice Object Update: ", servicekey)
 	cont.queueServiceUpdateByKey(servicekey)
-
 }
 
 func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta1.EndpointSlice) {
