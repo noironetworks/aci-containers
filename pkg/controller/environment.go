@@ -311,5 +311,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		go cont.snatGlobalInfoSync(stopCh, 60)
 	}
 	go cont.syncOpflexDevices(stopCh, 60)
+	go cont.syncDelayedEpSlices(stopCh, 1)
 	return nil
 }
