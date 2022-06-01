@@ -128,7 +128,7 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 	}
 	cont.log.Info("Handle update for snatpolicy: ", snatPolicy.ObjectMeta.Name)
 	policyName := snatPolicy.ObjectMeta.Name
-	if snatPolicy.Status.State != snatpolicy.Ready {
+	if snatPolicy.Status.State == "" {
 		if snatPolicy.Status.State == snatpolicy.IpPortsExhausted {
 			cont.indexMutex.Lock()
 			if snatInfo, ok := cont.snatPolicyCache[policyName]; ok {
@@ -144,6 +144,10 @@ func (cont *AciController) handleSnatUpdate(snatPolicy *snatpolicy.SnatPolicy) b
 			return cont.setSnatPolicyStatus(policyName, snatpolicy.Failed)
 		}
 		return cont.setSnatPolicyStatus(policyName, snatpolicy.Ready)
+	}
+	if snatPolicy.Status.State != snatpolicy.Ready {
+		cont.log.Debug("snatpolicy not in Ready state: ", snatPolicy.ObjectMeta.Name)
+		return false
 	}
 	cont.updateSnatPolicyCache(policyName, snatPolicy)
 	var requeue bool
