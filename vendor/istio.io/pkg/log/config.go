@@ -55,6 +55,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -81,6 +82,20 @@ var levelToZap = map[Level]zapcore.Level{
 	NoneLevel:  none,
 }
 
+var defaultEncoderConfig = zapcore.EncoderConfig{
+	TimeKey:        "time",
+	LevelKey:       "level",
+	NameKey:        "scope",
+	CallerKey:      "caller",
+	MessageKey:     "msg",
+	StacktraceKey:  "stack",
+	LineEnding:     zapcore.DefaultLineEnding,
+	EncodeLevel:    zapcore.LowercaseLevelEncoder,
+	EncodeCaller:   zapcore.ShortCallerEncoder,
+	EncodeDuration: zapcore.StringDurationEncoder,
+	EncodeTime:     formatDate,
+}
+
 // functions that can be replaced in a test setting
 type patchTable struct {
 	write       func(ent zapcore.Entry, fields []zapcore.Field) error
@@ -105,27 +120,34 @@ func init() {
 
 // prepZap is a utility function used by the Configure function.
 func prepZap(options *Options) (zapcore.Core, zapcore.Core, zapcore.WriteSyncer, error) {
-	encCfg := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "scope",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stack",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeTime:     formatDate,
-	}
-
 	var enc zapcore.Encoder
-	if options.JSONEncoding {
+	if options.useStackdriverFormat {
+		// See also: https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry
+		encCfg := zapcore.EncoderConfig{
+			TimeKey:        "timestamp",
+			LevelKey:       "severity",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "message",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    encodeStackdriverLevel,
+			EncodeTime:     zapcore.RFC3339NanoTimeEncoder,
+			EncodeDuration: zapcore.SecondsDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		}
 		enc = zapcore.NewJSONEncoder(encCfg)
 		useJSON.Store(true)
 	} else {
-		enc = zapcore.NewConsoleEncoder(encCfg)
-		useJSON.Store(false)
+		encCfg := defaultEncoderConfig
+
+		if options.JSONEncoding {
+			enc = zapcore.NewJSONEncoder(encCfg)
+			useJSON.Store(true)
+		} else {
+			enc = zapcore.NewConsoleEncoder(encCfg)
+			useJSON.Store(false)
+		}
 	}
 
 	var rotaterSink zapcore.WriteSyncer
@@ -293,7 +315,10 @@ func processLevels(allScopes map[string]*Scope, arg string, setter func(*Scope, 
 	return nil
 }
 
-var KlogScope = RegisterScope("klog", "", 0)
+var (
+	KlogScope     = RegisterScope("klog", "", 0)
+	configureKlog = sync.Once{}
+)
 
 // Configure initializes Istio's logging subsystem.
 //
@@ -308,6 +333,42 @@ func Configure(options *Options) error {
 
 	if err = updateScopes(options); err != nil {
 		return err
+	}
+
+	if options.teeToStackdriver {
+		// build stackdriver core.
+		core, err =
+			teeToStackdriver(
+				core,
+				options.stackdriverTargetProject,
+				options.stackdriverQuotaProject,
+				options.stackdriverLogName,
+				options.stackdriverResource)
+		if err != nil {
+			return err
+		}
+		captureCore, err =
+			teeToStackdriver(
+				captureCore,
+				options.stackdriverTargetProject,
+				options.stackdriverQuotaProject,
+				options.stackdriverLogName,
+				options.stackdriverResource)
+		if err != nil {
+			return err
+		}
+	}
+
+	if options.teeToUDSServer {
+		// build uds core.
+		core = teeToUDSServer(core, options.udsSocketAddress, options.udsServerPath)
+		if err != nil {
+			return err
+		}
+		captureCore = teeToUDSServer(captureCore, options.udsSocketAddress, options.udsServerPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	pt := patchTable{
@@ -353,8 +414,9 @@ func Configure(options *Options) error {
 	}
 
 	// capture klog (Kubernetes logging) through our logging
-	klog.SetLogger(newLogrAdapter(KlogScope))
-
+	configureKlog.Do(func() {
+		klog.SetLogger(NewLogrAdapter(KlogScope))
+	})
 	return nil
 }
 

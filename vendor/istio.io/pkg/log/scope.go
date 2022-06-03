@@ -393,7 +393,6 @@ func (s *Scope) callHandlers(
 	scope *Scope,
 	ie *structured.Error,
 	msg string) {
-
 	defaultHandlersMu.RLock()
 	defer defaultHandlersMu.RUnlock()
 	for _, h := range defaultHandlers {

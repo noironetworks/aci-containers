@@ -72,6 +72,8 @@ message CNIConfig {
   google.protobuf.BoolValue chained = 14;
 
   CNITaintConfig taint  = 15;
+
+  google.protobuf.BoolValue privileged = 18;
 }
 
 
@@ -116,6 +118,11 @@ message CPUTargetUtilizationConfig {
 message Resources {
   map<string, string> limits = 1;
   map<string, string> requests = 2;
+}
+
+// Mirrors ServiceAccount for unmarshaling.
+message ServiceAccount {
+  TypeMapStringInterface annotations = 1;
 }
 
 // DefaultPodDisruptionBudgetConfig specifies the default pod disruption budget configuration.
@@ -236,17 +243,9 @@ message EgressGatewayConfig {
   // The injection template to use for the gateway. If not set, no injection will be performed.
   string injectionTemplate = 27;
 
-  string loadBalancerIP = 28;
+  ServiceAccount serviceAccount = 28;
 
-  repeated string loadBalancerSourceRanges = 29;
-
-  google.protobuf.BoolValue customService = 30;
-
-  TypeSliceOfMapStringInterface egressPorts = 31;
-
-  string externalTrafficPolicy = 32;
-
-  // Next available 31.
+  // Next available 29.
 }
 
 // Configuration for gateways.
@@ -268,7 +267,9 @@ message GlobalConfig {
   //   1 - Least preferred
   //   2 - No preference
   //   3 - Most preferred
-  ArchConfig arch = 1;
+  //
+  // Deprecated: replaced by the affinity k8s settings which allows architecture nodeAffinity configuration of this behavior.
+  ArchConfig arch = 1 [deprecated=true];
 
   string configRootNamespace = 50;
 
@@ -382,9 +383,6 @@ message GlobalConfig {
   // Specifies the Configuration for each of the supported tracers.
   TracerConfig tracer = 33;
 
-  // Specifies the trust domain that corresponds to the root cert of CA.
-  string trustDomain = 34;
-
   // Controls whether to use of Mesh Configuration Protocol to distribute configuration.
   google.protobuf.BoolValue useMCP = 35;
 
@@ -395,7 +393,7 @@ message GlobalConfig {
   IstiodConfig istiod = 54;
 
   // Configure the Pilot certificate provider.
-  // Currently, two providers are supported: "kubernetes" and "citadel".
+  // Currently, four providers are supported: "kubernetes", "istiod", "custom" and "none".
   string pilotCertProvider = 56;
 
   // Configure the policy for validating JWT.
@@ -416,8 +414,11 @@ message GlobalConfig {
 
   // Controls whether one external istiod is enabled.
   google.protobuf.BoolValue externalIstiod = 62;
+  
+  // Controls whether a remote cluster is the config cluster for an external istiod
+  google.protobuf.BoolValue configCluster = 64;
 
-  // The next available key is 64
+  // The next available key is 65
 }
 
 // Configuration for Security Token Service (STS) server.
@@ -534,7 +535,9 @@ message IngressGatewayConfig {
   // The injection template to use for the gateway. If not set, no injection will be performed.
   string injectionTemplate = 46;
 
-  // Next available 47.
+  ServiceAccount serviceAccount = 47;
+
+  // Next available 48.
 }
 
 // IngressGatewayZvpnConfig enables cross-cluster access using SNI matching.
@@ -910,6 +913,7 @@ enum tracer {
   datadog = 2;
   stackdriver = 3;
   openCensusAgent = 4;
+  none = 5;
 }
 
 // Configuration for proxy_init container which sets the pods' networking to intercept the inbound/outbound traffic.
@@ -997,26 +1001,25 @@ message SidecarInjectorConfig {
   // This is intended for advanced configuration only; most users should use the built in template
   TypeMapStringInterface templates = 23;
 
-  // If enabled, the legacy webhook selection logic will be used. This relies on filtering of webhook
-  // requests in Istiod, rather than at the webhook selection level.
-  // This is option is intended for migration purposes only and will be removed in Istio 1.10.
-  google.protobuf.BoolValue useLegacySelectors = 4;
-
-
   // Default templates specifies a set of default templates that are used in sidecar injection.
-  // By default, a template `sidecar` is always provided, which contains the template of default sidecar.
-  // To inject other additional templates, define it using the `templates` option, and add it to
+  // By default, a template `sidecar` is always provided, which contains the template of default sidecar. 
+  // To inject other additional templates, define it using the `templates` option, and add it to 
   // the default templates list.
   // For example:
-
+  
   // templates:
   //   hello: |
   //     metadata:
   //       labels:
   //         hello: world
-
+  
   // defaultTemplates: ["sidecar", "hello"]
   repeated string defaultTemplates = 24;
+
+  // If enabled, the legacy webhook selection logic will be used. This relies on filtering of webhook
+  // requests in Istiod, rather than at the webhook selection level.
+  // This is option is intended for migration purposes only and will be removed in Istio 1.10.
+  google.protobuf.BoolValue useLegacySelectors = 4 [deprecated=true];
 }
 
 // Configuration for each of the supported tracers.
@@ -1087,6 +1090,8 @@ message BaseConfig {
 message IstiodRemoteConfig {
   // URL to use for sidecar injector webhook.
   string injectionURL = 1;
+  // Path to use for the sidecar injector webhook service.
+  string injectionPath = 2;
 }
 
 message Values {
@@ -1115,6 +1120,8 @@ message Values {
   BaseConfig base = 37;
 
   IstiodRemoteConfig istiodRemote = 38;
+
+  repeated string revisionTags = 39;
 }
 
 // GOTYPE: map[string]interface{}

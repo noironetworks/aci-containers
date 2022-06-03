@@ -639,62 +639,6 @@ No
 No
 </td>
 </tr>
-<tr id="EgressGatewayConfig-injectionTemplate">
-<td><code>injectionTemplate</code></td>
-<td><code>string</code></td>
-<td>
-<p>The injection template to use for the gateway. If not set, no injection will be performed.</p>
-
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="EgressGatewayConfig-loadBalancerIP">
-<td><code>loadBalancerIP</code></td>
-<td><code>string</code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="EgressGatewayConfig-loadBalancerSourceRanges">
-<td><code>loadBalancerSourceRanges</code></td>
-<td><code>string[]</code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="EgressGatewayConfig-customService">
-<td><code>customService</code></td>
-<td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="EgressGatewayConfig-egressPorts">
-<td><code>egressPorts</code></td>
-<td><code><a href="#TypeSliceOfMapStringInterface">TypeSliceOfMapStringInterface</a></code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="EgressGatewayConfig-externalTrafficPolicy">
-<td><code>externalTrafficPolicy</code></td>
-<td><code>string</code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
 <tr id="EgressGatewayConfig-cpu" class="deprecated ">
 <td><code>cpu</code></td>
 <td><code><a href="#CPUTargetUtilizationConfig">CPUTargetUtilizationConfig</a></code></td>
@@ -1156,17 +1100,6 @@ No
 <td><code><a href="#TracerConfig">TracerConfig</a></code></td>
 <td>
 <p>Specifies the Configuration for each of the supported tracers.</p>
-
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="GlobalConfig-trustDomain">
-<td><code>trustDomain</code></td>
-<td><code>string</code></td>
-<td>
-<p>Specifies the trust domain that corresponds to the root cert of CA.</p>
 
 </td>
 <td>
@@ -1642,17 +1575,6 @@ No
 <td><code>runAsRoot</code></td>
 <td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
 <td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="IngressGatewayConfig-injectionTemplate">
-<td><code>injectionTemplate</code></td>
-<td><code>string</code></td>
-<td>
-<p>The injection template to use for the gateway. If not set, no injection will be performed.</p>
-
 </td>
 <td>
 No
@@ -2526,6 +2448,15 @@ No
 No
 </td>
 </tr>
+<tr id="TelemetryV2StackDriverConfig-topology">
+<td><code>topology</code></td>
+<td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
+<td>
+</td>
+<td>
+No
+</td>
+</tr>
 <tr id="TelemetryV2StackDriverConfig-disableOutbound">
 <td><code>disableOutbound</code></td>
 <td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
@@ -2564,15 +2495,6 @@ No
 </tr>
 <tr id="TelemetryV2StackDriverConfig-logging" class="deprecated ">
 <td><code>logging</code></td>
-<td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
-<td>
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="TelemetryV2StackDriverConfig-topology" class="deprecated ">
-<td><code>topology</code></td>
 <td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
 <td>
 </td>
@@ -3261,27 +3183,14 @@ No
 <p>Templates defines a set of custom injection templates that can be used. For example, defining:</p>
 
 <p>templates:
-  hello: |
-    metadata:
-      labels:
-        hello: world</p>
+  hello:
+   metadata
+     labels:
+       hello: world</p>
 
 <p>Then starting a pod with the <code>inject.istio.io/templates: hello</code> annotation, will result in the pod
 being injected with the hello=world labels.
 This is intended for advanced configuration only; most users should use the built in template</p>
-
-</td>
-<td>
-No
-</td>
-</tr>
-<tr id="SidecarInjectorConfig-useLegacySelectors">
-<td><code>useLegacySelectors</code></td>
-<td><code><a href="https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#boolvalue">BoolValue</a></code></td>
-<td>
-<p>If enabled, the legacy webhook selection logic will be used. This relies on filtering of webhook
-requests in Istiod, rather than at the webhook selection level.
-This is option is intended for migration purposes only and will be removed in Istio 1.10.</p>
 
 </td>
 <td>

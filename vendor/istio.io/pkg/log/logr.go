@@ -85,7 +85,7 @@ func (zl *zapLogger) V(level int) logr.Logger {
 }
 
 func (zl *zapLogger) WithValues(keysAndValues ...interface{}) logr.Logger {
-	return newLogrAdapter(zl.l.WithLabels(keysAndValues...))
+	return NewLogrAdapter(zl.l.WithLabels(keysAndValues...))
 }
 
 func (zl *zapLogger) WithName(name string) logr.Logger {
@@ -93,7 +93,7 @@ func (zl *zapLogger) WithName(name string) logr.Logger {
 }
 
 // NewLogger creates a new logr.Logger using the given Zap Logger to log.
-func newLogrAdapter(l *Scope) logr.Logger {
+func NewLogrAdapter(l *Scope) logr.Logger {
 	return &zapLogger{
 		l:      l,
 		lvl:    0,
