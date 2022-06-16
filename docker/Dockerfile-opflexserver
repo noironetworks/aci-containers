@@ -8,3 +8,4 @@ COPY bin/gbp_inspect /usr/local/bin/
 COPY bin/launch-opflexserver.sh /usr/local/bin/
 COPY server/lib/ /usr/local/lib/
 CMD ["/usr/local/bin/launch-opflexserver.sh"]
+USER 1001

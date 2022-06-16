@@ -1,6 +1,6 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
-FROM ${baserepo}/aci-containers-openvswitch-base:${basetag}
+FROM ${baserepo}/aci-containers-openvswitch-base:kmr2-test
 # Required OpenShift Labels
 LABEL name="ACI CNI Openvswitch" \
 vendor="Cisco" \
@@ -12,3 +12,4 @@ description="This will deploy a single instance of ACI CNI Openvswitch."
 COPY docker/licenses /licenses
 COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
 CMD ["/usr/local/bin/launch-ovs.sh"]
+USER 1001

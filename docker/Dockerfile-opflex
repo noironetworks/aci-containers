@@ -1,6 +1,6 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
-FROM ${baserepo}/aci-containers-base:${basetag}
+FROM ${baserepo}/aci-containers-base:kmr2-test
 RUN yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
   --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms libstdc++ libuv \
   boost-program-options boost-system boost-date-time boost-filesystem \
@@ -27,3 +27,4 @@ COPY server/lib/ /usr/local/lib/
 ENV SSL_MODE="encrypted"
 ENV REBOOT_WITH_OVS="true"
 CMD ["/usr/local/bin/launch-opflexagent.sh"]
+USER 1001

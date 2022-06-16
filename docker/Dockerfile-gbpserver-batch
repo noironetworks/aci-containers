@@ -1,6 +1,6 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
-FROM ${baserepo}/aci-containers-base:${basetag}
+FROM ${baserepo}/aci-containers-base:kmr2-test
 COPY dist-static/gbpserver /usr/local/bin/
 # Required OpenShift Labels
 LABEL name="ACI CNI gbpserver" \
@@ -11,3 +11,4 @@ summary="This is an ACI controller init." \
 description="This will execute the binary in batch mode"
 # Required Licenses
 COPY docker/licenses /licenses
+USER 1001

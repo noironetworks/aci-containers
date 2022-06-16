@@ -1,6 +1,6 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
-FROM ${baserepo}/aci-containers-base:${basetag}
+FROM ${baserepo}/aci-containers-base:kmr2-test
 RUN yum install -y git \
   && yum clean all \
   && curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.21.3/bin/linux/amd64/kubectl \
