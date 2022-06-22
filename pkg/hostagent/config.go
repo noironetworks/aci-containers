@@ -236,6 +236,9 @@ type HostAgentConfig struct {
 
 	// Sriov and Ovs Hardward Offload enabled
 	OvsHardwareOffload bool `json:"enable-ovs-hw-offload,omitempty"`
+
+	// DpuOvsDBSocket when OpflexMode is dpu selects ovsdb sock on dpu
+	DpuOvsDBSocket string `json:"dpu-ovsdb-socket,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -307,4 +310,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")
 	flag.StringVar(&config.EPRegistry, "ep-registry", "", "Enable PodIF")
 	flag.BoolVar(&config.OvsHardwareOffload, "enable-sriov-config", false, "SRIOV config and ovs hardware offload feature")
+	flag.StringVar(&config.DpuOvsDBSocket, "dpu-ovsdb-socket", "tcp:192.168.200.2:6640", "TCP socket on DPU to connect to")
 }

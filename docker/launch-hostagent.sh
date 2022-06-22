@@ -67,12 +67,16 @@ fi
 
 if [ "$OPFLEX_MODE" == "overlay" ]; then
     echo "enabling host access for overlay mode"
-    ${ACIBIN}/enable-hostacc.sh
+    if [ "$OPFLEX_MODE" != "dpu" ]; then
+        ${ACIBIN}/enable-hostacc.sh
+    fi
 else
     echo "running in on prem mode"
 fi
 
-${ACIBIN}/enable-droplog.sh
+if [ "$OPFLEX_MODE" != "dpu" ]; then
+    ${ACIBIN}/enable-droplog.sh
+fi
 
 CMD=${HOSTAGENT}
 if [ -f ${HOSTAGENT_CONF} ]; then
