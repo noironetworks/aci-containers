@@ -547,6 +547,15 @@ func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 	return ret
 }
 
+func NewHostprotRsRemoteIpContainer(parentDn string, tDn string) ApicObject {
+
+	ret := newApicObject("hostprotRsRemoteIpContainer")
+	ret["hostprotRsRemoteIpContainer"].Attributes["tDn"] = tDn
+	ret["hostprotRsRemoteIpContainer"].Attributes["dn"] =
+		fmt.Sprintf("%s/remoteipcont", parentDn)
+	return ret
+}
+
 func NewQosDppPol(tenantName string, name string) ApicObject {
 
 	ret := newApicObject("qosDppPol")
@@ -992,6 +1001,18 @@ func NewVmmInjectedSvc(vendor string, domain string, controller string,
 	ret["vmmInjectedSvc"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/svc-[%s]",
 			vendor, domain, controller, namespace, name)
+	return ret
+}
+
+func NewHostprotRemoteIpContainer(vendor string, domain string, controller string,
+	namespace string) ApicObject {
+
+	ret := newApicObject("hostprotRemoteIpContainer")
+	ret["hostprotRemoteIpContainer"].Attributes["name"] = "remoteipcont"
+	ret["hostprotRemoteIpContainer"].Attributes["nameAlias"] = "remoteipcont"
+	ret["hostprotRemoteIpContainer"].Attributes["dn"] =
+		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/remoteipcont",
+			vendor, domain, controller, namespace)
 	return ret
 }
 

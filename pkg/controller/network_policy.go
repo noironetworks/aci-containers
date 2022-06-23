@@ -618,9 +618,10 @@ func (cont *AciController) getNetPolTargetPorts(np *v1net.NetworkPolicy) map[str
 
 func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	namespace string, peerPods []*v1.Pod, peerNs map[string]*v1.Namespace,
-	logger *logrus.Entry) ([]string, map[string]bool) {
+	remoteNsSubnets map[string][]string,
+	logger *logrus.Entry) ([]string, []string, map[string]bool) {
 
-	var remoteSubnets []string
+	var remoteSubnets, peerNsWithSubnets []string
 	subnetMap := make(map[string]bool)
 	if len(peers) > 0 {
 		// only applies to matching pods
@@ -629,11 +630,14 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 				if ns, ok := peerNs[pod.ObjectMeta.Namespace]; ok &&
 					cont.peerMatchesPod(namespace,
 						&peer, pod, ns) {
+					cont.log.Debug("testtt matching subnet ns", ns)
+					cont.log.Debug("testtt matching subnet pod", pod.ObjectMeta.Name)
 					podIps := ipsForPod(pod)
 					for _, ip := range podIps {
 						if _, exists := subnetMap[ip]; !exists {
 							subnetMap[ip] = true
-							remoteSubnets = append(remoteSubnets, ip)
+							remoteNsSubnets[pod.ObjectMeta.Namespace] = append(remoteNsSubnets[pod.ObjectMeta.Namespace], ip)
+							peerNsWithSubnets = append(peerNsWithSubnets, pod.ObjectMeta.Namespace)
 						}
 					}
 				}
@@ -655,12 +659,19 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 		}
 	}
 	sort.Strings(remoteSubnets)
-	return remoteSubnets, subnetMap
+	return remoteSubnets, peerNsWithSubnets, subnetMap
 }
 
-func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
+func getHostprotRsRemoteIpContTdn(vendor string, domain string, controller string,
+	namespace string) string {
+	tdn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/remoteipcont",
+		vendor, domain, controller, namespace)
+	return tdn
+}
+
+func (cont *AciController) buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	direction string, ethertype string, proto string, port string,
-	remoteSubnets []string) {
+	remoteSubnets []string, remoteNsSubnetDns []string) {
 
 	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleName)
 	rule.SetAttr("direction", direction)
@@ -671,6 +682,11 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	for _, ip := range remoteSubnets {
 		rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
 	}
+	for _, ns := range remoteNsSubnetDns {
+		tdn := getHostprotRsRemoteIpContTdn(cont.vmmDomainProvider(),
+			cont.config.AciVmmDomain, cont.config.AciVmmController, ns)
+		rule.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule.GetDn(), tdn))
+	}
 	if port != "" {
 		rule.SetAttr("toPort", port)
 	}
@@ -680,10 +696,10 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 
 func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	subj apicapi.ApicObject, direction string, peers []v1net.NetworkPolicyPeer,
-	remoteSubnets []string, ports []v1net.NetworkPolicyPort,
+	remoteSubnets []string, peerNsWithSubnets []string, ports []v1net.NetworkPolicyPort,
 	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy) {
 
-	if len(peers) > 0 && len(remoteSubnets) == 0 {
+	if len(peers) > 0 && len(remoteSubnets) == 0 && len(peerNsWithSubnets) == 0 {
 		// nonempty From matches no pods or IPBlocks; don't
 		// create the rule
 		return
@@ -691,12 +707,12 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 
 	if len(ports) == 0 {
 		if !cont.configuredPodNetworkIps.V4.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
-				"ipv4", "", "", remoteSubnets)
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv4", "", "", remoteSubnets, peerNsWithSubnets)
 		}
 		if !cont.configuredPodNetworkIps.V6.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
-				"ipv6", "", "", remoteSubnets)
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv6", "", "", remoteSubnets, peerNsWithSubnets)
 		}
 	} else {
 		for j, p := range ports {
@@ -732,12 +748,12 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 			}
 			for i, port := range ports {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
-						"ipv4", proto, port, remoteSubnets)
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+						"ipv4", proto, port, remoteSubnets, peerNsWithSubnets)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
-						"ipv6", proto, port, remoteSubnets)
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+						"ipv6", proto, port, remoteSubnets, peerNsWithSubnets)
 				}
 			}
 		}
@@ -1067,15 +1083,33 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 		}
 		cont.log.Debug("Service Augment: ", augment)
 		if len(remoteIpsv4) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
-				"egress", "ipv4", augment.proto, augment.port, remoteIpsv4)
+				"egress", "ipv4", augment.proto, augment.port, remoteIpsv4, []string{})
 		}
 		if len(remoteIpsv6) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
-				"egress", "ipv6", augment.proto, augment.port, remoteIpsv6)
+				"egress", "ipv6", augment.proto, augment.port, remoteIpsv6, []string{})
 		}
+	}
+}
+
+func (cont *AciController) writeApicRemIpConts(remoteIpCont map[string][]string) {
+	for ns, subnetIps := range remoteIpCont {
+		aobj := apicapi.NewHostprotRemoteIpContainer(cont.vmmDomainProvider(),
+			cont.config.AciVmmDomain, cont.config.AciVmmController, ns)
+		aobjDn := aobj.GetDn()
+
+		for _, ip := range subnetIps {
+			aobj.AddChild(apicapi.NewHostprotRemoteIp(aobjDn, ip))
+		}
+
+		name := cont.aciNameForKey("remipcont", ns)
+		cont.log.Debug("Write hostprotRemoteIpContainer Object: ", aobj, " name: ", name)
+		cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
+		cont.log.Debugf("hostprotRemoteIpContainer: %+v", aobj)
+
 	}
 }
 
@@ -1107,6 +1141,9 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 			peerPods = append(peerPods, pod)
 		}
 	}
+	for i, j := range peerNs {
+		cont.log.Debug("testttt peerNs  ", i, " ", j)
+	}
 	ptypeset := make(map[v1net.PolicyType]bool)
 	for _, t := range np.Spec.PolicyTypes {
 		ptypeset[t] = true
@@ -1114,15 +1151,16 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 
 	labelKey := cont.aciNameForKey("np", key)
 	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
+	remoteNsSubnets := make(map[string][]string)
 	// Generate ingress policies
 	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 		subjIngress :=
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
 		for i, ingress := range np.Spec.Ingress {
-			remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
-				np.Namespace, peerPods, peerNs, logger)
+			remoteSubnets, peerNsWithSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
+				np.Namespace, peerPods, peerNs, remoteNsSubnets, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
-				"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np)
+				"ingress", ingress.From, remoteSubnets, peerNsWithSubnets, ingress.Ports, logger, key, np)
 		}
 		hpp.AddChild(subjIngress)
 	}
@@ -1134,10 +1172,10 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		portRemoteSubs := make(map[string]*portRemoteSubnet)
 
 		for i, egress := range np.Spec.Egress {
-			remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
-				np.Namespace, peerPods, peerNs, logger)
+			remoteSubnets, peerNsWithSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
+				np.Namespace, peerPods, peerNs, remoteNsSubnets, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-				"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
+				"egress", egress.To, remoteSubnets, peerNsWithSubnets, egress.Ports, logger, key, np)
 
 			// creating a rule to egress to all on a given port needs
 			// to enable access to any service IPs/ports that have
@@ -1160,6 +1198,9 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		}
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
+	}
+	if len(remoteNsSubnets) > 0 {
+		cont.writeApicRemIpConts(remoteNsSubnets)
 	}
 	return labelKey, apicapi.ApicSlice{hpp}
 }
