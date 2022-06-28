@@ -388,6 +388,19 @@ var metadata = map[string]*apicMeta{
 			"addr": "",
 		},
 	},
+	"hostprotRsRemoteIpContainer": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+	},
+	"hostprotRemoteIpContainer": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"hostprotRemoteIp",
+		},
+	},
 	"qosRequirement": {
 		attributes: map[string]interface{}{
 			"name": "",

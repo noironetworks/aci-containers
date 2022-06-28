@@ -331,12 +331,14 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	for _, delete := range deletes {
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
+		conn.log.Debug("apic testttt delete", delete)
 		conn.queueDn(delete)
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
 			Debug("Applying APIC object update")
+		conn.log.Debug("apic testttt update", update)
 		conn.queueDn(dn)
 	}
 }
@@ -562,6 +564,7 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 			tenantObj["fvTenant"].Attributes["status"] = "modified"
 			mulobj[tenantObj.GetDn()] = tenantObj
 			conn.multipleDn[index] = mulobj
+			conn.log.Debug("apic testtt mulobj delete", mulobj)
 			conn.indexMutex.Unlock()
 		}
 		for i, up := range multiUpdates {
@@ -574,6 +577,7 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 			tenantObj["fvTenant"].Attributes["status"] = "modified"
 			mulobj[tenantObj.GetDn()] = tenantObj
 			conn.multipleDn[index] = mulobj
+			conn.log.Debug("apic testtt mulobj update", mulobj)
 			conn.indexMutex.Unlock()
 		}
 		conn.applyMulDiff(mulupdns, muldeldns, "write")
