@@ -551,8 +551,6 @@ func NewHostprotRsRemoteIpContainer(parentDn string, tDn string) ApicObject {
 
 	ret := newApicObject("hostprotRsRemoteIpContainer")
 	ret["hostprotRsRemoteIpContainer"].Attributes["tDn"] = tDn
-	ret["hostprotRsRemoteIpContainer"].Attributes["dn"] =
-		fmt.Sprintf("%s/remoteipcont", parentDn)
 	return ret
 }
 
