@@ -547,10 +547,38 @@ func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 	return ret
 }
 
+func HostprotEpLabel(key string, value string) ApicObject {
+
+	ret := newApicObject("hostprotEpLabel")
+	ret["hostprotEpLabel"].Attributes["key"] = key
+	ret["hostprotEpLabel"].Attributes["value"] = value
+	ret["hostprotEpLabel"].Attributes["name"] = key
+	return ret
+}
+
 func NewHostprotRsRemoteIpContainer(parentDn string, tDn string) ApicObject {
 
 	ret := newApicObject("hostprotRsRemoteIpContainer")
 	ret["hostprotRsRemoteIpContainer"].Attributes["tDn"] = tDn
+	return ret
+}
+
+func NewHostprotFilterContainer(parentDn string) ApicObject {
+
+	ret := newApicObject("hostprotFilterContainer")
+	ret["hostprotFilterContainer"].Attributes["dn"] =
+		fmt.Sprintf("%s/filtercontainer", parentDn)
+	return ret
+}
+
+func NewHostprotPodFilter(key string, operator string, value string) ApicObject {
+
+	ret := newApicObject("hostprotPodFilter")
+	ret["hostprotPodFilter"].Attributes["key"] = key
+	ret["hostprotPodFilter"].Attributes["operator"] = operator
+	ret["hostprotPodFilter"].Attributes["values"] = value
+	ret["hostprotPodFilter"].Attributes["name"] =
+		fmt.Sprintf("%s-%s-%s", key, operator, value)
 	return ret
 }
 

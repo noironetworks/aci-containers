@@ -401,6 +401,27 @@ var metadata = map[string]*apicMeta{
 			"hostprotRemoteIp",
 		},
 	},
+	"hostprotFilterContainer": {
+		attributes: map[string]interface{}{
+			"dn": "",
+		},
+		children: []string{
+			"hostprotPodFilter",
+		},
+	},
+	"hostprotPodFilter": {
+		attributes: map[string]interface{}{
+			"key":      "",
+			"values":   "",
+			"operator": "",
+		},
+	},
+	"hostprotEpLabel": {
+		attributes: map[string]interface{}{
+			"key":   "",
+			"value": "",
+		},
+	},
 	"qosRequirement": {
 		attributes: map[string]interface{}{
 			"name": "",
