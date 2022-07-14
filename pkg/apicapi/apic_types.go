@@ -547,18 +547,22 @@ func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 	return ret
 }
 
-func HostprotEpLabel(key string, value string) ApicObject {
-
+func HostprotEpLabel(parentDn string, key string, value string) ApicObject {
 	ret := newApicObject("hostprotEpLabel")
+
+	ret["hostprotEpLabel"].Attributes["dn"] =
+		fmt.Sprintf("%s/eplabel-[%s]", parentDn, key)
 	ret["hostprotEpLabel"].Attributes["key"] = key
 	ret["hostprotEpLabel"].Attributes["value"] = value
 	ret["hostprotEpLabel"].Attributes["name"] = key
 	return ret
 }
 
-func NewHostprotRsRemoteIpContainer(parentDn string, tDn string) ApicObject {
+func NewHostprotRsRemoteIpContainer(parentDn string, tDn string, ns string) ApicObject {
 
 	ret := newApicObject("hostprotRsRemoteIpContainer")
+	ret["hostprotRsRemoteIpContainer"].Attributes["dn"] =
+		fmt.Sprintf("%s/rs-remipcont-[%s]", parentDn, ns)
 	ret["hostprotRsRemoteIpContainer"].Attributes["tDn"] = tDn
 	return ret
 }
@@ -571,7 +575,7 @@ func NewHostprotFilterContainer(parentDn string) ApicObject {
 	return ret
 }
 
-func NewHostprotPodFilter(key string, operator string, value string) ApicObject {
+func NewHostprotPodFilter(parentDn string, key string, operator string, value string) ApicObject {
 
 	ret := newApicObject("hostprotPodFilter")
 	ret["hostprotPodFilter"].Attributes["key"] = key
@@ -579,6 +583,8 @@ func NewHostprotPodFilter(key string, operator string, value string) ApicObject 
 	ret["hostprotPodFilter"].Attributes["values"] = value
 	ret["hostprotPodFilter"].Attributes["name"] =
 		fmt.Sprintf("%s-%s-%s", key, operator, value)
+	ret["hostprotPodFilter"].Attributes["dn"] =
+		fmt.Sprintf("%s/podfilter-[%s]", parentDn, key)
 	return ret
 }
 
@@ -1030,15 +1036,20 @@ func NewVmmInjectedSvc(vendor string, domain string, controller string,
 	return ret
 }
 
-func NewHostprotRemoteIpContainer(vendor string, domain string, controller string,
-	namespace string) ApicObject {
+func NewHostprotNamespace(ns string) ApicObject {
+	ret := newApicObject("hostprotNamespace")
+	ret["hostprotNamespace"].Attributes["name"] = ns
+	ret["hostprotNamespace"].Attributes["dn"] =
+		fmt.Sprintf("uni/ns-%s", ns)
+	return ret
+}
+
+func NewHostprotRemoteIpContainer(parentDn string, namespace string) ApicObject {
 
 	ret := newApicObject("hostprotRemoteIpContainer")
-	ret["hostprotRemoteIpContainer"].Attributes["name"] = "remoteipcont"
-	ret["hostprotRemoteIpContainer"].Attributes["nameAlias"] = "remoteipcont"
+	ret["hostprotRemoteIpContainer"].Attributes["name"] = namespace
 	ret["hostprotRemoteIpContainer"].Attributes["dn"] =
-		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/remoteipcont",
-			vendor, domain, controller, namespace)
+		fmt.Sprintf("%s/remoteipcont", parentDn)
 	return ret
 }
 

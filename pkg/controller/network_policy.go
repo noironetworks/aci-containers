@@ -643,8 +643,7 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 							ipremotesubnet.podLabels = pod.ObjectMeta.Labels
 
 							remoteNsSubnets[pod.ObjectMeta.Namespace] = append(remoteNsSubnets[pod.ObjectMeta.Namespace], ipremotesubnet)
-							tdn := getHostprotRsRemoteIpContTdn(cont.vmmDomainProvider(),
-								cont.config.AciVmmDomain, cont.config.AciVmmController, pod.ObjectMeta.Namespace)
+							tdn := getHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
 							peerNsWithSubnets[pod.ObjectMeta.Namespace] = tdn
 						}
 					}
@@ -674,10 +673,8 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	return remoteSubnets, peerNsWithSubnets, podSelector, subnetMap
 }
 
-func getHostprotRsRemoteIpContTdn(vendor string, domain string, controller string,
-	namespace string) string {
-	tdn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/ns-[%s]/remoteipcont",
-		vendor, domain, controller, namespace)
+func getHostprotRsRemoteIpContTdn(namespace string) string {
+	tdn := fmt.Sprintf("uni/ns-[%s]/remoteipcont", namespace)
 	return tdn
 }
 
@@ -694,20 +691,21 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string, direction str
 	for _, ip := range remoteSubnets {
 		rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
 	}
-	for _, tdn := range remoteNsSubnetDns {
-		rule.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule.GetDn(), tdn))
+	for ns, tdn := range remoteNsSubnetDns {
+		rule.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule.GetDn(), tdn, ns))
 	}
 	if podSelector != nil {
 		filter := apicapi.NewHostprotFilterContainer(rule.GetDn())
 		for key, val := range podSelector.MatchLabels {
-			filter.AddChild(apicapi.NewHostprotPodFilter(key, "", val))
+			filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(), key, "", val))
 		}
 		for _, expressions := range podSelector.MatchExpressions {
 			values := ""
 			for _, val := range expressions.Values {
 				values = values + "," + val
 			}
-			filter.AddChild(apicapi.NewHostprotPodFilter(expressions.Key, string(expressions.Operator), values))
+			filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(),
+				expressions.Key, string(expressions.Operator), values))
 		}
 		rule.AddChild(filter)
 	}
@@ -1126,24 +1124,26 @@ type ipRemoteSubnet struct {
 	podLabels map[string]string
 }
 
-func (cont *AciController) writeApicRemIpConts(remoteIpCont map[string][]ipRemoteSubnet) {
+func (cont *AciController) writeApicHostprotNamespace(remoteIpCont map[string][]ipRemoteSubnet) {
 	for ns, subnetIps := range remoteIpCont {
-		aobj := apicapi.NewHostprotRemoteIpContainer(cont.vmmDomainProvider(),
-			cont.config.AciVmmDomain, cont.config.AciVmmController, ns)
+		nsobj := apicapi.NewHostprotNamespace(ns)
+
+		aobj := apicapi.NewHostprotRemoteIpContainer(nsobj.GetDn(), ns)
 		aobjDn := aobj.GetDn()
 
 		for _, subnetip := range subnetIps {
 			remIpObj := apicapi.NewHostprotRemoteIp(aobjDn, subnetip.ip)
 			for key, val := range subnetip.podLabels {
-				remIpObj.AddChild(apicapi.HostprotEpLabel(key, val))
+				remIpObj.AddChild(apicapi.HostprotEpLabel(key, val, ns))
 			}
 			aobj.AddChild(remIpObj)
 		}
 
-		name := cont.aciNameForKey("remipcont", ns)
-		cont.log.Debug("Write hostprotRemoteIpContainer Object: ", aobj, " name: ", name)
-		cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{aobj})
-		cont.log.Debugf("hostprotRemoteIpContainer: %+v", aobj)
+		nsobj.AddChild(aobj)
+		name := cont.aciNameForKey("hostprot-ns-", ns)
+		cont.log.Debug("Write hostprotNamespace Object: ", nsobj, " name: ", name)
+		cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{nsobj})
+		cont.log.Debugf("hostprotNamespace: %+v", nsobj)
 	}
 }
 
@@ -1236,7 +1236,7 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		hpp.AddChild(subjEgress)
 	}
 	if len(remoteNsSubnets) > 0 {
-		cont.writeApicRemIpConts(remoteNsSubnets)
+		cont.writeApicHostprotNamespace(remoteNsSubnets)
 	}
 	return labelKey, apicapi.ApicSlice{hpp}
 }

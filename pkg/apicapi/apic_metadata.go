@@ -393,6 +393,14 @@ var metadata = map[string]*apicMeta{
 			"tDn": "",
 		},
 	},
+	"hostprotNamespace": {
+		attributes: map[string]interface{}{
+			"dn": "",
+		},
+		children: []string{
+			"hostprotRemoteIpContainer",
+		},
+	},
 	"hostprotRemoteIpContainer": {
 		attributes: map[string]interface{}{
 			"name": "",
