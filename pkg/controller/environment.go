@@ -266,6 +266,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj []interface{}) bool {
 			return cont.handleMulNetPolUpdate(obj)
 		}, nil, stopCh)
+	go cont.processRemIpContQueue(cont.remIpContQueue,
+		func(obj interface{}) bool {
+			return cont.handleRemIpContUpdate(obj.(string))
+		}, nil, stopCh)
 	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 		func(obj interface{}) bool {
 			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))

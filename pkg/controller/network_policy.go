@@ -185,10 +185,18 @@ func (cont *AciController) initNetPolPodIndex() {
 	nphash := func(pod *v1.Pod) string {
 		return pod.Status.PodIP
 	}
+
+	remipupdate := func(pod *v1.Pod, deleted bool) {
+		cont.queueRemoteIpConUpdate(pod, deleted)
+	}
+
 	cont.netPolIngressPods.SetObjUpdateCallback(npupdate)
 	cont.netPolIngressPods.SetMulObjUpdateCallback(mulnpupdate)
+	cont.netPolIngressPods.SetRemIpUpdateCallback(remipupdate)
 	cont.netPolIngressPods.SetPodHashFunc(nphash)
 	cont.netPolEgressPods.SetObjUpdateCallback(npupdate)
+	cont.netPolIngressPods.SetMulObjUpdateCallback(mulnpupdate)
+	cont.netPolEgressPods.SetRemIpUpdateCallback(remipupdate)
 	cont.netPolEgressPods.SetPodHashFunc(nphash)
 }
 
@@ -333,6 +341,13 @@ func (cont *AciController) queueMulNetPolUpdateByKey(keys []string) {
 		}
 	}
 	cont.mulNetPolQueue.Add(keyString)
+}
+
+func (cont *AciController) queueRemoteIpConUpdate(pod *v1.Pod, deleted bool) {
+	cont.log.Debug("queueRemoteIpConUpdate .....")
+	cont.updateNsRemoteIpCont(pod, deleted)
+	podns := pod.ObjectMeta.Namespace
+	cont.remIpContQueue.Add(podns)
 }
 
 func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
@@ -616,13 +631,18 @@ func (cont *AciController) getNetPolTargetPorts(np *v1net.NetworkPolicy) map[str
 	return ports
 }
 
+type peerRemoteInfo struct {
+	remotePods  []*v1.Pod
+	podSelector *metav1.LabelSelector
+}
+
 func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	namespace string, peerPods []*v1.Pod, peerNs map[string]*v1.Namespace,
-	remoteNsSubnets map[string][]ipRemoteSubnet,
-	logger *logrus.Entry) ([]string, map[string]string, *metav1.LabelSelector, map[string]bool) {
+	logger *logrus.Entry) ([]string, map[string]string, peerRemoteInfo, map[string]bool) {
 
 	var remoteSubnets []string
-	var podSelector *metav1.LabelSelector
+	var peerremote peerRemoteInfo
+	//var podSelector *metav1.LabelSelector
 	subnetMap := make(map[string]bool)
 	peerNsWithSubnets := make(map[string]string)
 	if len(peers) > 0 {
@@ -633,16 +653,13 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 					cont.peerMatchesPod(namespace,
 						&peer, pod, ns) {
 					cont.log.Debug("testtt matching subnet ns", ns)
-					cont.log.Debug("testtt matching subnet pod", pod.ObjectMeta.Name)
 					podIps := ipsForPod(pod)
 					for _, ip := range podIps {
 						if _, exists := subnetMap[ip]; !exists {
-							var ipremotesubnet ipRemoteSubnet
 							subnetMap[ip] = true
-							ipremotesubnet.ip = ip
-							ipremotesubnet.podLabels = pod.ObjectMeta.Labels
 
-							remoteNsSubnets[pod.ObjectMeta.Namespace] = append(remoteNsSubnets[pod.ObjectMeta.Namespace], ipremotesubnet)
+							peerremote.remotePods = append(peerremote.remotePods, pod)
+							cont.log.Debug("testtt matching subnet pod", pod.ObjectMeta.Name)
 							tdn := getHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
 							peerNsWithSubnets[pod.ObjectMeta.Namespace] = tdn
 						}
@@ -650,7 +667,7 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 				}
 
 				if peer.PodSelector != nil {
-					podSelector = peer.PodSelector
+					peerremote.podSelector = peer.PodSelector
 				}
 			}
 		}
@@ -670,7 +687,7 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 		}
 	}
 	sort.Strings(remoteSubnets)
-	return remoteSubnets, peerNsWithSubnets, podSelector, subnetMap
+	return remoteSubnets, peerNsWithSubnets, peerremote, subnetMap
 }
 
 func getHostprotRsRemoteIpContTdn(namespace string) string {
@@ -1119,32 +1136,37 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	}
 }
 
-type ipRemoteSubnet struct {
-	ip        string
-	podLabels map[string]string
+func (cont *AciController) updateRemoteIpContainers(remotePods []*v1.Pod) {
+	for _, pod := range remotePods {
+		cont.queueRemoteIpConUpdate(pod, false)
+	}
 }
 
-func (cont *AciController) writeApicHostprotNamespace(remoteIpCont map[string][]ipRemoteSubnet) {
-	for ns, subnetIps := range remoteIpCont {
-		nsobj := apicapi.NewHostprotNamespace(ns)
-
-		aobj := apicapi.NewHostprotRemoteIpContainer(nsobj.GetDn(), ns)
-		aobjDn := aobj.GetDn()
-
-		for _, subnetip := range subnetIps {
-			remIpObj := apicapi.NewHostprotRemoteIp(aobjDn, subnetip.ip)
-			for key, val := range subnetip.podLabels {
-				remIpObj.AddChild(apicapi.HostprotEpLabel(key, val, ns))
-			}
-			aobj.AddChild(remIpObj)
-		}
-
-		nsobj.AddChild(aobj)
-		name := cont.aciNameForKey("hostprot-ns-", ns)
-		cont.log.Debug("Write hostprotNamespace Object: ", nsobj, " name: ", name)
-		cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{nsobj})
-		cont.log.Debugf("hostprotNamespace: %+v", nsobj)
+func (cont *AciController) handleRemIpContUpdate(ns string) bool {
+	remIpCont, ok := cont.nsRemoteIpCont[ns]
+	if !ok {
+		cont.log.Error("Couldn't find the ns in nsRemoteIpCont cache: ", ns)
+		return false
 	}
+	nsobj := apicapi.NewHostprotNamespace(ns)
+
+	aobj := apicapi.NewHostprotRemoteIpContainer(nsobj.GetDn(), ns)
+	aobjDn := aobj.GetDn()
+
+	for ip, labels := range remIpCont {
+		remIpObj := apicapi.NewHostprotRemoteIp(aobjDn, ip)
+		for key, val := range labels {
+			remIpObj.AddChild(apicapi.HostprotEpLabel(key, val, ns))
+		}
+		aobj.AddChild(remIpObj)
+	}
+
+	nsobj.AddChild(aobj)
+	name := cont.aciNameForKey("hostprot-ns-", ns)
+	cont.log.Debug("Write hostprotNamespace Object: ", nsobj, " name: ", name)
+	cont.apicConn.WriteApicObjects(name, apicapi.ApicSlice{nsobj})
+	cont.log.Debugf("hostprotNamespace: %+v", nsobj)
+	return true
 }
 
 func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string, apicapi.ApicSlice) {
@@ -1185,16 +1207,17 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 
 	labelKey := cont.aciNameForKey("np", key)
 	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
-	remoteNsSubnets := make(map[string][]ipRemoteSubnet)
+	remotePods := []*v1.Pod{}
 	// Generate ingress policies
 	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 		subjIngress :=
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
 		for i, ingress := range np.Spec.Ingress {
-			remoteSubnets, peerNsWithSubnets, podSelector, _ := cont.getPeerRemoteSubnets(ingress.From,
-				np.Namespace, peerPods, peerNs, remoteNsSubnets, logger)
+			remoteSubnets, peerNsWithSubnets, peerremote, _ := cont.getPeerRemoteSubnets(ingress.From,
+				np.Namespace, peerPods, peerNs, logger)
+			remotePods = append(remotePods, peerremote.remotePods...)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
-				"ingress", ingress.From, remoteSubnets, peerNsWithSubnets, podSelector,
+				"ingress", ingress.From, remoteSubnets, peerNsWithSubnets, peerremote.podSelector,
 				ingress.Ports, logger, key, np)
 		}
 		hpp.AddChild(subjIngress)
@@ -1207,10 +1230,11 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		portRemoteSubs := make(map[string]*portRemoteSubnet)
 
 		for i, egress := range np.Spec.Egress {
-			remoteSubnets, peerNsWithSubnets, podSelector, subnetMap := cont.getPeerRemoteSubnets(egress.To,
-				np.Namespace, peerPods, peerNs, remoteNsSubnets, logger)
+			remoteSubnets, peerNsWithSubnets, peerremote, subnetMap := cont.getPeerRemoteSubnets(egress.To,
+				np.Namespace, peerPods, peerNs, logger)
+			remotePods = append(remotePods, peerremote.remotePods...)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-				"egress", egress.To, remoteSubnets, peerNsWithSubnets, podSelector,
+				"egress", egress.To, remoteSubnets, peerNsWithSubnets, peerremote.podSelector,
 				egress.Ports, logger, key, np)
 
 			// creating a rule to egress to all on a given port needs
@@ -1235,10 +1259,43 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
-	if len(remoteNsSubnets) > 0 {
-		cont.writeApicHostprotNamespace(remoteNsSubnets)
+	if len(remotePods) > 0 {
+		cont.log.Debug("len of remote pods ", len(remotePods))
+		cont.updateRemoteIpContainers(remotePods)
 	}
 	return labelKey, apicapi.ApicSlice{hpp}
+}
+
+func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool {
+	podips := ipsForPod(pod)
+	podns := pod.ObjectMeta.Namespace
+	podlabels := pod.ObjectMeta.Labels
+	if deleted {
+		//lock
+		if remipcont, ok := cont.nsRemoteIpCont[podns]; ok {
+			for _, ip := range podips {
+				if _, ipok := remipcont[ip]; ipok {
+					delete(remipcont, ip)
+				}
+			}
+		}
+		//unlock
+	} else {
+		if _, ok := cont.nsRemoteIpCont[podns]; ok {
+			for _, ip := range podips {
+				cont.nsRemoteIpCont[podns][ip] = podlabels
+			}
+		} else {
+			remip := make(remoteIpCont)
+			for _, ip := range podips {
+				remip[ip] = podlabels
+			}
+			cont.nsRemoteIpCont[podns] = remip
+		}
+	}
+	return true
+	//remoteipcont := cont.nsRemoteIpCont[podns]
+	//cont.writeApicHostprotNamespace(podns, remoteipcont)
 }
 
 func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {

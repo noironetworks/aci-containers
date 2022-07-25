@@ -65,6 +65,7 @@ type AciController struct {
 	podQueue          workqueue.RateLimitingInterface
 	netPolQueue       workqueue.RateLimitingInterface
 	mulNetPolQueue    workqueue.RateLimitingInterface
+	remIpContQueue    workqueue.RateLimitingInterface
 	qosQueue          workqueue.RateLimitingInterface
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
@@ -167,11 +168,14 @@ type AciController struct {
 	//index of containerportname to ctrPortNameEntry
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
-	nmPortNp map[string]bool
+	nmPortNp       map[string]bool
+	nsRemoteIpCont map[string]remoteIpCont
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
 }
+
+type remoteIpCont map[string]map[string]string
 
 type DelayedEpSlice struct {
 	OldEpSlice  *v1beta1.EndpointSlice
@@ -310,6 +314,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		podQueue:          createQueue("pod"),
 		netPolQueue:       createQueue("networkPolicy"),
 		mulNetPolQueue:    createQueue("multipleNetworkPolicy"),
+		remIpContQueue:    createQueue("remoteIpContainer"),
 		qosQueue:          createQueue("qos"),
 		netflowQueue:      createQueue("netflow"),
 		erspanQueue:       createQueue("erspan"),
@@ -339,6 +344,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
 		rdConfigCache:        make(map[string]*rdConfig.RdConfig),
 		rdConfigSubnetCache:  make(map[string]*rdConfig.RdConfigSpec),
+		nsRemoteIpCont:       make(map[string]remoteIpCont),
 		podIftoEp:            make(map[string]*EndPointData),
 		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
 		istioCache:           make(map[string]*istiov1.AciIstioOperator),
@@ -430,6 +436,41 @@ func (cont *AciController) processMulQueue(queue workqueue.RateLimitingInterface
 					if postDelHandler != nil && len(objs) > 0 {
 						requeue = postDelHandler()
 					}
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
+				if handler != nil {
+					requeue = handler(key)
+				}
+				if postDelHandler != nil {
+					requeue = postDelHandler()
 				}
 			}
 			if requeue {
@@ -679,7 +720,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		if ok {
 			qs = []workqueue.RateLimitingInterface{
 				cont.podQueue, cont.netPolQueue, cont.mulNetPolQueue, cont.qosQueue,
-				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
+				cont.serviceQueue, cont.snatQueue, cont.netflowQueue, cont.remIpContQueue,
 				cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
 			}
 		}
