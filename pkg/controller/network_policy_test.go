@@ -466,10 +466,10 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_5_0.SetAttr("ethertype", "ipv4")
 	rule_5_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
 	remIp_cont_5_0 := makeHostProtNs("testns", []remoteIp{
-		remoteIp{ip: "1.1.1.1",
+		{ip: "1.1.1.1",
 			labels: map[string]string{"l1": "v1"},
 		},
-		remoteIp{ip: "1.1.1.2",
+		{ip: "1.1.1.2",
 			labels: map[string]string{"l1": "v2"},
 		},
 	})
@@ -481,15 +481,15 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
 	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
 	remIp_cont_6_0_0 := makeHostProtNs("ns1", []remoteIp{
-		remoteIp{ip: "1.1.1.3",
+		{ip: "1.1.1.3",
 			labels: map[string]string{"l1": "v1"},
 		},
-		remoteIp{ip: "1.1.1.4",
+		{ip: "1.1.1.4",
 			labels: map[string]string{"l1": "v2"},
 		},
 	})
 	remIp_cont_6_0_1 := makeHostProtNs("ns2", []remoteIp{
-		remoteIp{ip: "1.1.1.5",
+		{ip: "1.1.1.5",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
@@ -504,7 +504,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_7_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
 	rule_7_0.AddChild(makeFilterCont(rule_7_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_7_0 := makeHostProtNs("testns", []remoteIp{
-		remoteIp{ip: "1.1.1.1",
+		{ip: "1.1.1.1",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
@@ -534,10 +534,10 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_1.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
 	rule_8_1.AddChild(makeFilterCont(rule_8_1.GetDn(), map[string]string{"l1": "v2"}))
 	remIp_cont_8 := makeHostProtNs("testns", []remoteIp{
-		remoteIp{ip: "1.1.1.1",
+		{ip: "1.1.1.1",
 			labels: map[string]string{"l1": "v1"},
 		},
-		remoteIp{ip: "1.1.1.2",
+		{ip: "1.1.1.2",
 			labels: map[string]string{"l1": "v2"},
 		},
 	})
@@ -552,12 +552,12 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_9_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
 	rule_9_0.AddChild(makeFilterCont(rule_9_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_9_0_0 := makeHostProtNs("ns1", []remoteIp{
-		remoteIp{ip: "1.1.1.3",
+		{ip: "1.1.1.3",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
 	remIp_cont_9_0_1 := makeHostProtNs("ns2", []remoteIp{
-		remoteIp{ip: "1.1.1.5",
+		{ip: "1.1.1.5",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
@@ -574,12 +574,12 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_10_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
 	rule_10_0.AddChild(makeFilterCont(rule_10_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_10_0_0 := makeHostProtNs("ns1", []remoteIp{
-		remoteIp{ip: "1.1.1.3",
+		{ip: "1.1.1.3",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
 	remIp_cont_10_0_1 := makeHostProtNs("ns2", []remoteIp{
-		remoteIp{ip: "1.1.1.5",
+		{ip: "1.1.1.5",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
@@ -597,7 +597,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_11_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
 	rule_11_0.AddChild(makeFilterCont(rule_11_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_11_0 := makeHostProtNs("testns", []remoteIp{
-		remoteIp{ip: "1.1.1.1",
+		{ip: "1.1.1.1",
 			labels: map[string]string{"l1": "v1"},
 		},
 	})
