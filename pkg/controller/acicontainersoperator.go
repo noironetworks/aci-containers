@@ -120,7 +120,7 @@ const aciContainersController = "aci-containers-controller"
 const aciContainersHostDaemonset = "aci-containers-host"
 const aciContainersOvsDaemonset = "aci-containers-openvswitch"
 
-var Aci_operator_config_path = "/usr/local/etc/aci-containers/aci-operator.conf"
+var Aci_operator_config_path = "/tmp/aci-operator.conf"
 var Acc_provision_config_path = "/usr/local/etc/acc-provision/acc-provision-operator.conf"
 
 func NewAciContainersOperator(
@@ -446,25 +446,36 @@ func (c *Controller) handledaemonsetUpdate(oldobj interface{}, newobj interface{
 
 func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 	new_config := newobj.(*corev1.ConfigMap)
-	if _, err := os.Stat("/tmp/aci-operator.conf"); os.IsNotExist(err) {
+	if _, err := os.Stat(Aci_operator_config_path); os.IsNotExist(err) {
 		log.Info("File not present. Writing initial aci-operator-config configmap")
-		err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
+		err := c.WriteConfigMap(Aci_operator_config_path, new_config)
 		if err != nil {
-			log.Debugf("Failed to write ConfigMap, err: %v", err)
+			log.Errorf("Failed to write ConfigMap, err: %v", err)
 			return true
 		}
+
+		_, err = c.GetAciContainersOperatorCR()
+		if err != nil {
+			log.Info("Not Present ..Creating acicnioperator CR")
+			er := c.CreateAciContainersOperatorCR()
+			if er != nil {
+				log.Error(er)
+				return true
+			}
+		}
+
 		return false
 	}
 
 	log.Info("Writing new aci-operator-config configmap")
-	err := c.WriteConfigMap("/tmp/aci-operator.conf", new_config)
+	err := c.WriteConfigMap(Aci_operator_config_path, new_config)
 	if err != nil {
 		log.Debugf("Failed to write ConfigMap, err: %v", err)
 		return true
 	}
 
 	log.Info("Reading current aci-operator-config configmap")
-	rawSpec, err := c.ReadConfigMap("/tmp/aci-operator.conf")
+	rawSpec, err := c.ReadConfigMap(Aci_operator_config_path)
 	if err != nil {
 		log.Debugf("Failed to read ConfigMap, err: %v", err)
 		return true
@@ -654,73 +665,33 @@ func (c *Controller) CreateAccProvisionInputCR() error {
 }
 
 func (c *Controller) Run(stopCh <-chan struct{}) {
-	c.Logger.Info("Controller.Run: initiating")
-	log.Info("Checking if acicnioperator CR already present")
-	acicnioperatorsuccess := true
-	acicnioperator, err := c.GetAciContainersOperatorCR()
+	log.Info("Checking if accprovisioninput CR already present")
+	accprovisioninput, err := c.GetAccProvisionInputCR()
 	if err != nil {
-		log.Info("Not Present ..Creating acicnioperator CR")
-		er := c.CreateAciContainersOperatorCR()
+		log.Info("Not Present ..Creating accprovisioninput CR")
+		er := c.CreateAccProvisionInputCR()
 		if er != nil {
 			log.Error(er)
-			acicnioperatorsuccess = false
 		}
 	} else {
-		log.Info("acicnioperator CR already present")
-		log.Debug("Reading current aci-operator-config configmap")
-		rawSpec, errSpec := c.ReadConfigMap(Aci_operator_config_path)
-		if errSpec != nil {
-			log.Error(errSpec)
-			acicnioperatorsuccess = false
+		log.Info("accprovisioninput CR already present")
+		log.Debug("Reading current acc-provision-operator-config ConfigMap")
+		rawACCSpec, errACCSpec := c.ReadConfigMap(Acc_provision_config_path)
+		if errACCSpec != nil {
+			log.Error(errACCSpec)
 		} else {
-			obj := c.CreateAciContainersOperatorObj()
+			obj := c.CreateAccProvisionInputObj()
 			log.Debug("Unmarshalling the ConfigMap...")
-			err = json.Unmarshal(rawSpec, &obj.Spec)
+			err = json.Unmarshal(rawACCSpec, &obj.Spec)
 			if err != nil {
 				log.Error(err)
-				acicnioperatorsuccess = false
 			}
-			if acicnioperator.Spec.Config != obj.Spec.Config {
-				acicnioperator.Spec.Config = obj.Spec.Config
+			if accprovisioninput.Spec.Config != obj.Spec.Config {
+				accprovisioninput.Spec.Config = obj.Spec.Config
 				log.Info("New Configuration detected...applying changes")
-				_, er := c.Operator_Clientset.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).
-					Update(context.TODO(), acicnioperator, metav1.UpdateOptions{})
+				_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
 				if er != nil {
 					log.Error(er)
-					acicnioperatorsuccess = false
-				}
-			}
-		}
-	}
-	if acicnioperatorsuccess == true {
-		log.Info("Checking if accprovisioninput CR already present")
-		accprovisioninput, err := c.GetAccProvisionInputCR()
-		if err != nil {
-			log.Info("Not Present ..Creating accprovisioninput CR")
-			er := c.CreateAccProvisionInputCR()
-			if er != nil {
-				log.Error(er)
-			}
-		} else {
-			log.Info("accprovisioninput CR already present")
-			log.Debug("Reading current acc-provision-operator-config ConfigMap")
-			rawACCSpec, errACCSpec := c.ReadConfigMap(Acc_provision_config_path)
-			if errACCSpec != nil {
-				log.Error(errACCSpec)
-			} else {
-				obj := c.CreateAccProvisionInputObj()
-				log.Debug("Unmarshalling the ConfigMap...")
-				err = json.Unmarshal(rawACCSpec, &obj.Spec)
-				if err != nil {
-					log.Error(err)
-				}
-				if accprovisioninput.Spec.Config != obj.Spec.Config {
-					accprovisioninput.Spec.Config = obj.Spec.Config
-					log.Info("New Configuration detected...applying changes")
-					_, er := c.AccProvisionInput_Clientset.AciV1alpha1().AccProvisionInputs(os.Getenv("SYSTEM_NAMESPACE")).Update(context.TODO(), accprovisioninput, metav1.UpdateOptions{})
-					if er != nil {
-						log.Error(er)
-					}
 				}
 			}
 		}
