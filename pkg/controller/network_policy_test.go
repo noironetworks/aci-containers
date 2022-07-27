@@ -308,7 +308,7 @@ func makeHostProtNs(ns string, remips []remoteIp) apicapi.ApicObject {
 	for _, remip := range remips {
 		remIp := apicapi.NewHostprotRemoteIp(remIpCont.GetDn(), remip.ip)
 		for key, val := range remip.labels {
-			remIp.AddChild(apicapi.HostprotEpLabel(key, val, ns))
+			remIp.AddChild(apicapi.HostprotEpLabel(remIp.GetDn(), key, val))
 		}
 		remIpCont.AddChild(remIp)
 	}

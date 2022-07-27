@@ -314,12 +314,12 @@ func (conn *ApicConnection) applyMulDiff(updates []string, deletes []string,
 	for _, del := range deletes {
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": del, "context": context}).
 			Debug("Applying APIC multiple object delete")
-		//conn.queueDn(del)
+		conn.queueDn(del)
 	}
 	for _, up := range updates {
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": up, "context": context}).
 			Debug("Applying APIC multiple object update")
-		//conn.queueDn(up)
+		conn.queueDn(up)
 	}
 }
 
@@ -332,14 +332,14 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
 		conn.log.Debug("apic testttt delete", delete)
-		//conn.queueDn(delete)
+		conn.queueDn(delete)
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
 			Debug("Applying APIC object update")
 		conn.log.Debug("apic testttt update", update)
-		//conn.queueDn(dn)
+		conn.queueDn(dn)
 	}
 }
 

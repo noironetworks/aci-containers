@@ -344,10 +344,13 @@ func (cont *AciController) queueMulNetPolUpdateByKey(keys []string) {
 }
 
 func (cont *AciController) queueRemoteIpConUpdate(pod *v1.Pod, deleted bool) {
-	cont.log.Debug("queueRemoteIpConUpdate .....")
-	cont.updateNsRemoteIpCont(pod, deleted)
-	podns := pod.ObjectMeta.Namespace
-	cont.remIpContQueue.Add(podns)
+	cont.indexMutex.Lock()
+	update := cont.updateNsRemoteIpCont(pod, deleted)
+	cont.indexMutex.Unlock()
+	if update {
+		podns := pod.ObjectMeta.Namespace
+		cont.remIpContQueue.Add(podns)
+	}
 }
 
 func (cont *AciController) queueNetPolUpdate(netpol *v1net.NetworkPolicy) {
@@ -1143,6 +1146,7 @@ func (cont *AciController) updateRemoteIpContainers(remotePods []*v1.Pod) {
 }
 
 func (cont *AciController) handleRemIpContUpdate(ns string) bool {
+	cont.indexMutex.Lock()
 	remIpCont, ok := cont.nsRemoteIpCont[ns]
 	if !ok {
 		cont.log.Error("Couldn't find the ns in nsRemoteIpCont cache: ", ns)
@@ -1156,11 +1160,11 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 	for ip, labels := range remIpCont {
 		remIpObj := apicapi.NewHostprotRemoteIp(aobjDn, ip)
 		for key, val := range labels {
-			remIpObj.AddChild(apicapi.HostprotEpLabel(key, val, ns))
+			remIpObj.AddChild(apicapi.HostprotEpLabel(remIpObj.GetDn(), key, val))
 		}
 		aobj.AddChild(remIpObj)
 	}
-
+	cont.indexMutex.Unlock()
 	nsobj.AddChild(aobj)
 	name := cont.aciNameForKey("hostprot-ns-", ns)
 	cont.log.Debug("Write hostprotNamespace Object: ", nsobj, " name: ", name)
@@ -1278,6 +1282,10 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 					delete(remipcont, ip)
 				}
 			}
+			if len(cont.nsRemoteIpCont[podns]) < 1 {
+				cont.apicConn.ClearApicObjects(cont.aciNameForKey("hostprot-ns-", podns))
+				return false
+			}
 		}
 		//unlock
 	} else {
@@ -1294,8 +1302,6 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 		}
 	}
 	return true
-	//remoteipcont := cont.nsRemoteIpCont[podns]
-	//cont.writeApicHostprotNamespace(podns, remoteipcont)
 }
 
 func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
