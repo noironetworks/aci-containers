@@ -411,6 +411,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	err := agent.populateSnatLocalInfos()
 	if err != nil {
 		agent.log.Error("Failed to populate opflexSnatLocalInfos ", err.Error())
+		panic(err.Error())
 	}
 	syncEnabled, err := agent.env.PrepareRun(stopCh)
 	if err != nil {
