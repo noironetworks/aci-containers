@@ -311,7 +311,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 			cont.fakeNodeInfoSource.Modify(nodeobj)
 		}
 	}
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 700)
 	// When the config map values are not modified, it should log and return
 	modconfigmap := &v1.ConfigMap{
 		Data: map[string]string{"start": "5000", "end": "65000", "ports-per-node": "3000"},
@@ -321,6 +321,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		},
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
+	time.Sleep(time.Millisecond * 700)
 	expected := map[string]snatglobalinfo.GlobalInfo{}
 	expected = map[string]snatglobalinfo.GlobalInfo{
 		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
@@ -335,7 +336,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		},
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 700)
 	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
 	expected = map[string]snatglobalinfo.GlobalInfo{
 		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
