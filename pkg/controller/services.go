@@ -1663,15 +1663,17 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 		cont.log.Error("error processing Endpointslice object: ", newobj)
 		return
 	}
-	proceed := true
-	for _, endpoint := range newendpointslice.Endpoints {
-		if endpoint.Conditions.Ready == nil || !*endpoint.Conditions.Ready {
-			proceed = false
+	if cont.config.NoWaitForServiceEpReadiness == false {
+		proceed := true
+		for _, endpoint := range newendpointslice.Endpoints {
+			if endpoint.Conditions.Ready == nil || !*endpoint.Conditions.Ready {
+				proceed = false
+			}
 		}
-	}
-	if !proceed {
-		cont.log.Debug("New enpoints are not in ready state")
-		return
+		if !proceed {
+			cont.log.Debug("New enpoints are not in ready state")
+			return
+		}
 	}
 	servicekey, valid := getServiceKey(newendpointslice)
 	if !valid {
@@ -1684,7 +1686,7 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 	}
 	service, ok := serviceobj.(*v1.Service)
 	if !ok {
-		cont.log.Error("error processing Service object: ", service)
+		cont.log.Error("error processing Service object: ", serviceobj)
 		return
 	}
 	var delay int64
