@@ -18,7 +18,6 @@ package hostagent
 
 import (
 	"context"
-	"errors"
 	"reflect"
 
 	snatLocalInfov1 "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
@@ -37,26 +36,24 @@ func (agent *HostAgent) populateSnatLocalInfos() error {
 	env := agent.env.(*K8sEnvironment)
 	agent.log.Debug("Populating opflexSnatLocalInfos from SnatLocalInfo CR")
 	snatLocalInfoClient := env.snatLocalInfoClient
-	if snatLocalInfoClient == nil {
-		agent.log.Error("snatLocalInfo or Kube clients are not intialized")
-		return errors.New("snatLocalInfo or Kube clients are not intialized")
-	}
-	snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
-	if err != nil {
-		agent.log.Error("Failed to get snatlocalinfo ", err.Error())
-		return err
-	}
-	agent.indexMutex.Lock()
-	for _, localInfo := range snatLocalInfoCr.Spec.LocalInfos {
-		if localInfo.PodUid != "" {
-			var snatLocalInfo opflexSnatLocalInfo
-			snatLocalInfo.Snatpolicies = make(map[ResourceType][]string)
-			snatLocalInfo.Existing = true
-			agent.opflexSnatLocalInfos[localInfo.PodUid] = &snatLocalInfo
-			agent.log.Debug("Populated opflexSnatLocalInfos for poduid :", localInfo.PodUid)
+	if snatLocalInfoClient != nil {
+		snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			agent.log.Error("Failed to get snatlocalinfo ", err.Error())
+			return err
 		}
+		agent.indexMutex.Lock()
+		for _, localInfo := range snatLocalInfoCr.Spec.LocalInfos {
+			if localInfo.PodUid != "" {
+				var snatLocalInfo opflexSnatLocalInfo
+				snatLocalInfo.Snatpolicies = make(map[ResourceType][]string)
+				snatLocalInfo.Existing = true
+				agent.opflexSnatLocalInfos[localInfo.PodUid] = &snatLocalInfo
+				agent.log.Debug("Populated opflexSnatLocalInfos for poduid :", localInfo.PodUid)
+			}
+		}
+		agent.indexMutex.Unlock()
 	}
-	agent.indexMutex.Unlock()
 	return nil
 }
 
@@ -132,6 +129,9 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 				},
 			}
 			_, err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Create(context.TODO(), snatLocalInfoInstance, metav1.CreateOptions{})
+			if err != nil {
+				agent.log.Error("SnatLocalInfo Creation failed: ", err.Error())
+			}
 		}
 	} else {
 		Spec := snatLocalInfov1.SnatLocalInfoSpec{
@@ -140,6 +140,9 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		if !reflect.DeepEqual(snatLocalInfoCr.Spec, Spec) {
 			snatLocalInfoCr.Spec = Spec
 			_, err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Update(context.TODO(), snatLocalInfoCr, metav1.UpdateOptions{})
+			if err != nil {
+				agent.log.Error("SnatLocalInfo Updation failed: ", err.Error())
+			}
 		}
 	}
 	if err == nil {
