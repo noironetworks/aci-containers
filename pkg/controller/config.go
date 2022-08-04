@@ -199,6 +199,11 @@ type ControllerConfig struct {
 	// periodically
 	DisablePeriodicSnatGlobalInfoSync bool `json:"disable-periodic-snat-global-info-sync,omitempty"`
 
+	// True when we dont want to wait for service ep to be ready
+	// before adding it to service graph
+	// Default is false
+	NoWaitForServiceEpReadiness bool `json:"no-wait-for-service-ep-readiness,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 
