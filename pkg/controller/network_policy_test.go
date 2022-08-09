@@ -464,7 +464,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_5_0 := apicapi.NewHostprotRule(np1SDnI, "0")
 	rule_5_0.SetAttr("direction", "ingress")
 	rule_5_0.SetAttr("ethertype", "ipv4")
-	rule_5_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_5_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	remIp_cont_5_0 := makeHostProtNs("testns", []remoteIp{
 		{ip: "1.1.1.1",
 			labels: map[string]string{"l1": "v1"},
@@ -478,8 +478,8 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_6_0 := apicapi.NewHostprotRule(np1SDnI, "0")
 	rule_6_0.SetAttr("direction", "ingress")
 	rule_6_0.SetAttr("ethertype", "ipv4")
-	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_6_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	remIp_cont_6_0_0 := makeHostProtNs("ns1", []remoteIp{
 		{ip: "1.1.1.3",
 			labels: map[string]string{"l1": "v1"},
@@ -501,7 +501,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_7_0 := apicapi.NewHostprotRule(np1SDnI, "0")
 	rule_7_0.SetAttr("direction", "ingress")
 	rule_7_0.SetAttr("ethertype", "ipv4")
-	rule_7_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_7_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	rule_7_0.AddChild(makeFilterCont(rule_7_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_7_0 := makeHostProtNs("testns", []remoteIp{
 		{ip: "1.1.1.1",
@@ -515,7 +515,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_0.SetAttr("ethertype", "ipv4")
 	rule_8_0.SetAttr("protocol", "tcp")
 	rule_8_0.SetAttr("toPort", "80")
-	rule_8_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_8_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_0.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	rule_8_0.AddChild(makeFilterCont(rule_8_0.GetDn(), map[string]string{"l1": "v1"}))
 	/*	remIpCont_8_0 := makeHostProtNs("testns", []remoteIp{
 			remoteIp{ip: "1.1.1.1",
@@ -531,7 +531,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_1.SetAttr("ethertype", "ipv4")
 	rule_8_1.SetAttr("protocol", "tcp")
 	rule_8_1.SetAttr("toPort", "443")
-	rule_8_1.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_8_1.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	rule_8_1.AddChild(makeFilterCont(rule_8_1.GetDn(), map[string]string{"l1": "v2"}))
 	remIp_cont_8 := makeHostProtNs("testns", []remoteIp{
 		{ip: "1.1.1.1",
@@ -548,8 +548,8 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_9_0 := apicapi.NewHostprotRule(np1SDnI, "0")
 	rule_9_0.SetAttr("direction", "ingress")
 	rule_9_0.SetAttr("ethertype", "ipv4")
-	rule_9_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_9_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_9_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_9_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_9_0.AddChild(makeFilterCont(rule_9_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_9_0_0 := makeHostProtNs("ns1", []remoteIp{
 		{ip: "1.1.1.3",
@@ -570,8 +570,8 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_10_0 := apicapi.NewHostprotRule(np1SDnE, "0")
 	rule_10_0.SetAttr("direction", "egress")
 	rule_10_0.SetAttr("ethertype", "ipv4")
-	rule_10_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_10_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_10_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_10_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_10_0.AddChild(makeFilterCont(rule_10_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_10_0_0 := makeHostProtNs("ns1", []remoteIp{
 		{ip: "1.1.1.3",
@@ -594,7 +594,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_11_0.SetAttr("ethertype", "ipv4")
 	rule_11_0.SetAttr("protocol", "tcp")
 	rule_11_0.SetAttr("toPort", "80")
-	rule_11_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_11_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	rule_11_0.AddChild(makeFilterCont(rule_11_0.GetDn(), map[string]string{"l1": "v1"}))
 	remIp_cont_11_0 := makeHostProtNs("testns", []remoteIp{
 		{ip: "1.1.1.1",
@@ -1201,7 +1201,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_5_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0")
 	rule_5_0_v6.SetAttr("direction", "ingress")
 	rule_5_0_v6.SetAttr("ethertype", "ipv6")
-	rule_5_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0_v6.GetDn(), "uni/ns-[testnsv6]/remoteipcont", "testnsv6"))
+	rule_5_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	/*
 		rule_5_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0_v6.GetDn(), "2001::2"))
 		rule_5_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0_v6.GetDn(), "2001::3"))
@@ -1210,8 +1210,8 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_6_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0")
 	rule_6_0_v6.SetAttr("direction", "ingress")
 	rule_6_0_v6.SetAttr("ethertype", "ipv6")
-	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	/*
 		rule_6_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0_v6.GetDn(), "2001::4"))
 		rule_6_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0_v6.GetDn(), "2001::5"))
@@ -1222,7 +1222,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_7_0_v6.SetAttr("direction", "ingress")
 	rule_7_0_v6.SetAttr("ethertype", "ipv6")
 	//rule_7_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_7_0_v6.GetDn(), "2001::2"))
-	rule_7_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0_v6.GetDn(), "uni/ns-[testnsv6]/remoteipcont", "testnsv6"))
+	rule_7_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_7_0_v6.AddChild(makeFilterCont(rule_7_0_v6.GetDn(), map[string]string{"l1": "v1"}))
 
 	rule_8_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0")
@@ -1230,7 +1230,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_8_0_v6.SetAttr("ethertype", "ipv6")
 	rule_8_0_v6.SetAttr("protocol", "tcp")
 	rule_8_0_v6.SetAttr("toPort", "80")
-	rule_8_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_0_v6.GetDn(), "uni/ns-[testnsv6]/remoteipcont", "testnsv6"))
+	rule_8_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_8_0_v6.AddChild(makeFilterCont(rule_8_0_v6.GetDn(), map[string]string{"l1": "v1"}))
 
 	//rule_8_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_8_0_v6.GetDn(), "2001::2"))
@@ -1239,15 +1239,15 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_8_1_v6.SetAttr("ethertype", "ipv6")
 	rule_8_1_v6.SetAttr("protocol", "tcp")
 	rule_8_1_v6.SetAttr("toPort", "443")
-	rule_8_1_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1_v6.GetDn(), "uni/ns-[testnsv6]/remoteipcont", "testnsv6"))
+	rule_8_1_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_8_1_v6.AddChild(makeFilterCont(rule_8_1_v6.GetDn(), map[string]string{"l1": "v2"}))
 	//rule_8_1_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1_v6.GetDn(), "2001::3"))
 
 	rule_9_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0")
 	rule_9_0_v6.SetAttr("direction", "ingress")
 	rule_9_0_v6.SetAttr("ethertype", "ipv6")
-	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_9_0_v6.AddChild(makeFilterCont(rule_9_0_v6.GetDn(), map[string]string{"l1": "v1"}))
 	/*
 		rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::4"))
@@ -1257,8 +1257,8 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_10_0_v6 := apicapi.NewHostprotRule(npv6SDnE, "0")
 	rule_10_0_v6.SetAttr("direction", "egress")
 	rule_10_0_v6.SetAttr("ethertype", "ipv6")
-	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-[ns1]/remoteipcont", "ns1"))
-	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-[ns2]/remoteipcont", "ns2"))
+	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
+	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_10_0_v6.AddChild(makeFilterCont(rule_10_0_v6.GetDn(), map[string]string{"l1": "v1"}))
 	/*
 		rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::4"))
@@ -1270,7 +1270,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_11_0_v6.SetAttr("ethertype", "ipv6")
 	rule_11_0_v6.SetAttr("protocol", "tcp")
 	rule_11_0_v6.SetAttr("toPort", "80")
-	rule_11_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0_v6.GetDn(), "uni/ns-[testnsv6]/remoteipcont", "testnsv6"))
+	rule_11_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_11_0_v6.AddChild(makeFilterCont(rule_11_0_v6.GetDn(), map[string]string{"l1": "v1"}))
 	//rule_11_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0_v6.GetDn(), "2001::2"))
 
@@ -1743,7 +1743,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	rule_11_0.SetAttr("ethertype", "ipv4")
 	rule_11_0.SetAttr("protocol", "tcp")
 	rule_11_0.SetAttr("toPort", "80")
-	rule_11_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0.GetDn(), "uni/ns-[testns]/remoteipcont", "testns"))
+	rule_11_0.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0.GetDn(), "uni/ns-testns/remoteipcont", "testns"))
 	rule_11_0.AddChild(makeFilterCont(rule_11_0.GetDn(), map[string]string{"l1": "v1"}))
 	//rule_11_0.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0.GetDn(), "1.1.1.1"))
 

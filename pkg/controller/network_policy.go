@@ -694,7 +694,7 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 }
 
 func getHostprotRsRemoteIpContTdn(namespace string) string {
-	tdn := fmt.Sprintf("uni/ns-[%s]/remoteipcont", namespace)
+	tdn := fmt.Sprintf("uni/ns-%s/remoteipcont", namespace)
 	return tdn
 }
 
