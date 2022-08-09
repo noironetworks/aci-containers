@@ -388,9 +388,37 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 		uids[DEPLOYMENT] = deppoduids
 		uids[NAMESPACE] = nspoduids
 	}
+	succeededPodUids := agent.getPodUidsSucceeded()
 	for res, poduids := range uids {
+		if len(succeededPodUids) > 0 {
+			poduids = difference(poduids, succeededPodUids)
+		}
 		agent.applyPolicy(poduids, res, policy.GetName())
 	}
+}
+
+func (agent *HostAgent) getPodUidsSucceeded() (poduids []string) {
+	cache.ListAll(agent.nsInformer.GetIndexer(), labels.Everything(),
+		func(nsobj interface{}) {
+			poduids = append(poduids, agent.getSucceededPodsUids(nsobj)...)
+		})
+	return
+}
+
+func (agent *HostAgent) getSucceededPodsUids(obj interface{}) (poduids []string) {
+	ns, _ := obj.(*v1.Namespace)
+	cache.ListAllByNamespace(agent.podInformer.GetIndexer(),
+		ns.ObjectMeta.Name, labels.Everything(),
+		func(podobj interface{}) {
+			pod := podobj.(*v1.Pod)
+			if pod.Spec.NodeName == agent.config.NodeName && pod.Status.Phase == v1.PodSucceeded {
+				poduids = append(poduids, string(pod.ObjectMeta.UID))
+			}
+		})
+	if len(poduids) != 0 {
+		agent.log.Info("Matching succeeded pod uids: ", poduids)
+	}
+	return
 }
 
 func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname string) (poduids []string) {
@@ -1174,6 +1202,12 @@ func (agent *HostAgent) isPresentInOpflexSnatLocalInfos(poduids []string, res Re
 func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
 	agent.snatPolicyCacheMutex.RLock()
 	defer agent.snatPolicyCacheMutex.RUnlock()
+	if getResourceType(obj) == POD {
+		if obj.(*v1.Pod).Status.Phase == v1.PodSucceeded {
+			agent.handleObjectDeleteForSnat(obj)
+			return
+		}
+	}
 	objKey, err := agent.MetaNamespaceUIDFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatUpdate object key:" + err.Error())
@@ -1396,4 +1430,18 @@ func (agent *HostAgent) MetaNamespaceUIDFunc(obj interface{}) (string, error) {
 		return meta.GetNamespace() + "/" + string(meta.GetUID()), nil
 	}
 	return string(meta.GetUID()), nil
+}
+
+func difference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }
