@@ -512,8 +512,6 @@ func (conn *ApicConnection) doWriteMulApicObjects(keyObjects map[string]ApicSlic
 			}
 		}
 
-		conn.log.Debug("akhila ", key, " updates ", updates)
-
 		for _, updateobj := range updates {
 			raw, err := json.Marshal(updateobj)
 			if err != nil {

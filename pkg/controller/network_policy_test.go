@@ -214,70 +214,6 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 	}
 }
 
-/*
-func sortApicObject(obj *apicapi.ApicObject) apicapi.ApicObject {
-	for _, val := range *obj {
-		if val.Children != nil && len(val.Children) > 1 {
-			keys := []string{}
-			hppchildren := make([]apicapi.ApicObject, len(val.Children))
-			copy(hppchildren, val.Children)
-			fmt.Println("len hppchildren ", len(hppchildren))
-			fmt.Println("len val children ", len(val.Children))
-			for _, child := range val.Children {
-				for k1, val1 := range child {
-					var key string
-					if dn, okdn := val1.Attributes["dn"]; okdn {
-						key = dn.(string)
-					} else if name, okname := val1.Attributes["name"]; okname {
-						key = name.(string)
-					} else if tdn, oktdn := val1.Attributes["tDn"]; oktdn {
-						key = tdn.(string)
-					} else if anno, okanno := val1.Attributes["annotation"]; okanno {
-						key = anno.(string)
-					}
-					keys = append(keys, key)
-					fmt.Println("akhila testt ", k1, " ", key)
-					fmt.Println("akhila testt val ", val1)
-				}
-			}
-			sort.SliceStable(keys, func(i, j int) bool {
-				return keys[i] < keys[j]
-			})
-			fmt.Println("akhilaaaaa  ", keys)
-			index := 0
-			for _, k := range keys {
-				for _, hpp := range hppchildren {
-					for _, val1 := range hpp {
-						var key string
-						if dn, okdn := val1.Attributes["dn"]; okdn {
-							key = dn.(string)
-						} else if name, okname := val1.Attributes["name"]; okname {
-							key = name.(string)
-						} else if tdn, oktdn := val1.Attributes["tDn"]; oktdn {
-							key = tdn.(string)
-						} else if anno, okanno := val1.Attributes["annotation"]; okanno {
-							key = anno.(string)
-						}
-						if key == k {
-							val.Children[index] = hpp
-							index++
-							break
-						}
-					}
-				}
-			}
-		}
-		if val.Children != nil && len(val.Children) > 0 {
-			for _, child := range val.Children {
-				sortApicObject(&child)
-			}
-		} else {
-			return *obj
-		}
-	}
-	return *obj
-}
-*/
 func makeNp(ingress apicapi.ApicSlice,
 	egress apicapi.ApicSlice, name string) apicapi.ApicObject {
 	np1 := apicapi.NewHostprotPol("test-tenant", name)
@@ -360,14 +296,6 @@ func makeEpSlice(namespace string, name string, endpoints []v1beta1.Endpoint,
 	}
 }
 
-/*
-func sortApicSlice(apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
-	for _, apicobj := range apicSlice {
-		sortApicObject(&apicobj)
-	}
-	return apicSlice
-}
-*/
 func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController) {
 	tu.WaitFor(t, category+"/"+nt.desc, 2000*time.Millisecond,
 		func(last bool) (bool, error) {
