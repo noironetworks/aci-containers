@@ -103,6 +103,7 @@ type ApicConnection struct {
 	SubscriptionDelay   time.Duration
 	RetryInterval       time.Duration
 	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
+	HppRemoteIpCont     bool // True RemoteIpContainer MOs are used for hpp
 	FullSyncHook        func()
 
 	dialer        *websocket.Dialer

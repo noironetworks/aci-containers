@@ -665,12 +665,18 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		if version >= "5.2" {
 			cont.vmmClusterFaultSupported = true
 		}
+		//akhila : change it to 5.2(6)
+		if version >= "5.2(5.55a)" {
+			cont.apicConn.HppRemoteIpCont = true
+		}
 
 	} else { // For unit-tests
 		cont.apicConn.SnatPbrFltrChain = true
+		cont.apicConn.HppRemoteIpCont = true
 	}
 
 	cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
+	cont.log.Debug("HppRemoteIpCont set to:", cont.apicConn.HppRemoteIpCont)
 	// Make sure Pod/NodeBDs are assoicated to same VRF.
 	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
 		var expectedVrfRelations []string

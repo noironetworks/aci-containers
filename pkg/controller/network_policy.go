@@ -344,6 +344,9 @@ func (cont *AciController) queueMulNetPolUpdateByKey(keys []string) {
 }
 
 func (cont *AciController) queueRemoteIpConUpdate(pod *v1.Pod, deleted bool) {
+	if !cont.apicConn.HppRemoteIpCont {
+		return
+	}
 	cont.indexMutex.Lock()
 	update := cont.updateNsRemoteIpCont(pod, deleted)
 	cont.indexMutex.Unlock()
@@ -655,21 +658,22 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 				if ns, ok := peerNs[pod.ObjectMeta.Namespace]; ok &&
 					cont.peerMatchesPod(namespace,
 						&peer, pod, ns) {
-					cont.log.Debug("testtt matching subnet ns", ns)
 					podIps := ipsForPod(pod)
 					for _, ip := range podIps {
 						if _, exists := subnetMap[ip]; !exists {
 							subnetMap[ip] = true
-
-							peerremote.remotePods = append(peerremote.remotePods, pod)
-							cont.log.Debug("testtt matching subnet pod", pod.ObjectMeta.Name)
-							tdn := getHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
-							peerNsWithSubnets[pod.ObjectMeta.Namespace] = tdn
+							if cont.apicConn.HppRemoteIpCont {
+								peerremote.remotePods = append(peerremote.remotePods, pod)
+								tdn := getHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
+								peerNsWithSubnets[pod.ObjectMeta.Namespace] = tdn
+							} else {
+								remoteSubnets = append(remoteSubnets, ip)
+							}
 						}
 					}
 				}
 
-				if peer.PodSelector != nil {
+				if cont.apicConn.HppRemoteIpCont && peer.PodSelector != nil {
 					peerremote.podSelector = peer.PodSelector
 				}
 			}
@@ -698,7 +702,7 @@ func getHostprotRsRemoteIpContTdn(namespace string) string {
 	return tdn
 }
 
-func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string, direction string,
+func (cont *AciController) buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string, direction string,
 	ethertype string, proto string, port string, remoteSubnets []string,
 	remoteNsSubnetDns map[string]string, podSelector *metav1.LabelSelector) {
 
@@ -711,25 +715,26 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string, direction str
 	for _, ip := range remoteSubnets {
 		rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
 	}
-	for ns, tdn := range remoteNsSubnetDns {
-		rule.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule.GetDn(), tdn, ns))
-	}
-	if podSelector != nil {
-		filter := apicapi.NewHostprotFilterContainer(rule.GetDn())
-		for key, val := range podSelector.MatchLabels {
-			filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(), key, "", val))
+	if cont.apicConn.HppRemoteIpCont {
+		for ns, tdn := range remoteNsSubnetDns {
+			rule.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule.GetDn(), tdn, ns))
 		}
-		for _, expressions := range podSelector.MatchExpressions {
-			values := ""
-			for _, val := range expressions.Values {
-				values = values + "," + val
+		if podSelector != nil {
+			filter := apicapi.NewHostprotFilterContainer(rule.GetDn())
+			for key, val := range podSelector.MatchLabels {
+				filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(), key, "", val))
 			}
-			filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(),
-				expressions.Key, string(expressions.Operator), values))
+			for _, expressions := range podSelector.MatchExpressions {
+				values := ""
+				for _, val := range expressions.Values {
+					values = values + "," + val
+				}
+				filter.AddChild(apicapi.NewHostprotPodFilter(filter.GetDn(),
+					expressions.Key, string(expressions.Operator), values))
+			}
+			rule.AddChild(filter)
 		}
-		rule.AddChild(filter)
 	}
-
 	if port != "" {
 		rule.SetAttr("toPort", port)
 	}
@@ -751,11 +756,11 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 
 	if len(ports) == 0 {
 		if !cont.configuredPodNetworkIps.V4.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
 				"ipv4", "", "", remoteSubnets, peerNsWithSubnets, podSelector)
 		}
 		if !cont.configuredPodNetworkIps.V6.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
 				"ipv6", "", "", remoteSubnets, peerNsWithSubnets, podSelector)
 		}
 	} else {
@@ -792,11 +797,11 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 			}
 			for i, port := range ports {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
 						"ipv4", proto, port, remoteSubnets, peerNsWithSubnets, podSelector)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
 						"ipv6", proto, port, remoteSubnets, peerNsWithSubnets, podSelector)
 				}
 			}
@@ -1127,12 +1132,12 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 		}
 		cont.log.Debug("Service Augment: ", augment)
 		if len(remoteIpsv4) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
 				"egress", "ipv4", augment.proto, augment.port, remoteIpsv4, nil, nil)
 		}
 		if len(remoteIpsv6) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
 				"egress", "ipv6", augment.proto, augment.port, remoteIpsv6, nil, nil)
 		}
@@ -1201,9 +1206,6 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 			peerPods = append(peerPods, pod)
 		}
 	}
-	for i, j := range peerNs {
-		cont.log.Debug("testttt peerNs  ", i, " ", j)
-	}
 	ptypeset := make(map[v1net.PolicyType]bool)
 	for _, t := range np.Spec.PolicyTypes {
 		ptypeset[t] = true
@@ -1263,7 +1265,7 @@ func (cont *AciController) dohandleNetPolUpdate(np *v1net.NetworkPolicy) (string
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
-	if len(remotePods) > 0 {
+	if cont.apicConn.HppRemoteIpCont && len(remotePods) > 0 {
 		cont.log.Debug("len of remote pods ", len(remotePods))
 		cont.updateRemoteIpContainers(remotePods)
 	}
@@ -1275,7 +1277,6 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 	podns := pod.ObjectMeta.Namespace
 	podlabels := pod.ObjectMeta.Labels
 	if deleted {
-		//lock
 		if remipcont, ok := cont.nsRemoteIpCont[podns]; ok {
 			for _, ip := range podips {
 				if _, ipok := remipcont[ip]; ipok {
@@ -1287,7 +1288,6 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 				return false
 			}
 		}
-		//unlock
 	} else {
 		if _, ok := cont.nsRemoteIpCont[podns]; ok {
 			for _, ip := range podips {
@@ -1310,8 +1310,6 @@ func (cont *AciController) handleMulNetPolUpdate(nps []interface{}) bool {
 		np := netp.(*v1net.NetworkPolicy)
 		labelKey, hpp := cont.dohandleNetPolUpdate(np)
 		if labelKey != "" && len(hpp) > 0 {
-			cont.log.Debug("testttt  labelKey ", labelKey)
-			cont.log.Debug("testttt  hpp ", hpp)
 			keyObjects[labelKey] = hpp
 		}
 	}
