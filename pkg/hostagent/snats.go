@@ -106,14 +106,32 @@ func (agent *HostAgent) initSnatGlobalInformerFromClient(
 	agent.initSnatGlobalInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list SnatGlobalInfo during initialization of SnatGlobalInformer :", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch SnatGlobalInfo during initialization of SnatGlobalInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
 				}
@@ -127,14 +145,32 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 	agent.initSnatPolicyInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().SnatPolicies().List(context.TODO(), options)
+				var obj runtime.Object
+				var err error
+				for {
+					obj, err = snatClient.AciV1().SnatPolicies().List(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to list SnatPolicies during initialization of SnatPolicyInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to list SnatPolicies during initialization of SnatPolicyInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().SnatPolicies().Watch(context.TODO(), options)
+				var obj watch.Interface
+				var err error
+				for {
+					obj, err = snatClient.AciV1().SnatPolicies().Watch(context.TODO(), options)
+					if err != nil && strings.Contains(err.Error(), "Too large resource version") {
+						agent.log.Error("Failed to watch SnatPolicies during initialization of SnatPolicyInformer: ", err.Error(), " Retrying")
+						continue
+					}
+					break
+				}
 				if err != nil {
 					agent.log.Fatalf("Failed to watch SnatPolicies during initialization of SnatPolicyInformer: %s", err)
 				}
