@@ -1041,6 +1041,7 @@ func NewVmmInjectedSvc(vendor string, domain string, controller string,
 func NewHostprotNamespace(ns string) ApicObject {
 	ret := newApicObject("hostprotNamespace")
 	ret["hostprotNamespace"].Attributes["name"] = ns
+	ret["hostprotNamespace"].Attributes["childAction"] = "deleteNonPresent"
 	ret["hostprotNamespace"].Attributes["dn"] =
 		fmt.Sprintf("uni/ns-%s", ns)
 	return ret

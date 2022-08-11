@@ -1150,6 +1150,7 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 	remIpCont, ok := cont.nsRemoteIpCont[ns]
 	if !ok {
 		cont.log.Error("Couldn't find the ns in nsRemoteIpCont cache: ", ns)
+		cont.indexMutex.Unlock()
 		return false
 	}
 	nsobj := apicapi.NewHostprotNamespace(ns)
