@@ -1130,6 +1130,16 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_5_0_v6.SetAttr("direction", "ingress")
 	rule_5_0_v6.SetAttr("ethertype", "ipv6")
 	rule_5_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_5_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
+	remIp_cont_5_0 := makeHostProtNs("testnsv6", []remoteIp{
+		{ip: "1.1.1.1",
+			labels: map[string]string{"l1": "v1"},
+		},
+		{ip: "1.1.1.2",
+			labels: map[string]string{"l1": "v2"},
+		},
+	})
+	remIpCont_ns_5_0_v6 := map[string]apicapi.ApicObject{"testnsv6": remIp_cont_5_0}
+
 	/*
 		rule_5_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0_v6.GetDn(), "2001::2"))
 		rule_5_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_5_0_v6.GetDn(), "2001::3"))
@@ -1140,6 +1150,21 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_6_0_v6.SetAttr("ethertype", "ipv6")
 	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
 	rule_6_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_6_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
+	remIp_cont_6_0_0 := makeHostProtNs("ns1", []remoteIp{
+		{ip: "1.1.1.3",
+			labels: map[string]string{"l1": "v1"},
+		},
+		{ip: "1.1.1.4",
+			labels: map[string]string{"l1": "v2"},
+		},
+	})
+	remIp_cont_6_0_1 := makeHostProtNs("ns2", []remoteIp{
+		{ip: "1.1.1.5",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIpCont_ns_6_0_v6 := map[string]apicapi.ApicObject{"ns1": remIp_cont_6_0_0, "ns2": remIp_cont_6_0_1}
+
 	/*
 		rule_6_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0_v6.GetDn(), "2001::4"))
 		rule_6_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_6_0_v6.GetDn(), "2001::5"))
@@ -1152,6 +1177,12 @@ func TestNetworkPolicyv6(t *testing.T) {
 	//rule_7_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_7_0_v6.GetDn(), "2001::2"))
 	rule_7_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_7_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_7_0_v6.AddChild(makeFilterCont(rule_7_0_v6.GetDn(), map[string]string{"l1": "v1"}))
+	remIp_cont_7_0 := makeHostProtNs("testnsv6", []remoteIp{
+		{ip: "1.1.1.1",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIpCont_ns_7_0_v6 := map[string]apicapi.ApicObject{"testnsv6": remIp_cont_7_0}
 
 	rule_8_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0")
 	rule_8_0_v6.SetAttr("direction", "ingress")
@@ -1170,6 +1201,15 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_8_1_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_8_1_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_8_1_v6.AddChild(makeFilterCont(rule_8_1_v6.GetDn(), map[string]string{"l1": "v2"}))
 	//rule_8_1_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1_v6.GetDn(), "2001::3"))
+	remIp_cont_8 := makeHostProtNs("testnsv6", []remoteIp{
+		{ip: "1.1.1.1",
+			labels: map[string]string{"l1": "v1"},
+		},
+		{ip: "1.1.1.2",
+			labels: map[string]string{"l1": "v2"},
+		},
+	})
+	remIpCont_ns_8_v6 := map[string]apicapi.ApicObject{"testnsv6": remIp_cont_8}
 
 	rule_9_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0")
 	rule_9_0_v6.SetAttr("direction", "ingress")
@@ -1177,6 +1217,18 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
 	rule_9_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_9_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_9_0_v6.AddChild(makeFilterCont(rule_9_0_v6.GetDn(), map[string]string{"l1": "v1"}))
+	remIp_cont_9_0_0 := makeHostProtNs("ns1", []remoteIp{
+		{ip: "1.1.1.3",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIp_cont_9_0_1 := makeHostProtNs("ns2", []remoteIp{
+		{ip: "1.1.1.5",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIpCont_ns_9_0_v6 := map[string]apicapi.ApicObject{"ns1": remIp_cont_9_0_0, "ns2": remIp_cont_9_0_1}
+
 	/*
 		rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::4"))
 		rule_9_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_9_0_v6.GetDn(), "2001::6"))
@@ -1188,6 +1240,18 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-ns1/remoteipcont", "ns1"))
 	rule_10_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_10_0_v6.GetDn(), "uni/ns-ns2/remoteipcont", "ns2"))
 	rule_10_0_v6.AddChild(makeFilterCont(rule_10_0_v6.GetDn(), map[string]string{"l1": "v1"}))
+	remIp_cont_10_0_0 := makeHostProtNs("ns1", []remoteIp{
+		{ip: "1.1.1.3",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIp_cont_10_0_1 := makeHostProtNs("ns2", []remoteIp{
+		{ip: "1.1.1.5",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIpCont_ns_10_0_v6 := map[string]apicapi.ApicObject{"ns1": remIp_cont_10_0_0, "ns2": remIp_cont_10_0_1}
+
 	/*
 		rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::4"))
 		rule_10_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_10_0_v6.GetDn(), "2001::6"))
@@ -1200,6 +1264,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_11_0_v6.SetAttr("toPort", "80")
 	rule_11_0_v6.AddChild(apicapi.NewHostprotRsRemoteIpContainer(rule_11_0_v6.GetDn(), "uni/ns-testnsv6/remoteipcont", "testnsv6"))
 	rule_11_0_v6.AddChild(makeFilterCont(rule_11_0_v6.GetDn(), map[string]string{"l1": "v1"}))
+	remIp_cont_11_0 := makeHostProtNs("testns", []remoteIp{
+		{ip: "1.1.1.1",
+			labels: map[string]string{"l1": "v1"},
+		},
+	})
+	remIpCont_ns_11_0_v6 := map[string]apicapi.ApicObject{"testns": remIp_cont_11_0}
+
 	//rule_11_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0_v6.GetDn(), "2001::2"))
 
 	rule_11_s_v6 := apicapi.NewHostprotRule(npv6SDnE, "service_tcp_8080")
@@ -1298,7 +1369,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 					}),
 				}),
 			}, nil, allPolicyTypes),
-			makeNp(apicapi.ApicSlice{rule_5_0_v6}, nil, name), nil,
+			makeNp(apicapi.ApicSlice{rule_5_0_v6}, nil, name), remIpCont_ns_5_0_v6,
 			nil, "allow-all-from-ns"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil,
@@ -1318,7 +1389,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 					}),
 				}),
 			}, nil, allPolicyTypes),
-			makeNp(apicapi.ApicSlice{rule_6_0_v6}, nil, name), nil,
+			makeNp(apicapi.ApicSlice{rule_6_0_v6}, nil, name), remIpCont_ns_6_0_v6,
 			nil, "allow-all-from-multiple-ns"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil,
@@ -1328,7 +1399,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 					}, nil),
 				}),
 			}, nil, allPolicyTypes),
-			makeNp(apicapi.ApicSlice{rule_7_0_v6}, nil, name), nil,
+			makeNp(apicapi.ApicSlice{rule_7_0_v6}, nil, name), remIpCont_ns_7_0_v6,
 			nil, "allow-all-select-pods"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil,
@@ -1340,7 +1411,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 					}),
 				}),
 			}, nil, allPolicyTypes),
-			makeNp(apicapi.ApicSlice{rule_9_0_v6}, nil, name), nil,
+			makeNp(apicapi.ApicSlice{rule_9_0_v6}, nil, name), remIpCont_ns_9_0_v6,
 			nil, "allow-all-select-pods-and-ns"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
@@ -1359,7 +1430,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 					}, nil),
 				}),
 			}, nil, allPolicyTypes),
-			makeNp(apicapi.ApicSlice{rule_8_0_v6, rule_8_1_v6}, nil, name), nil,
+			makeNp(apicapi.ApicSlice{rule_8_0_v6, rule_8_1_v6}, nil, name), remIpCont_ns_8_v6,
 			nil, "multiple-from"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1372,7 +1443,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 						}),
 					}),
 			}, allPolicyTypes),
-			makeNp(nil, apicapi.ApicSlice{rule_10_0_v6}, name), nil,
+			makeNp(nil, apicapi.ApicSlice{rule_10_0_v6}, name), remIpCont_ns_10_0_v6,
 			nil, "egress-allow-all-select-pods-and-ns"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1383,7 +1454,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 						}, nil),
 					}),
 			}, allPolicyTypes),
-			makeNp(nil, apicapi.ApicSlice{rule_11_0_v6}, name), nil,
+			makeNp(nil, apicapi.ApicSlice{rule_11_0_v6}, name), remIpCont_ns_11_0_v6,
 			nil, "egress-allow-http-select-pods"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -1395,7 +1466,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 						}, nil),
 					}),
 			}, allPolicyTypes),
-			makeNp(nil, apicapi.ApicSlice{rule_11_0_v6, rule_11_s_v6}, name), nil,
+			makeNp(nil, apicapi.ApicSlice{rule_11_0_v6, rule_11_s_v6}, name), remIpCont_ns_11_0_v6,
 			&npTestAugment{
 				[]*v1.Endpoints{
 					makeEps("testnsv6", "service1",

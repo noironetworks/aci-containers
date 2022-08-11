@@ -1314,3 +1314,8 @@ func NewVmmInjectedLabel(parentDn string, name string, value string) ApicObject 
 		fmt.Sprintf("%s/key-[%s]-val-%s", parentDn, name, value)
 	return ret
 }
+
+func GetHostprotRsRemoteIpContTdn(namespace string) string {
+	tdn := fmt.Sprintf("uni/ns-%s/remoteipcont", namespace)
+	return tdn
+}

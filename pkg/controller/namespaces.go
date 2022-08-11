@@ -131,6 +131,9 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 	cont.netPolPods.DeleteNamespace(ns)
 	cont.netPolIngressPods.DeleteNamespace(ns)
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+	if cont.apicConn.HppRemoteIpCont {
+		cont.apicConn.ClearApicObjects(cont.aciNameForKey("hostprot-ns-", ns.Name))
+	}
 }
 
 func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {

@@ -664,7 +664,7 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 							subnetMap[ip] = true
 							if cont.apicConn.HppRemoteIpCont {
 								peerremote.remotePods = append(peerremote.remotePods, pod)
-								tdn := getHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
+								tdn := apicapi.GetHostprotRsRemoteIpContTdn(pod.ObjectMeta.Namespace)
 								peerNsWithSubnets[pod.ObjectMeta.Namespace] = tdn
 							} else {
 								remoteSubnets = append(remoteSubnets, ip)
@@ -695,11 +695,6 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	}
 	sort.Strings(remoteSubnets)
 	return remoteSubnets, peerNsWithSubnets, peerremote, subnetMap
-}
-
-func getHostprotRsRemoteIpContTdn(namespace string) string {
-	tdn := fmt.Sprintf("uni/ns-%s/remoteipcont", namespace)
-	return tdn
 }
 
 func (cont *AciController) buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string, direction string,
@@ -1278,15 +1273,25 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 	podlabels := pod.ObjectMeta.Labels
 	if deleted {
 		if remipcont, ok := cont.nsRemoteIpCont[podns]; ok {
+			present := false
 			for _, ip := range podips {
 				if _, ipok := remipcont[ip]; ipok {
 					delete(remipcont, ip)
+					present = true
 				}
 			}
 			if len(cont.nsRemoteIpCont[podns]) < 1 {
+				delete(cont.nsRemoteIpCont, podns)
 				cont.apicConn.ClearApicObjects(cont.aciNameForKey("hostprot-ns-", podns))
 				return false
 			}
+			if !present {
+				//if the ip to be deleted is not present in nsRemoteIpCont
+				return false
+			}
+		} else {
+			//no update needed if namespace is not present
+			return false
 		}
 	} else {
 		if _, ok := cont.nsRemoteIpCont[podns]; ok {

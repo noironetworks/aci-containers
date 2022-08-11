@@ -350,7 +350,7 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 	}
 	i.indexMutex.Unlock()
 
-	if len(updatedMulObjs) > 0 && i.updateRemIpCont != nil {
+	if i.updateRemIpCont != nil {
 		i.updateRemIpCont(pod, true)
 	}
 
