@@ -789,6 +789,65 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 	}
 }
 
+func (conn *ApicConnection) logDebugResp(message string, resp *http.Response) {
+	var apicresp ApicResponse
+	err := json.NewDecoder(resp.Body).Decode(&apicresp)
+	if err != nil {
+		conn.log.Error("Could not parse APIC error response: ", err)
+	} else {
+		code := 0
+		text := ""
+		for _, o := range apicresp.Imdata {
+			if ob, ok := o["error"]; ok {
+				if ob.Attributes != nil {
+					switch t := ob.Attributes["text"].(type) {
+					case string:
+						text = t
+					}
+					switch c := ob.Attributes["code"].(type) {
+					case int:
+						code = c
+					}
+				}
+			}
+		}
+		conn.logger.WithFields(logrus.Fields{
+			"mod":    "APICAPI",
+			"text":   text,
+			"code":   code,
+			"url":    resp.Request.URL,
+			"status": resp.StatusCode,
+		}).Debug(message)
+	}
+}
+
+func (conn *ApicConnection) IsHostportNamespacePresent() bool {
+	args := []string{
+		"query-target=subtree",
+		"target-subtree-class=hostprotNamespace",
+	}
+	uri := fmt.Sprintf("/api/mo/uni.json?%s", strings.Join(args, "&"))
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return false
+	}
+	conn.sign(req, uri, nil)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not get subtree", err)
+		return false
+	}
+	defer complete(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		conn.logDebugResp("Could not get subtree for hostprotNamespace: ", resp)
+		return false
+	}
+	return true
+}
+
 // To make sure cluster's POD/NodeBDs and L3OUT are all mapped
 // to same and correct VRF.
 func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedVrfRelations []string) error {

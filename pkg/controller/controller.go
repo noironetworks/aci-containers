@@ -666,7 +666,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.vmmClusterFaultSupported = true
 		}
 		//akhila : change it to 5.2(6)
-		if version >= "5.2(5.55a)" {
+		if cont.apicConn.IsHostportNamespacePresent() {
 			cont.apicConn.HppRemoteIpCont = true
 		}
 
