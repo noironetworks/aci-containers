@@ -204,6 +204,14 @@ type ControllerConfig struct {
 	// Default is false
 	NoWaitForServiceEpReadiness bool `json:"no-wait-for-service-ep-readiness,omitempty"`
 
+	// True when to add extern_dynamic and extern_static subnets to rdconfig
+	// Default is false
+	AddExternalSubnetsToRdconfig bool `json:"add-external-subnets-to-rdconfig,omitempty"`
+
+	ExternStatic string `json:"extern-static,omitempty"`
+
+	ExternDynamic string `json:"extern-dynamic,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 

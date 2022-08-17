@@ -18,9 +18,6 @@ package controller
 
 import (
 	"context"
-	"os"
-	"reflect"
-
 	rdConfigv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -31,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
+	"os"
+	"reflect"
 )
 
 func (cont *AciController) initRdConfigInformerFromClient(
@@ -169,10 +168,13 @@ func (cont *AciController) syncRdConfig() bool {
 	cont.log.Debug("Syncing RdConfig")
 	var options metav1.GetOptions
 	var discoveredSubnets []string
+	var userSubnets []string
 	cont.indexMutex.Lock()
 	for _, v := range cont.apicConn.CachedSubnetDns {
 		discoveredSubnets = append(discoveredSubnets, v)
 	}
+	userSubnets = append(userSubnets, cont.config.ExternStatic)
+	userSubnets = append(userSubnets, cont.config.ExternDynamic)
 	cont.indexMutex.Unlock()
 	env := cont.env.(*K8sEnvironment)
 	rdConfigClient := env.rdConfigClient
@@ -188,25 +190,57 @@ func (cont *AciController) syncRdConfig() bool {
 			spec := rdConfigv1.RdConfigSpec{
 				DiscoveredSubnets: discoveredSubnets,
 			}
+			if cont.config.AddExternalSubnetsToRdconfig == true {
+				spec.UserSubnets = userSubnets
+			}
 			err := util.CreateRdConfigCR(*rdConfigClient, spec)
 			if err != nil {
 				cont.log.Debugf("Unable to create RDConfig: %s, err: %v, spec: %+v", name, err, spec)
 				return true
 			}
 			cont.log.Debugf("RdConfig: %s Created with spec: %v", name, spec)
+
 		} else {
 			cont.log.Debugf("Unable to get RDConfig: %s, err: %v", name, err)
 		}
 	} else {
 		cont.log.Debugf("Comparing existing rdconfig DiscoveredSubnets with cached values")
+
+		var isUpdated bool = false
+
 		if !reflect.DeepEqual(rdCon.Spec.DiscoveredSubnets, discoveredSubnets) {
 			rdCon.Spec.DiscoveredSubnets = discoveredSubnets
+			isUpdated = true
+		}
+		if !reflect.DeepEqual(rdCon.Spec.UserSubnets, userSubnets) && cont.config.AddExternalSubnetsToRdconfig == true {
+			// add new usersubnet to already present subnets
+			prev_userSubnets := rdCon.Spec.UserSubnets
+			for _, new_user_subnet := range userSubnets {
+				var isPresent bool = false
+				for _, prev_user_subnet := range prev_userSubnets {
+					if new_user_subnet == prev_user_subnet {
+						isPresent = true
+						break
+					}
+				}
+				if !isPresent {
+					prev_userSubnets = append(prev_userSubnets, new_user_subnet)
+					isUpdated = true
+				}
+			}
+
+			rdCon.Spec.UserSubnets = prev_userSubnets
+
+		}
+
+		if isUpdated == true {
 			_, err = rdConfigClient.AciV1().RdConfigs(ns).Update(context.TODO(), rdCon, metav1.UpdateOptions{})
 			if err != nil {
 				cont.log.Debugf("Unable to Update RDConfig: %s, err: %v", name, err)
 				return true
 			}
-			cont.log.Debug("RdConfig Updated: ", discoveredSubnets)
+			cont.log.Debug("RdConfig  DiscoveredSubnets Updated: ", discoveredSubnets)
+			cont.log.Debug("RdConfig  UserSubnets Updated: ", rdCon.Spec.UserSubnets)
 		}
 	}
 	return false
