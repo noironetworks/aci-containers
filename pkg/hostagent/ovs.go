@@ -108,11 +108,20 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 }
 
 func (agent *HostAgent) syncPorts(socket string) error {
+    var connectString string
 	agent.log.Debug("Syncing OVS ports")
 
-	ovs, err := libovsdb.Connect("unix:"+socket, nil)
-	if err != nil {
-		return err
+    if agent.config.OpflexMode == "dpu" {
+        connectString = agent.config.DpuOvsDBSocket
+    } else {
+        connectString = "unix:"+socket
+    }
+    ovs, err := libovsdb.Connect(connectString, nil)
+    if err != nil {
+        agent.log.Errorf("Connect %s failed %v", connectString, err)
+        return err
+    } else {
+        agent.log.Debug("Connect %s successful", connectString)
 	}
 	defer ovs.Disconnect()
 
@@ -275,7 +284,8 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 		}
 		// check if acc bridge exists and add host veth if needed
 		accbr, ok := bridges[agent.config.AccessBridgeName]
-		if agent.config.OpflexMode == "overlay" && ok {
+		if (agent.config.OpflexMode == "overlay" ||
+            agent.config.OpflexMode == "dpu") && ok {
 			if _, pok := accbr.ports["veth_host_ac"]; pok {
 				found[agent.config.AccessBridgeName]["veth_host_ac"] = true
 			} else {
@@ -288,8 +298,21 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			agent.ignoreOvsPorts[agent.config.IntBridgeName] = []string{"pi-veth_host_ac"}
 			agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pa-veth_host_ac"}
 		}
-	}
-
+        if agent.config.OpflexMode == "dpu" && ok {
+            if _, pok := accbr.ports["pf0hpf"]; pok {
+                found[agent.config.AccessBridgeName]["pf0hpf"] = true
+                agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"pf0hpf"}
+            }
+            if _, pok := accbr.ports["en3f0pf0sf0"]; pok {
+                found[agent.config.AccessBridgeName]["en3f0pf0sf0"] = true
+                agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"en3f0pf0sf0"}
+            }
+            if _, pok := accbr.ports["bond0"]; pok {
+                found[agent.config.AccessBridgeName]["bond0"] = true
+                agent.ignoreOvsPorts[agent.config.AccessBridgeName] = []string{"bond0"}
+            }
+	   }
+    }
 	for _, brName := range brNames {
 		br, ok := bridges[brName]
 		if !ok {

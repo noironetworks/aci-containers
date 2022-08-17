@@ -148,90 +148,121 @@ type SetupVfArgs struct {
 	Mtu           int
 	Ip            net.IP
 	SriovDeviceId string
+    Dpu           bool
 }
 
 func runSetupVf(sandbox string, ifName string,
-	mtu int, ip net.IP, sriovDeviceId string) (string, string, string, error) {
+	mtu int, ip net.IP, sriovDeviceId string, dpu bool) (string, string, string, error) {
 	result := &SetupVfResult{}
 	err := PluginCloner.runPluginCmd("ClientRPC.SetupVf",
-		&SetupVfArgs{sandbox, ifName, mtu, ip, sriovDeviceId}, result)
+		&SetupVfArgs{sandbox, ifName, mtu, ip, sriovDeviceId, dpu}, result)
 	return result.HostVfName, result.Mac, result.VfNetDev, err
 }
 
 func (*ClientRPC) SetupVf(args *SetupVfArgs, result *SetupVfResult) error {
+    var uplink string
+    logger := logrus.New()
+
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+        logger.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+        return err
 	}
-	uplink, err := sriovnet.GetUplinkRepresentor(args.SriovDeviceId)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve uplink interface for pci address %s: %v", args.SriovDeviceId, err)
-	}
+
+    if !args.Dpu {
+	   uplink, err = sriovnet.GetUplinkRepresentor(args.SriovDeviceId)
+	   if err != nil {
+            logger.Errorf("failed to retrieve uplink interface for pci address %s: %v", args.SriovDeviceId, err)
+            return err
+	    }
+    }
+
 	vfIndex, err := sriovnet.GetVfIndexByPciAddress(args.SriovDeviceId)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve vfIndex for pci address %s: %v", args.SriovDeviceId, err)
+        logger.Errorf("failed to retrieve vfIndex for pci address %s: %v", args.SriovDeviceId, err)
+        return err
 	}
-	vfRep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve vf representator for pci address %s and vfIndex %d: %v", args.SriovDeviceId, vfIndex, err)
-	}
-	hostIface, err := netlink.LinkByName(vfRep)
-	if hostIface == nil || err != nil {
-		return err
-	}
-	err = netlink.LinkSetUp(hostIface)
-	if err != nil {
-		return err
-	}
-	result.HostVfName = vfRep
+
+    if !args.Dpu {
+	    vfRep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
+	    if err != nil {
+            logger.Errorf("failed to retrieve vf representator for pci address %s and vfIndex %d: %v", args.SriovDeviceId, vfIndex, err)
+            return err
+        }
+	    hostIface, err := netlink.LinkByName(vfRep)
+	    if hostIface == nil || err != nil {
+		    return err
+	    }
+	    err = netlink.LinkSetUp(hostIface)
+	    if err != nil {
+	        return err
+	    }
+	    result.HostVfName = vfRep
+    } else {
+        result.HostVfName = fmt.Sprintf("pf0vf%d", vfIndex)
+    }
+
 	netDevice, err := sriovnet.GetNetDevicesFromPci(args.SriovDeviceId)
 	if err != nil {
-		return fmt.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+        logger.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+        return err
 	}
 	// move Vf netdevice to pod's namespace
 	result.VfNetDev = netDevice[0]
 	netDeviceLink, err := netlink.LinkByName(netDevice[0])
 	if err != nil {
-		return fmt.Errorf("Failed to bring up the netlink %s :%v", netDevice[0], err)
+		logger.Errorf("Failed to bring up the netlink %s :%v", netDevice[0], err)
+        return err
 	}
 	err = netlink.LinkSetNsFd(netDeviceLink, int(netns.Fd()))
 	if err != nil {
-		return fmt.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+		logger.Errorf("Failed to retreive netdevice %s:%v", args.SriovDeviceId, err)
+        return err
 	}
 	defer netns.Close()
 	return netns.Do(func(hostNS ns.NetNS) error {
 		contLink, err := netlink.LinkByName(netDevice[0])
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to get link by name %s:%v", netDevice[0], err)
 			return err
 		}
 		err = netlink.LinkSetDown(contLink)
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to set link down %s:%v", args.IfName, err)
 			return err
 		}
 		err = netlink.LinkSetName(contLink, args.IfName)
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to set link name %s:%v", args.IfName, err)
 			return err
 		}
 		//Set Mtu
 		err = netlink.LinkSetMTU(contLink, args.Mtu)
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to set MTU %s:%v", args.IfName, err)
 			return err
 		}
 		err = netlink.LinkSetUp(contLink)
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to set link up %s:%v", args.IfName, err)
 			return err
 		}
 		if args.Ip.To4() != nil {
 			if err := ip.SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
-				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
+				logger.Errorf("netNS.Do failed Ip based MAC address allocation for v4: %v", err)
+                return err
 			}
 		}
 		contIface, err := netlink.LinkByName(args.IfName)
 		if err != nil {
+            logger.Errorf("netNS.Do Failed to get link by name %s:%v", args.IfName, err)
 			return err
 		}
 
 		result.Mac = contIface.Attrs().HardwareAddr.String()
+        if len(result.Mac) == 0 {
+            logger.Errorf("netNS.Do got empty MAC for %s", args.IfName)
+        }
 
 		return nil
 	})
@@ -475,7 +506,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				if len(metadata.Id.DeviceId) > 0 && agent.config.OvsHardwareOffload {
 					logger.Debug("Setting up VF, deviceId/PCI address: ", metadata.Id.DeviceId)
 					iface.HostVethName, iface.Mac, iface.VfNetDevice, err =
-						runSetupVf(iface.Sandbox, iface.Name, mtu, ip.Address.IP, metadata.Id.DeviceId)
+						runSetupVf(iface.Sandbox, iface.Name, mtu, ip.Address.IP, metadata.Id.DeviceId, agent.config.OpflexMode == "dpu")
 					logger.Debug("VFNetdevice: ", iface.VfNetDevice)
 					logger.Debug("VFrep: ", iface.HostVethName)
 					if err != nil {
