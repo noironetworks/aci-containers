@@ -563,6 +563,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.OpflexDeviceDeleteTimeout = 1800
 	}
 
+	// If SleepTimeSnatGlobalInfoSync is not defined, default to 60
+	if cont.config.SleepTimeSnatGlobalInfoSync == 0 {
+		cont.config.SleepTimeSnatGlobalInfoSync = 60
+	}
+
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
@@ -784,8 +789,8 @@ func (cont *AciController) syncDelayedEpSlices(stopCh <-chan struct{}, seconds t
 	}
 }
 
-func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds time.Duration) {
-	time.Sleep(seconds * time.Second)
+func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds int) {
+	time.Sleep(time.Duration(seconds) * time.Second)
 	cont.log.Debug("Go routine to periodically sync globalinfo and nodeinfo started")
 	iteration := 0
 	for {
@@ -859,7 +864,7 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds ti
 				}
 			}
 		}
-		time.Sleep(seconds * time.Second)
+		time.Sleep(time.Duration(seconds) * time.Second)
 		iteration = iteration + 1
 	}
 }
