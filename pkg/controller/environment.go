@@ -304,7 +304,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.networkPolicyInformer.HasSynced)
 	cont.log.Info("Cache sync successful")
 	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
-		go cont.snatGlobalInfoSync(stopCh, 60)
+		go cont.snatGlobalInfoSync(stopCh, cont.config.SleepTimeSnatGlobalInfoSync)
 	}
 	go cont.syncOpflexDevices(stopCh, 60)
 	go cont.syncDelayedEpSlices(stopCh, 1)
