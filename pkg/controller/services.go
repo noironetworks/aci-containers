@@ -1147,6 +1147,17 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	aobjDn := aobj.GetDn()
 	aobj.SetAttr("guid", string(service.UID))
 
+	svcns := service.ObjectMeta.Namespace
+	_, exists, err := cont.namespaceIndexer.GetByKey(svcns)
+	if err != nil {
+		cont.log.Error("Failed to lookup ns : ", svcns, " ", err)
+		return
+	}
+	if !exists {
+		cont.log.Debug("Namespace of service ", service.ObjectMeta.Name, ": ", svcns, " doesn't exist, hence not sending an update to the APIC")
+		return
+	}
+
 	if !cont.serviceEndPoints.SetServiceApicObject(aobj, service) {
 		return
 	}
