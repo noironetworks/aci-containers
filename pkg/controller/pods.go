@@ -182,6 +182,17 @@ func (cont *AciController) writeApicPod(pod *v1.Pod) {
 		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
 		return
 	}
+	podns := pod.ObjectMeta.Namespace
+	_, exists, err := cont.namespaceIndexer.GetByKey(podns)
+	if err != nil {
+		cont.log.Error("Failed to lookup ns : ", podns, " ", err)
+		return
+	}
+	if !exists {
+		cont.log.Debug("Namespace of pod ", pod.ObjectMeta.Name, ": ", podns, " doesn't exist, hence not sending an update to the APIC")
+		return
+	}
+
 	key := cont.aciNameForKey("pod", podkey)
 	if !podFilter(pod) || pod.Spec.NodeName == "" {
 		cont.apicConn.ClearApicObjects(key)
