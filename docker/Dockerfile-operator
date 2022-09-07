@@ -12,3 +12,4 @@ description="This operator will deploy a single instance of ACI CNI Operator."
 COPY docker/licenses /licenses
 COPY dist-static/aci-containers-operator /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/aci-containers-operator"]
+USER 1001

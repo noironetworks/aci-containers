@@ -12,3 +12,4 @@ description="This will deploy a single instance of ACI CNI Openvswitch."
 COPY docker/licenses /licenses
 COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
 CMD ["/usr/local/bin/launch-ovs.sh"]
+USER 1001

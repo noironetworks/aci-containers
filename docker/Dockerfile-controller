@@ -15,3 +15,4 @@ COPY dist-static/aci-containers-controller /usr/local/bin/
 ENV AWS_SUBNETS="None"
 ENV AWS_VPCID="None"
 ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf -aws-subnets $AWS_SUBNETS -vpc-id $AWS_VPCID
+USER 1001

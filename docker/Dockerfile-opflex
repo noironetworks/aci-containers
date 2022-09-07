@@ -27,3 +27,4 @@ COPY server/lib/ /usr/local/lib/
 ENV SSL_MODE="encrypted"
 ENV REBOOT_WITH_OVS="true"
 CMD ["/usr/local/bin/launch-opflexagent.sh"]
+USER 1001

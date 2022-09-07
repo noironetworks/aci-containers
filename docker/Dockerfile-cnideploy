@@ -12,3 +12,4 @@ description="This operator will deploy a single instance of ACI CNI cnideploy."
 COPY docker/licenses /licenses
 COPY docker/launch-cnideploy.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-cnideploy.sh"]
+USER 1001

@@ -11,3 +11,4 @@ summary="This is an ACI controller init." \
 description="This will execute the binary in batch mode"
 # Required Licenses
 COPY docker/licenses /licenses
+USER 1001

@@ -14,3 +14,4 @@ COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/l
 ENV TENANT=kube
 ENV NODE_EPG='kubernetes|kube-nodes'
 CMD ["/usr/local/bin/launch-hostagent.sh"]
+USER 1001

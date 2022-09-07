@@ -13,3 +13,4 @@ description="This will deploy a single instance of ACI CNI gbpserver."
 COPY docker/licenses /licenses
 ENV GBP_SERVER_CONF=None
 ENTRYPOINT exec /usr/local/bin/gbpserver -proxy-listen-port 443 --config-path $GBP_SERVER_CONF
+USER 1001
