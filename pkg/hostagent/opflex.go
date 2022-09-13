@@ -86,6 +86,17 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 		conf.OpflexPeerIp = "127.0.0.1"
 		agent.log.Debug("\n  == Opflex: Running in overlay mode ==\n")
 		return
+	} else if agent.config.OpflexMode == "dpu" {
+		conf = &HostAgentNodeConfig{}
+		conf.VxlanIface = "bond0.4093"
+		conf.UplinkIface = "bond0"
+		conf.VxlanAnycastIp = "10.0.0.32"
+		conf.OpflexPeerIp = "10.0.0.30"
+		if agent.config.InterfaceMtu == 0 {
+			agent.config.InterfaceMtu = 1500 - agent.config.InterfaceMtuHeadroom
+		}
+		agent.log.Debug("\n == Opflex: Running on dpu ==\n")
+		return
 	}
 
 	links, err := netlink.LinkList()

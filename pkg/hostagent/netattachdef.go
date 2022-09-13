@@ -161,12 +161,21 @@ type DeviceInfo struct {
 	ResourceName string
 }
 
-func (agent *HostAgent) getAlloccatedDeviceId(metadata *md.ContainerMetadata) error {
-	err := agent.getPodResource(metadata)
+func (agent *HostAgent) getAlloccatedDeviceId(metadata *md.ContainerMetadata, smartnicmode string) error {
+	var err error
+	var acicni bool
+	if smartnicmode == "dpu" {
+		err = agent.getPodResource(metadata)
+	} else {
+		acicni, err = agent.isAcicniNetwork(metadata)
+		if acicni {
+			err = agent.getPodResource(metadata)
+		}
+	}
 	return err
 }
 
-func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
+func (agent *HostAgent) isAcicniNetwork(metadata *md.ContainerMetadata) (bool, error) {
 	var isAcicniNetwork bool
 	agent.indexMutex.Lock()
 	netList := agent.podToNetAttachDef[metadata.Id.Pod+"-"+metadata.Id.Namespace]
@@ -174,58 +183,61 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 	for _, netAttName := range netList {
 		if agent.netattdefmap[netAttName] != nil {
 			isAcicniNetwork = true
+			return isAcicniNetwork, nil
 		} else {
-			return fmt.Errorf("Network Attachment Definition CR not applied: Must mention ACICNI plugin")
+			return isAcicniNetwork, fmt.Errorf("Network Attachment Definition CR not applied: Must mention ACICNI plugin")
 		}
 	}
-	if isAcicniNetwork {
-		podResourceSock := path.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
-		if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
-			return fmt.Errorf("Could not retreive the kubelet sock %v", err)
-		}
+	return isAcicniNetwork, fmt.Errorf("No Network Attachment Definition CR found")
+}
 
-		ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
-		defer cancelFunc()
+func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
+	podResourceSock := path.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
+	if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
+		return fmt.Errorf("Could not retreive the kubelet sock %v", err)
+	}
 
-		podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(podResourceSock, timeout, podResourcesMaxSizeDefault)
-		if err != nil {
-			return fmt.Errorf("Could not retreive the pod resource client %v", err)
-		}
-		defer podResourcesConn.Close()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
+	defer cancelFunc()
 
-		resp, err := podResourcesClient.List(ctx, &podresourcesv1alpha1.ListPodResourcesRequest{})
+	podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(podResourceSock, timeout, podResourcesMaxSizeDefault)
+	if err != nil {
+		return fmt.Errorf("Could not retreive the pod resource client %v", err)
+	}
+	defer podResourcesConn.Close()
 
-		if err != nil {
-			return fmt.Errorf("Could not get pod resource from the client %v", err)
-		}
-		if resp == nil {
-			return fmt.Errorf("Not able to process PodResourcesResponse")
-		}
+	resp, err := podResourcesClient.List(ctx, &podresourcesv1alpha1.ListPodResourcesRequest{})
 
-		podResource := &kubeletPodResources{}
-		podResource.resp = resp.PodResources
-		podName := metadata.Id.Pod
-		podNamespace := metadata.Id.Namespace
-		for _, podResource := range podResource.resp {
-			if podName == podResource.Name && podNamespace == podResource.Namespace {
-				for _, container := range podResource.Containers {
-					for _, devices := range container.Devices {
-						DeviceList := devices.DeviceIds
-						if len(DeviceList) != 1 {
-							return fmt.Errorf("Virtual function allocation failed : Multiple device id found")
-						} else {
-							deviceInfo := &DeviceInfo{
-								DeviceId:     strings.Join(DeviceList, " "),
-								ResourceName: devices.ResourceName,
-							}
-							metadata.Id.DeviceId = deviceInfo.DeviceId
-							return nil
+	if err != nil {
+		return fmt.Errorf("Could not get pod resource from the client %v", err)
+	}
+	if resp == nil {
+		return fmt.Errorf("Not able to process PodResourcesResponse")
+	}
+
+	podResource := &kubeletPodResources{}
+	podResource.resp = resp.PodResources
+	podName := metadata.Id.Pod
+	podNamespace := metadata.Id.Namespace
+	for _, podResource := range podResource.resp {
+		if podName == podResource.Name && podNamespace == podResource.Namespace {
+			for _, container := range podResource.Containers {
+				for _, devices := range container.Devices {
+					DeviceList := devices.DeviceIds
+					if len(DeviceList) != 1 {
+						return fmt.Errorf("Virtual function allocation failed : Multiple device id found")
+					} else {
+						deviceInfo := &DeviceInfo{
+							DeviceId:     strings.Join(DeviceList, " "),
+							ResourceName: devices.ResourceName,
 						}
+						metadata.Id.DeviceId = deviceInfo.DeviceId
+						return nil
 					}
 				}
 			}
 		}
-
 	}
+
 	return nil
 }
