@@ -35,9 +35,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	//etcd_integ "github.com/etcd-io/etcd/integration"
-	"github.com/coreos/etcd/embed"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 const (
@@ -119,7 +119,6 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	cfg := embed.NewConfig()
 	cfg.Dir = tempDir
 	cfg.LCUrls = lcURLs
-	cfg.EnableV2 = true
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
 		t.Fatal(err)

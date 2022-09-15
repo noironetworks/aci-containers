@@ -826,7 +826,6 @@ func TestReconcile(t *testing.T) {
 				id:       "42",
 				response: test.existing,
 			})
-
 		recorders := make(map[string]*recorder)
 		for dn, obj := range test.updateResp {
 			r := &recorder{}
@@ -864,19 +863,20 @@ func TestReconcile(t *testing.T) {
 		dn := "uni/tn-common"
 		conn.AddSubscriptionDn(dn, []string{"fvBD"})
 
+		time.Sleep(1 * time.Second)
 		for key, value := range test.desiredState {
 			conn.WriteApicObjects(key, value)
 		}
 
 		stopCh := make(chan struct{})
 		go conn.Run(stopCh)
-
 		tu.WaitFor(t, "login", 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				return tu.WaitNotNil(t, last, server.sh.socketConn,
 					"socket connection"), nil
 			})
 
+		time.Sleep(1 * time.Second)
 		for _, updateDn := range test.updates {
 			update := test.updateResp[updateDn]
 			for _, u := range update {

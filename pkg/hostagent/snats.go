@@ -1023,7 +1023,7 @@ func (agent *HostAgent) getMatchingServices(namespace string, label map[string]s
 	return matchingServices
 }
 
-//Must acquire snatPolicyCacheMutex.RLock
+// Must acquire snatPolicyCacheMutex.RLock
 func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames map[string][]ResourceType) {
 	snatPolicyNames = make(map[string][]ResourceType)
 	_, err := agent.MetaNamespaceUIDFunc(obj)
