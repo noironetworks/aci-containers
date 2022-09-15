@@ -20,7 +20,7 @@ import (
 	"net"
 	"os"
 
-	cnicur "github.com/containernetworking/cni/pkg/types/current"
+	cnicur "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -29,6 +29,16 @@ import (
 	"github.com/vishvananda/netlink"
 
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+)
+
+const (
+	ipRelevantByteLen      = 4
+	PrivateMACPrefixString = "0a:58"
+)
+
+var (
+	// private mac prefix safe to use
+	PrivateMACPrefix = []byte{0x0a, 0x58}
 )
 
 func StartPlugin(log *logrus.Logger) {
@@ -52,7 +62,7 @@ var PluginCloner Cloner
 
 // runPluginCmd runs the command from a cloned instance of the
 // executable in order to address name space binding needs
-//func (c *Cloner) runPluginCmd(method, fsuid string, args interface{},
+// func (c *Cloner) runPluginCmd(method, fsuid string, args interface{},
 func (c *Cloner) runPluginCmd(method string, args interface{},
 	reply interface{}) error {
 
@@ -97,6 +107,57 @@ func runSetupVeth(sandbox string, ifName string,
 	return result.HostVethName, result.Mac, err
 }
 
+// https://github.com/containernetworking/plugins/blob/v0.9.1/pkg/utils/hwaddr/hwaddr.go#L45
+// Reusing code as the fn is removed in v1.0.0
+// GenerateHardwareAddr4 generates 48 bit virtual mac addresses based on the IP4 input.
+func GenerateHardwareAddr4(ip net.IP, prefix []byte) (net.HardwareAddr, error) {
+	switch {
+
+	case ip.To4() == nil:
+		return nil, fmt.Errorf("GenerateHardwareAddr4 only supports valid IPv4 address as input")
+
+	case len(prefix) != len(PrivateMACPrefix):
+		return nil, fmt.Errorf(
+			"Prefix has length %d instead  of %d", len(prefix), len(PrivateMACPrefix))
+	}
+
+	ipByteLen := len(ip)
+	return (net.HardwareAddr)(
+		append(
+			prefix,
+			ip[ipByteLen-ipRelevantByteLen:ipByteLen]...),
+	), nil
+}
+
+// https://github.com/containernetworking/plugins/blob/v0.9.1/pkg/ip/link_linux.go#L228
+// Reusing code as the fn is removed in v1.0.0
+func SetHWAddrByIP(ifName string, ip4 net.IP, ip6 net.IP) error {
+	iface, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return fmt.Errorf("failed to lookup %q: %v", ifName, err)
+	}
+
+	switch {
+	case ip4 == nil && ip6 == nil:
+		return fmt.Errorf("neither ip4 or ip6 specified")
+
+	case ip4 != nil:
+		{
+			hwAddr, err := GenerateHardwareAddr4(ip4, PrivateMACPrefix)
+			if err != nil {
+				return fmt.Errorf("failed to generate hardware addr: %v", err)
+			}
+			if err = netlink.LinkSetHardwareAddr(iface, hwAddr); err != nil {
+				return fmt.Errorf("failed to add hardware addr to %q: %v", ifName, err)
+			}
+		}
+	case ip6 != nil:
+		// TODO: IPv6
+	}
+
+	return nil
+}
+
 func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error {
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
@@ -107,7 +168,7 @@ func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error 
 	return netns.Do(func(hostNS ns.NetNS) error {
 		// create the veth pair in the container and move host end
 		// into host netns
-		hostVeth, _, err := ip.SetupVeth(args.IfName, args.Mtu, hostNS)
+		hostVeth, _, err := ip.SetupVeth(args.IfName, args.Mtu, "", hostNS)
 		if err != nil {
 			return err
 		}
@@ -116,11 +177,9 @@ func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error 
 
 		// Force a consistent MAC address based on the IPv4 address
 		// Currently we dont have a support for V6 based mac allocation. Upstream doesn't support yet :-(
-		// This code has to be revisted if upstream drops SetHWAddrByIP in future
-		// https://github.com/containernetworking/plugins/blob/e1517e2498fe4774435bc4be6bdd39fa735b469b/pkg/ip/link_linux.go#L228
 
 		if args.Ip.To4() != nil {
-			if err := ip.SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
+			if err := SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
 				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
 			}
 		}
@@ -229,15 +288,10 @@ func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 			Mac:     iface.Mac,
 		})
 	for _, ip := range iface.IPs {
-		var version string
 		if ip.Address.IP == nil {
 			continue
 		}
-		if ip.Address.IP.To4() != nil {
-			version = "4"
-		} else if ip.Address.IP.To16() != nil {
-			version = "6"
-		} else {
+		if !(ip.Address.IP.To4() != nil || ip.Address.IP.To16() != nil) {
 			continue
 		}
 
@@ -245,7 +299,6 @@ func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 		result.IPs = append(result.IPs,
 			&cnicur.IPConfig{
 				Interface: &ind,
-				Version:   version,
 				Address:   ip.Address,
 				Gateway:   ip.Gateway,
 			})

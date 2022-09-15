@@ -23,14 +23,14 @@ import (
 	"sort"
 )
 
-//The data structure to cache the IpV4 and IpV6 lists
+// The data structure to cache the IpV4 and IpV6 lists
 type IpCache struct {
 	cacheIpsV4 []*IpAlloc
 	cacheIpsV6 []*IpAlloc
 }
 
-//Create a new IpCache which will have 2 lists,
-//the  List-0 is for the available IPs and List-1 is for the used Ips.
+// Create a new IpCache which will have 2 lists,
+// the  List-0 is for the available IPs and List-1 is for the used Ips.
 func NewIpCache() *IpCache {
 	return &IpCache{
 		cacheIpsV4: []*IpAlloc{New(), New()},
@@ -38,7 +38,7 @@ func NewIpCache() *IpCache {
 	}
 }
 
-//allocates Ip from the pool and updates the Lists
+// allocates Ip from the pool and updates the Lists
 // also removes the Ip from the available Ips list
 func (iplists *IpCache) AllocateIp(ipv4 bool) (net.IP, error) {
 	if ipv4 {
@@ -70,7 +70,7 @@ func (iplists *IpCache) AllocateIp(ipv4 bool) (net.IP, error) {
 	}
 }
 
-//Adds the Ip to the used list of Ips
+// Adds the Ip to the used list of Ips
 func (iplists *IpCache) DeallocateIp(ip net.IP) {
 	if ip.To4() != nil {
 		iplists.cacheIpsV4[len(iplists.cacheIpsV4)-1].AddIp(ip)
@@ -79,8 +79,8 @@ func (iplists *IpCache) DeallocateIp(ip net.IP) {
 	}
 }
 
-//loads the Iplists from the
-//given IpRange, this function is invoked at the init or the update
+// loads the Iplists from the
+// given IpRange, this function is invoked at the init or the update
 func (iplists *IpCache) LoadRanges(ipranges []IpRange) {
 	for _, r := range ipranges {
 		if r.Start.To4() != nil && r.End.To4() != nil {
@@ -113,7 +113,7 @@ func (iplists *IpCache) RemoveIp(ip net.IP) bool {
 	return false
 }
 
-//Combines the 2 V4 lists into 1 list
+// Combines the 2 V4 lists into 1 list
 func (iplists *IpCache) CombineV4() []IpRange {
 	v4ranges := iplists.cacheIpsV4
 	v4result := New()
@@ -123,7 +123,7 @@ func (iplists *IpCache) CombineV4() []IpRange {
 	return v4result.FreeList
 }
 
-//Combines the 2 V6 lists into 1 list
+// Combines the 2 V6 lists into 1 list
 func (iplists *IpCache) CombineV6() []IpRange {
 	v6ranges := iplists.cacheIpsV6
 	v6result := New()
@@ -141,7 +141,7 @@ func (iplists *IpCache) GetV6IpCache() []*IpAlloc {
 	return iplists.cacheIpsV6
 }
 
-//Checks if the List has the given IP
+// Checks if the List has the given IP
 func HasIp(list *IpAlloc, ip net.IP) bool {
 	if len(list.FreeList) == 0 {
 		return false
