@@ -229,6 +229,9 @@ type ControllerConfig struct {
 
 	// Timeout to delete old opflex devices
 	OpflexDeviceDeleteTimeout float64 `json:"opflex-device-delete-timeout,omitempty"`
+
+	// Configure sleep time for global SNAT sync
+	SleepTimeSnatGlobalInfoSync int `json:"sleep-time-snat-global-info-sync,omitempty"`
 }
 
 type netIps struct {
