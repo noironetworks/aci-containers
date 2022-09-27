@@ -122,7 +122,6 @@ type ApicConnection struct {
 
 	desiredState       map[string]ApicSlice
 	desiredStateDn     map[string]ApicObject
-	multipleDn         map[string]map[string]ApicObject
 	keyHashes          map[string]string
 	containerDns       map[string]bool
 	cachedState        map[string]ApicSlice
@@ -140,22 +139,10 @@ func (s ApicSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func (conn *ApicConnection) GetMultipleDn() map[string]map[string]ApicObject {
-	conn.indexMutex.Lock()
-	defer conn.indexMutex.Unlock()
-	return conn.multipleDn
-}
-
 func (conn *ApicConnection) GetDesiredState(key string) ApicSlice {
 	conn.indexMutex.Lock()
 	defer conn.indexMutex.Unlock()
 	return conn.desiredState[key]
-}
-
-func (conn *ApicConnection) SetSyncEnabled() {
-	conn.indexMutex.Lock()
-	defer conn.indexMutex.Unlock()
-	conn.syncEnabled = true
 }
 
 func truncatedName(name string) string {
