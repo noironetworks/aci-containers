@@ -15,14 +15,15 @@
 package index
 
 import (
+	"reflect"
+	"sync"
+
 	"github.com/sirupsen/logrus"
+
 	v1 "k8s.io/api/core/v1"
-	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
-	"sync"
 )
 
 type set map[string]bool
@@ -74,9 +75,6 @@ type GetKeyFunc func(interface{}) (string, error)
 // Callback function for SetPodUpdateCallback or SetObjUpdateCallback
 type UpdateFunc func(key string)
 
-// Callback function for SetPodUpdateCallback or SetObjUpdateCallback
-type MulUpdateFunc func(keys []string)
-
 // Calculate a hash over pod fields to detect pod changes that should
 // trigger an update
 type PodHashFunc func(pod *v1.Pod) string
@@ -97,10 +95,9 @@ type PodSelectorIndex struct {
 	getKey         GetKeyFunc
 	getPodSelector GetPodSelectorFunc
 
-	updatePod    UpdateFunc
-	updateObj    UpdateFunc
-	updateMulObj MulUpdateFunc
-	podHashFunc  PodHashFunc
+	updatePod   UpdateFunc
+	updateObj   UpdateFunc
+	podHashFunc PodHashFunc
 
 	indexMutex sync.Mutex
 
@@ -147,12 +144,6 @@ func (i *PodSelectorIndex) SetPodUpdateCallback(updatePod UpdateFunc) {
 // object change
 func (i *PodSelectorIndex) SetObjUpdateCallback(updateObj UpdateFunc) {
 	i.updateObj = updateObj
-}
-
-// Set a callback that will be called whenever the pods selected by
-// multiple objects change
-func (i *PodSelectorIndex) SetMulObjUpdateCallback(updateMulObj MulUpdateFunc) {
-	i.updateMulObj = updateMulObj
 }
 
 // Set a function to compute a hash over pod fields.  When the pod
@@ -216,7 +207,6 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		return false
 	}
 
-	var updatedMulObjs []string
 	podUpdated := false
 	matched := make(set)
 	updatedObjs := make(set)
@@ -276,31 +266,15 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		state.objKeys = matched
 		state.podHash = podHash
 	}
-	for objkey := range updatedObjs {
-		npobj, exists, err := i.objIndexer.GetByKey(objkey)
-		if err != nil {
-			i.log.Error("Failed to get object from key : ", objkey, " error: ", err)
-		} else if exists {
-			_, ok := npobj.(*v1net.NetworkPolicy)
-			if ok {
-				updatedMulObjs = append(updatedMulObjs, objkey)
-			}
-		}
-	}
-
 	i.indexMutex.Unlock()
-	if len(updatedMulObjs) > 1 && i.updateMulObj != nil {
-		i.updateMulObj(updatedMulObjs)
-	} else {
-		i.updateObjs(updatedObjs)
-	}
+
+	i.updateObjs(updatedObjs)
 
 	return podUpdated
 }
 
 // Call to update the index when a pod is deleted
 func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
-	var updatedMulObjs []string
 	updatedObjs := make(set)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
@@ -316,24 +290,7 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 				if len(objm) == 0 {
 					delete(i.objPodIndex, objkey)
 				}
-
-				npobj, exists, err := i.objIndexer.GetByKey(objkey)
-				if err != nil {
-					i.log.Error("Failed to get object from key : ", objkey, " error: ", err)
-				} else if exists {
-					_, ok := npobj.(*v1net.NetworkPolicy)
-					if ok {
-						updatedMulObjs = append(updatedMulObjs, objkey)
-						continue
-					}
-				}
 				updatedObjs[objkey] = true
-			}
-		}
-		if len(updatedMulObjs) == 1 || i.updateMulObj == nil {
-			i.log.Debug("Not using multiple object callback")
-			for _, key := range updatedMulObjs {
-				updatedObjs[key] = true
 			}
 		}
 		delete(i.podIndex, podkey)
@@ -341,10 +298,6 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 	i.indexMutex.Unlock()
 
 	i.updateObjs(updatedObjs)
-
-	if len(updatedMulObjs) > 1 && i.updateMulObj != nil {
-		i.updateMulObj(updatedMulObjs)
-	}
 }
 
 // Call to update the index when a namespace's labels change
