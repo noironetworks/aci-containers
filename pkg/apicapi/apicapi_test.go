@@ -490,38 +490,6 @@ func TestSubscription(t *testing.T) {
 	close(stopCh)
 }
 
-func newTenant(name string, children ApicSlice) ApicObject {
-	tenantObj := NewFvTenant(name)
-	tenantObj["fvTenant"].Attributes["status"] = "modified"
-	tenantObj["fvTenant"].Children = children
-	return tenantObj
-}
-
-func newhpp(name string, remIp1 string, remIp2 string) ApicObject {
-	hpp := NewHostprotPol("common", name)
-	subjIngress := NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
-	rule_0_0 := NewHostprotRule(subjIngress.GetDn(), "0")
-	if remIp1 != "" {
-		rule_0_0.AddChild(
-			NewHostprotRemoteIp(rule_0_0.GetDn(), remIp1))
-	}
-	if remIp2 != "" {
-		rule_0_0.AddChild(
-			NewHostprotRemoteIp(rule_0_0.GetDn(), remIp2))
-	}
-	subjIngress.AddChild(rule_0_0)
-	hpp.AddChild(subjIngress)
-	return hpp
-}
-
-func existingMulState() ApicSlice {
-	hpp0 := newhpp("testhpp0", "1.1.1.1", "2.2.2.2")
-	hpp1 := newhpp("testhpp1", "1.1.1.1", "2.2.2.2")
-	hpp2 := newhpp("testhpp2", "1.1.1.1", "2.2.2.2")
-	s := ApicSlice{hpp0, hpp1, hpp2}
-	return s
-}
-
 func existingState() ApicSlice {
 	bd := NewFvBD("common", "testbd1")
 	subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
@@ -715,80 +683,6 @@ type reconcileTest struct {
 	deletes      []string
 	expected     map[string][]request
 	desc         string
-}
-
-type multiHppTest struct {
-	existing ApicSlice
-	expected map[string]ApicObject
-	desc     string
-}
-
-func TestMultipleHpp(t *testing.T) {
-	updatehpp0 := newhpp("testhpp0", "1.1.1.1", "3.3.3.3")
-	updatehpp1 := newhpp("testhpp1", "1.1.1.1", "3.3.3.3")
-	mulkeyobj := make(map[string]ApicSlice)
-	mulkeyobj["kube-key0"] = ApicSlice{updatehpp0}
-	mulkeyobj["kube-key1"] = ApicSlice{updatehpp1}
-
-	tenant := newTenant("common", ApicSlice{updatehpp0, updatehpp1})
-	expected := make(map[string]ApicObject)
-	expected[tenant.GetDn()] = tenant
-	hppTests := []multiHppTest{
-		{
-			desc:     "update child",
-			existing: existingMulState(),
-			expected: expected,
-		},
-	}
-
-	for _, test := range hppTests {
-		server := newTestServer()
-		defer server.server.Close()
-		server.mux.Handle("/api/aaaLogin.json", &loginSucc{})
-		server.mux.Handle("/sockettesttoken", server.sh)
-		server.mux.Handle("/api/mo/uni/tn-common.json",
-			&subHandler{
-				id:       "42",
-				response: test.existing,
-			})
-
-		conn, err := server.testConn(nil)
-		assert.Nil(t, err)
-
-		dn := "uni/tn-common"
-		conn.AddSubscriptionDn(dn, []string{"fvTenant"})
-
-		stopCh := make(chan struct{})
-		go conn.Run(stopCh)
-
-		tu.WaitFor(t, "login", 500*time.Millisecond,
-			func(last bool) (bool, error) {
-				return tu.WaitNotNil(t, last, server.sh.socketConn,
-					"socket connection"), nil
-			})
-		time.Sleep(time.Millisecond * 500)
-		conn.syncEnabled = true
-		conn.WriteMulApicObjects(mulkeyobj, "common")
-
-		tu.WaitFor(t, "sync", 500*time.Millisecond,
-			func(last bool) (bool, error) {
-				for dn := range test.expected {
-					for _, val := range conn.multipleDn {
-						if _, ok := val[dn]; !ok {
-							return false, nil
-						}
-						expraw, _ := json.Marshal(test.expected[dn])
-						actualraw, _ := json.Marshal(val[dn])
-						if !tu.WaitEqual(t, last, string(expraw), string(actualraw),
-							test.desc, dn) {
-							return false, nil
-						}
-					}
-				}
-				return true, nil
-			})
-		close(stopCh)
-	}
 }
 
 func TestReconcile(t *testing.T) {

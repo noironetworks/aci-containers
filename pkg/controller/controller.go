@@ -64,7 +64,6 @@ type AciController struct {
 
 	podQueue          workqueue.RateLimitingInterface
 	netPolQueue       workqueue.RateLimitingInterface
-	mulNetPolQueue    workqueue.RateLimitingInterface
 	qosQueue          workqueue.RateLimitingInterface
 	serviceQueue      workqueue.RateLimitingInterface
 	snatQueue         workqueue.RateLimitingInterface
@@ -309,7 +308,6 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 
 		podQueue:          createQueue("pod"),
 		netPolQueue:       createQueue("networkPolicy"),
-		mulNetPolQueue:    createQueue("multipleNetworkPolicy"),
 		qosQueue:          createQueue("qos"),
 		netflowQueue:      createQueue("netflow"),
 		erspanQueue:       createQueue("erspan"),
@@ -395,54 +393,6 @@ func (cont *AciController) Init() {
 	if err != nil {
 		panic(err.Error())
 	}
-}
-
-func (cont *AciController) processMulQueue(queue workqueue.RateLimitingInterface,
-	store cache.Store, handler func([]interface{}) bool,
-	postDelHandler func() bool, stopCh <-chan struct{}) {
-	go wait.Until(func() {
-		for {
-			key, quit := queue.Get()
-			if quit {
-				break
-			}
-
-			var requeue bool
-			switch key := key.(type) {
-			case chan struct{}:
-				close(key)
-			case string:
-				if strings.Contains(key, "_") {
-					var objs []interface{}
-					keys := strings.Split(key, "_")
-					for _, singleKey := range keys {
-						obj, exists, err := store.GetByKey(singleKey)
-						if err != nil {
-							cont.log.Debugf("Error fetching object with key %s from store: %v", singleKey, err)
-						}
-						if exists {
-							objs = append(objs, obj)
-						}
-					}
-					if handler != nil && len(objs) > 0 {
-						requeue = handler(objs)
-					}
-					if postDelHandler != nil && len(objs) > 0 {
-						requeue = postDelHandler()
-					}
-				}
-			}
-			if requeue {
-				queue.AddRateLimited(key)
-			} else {
-				queue.Forget(key)
-			}
-			queue.Done(key)
-
-		}
-	}, time.Second, stopCh)
-	<-stopCh
-	queue.ShutDown()
 }
 
 func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
@@ -683,7 +633,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		_, ok := cont.env.(*K8sEnvironment)
 		if ok {
 			qs = []workqueue.RateLimitingInterface{
-				cont.podQueue, cont.netPolQueue, cont.mulNetPolQueue, cont.qosQueue,
+				cont.podQueue, cont.netPolQueue, cont.qosQueue,
 				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
 				cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
 			}
