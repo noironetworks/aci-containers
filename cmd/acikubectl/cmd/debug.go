@@ -272,28 +272,28 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args: accprovisionoperatorLogCmdArgs(systemNamespace),
 		},
 		{
-			name: "cluster-report/status/describe_nodes_status.log",
-			args: []string{"-n", systemNamespace, "describe", "nodes"},
+			name: "cluster-report/status/get_nodes_status.log",
+			args: []string{"-n", systemNamespace, "get", "nodes", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/controller_deployment_status.log",
-			args: []string{"-n", systemNamespace, "describe", "deployment",
-				"aci-containers-controller"},
+			args: []string{"-n", systemNamespace, "get", "deployment",
+				"aci-containers-controller", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/acioperator_deployment_status.log",
-			args: []string{"-n", systemNamespace, "describe", "deployment",
-				"aci-containers-operator"},
+			args: []string{"-n", systemNamespace, "get", "deployment",
+				"aci-containers-operator", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/host_daemonset_status.log",
-			args: []string{"-n", systemNamespace, "describe", "daemonset",
-				"aci-containers-host"},
+			args: []string{"-n", systemNamespace, "get", "daemonset",
+				"aci-containers-host", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/ovs_daemonset_status.log",
-			args: []string{"-n", systemNamespace, "describe", "daemonset",
-				"aci-containers-openvswitch"},
+			args: []string{"-n", systemNamespace, "get", "daemonset",
+				"aci-containers-openvswitch", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/pods_status.log",
@@ -309,59 +309,59 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 		{
 			name: "cluster-report/status/configmap_controller.log",
-			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-containers-config"},
+			args: []string{"-n", systemNamespace, "get", "configmap", "aci-containers-config", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/configmap_snatoperator.log",
-			args: []string{"-n", systemNamespace, "describe", "configmap", "snat-operator"},
+			args: []string{"-n", systemNamespace, "get", "configmap", "snat-operator", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/configmap_acioperator.log",
-			args: []string{"-n", systemNamespace, "describe", "configmap", "aci-operator-config"},
+			args: []string{"-n", systemNamespace, "get", "configmap", "aci-operator-config", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/configmap_accprovisionoperator.log",
-			args: []string{"-n", systemNamespace, "describe", "configmap", "acc-provision-config"},
+			args: []string{"-n", systemNamespace, "get", "configmap", "acc-provision-config", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/snat_policy.log",
-			args: []string{"describe", "snatpolicy"},
+			args: []string{"get", "snatpolicy", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/snat_localinfo.log",
-			args: []string{"-n", systemNamespace, "describe", "snatlocalinfo"},
+			args: []string{"-n", systemNamespace, "get", "snatlocalinfo", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/snat_globalinfo.log",
-			args: []string{"-n", systemNamespace, "describe", "snatglobalinfo"},
+			args: []string{"-n", systemNamespace, "get", "snatglobalinfo", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/node_info.log",
-			args: []string{"describe", "nodeinfo", "--all-namespaces"},
+			args: []string{"get", "nodeinfo", "--all-namespaces", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/node_podifs.log",
-			args: []string{"describe", "nodepodifs", "--all-namespaces"},
+			args: []string{"get", "nodepodifs", "--all-namespaces", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/erspan_policy.log",
-			args: []string{"describe", "erspanpolicy", "--all-namespaces"},
+			args: []string{"get", "erspanpolicy", "--all-namespaces", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/netflow_policy.log",
-			args: []string{"describe", "netflowpolicy", "--all-namespaces"},
+			args: []string{"get", "netflowpolicy", "--all-namespaces", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/qos_policy.log",
-			args: []string{"describe", "qospolicy", "--all-namespaces"},
+			args: []string{"get", "qospolicy", "--all-namespaces", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/logs/versions/kubectl_version.log",
 			args: []string{"version"},
 		},
 		{
-			name: "cluster-report/status/describe_aci_namespace_status.log",
-			args: []string{"describe", "-n", systemNamespace, "all"},
+			name: "cluster-report/status/get_aci_namespace_status.log",
+			args: []string{"get", "-n", systemNamespace, "all", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/ipam_details_all_nodes.log",
