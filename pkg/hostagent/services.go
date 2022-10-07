@@ -113,6 +113,7 @@ var Version = map[string]bool{
 	"openshift-4.8-baremetal":  true,
 	"openshift-4.9-baremetal":  true,
 	"openshift-4.10-baremetal": true,
+	"openshift-4.11-baremetal": true,
 	"openshift-4.4-esx":        true,
 	"openshift-4.5-esx":        true,
 	"openshift-4.6-esx":        true,
@@ -120,6 +121,7 @@ var Version = map[string]bool{
 	"openshift-4.8-esx":        true,
 	"openshift-4.9-esx":        true,
 	"openshift-4.10-esx":       true,
+	"openshift-4.11-esx":       true,
 }
 
 func (agent *HostAgent) initEndpointsInformerFromClient(
