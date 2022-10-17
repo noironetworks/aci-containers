@@ -744,10 +744,11 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	nodeList := cont.nodeIndexer.List()
+	cont.indexMutex.Lock()
 	if len(cont.nodeServiceMetaCache) == 0 {
+		cont.indexMutex.Unlock()
 		return nil
 	}
-	cont.indexMutex.Lock()
 	nodeMap := make(map[string]*metadata.ServiceEndpoint)
 	for itr, nodeItem := range nodeList {
 		if itr == cont.config.MaxSvcGraphNodes {
