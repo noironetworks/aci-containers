@@ -313,7 +313,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 		{
 			name: "cluster-report/status/configmap_snatoperator.log",
-			args: []string{"-n", systemNamespace, "get", "configmap", "snat-operator", "-o", "yaml"},
+			args: []string{"-n", systemNamespace, "get", "configmap", "snat-operator-config", "-o", "yaml"},
 		},
 		{
 			name: "cluster-report/status/configmap_acioperator.log",
