@@ -632,7 +632,7 @@ func accprovisionoperatorLogCmdArgs(systemNamespace string) []string {
 
 func acioperatorLogCmdArgs(systemNamespace string) []string {
 	if logFileSize != "" {
-		return []string{"-n", systemNamespace, "logs", "--limit-bytes",
+		return []string{"-n", systemNamespace, "logs",
 			"deployment/aci-containers-operator", "-c", "aci-containers-operator", "|", "tail", "-c", logFileSize}
 	}
 	return []string{"-n", systemNamespace, "logs",
