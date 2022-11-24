@@ -29,6 +29,16 @@ type OpflexGroup struct {
 	Name        string `json:"name,omitempty"`
 }
 
+type delayService struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type serviceGraphEpAddDelay struct {
+	Delay    int            `json:"delay,omitempty"`
+	Services []delayService `json:"services,omitempty"`
+}
+
 // Configuration for the controller
 type ControllerConfig struct {
 	// Log level
@@ -204,6 +214,7 @@ type ControllerConfig struct {
 	// Default is false
 	NoWaitForServiceEpReadiness bool `json:"no-wait-for-service-ep-readiness,omitempty"`
 
+	ServiceGraphEndpointAddDelay serviceGraphEpAddDelay `json:"service-graph-endpoint-add-delay,omitempty"`
 	// True when to add extern_dynamic and extern_static subnets to rdconfig
 	// Default is false
 	AddExternalSubnetsToRdconfig bool `json:"add-external-subnets-to-rdconfig,omitempty"`
