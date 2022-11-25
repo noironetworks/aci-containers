@@ -295,12 +295,13 @@ func (cont *AciController) createGlobalInfoCache(unittestmode bool) bool {
 		}
 		cont.log.Fatalf("snatglobalinfo client not found")
 	}
-	snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
+	//snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
+	snatglobalInfos, err := util.ListGlobalInfoCRs(*globalcl)
 
-	if err != nil {
-		cont.log.Info("No existing snatglobalinfo CR found in controller bootstrap")
+	if err != nil || len(snatglobalInfos) < 1 {
+		cont.log.Error("No existing snatglobalinfo CR found in controller bootstrap")
 	} else {
-		cont.log.Info("Syncing snatglobalinfo cache with existing CR")
+		cont.log.Info("Syncing snatglobalinfo cache with existing CRs")
 		macAddressToNodeName := make(map[string]string)
 		for _, value := range nodeInfos {
 			nodeName := value.ObjectMeta.Name
@@ -308,16 +309,18 @@ func (cont *AciController) createGlobalInfoCache(unittestmode bool) bool {
 			macAddressToNodeName[macAddress] = nodeName
 		}
 
-		for _, glinfos := range snatglobalInfo.Spec.GlobalInfos {
-			for _, v := range glinfos {
-				nodeName := macAddressToNodeName[v.MacAddress]
-				snatIP := v.SnatIp
-				if _, ok := cont.snatGlobalInfoCache[snatIP]; !ok {
-					cont.snatGlobalInfoCache[snatIP] = make(map[string]*snatglobalinfo.GlobalInfo)
+		for _, snatglinfos := range snatglobalInfos {
+			for _, ginfos := range snatglinfos.Spec.GlobalInfos {
+				for _, v := range ginfos {
+					nodeName := macAddressToNodeName[v.MacAddress]
+					snatIP := v.SnatIp
+					if _, ok := cont.snatGlobalInfoCache[snatIP]; !ok {
+						cont.snatGlobalInfoCache[snatIP] = make(map[string]*snatglobalinfo.GlobalInfo)
+					}
+					copiedValue := v
+					cont.snatGlobalInfoCache[snatIP][nodeName] = &copiedValue
+					cont.log.Info("Adding globalinfo entry for snatIP ", snatIP, " and node name ", nodeName, ": ", cont.snatGlobalInfoCache[snatIP][nodeName])
 				}
-				copiedValue := v
-				cont.snatGlobalInfoCache[snatIP][nodeName] = &copiedValue
-				cont.log.Info("Adding globalinfo entry for snatIP ", snatIP, " and node name ", nodeName, ": ", cont.snatGlobalInfoCache[snatIP][nodeName])
 			}
 		}
 	}

@@ -16,6 +16,10 @@ package util
 
 import (
 	"context"
+	"os"
+	"sort"
+	"strconv"
+
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -24,9 +28,6 @@ import (
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"sort"
-	"strconv"
 )
 
 type StartSorter []snatglobal.PortRange
@@ -64,9 +65,10 @@ func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglob
 func CreateSnatGlobalInfoCR(c snatglobalclset.Clientset,
 	globalInfoSpec snatglobal.SnatGlobalInfoSpec) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
+	name := globalInfoSpec.NodeName
 	obj := &snatglobal.SnatGlobalInfo{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      os.Getenv("ACI_SNAGLOBALINFO_NAME"),
+			Name:      name,
 			Namespace: ns,
 		},
 		Spec: globalInfoSpec,
@@ -88,13 +90,32 @@ func UpdateGlobalInfoCR(c snatglobalclset.Clientset, globalInfo snatglobal.SnatG
 	return nil
 }
 
-func GetGlobalInfoCR(c snatglobalclset.Clientset) (snatglobal.SnatGlobalInfo, error) {
+func GetGlobalInfoCR(c snatglobalclset.Clientset, name string) (snatglobal.SnatGlobalInfo, error) {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	globalinfo, err := c.AciV1().SnatGlobalInfos(ns).Get(context.TODO(), os.Getenv("ACI_SNAGLOBALINFO_NAME"), metav1.GetOptions{})
+	globalinfo, err := c.AciV1().SnatGlobalInfos(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return snatglobal.SnatGlobalInfo{}, err
 	}
 	return *globalinfo, nil
+}
+
+func DeleteGlobalInfoCR(c snatglobalclset.Clientset, name string) error {
+	ns := os.Getenv("ACI_SNAT_NAMESPACE")
+	err := c.AciV1().SnatGlobalInfos(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return err
+}
+
+func ListGlobalInfoCRs(c snatglobalclset.Clientset) ([]snatglobal.SnatGlobalInfo, error) {
+	var globalinfos []snatglobal.SnatGlobalInfo
+	ns := os.Getenv("ACI_SNAT_NAMESPACE")
+	globalinfolist, err := c.AciV1().SnatGlobalInfos(ns).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return globalinfos, err
+	}
+	if globalinfolist != nil && len(globalinfolist.Items) > 0 {
+		globalinfos = globalinfolist.Items
+	}
+	return globalinfos, nil
 }
 
 // CreateNodeInfoCR Creates a NodeInfo CR

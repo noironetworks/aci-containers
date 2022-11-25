@@ -36,17 +36,18 @@ type portRange struct {
 	end   int
 }
 
-func snatglobaldata(uuid string, name string, nodename string, namespace string, globalinfo snatglobal.GlobalInfoList) *snatglobal.SnatGlobalInfo {
+func snatglobaldata(uuid string, nodename string, namespace string, globalinfo snatglobal.GlobalInfoList) *snatglobal.SnatGlobalInfo {
 	GlobalInfos := make(map[string]snatglobal.GlobalInfoList, 10)
 	GlobalInfos[nodename] = globalinfo
 	return &snatglobal.SnatGlobalInfo{
 		Spec: snatglobal.SnatGlobalInfoSpec{
 			GlobalInfos: GlobalInfos,
+			NodeName:    nodename,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       apitypes.UID(uuid),
 			Namespace: namespace,
-			Name:      name,
+			Name:      nodename,
 			Labels:    map[string]string{},
 		},
 	}
@@ -74,7 +75,6 @@ func snatpolicydata(name string, namespace string,
 }
 
 type snatGlobal struct {
-	name       string
 	ip         string
 	mac        string
 	port_range portRange
@@ -93,7 +93,6 @@ type policy struct {
 
 var snatGlobals = []snatGlobal{
 	{
-		"snatglobalinfo",
 		"10.1.1.8",
 		"00:0c:29:92:fe:d0",
 		portRange{4000, 5000},
@@ -104,7 +103,6 @@ var snatGlobals = []snatGlobal{
 	},
 
 	{
-		"snatglobalinfo",
 		"10.1.1.9",
 		"00:0c:29:92:fe:d1",
 		portRange{7000, 8000},
@@ -145,28 +143,28 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 	var raw []byte
 	snat := &OpflexSnatIp{}
 
-	tu.WaitFor(t, pt.name, 2000*time.Millisecond,
+	tu.WaitFor(t, pt.nodename, 2000*time.Millisecond,
 		func(last bool) (bool, error) {
 			var err error
 			snatfile := filepath.Join(tempdir,
 				pt.uuid+".snat")
 			raw, err = ioutil.ReadFile(snatfile)
-			if !tu.WaitNil(t, last, err, desc, pt.name, "read snat") {
+			if !tu.WaitNil(t, last, err, desc, pt.nodename, "read snat") {
 				return false, nil
 			}
 			err = json.Unmarshal(raw, snat)
 			agent.log.Info("Snat file added ", snatfile)
-			return tu.WaitNil(t, last, err, desc, pt.name, "unmarshal snat"), nil
+			return tu.WaitNil(t, last, err, desc, pt.nodename, "unmarshal snat"), nil
 		})
 	agent.log.Info("Snat Object added ", snat)
 	snatdstr := pt.uuid
-	assert.Equal(t, snatdstr, snat.Uuid, desc, pt.name, "uuid")
-	assert.Equal(t, pt.ip, snat.SnatIp, desc, pt.name, "ip")
+	assert.Equal(t, snatdstr, snat.Uuid, desc, pt.nodename, "uuid")
+	assert.Equal(t, pt.ip, snat.SnatIp, desc, pt.nodename, "ip")
 	switch {
 	case pt.policyname == "policy1":
-		assert.Equal(t, []string{"10.10.10.0/31", "10.10.10.0/26", "10.10.10.0/24"}, snat.DestIpAddress, desc, pt.name, "destip")
+		assert.Equal(t, []string{"10.10.10.0/31", "10.10.10.0/26", "10.10.10.0/24"}, snat.DestIpAddress, desc, pt.nodename, "destip")
 	case pt.policyname == "policy2":
-		assert.Equal(t, []string{"10.10.0.0/16"}, snat.DestIpAddress, desc, pt.name, "destip")
+		assert.Equal(t, []string{"10.10.0.0/16"}, snat.DestIpAddress, desc, pt.nodename, "destip")
 	}
 	//assert.Equal(t, pt.port_range.start, snat.PortRange[0].Start, desc, pt.name, "port start")
 	//assert.Equal(t, pt.port_range.end, snat.PortRange[0].End, desc, pt.name, "port end")
@@ -236,7 +234,7 @@ func TestSnatSync(t *testing.T) {
 				agent.log.Info("Global added##### ", newglobal)
 			}
 		}
-		snatglobalinfo = snatglobaldata(pt.uuid, pt.name, pt.nodename, pt.namespace, newglobal)
+		snatglobalinfo = snatglobaldata(pt.uuid, pt.nodename, pt.namespace, newglobal)
 		agent.fakeSnatGlobalSource.Add(snatglobalinfo)
 		agent.log.Info("Complete Globale Info #### ", snatglobalinfo)
 		agent.doTestSnat(t, tempdir, &pt, "create")
@@ -302,7 +300,7 @@ func TestSnatPortExhausted(t *testing.T) {
 	globalinfo.PortRanges = portrange
 	globalinfo.SnatPolicyName = "policy1"
 	newglobal = append(newglobal, globalinfo)
-	snatglobalinfo = snatglobaldata("policy1-uid", "snatglobalinfo", "test-node-1", "testns", newglobal)
+	snatglobalinfo = snatglobaldata("policy1-uid", "test-node-1", "testns", newglobal)
 	agent.fakeSnatGlobalSource.Add(snatglobalinfo)
 	time.Sleep(1000 * time.Millisecond)
 	// modify the policy with port exhaused
