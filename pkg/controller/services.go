@@ -503,7 +503,7 @@ func apicExtNetProv(conName string, tenantName string,
 	return apicapi.NewFvRsProv(enDn, conName)
 }
 
-//Helper function to check if a string item exists in a slice
+// Helper function to check if a string item exists in a slice
 func stringInSlice(str string, list []string) bool {
 	for _, v := range list {
 		if v == str {
@@ -1664,6 +1664,15 @@ func (cont *AciController) endpointSliceDeleted(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
+func (cont *AciController) svcInAddDelayList(name, ns string) bool {
+	for _, svc := range cont.config.ServiceGraphEndpointAddDelay.Services {
+		if svc.Name == name && svc.Namespace == ns {
+			return true
+		}
+	}
+	return false
+}
+
 func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj interface{}) {
 	oldendpointslice, ok := oldobj.(*v1beta1.EndpointSlice)
 	if !ok {
@@ -1687,52 +1696,27 @@ func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj inter
 			return
 		}
 	}
-	servicekey, valid := getServiceKey(newendpointslice)
+	svc, ns, valid := getServiceNameAndNs(newendpointslice)
 	if !valid {
 		return
 	}
-	serviceobj, _, err := cont.serviceIndexer.GetByKey(servicekey)
-	if err != nil {
-		cont.log.Error("Failed to get service ", err)
-		return
-	}
-	service, ok := serviceobj.(*v1.Service)
-	if !ok {
-		cont.log.Error("error processing Service object: ", serviceobj)
-		return
-	}
-	var delay int64
-	if service.ObjectMeta.Annotations != nil {
-		for key, val := range service.ObjectMeta.Annotations {
-			if key == "opflex.cisco.com/service-graph-endpoint-add-delay" {
-				if val != "" {
-					delay, err = strconv.ParseInt(val, 10, 64)
-					if err != nil {
-						cont.log.Error(err)
-					}
-				}
-				break
-			}
+	var delay int
+	if cont.config.ServiceGraphEndpointAddDelay.Delay != 0 {
+		if cont.svcInAddDelayList(svc, ns) {
+			delay = cont.config.ServiceGraphEndpointAddDelay.Delay
+			cont.log.Debug("Delay of ", delay, " added for service ", svc, " in ns: ", ns)
 		}
 	}
-	oldIps := cont.getEndpointSliceIps(oldendpointslice)
-	newIps := cont.getEndpointSliceIps(newendpointslice)
 	if delay > 0 {
-		isdelete := false
-		if len(newIps) < len(oldIps) {
-			isdelete = true
-		}
-		if !isdelete {
-			var delayedepslice DelayedEpSlice
-			delayedepslice.OldEpSlice = oldendpointslice
-			delayedepslice.NewEpSlice = newendpointslice
-			currentTime := time.Now()
-			delayedepslice.DelayedTime = currentTime.Add(time.Duration(delay) * time.Second)
-			cont.indexMutex.Lock()
-			cont.delayedEpSlices = append(cont.delayedEpSlices, &delayedepslice)
-			cont.indexMutex.Unlock()
-			return
-		}
+		var delayedepslice DelayedEpSlice
+		delayedepslice.OldEpSlice = oldendpointslice
+		delayedepslice.NewEpSlice = newendpointslice
+		currentTime := time.Now()
+		delayedepslice.DelayedTime = currentTime.Add(time.Duration(delay) * time.Second)
+		cont.indexMutex.Lock()
+		cont.delayedEpSlices = append(cont.delayedEpSlices, &delayedepslice)
+		cont.indexMutex.Unlock()
+		return
 	}
 	cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
 }
@@ -1786,6 +1770,14 @@ func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
 		return "", false
 	}
 	return endPointSlice.ObjectMeta.Namespace + "/" + serviceName, true
+}
+
+func getServiceNameAndNs(endPointSlice *v1beta1.EndpointSlice) (string, string, bool) {
+	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+	if !ok {
+		return "", "", false
+	}
+	return serviceName, endPointSlice.ObjectMeta.Namespace, true
 }
 
 // can be called with index lock
