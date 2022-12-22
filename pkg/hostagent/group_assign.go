@@ -82,10 +82,23 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 
 	// Add network policies that directly select this pod
 	for _, npkey := range agent.netPolPods.GetObjForPod(podkey) {
-		g = addGroup(gset, g, agent.config.DefaultEg.PolicySpace,
-			util.AciNameForKey(agent.config.AciPrefix, "np", npkey))
-		for _, t := range util.GetNetPolPolicyTypes(agent.netPolInformer.GetIndexer(), npkey) {
-			ptypeset[t] = true
+		obj, exists, err := agent.netPolInformer.GetIndexer().GetByKey(npkey)
+		if err != nil {
+			agent.log.Error("Could not lookup network policy ", npkey)
+			return g, err
+		}
+		if exists && obj != nil {
+			np := obj.(*v1net.NetworkPolicy)
+			hash, err := util.CreateHashFromNetPol(np)
+			if err != nil {
+				agent.log.Error("Failed to create hash for network policy ", npkey)
+				return g, err
+			}
+			g = addGroup(gset, g, agent.config.DefaultEg.PolicySpace,
+				util.AciNameForKey(agent.config.AciPrefix, "np", hash))
+			for _, t := range util.GetNetPolPolicyTypes(agent.netPolInformer.GetIndexer(), npkey) {
+				ptypeset[t] = true
+			}
 		}
 	}
 
