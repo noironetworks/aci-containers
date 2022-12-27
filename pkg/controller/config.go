@@ -223,6 +223,9 @@ type ControllerConfig struct {
 
 	ExternDynamic string `json:"extern-dynamic,omitempty"`
 
+	// Default is false
+	HppOptimization bool `json:"hpp-optimization,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 

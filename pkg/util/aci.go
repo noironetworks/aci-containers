@@ -52,3 +52,12 @@ func AciNameForKey(prefix, ktype, key string) string {
 		return fmt.Sprintf("%s_%s", name, hashstr)
 	}
 }
+
+func Hash(key string) string {
+
+	hash := sha256.New()
+	hash.Write([]byte(key))
+
+	hashstr := hex.EncodeToString(hash.Sum(nil)[:16])
+	return hashstr
+}
