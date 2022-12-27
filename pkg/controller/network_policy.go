@@ -42,6 +42,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	v1beta "k8s.io/api/discovery/v1beta1"
 )
 
@@ -1093,7 +1094,13 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		ptypeset[t] = true
 	}
 
-	labelKey := cont.aciNameForKey("np", key)
+	//labelKey := cont.aciNameForKey("np", key)
+	hash, err := util.CreateHashFromNetPol(np)
+	if err != nil {
+		logger.Error("Could not create hash from network policy: ", err)
+		return false
+	}
+	labelKey := cont.aciNameForKey("np", hash)
 	hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
 	// Generate ingress policies
 	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
@@ -1142,8 +1149,64 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		cont.buildServiceAugment(subjEgress, portRemoteSubs, logger)
 		hpp.AddChild(subjEgress)
 	}
+	cont.addToHppCache(labelKey, key, apicapi.ApicSlice{hpp})
 	cont.apicConn.WriteApicObjects(labelKey, apicapi.ApicSlice{hpp})
 	return false
+}
+
+func (cont *AciController) addToHppCache(labelKey string, key string, hpp apicapi.ApicSlice) {
+	cont.indexMutex.Lock()
+	hppRef, ok := cont.hppRef[labelKey]
+	if ok {
+		var found bool
+		for _, npkey := range hppRef.Npkeys {
+			if npkey == key {
+				found = true
+				break
+			}
+		}
+		if !found {
+			hppRef.RefCount++
+			hppRef.Npkeys = append(hppRef.Npkeys, key)
+		}
+		hppRef.HppObj = hpp
+		cont.hppRef[labelKey] = hppRef
+	} else {
+		var newHppRef hppReference
+		newHppRef.RefCount++
+		newHppRef.HppObj = hpp
+		newHppRef.Npkeys = append(newHppRef.Npkeys, key)
+		cont.hppRef[labelKey] = newHppRef
+	}
+	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) removeFromHppCache(np *v1net.NetworkPolicy, key string) {
+	hash, err := util.CreateHashFromNetPol(np)
+	if err != nil {
+		cont.log.Error("Could not create hash from network policy: ", err)
+		cont.log.Error("Failed to remove np from hpp cache")
+		return
+	}
+	labelKey := cont.aciNameForKey("np", hash)
+	cont.indexMutex.Lock()
+	hppRef, ok := cont.hppRef[labelKey]
+	if ok {
+		for i, npkey := range hppRef.Npkeys {
+			if npkey == key {
+				hppRef.Npkeys = append(hppRef.Npkeys[:i], hppRef.Npkeys[i+1:]...)
+				hppRef.RefCount--
+				break
+			}
+		}
+		if hppRef.RefCount > 0 {
+			cont.hppRef[labelKey] = hppRef
+		} else {
+			delete(cont.hppRef, labelKey)
+		}
+	}
+	cont.indexMutex.Unlock()
+
 }
 
 func getNetworkPolicyEgressIpBlocks(np *v1net.NetworkPolicy) map[string]bool {
@@ -1204,6 +1267,41 @@ func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{npObj})
 }
 
+func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
+	var str string
+	if labelsel != nil {
+		str = "["
+		for key, val := range labelsel.MatchLabels {
+			keyval := key + "_" + val
+			str += keyval
+		}
+		for _, expressions := range labelsel.MatchExpressions {
+			str += expressions.Key
+			str += string(expressions.Operator)
+			for _, values := range expressions.Values {
+				str += values
+			}
+		}
+		str += "]"
+	}
+	return str
+}
+
+func selectorsToStr(peers []v1net.NetworkPolicyPeer, ns string) string {
+	var str string
+	for _, p := range peers {
+		podSel := labelSelectorToStr(p.PodSelector)
+		str += podSel
+		nsSel := labelSelectorToStr(p.NamespaceSelector)
+		if podSel != "" && nsSel == "" {
+			str += ns
+		} else {
+			str += nsSel
+		}
+	}
+	return str
+}
+
 func peersToStr(peers []v1net.NetworkPolicyPeer) string {
 	pStr := "["
 	for _, p := range peers {
@@ -1241,7 +1339,41 @@ func portsToStr(ports []v1net.NetworkPolicyPort) string {
 	pStr = strings.TrimSuffix(pStr, "+")
 	pStr += "]"
 	return pStr
+}
 
+func egressStrSorted(np *v1net.NetworkPolicy) string {
+	eStr := ""
+	for _, rule := range np.Spec.Egress {
+		eStr += selectorsToStr(rule.To, np.Namespace)
+		eStr += peersToStr(rule.To)
+		eStr += portsToStr(rule.Ports)
+		eStr += "+"
+	}
+	eStr = strings.TrimSuffix(eStr, "+")
+	return eStr
+}
+
+func ingressStrSorted(np *v1net.NetworkPolicy) string {
+	iStr := ""
+	for _, rule := range np.Spec.Ingress {
+		iStr += selectorsToStr(rule.From, np.Namespace)
+		iStr += peersToStr(rule.From)
+		iStr += portsToStr(rule.Ports)
+		iStr += "+"
+	}
+	iStr = strings.TrimSuffix(iStr, "+")
+	return iStr
+}
+
+func sortPolicyTypes(pType []v1net.PolicyType) []string {
+	var strPolicyTypes []string
+	for _, pt := range pType {
+		strPolicyTypes = append(strPolicyTypes, string(pt))
+	}
+	sort.Slice(strPolicyTypes, func(i, j int) bool {
+		return strPolicyTypes[i] < strPolicyTypes[j]
+	})
+	return strPolicyTypes
 }
 
 func ingressStr(np *v1net.NetworkPolicy) string {
@@ -1277,6 +1409,8 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 			Error("Could not create network policy key: ", err)
 		return
 	}
+
+	cont.removeFromHppCache(oldnp, npkey)
 
 	cont.writeApicNP(npkey, newnp)
 	cont.indexMutex.Lock()
@@ -1338,6 +1472,9 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 	if cont.config.LBType != lbTypeAci {
 		cont.apicConn.ClearApicObjects(cont.aciNameForKey("NwPol", npkey))
 	}
+
+	cont.removeFromHppCache(np, npkey)
+
 	cont.indexMutex.Lock()
 	subnets := getNetworkPolicyEgressIpBlocks(np)
 	cont.updateIpIndex(cont.netPolSubnetIndex, subnets, nil, npkey)
