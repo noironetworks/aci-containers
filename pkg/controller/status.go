@@ -62,6 +62,13 @@ func (cont *AciController) RunStatus() {
 		json.NewEncoder(w).Encode(status)
 		cont.indexMutex.Unlock()
 	})
+	http.HandleFunc("/hpp", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		cont.indexMutex.Lock()
+		json.NewEncoder(w).Encode(&cont.hppRef)
+		cont.indexMutex.Unlock()
+	})
+
 	cont.log.Info("Starting status server")
 	panic(http.ListenAndServe(fmt.Sprintf(":%d", cont.config.StatusPort), nil))
 }
