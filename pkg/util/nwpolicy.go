@@ -110,11 +110,20 @@ func portsToStr(ports []v1net.NetworkPolicyPort) string {
 }
 
 func egressStrSorted(np *v1net.NetworkPolicy) string {
-	eStr := ""
+	var rules []string
 	for _, rule := range np.Spec.Egress {
+		eStr := ""
 		eStr += selectorsToStr(rule.To, np.Namespace)
 		eStr += peersToStr(rule.To)
 		eStr += portsToStr(rule.Ports)
+		rules = append(rules, eStr)
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i] < rules[j]
+	})
+	eStr := ""
+	for _, rule := range rules {
+		eStr += rule
 		eStr += "+"
 	}
 	eStr = strings.TrimSuffix(eStr, "+")
@@ -122,11 +131,20 @@ func egressStrSorted(np *v1net.NetworkPolicy) string {
 }
 
 func ingressStrSorted(np *v1net.NetworkPolicy) string {
-	iStr := ""
+	var rules []string
 	for _, rule := range np.Spec.Ingress {
+		iStr := ""
 		iStr += selectorsToStr(rule.From, np.Namespace)
 		iStr += peersToStr(rule.From)
 		iStr += portsToStr(rule.Ports)
+		rules = append(rules, iStr)
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i] < rules[j]
+	})
+	iStr := ""
+	for _, rule := range rules {
+		iStr += rule
 		iStr += "+"
 	}
 	iStr = strings.TrimSuffix(iStr, "+")
@@ -163,10 +181,18 @@ func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
 	var str string
 	if labelsel != nil {
 		str = "["
-		for key, val := range labelsel.MatchLabels {
-			keyval := key + "_" + val
+		matchLKeys := make([]string, 0, len(labelsel.MatchLabels))
+		for k := range labelsel.MatchLabels {
+			matchLKeys = append(matchLKeys, k)
+		}
+		sort.Sort(sort.StringSlice(matchLKeys))
+		for _, key := range matchLKeys {
+			keyval := key + "_" + labelsel.MatchLabels[key]
 			str += keyval
 		}
+		sort.Slice(labelsel.MatchExpressions, func(i, j int) bool {
+			return labelsel.MatchExpressions[i].Key < labelsel.MatchExpressions[j].Key
+		})
 		for _, expressions := range labelsel.MatchExpressions {
 			str += expressions.Key
 			str += string(expressions.Operator)

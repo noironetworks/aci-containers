@@ -156,7 +156,7 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 		return
 	}
 
-	if !reflect.DeepEqual(oldnp.Spec.PolicyTypes, newnp.Spec.PolicyTypes) {
+	if !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
 		peerPodKeys := agent.netPolPods.GetPodForObj(npkey)
 		for _, podkey := range peerPodKeys {
 			agent.podChanged(&podkey)

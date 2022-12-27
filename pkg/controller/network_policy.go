@@ -1179,20 +1179,22 @@ func (cont *AciController) addToHppCache(labelKey string, key string, hpp apicap
 		newHppRef.Npkeys = append(newHppRef.Npkeys, key)
 		cont.hppRef[labelKey] = newHppRef
 	}
-	cont.log.Debug("akhila ", cont.hppRef)
+	cont.log.Debug("akhila  ", cont.hppRef)
 	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) removeFromHppCache(np *v1net.NetworkPolicy, key string) {
-	labelKey, err := util.CreateHashFromNetPol(np)
+	hash, err := util.CreateHashFromNetPol(np)
 	if err != nil {
 		cont.log.Error("Could not create hash from network policy: ", err)
 		cont.log.Error("Failed to remove np from hpp cache")
 		return
 	}
+	labelKey := cont.aciNameForKey("np", hash)
 	cont.indexMutex.Lock()
 	hppRef, ok := cont.hppRef[labelKey]
 	if ok {
+		cont.log.Debug("delete - akhila hash exists")
 		for i, npkey := range hppRef.Npkeys {
 			if npkey == key {
 				hppRef.Npkeys = append(hppRef.Npkeys[:i], hppRef.Npkeys[i+1:]...)
@@ -1207,7 +1209,7 @@ func (cont *AciController) removeFromHppCache(np *v1net.NetworkPolicy, key strin
 			delete(cont.hppRef, labelKey)
 		}
 	}
-	cont.log.Debug("akhila ", cont.hppRef)
+	cont.log.Debug("delete akhila ", cont.hppRef)
 	cont.indexMutex.Unlock()
 
 }
