@@ -104,7 +104,7 @@ type HostAgent struct {
 	// Service to pod uids to track EPfiles aded with clusterIp
 	servicetoPodUids map[string]map[string]struct{}
 	// reverse map to get ServiceIp's from poduid
-	podtoServiceUids map[string]map[string]string
+	podtoServiceUids map[string]map[string][]string
 	nodePodIfEPs     map[string]*opflexEndpoint
 	// integration test checker
 	integ_test *string `json:",omitempty"`
@@ -166,7 +166,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		snatPolicyLabels:      make(map[string]map[string]ResourceType),
 		snatPolicyCache:       make(map[string]*snatpolicy.SnatPolicy),
 		servicetoPodUids:      make(map[string]map[string]struct{}),
-		podtoServiceUids:      make(map[string]map[string]string),
+		podtoServiceUids:      make(map[string]map[string][]string),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),

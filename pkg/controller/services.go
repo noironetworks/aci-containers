@@ -1915,8 +1915,12 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(labels.Set(label))
 	epcount := 0
+	stop := false
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
+			if stop == true {
+				return
+			}
 			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
 				if endpoint.TargetRef == nil || endpoint.TargetRef.Kind != "Pod" {
@@ -1927,6 +1931,7 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 					endpoint.TargetRef.Name))
 				cont.log.Debug("EndPoint added: ", endpoint.TargetRef.Name)
 			}
+			stop = true
 		})
 	return epcount != 0
 }

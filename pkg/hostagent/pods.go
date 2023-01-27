@@ -606,7 +606,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	}
 	agent.cniToPodID[epMetaKey] = epUuid
 	if pod.Status.PodIP != "" {
-		agent.podIpToName[pod.Status.PodIP] = epMetaKey
+		for _, PodIp := range pod.Status.PodIPs {
+			agent.podIpToName[PodIp.IP] = epMetaKey
+		}
 	}
 	agent.podUidToName[epUuid] = epMetaKey
 	epGroup, secGroup, qpGroup, _ := agent.assignGroups(pod)

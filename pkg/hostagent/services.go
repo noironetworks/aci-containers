@@ -824,10 +824,10 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 				}
 				agent.servicetoPodUids[suid][poduid] = dummy
 				if _, podok := agent.podtoServiceUids[poduid]; !podok {
-					agent.podtoServiceUids[poduid] = make(map[string]string)
+					agent.podtoServiceUids[poduid] = make(map[string][]string)
 				}
-				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIP
-				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIP)
+				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIPs
+				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIPs)
 				current[poduid] = dummy
 			}
 		}
@@ -869,8 +869,8 @@ func (agent *HostAgent) getServiceIPs(poduid string) []string {
 	agent.indexMutex.Lock()
 	v, ok := agent.podtoServiceUids[poduid]
 	if ok {
-		for _, ip := range v {
-			ips = append(ips, ip)
+		for _, service_ips := range v {
+			ips = append(ips, service_ips...)
 		}
 	}
 	agent.indexMutex.Unlock()
