@@ -842,6 +842,7 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 // Service annotation test with EndPointSlice
 func TestServiceAnnotationWithEps(t *testing.T) {
 	cont := sgCont()
+	ready := true
 	name := "kube_svc_testns_service1"
 	nameS2 := "kube_svc_testns_service2"
 	graphName := "kube_svc_global"
@@ -918,6 +919,9 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 			Addresses: []string{
 				"1.1.1.1",
 			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
+			},
 			Topology: map[string]string{
 				"kubernetes.io/hostname": "node1",
 			},
@@ -925,6 +929,9 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 		{
 			Addresses: []string{
 				"1.1.1.2",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 			Topology: map[string]string{
 				"kubernetes.io/hostname": "node2",
@@ -1032,9 +1039,10 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	cont.stop()
 }
 
-//Service graph test with EndPoint slices
+// Service graph test with EndPoint slices
 func TestServiceGraphiWithEps(t *testing.T) {
 	cont := sgCont()
+	ready := true
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
@@ -1122,6 +1130,9 @@ func TestServiceGraphiWithEps(t *testing.T) {
 			Addresses: []string{
 				"1.1.1.1",
 			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
+			},
 			Topology: map[string]string{
 				"kubernetes.io/hostname": "node1",
 			},
@@ -1129,6 +1140,9 @@ func TestServiceGraphiWithEps(t *testing.T) {
 		{
 			Addresses: []string{
 				"1.1.1.2",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 			Topology: map[string]string{
 				"kubernetes.io/hostname": "node2",
@@ -1140,6 +1154,9 @@ func TestServiceGraphiWithEps(t *testing.T) {
 		{
 			Addresses: []string{
 				"1.1.1.2",
+			},
+			Conditions: v1beta1.EndpointConditions{
+				Ready: &ready,
 			},
 			Topology: map[string]string{
 				"kubernetes.io/hostname": "node2",

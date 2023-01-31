@@ -30,6 +30,7 @@ type OpflexGroup struct {
 }
 
 type delayService struct {
+	Delay     int    `json:"delay,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 }
