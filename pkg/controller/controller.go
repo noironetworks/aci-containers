@@ -173,6 +173,7 @@ type AciController struct {
 }
 
 type DelayedEpSlice struct {
+	ServiceKey  string
 	OldEpSlice  *v1beta1.EndpointSlice
 	NewEpSlice  *v1beta1.EndpointSlice
 	DelayedTime time.Time
@@ -539,6 +540,17 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.SnatDefaultPortRangeStart > cont.config.SnatDefaultPortRangeEnd {
 		cont.config.SnatDefaultPortRangeStart = defStart
 		cont.config.SnatDefaultPortRangeEnd = defEnd
+	}
+
+	// Set default value for pbr programming delay if services list is not empty
+	// and delay value is empty
+	if cont.config.ServiceGraphEndpointAddDelay.Delay == 0 &&
+		cont.config.ServiceGraphEndpointAddDelay.Services != nil &&
+		len(cont.config.ServiceGraphEndpointAddDelay.Services) > 0 {
+		cont.config.ServiceGraphEndpointAddDelay.Delay = 90
+	}
+	if cont.config.ServiceGraphEndpointAddDelay.Delay > 0 {
+		cont.log.Info("ServiceGraphEndpointAddDelay set to: ", cont.config.ServiceGraphEndpointAddDelay.Delay)
 	}
 
 	// Set contract scope for snat svc graph to global by default
