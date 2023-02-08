@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//CreateRdConfigCR creates a RdConfig CR
+// CreateRdConfigCR creates a RdConfig CR
 func CreateRdConfigCR(r rdconfigclset.Clientset, rdConfigSpec rdConfig.RdConfigSpec) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
 	name := os.Getenv("ACI_RDCONFIG_NAME")

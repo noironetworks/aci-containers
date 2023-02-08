@@ -29,7 +29,7 @@ type QosPolicySpec struct {
 	Mark int `json:"dscpmark,omitempty"`
 }
 
-//PolicingType
+// PolicingType
 type PolicingType struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional

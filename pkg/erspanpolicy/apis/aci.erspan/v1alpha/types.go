@@ -4,7 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//PolicyState defines the current state of ErspanPolicy
+// PolicyState defines the current state of ErspanPolicy
 type PolicyState string
 
 const (
@@ -26,7 +26,7 @@ type ErspanPolicySpec struct {
 	Dest     ErspanDestType   `json:"destination,omitempty"`
 }
 
-//ErspanSourceType contains all the attrbutes of erspan source.
+// ErspanSourceType contains all the attrbutes of erspan source.
 type ErspanSourceType struct {
 	// +kubebuilder:validation:Enum=start,stop
 	// Administrative state.
@@ -40,7 +40,7 @@ type ErspanSourceType struct {
 	Direction string `json:"direction,omitempty"`
 }
 
-///ErspanDestType contains all the attrbutes of erspan destination.
+// /ErspanDestType contains all the attrbutes of erspan destination.
 type ErspanDestType struct {
 	// The destination IP of the ERSPAN packet.
 	DestIP string `json:"destIP"`
@@ -87,7 +87,7 @@ type ErspanPolicyList struct {
 	Items           []ErspanPolicy `json:"items"`
 }
 
-//PodSelector contains namespace and map of lables.
+// PodSelector contains namespace and map of lables.
 type PodSelector struct {
 	Labels    map[string]string `json:"labels,omitempty"`
 	Namespace string            `json:"namespace,omitempty"`

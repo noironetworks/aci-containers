@@ -472,7 +472,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 	agent.stop()
 }
 
-//1. Create Pod with 10.1.1.1
+// 1. Create Pod with 10.1.1.1
 // 2. Create Endpoint with 10.1.1.1
 // 3. Create Service with clusterIp 100.1.1.1
 // 4. Check ServiceIp's updated properly for the Pod created

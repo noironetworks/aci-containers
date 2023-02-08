@@ -18,13 +18,14 @@ package objdb
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path"
 	"time"
 
 	"golang.org/x/net/context"
 
-	"github.com/coreos/etcd/client"
 	log "github.com/sirupsen/logrus"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type API interface {
@@ -42,8 +43,8 @@ type API interface {
 
 // EtcdClient has etcd client state
 type EtcdClient struct {
-	client client.Client // etcd client
-	kapi   client.KeysAPI
+	client *clientv3.Client // etcd client
+	kv     clientv3.KV
 	root   string
 }
 
@@ -57,22 +58,22 @@ func NewClient(endpoints []string, root string) (API, error) {
 		return nil, errors.New("No endpoint specified")
 	}
 
-	etcdConfig := client.Config{
+	etcdConfig := clientv3.Config{
 		Endpoints: endpoints,
 	}
 
 	// Create a new client
-	ec.client, err = client.New(etcdConfig)
+	ec.client, err = clientv3.New(etcdConfig)
 	if err != nil {
 		log.Fatalf("Error creating etcd client. Err: %v", err)
 		return nil, err
 	}
 
-	// create keys api
-	ec.kapi = client.NewKeysAPI(ec.client)
+	// create key-value
+	ec.kv = clientv3.NewKV(ec.client)
 
 	// Make sure we can read from etcd
-	_, err = ec.kapi.Get(context.Background(), "/", &client.GetOptions{Recursive: true, Sort: true})
+	_, err = ec.kv.Get(context.Background(), "/", clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	if err != nil {
 		log.Errorf("Failed to connect to etcd. Err: %v", err)
 		return nil, err
@@ -89,15 +90,19 @@ func (ec *EtcdClient) GetObj(key string, retVal interface{}) error {
 	// Get the object from etcd client
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	resp, err := ec.kapi.Get(ctx, keyName, &client.GetOptions{})
+	resp, err := ec.kv.Get(ctx, keyName)
 	if err != nil {
 		log.Errorf("Error getting key %s. Err: %v", keyName, err)
 		return err
 	}
 
+	if len(resp.Kvs) <= 0 {
+		log.Errorf("Returned empty value for key : ", keyName)
+		return fmt.Errorf("Returned empty value for key : %s", keyName)
+	}
 	// Parse JSON response
-	if err := json.Unmarshal([]byte(resp.Node.Value), retVal); err != nil {
-		log.Errorf("Error parsing object %s, Err %v", resp.Node.Value, err)
+	if err := json.Unmarshal([]byte(resp.Kvs[0].Value), retVal); err != nil {
+		log.Errorf("Error parsing object %s, Err %v", resp.Kvs[0].Value, err)
 		return err
 	}
 
@@ -110,13 +115,18 @@ func (ec *EtcdClient) GetRaw(key string) ([]byte, error) {
 	// Get the object from etcd client
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	resp, err := ec.kapi.Get(ctx, keyName, &client.GetOptions{})
+	resp, err := ec.kv.Get(ctx, keyName)
 	if err != nil {
 		log.Errorf("Error getting key %s. Err: %v", keyName, err)
 		return nil, err
 	}
 
-	return []byte(resp.Node.Value), nil
+	if len(resp.Kvs) <= 0 {
+		log.Errorf("Returned empty value for key : ", keyName)
+		return nil, fmt.Errorf("Returned empty value for key : %s", keyName)
+	}
+
+	return []byte(resp.Kvs[0].Value), nil
 }
 
 // Recursive function to look thru each directory and get the files
@@ -140,7 +150,7 @@ func (ec *EtcdClient) SetRaw(key string, jsonVal []byte) error {
 	// Set it via etcd client
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err := ec.kapi.Set(ctx, keyName, string(jsonVal), nil)
+	_, err := ec.kv.Put(ctx, keyName, string(jsonVal), nil)
 	if err != nil {
 		log.Errorf("Error setting key %s, Err: %v", keyName, err)
 		return err
@@ -156,7 +166,7 @@ func (ec *EtcdClient) DelObj(key string) error {
 	// Remove it via etcd client
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err := ec.kapi.Delete(ctx, keyName, nil)
+	_, err := ec.kv.Delete(ctx, keyName, nil)
 	if err != nil {
 		log.Errorf("Error removing key %s, Err: %v", keyName, err)
 		return err
