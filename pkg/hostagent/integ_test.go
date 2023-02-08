@@ -34,8 +34,10 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	v1net "k8s.io/api/networking/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
 )
 
@@ -65,13 +67,7 @@ const (
 	sgAnnot2 = "[{\"policy-space\":\"testps\",\"name\":\"test-sg1\"}, {\"policy-space\":\"testps\",\"name\":\"test-sg2\"}]"
 	sgAnnot3 = "[{\"policy-space\":\"testps\",\"name\":\"test-sg1\"}, {\"policy-space\":\"testps\",\"name\":\"test-sg3\"}]"
 
-	sgAnnotNP1 = "[{\"policy-space\":\"tenantA\",\"name\":\"it_np_annNS_np1\"}," +
-		"{\"policy-space\":\"tenantA\",\"name\":\"it_node_test-node\"}," +
-		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_static-discovery\"}," +
-		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_static-egress\"}]"
-	sgAnnotNP2 = "[{\"policy-space\":\"tenantA\",\"name\":\"it_np_annNS_np1\"}," +
-		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_annNS_np2\"}," +
-		"{\"policy-space\":\"tenantA\",\"name\":\"it_node_test-node\"}," +
+	sgAnnotNP = "{\"policy-space\":\"tenantA\",\"name\":\"it_node_test-node\"}," +
 		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_static-discovery\"}," +
 		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_static-egress\"}]"
 )
@@ -606,10 +602,11 @@ func TestGroupAssign(t *testing.T) {
 func TestNPGroupAssign(t *testing.T) {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	hcf := &HostAgentConfig{
-		NodeName:  "node1",
-		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
-		NetConfig: []cniNetConfig{ncf},
-		AciPrefix: "it",
+		NodeName:        "node1",
+		EpRpcSock:       "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig:       []cniNetConfig{ncf},
+		AciPrefix:       "it",
+		HppOptimization: true,
 		GroupDefaults: GroupDefaults{
 			DefaultEg: metadata.OpflexGroup{
 				PolicySpace: "tenantA",
@@ -626,14 +623,19 @@ func TestNPGroupAssign(t *testing.T) {
 	it.ta.fakeNamespaceSource.Add(mkNamespace("annNS", testEgAnnot3, "", qpAnnot1))
 
 	// add a default network policy
-	it.ta.fakeNetworkPolicySource.Add(mkNetPol("annNS", "np1",
-		&metav1.LabelSelector{}, nil, nil, nil))
+	np1 := mkNetPol("annNS", "np1",
+		&metav1.LabelSelector{}, nil, nil, nil)
+	np1hash, _ := util.CreateHashFromNetPol(np1)
+	it.ta.fakeNetworkPolicySource.Add(np1)
 
 	// add a selector based network policy
-	it.ta.fakeNetworkPolicySource.Add(mkNetPol("annNS", "np2",
+	ingress := []v1net.PolicyType{v1net.PolicyTypeIngress}
+	np2 := mkNetPol("annNS", "np2",
 		&metav1.LabelSelector{
 			MatchLabels: map[string]string{"foo": "bar"},
-		}, nil, nil, nil))
+		}, nil, nil, ingress)
+	np2hash, _ := util.CreateHashFromNetPol(np2)
+	it.ta.fakeNetworkPolicySource.Add(np2)
 
 	// Add pods intf via cni
 	it.cniAddParallel(0, 1)
@@ -653,6 +655,10 @@ func TestNPGroupAssign(t *testing.T) {
 		"tier": "sample-tier",
 	}
 	it.addPodObj(2, "annNS", "", "", p2Labels)
+
+	sgAnnotNP1 := "[{\"policy-space\":\"tenantA\",\"name\":\"it_np_" + np1hash + "\"}," + sgAnnotNP
+	sgAnnotNP2 := "[{\"policy-space\":\"tenantA\",\"name\":\"it_np_" + np1hash + "\"}," +
+		"{\"policy-space\":\"tenantA\",\"name\":\"it_np_" + np2hash + "\"}," + sgAnnotNP
 
 	// verify ep file
 	it.checkEpGroups(0, "defaultEPG", emptyJSON)
@@ -824,9 +830,9 @@ func TestSnatPolicyDep(t *testing.T) {
 	it.cniDelParallel(6, 10)
 }
 
-//1. Create the 2 pods
-//2. change the containerID Interface for one of the pod
-//3. check that EP files updated accordingly
+// 1. Create the 2 pods
+// 2. change the containerID Interface for one of the pod
+// 3. check that EP files updated accordingly
 // 4. Check the length of the used IP's are not changed
 func TestEPUpdateContainerId(t *testing.T) {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}

@@ -227,6 +227,9 @@ type HostAgentConfig struct {
 	// More than one droplog within the repeat interval for the same event is suppressed
 	DropLogRepeatIntervalTime uint `json:"drop-log-repeat-intvl,omitempty"`
 
+	//default is false
+	HppOptimization bool `json:"hpp-optimization,omitempty"`
+
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 	// Cluster Flavour

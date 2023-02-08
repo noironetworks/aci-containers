@@ -167,9 +167,17 @@ type AciController struct {
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
 	nmPortNp map[string]bool
+	//maps network policy hash to hpp
+	hppRef map[string]hppReference
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
+}
+
+type hppReference struct {
+	RefCount uint              `json:"ref-count,omitempty"`
+	Npkeys   []string          `json:"npkeys,omitempty"`
+	HppObj   apicapi.ApicSlice `json:"hpp-obj,omitempty"`
 }
 
 type DelayedEpSlice struct {
@@ -216,7 +224,7 @@ type portRangeSnat struct {
 	end   int
 }
 
-//EndPointData holds PodIF data in controller.
+// EndPointData holds PodIF data in controller.
 type EndPointData struct {
 	MacAddr    string
 	EPG        string
@@ -344,6 +352,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
 		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
 		nmPortNp:             make(map[string]bool),
+		hppRef:               make(map[string]hppReference),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
