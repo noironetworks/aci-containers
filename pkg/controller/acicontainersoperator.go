@@ -1128,7 +1128,7 @@ func (c *Controller) handleDaemonsetDelete(obj interface{}) bool {
 // intialize the dnsoperator client,
 // computes the dnsSpec.
 // local cache for all the routes will be updated.
-//  if there is change in the dns Spec, triggers the update
+// if there is change in the dns Spec, triggers the update
 func (c *Controller) updatednsOperator() error {
 	log.Info("Update dnsoperator cr")
 	dnsInfo := &operatorv1.DNS{

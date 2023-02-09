@@ -864,6 +864,7 @@ func TestReconcile(t *testing.T) {
 		dn := "uni/tn-common"
 		conn.AddSubscriptionDn(dn, []string{"fvBD"})
 
+		time.Sleep(1 * time.Second)
 		for key, value := range test.desiredState {
 			conn.WriteApicObjects(key, value)
 		}
@@ -877,6 +878,7 @@ func TestReconcile(t *testing.T) {
 					"socket connection"), nil
 			})
 
+		time.Sleep(1 * time.Second)
 		for _, updateDn := range test.updates {
 			update := test.updateResp[updateDn]
 			for _, u := range update {
