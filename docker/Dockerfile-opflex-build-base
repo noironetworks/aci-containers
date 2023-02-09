@@ -47,7 +47,7 @@ RUN git clone -b libnftnl-1.1.7 https://git.netfilter.org/libnftnl \
   && sh cmake-linux.sh -- --skip-license --prefix=cmake-tmp \
   && rm cmake-linux.sh \
   && git clone https://github.com/noironetworks/3rdparty-debian.git \
-  && git clone https://github.com/jupp0r/prometheus-cpp.git -b v0.12.1 --depth 1 \
+  && git clone https://github.com/jupp0r/prometheus-cpp.git -b v1.0.1 --depth 1 \
   && cd prometheus-cpp \
   && git submodule init \
   && git submodule update \
