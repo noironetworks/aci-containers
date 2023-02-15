@@ -35,7 +35,7 @@ func DeepCopyObj(src, dst interface{}) error {
 
 // Checks if cluster supports endpointslices
 func IsEndPointSlicesSupported(kubeClient *kubernetes.Clientset) bool {
-	esobj, err := kubeClient.DiscoveryV1beta1().EndpointSlices("default").Get(context.TODO(), "kubernetes", metav1.GetOptions{})
+	esobj, err := kubeClient.DiscoveryV1().EndpointSlices("default").Get(context.TODO(), "kubernetes", metav1.GetOptions{})
 	if err == nil && esobj != nil {
 		return true
 	}

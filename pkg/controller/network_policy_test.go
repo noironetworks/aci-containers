@@ -30,7 +30,7 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/stretchr/testify/assert"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 )
 
 var tcp = "TCP"
@@ -70,8 +70,8 @@ func endpointPort(proto v1.Protocol, port int32, name string) v1.EndpointPort {
 		Port:     port,
 	}
 }
-func endpointSlicePort(proto v1.Protocol, port int32, name string) v1beta1.EndpointPort {
-	return v1beta1.EndpointPort{
+func endpointSlicePort(proto v1.Protocol, port int32, name string) discovery.EndpointPort {
+	return discovery.EndpointPort{
 		Name:     func() *string { a := name; return &a }(),
 		Protocol: func() *v1.Protocol { a := proto; return &a }(),
 		Port:     func() *int32 { a := port; return &a }(),
@@ -146,7 +146,7 @@ func npservice(namespace string, name string,
 type npTestAugment struct {
 	endpoints      []*v1.Endpoints
 	services       []*v1.Service
-	endpointslices []*v1beta1.EndpointSlice
+	endpointslices []*discovery.EndpointSlice
 }
 
 type npTest struct {
@@ -244,14 +244,14 @@ func makeEps(namespace string, name string,
 }
 
 // endpointslice.
-func makeEpSlice(namespace string, name string, endpoints []v1beta1.Endpoint,
-	ports []v1beta1.EndpointPort, servicename string) *v1beta1.EndpointSlice {
-	return &v1beta1.EndpointSlice{
-		AddressType: v1beta1.AddressTypeIPv4,
+func makeEpSlice(namespace string, name string, endpoints []discovery.Endpoint,
+	ports []discovery.EndpointPort, servicename string) *discovery.EndpointSlice {
+	return &discovery.EndpointSlice{
+		AddressType: discovery.AddressTypeIPv4,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
-			Labels:      map[string]string{v1beta1.LabelServiceName: servicename},
+			Labels:      map[string]string{discovery.LabelServiceName: servicename},
 			Annotations: map[string]string{},
 		},
 		Endpoints: endpoints,
@@ -700,7 +700,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -757,7 +757,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment-namedport"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -806,7 +806,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -858,7 +858,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -888,7 +888,7 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 	initCont := func() *testAciController {
@@ -1406,7 +1406,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{test17_np,
 			makeNp(nil, apicapi.ApicSlice{test17_rule1, test17_rule2}, test17_np_name),
@@ -1451,7 +1451,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment-namedport"},
 		{test18_np,
 			makeNp(nil, apicapi.ApicSlice{test18_rule1, test18_rule2}, test18_np_name),
@@ -1496,7 +1496,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{test19_np,
 			makeNp(nil,
@@ -1542,7 +1542,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{test20_np,
 			makeNp(nil, apicapi.ApicSlice{test20_rule}, test20_np_name),
@@ -1569,7 +1569,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 	initCont := func() *testAciController {
@@ -2027,7 +2027,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2076,7 +2076,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2128,7 +2128,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2158,7 +2158,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 
@@ -2615,7 +2615,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-augment"},
 		{test15_np_v6,
 			makeNp(nil, apicapi.ApicSlice{test15_rule1_v6, test15_rule2_v6}, test15_np_name_v6),
@@ -2660,7 +2660,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment"},
 		{test16_np_v6,
 			makeNp(nil,
@@ -2706,7 +2706,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-subnet-augment"},
 		{test17_np_v6,
 			makeNp(nil, apicapi.ApicSlice{test17_rule_v6}, test17_np_name_v6),
@@ -2733,7 +2733,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-all-augment"},
 	}
 
@@ -2898,9 +2898,9 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -2911,11 +2911,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -2926,11 +2926,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service2"),
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -2941,11 +2941,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -2956,11 +2956,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service2"),
 					makeEpSlice("testns", "service3xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -2981,7 +2981,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service3"),
 				},
@@ -3016,9 +3016,9 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3029,11 +3029,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -3044,7 +3044,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service2"),
 				},
@@ -3067,9 +3067,9 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (no matching IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3080,11 +3080,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -3095,7 +3095,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 81, ""),
 						}, "service2"),
 				},
@@ -3118,9 +3118,9 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.3",
@@ -3151,7 +3151,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod5",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
 							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
 						}, "service1"),
@@ -3171,9 +3171,9 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3184,7 +3184,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 				},
@@ -3375,9 +3375,9 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3388,11 +3388,11 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -3403,11 +3403,11 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service2"),
 					makeEpSlice("testns", "service3xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3428,7 +3428,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service3"),
 				},
@@ -3451,9 +3451,9 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3464,11 +3464,11 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -3479,7 +3479,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service2"),
 				},
@@ -3498,9 +3498,9 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (no matching IPs)
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3511,11 +3511,11 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 					makeEpSlice("testns", "service2xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"2.2.2.2",
@@ -3526,7 +3526,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod2",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 81, ""),
 						}, "service2"),
 				},
@@ -3543,9 +3543,9 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.3",
@@ -3576,7 +3576,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod5",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
 							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
 						}, "service1"),
@@ -3593,9 +3593,9 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{
+				[]*discovery.EndpointSlice{
 					makeEpSlice("testns", "service1xyz",
-						[]v1beta1.Endpoint{
+						[]discovery.Endpoint{
 							{
 								Addresses: []string{
 									"1.1.1.1",
@@ -3606,7 +3606,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 									Name:      "pod1",
 								},
 							},
-						}, []v1beta1.EndpointPort{
+						}, []discovery.EndpointPort{
 							endpointSlicePort(v1.ProtocolTCP, 80, ""),
 						}, "service1"),
 				},
@@ -3751,7 +3751,7 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8081, 81),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
 	}
 	initCont := func() *testAciController {
@@ -3904,7 +3904,7 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8081, 81),
 						}),
 				},
-				[]*v1beta1.EndpointSlice{},
+				[]*discovery.EndpointSlice{},
 			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
 	}
 	initCont := func() *testAciController {
