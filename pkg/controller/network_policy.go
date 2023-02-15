@@ -43,7 +43,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/util"
-	v1beta "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 )
 
 func (cont *AciController) initNetworkPolicyInformerFromClient(
@@ -1589,7 +1589,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
 			for _, svcPort := range service.Spec.Ports {
 				_, ok := portstrings[svcPort.TargetPort.String()]
 				if prs.port != nil &&
@@ -1597,7 +1597,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 					// egress rule does not match service target port
 					continue
 				}
-				var foundEpPort *v1beta.EndpointPort
+				var foundEpPort *discovery.EndpointPort
 				for _, endpointPort := range endpointSlices.Ports {
 					if *endpointPort.Name == svcPort.Name ||
 						(len(service.Spec.Ports) == 1 &&

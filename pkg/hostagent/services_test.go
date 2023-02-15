@@ -29,7 +29,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 )
 
 func service(uuid string, namespace string, name string,
@@ -106,28 +106,27 @@ func endpoints(namespace string, name string,
 }
 
 func endpointslice(namespace string, name string,
-	nextHopIps []string, ports []int32, nodename string) *v1beta1.EndpointSlice {
-	e := &v1beta1.EndpointSlice{
-		Endpoints: []v1beta1.Endpoint{},
+	nextHopIps []string, ports []int32, nodename string) *discovery.EndpointSlice {
+	e := &discovery.EndpointSlice{
+		Endpoints: []discovery.Endpoint{},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name + "ext",
-			Labels:    map[string]string{v1beta1.LabelServiceName: name},
+			Labels:    map[string]string{discovery.LabelServiceName: name},
 		},
-		Ports: []v1beta1.EndpointPort{},
+		Ports: []discovery.EndpointPort{},
 	}
 
 	for i, ip := range nextHopIps {
-		var endpoint v1beta1.Endpoint
+		var endpoint discovery.Endpoint
 		endpoint.Addresses = append(endpoint.Addresses, ip)
 		e.Endpoints = append(e.Endpoints, endpoint)
-		e.Endpoints[i].Topology = make(map[string]string)
-		e.Endpoints[i].Topology["kubernetes.io/hostname"] = nodename
+		e.Endpoints[i].NodeName = &nodename
 	}
 
 	for _, port := range ports {
 		e.Ports =
-			append(e.Ports, v1beta1.EndpointPort{
+			append(e.Ports, discovery.EndpointPort{
 				Port:     func() *int32 { a := port; return &a }(),
 				Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
 			})
