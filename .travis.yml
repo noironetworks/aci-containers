@@ -3,7 +3,7 @@ matrix:
   include:
     - language: go
       sudo: false
-      go: "1.19"
+      go: "1.20"
       before_install:
         - go get github.com/mattn/goveralls@v0.0.8
       install:

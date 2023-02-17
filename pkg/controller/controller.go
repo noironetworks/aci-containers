@@ -30,7 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -182,8 +182,8 @@ type hppReference struct {
 
 type DelayedEpSlice struct {
 	ServiceKey  string
-	OldEpSlice  *v1beta1.EndpointSlice
-	NewEpSlice  *v1beta1.EndpointSlice
+	OldEpSlice  *discovery.EndpointSlice
+	NewEpSlice  *discovery.EndpointSlice
 	DelayedTime time.Time
 }
 
