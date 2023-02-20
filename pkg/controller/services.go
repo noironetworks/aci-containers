@@ -1915,26 +1915,26 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(labels.Set(label))
 	epcount := 0
-	stop := false
+	childs := make(map[string]struct{})
+	var exists = struct{}{}
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			if stop == true {
-				return
-			}
 			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
 				if endpoint.TargetRef == nil || endpoint.TargetRef.Kind != "Pod" {
 					continue
 				}
 				epcount++
-				aobj.AddChild(apicapi.NewVmmInjectedSvcEp(aobj.GetDn(),
-					endpoint.TargetRef.Name))
+				childs[endpoint.TargetRef.Name] = exists
 				cont.log.Debug("EndPoint added: ", endpoint.TargetRef.Name)
 			}
-			stop = true
 		})
+	for child := range childs {
+		aobj.AddChild(apicapi.NewVmmInjectedSvcEp(aobj.GetDn(), child))
+	}
 	return epcount != 0
 }
+
 func getProtocolStr(proto v1.Protocol) string {
 	var protostring string
 	switch proto {

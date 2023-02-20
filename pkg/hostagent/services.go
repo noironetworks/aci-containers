@@ -640,7 +640,19 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	}
 	endpoints := endpointsobj.(*v1.Endpoints)
 	hasValidMapping := false
-	for _, clusterIP := range as.Spec.ClusterIPs {
+
+	type void struct{}
+	var ipexists void
+	clusterIPs := make(map[string]void)
+	clusterIPs[as.Spec.ClusterIP] = ipexists
+	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+	if clusterIPsField.IsValid() {
+		for ip := range clusterIPs {
+			clusterIPs[ip] = ipexists
+		}
+	}
+
+	for clusterIP := range clusterIPs {
 		for _, e := range endpoints.Subsets {
 			if len(e.Addresses) == 0 {
 				continue
@@ -736,7 +748,19 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		func(endpointSliceobj interface{}) {
 			endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
 		})
-	for _, clusterIP := range as.Spec.ClusterIPs {
+
+	type void struct{}
+	var ipexists void
+	clusterIPs := make(map[string]void)
+	clusterIPs[as.Spec.ClusterIP] = ipexists
+	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+	if clusterIPsField.IsValid() {
+		for ip := range clusterIPs {
+			clusterIPs[ip] = ipexists
+		}
+	}
+
+	for clusterIP := range clusterIPs {
 		for _, endpointSlice := range endpointSlices {
 			if !(len(endpointSlice.Endpoints) > 0 && len(endpointSlice.Endpoints[0].Addresses) > 0) {
 				continue
@@ -867,8 +891,24 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 				if _, podok := agent.podtoServiceUids[poduid]; !podok {
 					agent.podtoServiceUids[poduid] = make(map[string][]string)
 				}
-				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIPs
-				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIPs)
+
+				type void struct{}
+				var ipexists void
+				clusterIPs := make(map[string]void)
+				clusterIPs[as.Spec.ClusterIP] = ipexists
+				clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+				if clusterIPsField.IsValid() {
+					for ip := range clusterIPs {
+						clusterIPs[ip] = ipexists
+					}
+				}
+
+				var listClusterIPs []string
+				for ip := range clusterIPs {
+					listClusterIPs = append(listClusterIPs, ip)
+				}
+				agent.podtoServiceUids[poduid][suid] = listClusterIPs
+				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", listClusterIPs)
 				current[poduid] = dummy
 			}
 		}

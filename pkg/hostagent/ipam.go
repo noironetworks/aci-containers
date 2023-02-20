@@ -149,8 +149,8 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 			return false
 		} else {
 			gateway, mask := agent.getIPMetadata(ip)
-			if gateway == nil || mask == nil {
-				err := errors.New("Unable to find Gateway/Mask")
+			if mask == nil {
+				err := errors.New("Unable to find Mask")
 				fmt.Errorf("Could not allocate address: %v", err)
 				return false
 			}
