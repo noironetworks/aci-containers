@@ -140,6 +140,7 @@ type serviceTest struct {
 	namespace  string
 	name       string
 	clusterIp  string
+	clusterIPs []string
 	externalIp string
 	ports      []int32
 	nextHopIps []string
@@ -152,6 +153,7 @@ var serviceTests = []serviceTest{
 		"testns",
 		"service1",
 		"100.1.1.1",
+		[]string{},
 		"200.1.1.1",
 		[]int32{80},
 		[]string{"10.1.1.1", "10.2.2.2"},
@@ -162,9 +164,32 @@ var serviceTests = []serviceTest{
 		"testns",
 		"service2",
 		"100.1.1.2",
+		[]string{},
 		"",
 		[]int32{42},
 		[]string{"10.5.1.1", "10.6.2.2"},
+		"test-node",
+	},
+	{
+		"683c333d-a594-4f00-baa6-0d578a13d123",
+		"testns",
+		"service3",
+		"2001:1db8:42::8664",
+		[]string{},
+		"",
+		[]int32{42},
+		[]string{"2001:db8:42::47"},
+		"test-node",
+	},
+	{
+		"683c333d-a594-4f00-baa6-0d578a13d222",
+		"testns",
+		"service4",
+		"2001:1db8:42::8664",
+		[]string{"2001:1db8:42::8664", "10.6.50.131"},
+		"",
+		[]int32{42},
+		[]string{"2001:db8:42::47", "10.1.1.1"},
 		"test-node",
 	},
 }
@@ -472,7 +497,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 	agent.stop()
 }
 
-//1. Create Pod with 10.1.1.1
+// 1. Create Pod with 10.1.1.1
 // 2. Create Endpoint with 10.1.1.1
 // 3. Create Service with clusterIp 100.1.1.1
 // 4. Check ServiceIp's updated properly for the Pod created
@@ -525,6 +550,131 @@ func TestServiceEptoSerMap(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	clusterIp := agent.getServiceIPs("poduid")
 	assert.Equal(t, clusterIp, []string{"100.1.1.1"}, "Updated", "ClusterIp")
+	agent.fakeServiceSource.Delete(service)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp = agent.getServiceIPs("poduid")
+	var empty []string
+	assert.Equal(t, clusterIp, empty, "deleted", "ClusterIp")
+	agent.stop()
+}
+
+// 1. Create Pod with 2001:db8:42::47
+// 2. Create Endpoint with 2001:db8:42::47
+// 3. Create Service with clusterIp 2001:1db8:42::8664
+// 4. Check ServiceIp's updated properly for the Pod created
+// 5. Delete the Service Make sure that cleanup happend
+func TestSingleStackIPv6ServiceEptoSerMap(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\", \"ipv6\": \"2001:2db8:42::0001\"}",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+	agent.run()
+	pod := mkPod("poduid", "testns", "pod1", "", "", map[string]string{"app": "tier"})
+	cnimd := cnimd("testns", "pod1", "2001:db8:42::47", "cont1", "veth1")
+	cnimd.Ifaces[0].Mac = "00:0c:29:92:fe:d0"
+	agent.epMetadata["testns"+"/"+"pod1"] =
+		map[string]*metadata.ContainerMetadata{
+			cnimd.Id.ContId: cnimd,
+		}
+	pod.Status.PodIP = "2001:db8:42::47"
+	agent.fakePodSource.Add(pod)
+	time.Sleep(10 * time.Millisecond)
+	st := serviceTests[2]
+	service := service(st.uuid, st.namespace, st.name,
+		st.clusterIp, st.externalIp, st.ports)
+	service.Spec.Selector = map[string]string{"app": "tier"}
+	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	agent.fakeServiceSource.Add(service)
+	agent.fakeEndpointsSource.Add(endpoints)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp := agent.getServiceIPs("poduid")
+	assert.Equal(t, clusterIp, []string{"2001:1db8:42::8664"}, "Updated", "ClusterIp")
+	agent.fakeServiceSource.Delete(service)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp = agent.getServiceIPs("poduid")
+	var empty []string
+	assert.Equal(t, clusterIp, empty, "deleted", "ClusterIp")
+	agent.stop()
+}
+
+// 1. Create Pod with 10.1.1.1, 2001:db8:42::47
+// 2. Create Endpoint with 10.1.1.1, 2001:db8:42::47
+// 3. Create Service with clusterIp 10.6.50.131, 2001:1db8:42::8664
+// 4. Check ServiceIp's updated properly for the Pod created
+// 5. Delete the Service Make sure that cleanup happend
+func TestDualStackServiceEptoSerMap(t *testing.T) {
+	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\", \"ipv6\": \"2001:2db8:42::0001\"}",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+	agent.run()
+	pod := mkPod("poduid", "testns", "pod1", "", "", map[string]string{"app": "tier"})
+	cnimd := cnimd("testns", "pod1", "2001:db8:42::47", "cont1", "veth1")
+	cnimd.Ifaces[0].Mac = "00:0c:29:92:fe:d0"
+	agent.epMetadata["testns"+"/"+"pod1"] =
+		map[string]*metadata.ContainerMetadata{
+			cnimd.Id.ContId: cnimd,
+		}
+	pod.Status.PodIP = "2001:db8:42::47"
+	podIPv4 := v1.PodIP{IP: "10.1.1.1"}
+	podIPv6 := v1.PodIP{IP: "2001:db8:42::47"}
+	pod.Status.PodIPs = []v1.PodIP{podIPv6, podIPv4}
+	agent.fakePodSource.Add(pod)
+	time.Sleep(10 * time.Millisecond)
+	st := serviceTests[3]
+	service := service(st.uuid, st.namespace, st.name,
+		st.clusterIp, st.externalIp, st.ports)
+	service.Spec.Selector = map[string]string{"app": "tier"}
+	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	agent.fakeServiceSource.Add(service)
+	agent.fakeEndpointsSource.Add(endpoints)
+	time.Sleep(10 * time.Millisecond)
+	clusterIp := agent.getServiceIPs("poduid")
+	assert.Equal(t, clusterIp, []string{"2001:1db8:42::8664"}, "Updated", "ClusterIp")
 	agent.fakeServiceSource.Delete(service)
 	time.Sleep(10 * time.Millisecond)
 	clusterIp = agent.getServiceIPs("poduid")
