@@ -651,7 +651,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	clusterIPs[as.Spec.ClusterIP] = ipexists
 	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
 	if clusterIPsField.IsValid() {
-		for ip := range clusterIPs {
+		for _, ip := range as.Spec.ClusterIPs {
 			clusterIPs[ip] = ipexists
 		}
 	}
@@ -660,6 +660,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 		for _, e := range endpoints.Subsets {
 			if len(e.Addresses) == 0 {
 				continue
+
 			}
 			parsedClusterIp := net.ParseIP(clusterIP)
 			parsedPodIp := net.ParseIP(e.Addresses[0].IP)
@@ -759,7 +760,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	clusterIPs[as.Spec.ClusterIP] = ipexists
 	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
 	if clusterIPsField.IsValid() {
-		for ip := range clusterIPs {
+		for _, ip := range as.Spec.ClusterIPs {
 			clusterIPs[ip] = ipexists
 		}
 	}
@@ -771,7 +772,6 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			}
 			parsedClusterIp := net.ParseIP(clusterIP)
 			parsedPodIp := net.ParseIP(endpointSlice.Endpoints[0].Addresses[0])
-
 			if parsedClusterIp == nil || parsedPodIp == nil {
 				agent.log.Info("Not a valid IP address..", parsedClusterIp, parsedPodIp)
 				continue
