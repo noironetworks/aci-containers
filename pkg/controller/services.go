@@ -29,7 +29,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,13 +57,13 @@ func (cont *AciController) initEndpointSliceInformerFromClient(
 
 	cont.initEndpointSliceInformerBase(
 		cache.NewListWatchFromClient(
-			kubeClient.DiscoveryV1beta1().RESTClient(), "endpointslices",
+			kubeClient.DiscoveryV1().RESTClient(), "endpointslices",
 			metav1.NamespaceAll, fields.Everything()))
 }
 
 func (cont *AciController) initEndpointSliceInformerBase(listWatch *cache.ListWatch) {
 	cont.endpointSliceIndexer, cont.endpointSliceInformer = cache.NewIndexerInformer(
-		listWatch, &v1beta1.EndpointSlice{}, 0,
+		listWatch, &discovery.EndpointSlice{}, 0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				cont.endpointSliceAdded(obj)
@@ -409,7 +409,6 @@ func apicRedirectDst(rpDn string, ip string, mac string,
 func (cont *AciController) apicRedirectPol(name string, tenantName string, nodes []string,
 	nodeMap map[string]*metadata.ServiceEndpoint,
 	monPolDn string, enablePbrTracking bool) (apicapi.ApicObject, string) {
-
 	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
 	rp.SetAttr("thresholdDownAction", "deny")
 	rpDn := rp.GetDn()
@@ -1527,7 +1526,6 @@ func (cont *AciController) serviceUpdated(old interface{}, new interface{}) {
 			Error("Could not create service key: ", err)
 		return
 	}
-
 	oldPorts := getServiceTargetPorts(oldservice)
 	newPorts := getServiceTargetPorts(newservice)
 	if !reflect.DeepEqual(oldPorts, newPorts) {
@@ -1582,7 +1580,7 @@ func (cont *AciController) serviceFullSync() {
 		})
 }
 
-func (cont *AciController) getEndpointSliceIps(endpointSlice *v1beta1.EndpointSlice) map[string]bool {
+func (cont *AciController) getEndpointSliceIps(endpointSlice *discovery.EndpointSlice) map[string]bool {
 	ips := make(map[string]bool)
 	for _, endpoints := range endpointSlice.Endpoints {
 		for _, addr := range endpoints.Addresses {
@@ -1592,10 +1590,29 @@ func (cont *AciController) getEndpointSliceIps(endpointSlice *v1beta1.EndpointSl
 	return ips
 }
 
+func (cont *AciController) notReadyEndpointPresent(endpointSlice *discovery.EndpointSlice) bool {
+	for _, endpoints := range endpointSlice.Endpoints {
+		if (endpoints.Conditions.Ready != nil && !*endpoints.Conditions.Ready) &&
+			(endpoints.Conditions.Terminating == nil || !*endpoints.Conditions.Terminating) {
+			return true
+		}
+	}
+	return false
+}
+
+func (cont *AciController) getEndpointSliceEpIps(endpoints discovery.Endpoint) map[string]bool {
+	ips := make(map[string]bool)
+	for _, addr := range endpoints.Addresses {
+		ips[addr] = true
+	}
+	return ips
+}
+
 func (cont *AciController) processDelayedEpSlices() {
 	var processEps []DelayedEpSlice
 	cont.indexMutex.Lock()
-	for i, delayedepslice := range cont.delayedEpSlices {
+	for i := 0; i < len(cont.delayedEpSlices); i++ {
+		delayedepslice := cont.delayedEpSlices[i]
 		if time.Now().After(delayedepslice.DelayedTime) {
 			var toprocess DelayedEpSlice
 			err := util.DeepCopyObj(&delayedepslice, &toprocess)
@@ -1610,13 +1627,18 @@ func (cont *AciController) processDelayedEpSlices() {
 
 	cont.indexMutex.Unlock()
 	for _, epslice := range processEps {
-		cont.log.Debug("Processing update of epslice : ", epslice.NewEpSlice)
-		cont.doendpointSliceUpdated(epslice.OldEpSlice, epslice.NewEpSlice)
+		//ignore the epslice if newly added endpoint is not ready
+		if cont.notReadyEndpointPresent(epslice.NewEpSlice) {
+			cont.log.Debug("Ignoring the update as the new endpoint is not ready : ", epslice.NewEpSlice)
+		} else {
+			cont.log.Debug("Processing update of epslice : ", epslice.NewEpSlice)
+			cont.doendpointSliceUpdated(epslice.OldEpSlice, epslice.NewEpSlice)
+		}
 	}
 }
 
 func (cont *AciController) endpointSliceAdded(obj interface{}) {
-	endpointslice, ok := obj.(*v1beta1.EndpointSlice)
+	endpointslice, ok := obj.(*discovery.EndpointSlice)
 	if !ok {
 		cont.log.Error("error processing Endpointslice object: ", obj)
 		return
@@ -1638,14 +1660,14 @@ func (cont *AciController) endpointSliceAdded(obj interface{}) {
 }
 
 func (cont *AciController) endpointSliceDeleted(obj interface{}) {
-	endpointslice, isEndpointslice := obj.(*v1beta1.EndpointSlice)
+	endpointslice, isEndpointslice := obj.(*discovery.EndpointSlice)
 	if !isEndpointslice {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			cont.log.Error("Received unexpected object: ", obj)
 			return
 		}
-		endpointslice, ok = deletedState.Obj.(*v1beta1.EndpointSlice)
+		endpointslice, ok = deletedState.Obj.(*discovery.EndpointSlice)
 		if !ok {
 			cont.log.Error("DeletedFinalStateUnknown contained non-Endpointslice object: ", deletedState.Obj)
 			return
@@ -1664,78 +1686,127 @@ func (cont *AciController) endpointSliceDeleted(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
-func (cont *AciController) svcInAddDelayList(name, ns string) bool {
+// Checks if the given service is present in the user configured list of services
+// for pbr delay and if present, returns the servie specific delay if configured
+func (cont *AciController) svcInAddDelayList(name, ns string) (int, bool) {
 	for _, svc := range cont.config.ServiceGraphEndpointAddDelay.Services {
 		if svc.Name == name && svc.Namespace == ns {
-			return true
+			return svc.Delay, true
 		}
 	}
-	return false
+	return 0, false
 }
 
-func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj interface{}) {
-	oldendpointslice, ok := oldobj.(*v1beta1.EndpointSlice)
-	if !ok {
-		cont.log.Error("error processing Endpointslice object: ", oldobj)
-		return
+// Check if the endpointslice update notification has any deletion of enpoint
+func (cont *AciController) isDeleteEndpointSlice(oldendpointslice, newendpointslice *discovery.EndpointSlice) bool {
+	del := false
+
+	// if any endpoint is removed from endpontslice
+	if len(newendpointslice.Endpoints) < len(newendpointslice.Endpoints) {
+		del = true
 	}
-	newendpointslice, ok := newobj.(*v1beta1.EndpointSlice)
-	if !ok {
-		cont.log.Error("error processing Endpointslice object: ", newobj)
-		return
-	}
-	if cont.config.NoWaitForServiceEpReadiness == false {
-		proceed := true
+
+	if !del {
+		// if any one of the endpoint is in terminating state
 		for _, endpoint := range newendpointslice.Endpoints {
-			if endpoint.Conditions.Ready == nil || !*endpoint.Conditions.Ready {
-				proceed = false
+			if endpoint.Conditions.Terminating != nil && *endpoint.Conditions.Terminating {
+				del = true
+				break
 			}
 		}
-		if !proceed {
-			cont.log.Debug("New enpoints are not in ready state")
-			return
+	}
+	if !del {
+		// if any one of endpoint moved from ready state to not-ready state
+		for _, oldendpoint := range oldendpointslice.Endpoints {
+			oldips := cont.getEndpointSliceEpIps(oldendpoint)
+			for _, newendpoint := range newendpointslice.Endpoints {
+				newips := cont.getEndpointSliceEpIps(newendpoint)
+				if reflect.DeepEqual(oldips, newips) {
+					if (oldendpoint.Conditions.Ready != nil && *oldendpoint.Conditions.Ready) &&
+						(newendpoint.Conditions.Ready != nil && !*newendpoint.Conditions.Ready) {
+						del = true
+					}
+					break
+				}
+			}
 		}
 	}
+	return del
+}
+
+func (cont *AciController) doendpointSliceUpdatedDelay(oldendpointslice *discovery.EndpointSlice,
+	newendpointslice *discovery.EndpointSlice) {
 	svc, ns, valid := getServiceNameAndNs(newendpointslice)
 	if !valid {
 		return
 	}
-	var delay int
-	if cont.config.ServiceGraphEndpointAddDelay.Delay != 0 {
-		if cont.svcInAddDelayList(svc, ns) {
-			delay = cont.config.ServiceGraphEndpointAddDelay.Delay
-			cont.log.Debug("Delay of ", delay, " added for service ", svc, " in ns: ", ns)
-		}
+	svckey, valid := getServiceKey(newendpointslice)
+	if !valid {
+		return
 	}
-	if delay > 0 {
+	delay := cont.config.ServiceGraphEndpointAddDelay.Delay
+	svcDelay, exists := cont.svcInAddDelayList(svc, ns)
+	if svcDelay > 0 {
+		delay = svcDelay
+	}
+	var delayedsvc bool
+	delayedsvc = exists && delay > 0
+	if delayedsvc {
+		cont.log.Debug("Delay of ", delay, " seconds is applicable for svc :", svc, " in ns: ", ns)
 		var delayedepslice DelayedEpSlice
 		delayedepslice.OldEpSlice = oldendpointslice
+		delayedepslice.ServiceKey = svckey
 		delayedepslice.NewEpSlice = newendpointslice
 		currentTime := time.Now()
 		delayedepslice.DelayedTime = currentTime.Add(time.Duration(delay) * time.Second)
 		cont.indexMutex.Lock()
 		cont.delayedEpSlices = append(cont.delayedEpSlices, &delayedepslice)
 		cont.indexMutex.Unlock()
+	} else {
+		cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
+	}
+
+	if delayedsvc && cont.isDeleteEndpointSlice(oldendpointslice, newendpointslice) {
+		cont.log.Debug("Proceeding by ignoring delay as the update is due to delete of endpoint")
+		cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
+	}
+	return
+}
+func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj interface{}) {
+	oldendpointslice, ok := oldobj.(*discovery.EndpointSlice)
+	if !ok {
+		cont.log.Error("error processing Endpointslice object: ", oldobj)
 		return
 	}
-	cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
+	newendpointslice, ok := newobj.(*discovery.EndpointSlice)
+	if !ok {
+		cont.log.Error("error processing Endpointslice object: ", newobj)
+		return
+	}
+	if cont.config.ServiceGraphEndpointAddDelay.Delay > 0 {
+		cont.doendpointSliceUpdatedDelay(oldendpointslice, newendpointslice)
+	} else {
+		cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
+	}
 }
 
-func (cont *AciController) doendpointSliceUpdated(oldendpointslice *v1beta1.EndpointSlice,
-	newendpointslice *v1beta1.EndpointSlice) {
+func (cont *AciController) doendpointSliceUpdated(oldendpointslice *discovery.EndpointSlice,
+	newendpointslice *discovery.EndpointSlice) {
 	servicekey, valid := getServiceKey(newendpointslice)
 	if !valid {
 		return
 	}
 	oldIps := cont.getEndpointSliceIps(oldendpointslice)
 	newIps := cont.getEndpointSliceIps(newendpointslice)
-	if !reflect.DeepEqual(oldendpointslice.Endpoints, newendpointslice.Endpoints) {
+	if !reflect.DeepEqual(oldIps, newIps) {
 		cont.indexMutex.Lock()
 		cont.queueIPNetPolUpdates(oldIps)
 		cont.updateIpIndex(cont.endpointsIpIndex, oldIps, newIps, servicekey)
 		cont.queueIPNetPolUpdates(newIps)
 		cont.indexMutex.Unlock()
+	}
 
+	if !reflect.DeepEqual(oldendpointslice.Endpoints, newendpointslice.Endpoints) {
 		cont.queueEndpointSliceNetPolUpdates(oldendpointslice)
 		cont.queueEndpointSliceNetPolUpdates(newendpointslice)
 	}
@@ -1743,7 +1814,7 @@ func (cont *AciController) doendpointSliceUpdated(oldendpointslice *v1beta1.Endp
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
-func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta1.EndpointSlice) {
+func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *discovery.EndpointSlice) {
 	for _, endpoint := range endpointslice.Endpoints {
 		if endpoint.TargetRef == nil || endpoint.TargetRef.Kind != "Pod" ||
 			endpoint.TargetRef.Namespace == "" || endpoint.TargetRef.Name == "" {
@@ -1764,16 +1835,16 @@ func (cont *AciController) queueEndpointSliceNetPolUpdates(endpointslice *v1beta
 	}
 }
 
-func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
-	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+func getServiceKey(endPointSlice *discovery.EndpointSlice) (string, bool) {
+	serviceName, ok := endPointSlice.Labels[discovery.LabelServiceName]
 	if !ok {
 		return "", false
 	}
 	return endPointSlice.ObjectMeta.Namespace + "/" + serviceName, true
 }
 
-func getServiceNameAndNs(endPointSlice *v1beta1.EndpointSlice) (string, string, bool) {
-	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+func getServiceNameAndNs(endPointSlice *discovery.EndpointSlice) (string, string, bool) {
+	serviceName, ok := endPointSlice.Labels[discovery.LabelServiceName]
 	if !ok {
 		return "", "", false
 	}
@@ -1810,10 +1881,9 @@ func (seps *serviceEndpointSlice) UpdateServicesForNode(nodename string) {
 	visited := make(map[string]bool)
 	cache.ListAll(cont.endpointSliceIndexer, labels.Everything(),
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
-				_, ok := endpoint.Topology["kubernetes.io/hostname"]
-				if ok && endpoint.Topology["kubernetes.io/hostname"] == nodename {
+				if endpoint.NodeName != nil && *endpoint.NodeName == nodename {
 					servicekey, valid := getServiceKey(endpointSlices)
 					if !valid {
 						return
@@ -1838,6 +1908,60 @@ func (cont *AciController) setNodeMap(nodeMap map[string]*metadata.ServiceEndpoi
 	}
 	nodeMap[nodeName] = &nodeMeta.serviceEp
 
+}
+
+// 2 cases when epslices corresponding to given service is presnt in delayedEpSlices:
+//  1. endpoint not present in delayedEpSlices of the service
+//  2. endpoint present in delayedEpSlices of the service but in not ready state
+//
+// indexMutex lock must be acquired before calling the function
+func (cont *AciController) isDelayedEndpoint(endpoint discovery.Endpoint, svckey string) bool {
+	delayed := false
+	endpointips := cont.getEndpointSliceEpIps(endpoint)
+	for _, delayedepslices := range cont.delayedEpSlices {
+		if delayedepslices.ServiceKey == svckey {
+			var found bool
+			epslice := delayedepslices.OldEpSlice
+			for _, ep := range epslice.Endpoints {
+				epips := cont.getEndpointSliceEpIps(ep)
+				if reflect.DeepEqual(endpointips, epips) {
+					// case 2
+					if ep.Conditions.Ready != nil && !*ep.Conditions.Ready {
+						delayed = true
+					}
+					found = true
+				}
+			}
+			// case 1
+			if !found {
+				delayed = true
+			}
+		}
+	}
+	return delayed
+}
+
+// set nodemap only if endoint is ready and not in delayedEpSlices
+func (cont *AciController) setNodeMapDelay(nodeMap map[string]*metadata.ServiceEndpoint,
+	endpoint discovery.Endpoint, service *v1.Service) {
+
+	svckey, err := cache.MetaNamespaceKeyFunc(service)
+	if err != nil {
+		cont.log.Error("Could not create service key: ", err)
+		return
+	}
+	if cont.config.NoWaitForServiceEpReadiness ||
+		(endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready) {
+
+		if endpoint.NodeName != nil && *endpoint.NodeName != "" {
+			// donot setNodeMap for endpoint if:
+			//   endpoint is newly added
+			//   endpoint status changed from not ready to ready
+			if !cont.isDelayedEndpoint(endpoint, svckey) {
+				cont.setNodeMap(nodeMap, *endpoint.NodeName)
+			}
+		}
+	}
 }
 
 func (sep *serviceEndpoint) GetnodesMetadata(key string,
@@ -1871,11 +1995,15 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
-				nodeName, ok := endpoint.Topology["kubernetes.io/hostname"]
-				if ok {
-					cont.setNodeMap(nodeMap, nodeName)
+				if cont.config.ServiceGraphEndpointAddDelay.Delay > 0 {
+					cont.setNodeMapDelay(nodeMap, endpoint, service)
+				} else if cont.config.NoWaitForServiceEpReadiness ||
+					(endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready) {
+					if endpoint.NodeName != nil && *endpoint.NodeName != "" {
+						cont.setNodeMap(nodeMap, *endpoint.NodeName)
+					}
 				}
 			}
 		})
@@ -1919,7 +2047,7 @@ func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, 
 	var exists = struct{}{}
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices := endpointSliceobj.(*v1beta1.EndpointSlice)
+			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
 			for _, endpoint := range endpointSlices.Endpoints {
 				if endpoint.TargetRef == nil || endpoint.TargetRef.Kind != "Pod" {
 					continue

@@ -29,7 +29,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -171,14 +171,14 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 	agent.initEndpointSliceInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
+				obj, err := kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
 					agent.log.Fatalf("Failed to list EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
 				return obj, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
+				obj, err := kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
 					agent.log.Fatalf("Failed to watch EndpointSlices during initialization of EndpointSliceInformer: %s", err)
 				}
@@ -190,7 +190,7 @@ func (agent *HostAgent) initEndpointSliceInformerFromClient(
 func (agent *HostAgent) initEndpointSliceInformerBase(listWatch *cache.ListWatch) {
 	agent.endpointSliceInformer = cache.NewSharedIndexInformer(
 		listWatch,
-		&v1beta1.EndpointSlice{},
+		&discovery.EndpointSlice{},
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
@@ -463,8 +463,8 @@ func (agent *HostAgent) endpointsChanged(obj interface{}) {
 	}
 	agent.doUpdateService(key)
 }
-func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
-	serviceName, ok := endPointSlice.Labels[v1beta1.LabelServiceName]
+func getServiceKey(endPointSlice *discovery.EndpointSlice) (string, bool) {
+	serviceName, ok := endPointSlice.Labels[discovery.LabelServiceName]
 	if !ok {
 		return "", false
 	}
@@ -474,7 +474,7 @@ func getServiceKey(endPointSlice *v1beta1.EndpointSlice) (string, bool) {
 func (agent *HostAgent) endpointSliceChanged(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-	endpointslice := obj.(*v1beta1.EndpointSlice)
+	endpointslice := obj.(*discovery.EndpointSlice)
 	agent.log.Debugf("endpointslice changed: name=%s namespace=%s",
 		endpointslice.ObjectMeta.Name, endpointslice.ObjectMeta.Namespace)
 	servicekey, ok := getServiceKey(endpointslice)
@@ -562,16 +562,20 @@ func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 	cfg, _ := config.GetConfig()
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &configv1.Infrastructure{})
+	scheme.AddKnownTypes(configv1.SchemeGroupVersion, &metav1.GetOptions{})
 	rclient, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
+		agent.log.Error(err.Error())
 		return ""
 	}
 	if rclient == nil {
+		agent.log.Error("client is nil")
 		return ""
 	}
 	err = rclient.Get(context.TODO(), types.NamespacedName{
 		Name: "cluster"}, infraStructureInfo)
 	if err != nil {
+		agent.log.Error(err.Error())
 		return ""
 	}
 	if infraStructureInfo.Status.Platform == configv1.OpenStackPlatformType {
@@ -741,12 +745,12 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	external bool, key string, sp v1.ServicePort) bool {
 	agent := seps.agent
 	hasValidMapping := false
-	var endpointSlices []*v1beta1.EndpointSlice
+	var endpointSlices []*discovery.EndpointSlice
 	label := map[string]string{"kubernetes.io/service-name": as.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(agent.endpointSliceInformer.GetIndexer(), as.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
-			endpointSlices = append(endpointSlices, endpointSliceobj.(*v1beta1.EndpointSlice))
+			endpointSlices = append(endpointSlices, endpointSliceobj.(*discovery.EndpointSlice))
 		})
 
 	type void struct{}
@@ -809,8 +813,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				var nodeZone string
 				for _, e := range endpointSlice.Endpoints {
 					for _, a := range e.Addresses {
-						nodeName, ok := e.Topology["kubernetes.io/hostname"]
-						if !external || (ok && nodeName == agent.config.NodeName) {
+						if !external || (e.NodeName != nil && *e.NodeName == agent.config.NodeName) {
 							obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
 							if err != nil {
 								agent.log.Error("Could not lookup node: ", err)

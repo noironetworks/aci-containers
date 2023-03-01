@@ -30,6 +30,7 @@ type OpflexGroup struct {
 }
 
 type delayService struct {
+	Delay     int    `json:"delay,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 }
@@ -223,6 +224,9 @@ type ControllerConfig struct {
 
 	ExternDynamic string `json:"extern-dynamic,omitempty"`
 
+	// Default is false
+	HppOptimization bool `json:"hpp-optimization,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 
@@ -240,6 +244,9 @@ type ControllerConfig struct {
 
 	// Timeout to delete old opflex devices
 	OpflexDeviceDeleteTimeout float64 `json:"opflex-device-delete-timeout,omitempty"`
+
+	// Configure sleep time for global SNAT sync
+	SleepTimeSnatGlobalInfoSync int `json:"sleep-time-snat-global-info-sync,omitempty"`
 }
 
 type netIps struct {

@@ -24,8 +24,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/coreos/etcd/embed"
 	"github.com/sirupsen/logrus"
+	"go.etcd.io/etcd/server/v3/embed"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/stateinit"
@@ -175,7 +175,6 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 	cfg.Dir = c.EtcdDir
 	cfg.LCUrls = urlMaker(c.EtcdPort)
 	cfg.LPUrls = urlMaker(c.EtcdPort + 1)
-	cfg.EnableV2 = true
 
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {

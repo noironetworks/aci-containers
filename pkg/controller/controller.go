@@ -30,7 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -167,14 +167,23 @@ type AciController struct {
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
 	nmPortNp map[string]bool
+	//maps network policy hash to hpp
+	hppRef map[string]hppReference
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
 }
 
+type hppReference struct {
+	RefCount uint              `json:"ref-count,omitempty"`
+	Npkeys   []string          `json:"npkeys,omitempty"`
+	HppObj   apicapi.ApicSlice `json:"hpp-obj,omitempty"`
+}
+
 type DelayedEpSlice struct {
-	OldEpSlice  *v1beta1.EndpointSlice
-	NewEpSlice  *v1beta1.EndpointSlice
+	ServiceKey  string
+	OldEpSlice  *discovery.EndpointSlice
+	NewEpSlice  *discovery.EndpointSlice
 	DelayedTime time.Time
 }
 
@@ -215,7 +224,7 @@ type portRangeSnat struct {
 	end   int
 }
 
-//EndPointData holds PodIF data in controller.
+// EndPointData holds PodIF data in controller.
 type EndPointData struct {
 	MacAddr    string
 	EPG        string
@@ -343,6 +352,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
 		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
 		nmPortNp:             make(map[string]bool),
+		hppRef:               make(map[string]hppReference),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -513,6 +523,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.OpflexDeviceDeleteTimeout = 1800
 	}
 
+	// If SleepTimeSnatGlobalInfoSync is not defined, default to 60
+	if cont.config.SleepTimeSnatGlobalInfoSync == 0 {
+		cont.config.SleepTimeSnatGlobalInfoSync = 60
+	}
+
 	// If not defined, default to 32
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
@@ -534,6 +549,17 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.SnatDefaultPortRangeStart > cont.config.SnatDefaultPortRangeEnd {
 		cont.config.SnatDefaultPortRangeStart = defStart
 		cont.config.SnatDefaultPortRangeEnd = defEnd
+	}
+
+	// Set default value for pbr programming delay if services list is not empty
+	// and delay value is empty
+	if cont.config.ServiceGraphEndpointAddDelay.Delay == 0 &&
+		cont.config.ServiceGraphEndpointAddDelay.Services != nil &&
+		len(cont.config.ServiceGraphEndpointAddDelay.Services) > 0 {
+		cont.config.ServiceGraphEndpointAddDelay.Delay = 90
+	}
+	if cont.config.ServiceGraphEndpointAddDelay.Delay > 0 {
+		cont.log.Info("ServiceGraphEndpointAddDelay set to: ", cont.config.ServiceGraphEndpointAddDelay.Delay)
 	}
 
 	// Set contract scope for snat svc graph to global by default
@@ -734,8 +760,8 @@ func (cont *AciController) syncDelayedEpSlices(stopCh <-chan struct{}, seconds t
 	}
 }
 
-func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds time.Duration) {
-	time.Sleep(seconds * time.Second)
+func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds int) {
+	time.Sleep(time.Duration(seconds) * time.Second)
 	cont.log.Debug("Go routine to periodically sync globalinfo and nodeinfo started")
 	iteration := 0
 	for {
@@ -809,7 +835,7 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds ti
 				}
 			}
 		}
-		time.Sleep(seconds * time.Second)
+		time.Sleep(time.Duration(seconds) * time.Second)
 		iteration = iteration + 1
 	}
 }

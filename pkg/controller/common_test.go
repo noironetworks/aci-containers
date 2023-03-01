@@ -27,7 +27,7 @@ import (
 	"github.com/yl2chen/cidranger"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 )
 
 type testAciController struct {
@@ -387,14 +387,14 @@ func endpoints(namespace string, name string,
 }
 
 // endpointslice.
-func endpointslice(namespace string, name string, endpoints []v1beta1.Endpoint,
-	servicename string) *v1beta1.EndpointSlice {
-	return &v1beta1.EndpointSlice{
-		AddressType: v1beta1.AddressTypeIPv4,
+func endpointslice(namespace string, name string, endpoints []discovery.Endpoint,
+	servicename string) *discovery.EndpointSlice {
+	return &discovery.EndpointSlice{
+		AddressType: discovery.AddressTypeIPv4,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
-			Labels:      map[string]string{v1beta1.LabelServiceName: servicename},
+			Labels:      map[string]string{discovery.LabelServiceName: servicename},
 			Annotations: map[string]string{},
 		},
 		Endpoints: endpoints,

@@ -22,7 +22,7 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discovery "k8s.io/api/discovery/v1"
 	"net"
 	"sort"
 	"testing"
@@ -728,23 +728,23 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 	service1.Spec.Type = ""
 	service2 := service("ns1", "service2", "")
 	service2.Spec.Type = ""
-	endpoints := []v1beta1.Endpoint{
+	endpoints := []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.1",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
 	}
 	eps1 := endpointslice("ns1", "name1", endpoints, "service1")
-	endpoints = []v1beta1.Endpoint{
+	endpoints = []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.2",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
@@ -767,12 +767,12 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
 			return (c1 && c2)
 		})
-	endpoints = []v1beta1.Endpoint{
+	endpoints = []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.3",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
@@ -790,12 +790,12 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 		})
 
 	cont.log.Info("adding new")
-	endpoints = []v1beta1.Endpoint{
+	endpoints = []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.1",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
@@ -803,7 +803,7 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 			Addresses: []string{
 				"1.1.1.3",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
@@ -818,12 +818,12 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 		})
 
 	cont.log.Info("ipv6")
-	endpoints = []v1beta1.Endpoint{
+	endpoints = []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"2001::1",
 			},
-			Conditions: v1beta1.EndpointConditions{
+			Conditions: discovery.EndpointConditions{
 				Ready: &ready,
 			},
 		},
@@ -842,6 +842,7 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 // Service annotation test with EndPointSlice
 func TestServiceAnnotationWithEps(t *testing.T) {
 	cont := sgCont()
+	ready := true
 	name := "kube_svc_testns_service1"
 	nameS2 := "kube_svc_testns_service2"
 	graphName := "kube_svc_global"
@@ -913,22 +914,26 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	}
 	s1Dcc := apicDevCtx(name, "common", graphName,
 		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
-	endpoints := []v1beta1.Endpoint{
+	node_1 := "node1"
+	node_2 := "node2"
+	endpoints := []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.1",
 			},
-			Topology: map[string]string{
-				"kubernetes.io/hostname": "node1",
+			Conditions: discovery.EndpointConditions{
+				Ready: &ready,
 			},
+			NodeName: &node_1,
 		},
 		{
 			Addresses: []string{
 				"1.1.1.2",
 			},
-			Topology: map[string]string{
-				"kubernetes.io/hostname": "node2",
+			Conditions: discovery.EndpointConditions{
+				Ready: &ready,
 			},
+			NodeName: &node_2,
 		},
 	}
 	endpoints1 := endpointslice("testns", "name", endpoints, "service1")
@@ -1032,9 +1037,10 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	cont.stop()
 }
 
-//Service graph test with EndPoint slices
+// Service graph test with EndPoint slices
 func TestServiceGraphiWithEps(t *testing.T) {
 	cont := sgCont()
+	ready := true
 	graphName := "kube_svc_global"
 	cluster := func(nmap map[string]string) apicapi.ApicObject {
 		var nodes []string
@@ -1117,33 +1123,38 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	s1Dcc := apicDevCtx(name, "common", graphName,
 		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
 
-	endpoints := []v1beta1.Endpoint{
+	node_1 := "node1"
+	node_2 := "node2"
+	endpoints := []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.1",
 			},
-			Topology: map[string]string{
-				"kubernetes.io/hostname": "node1",
+			Conditions: discovery.EndpointConditions{
+				Ready: &ready,
 			},
+			NodeName: &node_1,
 		},
 		{
 			Addresses: []string{
 				"1.1.1.2",
 			},
-			Topology: map[string]string{
-				"kubernetes.io/hostname": "node2",
+			Conditions: discovery.EndpointConditions{
+				Ready: &ready,
 			},
+			NodeName: &node_2,
 		},
 	}
 	endpointsobj1 := endpointslice("testns", "name", endpoints, "service1")
-	endpoints = []v1beta1.Endpoint{
+	endpoints = []discovery.Endpoint{
 		{
 			Addresses: []string{
 				"1.1.1.2",
 			},
-			Topology: map[string]string{
-				"kubernetes.io/hostname": "node2",
+			Conditions: discovery.EndpointConditions{
+				Ready: &ready,
 			},
+			NodeName: &node_2,
 		},
 	}
 	endpointsobj2 := endpointslice("testns", "name1", endpoints, "service1")
