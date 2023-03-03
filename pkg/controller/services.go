@@ -517,6 +517,32 @@ func validScope(scope string) bool {
 	return stringInSlice(scope, validValues)
 }
 
+func (cont *AciController) getGraphNameFromContract(name, tenantName string) (string, error) {
+	var graphName string
+	args := []string{
+		"query-target=subtree",
+	}
+	url := fmt.Sprintf("/api/node/mo/uni/tn-%s/brc-%s.json?%s", tenantName, name, strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response, err: ", err.Error())
+		return graphName, err
+	}
+	for _, obj := range apicresp.Imdata {
+		for class, body := range obj {
+			if class == "vzRsSubjGraphAtt" {
+				tnVnsAbsGraphName, ok := body.Attributes["tnVnsAbsGraphName"].(string)
+				if ok {
+					graphName = tnVnsAbsGraphName
+				}
+				break
+			}
+		}
+	}
+	cont.log.Debug("graphName: ", graphName)
+	return graphName, err
+}
+
 func apicContract(conName string, tenantName string,
 	graphName string, scopeName string, isSnatPbrFltrChain bool) apicapi.ApicObject {
 	con := apicapi.NewVzBrCP(tenantName, conName)
@@ -544,11 +570,11 @@ func apicContract(conName string, tenantName string,
 }
 
 func apicDevCtx(name string, tenantName string,
-	graphName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
+	graphName string, deviceName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
 
 	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
 	ccDn := cc.GetDn()
-	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, graphName)
+	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, deviceName)
 	lifDn := fmt.Sprintf("%s/lIf-%s", graphDn, "interface")
 	bdDn := fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, bdName)
 	cc.AddChild(apicapi.NewVnsRsLDevCtxToLDev(ccDn, graphDn))
@@ -684,6 +710,16 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	}
 
 	graphName := cont.aciNameForKey("svc", "global")
+	deviceName := cont.aciNameForKey("svc", "global")
+	_, present := service.ObjectMeta.Annotations[metadata.ServiceGraphNameAnnotation]
+	if present {
+		customSG, err := cont.getGraphNameFromContract(name, cont.config.AciVrfTenant)
+		if err == nil {
+			graphName = customSG
+		}
+	}
+	cont.log.Debug("Using service graph ", graphName, " for service ", key)
+
 	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
 
@@ -733,7 +769,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
-			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+			apicDevCtx(name, cont.config.AciVrfTenant, graphName, deviceName,
 				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, false))
 	}
 
@@ -846,7 +882,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
-			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+			apicDevCtx(name, cont.config.AciVrfTenant, graphName, graphName,
 				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, cont.apicConn.SnatPbrFltrChain))
 	}
 	cont.apicConn.WriteApicObjects(name, serviceObjs)

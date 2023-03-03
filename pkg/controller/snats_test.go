@@ -119,7 +119,7 @@ func TestSnatGraph(t *testing.T) {
 	contract := apicContract(name, "common", graphName, "global", true)
 	filterIn := apicFilterSnat(name+"_fromCons-toProv", "common", portRanges, false)
 	filterOut := apicFilterSnat(name+"_fromProv-toCons", "common", portRanges, true)
-	cc := apicDevCtx(name, "common", graphName,
+	cc := apicDevCtx(name, "common", graphName, graphName,
 		"kube_bd_kubernetes-service", strings.TrimSuffix(twoNodeRedirectCons.GetDn(), "_Cons"), true)
 
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
