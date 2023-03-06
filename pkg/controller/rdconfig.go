@@ -174,7 +174,7 @@ func (cont *AciController) syncRdConfig() bool {
 		discoveredSubnets = append(discoveredSubnets, v)
 	}
 	userSubnets = append(userSubnets, cont.config.ExternStatic)
-	userSubnets = append(userSubnets, cont.config.ExternDynamic)
+	userSubnets = append(userSubnets, cont.config.ExternDynamic...)
 	cont.indexMutex.Unlock()
 	env := cont.env.(*K8sEnvironment)
 	rdConfigClient := env.rdConfigClient

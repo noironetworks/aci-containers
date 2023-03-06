@@ -222,7 +222,7 @@ type ControllerConfig struct {
 
 	ExternStatic string `json:"extern-static,omitempty"`
 
-	ExternDynamic string `json:"extern-dynamic,omitempty"`
+	ExternDynamic []string `json:"extern-dynamic,omitempty"`
 
 	// Default is false
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
