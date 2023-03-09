@@ -247,6 +247,9 @@ type ControllerConfig struct {
 
 	// Configure sleep time for global SNAT sync
 	SleepTimeSnatGlobalInfoSync int `json:"sleep-time-snat-global-info-sync,omitempty"`
+
+	// PhysDom for additional networks in chained mode
+	AciAdditionalPhysDom string `json:"aci-additional-phys-dom,omitempty"`
 }
 
 type netIps struct {

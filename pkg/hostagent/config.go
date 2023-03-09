@@ -111,6 +111,9 @@ type HostAgentConfig struct {
 	// Name of the CNI network
 	CniNetwork string `json:"cni-network,omitempty"`
 
+	// Directory for writing CNI network metadata
+	CniNetworksDir string `json:"cni-networks-dir,omitempty"`
+
 	// Directory for writing Opflex configuration
 	OpFlexConfigPath string `json:"opflex-config-path,omitempty"`
 
@@ -242,6 +245,12 @@ type HostAgentConfig struct {
 
 	// DpuOvsDBSocket when OpflexMode is dpu selects ovsdb sock on dpu
 	DpuOvsDBSocket string `json:"dpu-ovsdb-socket,omitempty"`
+
+	// chained mode enabled
+	ChainedMode bool `json:"chained-mode,omitempty"`
+
+	// Primary cni path
+	PrimaryCniPath string `json:"primary-cni-path,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -314,4 +323,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.EPRegistry, "ep-registry", "", "Enable PodIF")
 	flag.BoolVar(&config.OvsHardwareOffload, "enable-sriov-config", false, "SRIOV config and ovs hardware offload feature")
 	flag.StringVar(&config.DpuOvsDBSocket, "dpu-ovsdb-socket", "tcp:192.168.200.2:6640", "TCP socket on DPU to connect to")
+	flag.BoolVar(&config.ChainedMode, "chained_mode", false, "Chained Mode")
+	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")
+
 }

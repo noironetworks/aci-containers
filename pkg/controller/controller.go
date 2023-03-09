@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -62,16 +63,17 @@ type AciController struct {
 
 	unitTestMode bool
 
-	podQueue          workqueue.RateLimitingInterface
-	netPolQueue       workqueue.RateLimitingInterface
-	qosQueue          workqueue.RateLimitingInterface
-	serviceQueue      workqueue.RateLimitingInterface
-	snatQueue         workqueue.RateLimitingInterface
-	netflowQueue      workqueue.RateLimitingInterface
-	erspanQueue       workqueue.RateLimitingInterface
-	snatNodeInfoQueue workqueue.RateLimitingInterface
-	rdConfigQueue     workqueue.RateLimitingInterface
-	istioQueue        workqueue.RateLimitingInterface
+	podQueue           workqueue.RateLimitingInterface
+	netPolQueue        workqueue.RateLimitingInterface
+	qosQueue           workqueue.RateLimitingInterface
+	serviceQueue       workqueue.RateLimitingInterface
+	snatQueue          workqueue.RateLimitingInterface
+	netflowQueue       workqueue.RateLimitingInterface
+	erspanQueue        workqueue.RateLimitingInterface
+	snatNodeInfoQueue  workqueue.RateLimitingInterface
+	rdConfigQueue      workqueue.RateLimitingInterface
+	istioQueue         workqueue.RateLimitingInterface
+	nodeFabNetAttQueue workqueue.RateLimitingInterface
 
 	namespaceIndexer      cache.Indexer
 	namespaceInformer     cache.Controller
@@ -112,6 +114,8 @@ type AciController struct {
 	updatePod             podUpdateFunc
 	updateNode            nodeUpdateFunc
 	updateServiceStatus   serviceUpdateFunc
+	nodeFabNetAttIndexer  cache.Indexer
+	nodeFabNetAttInformer cache.Controller
 
 	indexMutex sync.Mutex
 
@@ -172,6 +176,9 @@ type AciController struct {
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
+	chainedMode              bool
+	additionalNetworkCache   map[string]*AdditionalNetworkMeta
+	lldpIfCache              map[string]string
 }
 
 type hppReference struct {
@@ -235,6 +242,14 @@ type EndPointData struct {
 type ctrPortNameEntry struct {
 	// Proto+port->pods
 	ctrNmpToPods map[string]map[string]bool
+}
+
+type AdditionalNetworkMeta struct {
+	NetworkName string
+	EncapVlan   string
+	//node+localiface->fabricLinks
+	FabricLink map[string]map[string][]string
+	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
 }
 
 type ServiceEndPointType interface {
@@ -315,16 +330,17 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		defaultSg:    "",
 		unitTestMode: unittestmode,
 
-		podQueue:          createQueue("pod"),
-		netPolQueue:       createQueue("networkPolicy"),
-		qosQueue:          createQueue("qos"),
-		netflowQueue:      createQueue("netflow"),
-		erspanQueue:       createQueue("erspan"),
-		serviceQueue:      createQueue("service"),
-		snatQueue:         createQueue("snat"),
-		snatNodeInfoQueue: createQueue("snatnodeinfo"),
-		rdConfigQueue:     createQueue("rdconfig"),
-		istioQueue:        createQueue("istio"),
+		podQueue:           createQueue("pod"),
+		netPolQueue:        createQueue("networkPolicy"),
+		qosQueue:           createQueue("qos"),
+		netflowQueue:       createQueue("netflow"),
+		erspanQueue:        createQueue("erspan"),
+		serviceQueue:       createQueue("service"),
+		snatQueue:          createQueue("snat"),
+		snatNodeInfoQueue:  createQueue("snatnodeinfo"),
+		rdConfigQueue:      createQueue("rdconfig"),
+		istioQueue:         createQueue("istio"),
+		nodeFabNetAttQueue: createQueue("nodefabricnetworkattachment"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -338,21 +354,23 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
-		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-		serviceMetaCache:     make(map[string]*serviceMeta),
-		snatPolicyCache:      make(map[string]*ContSnatPolicy),
-		snatServices:         make(map[string]bool),
-		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
-		rdConfigCache:        make(map[string]*rdConfig.RdConfig),
-		rdConfigSubnetCache:  make(map[string]*rdConfig.RdConfigSpec),
-		podIftoEp:            make(map[string]*EndPointData),
-		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:           make(map[string]*istiov1.AciIstioOperator),
-		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
-		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
-		nmPortNp:             make(map[string]bool),
-		hppRef:               make(map[string]hppReference),
+		nodeServiceMetaCache:   make(map[string]*nodeServiceMeta),
+		nodePodNetCache:        make(map[string]*nodePodNetMeta),
+		serviceMetaCache:       make(map[string]*serviceMeta),
+		snatPolicyCache:        make(map[string]*ContSnatPolicy),
+		snatServices:           make(map[string]bool),
+		snatNodeInfoCache:      make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:          make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:    make(map[string]*rdConfig.RdConfigSpec),
+		podIftoEp:              make(map[string]*EndPointData),
+		snatGlobalInfoCache:    make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:             make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:            make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:       make(map[string]*ctrPortNameEntry),
+		nmPortNp:               make(map[string]bool),
+		hppRef:                 make(map[string]hppReference),
+		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
+		lldpIfCache:            make(map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -692,7 +710,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.addVmmInjectedLabel()
 	cont.apicConn.AddSubscriptionDn(vmmDn,
 		[]string{"vmmInjectedHost", "vmmInjectedNs"})
-
 	var tnTargetFilter string
 	if len(cont.config.AciVrfRelatedTenants) > 0 {
 		for _, tn := range cont.config.AciVrfRelatedTenants {

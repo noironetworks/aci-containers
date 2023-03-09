@@ -17,16 +17,16 @@ package hostagent
 import (
 	"errors"
 	"fmt"
-	"net"
-	"os"
-
 	cnicur "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/natefinch/pie"
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"net"
+	"os"
 
 	"github.com/Mellanox/sriovnet"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -503,6 +503,81 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		"container": metadata.Id.ContId,
 	})
 
+	if metadata.Network.ChainedMode {
+		networkName := metadata.Network.NetworkName
+		isPrimaryNetwork := false
+		result := &cnicur.Result{}
+		podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
+		agent.indexMutex.Lock()
+		if _, ok := agent.epMetadata[podid]; !ok {
+			agent.epMetadata[podid] = make(map[string]*md.ContainerMetadata)
+			agent.epMetadata[podid][metadata.Id.ContId] = metadata
+			isPrimaryNetwork = true
+		} else {
+			if _, ok := agent.podNetworkMetadata[podid]; !ok {
+				agent.podNetworkMetadata[podid] =
+					make(map[string]map[string]*md.ContainerMetadata)
+			}
+
+			netAttDefKey := metadata.Id.Namespace + "/" + metadata.Network.NetworkName
+			networkName = metadata.Id.Namespace + "-" + metadata.Network.NetworkName
+
+			if netAttDef, ok := agent.netattdefmap[netAttDefKey]; ok {
+				podAtt := &fabattv1.PodAttachment{
+					PodRef: fabattv1.ObjRef{Namespace: metadata.Id.Namespace,
+						Name: metadata.Id.Pod},
+				}
+				if netAttDef.PrimaryCNI == "sriov" {
+					err := agent.getAlloccatedDeviceId(metadata, "chained")
+					if err != nil {
+						logger.Error("VF allocation failed ", err)
+					}
+					if len(metadata.Id.DeviceId) == 0 {
+						logger.Error("VF allocation failed: Sriov resource not allocated")
+					} else {
+						logger.Debug("Sriov resource allocated: ", metadata.Id.DeviceId)
+						logger.Debugf("Num of Sriov resource allocated: %d :", len(metadata.Id.DeviceId))
+					}
+					metadata.Network.PFName = agent.getPFFromVFPCI(metadata.Id.DeviceId)
+					metadata.Network.VFName = agent.getNetDevFromVFPCI(metadata.Id.DeviceId, metadata.Network.PFName)
+					logger.Infof("Associated PF: %s, VF: %s", metadata.Network.PFName, metadata.Network.VFName)
+				} else {
+					metadata.Network.VFName = metadata.Ifaces[len(metadata.Ifaces)-1].Name
+					metadata.Network.PFName = netAttDef.ResourceName
+				}
+				podAtt.LocalIface = metadata.Network.VFName
+				if _, ok := agent.podNetworkMetadata[podid][metadata.Network.NetworkName]; !ok {
+					agent.podNetworkMetadata[podid][metadata.Network.NetworkName] =
+						make(map[string]*md.ContainerMetadata)
+				}
+				agent.podNetworkMetadata[podid][metadata.Network.NetworkName][metadata.Id.ContId] =
+					metadata
+
+				err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, metadata.Network.NetworkName, false)
+				if err != nil {
+					errorMsg := fmt.Sprintf("Could not create Pod Fabric Attachment: %v", err)
+					agent.indexMutex.Unlock()
+					return result, errors.New(errorMsg)
+				}
+			} else {
+				errorMsg := fmt.Sprintf("Failed to find network-attachment-definition: %s", netAttDefKey)
+				agent.indexMutex.Unlock()
+				return result, errors.New(errorMsg)
+			}
+
+		}
+		agent.indexMutex.Unlock()
+		if isPrimaryNetwork {
+			agent.env.CniDeviceChanged(&podid, &metadata.Id)
+		}
+		err := md.RecordMetadata(agent.config.CniMetadataDir, networkName, *metadata)
+		if err != nil {
+			logger.Debug("ERROR RecordMetadata")
+			return result, err
+		}
+		return result, nil
+	}
+
 	if agent.config.OvsHardwareOffload {
 		err := agent.getAlloccatedDeviceId(metadata, agent.config.OpflexMode)
 		if err != nil {
@@ -683,16 +758,42 @@ func (agent *HostAgent) cleanStatleMetadata(id string) error {
 	return err
 }
 
-func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
+func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMetadata) error {
 	logger := agent.log.WithFields(logrus.Fields{
-		"ContId":    id.ContId,
-		"Pod":       id.Pod,
-		"Namespace": id.Namespace,
+		"ContId":    metadataArg.Id.ContId,
+		"Pod":       metadataArg.Id.Pod,
+		"Namespace": metadataArg.Id.Namespace,
 	})
 
-	podid := id.Namespace + "/" + id.Pod
+	podid := metadataArg.Id.Namespace + "/" + metadataArg.Id.Pod
+	argNetworkName := metadataArg.Network.NetworkName
 
 	agent.indexMutex.Lock()
+
+	if nwMetaMap, ok := agent.podNetworkMetadata[podid]; ok {
+		if _, ok := nwMetaMap[argNetworkName]; ok {
+			podAtt := &fabattv1.PodAttachment{
+				PodRef: fabattv1.ObjRef{
+					Name:      metadataArg.Id.Pod,
+					Namespace: metadataArg.Id.Namespace,
+				},
+			}
+			if _, ok := agent.podNetworkMetadata[podid]; ok {
+				if _, ok := agent.podNetworkMetadata[podid][argNetworkName]; ok {
+					if _, ok := agent.podNetworkMetadata[podid][argNetworkName]; ok {
+						podAtt.LocalIface = agent.podNetworkMetadata[podid][argNetworkName][metadataArg.Id.ContId].Network.VFName
+					}
+				}
+			}
+
+			err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, argNetworkName, true)
+			logger.Errorf("Deleting fabricpodnetworkattachment failed: %s", err)
+			delete(nwMetaMap, argNetworkName)
+			agent.podNetworkMetadata[podid] = nwMetaMap
+			agent.indexMutex.Unlock()
+			return nil
+		}
+	}
 	mdmap, ok := agent.epMetadata[podid]
 	if !ok {
 		logger.Info("Unconfigure called for pod with no metadata")
@@ -700,26 +801,31 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 		agent.indexMutex.Unlock()
 		return nil
 	}
-	metadata, ok := mdmap[id.ContId]
+	metadata, ok := mdmap[metadataArg.Id.ContId]
 	if !ok {
 		logger.Error("Unconfigure called for container with no metadata")
 		// Assume container is already unconfigured
 		agent.indexMutex.Unlock()
 		return nil
 	}
-	delete(mdmap, id.ContId)
+	delete(mdmap, metadata.Id.ContId)
 	if len(mdmap) == 0 {
 		delete(agent.epMetadata, podid)
 	}
 	agent.indexMutex.Unlock()
 
 	err := md.ClearMetadata(agent.config.CniMetadataDir,
-		agent.config.CniNetwork, id.ContId)
+		metadata.Network.NetworkName, metadataArg.Id.ContId)
 	if err != nil {
 		return err
 	}
 
 	agent.cniEpDelete(podid)
+	if metadataArg.Network.ChainedMode {
+		logger.Debug("Returning from unconfigure")
+		return nil
+	}
+
 	logger.Debug("Deallocating IP address(es)")
 	agent.deallocateMdIps(metadata)
 
@@ -743,7 +849,7 @@ func (agent *HostAgent) unconfigureContainerIfaces(id *md.ContainerId) error {
 		}
 	}
 
-	agent.env.CniDeviceDeleted(&podid, id)
+	agent.env.CniDeviceDeleted(&podid, &metadata.Id)
 
 	logger.Info("Successfully unconfigured container interface")
 	return nil
@@ -782,7 +888,7 @@ func (agent *HostAgent) cleanupSetup() {
 				})
 				logger.Info("Unconfiguring stale container configuration")
 
-				err := agent.unconfigureContainerIfaces(&metadata.Id)
+				err := agent.unconfigureContainerIfaces(metadata)
 				if err != nil {
 					logger.Error("Could not unconfigure container: ", err)
 				}

@@ -160,6 +160,7 @@ var metadata = map[string]*apicMeta{
 		children: []string{
 			"fvBD",
 			"fvCtx",
+			"fvAp",
 		},
 	},
 	"cloudAwsProvider": {
@@ -268,6 +269,9 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"fvAEPg": {
+		hints: map[string]interface{}{
+			"noTagAnnotation": true,
+		},
 		attributes: map[string]interface{}{
 			"name":      "",
 			"nameAlias": "",
@@ -297,12 +301,6 @@ var metadata = map[string]*apicMeta{
 	},
 	"fvRsBd": {
 		attributes: map[string]interface{}{
-			"name":       "",
-			"nameAlias":  "",
-			"tCl":        "fvBD",
-			"tDn":        "",
-			"tRn":        "",
-			"tType":      "name",
 			"tnFvBDName": "",
 		},
 		children: []string{
@@ -312,6 +310,9 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"fvBD": {
+		hints: map[string]interface{}{
+			"noTagAnnotation": true,
+		},
 		attributes: map[string]interface{}{
 			"arpFlood":       "no",
 			"ipLearning":     "yes",
@@ -341,6 +342,17 @@ var metadata = map[string]*apicMeta{
 			"ip":        "",
 			"virtual":   "no",
 			"preferred": "no",
+		},
+	},
+	"fvRsDomAtt": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+	},
+	"fvRsPathAtt": {
+		attributes: map[string]interface{}{
+			"tDn":   "",
+			"encap": "",
 		},
 	},
 	"tagInst": {

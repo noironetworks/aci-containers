@@ -44,9 +44,17 @@ type ContainerId struct {
 	DeviceId  string
 }
 
+type ContainerNetworkMetadata struct {
+	NetworkName string `json:"network-name,omitempty"`
+	ChainedMode bool   `json:"chained-mode"`
+	VFName      string `json:"vfName,omitempty"`
+	PFName      string `json:"pfName,omitempty"`
+}
+
 type ContainerMetadata struct {
-	Id     ContainerId         `json:"id,omitempty"`
-	Ifaces []*ContainerIfaceMd `json:"interfaces,omitempty"`
+	Id      ContainerId              `json:"id,omitempty"`
+	Ifaces  []*ContainerIfaceMd      `json:"interfaces,omitempty"`
+	Network ContainerNetworkMetadata `json:"network,omitempty"`
 }
 
 func RecordMetadata(datadir string, network string, data ContainerMetadata) error {

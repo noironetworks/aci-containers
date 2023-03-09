@@ -57,6 +57,7 @@ type K8SArgs struct {
 
 type NetConf struct {
 	types.NetConf
+	ChainingMode           bool   `json:"chaining-mode"`
 	LogLevel               string `json:"log-level,omitempty"`
 	LogFile                string `json:"log-file,omitempty"`
 	WaitForNetwork         bool   `json:"wait-for-network"`
@@ -194,27 +195,44 @@ func cmdAdd(args *skel.CmdArgs) error {
 	})
 
 	// run the IPAM plugin and get back the config to apply
-	var result *current.Result
-	if n.IPAM.Type != "opflex-agent-cni-ipam" {
-		logger.Debug("Executing IPAM add")
-		r, err := ipam.ExecAdd(n.IPAM.Type, args.StdinData)
-		if err != nil {
+	var result, result2 *current.Result
+	if n.ChainingMode {
+		if n.NetConf.RawPrevResult == nil {
+			logger.Debug("prevResult missing")
+			return fmt.Errorf("Required prevResult missing")
+		}
+		if err := version.ParsePrevResult(&n.NetConf); err != nil {
+			logger.Debug("parse prevResult failed")
 			return err
 		}
-		result, err = current.NewResultFromResult(r)
+		result2, err = current.NewResultFromResult(n.PrevResult)
 		if err != nil {
+			logger.Debug("parse prevResult failed")
 			return err
-		}
-		if len(result.IPs) == 0 {
-			return errors.New("IPAM plugin returned missing IP config")
-		}
-		zero := 0
-		for _, ip := range result.IPs {
-			ip.Interface = &zero
 		}
 	} else {
-		result = &current.Result{}
-		result.DNS = n.DNS
+		if n.IPAM.Type != "opflex-agent-cni-ipam" {
+			logger.Debug("Executing IPAM add")
+			r, err := ipam.ExecAdd(n.IPAM.Type, args.StdinData)
+			if err != nil {
+				return err
+			}
+			result, err = current.NewResultFromResult(r)
+			if err != nil {
+				return err
+			}
+			if len(result.IPs) == 0 {
+				return errors.New("IPAM plugin returned missing IP config")
+			}
+			zero := 0
+			for _, ip := range result.IPs {
+				ip.Interface = &zero
+			}
+
+		} else {
+			result = &current.Result{}
+			result.DNS = n.DNS
+		}
 	}
 
 	metadata := cnimd.ContainerMetadata{
@@ -228,6 +246,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 				Name:    args.IfName,
 				Sandbox: args.Netns,
 			},
+		},
+		Network: cnimd.ContainerNetworkMetadata{
+			NetworkName: n.NetConf.Name,
+			ChainedMode: n.ChainingMode,
 		},
 	}
 
@@ -244,18 +266,24 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if n.WaitForNetwork {
-		logger.Debug("Waiting for network connectivity")
-		err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
-		if err != nil {
-			logger.Error("Failed to setup network connectivity, error: ", err)
-			logger.Debug("Unregistering with host agent")
-			_, unreg_err := eprpc.Unregister(&metadata.Id)
-			if unreg_err != nil {
-				logger.Error("Failed to Unregisterd, error: ", unreg_err)
+	// TBD: We can just allow the check to happen here
+	if !n.ChainingMode {
+		if n.WaitForNetwork {
+			logger.Debug("Waiting for network connectivity")
+			err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+			if err != nil {
+				logger.Error("Failed to setup network connectivity, error: ", err)
+				logger.Debug("Unregistering with host agent")
+				_, unreg_err := eprpc.Unregister(&metadata)
+				if unreg_err != nil {
+					logger.Error("Failed to Unregisterd, error: ", unreg_err)
+				}
+				return err
 			}
-			return err
 		}
+	} else {
+		logger.Debug("ADD result: ", result2)
+		return types.PrintResult(result2, n.CNIVersion)
 	}
 
 	logger.Debug("ADD result: ", result)
@@ -272,17 +300,25 @@ func cmdDel(args *skel.CmdArgs) error {
 		"id": id,
 	})
 
-	if n.IPAM.Type != "opflex-agent-cni-ipam" {
-		logger.Debug("Executing IPAM delete")
-		if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
-			return err
+	if !n.ChainingMode {
+		if n.IPAM.Type != "opflex-agent-cni-ipam" {
+			logger.Debug("Executing IPAM delete")
+			if err := ipam.ExecDel(n.IPAM.Type, args.StdinData); err != nil {
+				return err
+			}
 		}
 	}
 
-	cid := &cnimd.ContainerId{
-		ContId:    id,
-		Pod:       string(k8sArgs.K8S_POD_NAME),
-		Namespace: string(k8sArgs.K8S_POD_NAMESPACE),
+	metadata := cnimd.ContainerMetadata{
+		Id: cnimd.ContainerId{
+			ContId:    id,
+			Namespace: string(k8sArgs.K8S_POD_NAMESPACE),
+			Pod:       string(k8sArgs.K8S_POD_NAME),
+		},
+		Network: cnimd.ContainerNetworkMetadata{
+			NetworkName: n.NetConf.Name,
+			ChainedMode: n.ChainingMode,
+		},
 	}
 
 	logger.Debug("Unregistering with host agent")
@@ -293,12 +329,29 @@ func cmdDel(args *skel.CmdArgs) error {
 	}
 	defer eprpc.Close()
 
-	_, err = eprpc.Unregister(cid)
+	_, err = eprpc.Unregister(&metadata)
 	if err != nil {
+		logger.Error("unregister failed")
 		return err
 	}
-
-	return nil
+	if !n.ChainingMode {
+		return types.PrintResult(&current.Result{}, n.CNIVersion)
+	} else {
+		if n.NetConf.RawPrevResult == nil {
+			logger.Debug("prevResult missing")
+			return types.PrintResult(&current.Result{}, n.CNIVersion)
+		}
+		if err := version.ParsePrevResult(&n.NetConf); err != nil {
+			logger.Debug("parse prevResult failed")
+			return err
+		}
+		result2, err := current.NewResultFromResult(n.PrevResult)
+		if err != nil {
+			logger.Debug("parse prevResult failed")
+			return err
+		}
+		return types.PrintResult(result2, n.CNIVersion)
+	}
 }
 
 func cmdCheck(args *skel.CmdArgs) error {
@@ -311,12 +364,14 @@ func cmdCheck(args *skel.CmdArgs) error {
 		"id": id,
 	})
 
-	// run the IPAM plugin and get back the config to apply
-	if n.IPAM.Type != "opflex-agent-cni-ipam" {
-		logger.Debug("Executing IPAM check")
-		err := ipam.ExecCheck(n.IPAM.Type, args.StdinData)
-		if err != nil {
-			return err
+	if !n.ChainingMode {
+		// run the IPAM plugin and get back the config to apply
+		if n.IPAM.Type != "opflex-agent-cni-ipam" {
+			logger.Debug("Executing IPAM check")
+			err := ipam.ExecCheck(n.IPAM.Type, args.StdinData)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	if n.NetConf.RawPrevResult == nil {
@@ -329,11 +384,13 @@ func cmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	if n.WaitForNetwork {
-		logger.Debug("Waiting for network connectivity")
-		err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
-		if err != nil {
-			return err
+	if !n.ChainingMode {
+		if n.WaitForNetwork {
+			logger.Debug("Waiting for network connectivity")
+			err := waitForAllNetwork(result, id, time.Duration(n.WaitForNetworkDuration)*time.Second)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	logger.Debug("Check result: ", result)
