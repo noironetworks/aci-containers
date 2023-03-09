@@ -696,7 +696,13 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 				if external {
 					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
 						len(as.Status.LoadBalancer.Ingress) > 0 {
-						sm.ServiceIp = as.Status.LoadBalancer.Ingress[0].IP
+						for _, ip := range as.Status.LoadBalancer.Ingress {
+							LBIp := net.ParseIP(ip.IP)
+							if (LBIp.To4() != nil) == (parsedPodIp.To4() != nil) {
+								sm.ServiceIp = ip.IP
+								break
+							}
+						}
 					}
 				} else {
 					sm.ServiceIp = clusterIP
@@ -804,7 +810,13 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				if external {
 					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
 						len(as.Status.LoadBalancer.Ingress) > 0 {
-						sm.ServiceIp = as.Status.LoadBalancer.Ingress[0].IP
+						for _, ip := range as.Status.LoadBalancer.Ingress {
+							LBIp := net.ParseIP(ip.IP)
+							if (LBIp.To4() != nil) == (parsedPodIp.To4() != nil) {
+								sm.ServiceIp = ip.IP
+								break
+							}
+						}
 					}
 				} else {
 					sm.ServiceIp = clusterIP
@@ -861,7 +873,6 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					hasValidMapping = true
 				}
 				sm.SessionAffinity = getSessionAffinity(as)
-
 				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 			}
 		}
