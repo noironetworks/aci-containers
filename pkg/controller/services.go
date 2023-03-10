@@ -205,7 +205,7 @@ func (cont *AciController) returnServiceIps(ips []net.IP) {
 	for _, ip := range ips {
 		if ip.To4() != nil {
 			cont.serviceIps.DeallocateIp(ip)
-		} else if ip.To16() != nil {
+               } else if ip.To4() == nil {
 			cont.serviceIps.DeallocateIp(ip)
 		}
 	}
@@ -215,7 +215,7 @@ func returnIps(pool *netIps, ips []net.IP) {
 	for _, ip := range ips {
 		if ip.To4() != nil {
 			pool.V4.AddIp(ip)
-		} else if ip.To16() != nil {
+               } else if ip.To4() == nil {
 			pool.V6.AddIp(ip)
 		}
 	}
@@ -1236,7 +1236,6 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 func (cont *AciController) allocateServiceIps(servicekey string,
 	service *v1.Service) bool {
 	logger := serviceLogger(cont.log, service)
-
 	cont.indexMutex.Lock()
 	meta, ok := cont.serviceMetaCache[servicekey]
 	if !ok {
@@ -1245,6 +1244,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 
 		// Read any existing IPs and attempt to allocate them to the pod
 		for _, ingress := range service.Status.LoadBalancer.Ingress {
+
 			ip := net.ParseIP(ingress.IP)
 			if ip == nil {
 				continue
@@ -1272,6 +1272,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 
 	// try to give the requested load balancer IP to the pod
 	requestedIp := net.ParseIP(service.Spec.LoadBalancerIP)
+
 	if requestedIp != nil {
 		hasRequestedIp := false
 		for _, ip := range meta.ingressIps {
@@ -1299,26 +1300,58 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
 		meta.staticIngressIps = nil
 	}
+       ingressIps := make([]net.IP, 0)
 
-	if len(meta.ingressIps) == 0 && len(meta.staticIngressIps) == 0 {
-		meta.ingressIps = []net.IP{}
+       ingressIps = append(ingressIps, meta.ingressIps...)
+       ingressIps = append(ingressIps, meta.staticIngressIps...)
 
-		ipv4, _ := cont.serviceIps.AllocateIp(true)
+       var ipv4, ipv6 net.IP
+       for _, ip := range ingressIps {
+               if ip.To4() != nil {
+                       ipv4 = ip
+               } else if ip.To4() == nil {
+                       ipv6 = ip
+               }
+       }
+       var clusterIPv4, clusterIPv6 net.IP
+       clusterIPs := append([]string{service.Spec.ClusterIP}, service.Spec.ClusterIPs...)
+       for _, ipStr := range clusterIPs {
+               ip := net.ParseIP(ipStr)
+               if ip == nil {
+                       continue
+               }
+               if ip.To4() != nil && clusterIPv4 == nil {
+                       clusterIPv4 = ip
+               } else if ip.To4() == nil && clusterIPv6 == nil {
+                       clusterIPv6 = ip
+               }
+       }
+       if clusterIPv4 != nil && ipv4 == nil {
+               ipv4, _ = cont.serviceIps.AllocateIp(true)
 		if ipv4 != nil {
-			meta.ingressIps = append(meta.ingressIps, ipv4)
+                       ingressIps = append(ingressIps, ipv4)
 		}
-		ipv6, _ := cont.serviceIps.AllocateIp(false)
-		if ipv6 != nil {
-			meta.ingressIps = append(meta.ingressIps, ipv6)
-		}
-		if ipv4 == nil && ipv6 == nil {
-			logger.Error("No IP addresses available for service")
-			cont.indexMutex.Unlock()
-			return true
-		}
-	}
-	cont.indexMutex.Unlock()
+       } else if clusterIPv4 == nil && ipv4 != nil {
+               cont.removeIpFromIngressIPList(&ingressIps, ipv4)
+       }
 
+       if clusterIPv6 != nil && ipv6 == nil {
+               ipv6, _ = cont.serviceIps.AllocateIp(false)
+		if ipv6 != nil {
+                       ingressIps = append(ingressIps, ipv6)
+		}
+       } else if clusterIPv6 == nil && ipv6 != nil {
+               cont.removeIpFromIngressIPList(&ingressIps, ipv6)
+	}
+
+       meta.ingressIps = ingressIps
+
+       if ipv4 == nil && ipv6 == nil {
+               logger.Error("No IP addresses available for service")
+               cont.indexMutex.Unlock()
+               return true
+       }
+       cont.indexMutex.Unlock()
 	var newIngress []v1.LoadBalancerIngress
 	for _, ip := range meta.ingressIps {
 		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
@@ -2076,4 +2109,19 @@ func getProtocolStr(proto v1.Protocol) string {
 		protostring = "tcp"
 	}
 	return protostring
+}
+
+func (cont *AciController) removeIpFromIngressIPList(ingressIps *[]net.IP, ip net.IP) {
+       cont.returnServiceIps([]net.IP{ip})
+       index := -1
+       for i, v := range *ingressIps {
+               if v.Equal(ip) {
+                       index = i
+                       break
+               }
+       }
+       if index == -1 {
+               return
+       }
+       *ingressIps = append((*ingressIps)[:index], (*ingressIps)[index+1:]...)
 }
