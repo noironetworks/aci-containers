@@ -339,6 +339,22 @@ func service(namespace string, name string, lbIP string) *v1.Service {
 	return &v1.Service{
 		Spec: v1.ServiceSpec{
 			Type:           v1.ServiceTypeLoadBalancer,
+			ClusterIP:      "10.0.0.1",
+			LoadBalancerIP: lbIP,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+		},
+	}
+}
+
+func v6service(namespace string, name string, lbIP string) *v1.Service {
+	return &v1.Service{
+		Spec: v1.ServiceSpec{
+			Type:           v1.ServiceTypeLoadBalancer,
+			ClusterIP:      "2001::f",
 			LoadBalancerIP: lbIP,
 		},
 		ObjectMeta: metav1.ObjectMeta{

@@ -1356,9 +1356,6 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	for _, ip := range meta.ingressIps {
 		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
 	}
-	for _, ip := range meta.staticIngressIps {
-		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
-	}
 
 	if !reflect.DeepEqual(newIngress, service.Status.LoadBalancer.Ingress) {
 		service.Status.LoadBalancer.Ingress = newIngress
