@@ -544,7 +544,8 @@ func (cont *AciController) getGraphNameFromContract(name, tenantName string) (st
 }
 
 func apicContract(conName string, tenantName string,
-	graphName string, scopeName string, isSnatPbrFltrChain bool) apicapi.ApicObject {
+	graphName string, scopeName string, isSnatPbrFltrChain bool,
+	customSGAnnot bool) apicapi.ApicObject {
 	con := apicapi.NewVzBrCP(tenantName, conName)
 	if scopeName != "" && scopeName != "context" {
 		con.SetAttr("scope", scopeName)
@@ -562,7 +563,7 @@ func apicContract(conName string, tenantName string,
 		cs.AddChild(inTerm)
 		cs.AddChild(outTerm)
 	} else {
-		cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
+		cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName, customSGAnnot))
 		cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
 	}
 	con.AddChild(cs)
@@ -711,8 +712,8 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 	graphName := cont.aciNameForKey("svc", "global")
 	deviceName := cont.aciNameForKey("svc", "global")
-	_, present := service.ObjectMeta.Annotations[metadata.ServiceGraphNameAnnotation]
-	if present {
+	_, customSGAnnPresent := service.ObjectMeta.Annotations[metadata.ServiceGraphNameAnnotation]
+	if customSGAnnPresent {
 		customSG, err := cont.getGraphNameFromContract(name, cont.config.AciVrfTenant)
 		if err == nil {
 			graphName = customSG
@@ -748,7 +749,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 					cont.config.AciL3Out, ingresses, sharedSecurity, false))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, false)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, false, customSGAnnPresent)
 		serviceObjs = append(serviceObjs, contract)
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
@@ -856,7 +857,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 					cont.config.AciL3Out, ingresses, sharedSecurity, true))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, cont.apicConn.SnatPbrFltrChain)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, cont.apicConn.SnatPbrFltrChain, false)
 		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {

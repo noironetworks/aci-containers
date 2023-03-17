@@ -116,7 +116,7 @@ func TestSnatGraph(t *testing.T) {
 			end:   65000,
 		},
 	}
-	contract := apicContract(name, "common", graphName, "global", true)
+	contract := apicContract(name, "common", graphName, "global", true, false)
 	filterIn := apicFilterSnat(name+"_fromCons-toProv", "common", portRanges, false)
 	filterOut := apicFilterSnat(name+"_fromProv-toCons", "common", portRanges, true)
 	cc := apicDevCtx(name, "common", graphName, graphName,
