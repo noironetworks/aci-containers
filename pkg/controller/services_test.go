@@ -405,7 +405,7 @@ func TestServiceAnnotation(t *testing.T) {
 	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "global"
 	time.Sleep(2 * time.Second)
 	cont.fakeServiceSource.Modify(service1)
-	contract := apicContract(name, "common", graphName, "global", false)
+	contract := apicContract(name, "common", graphName, "global", false, false)
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
@@ -477,7 +477,7 @@ func TestServiceGraph(t *testing.T) {
 	})
 
 	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false, false)
-	contract := apicContract(name, "common", graphName, conScope, false)
+	contract := apicContract(name, "common", graphName, conScope, false, false)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
 	filter := apicapi.NewVzFilter("common", name)
@@ -1024,7 +1024,7 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "global"
 	time.Sleep(2 * time.Second)
 	cont.fakeServiceSource.Modify(service1)
-	contract := apicContract(name, "common", graphName, "global", false)
+	contract := apicContract(name, "common", graphName, "global", false, false)
 	expected := map[string]apicapi.ApicSlice{
 		graphName: apicapi.PrepareApicSlice(apicapi.ApicSlice{twoNodeCluster,
 			graph}, "kube", graphName),
@@ -1098,7 +1098,7 @@ func TestServiceGraphiWithEps(t *testing.T) {
 	})
 
 	extNet := apicExtNet(name, "common", "l3out", []string{"10.4.2.2"}, false, false)
-	contract := apicContract(name, "common", graphName, conScope, false)
+	contract := apicContract(name, "common", graphName, conScope, false, false)
 	rsCons := apicExtNetCons(name, "common", "l3out", "ext1")
 
 	filter := apicapi.NewVzFilter("common", name)

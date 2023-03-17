@@ -879,9 +879,12 @@ func NewVzRsSubjFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
 	return ret
 }
 
-func NewVzRsSubjGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject {
+func NewVzRsSubjGraphAtt(parentDn string, tnVnsAbsGraphName string, customSG bool) ApicObject {
 	ret := newApicObject("vzRsSubjGraphAtt")
 	ret["vzRsSubjGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
+	if customSG {
+		ret["vzRsSubjGraphAtt"].Attributes["customSG"] = "true"
+	}
 	ret["vzRsSubjGraphAtt"].Attributes["dn"] =
 		fmt.Sprintf("%s/rsSubjGraphAtt", parentDn)
 	return ret
