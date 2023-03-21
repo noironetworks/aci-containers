@@ -44,6 +44,9 @@ type NetIps struct {
 	V6 []ipam.IpRange `json:"V6,omitempty"`
 }
 
+// Custom service graph annotation
+const ServiceGraphNameAnnotation = "opflex.cisco.com/service-graph-name"
+
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
