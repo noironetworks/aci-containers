@@ -351,6 +351,14 @@ func (cont *AciController) peerMatchesPod(npNs string,
 }
 
 func ipsForPod(pod *v1.Pod) []string {
+	var ips []string
+	podIPsField := reflect.ValueOf(pod.Status).FieldByName("PodIPs")
+	if podIPsField.IsValid() {
+		for _, ip := range pod.Status.PodIPs {
+			ips = append(ips, ip.IP)
+		}
+		return ips
+	}
 	if pod.Status.PodIP != "" {
 		return []string{pod.Status.PodIP}
 	}
@@ -643,15 +651,18 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	direction string, ethertype string, proto string, port string,
 	remoteSubnets []string) {
-
-	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleName)
+	ruleNameWithEtherType := fmt.Sprintf("%s-%s", ruleName, ethertype)
+	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleNameWithEtherType)
 	rule.SetAttr("direction", direction)
 	rule.SetAttr("ethertype", ethertype)
 	if proto != "" {
 		rule.SetAttr("protocol", proto)
 	}
-	for _, ip := range remoteSubnets {
-		rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ip))
+	for _, ipStr := range remoteSubnets {
+		ip := net.ParseIP(ipStr)
+		if ethertype == "ipv6" && (ip.To16() != nil && ip.To4() == nil) || ethertype == "ipv4" && ip.To4() != nil {
+			rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ipStr))
+		}
 	}
 	if port != "" {
 		rule.SetAttr("toPort", port)

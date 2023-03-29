@@ -129,7 +129,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool failedddddd")
+		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool failed")
 	}
 	{
 		cont.serviceUpdates = nil
@@ -139,7 +139,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service3", "10.4.3.1"))
-		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid faileddddd")
+		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid failed")
 	}
 	{
 		cont.serviceUpdates = nil

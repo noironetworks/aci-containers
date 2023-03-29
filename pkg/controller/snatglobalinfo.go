@@ -500,14 +500,14 @@ func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []s
 	services := cont.getServicesBySelector(labels.SelectorFromSet(
 		labels.Set(policy.Selector.Labels)),
 		policy.Selector.Namespace)
-		for _, service := range services {
-			var ips []string
-			for _, ip := range service.Status.LoadBalancer.Ingress {
-				ips = append(ips, ip.IP)
-			}
-			serviceIps = append(serviceIps, ips...)
+	for _, service := range services {
+		var ips []string
+		for _, ip := range service.Status.LoadBalancer.Ingress {
+			ips = append(ips, ip.IP)
 		}
-		return serviceIps
+		serviceIps = append(serviceIps, ips...)
+	}
+	return serviceIps
 }
 
 func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,

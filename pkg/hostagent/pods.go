@@ -612,8 +612,8 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		podIPs[pod.Status.PodIP] = ipexists
 		podIPsField := reflect.ValueOf(pod.Status).FieldByName("PodIPs")
 		if podIPsField.IsValid() {
-			for ip := range podIPs {
-				podIPs[ip] = ipexists
+			for _, ip := range pod.Status.PodIPs {
+				podIPs[ip.IP] = ipexists
 			}
 		}
 		for ip := range podIPs {

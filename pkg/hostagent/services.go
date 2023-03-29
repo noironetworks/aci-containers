@@ -912,7 +912,7 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 				clusterIPs[as.Spec.ClusterIP] = ipexists
 				clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
 				if clusterIPsField.IsValid() {
-					for ip := range clusterIPs {
+					for _, ip := range as.Spec.ClusterIPs {
 						clusterIPs[ip] = ipexists
 					}
 				}
