@@ -354,10 +354,13 @@ func ipsForPod(pod *v1.Pod) []string {
 	var ips []string
 	podIPsField := reflect.ValueOf(pod.Status).FieldByName("PodIPs")
 	if podIPsField.IsValid() {
-		for _, ip := range pod.Status.PodIPs {
-			ips = append(ips, ip.IP)
+		if len(pod.Status.PodIPs) > 0 {
+			for _, ip := range pod.Status.PodIPs {
+				ips = append(ips, ip.IP)
+			}
+			return ips
 		}
-		return ips
+
 	}
 	if pod.Status.PodIP != "" {
 		return []string{pod.Status.PodIP}
@@ -658,10 +661,18 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	if proto != "" {
 		rule.SetAttr("protocol", proto)
 	}
-	for _, ipStr := range remoteSubnets {
-		ip := net.ParseIP(ipStr)
-		if ethertype == "ipv6" && (ip.To16() != nil && ip.To4() == nil) || ethertype == "ipv4" && ip.To4() != nil {
-			rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), ipStr))
+	for _, subnetStr := range remoteSubnets {
+		_, subnet, err := net.ParseCIDR(subnetStr)
+		if err == nil && subnet != nil {
+
+			// subnetStr is a valid CIDR notation, check its IP version and add the subnet to the rule
+			if (ethertype == "ipv4" && subnet.IP.To4() != nil) || (ethertype == "ipv6" && subnet.IP.To4() == nil) {
+				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), subnetStr))
+			}
+		} else if ip := net.ParseIP(subnetStr); ip != nil {
+			if ethertype == "ipv6" && (ip.To16() != nil && ip.To4() == nil) || ethertype == "ipv4" && ip.To4() != nil {
+				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), subnetStr))
+			}
 		}
 	}
 	if port != "" {
@@ -675,13 +686,11 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	subj apicapi.ApicObject, direction string, peers []v1net.NetworkPolicyPeer,
 	remoteSubnets []string, ports []v1net.NetworkPolicyPort,
 	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy) {
-
 	if len(peers) > 0 && len(remoteSubnets) == 0 {
 		// nonempty From matches no pods or IPBlocks; don't
 		// create the rule
 		return
 	}
-
 	if len(ports) == 0 {
 		if !cont.configuredPodNetworkIps.V4.Empty() {
 			buildNetPolSubjRule(subj, ruleName, direction,
@@ -1121,6 +1130,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 	if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 		subjIngress :=
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
+
 		for i, ingress := range np.Spec.Ingress {
 			remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
 				np.Namespace, peerPods, peerNs, logger)
