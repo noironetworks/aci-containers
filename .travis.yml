@@ -1,20 +1,28 @@
-dist: bionic
-matrix:
-  include:
-    - language: go
-      sudo: false
-      go: "1.20"
-      before_install:
-        - go get github.com/mattn/goveralls@v0.0.8
-      install:
-        - export PATH=$PATH:$GOPATH/bin
-      script:
-        - make goinstall
-        - make check >& /tmp/check.log
-      after_failure:
-        - grep -C 200 FAIL /tmp/check.log
-        - tail -200 /tmp/check.log
-      after_success:
-        - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-ci
+os: linux
+services: docker
+dist: jammy
+language: go
+go:
+  - 1.20.x
+go_import_path: github.com/noironetworks/aci-containers
 
+env:
+  global:
+  - DEFAULT_BRANCH: kmr2
+  - GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
+
+before_script:
+- export DOCKER_BUILDKIT=1
+
+#$TRAVIS_PULL_REQUEST_BRANCH
+script:
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/Dockerfile-cnideploy
+- docker images
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/Dockerfile-controller
+- docker images
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/Dockerfile-host
+- docker images
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/Dockerfile-openvswitch
+- docker images
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator
+- docker images
