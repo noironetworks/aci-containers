@@ -14,22 +14,21 @@ env:
 before_script:
 - export DOCKER_BUILDKIT=1
 
-#$TRAVIS_PULL_REQUEST_BRANCH
 script:
 - make -C . all-static
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/Dockerfile-cnideploy .
+- docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
 - docker images
 - docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/Dockerfile-controller .
 - docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/Dockerfile-host .
-- docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/Dockerfile-openvswitch .
-- docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator .
-- docker images
+  #- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/Dockerfile-host .
+  #- docker images
+  #- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/Dockerfile-openvswitch .
+  #- docker images
+  #- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator .
+  #- docker images
 - docker login -u=$QUAY_SUMIT_NOIROLABS_ROBO_USER -p=$QUAY_SUMIT_NOIROLABS_ROBO_PSWD quay.io
 - docker push quay.io/noirolabs/cnideploy:sumit-kmr2-test
 - docker push quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
-- docker push quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
-- docker push quay.io/noirolabs/openvswitch:sumit-kmr2-test
-- docker push quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
+  #- docker push quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
+  #- docker push quay.io/noirolabs/openvswitch:sumit-kmr2-test
+  #- docker push quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
