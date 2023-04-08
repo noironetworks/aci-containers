@@ -16,13 +16,13 @@ before_script:
 
 #$TRAVIS_PULL_REQUEST_BRANCH
 script:
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/Dockerfile-cnideploy
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/Dockerfile-cnideploy .
 - docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/Dockerfile-controller
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/Dockerfile-controller .
 - docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/Dockerfile-host
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/Dockerfile-host .
 - docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/Dockerfile-openvswitch
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/Dockerfile-openvswitch .
 - docker images
-- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator
+- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator .
 - docker images
