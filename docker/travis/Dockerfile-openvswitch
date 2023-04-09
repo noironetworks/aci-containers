@@ -10,7 +10,8 @@ RUN yum update --disablerepo=* --enablerepo=ubi-8-appstream-rpms --enablerepo=ub
 RUN yum install --disablerepo=* --enablerepo=ubi-8-appstream-rpms --enablerepo=ubi-8-baseos-rpms httpd -y && rm -rf /var/cache/yum
 # Required Licenses
 COPY docker/licenses /licenses
-RUN yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
+#RUN yum install -y --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
+RUN yum install -y \
   --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms openvswitch2.13 logrotate conntrack-tools \
   tcpdump curl strace ltrace iptables net-tools && yum clean all
 COPY docker/launch-ovs.sh docker/liveness-ovs.sh dist-static/ovsresync /usr/local/bin/
