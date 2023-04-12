@@ -1,10 +1,10 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
 FROM ${baserepo}/aci-containers-base:${basetag}
+RUN yum install -y dhcp-client && yum clean all
 RUN yum --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
   --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms --enablerepo codeready-builder-for-rhel-8-x86_64-rpms install -y iproute nftables openvswitch2.13 libnetfilter_conntrack-devel \
   && yum clean all
-RUN yum install -y dhcp-client
 COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
 RUN tar -zxf /tmp/iptables-bin.tar.gz -C /usr/sbin \
   && tar -zxf /tmp/iptables-libs.tar.gz -C /lib64
