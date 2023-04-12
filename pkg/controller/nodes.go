@@ -395,6 +395,16 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			nodeUpdated = true
 		}
 	}
+
+	nodeAciPod := cont.nodeACIPod[node.ObjectMeta.Name]
+	aciPodAnn := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
+	if cont.nodeSyncEnabled {
+		if aciPodAnn != nodeAciPod {
+			node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = nodeAciPod
+			nodeUpdated = true
+			cont.log.Debug("akhila...changed annotation ", nodeAciPod)
+		}
+	}
 	cont.indexMutex.Unlock()
 
 	cont.createNetPolForNode(node)

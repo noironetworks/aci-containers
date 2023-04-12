@@ -308,6 +308,10 @@ func (cont *AciController) deleteOldOpflexDevices() {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
 		if fabricPathDn != "" {
+			fabricPathDnSlice := strings.Split(fabricPathDn, "/")
+			if len(fabricPathDnSlice) > 1 {
+				cont.nodeACIPod[node] = fabricPathDnSlice[1]
+			}
 			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
 					deleteTimeStr := device.GetAttrStr("deleteTime")

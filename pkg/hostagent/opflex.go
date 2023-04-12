@@ -80,6 +80,61 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	return
 }
 
+func (agent *HostAgent) doDhcpRenew() {
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		description := "Could_not_enumerate_interfaces"
+		agent.createFaultOnAgent(description, 3)
+		return
+	}
+
+	for _, link := range links {
+		switch link := link.(type) {
+		case *netlink.Vlan:
+			// find link with matching vlan
+			if link.VlanId != int(agent.config.AciInfraVlan) {
+				continue
+			}
+			agent.log.Debug("akhila - iface name ", link.Name)
+			err = netlink.LinkSetDown(link)
+			if err != nil {
+				agent.log.Error("akhila down ", err)
+				return
+			}
+			err = netlink.LinkSetUp(link)
+			if err != nil {
+				agent.log.Error("akhila up ", err)
+				return
+			}
+			/*
+				iface, err := net.InterfaceByName(link.Name)
+				if err != nil {
+					agent.log.Error("akhila Failed to get interface object for %s: %v\n", link.Name, err)
+					return
+				}
+				client := dhclient.Client{
+					Iface: iface,
+					OnBound: func(lease *dhclient.Lease) {
+						agent.log.Debug("akhila Bound: %+v", lease)
+					},
+				}
+				for _, param := range dhclient.DefaultParamsRequestList {
+					agent.log.Debug("Requesting default option %d", param)
+					client.AddParamRequest(layers.DHCPOpt(param))
+				}
+				hostname, _ := os.Hostname()
+				client.AddOption(layers.DHCPOptHostname, []byte(hostname))
+				client.Start()
+				time.Sleep(10 * time.Millisecond)
+				client.Rebind()
+				time.Sleep(10 * time.Millisecond)
+				client.Stop()
+			*/
+		}
+	}
+}
+
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	if agent.config.OpflexMode == "overlay" {
 		conf = &HostAgentNodeConfig{}

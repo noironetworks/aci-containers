@@ -111,6 +111,19 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 
 	agent.indexMutex.Lock()
 
+	aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
+	if acipodok {
+		if agent.aciPodAnnotation != aciPod {
+			if agent.aciPodAnnotation != "" {
+				agent.log.Debug("akhila Annotation changed")
+				agent.doDhcpRenew()
+			} else {
+				agent.log.Debug("akhila Annotation changed but cache empty")
+			}
+			agent.aciPodAnnotation = aciPod
+		}
+	}
+
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]
 	if ok {
 		agent.updateIpamAnnotation(pnet)
