@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -80,6 +81,33 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	return
 }
 
+func (agent *HostAgent) isIpSame(iface, address string) bool {
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("akhila Could not enumerate interfaces: ", err)
+		return false
+	}
+	for _, link := range links {
+		switch link := link.(type) {
+		case *netlink.Vlan:
+			if link.Name == iface {
+				addrs, err := netlink.AddrList(link, 2)
+				if err != nil {
+					agent.log.Error("akhila Could not enumerate addresses: ", err)
+					return false
+				}
+				for _, addr := range addrs {
+					agent.log.Debug("akhila address new ", addr.String())
+					if addr.String() == address {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (agent *HostAgent) doDhcpRenew() {
 	links, err := netlink.LinkList()
 	if err != nil {
@@ -96,16 +124,43 @@ func (agent *HostAgent) doDhcpRenew() {
 			if link.VlanId != int(agent.config.AciInfraVlan) {
 				continue
 			}
-			agent.log.Debug("akhila - iface name ", link.Name)
-			err = netlink.LinkSetDown(link)
+			addrs, err := netlink.AddrList(link, 2)
 			if err != nil {
-				agent.log.Error("akhila down ", err)
+				agent.log.Error("akhila ", err.Error())
 				return
 			}
-			err = netlink.LinkSetUp(link)
-			if err != nil {
-				agent.log.Error("akhila up ", err)
-				return
+			var address string
+			for _, addr := range addrs {
+				agent.log.Debug("akhila addr ", addr.String())
+				address = addr.String()
+			}
+			for i := 0; i < 4; i++ {
+				agent.log.Debug("akhila - iface name ", link.Name)
+				cmd := exec.Command("dhclient", "-r", link.Name)
+				opt, err := cmd.Output()
+				if err != nil {
+					agent.log.Error("akhila ", err.Error())
+					return
+				}
+				agent.log.Debug("akhila ", string(opt))
+				cmd = exec.Command("ip", "a")
+				opt, err = cmd.Output()
+				if err == nil {
+					agent.log.Debug("akhila ", string(opt))
+				}
+				cmd = exec.Command("dhclient", link.Name)
+				opt, err = cmd.Output()
+				if err != nil {
+					agent.log.Error("akhila ", err.Error())
+					return
+				}
+				agent.log.Debug("akhila ", string(opt))
+				if agent.isIpSame(link.Name, address) {
+					agent.log.Debug("akhila ip same")
+				} else {
+					agent.log.Debug("akhila ip different")
+					break
+				}
 			}
 			/*
 				iface, err := net.InterfaceByName(link.Name)
@@ -402,7 +457,9 @@ func (agent *HostAgent) updateOpflexConfig() {
 		}
 	}
 
+	agent.indexMutex.Lock()
 	newNodeConfig := agent.discoverHostConfig()
+	agent.indexMutex.Unlock()
 	if newNodeConfig == nil {
 		panic(errors.New("Node configuration autodiscovery failed"))
 	}

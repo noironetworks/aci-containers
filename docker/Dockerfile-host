@@ -1,4 +1,4 @@
-ARG basetag=latest
+ARG basetag=ak-test
 ARG baserepo=quay.io/noirolabs
 FROM ${baserepo}/aci-containers-host-base:${basetag}
 # Required OpenShift Labels
