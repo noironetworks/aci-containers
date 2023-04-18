@@ -112,9 +112,9 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	agent.indexMutex.Lock()
 
 	aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
-	if acipodok {
+	if acipodok && aciPod != "" {
 		if agent.aciPodAnnotation != aciPod {
-			if agent.aciPodAnnotation != "" {
+			if aciPod == "disconnected" {
 				agent.log.Debug("akhila Annotation changed")
 				agent.doDhcpRenew()
 			} else {

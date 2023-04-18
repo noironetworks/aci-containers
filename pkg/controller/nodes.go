@@ -402,7 +402,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		if aciPodAnn != nodeAciPod {
 			node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = nodeAciPod
 			nodeUpdated = true
-			cont.log.Debug("akhila...changed annotation ", nodeAciPod)
+			cont.log.Debug("akhila...changed annotation ", nodeAciPod, " ", node.ObjectMeta.Name)
 		}
 	}
 	cont.indexMutex.Unlock()

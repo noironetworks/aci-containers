@@ -16,6 +16,7 @@ package hostagent
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net"
@@ -25,8 +26,7 @@ import (
 	"reflect"
 	"strings"
 	"text/template"
-
-	"encoding/json"
+	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -109,6 +109,7 @@ func (agent *HostAgent) isIpSame(iface, address string) bool {
 }
 
 func (agent *HostAgent) doDhcpRenew() {
+	time.Sleep(30 * time.Second)
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
@@ -159,7 +160,7 @@ func (agent *HostAgent) doDhcpRenew() {
 					agent.log.Debug("akhila ip same")
 				} else {
 					agent.log.Debug("akhila ip different")
-					break
+					//break
 				}
 			}
 			/*
