@@ -1,0 +1,80 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+ENV ROOT=/usr/local
+ARG make_args=-j4
+RUN microdnf install -y yum yum-utils \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/CRB/x86_64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/debug/tree \
+ && yum --nogpgcheck -y update
+RUN yum --nogpgcheck install -y \
+    libtool pkgconfig autoconf automake make cmake file python3-six \
+    openssl-devel git gcc gcc-c++ diffutils python3-devel \
+    wget which curl-devel procps zlib-devel vi boost-devel libnfnetlink-devel libmnl-devel \
+    libnetfilter_conntrack-devel libnftnl-devel iptables-devel \
+    && yum clean all
+RUN wget https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz \
+  && tar xvfz v1.1.0.tar.gz \
+  && cd rapidjson-1.1.0 \
+  && cmake CMakeLists.txt \
+  && cp -R include/rapidjson/ /usr/local/include/ \
+  && mkdir -p /usr/local/lib/pkgconfig \
+  && cp RapidJSON.pc /usr/local/lib/pkgconfig/ \
+  && cd / \
+  && rm -rf v1.1.0.tar.gz \
+  && rm -rf rapidjson-1.1.0 \
+  && git clone https://github.com/libuv/libuv.git --branch v1.20.3 --depth 1 \
+  && cd libuv \
+  && ./autogen.sh \
+  && ./configure \
+  && make $make_args \
+  && make install && make clean \
+  && cd / \
+  && rm -rf libuv \
+  && wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.17.0/cmake-3.17.0-Linux-x86_64.sh \
+  && mkdir -p cmake-tmp \
+  && sh cmake-linux.sh -- --skip-license --prefix=cmake-tmp \
+  && rm cmake-linux.sh \
+  && git clone https://github.com/noironetworks/3rdparty-debian.git \
+  && git clone https://github.com/jupp0r/prometheus-cpp.git -b v1.0.1 --depth 1 \
+  && cd prometheus-cpp \
+  && git submodule init \
+  && git submodule update \
+  && git apply /3rdparty-debian/prometheus/prometheus-cpp.patch \
+  && mkdir _build && cd _build \
+  && ../../cmake-tmp/bin/cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF \
+  && make $make_args && make install && make clean \
+  && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/ \
+  && cd / \
+  && rm -rf 3rdparty-debian \
+  && rm -rf prometheus-cpp \
+  && git clone -b v1.46.0 https://github.com/grpc/grpc --config submodule.third_party/re2.url=https://github.com/google/re2.git --config submodule.third_party/re2.active=true \
+  && cd grpc \
+  && git submodule update --init \
+  && mkdir -p cmake/build \
+  && cd cmake/build \
+  && ../../../cmake-tmp/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
+                               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
+                               -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
+                               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF \
+                               -DgRPC_SSL_PROVIDER=package -DOPENSSL_ROOT_DIR=/usr/lib/ssl ../.. \
+  && make $make_args && make install \
+  && mv /usr/local/lib64/pkgconfig/proto* /usr/local/lib/pkgconfig/ \
+  && mv /usr/local/lib64/libproto* /usr/local/lib/ \
+  && mv /usr/local/lib64/libre2* /usr/local/lib/ \
+  && cd / \
+  && rm -rf grpc
+ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
+ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
+ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
+RUN git clone https://github.com/openvswitch/ovs.git --branch v2.13.0 --depth 1 \
+  && cd ovs \
+  && ./boot.sh && ./configure --disable-libcapng --enable-shared \
+  && make $make_args && make install \
+  && mkdir -p $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openvswitch/*.h $ROOT/include/openvswitch/openvswitch \
+  && mv $ROOT/include/openflow $ROOT/include/openvswitch \
+  && cp include/*.h "$ROOT/include/openvswitch/" \
+  && find lib -name "*.h" -exec cp --parents {} "$ROOT/include/openvswitch/" \; \
+  && cd / \
+  && rm -rf ovs 
