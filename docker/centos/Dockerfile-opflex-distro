@@ -1,0 +1,12 @@
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+RUN microdnf install -y yum-utils yum \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
+ && yum --nogpgcheck -y update
+RUN yum --nogpgcheck install -y \
+  libstdc++ libuv \
+  boost-program-options boost-system boost-date-time boost-filesystem \
+  boost-iostreams libnetfilter_conntrack openssl net-tools procps-ng ca-certificates \
+  && yum clean all
+# Required OpenShift Labels
+CMD ["/bin/sh"]
