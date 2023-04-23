@@ -7,7 +7,7 @@ release="1" \
 summary="This is an ACI CNI Host-Agent." \
 description="This will deploy a single instance of ACI CNI Host-Agent."
 RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
 # RUN yum --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
 #  --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms --enablerepo codeready-builder-for-rhel-8-x86_64-rpms install -y iproute nftables openvswitch2.13 libnetfilter_conntrack-devel \
 #  && yum clean all
