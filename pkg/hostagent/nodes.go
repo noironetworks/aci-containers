@@ -114,14 +114,12 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 	if acipodok && aciPod != "" {
 		if agent.aciPodAnnotation != aciPod {
-			if aciPod == "disconnected" {
-				agent.log.Debug("akhila Annotation changed")
-				agent.doDhcpRenew()
-			} else {
-				agent.log.Debug("akhila Annotation changed but cache empty")
-			}
-			agent.aciPodAnnotation = aciPod
+			agent.log.Debug("akhila Annotation changed")
+			agent.doDhcpRenew(aciPod)
+		} else {
+			agent.log.Debug("akhila Annotation changed but cache empty")
 		}
+		agent.aciPodAnnotation = aciPod
 	}
 
 	pnet, ok := node.ObjectMeta.Annotations[metadata.PodNetworkRangeAnnotation]

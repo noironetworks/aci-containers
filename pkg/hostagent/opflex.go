@@ -26,12 +26,14 @@ import (
 	"reflect"
 	"strings"
 	"text/template"
-	"time"
+	//	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
+
+const DEFAULT_RETRY_COUNT = 5
 
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
@@ -81,25 +83,33 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	return
 }
 
-func (agent *HostAgent) isIpSame(iface, address string) bool {
+func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 	links, err := netlink.LinkList()
 	if err != nil {
-		agent.log.Error("akhila Could not enumerate interfaces: ", err)
+		agent.log.Error("Could not enumerate interfaces: ", err)
 		return false
 	}
+	_, ipnet, _ := net.ParseCIDR(subnet)
 	for _, link := range links {
 		switch link := link.(type) {
 		case *netlink.Vlan:
 			if link.Name == iface {
 				addrs, err := netlink.AddrList(link, 2)
 				if err != nil {
-					agent.log.Error("akhila Could not enumerate addresses: ", err)
+					agent.log.Error("Could not enumerate addresses: ", err)
 					return false
 				}
 				for _, addr := range addrs {
 					agent.log.Debug("akhila address new ", addr.String())
-					if addr.String() == address {
-						return true
+					addressSlice := strings.Split(addr.String(), " ")
+					if len(addressSlice) > 0 {
+						ipslice := strings.Split(addressSlice[0], "/")
+						if len(ipslice) > 0 {
+							ip := net.ParseIP(ipslice[0])
+							if ipnet.Contains(ip) {
+								return true
+							}
+						}
 					}
 				}
 			}
@@ -108,16 +118,21 @@ func (agent *HostAgent) isIpSame(iface, address string) bool {
 	return false
 }
 
-func (agent *HostAgent) doDhcpRenew() {
-	time.Sleep(30 * time.Second)
+func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	if retryCount == 0 {
+		retryCount = DEFAULT_RETRY_COUNT
+	}
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
-		description := "Could_not_enumerate_interfaces"
-		agent.createFaultOnAgent(description, 3)
 		return
 	}
-
+	var subnet string
+	subnetSlice := strings.Split(aciPodSubnet, "-")
+	if len(subnetSlice) > 2 {
+		subnet = subnetSlice[2]
+	}
 	for _, link := range links {
 		switch link := link.(type) {
 		case *netlink.Vlan:
@@ -125,68 +140,37 @@ func (agent *HostAgent) doDhcpRenew() {
 			if link.VlanId != int(agent.config.AciInfraVlan) {
 				continue
 			}
-			addrs, err := netlink.AddrList(link, 2)
+			if agent.isIpSameSubnet(link.Name, subnet) {
+				agent.log.Debug("akhila ip already from same subnet")
+				break
+			}
+
+			cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
+			opt, err := cmd.Output()
 			if err != nil {
-				agent.log.Error("akhila ", err.Error())
+				agent.log.Error("akhila ", err.Error(), " ", string(opt))
 				return
 			}
-			var address string
-			for _, addr := range addrs {
-				agent.log.Debug("akhila addr ", addr.String())
-				address = addr.String()
-			}
-			for i := 0; i < 4; i++ {
-				agent.log.Debug("akhila - iface name ", link.Name)
-				cmd := exec.Command("dhclient", "-r", link.Name)
+			for i := 0; i < 5; i++ {
+				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
 				opt, err := cmd.Output()
 				if err != nil {
-					agent.log.Error("akhila ", err.Error())
+					agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
 					return
 				}
-				agent.log.Debug("akhila ", string(opt))
-				cmd = exec.Command("ip", "a")
-				opt, err = cmd.Output()
-				if err == nil {
-					agent.log.Debug("akhila ", string(opt))
-				}
-				cmd = exec.Command("dhclient", link.Name)
+				cmd = exec.Command("dhclient", link.Name, "--timeout", "30")
 				opt, err = cmd.Output()
 				if err != nil {
-					agent.log.Error("akhila ", err.Error())
+					agent.log.Error("Failed to get new ip: ", err.Error(), " ", string(opt))
 					return
 				}
-				agent.log.Debug("akhila ", string(opt))
-				if agent.isIpSame(link.Name, address) {
+				if agent.isIpSameSubnet(link.Name, subnet) {
 					agent.log.Debug("akhila ip same")
+					break
 				} else {
 					agent.log.Debug("akhila ip different")
-					//break
 				}
 			}
-			/*
-				iface, err := net.InterfaceByName(link.Name)
-				if err != nil {
-					agent.log.Error("akhila Failed to get interface object for %s: %v\n", link.Name, err)
-					return
-				}
-				client := dhclient.Client{
-					Iface: iface,
-					OnBound: func(lease *dhclient.Lease) {
-						agent.log.Debug("akhila Bound: %+v", lease)
-					},
-				}
-				for _, param := range dhclient.DefaultParamsRequestList {
-					agent.log.Debug("Requesting default option %d", param)
-					client.AddParamRequest(layers.DHCPOpt(param))
-				}
-				hostname, _ := os.Hostname()
-				client.AddOption(layers.DHCPOptHostname, []byte(hostname))
-				client.Start()
-				time.Sleep(10 * time.Millisecond)
-				client.Rebind()
-				time.Sleep(10 * time.Millisecond)
-				client.Stop()
-			*/
 		}
 	}
 }
