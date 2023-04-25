@@ -17,10 +17,10 @@ before_script:
 script:
 - make -C . all-static
 - docker/copy_iptables.sh docker.io/challa/opflex-build-base:ubi9-ubuntu dist-static
-- docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
-- docker images
-- docker build -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/travis/Dockerfile-controller .
-- docker images
+  #- docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
+  #- docker images
+  #- docker build -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/travis/Dockerfile-controller .
+  #- docker images
 - docker build -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/travis/Dockerfile-host .
 - docker images
   #- docker build -t quay.io/noirolabs/openvswitch:sumit-kmr2-test --file=docker/travis/Dockerfile-openvswitch .
@@ -28,8 +28,8 @@ script:
   #- docker build --build-arg basetag=kmr2-test -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/Dockerfile-operator .
   #- docker images
 - docker login -u=$QUAY_SUMIT_NOIROLABS_ROBO_USER -p=$QUAY_SUMIT_NOIROLABS_ROBO_PSWD quay.io
-- docker push quay.io/noirolabs/cnideploy:sumit-kmr2-test
-- docker push quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
+  #- docker push quay.io/noirolabs/cnideploy:sumit-kmr2-test
+  #- docker push quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
 - docker push quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
   #- docker push quay.io/noirolabs/openvswitch:sumit-kmr2-test
   #- docker push quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
