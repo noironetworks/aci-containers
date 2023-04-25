@@ -8,8 +8,8 @@ summary="This is an ACI CNI Host-Agent." \
 description="This will deploy a single instance of ACI CNI Host-Agent."
 RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
 RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
-RUN yum update --disablerepo=* --enablerepo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --enablerepo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --enablerepo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --enablerepo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os iptables-nft -y --nogpgcheck && rm -rf /var/cache/yum
+RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os iptables-nft -y --nogpgcheck && rm -rf /var/cache/yum
 
 # RUN yum --enablerepo=openstack-15-for-rhel-8-x86_64-rpms \
 #  --enablerepo=fast-datapath-for-rhel-8-x86_64-rpms --enablerepo codeready-builder-for-rhel-8-x86_64-rpms install -y iproute nftables openvswitch2.13 libnetfilter_conntrack-devel \
