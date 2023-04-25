@@ -151,7 +151,8 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				agent.log.Error("akhila ", err.Error(), " ", string(opt))
 				return
 			}
-			for i := 0; i < 5; i++ {
+			success := false
+			for i := 0; i < retryCount; i++ {
 				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
 				opt, err := cmd.Output()
 				if err != nil {
@@ -165,11 +166,15 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 					return
 				}
 				if agent.isIpSameSubnet(link.Name, subnet) {
+					success = true
 					agent.log.Debug("akhila ip same")
 					break
 				} else {
 					agent.log.Debug("akhila ip different")
 				}
+			}
+			if !success {
+				agent.log.Error("Failed to assign ip from pod subnet after ", retryCount, " tries")
 			}
 		}
 	}
