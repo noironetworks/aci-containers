@@ -17,6 +17,7 @@ before_script:
 script:
 - make -C . all-static
 - docker/copy_iptables.sh docker.io/challa/opflex-build-base:ubi9-ubuntu dist-static
+- docker/centos/build-opflex-travis.sh
 - docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
 - docker images
 - docker build -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/travis/Dockerfile-controller .
