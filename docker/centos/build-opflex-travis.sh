@@ -20,14 +20,21 @@ set -Eeuxo pipefail
 
 echo "starting opflex build"
 
-docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build-base .
+docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build-base . &> /tmp/opflex-build-base.log &
 #docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
+while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
+tail -f /tmp/opflex-build-base.log | awk 'NR%100-1==0' &
+
+while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
 
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
 popd
+
 docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
 #docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
+
+while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
 
 ################## Copy everything from build into host ###############
 rm -Rf build/opflex/dist
