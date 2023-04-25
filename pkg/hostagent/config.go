@@ -231,7 +231,7 @@ type HostAgentConfig struct {
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
 
 	// Max number of time dhcp renew will be executed after multi pod vm migration
-	DhcpRenewMaxRetryCount int `json:"dhcp-new-max-retry-count,omitempty"`
+	DhcpRenewMaxRetryCount int `json:"dhcp-renew-max-retry-count,omitempty"`
 
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
