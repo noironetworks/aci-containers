@@ -9,8 +9,7 @@ export SECOPT
 
 DOCKER_DIR=docker/centos
 
-OPFLEX_DIR=/tmp/opflex
-mkdir $OPFLEX_DIR
+OPFLEX_DIR=.
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
