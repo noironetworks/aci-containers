@@ -9,7 +9,8 @@ export SECOPT
 
 DOCKER_DIR=docker/centos
 
-OPFLEX_DIR=.
+git clone https://github.com/noironetworks/opflex.git -b kmr2 /tmp/opflex
+OPFLEX_DIR=/tmp/opflex
 export OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
