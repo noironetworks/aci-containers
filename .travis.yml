@@ -1,8 +1,6 @@
 os: linux
 services: docker
 dist: jammy
-vm:
-  size: large
 language: go
 go:
   - 1.20.x
