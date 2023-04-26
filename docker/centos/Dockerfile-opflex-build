@@ -1,4 +1,4 @@
-FROM noiro/opflex-build-base:ubi9-centos
+FROM quay.io/noirolabs/opflex-build-base:sumit-kmr2-test
 ARG BUILDOPTS="--enable-grpc"
 ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig
 WORKDIR /opflex
