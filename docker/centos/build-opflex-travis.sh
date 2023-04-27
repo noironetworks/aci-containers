@@ -1,6 +1,7 @@
 #!/bin/bash
 set -x
 
+OPFLEX_BRANCH=kmr2
 DOCKER_HUB_ID=quay.io/noirolabs
 DOCKER_TAG=sumit-kmr2-test
 
@@ -9,9 +10,9 @@ export SECOPT
 
 DOCKER_DIR=docker/centos
 
-git clone https://github.com/noironetworks/opflex.git -b kmr2 /tmp/opflex
 OPFLEX_DIR=/tmp/opflex
 export OPFLEX_DIR
+git clone https://github.com/noironetworks/opflex.git -b $OPFLEX_BRANCH $OPFLEX_DIR
 
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
 export DOCKER_HUB_ID
@@ -32,8 +33,16 @@ pushd $OPFLEX_DIR/genie
 mvn compile exec:java
 popd
 
-docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
+pushd $OPFLEX_DIR
+cd ..
+tar cvfz opflex.tgz opflex
+cp opflex.tgz opflex/
+popd
+
+docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR &> /tmp/opflex-build.log &
 #docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
+while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
+tail -f /tmp/opflex-build.log | awk 'NR%100-1==0' &
 
 while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
 
