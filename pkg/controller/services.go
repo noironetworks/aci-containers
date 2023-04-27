@@ -327,6 +327,19 @@ func (cont *AciController) getfvRsCEpToPathEptDn(node string) (string, error) {
 	}
 	for _, obj := range apicresp.Imdata {
 		for _, body := range obj {
+			dn, dnok := body.Attributes["dn"].(string)
+			if !dnok {
+				continue
+			}
+			dnSlices := strings.Split(dn, "/")
+			if len(dnSlices) < 2 {
+				cont.log.Error("Invalid dn ", dn)
+				continue
+			}
+			tenant := "tn-" + cont.config.AciPolicyTenant
+			if dnSlices[1] != tenant {
+				continue
+			}
 			for _, child := range body.Children {
 				for class, cbody := range child {
 					if class == "fvRsCEpToPathEp" {
