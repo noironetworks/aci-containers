@@ -39,13 +39,13 @@ tar cvfz opflex.tgz opflex
 cp opflex.tgz opflex/
 popd
 
-#docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR &> /tmp/opflex-build.log &
-docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
+docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR &> /tmp/opflex-build.log &
+#docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build $OPFLEX_DIR
 ##docker push $DOCKER_HUB_ID/opflex-build$DOCKER_TAG
-#while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
-#tail -f /tmp/opflex-build.log | awk 'NR%100-1==0' &
+while [ ! -f  /tmp/opflex-build.log ]; do sleep 10; done
+tail -f /tmp/opflex-build.log | awk 'NR%100-1==0' &
 
-#while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
+while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
 
 ################## Copy everything from build into host ###############
 rm -Rf build/opflex/dist
