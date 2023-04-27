@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-OPFLEX_BRANCH=kmr2
+OPFLEX_BRANCH=centos
 DOCKER_HUB_ID=quay.io/noirolabs
 DOCKER_TAG=sumit-kmr2-test
 
