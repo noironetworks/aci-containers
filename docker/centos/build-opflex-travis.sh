@@ -27,7 +27,8 @@ docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG -f $DOCKER_
 while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
 tail -f /tmp/opflex-build-base.log | awk 'NR%100-1==0' &
 
-while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
+#while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
 
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
@@ -45,7 +46,10 @@ docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG -f $DOCKER_DIR/D
 while [ ! -f  /tmp/opflex-build.log ]; do sleep 10; done
 tail -f /tmp/opflex-build.log | awk 'NR%100-1==0' &
 
-while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == "" ]]; do sleep 60; done
+#while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != "" ]]; do sleep 60; done
+while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+
+tail -n 200 /tmp/opflex-build.log
 
 ################## Copy everything from build into host ###############
 rm -Rf build/opflex/dist
