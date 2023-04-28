@@ -3,7 +3,7 @@ ARG BUILDOPTS="--enable-grpc"
 ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig
 WORKDIR /opflex
 COPY opflex.tgz /opflex/opflex.tgz
-ARG make_args=-j4
+ARG make_args=-j1
 RUN cd /opflex && tar xvfz opflex.tgz && cd /opflex/opflex/libopflex \
   && ./autogen.sh && ./configure --disable-assert \
   && make $make_args && make install && make clean \
