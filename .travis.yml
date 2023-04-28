@@ -15,6 +15,7 @@ before_script:
 - export DOCKER_BUILDKIT=1
 
 script:
+- docker login -u=$QUAY_SUMIT_NOIROLABS_ROBO_USER -p=$QUAY_SUMIT_NOIROLABS_ROBO_PSWD quay.io
 - docker/centos/build-opflex-travis.sh
 - docker images
   #- make -C . all-static
