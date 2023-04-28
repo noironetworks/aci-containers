@@ -30,6 +30,8 @@ tail -f /tmp/opflex-build-base.log | awk 'NR%100-1==0' &
 #while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
 while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
 
+docker push quay.io/noirolabs/opflex-build-base:sumit-kmr2-test
+
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
 popd
@@ -47,9 +49,7 @@ while [ ! -f  /tmp/opflex-build.log ]; do sleep 10; done
 tail -f /tmp/opflex-build.log | awk 'NR%100-1==0' &
 
 #while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != "" ]]; do sleep 60; done
-while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
-
-tail -n 200 /tmp/opflex-build.log
+while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; tail -n 2 /tmp/opflex-build.log; done
 
 ################## Copy everything from build into host ###############
 rm -Rf build/opflex/dist
