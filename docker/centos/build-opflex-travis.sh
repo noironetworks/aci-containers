@@ -22,15 +22,16 @@ set -Eeuxo pipefail
 
 echo "starting opflex build"
 
-docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build-base . &> /tmp/opflex-build-base.log &
-#docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
-while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
-tail -f /tmp/opflex-build-base.log | awk 'NR%100-1==0' &
+#docker build $SECOPT -t $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG -f $DOCKER_DIR/Dockerfile-opflex-build-base . &> /tmp/opflex-build-base.log &
+##docker push $DOCKER_HUB_ID/opflex-build-base$DOCKER_TAG
+#while [ ! -f  /tmp/opflex-build-base.log ]; do sleep 10; done
+#tail -f /tmp/opflex-build-base.log | awk 'NR%100-1==0' &
 
-#while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
-while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+##while [[ "$(docker images -q $DOCKER_HUB_ID/opflex-build-base:$DOCKER_TAG 2> /dev/null)" == ""]] && [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+#while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
 
-docker push quay.io/noirolabs/opflex-build-base:sumit-kmr2-test
+#docker push quay.io/noirolabs/opflex-build-base:sumit-kmr2-test
+docker pull quay.io/noirolabs/opflex-build-base:sumit-kmr2-test
 
 pushd $OPFLEX_DIR/genie
 mvn compile exec:java
