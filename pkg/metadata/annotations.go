@@ -56,6 +56,8 @@ const ServiceContractScopeAnnotation = "opflex.cisco.com/ext_service_contract_sc
 // List of IP address ranges for use by the pod network
 const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 
+const AciPodAnnotation = "opflex.cisco.com/aci-pod"
+
 // Annotation for endpoint group designation for pod, deployment, etc.
 const EgAnnotation = "opflex.cisco.com/endpoint-group"
 
