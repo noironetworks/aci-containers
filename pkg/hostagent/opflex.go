@@ -16,21 +16,24 @@ package hostagent
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
-
-	"encoding/json"
+	//	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
+
+const DEFAULT_RETRY_COUNT = 5
 
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
@@ -78,6 +81,96 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 		agent.log.Debug("Created fault files at the location: ", faultFilePath)
 	}
 	return
+}
+
+func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		return false
+	}
+	_, ipnet, _ := net.ParseCIDR(subnet)
+	for _, link := range links {
+		switch link := link.(type) {
+		case *netlink.Vlan:
+			if link.Name == iface {
+				addrs, err := netlink.AddrList(link, 2)
+				if err != nil {
+					agent.log.Error("Could not enumerate addresses: ", err)
+					return false
+				}
+				for _, addr := range addrs {
+					agent.log.Debug("Interface ip address: ", addr.String())
+					addressSlice := strings.Split(addr.String(), " ")
+					if len(addressSlice) > 0 {
+						ipslice := strings.Split(addressSlice[0], "/")
+						if len(ipslice) > 0 {
+							ip := net.ParseIP(ipslice[0])
+							if ipnet.Contains(ip) {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	if retryCount == 0 {
+		retryCount = DEFAULT_RETRY_COUNT
+	}
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		return
+	}
+	var subnet string
+	subnetSlice := strings.Split(aciPodSubnet, "-")
+	if len(subnetSlice) > 2 {
+		subnet = subnetSlice[2]
+	}
+	for _, link := range links {
+		switch link := link.(type) {
+		case *netlink.Vlan:
+			// find link with matching vlan
+			if link.VlanId != int(agent.config.AciInfraVlan) {
+				continue
+			}
+			if agent.isIpSameSubnet(link.Name, subnet) {
+				agent.log.Debug("Ip already from same subnet ", subnet)
+				break
+			}
+
+			success := false
+			for i := 0; i < retryCount; i++ {
+				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
+				opt, err := cmd.Output()
+				if err != nil {
+					agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
+					continue
+				}
+				cmd = exec.Command("dhclient", link.Name, "--timeout", "30")
+				opt, err = cmd.Output()
+				if err != nil {
+					agent.log.Error("Failed to get new ip: ", err.Error(), " ", string(opt))
+					continue
+				}
+				if agent.isIpSameSubnet(link.Name, subnet) {
+					success = true
+					break
+				} else {
+					agent.log.Debug("Interface ip is not from the subnet ", subnet)
+				}
+			}
+			if !success {
+				agent.log.Error("Failed to assign ip from pod subnet after ", retryCount, " tries")
+			}
+		}
+	}
 }
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
@@ -358,7 +451,9 @@ func (agent *HostAgent) updateOpflexConfig() {
 		}
 	}
 
+	agent.indexMutex.Lock()
 	newNodeConfig := agent.discoverHostConfig()
+	agent.indexMutex.Unlock()
 	if newNodeConfig == nil {
 		panic(errors.New("Node configuration autodiscovery failed"))
 	}
