@@ -144,7 +144,7 @@ func TestTypes(t *testing.T) {
 	assert.Equal(t, "fake/dn/rssubjFiltAtt-flt1",
 		NewVzRsSubjFiltAtt("fake/dn", "flt1").GetDn())
 	assert.Equal(t, "fake/dn/rsSubjGraphAtt",
-		NewVzRsSubjGraphAtt("fake/dn", "dummy").GetDn())
+		NewVzRsSubjGraphAtt("fake/dn", "dummy", false).GetDn())
 	assert.Equal(t, "uni/tn-common/flt-f1",
 		NewVzFilter("common", "f1").GetDn())
 	assert.Equal(t, "fake/dn/e-e1",
