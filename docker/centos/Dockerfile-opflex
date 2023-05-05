@@ -3,7 +3,7 @@ RUN microdnf install -y yum yum-utils \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
  && yum --nogpgcheck -y update
-RUN yum --nogpgcheck --disablerepo=\*ubi\* install -y \
+RUN yum --nogpgcheck --disablerepo=* install -y \
   libstdc++ libuv \
   boost-program-options boost-system boost-date-time boost-filesystem \
   boost-iostreams libnetfilter_conntrack openssl net-tools procps-ng ca-certificates \
@@ -11,7 +11,7 @@ RUN yum --nogpgcheck --disablerepo=\*ubi\* install -y \
 # Required OpenShift Labels
 LABEL name="ACI CNI Opflex" \
 vendor="Cisco" \
-version="v1.0.0" \
+version="v1.1.0" \
 release="1" \
 summary="This is an ACI CNI Opflex." \
 description="This will deploy a single instance of ACI CNI Opflex."
