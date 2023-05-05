@@ -300,7 +300,8 @@ func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSli
 	}
 	return newDevices
 }
-func (cont *AciController) getNodeName(nodeName string) string {
+
+func (cont *AciController) getNodeIpByName(nodeName string) string {
 	nodeList := cont.nodeIndexer.List()
 	for _, nodeItem := range nodeList {
 		node := nodeItem.(*v1.Node)
@@ -313,7 +314,12 @@ func (cont *AciController) getNodeName(nodeName string) string {
 }
 
 func (cont *AciController) getfvRsCEpToPathEptDn(node string) (string, error) {
-	ipFilter := fmt.Sprintf("query-target-filter=and(eq(fvCEp.ip,\"%s\"))", node)
+	ip := cont.getNodeIpByName(node)
+	if ip == "" {
+		cont.log.Error("Failed to get ip of node ", node)
+		return "", fmt.Errorf("Failed to get ip of node %s", node)
+	}
+	ipFilter := fmt.Sprintf("query-target-filter=and(eq(fvCEp.ip,\"%s\"))", ip)
 	args := []string{
 		ipFilter,
 		"rsp-subtree-class=fvRsCEpToPathEp",
@@ -322,7 +328,7 @@ func (cont *AciController) getfvRsCEpToPathEptDn(node string) (string, error) {
 	url := fmt.Sprintf("/api/node/class/fvCEp.json?%s", strings.Join(args, "&"))
 	apicresp, err := cont.apicConn.GetApicResponse(url)
 	if err != nil {
-		cont.log.Debug("Failed to get APIC response, err: ", err.Error())
+		cont.log.Error("Failed to get APIC response, err: ", err.Error())
 		return "", err
 	}
 	for _, obj := range apicresp.Imdata {
