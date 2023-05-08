@@ -1,6 +1,4 @@
 #!/bin/bash
-# usage: build_openvswitch.sh docker-id :tag
-
 set -x
 
 DOCKER_HUB_ID=quay.io/noirolabs
@@ -18,7 +16,7 @@ export DOCKER_TAG
 
 set -Eeuxo pipefail
 
-make -C . vendor dist-static/ovsresync
+#make -C . vendor dist-static/ovsresync
 
 echo "starting ovs build"
 echo "building base image"
@@ -46,4 +44,4 @@ cp dist-static/ovsresync build/openvswitch/dist/usr/local/bin
 echo "building final image"
 cp $DOCKER_DIR/Dockerfile-openvswitch build/openvswitch
 docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch:$DOCKER_TAG -f ./build/openvswitch/Dockerfile-openvswitch build/openvswitch/dist
-docker push $DOCKER_HUB_ID/openvswitch:$DOCKER_TAG
+#docker push $DOCKER_HUB_ID/openvswitch:$DOCKER_TAG
