@@ -78,6 +78,7 @@ type HostAgent struct {
 	depPods               *index.PodSelectorIndex
 	rcPods                *index.PodSelectorIndex
 	podNetAnnotation      string
+	aciPodAnnotation      string
 	podIps                *ipam.IpCache
 	usedIPs               map[string]string
 

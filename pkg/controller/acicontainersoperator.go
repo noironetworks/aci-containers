@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,11 +100,14 @@ var Version = map[string]bool{
 	"openshift-4.9-openstack":  true,
 	"openshift-4.10-openstack": true,
 	"openshift-4.11-openstack": true,
+	"openshift-4.12-openstack": true,
 	"openshift-4.6-baremetal":  true,
 	"openshift-4.7-baremetal":  true,
 	"openshift-4.8-baremetal":  true,
 	"openshift-4.9-baremetal":  true,
 	"openshift-4.10-baremetal": true,
+	"openshift-4.11-baremetal": true,
+	"openshift-4.12-baremetal": true,
 	"openshift-4.4-esx":        true,
 	"openshift-4.5-esx":        true,
 	"openshift-4.6-esx":        true,
@@ -111,6 +115,8 @@ var Version = map[string]bool{
 	"openshift-4.8-esx":        true,
 	"openshift-4.9-esx":        true,
 	"openshift-4.10-esx":       true,
+	"openshift-4.11-esx":       true,
+	"openshift-4.12-esx":       true,
 }
 
 var Dnsoper = map[string]bool{
@@ -952,7 +958,16 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 		log.Error(err)
 		return true
 	}
-
+	osImage, err := c.getNodeOS()
+	if err != nil {
+		log.Error(err)
+		return true
+	}
+	if strings.Contains(osImage, "Ubuntu") {
+		decString := string(dec)
+		decString = strings.Replace(decString, "path: /var/lib/dhclient", "path: /var/lib/dhcp", 1)
+		dec = []byte(decString)
+	}
 	f, err := os.Create("aci-deployment.yaml")
 	if err != nil {
 		log.Error(err)
@@ -1205,6 +1220,27 @@ func (c *Controller) updatednsOperator() error {
 	c.indexMutex.Unlock()
 	log.Infof("Updated dnsInfo: %+v", dnsInfo)
 	return nil
+}
+
+func (c *Controller) getNodeOS() (string, error) {
+	var osImage string
+	var options metav1.ListOptions
+	nodelist, err := c.K8s_Clientset.CoreV1().Nodes().List(context.TODO(), options)
+	if err != nil {
+		log.Info("Failed to List the nodes: ", err)
+		return osImage, err
+	}
+	for _, node := range nodelist.Items {
+		if node.DeletionTimestamp != nil {
+			continue
+		}
+		if _, ok := node.ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
+			continue
+		}
+		osImage = node.Status.NodeInfo.OSImage
+		break
+	}
+	return osImage, nil
 }
 
 func (c *Controller) getNodeAddress() ([]string, error) {

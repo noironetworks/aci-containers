@@ -301,12 +301,157 @@ func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSli
 	return newDevices
 }
 
+func (cont *AciController) getNodeIpByName(nodeName string) string {
+	nodeList := cont.nodeIndexer.List()
+	for _, nodeItem := range nodeList {
+		node := nodeItem.(*v1.Node)
+		if nodeName == node.ObjectMeta.Name {
+			ip := getNodeIP(node, v1.NodeInternalIP)
+			return ip
+		}
+	}
+	return ""
+}
+
+func (cont *AciController) getfvRsCEpToPathEptDn(node string) (string, error) {
+	ip := cont.getNodeIpByName(node)
+	if ip == "" {
+		cont.log.Error("Failed to get ip of node ", node)
+		return "", fmt.Errorf("Failed to get ip of node %s", node)
+	}
+	ipFilter := fmt.Sprintf("query-target-filter=and(eq(fvCEp.ip,\"%s\"))", ip)
+	args := []string{
+		ipFilter,
+		"rsp-subtree-class=fvRsCEpToPathEp",
+		"rsp-subtree=children",
+	}
+	url := fmt.Sprintf("/api/node/class/fvCEp.json?%s", strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to get APIC response, err: ", err.Error())
+		return "", err
+	}
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			dn, dnok := body.Attributes["dn"].(string)
+			if !dnok {
+				continue
+			}
+			dnSlices := strings.Split(dn, "/")
+			if len(dnSlices) < 2 {
+				cont.log.Error("Invalid dn ", dn)
+				continue
+			}
+			tenant := "tn-" + cont.config.AciPolicyTenant
+			if dnSlices[1] != tenant {
+				continue
+			}
+			for _, child := range body.Children {
+				for class, cbody := range child {
+					if class == "fvRsCEpToPathEp" {
+						tDn, ok := cbody.Attributes["tDn"].(string)
+						if ok {
+							return tDn, nil
+						}
+					}
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("tDn missing in fvRsCEpToPathEp")
+}
+
+func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
+	podslice := strings.Split(pod, "-")
+	if len(podslice) < 2 {
+		return "", fmt.Errorf("Failed to get podid from pod")
+	}
+	podid := podslice[1]
+	var subnet string
+	args := []string{
+		"query-target=self",
+	}
+	url := fmt.Sprintf("/api/node/mo/uni/controller/setuppol/setupp-%s.json?%s", podid, strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response, err: ", err.Error())
+		return subnet, err
+	}
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			tepPool, ok := body.Attributes["tepPool"].(string)
+			if ok {
+				subnet = tepPool
+				break
+			}
+		}
+	}
+	return subnet, nil
+}
+
+func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (string, error) {
+	if fabricPathDn == "" {
+		// for a multipod vm migration, when there is no opflex device connected
+		// get tDn from fvRsCEpToPathEp (which has info of new pod)
+		// and update annotation (pod-<podid>-<subnet of pod>) on node
+		path, err := cont.getfvRsCEpToPathEptDn(node)
+		if err != nil {
+			return "", err
+		} else {
+			pathSlice := strings.Split(path, "/")
+			if len(pathSlice) > 1 {
+				pod := pathSlice[1]
+				subnet, err := cont.getAciPodSubnet(pod)
+				if err != nil {
+					cont.log.Error("Failed to get subnet of aci pod ", err.Error())
+					return "", err
+				} else {
+					annot := pod + "-" + subnet
+					return annot, nil
+				}
+			}
+		}
+	} else {
+		// when there is already a connected opflex device,
+		// fabricPathDn will have latest pod iformation
+		nodeAciPod := cont.nodeACIPod[node]
+		path := fabricPathDn
+		pathSlice := strings.Split(path, "/")
+		if len(pathSlice) > 1 {
+			pod := pathSlice[1]
+			// when there is difference in pod info avaliable from fabricPathDn
+			// and what we have in cache, update info in cache and change annotation on node
+			if !strings.Contains(nodeAciPod, pod) {
+				subnet, err := cont.getAciPodSubnet(pod)
+				if err != nil {
+					cont.log.Error("Failed to get subnet of aci pod ", err.Error())
+					return "", err
+				} else {
+					annot := pod + "-" + subnet
+					return annot, nil
+				}
+			} else {
+				return nodeAciPod, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("Failed to extract pod from path")
+}
+
 func (cont *AciController) deleteOldOpflexDevices() {
 	var nodeUpdates []string
+	var nodeAnnotationUpdates []string
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
+		annot, err := cont.createAciPodAnnotation(fabricPathDn, node)
+		if err == nil {
+			cont.nodeACIPod[node] = annot
+			nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
+		} else {
+			cont.log.Error(err.Error())
+		}
 		if fabricPathDn != "" {
 			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
@@ -336,6 +481,10 @@ func (cont *AciController) deleteOldOpflexDevices() {
 	cont.indexMutex.Unlock()
 	if len(nodeUpdates) > 0 {
 		cont.postOpflexDeviceDelete(nodeUpdates)
+	} else if len(nodeAnnotationUpdates) > 0 {
+		for _, updatednode := range nodeAnnotationUpdates {
+			go cont.env.NodeAnnotationChanged(updatednode)
+		}
 	}
 }
 
@@ -517,8 +666,35 @@ func validScope(scope string) bool {
 	return stringInSlice(scope, validValues)
 }
 
+func (cont *AciController) getGraphNameFromContract(name, tenantName string) (string, error) {
+	var graphName string
+	args := []string{
+		"query-target=subtree",
+	}
+	url := fmt.Sprintf("/api/node/mo/uni/tn-%s/brc-%s.json?%s", tenantName, name, strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response, err: ", err.Error())
+		return graphName, err
+	}
+	for _, obj := range apicresp.Imdata {
+		for class, body := range obj {
+			if class == "vzRsSubjGraphAtt" {
+				tnVnsAbsGraphName, ok := body.Attributes["tnVnsAbsGraphName"].(string)
+				if ok {
+					graphName = tnVnsAbsGraphName
+				}
+				break
+			}
+		}
+	}
+	cont.log.Debug("graphName: ", graphName)
+	return graphName, err
+}
+
 func apicContract(conName string, tenantName string,
-	graphName string, scopeName string, isSnatPbrFltrChain bool) apicapi.ApicObject {
+	graphName string, scopeName string, isSnatPbrFltrChain bool,
+	customSGAnnot bool) apicapi.ApicObject {
 	con := apicapi.NewVzBrCP(tenantName, conName)
 	if scopeName != "" && scopeName != "context" {
 		con.SetAttr("scope", scopeName)
@@ -536,7 +712,7 @@ func apicContract(conName string, tenantName string,
 		cs.AddChild(inTerm)
 		cs.AddChild(outTerm)
 	} else {
-		cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName))
+		cs.AddChild(apicapi.NewVzRsSubjGraphAtt(csDn, graphName, customSGAnnot))
 		cs.AddChild(apicapi.NewVzRsSubjFiltAtt(csDn, conName))
 	}
 	con.AddChild(cs)
@@ -544,11 +720,11 @@ func apicContract(conName string, tenantName string,
 }
 
 func apicDevCtx(name string, tenantName string,
-	graphName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
+	graphName string, deviceName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
 
 	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
 	ccDn := cc.GetDn()
-	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, graphName)
+	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, deviceName)
 	lifDn := fmt.Sprintf("%s/lIf-%s", graphDn, "interface")
 	bdDn := fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, bdName)
 	cc.AddChild(apicapi.NewVnsRsLDevCtxToLDev(ccDn, graphDn))
@@ -684,6 +860,16 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 	}
 
 	graphName := cont.aciNameForKey("svc", "global")
+	deviceName := cont.aciNameForKey("svc", "global")
+	_, customSGAnnPresent := service.ObjectMeta.Annotations[metadata.ServiceGraphNameAnnotation]
+	if customSGAnnPresent {
+		customSG, err := cont.getGraphNameFromContract(name, cont.config.AciVrfTenant)
+		if err == nil {
+			graphName = customSG
+		}
+	}
+	cont.log.Debug("Using service graph ", graphName, " for service ", key)
+
 	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
 
@@ -712,7 +898,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 					cont.config.AciL3Out, ingresses, sharedSecurity, false))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, false)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, false, customSGAnnPresent)
 		serviceObjs = append(serviceObjs, contract)
 		for _, net := range cont.config.AciExtNetworks {
 			serviceObjs = append(serviceObjs,
@@ -733,7 +919,7 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
-			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+			apicDevCtx(name, cont.config.AciVrfTenant, graphName, deviceName,
 				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, false))
 	}
 
@@ -820,7 +1006,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 					cont.config.AciL3Out, ingresses, sharedSecurity, true))
 		}
 
-		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, cont.apicConn.SnatPbrFltrChain)
+		contract := apicContract(name, cont.config.AciVrfTenant, graphName, conScope, cont.apicConn.SnatPbrFltrChain, false)
 		serviceObjs = append(serviceObjs, contract)
 
 		for _, net := range cont.config.AciExtNetworks {
@@ -846,7 +1032,7 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		// to the redirect policy and the device cluster and
 		// bridge domain for the device cluster.
 		serviceObjs = append(serviceObjs,
-			apicDevCtx(name, cont.config.AciVrfTenant, graphName,
+			apicDevCtx(name, cont.config.AciVrfTenant, graphName, graphName,
 				cont.aciNameForKey("bd", cont.env.ServiceBd()), rpDn, cont.apicConn.SnatPbrFltrChain))
 	}
 	cont.apicConn.WriteApicObjects(name, serviceObjs)

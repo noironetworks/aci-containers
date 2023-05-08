@@ -141,6 +141,7 @@ type AciController struct {
 	apicConn *apicapi.ApicConnection
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
+	nodeACIPod           map[string]string
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
@@ -336,6 +337,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 
+		nodeACIPod:       make(map[string]string),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
 		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),

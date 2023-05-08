@@ -48,6 +48,7 @@ type Environment interface {
 	PrepareRun(stopCh <-chan struct{}) error
 	InitStaticAciObjects()
 	NodePodNetworkChanged(nodeName string)
+	NodeAnnotationChanged(nodeName string)
 	NodeServiceChanged(nodeName string)
 	VmmPolicy() string
 	OpFlexDeviceType() string
@@ -193,6 +194,10 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 func (env *K8sEnvironment) InitStaticAciObjects() {
 	env.cont.initStaticNetPolObjs()
 	env.cont.initStaticServiceObjs()
+}
+
+func (env *K8sEnvironment) NodeAnnotationChanged(nodeName string) {
+	env.cont.nodeChangedByName(nodeName)
 }
 
 func (env *K8sEnvironment) NodePodNetworkChanged(nodeName string) {
