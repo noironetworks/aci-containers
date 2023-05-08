@@ -606,7 +606,19 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	}
 	agent.cniToPodID[epMetaKey] = epUuid
 	if pod.Status.PodIP != "" {
-		agent.podIpToName[pod.Status.PodIP] = epMetaKey
+		type void struct{}
+		var ipexists void
+		podIPs := make(map[string]void)
+		podIPs[pod.Status.PodIP] = ipexists
+		podIPsField := reflect.ValueOf(pod.Status).FieldByName("PodIPs")
+		if podIPsField.IsValid() {
+			for _, ip := range pod.Status.PodIPs {
+				podIPs[ip.IP] = ipexists
+			}
+		}
+		for ip := range podIPs {
+			agent.podIpToName[ip] = epMetaKey
+		}
 	}
 	agent.podUidToName[epUuid] = epMetaKey
 	epGroup, secGroup, qpGroup, _ := agent.assignGroups(pod)

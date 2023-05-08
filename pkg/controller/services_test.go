@@ -16,6 +16,11 @@ package controller
 
 import (
 	"fmt"
+	"net"
+	"sort"
+	"testing"
+	"time"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
@@ -23,10 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
-	"net"
-	"sort"
-	"testing"
-	"time"
 )
 
 func waitForSStatus(t *testing.T, cont *testAciController,
@@ -67,22 +68,22 @@ func TestServiceIpV6(t *testing.T) {
 
 	{
 		cont.serviceUpdates = nil
-		cont.fakeServiceSource.Add(service("testv6", "service1", ""))
+		cont.fakeServiceSource.Add(v6service("testv6", "service1", ""))
 		waitForSStatus(t, cont, []string{"2001::1"}, "testv6")
 	}
 	{
 		cont.serviceUpdates = nil
-		cont.fakeServiceSource.Add(service("testns", "service2", "2002::1"))
+		cont.fakeServiceSource.Add(v6service("testns", "service2", "2002::1"))
 		waitForSStatus(t, cont, []string{"2002::1"}, "static")
 	}
 	{
 		cont.serviceUpdates = nil
-		cont.fakeServiceSource.Add(service("testns", "service4", ""))
+		cont.fakeServiceSource.Add(v6service("testns", "service4", ""))
 		waitForSStatus(t, cont, []string{"2001::2"}, "next ip from pool")
 	}
 	{
 		cont.serviceUpdates = nil
-		s := service("testns", "service5", "")
+		s := v6service("testns", "service5", "")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "2001::32"}}
 		cont.handleServiceUpdate(s)
@@ -92,7 +93,7 @@ func TestServiceIpV6(t *testing.T) {
 	}
 	{
 		cont.serviceUpdates = nil
-		s := service("testns", "service6", "2002::3")
+		s := v6service("testns", "service6", "2002::3")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "2002::3"}}
 		cont.handleServiceUpdate(s)
@@ -100,13 +101,13 @@ func TestServiceIpV6(t *testing.T) {
 	}
 	{
 		cont.serviceUpdates = nil
-		cont.serviceDeleted(service("testns", "service2", "2002::1"))
+		cont.serviceDeleted(v6service("testns", "service2", "2002::1"))
 		assert.True(t, ipam.HasIp(cont.staticServiceIps.V6, net.ParseIP("2002::1")),
 			"delete static return")
 	}
 	{
 		cont.serviceUpdates = nil
-		cont.serviceDeleted(service("testns", "service5", ""))
+		cont.serviceDeleted(v6service("testns", "service5", ""))
 		assert.True(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[1], net.ParseIP("2001::32")),
 			"delete pool return")
 	}
@@ -128,7 +129,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool")
+		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool failed")
 	}
 	{
 		cont.serviceUpdates = nil
@@ -138,7 +139,7 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service3", "10.4.3.1"))
-		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid")
+		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid failed")
 	}
 	{
 		cont.serviceUpdates = nil
