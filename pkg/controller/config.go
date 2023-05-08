@@ -220,9 +220,9 @@ type ControllerConfig struct {
 	// Default is false
 	AddExternalSubnetsToRdconfig bool `json:"add-external-subnets-to-rdconfig,omitempty"`
 
-	ExternStatic string `json:"extern-static,omitempty"`
+	ExternStatic []string `json:"extern-static,omitempty"`
 
-	ExternDynamic string `json:"extern-dynamic,omitempty"`
+	ExternDynamic []string `json:"extern-dynamic,omitempty"`
 
 	// Default is false
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
