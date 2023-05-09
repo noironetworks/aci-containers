@@ -17,6 +17,7 @@ jobs:
         - export DOCKER_BUILDKIT=1
       script:
       - git show --summary
+      - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
       - make -C . all-static
       - docker/copy_iptables.sh quay.io/noirolabs/opflex-build-base:sumit-kmr2-test dist-static
       - docker login -u=$QUAY_SUMIT_NOIROLABS_ROBO_USER -p=$QUAY_SUMIT_NOIROLABS_ROBO_PSWD quay.io
