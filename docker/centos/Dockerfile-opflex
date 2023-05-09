@@ -14,6 +14,7 @@ release="1" \
 summary="This is an ACI CNI Opflex." \
 description="This will deploy a single instance of ACI CNI Opflex."
 # Required Licenses
+COPY docker/licenses /licenses
 COPY bin/opflex_agent /usr/local/bin/
 COPY bin/mcast_daemon /usr/local/bin/
 COPY bin/gbp_inspect /usr/local/bin/

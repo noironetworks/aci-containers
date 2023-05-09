@@ -13,6 +13,7 @@ release="1" \
 summary="This is an ACI CNI Openvswitch." \
 description="This will deploy a single instance of ACI CNI Openvswitch."
 # Required Licenses
+COPY docker/licenses /licenses
 COPY usr/local/lib /usr/local/lib
 COPY usr/local/bin /usr/local/bin
 COPY usr/local/sbin /usr/local/sbin
