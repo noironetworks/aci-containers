@@ -1,4 +1,4 @@
-FROM noiro/opflex-build-base:ubi9-centos
+FROM challa/opflex-build-base:master
 ARG BUILDOPTS="--enable-grpc"
 ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig
 WORKDIR /opflex
