@@ -39,6 +39,8 @@ docker cp -L $id:/usr/local/share build/openvswitch/dist/usr/local
 docker rm -v $id
 cp $DOCKER_DIR/../launch-ovs.sh build/openvswitch/dist/usr/local/bin
 cp $DOCKER_DIR/../liveness-ovs.sh build/openvswitch/dist/usr/local/bin
+mkdir build/openvswitch/dist/licenses
+cp $DOCKER_DIR/../licenses/* build/openvswitch/dist/licenses
 cp dist-static/ovsresync build/openvswitch/dist/usr/local/bin
 
 echo "building final image"
