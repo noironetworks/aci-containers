@@ -33,6 +33,14 @@ jobs:
       - docker images
       - docker build -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/travis/Dockerfile-operator .
       - docker images
+      - docker sbom --format spdx-json quay.io/noirolabs/cnideploy:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/cnideploy:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-host:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
       - docker push quay.io/noirolabs/openvswitch:sumit-kmr2-test
       - docker push quay.io/noirolabs/cnideploy:sumit-kmr2-test
       - docker push quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
