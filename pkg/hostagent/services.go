@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -645,43 +646,82 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	}
 	endpoints := endpointsobj.(*v1.Endpoints)
 	hasValidMapping := false
-	for _, e := range endpoints.Subsets {
-		for _, p := range e.Ports {
-			if p.Protocol != sp.Protocol {
+
+	type void struct{}
+	var ipexists void
+	clusterIPs := make(map[string]void)
+	clusterIPs[as.Spec.ClusterIP] = ipexists
+	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+	if clusterIPsField.IsValid() {
+		for _, ip := range as.Spec.ClusterIPs {
+			clusterIPs[ip] = ipexists
+		}
+	}
+
+	for clusterIP := range clusterIPs {
+		for _, e := range endpoints.Subsets {
+			if len(e.Addresses) == 0 {
+				continue
+
+			}
+			parsedClusterIp := net.ParseIP(clusterIP)
+			parsedPodIp := net.ParseIP(e.Addresses[0].IP)
+
+			if parsedClusterIp == nil || parsedPodIp == nil {
+				agent.log.Info("Not a valid IP address..", parsedClusterIp, parsedPodIp)
 				continue
 			}
-			if p.Name != sp.Name {
-				continue
-			}
-
-			sm := &opflexServiceMapping{
-				ServicePort:  uint16(sp.Port),
-				ServiceProto: strings.ToLower(string(sp.Protocol)),
-				NextHopIps:   make([]string, 0),
-				NextHopPort:  uint16(p.Port),
-				Conntrack:    true,
-				NodePort:     uint16(sp.NodePort),
-			}
-
-			if external {
-				if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
-					len(as.Status.LoadBalancer.Ingress) > 0 {
-					sm.ServiceIp = as.Status.LoadBalancer.Ingress[0].IP
-				}
+			if parsedClusterIp.To4() != nil && parsedPodIp.To4() != nil {
+				agent.log.Info("Both are IPv4 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
+			} else if parsedClusterIp.To4() == nil && parsedPodIp.To4() == nil {
+				agent.log.Info("Both are IPv6 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
 			} else {
-				sm.ServiceIp = as.Spec.ClusterIP
+				continue
 			}
-			sm.SessionAffinity = getSessionAffinity(as)
-			for _, a := range e.Addresses {
-				if !external ||
-					(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
-					sm.NextHopIps = append(sm.NextHopIps, a.IP)
+			for _, p := range e.Ports {
+				if p.Protocol != sp.Protocol {
+					continue
 				}
+				if p.Name != sp.Name {
+					continue
+				}
+
+				sm := &opflexServiceMapping{
+					ServicePort:  uint16(sp.Port),
+					ServiceProto: strings.ToLower(string(sp.Protocol)),
+					NextHopIps:   make([]string, 0),
+					NextHopPort:  uint16(p.Port),
+					Conntrack:    true,
+					NodePort:     uint16(sp.NodePort),
+				}
+
+				if external {
+					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
+						len(as.Status.LoadBalancer.Ingress) > 0 {
+						for _, ip := range as.Status.LoadBalancer.Ingress {
+							LBIp := net.ParseIP(ip.IP)
+							if (LBIp.To4() != nil) == (parsedPodIp.To4() != nil) {
+								sm.ServiceIp = ip.IP
+								break
+							}
+						}
+					}
+				} else {
+					sm.ServiceIp = clusterIP
+				}
+				sm.SessionAffinity = getSessionAffinity(as)
+				for _, a := range e.Addresses {
+					if !external ||
+						(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
+						sm.NextHopIps = append(sm.NextHopIps, a.IP)
+					}
+				}
+				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
+					hasValidMapping = true
+				}
+
+				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 			}
-			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
-				hasValidMapping = true
-			}
-			ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 		}
 	}
 	return hasValidMapping
@@ -721,86 +761,122 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		func(endpointSliceobj interface{}) {
 			endpointSlices = append(endpointSlices, endpointSliceobj.(*discovery.EndpointSlice))
 		})
-	for _, endpointSlice := range endpointSlices {
-		for _, p := range endpointSlice.Ports {
-			if p.Protocol != nil && *p.Protocol != sp.Protocol {
+
+	type void struct{}
+	var ipexists void
+	clusterIPs := make(map[string]void)
+	clusterIPs[as.Spec.ClusterIP] = ipexists
+	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+	if clusterIPsField.IsValid() {
+		for _, ip := range as.Spec.ClusterIPs {
+			clusterIPs[ip] = ipexists
+		}
+	}
+
+	for clusterIP := range clusterIPs {
+		for _, endpointSlice := range endpointSlices {
+			if !(len(endpointSlice.Endpoints) > 0 && len(endpointSlice.Endpoints[0].Addresses) > 0) {
 				continue
 			}
-
-			if p.Name != nil && *p.Name != sp.Name {
+			parsedClusterIp := net.ParseIP(clusterIP)
+			parsedPodIp := net.ParseIP(endpointSlice.Endpoints[0].Addresses[0])
+			if parsedClusterIp == nil || parsedPodIp == nil {
+				agent.log.Info("Not a valid IP address..", parsedClusterIp, parsedPodIp)
 				continue
 			}
-
-			sm := &opflexServiceMapping{
-				ServicePort:  uint16(sp.Port),
-				ServiceProto: strings.ToLower(string(sp.Protocol)),
-				NextHopIps:   make([]string, 0),
-				NextHopPort:  uint16(*p.Port),
-				Conntrack:    true,
-				NodePort:     uint16(sp.NodePort),
-			}
-
-			if external {
-				if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
-					len(as.Status.LoadBalancer.Ingress) > 0 {
-					sm.ServiceIp = as.Status.LoadBalancer.Ingress[0].IP
-				}
+			if parsedClusterIp.To4() != nil && parsedPodIp.To4() != nil {
+				agent.log.Info("Both are IPv4 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
+			} else if parsedClusterIp.To4() == nil && parsedPodIp.To4() == nil {
+				agent.log.Info("Both are IPv6 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
 			} else {
-				sm.ServiceIp = as.Spec.ClusterIP
+				continue
 			}
-			nexthops := make(map[string][]string)
-			var nodeZone string
-			for _, e := range endpointSlice.Endpoints {
-				for _, a := range e.Addresses {
-					if !external || (e.NodeName != nil && *e.NodeName == agent.config.NodeName) {
-						obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
-						if err != nil {
-							agent.log.Error("Could not lookup node: ", err)
-							continue
-						}
-						if !exists && obj == nil {
-							agent.log.Error("Object nil")
-							continue
-						}
-						node := obj.(*v1.Node)
-						// Services need an annotation to inform the
-						// endpointslice controller to add hints
-						// Currently-1.22 only zones are used as hints.
-						// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
-						var hintsEnabled bool = false
-						if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
-							hintsEnabled = true
-						}
-						if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (val2 == "auto") {
-							hintsEnabled = true
-						}
-						zone, zoneOk := node.ObjectMeta.Labels["kubernetes.io/zone"]
-						nodeZone = zone
-						if !external && zoneOk && hintsEnabled && e.Hints != nil {
-							for _, hintZone := range e.Hints.ForZones {
-								if nodeZone == hintZone.Name {
-									nexthops["topologyawarehints"] =
-										append(nexthops["topologyawarehints"], a)
-								}
+			for _, p := range endpointSlice.Ports {
+				if p.Protocol != nil && *p.Protocol != sp.Protocol {
+					continue
+				}
+
+				if p.Name != nil && *p.Name != sp.Name {
+					continue
+				}
+
+				sm := &opflexServiceMapping{
+					ServicePort:  uint16(sp.Port),
+					ServiceProto: strings.ToLower(string(sp.Protocol)),
+					NextHopIps:   make([]string, 0),
+					NextHopPort:  uint16(*p.Port),
+					Conntrack:    true,
+					NodePort:     uint16(sp.NodePort),
+				}
+
+				if external {
+					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
+						len(as.Status.LoadBalancer.Ingress) > 0 {
+						for _, ip := range as.Status.LoadBalancer.Ingress {
+							LBIp := net.ParseIP(ip.IP)
+							if (LBIp.To4() != nil) == (parsedPodIp.To4() != nil) {
+								sm.ServiceIp = ip.IP
+								break
 							}
-						} else {
-							nexthops["any"] = append(nexthops["any"], a)
+						}
+					}
+				} else {
+					sm.ServiceIp = clusterIP
+				}
+				nexthops := make(map[string][]string)
+				var nodeZone string
+				for _, e := range endpointSlice.Endpoints {
+					for _, a := range e.Addresses {
+						if !external || (e.NodeName != nil && *e.NodeName == agent.config.NodeName) {
+							obj, exists, err := agent.nodeInformer.GetStore().GetByKey(agent.config.NodeName)
+							if err != nil {
+								agent.log.Error("Could not lookup node: ", err)
+								continue
+							}
+							if !exists && obj == nil {
+								agent.log.Error("Object nil")
+								continue
+							}
+							node := obj.(*v1.Node)
+							// Services need an annotation to inform the
+							// endpointslice controller to add hints
+							// Currently-1.22 only zones are used as hints.
+							// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
+							var hintsEnabled bool = false
+							if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
+								hintsEnabled = true
+							}
+							if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (val2 == "auto") {
+								hintsEnabled = true
+							}
+							zone, zoneOk := node.ObjectMeta.Labels["kubernetes.io/zone"]
+							nodeZone = zone
+							if !external && zoneOk && hintsEnabled && e.Hints != nil {
+								for _, hintZone := range e.Hints.ForZones {
+									if nodeZone == hintZone.Name {
+										nexthops["topologyawarehints"] =
+											append(nexthops["topologyawarehints"], a)
+									}
+								}
+							} else {
+								nexthops["any"] = append(nexthops["any"], a)
+							}
 						}
 					}
 				}
+				// Select the high priority keys as datapath doesn't have support for fallback
+				if _, ok := nexthops["topologyawarehints"]; ok {
+					sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
+					agent.log.Debugf("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
+				} else {
+					sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
+				}
+				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
+					hasValidMapping = true
+				}
+				sm.SessionAffinity = getSessionAffinity(as)
+				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 			}
-			// Select the high priority keys as datapath doesn't have support for fallback
-			if _, ok := nexthops["topologyawarehints"]; ok {
-				sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
-				agent.log.Debugf("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
-			} else {
-				sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
-			}
-			if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
-				hasValidMapping = true
-			}
-			sm.SessionAffinity = getSessionAffinity(as)
-			ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 		}
 	}
 	return hasValidMapping
@@ -829,10 +905,26 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 				}
 				agent.servicetoPodUids[suid][poduid] = dummy
 				if _, podok := agent.podtoServiceUids[poduid]; !podok {
-					agent.podtoServiceUids[poduid] = make(map[string]string)
+					agent.podtoServiceUids[poduid] = make(map[string][]string)
 				}
-				agent.podtoServiceUids[poduid][suid] = as.Spec.ClusterIP
-				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", as.Spec.ClusterIP)
+
+				type void struct{}
+				var ipexists void
+				clusterIPs := make(map[string]void)
+				clusterIPs[as.Spec.ClusterIP] = ipexists
+				clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
+				if clusterIPsField.IsValid() {
+					for _, ip := range as.Spec.ClusterIPs {
+						clusterIPs[ip] = ipexists
+					}
+				}
+
+				var listClusterIPs []string
+				for ip := range clusterIPs {
+					listClusterIPs = append(listClusterIPs, ip)
+				}
+				agent.podtoServiceUids[poduid][suid] = listClusterIPs
+				agent.log.Info("EpUpdated: ", poduid, " with ClusterIp: ", listClusterIPs)
 				current[poduid] = dummy
 			}
 		}
@@ -874,8 +966,8 @@ func (agent *HostAgent) getServiceIPs(poduid string) []string {
 	agent.indexMutex.Lock()
 	v, ok := agent.podtoServiceUids[poduid]
 	if ok {
-		for _, ip := range v {
-			ips = append(ips, ip)
+		for _, service_ips := range v {
+			ips = append(ips, service_ips...)
 		}
 	}
 	agent.indexMutex.Unlock()
