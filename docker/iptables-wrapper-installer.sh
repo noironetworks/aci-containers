@@ -58,10 +58,10 @@ if [ "${1:-}" != "--no-sanity-check" ]; then
         echo "ERROR: iptables-nft is not installed" 1>&2
         exit 1
     fi
-#    if ! "${sbin}/iptables-legacy" --version > /dev/null 2>&1; then
-#        echo "ERROR: iptables-legacy is not installed" 1>&2
-#        exit 1
-#    fi
+    if ! "${sbin}/iptables-legacy" --version > /dev/null 2>&1; then
+        echo "ERROR: iptables-legacy is not installed" 1>&2
+        exit 1
+    fi
 
     case "${version}" in
     *v1.8.[012]\ *)
