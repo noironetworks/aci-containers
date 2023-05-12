@@ -18,6 +18,7 @@ package hostagent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
@@ -107,13 +108,27 @@ func convertRoutes(routes []route) (cniroutes []*cnitypes.Route) {
 	return
 }
 
-func makeIFaceIp(nc *cniNetConfig, ip net.IP) metadata.ContainerIfaceIP {
+func (agent *HostAgent) getIPMetadata(ip net.IP) (net.IP, net.IPMask) {
+	nc := agent.config.NetConfig
+	for _, n := range nc {
+		subnet := net.IPNet{
+			IP:   n.Subnet.IP,
+			Mask: n.Subnet.Mask,
+		}
+		if subnet.Contains(ip) {
+			return n.Gateway, n.Subnet.Mask
+		}
+	}
+	return nil, nil
+}
+
+func makeIFaceIp(ip net.IP, gw net.IP, mask net.IPMask) metadata.ContainerIfaceIP {
 	return metadata.ContainerIfaceIP{
 		Address: net.IPNet{
 			IP:   ip,
-			Mask: nc.Subnet.Mask,
+			Mask: mask,
 		},
-		Gateway: nc.Gateway,
+		Gateway: gw,
 	}
 }
 
@@ -125,29 +140,38 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 	agent.ipamMutex.Lock()
 	defer agent.ipamMutex.Unlock()
 
-	allocIP := func(isv4 bool, nc *cniNetConfig) {
+	allocIP := func(isv4 bool, nc *cniNetConfig) bool {
 		var ip net.IP
 		ip, err = agent.podIps.AllocateIp(isv4)
 		if err != nil {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %v", err)
+			return false
 		} else {
+			gateway, mask := agent.getIPMetadata(ip)
+			if mask == nil {
+				err := errors.New("Unable to find Mask")
+				fmt.Errorf("Could not allocate address: %v", err)
+				return false
+			}
 			oldKey, found := agent.usedIPs[ip.String()]
 			if found {
 				agent.log.Errorf("Duplicate IP %v allocated prev: %s", ip.String(), oldKey)
 			}
 			iface.IPs =
-				append(iface.IPs, makeIFaceIp(nc, ip))
+				append(iface.IPs, makeIFaceIp(ip, gateway, mask))
 			agent.usedIPs[ip.String()] = podKey
+			return true
 		}
 	}
 
+	var v4Allocated, v6Allocated bool
 	for _, nc := range agent.config.NetConfig {
 		if nc.Subnet.IP != nil {
-			if nc.Subnet.IP.To4() != nil {
-				allocIP(true, &nc)
-			} else if nc.Subnet.IP.To16() != nil {
-				allocIP(false, &nc)
+			if nc.Subnet.IP.To4() != nil && !v4Allocated {
+				v4Allocated = allocIP(true, &nc)
+			} else if nc.Subnet.IP.To16() != nil && !v6Allocated {
+				v6Allocated = allocIP(false, &nc)
 			}
 		}
 	}

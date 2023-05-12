@@ -501,9 +501,13 @@ func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []s
 		labels.Set(policy.Selector.Labels)),
 		policy.Selector.Namespace)
 	for _, service := range services {
-		serviceIps = append(serviceIps, service.Status.LoadBalancer.Ingress[0].IP)
+		var ips []string
+		for _, ip := range service.Status.LoadBalancer.Ingress {
+			ips = append(ips, ip.IP)
+		}
+		serviceIps = append(serviceIps, ips...)
 	}
-	return
+	return serviceIps
 }
 
 func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,
