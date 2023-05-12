@@ -5,7 +5,7 @@ RUN microdnf install -y yum yum-utils \
  && yum --nogpgcheck -y update
 RUN yum --nogpgcheck --disablerepo=\*ubi\* install -y \
   logrotate conntrack-tools tcpdump strace ltrace iptables net-tools \
-  libcap vi hostname iproute openssl procps-ng \
+  libcap vi hostname iproute openssl procps-ng kmod \
  && yum clean all
 # Required OpenShift Labels
 LABEL name="ACI CNI Openvswitch" \
