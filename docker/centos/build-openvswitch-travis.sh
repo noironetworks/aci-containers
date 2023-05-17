@@ -1,18 +1,21 @@
 #!/bin/bash
+# usage: ./build_openvswitch.sh <docker-reg> <docker-tag> <docker-build-args>
 set -x
 
-DOCKER_HUB_ID=quay.io/noirolabs
-DOCKER_TAG=sumit-kmr2-test
+DOCKER_HUB_ID=$1
+DOCKER_TAG=$2
+BUILDARG=$3
+[ -z "$DOCKER_HUB_ID" ] && DOCKER_HUB_ID=quay.io/noirolabs
+[ -z "$DOCKER_TAG" ] && DOCKER_TAG=sumit-kmr2-test
+[ -z "$BUILDARG" ] && BUILDARG=
+export DOCKER_HUB_ID
+export DOCKER_TAG
+export BUILDARG
 
 SECOPT=
 export SECOPT
-BUILDARG=
-export BUILDARG
 
 DOCKER_DIR=docker/centos
-[ -z "$DOCKER_TAG" ] && DOCKER_TAG=
-export DOCKER_HUB_ID
-export DOCKER_TAG
 
 set -Eeuxo pipefail
 
