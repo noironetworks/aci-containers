@@ -10,8 +10,6 @@ export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 
 # Start OVS
 ${OVSCTL} start --system-id=${SYS_ID}
-${VSCTL} set Open_vSwitch . other_config:hw-offload=true
-${OVSCTL} restart --system-id=${SYS_ID}
 
 # Create OVS bridges if needed
 dpid=0

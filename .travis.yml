@@ -23,7 +23,7 @@ jobs:
       - docker/copy_iptables.sh quay.io/noirolabs/opflex-build-base:sumit-kmr2-test dist-static
       - docker sbom --format spdx-json quay.io/noirolabs/opflex-build-base:sumit-kmr2-test | /tmp/grype
       - make -C . all-static
-      - docker/centos/build-openvswitch-travis.sh
+      - docker/travis/build-openvswitch-travis.sh
       - docker images
       - docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
       - docker images

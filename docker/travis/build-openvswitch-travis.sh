@@ -15,7 +15,7 @@ export BUILDARG
 SECOPT=
 export SECOPT
 
-DOCKER_DIR=docker/centos
+DOCKER_DIR=docker/travis
 
 set -Eeuxo pipefail
 
@@ -30,6 +30,8 @@ docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG -f ./build
 while [ ! -f  /tmp/openvswitch-base.log ]; do sleep 10; done
 tail -f /tmp/openvswitch-base.log | awk 'NR%100-1==0' &
 while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+
+tail -25 /tmp/openvswitch-base.log
 
 echo "copying intermediate binaries and libs"
 rm -Rf build/openvswitch/dist
