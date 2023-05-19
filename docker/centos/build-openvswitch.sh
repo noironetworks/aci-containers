@@ -18,7 +18,7 @@ export no_proxy
 SECOPT=
 export SECOPT
 #BUILDARG="--build-arg HTTP_PROXY=http://proxy.esl.cisco.com:80 --build-arg HTTPS_PROXY=http://proxy.esl.cisco.com:80 --build-arg NO_PROXY=engci-jenkins-sjc.cisco.com,172.28.184.12 "
-BUILDARG=
+BUILDARG="--no-cache"
 export BUILDARG
 
 if [ "$#" -ne 2 ]; then
