@@ -1,20 +1,22 @@
-dist: bionic
-matrix:
-  include:
-    - language: go
-      sudo: false
-      go: "1.20"
-      before_install:
-        - go get github.com/mattn/goveralls@v0.0.8
-      install:
-        - export PATH=$PATH:$GOPATH/bin
-      script:
-        - make goinstall
-        - make check >& /tmp/check.log
-      after_failure:
-        - grep -C 200 FAIL /tmp/check.log
-        - tail -200 /tmp/check.log
-      after_success:
-        - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-ci
+os: linux
+services: docker
+dist: jammy
+language: go
+env:
+  global:
+    - DEFAULT_BRANCH: kmr2
+    - GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
 
+jobs:
+  include:
+    - stage: build-images
+      if: tag IS present
+      go: 1.20.x
+      go_import_path: github.com/noironetworks/aci-containers
+      before_script:
+        - export DOCKER_BUILDKIT=1
+        - export RELEASE_TAG=5.2.7.1
+        - export UPSTREAM_ID=81c2369
+        - export EXPECTED_TAG_PREFIX=5.2.7.1.d1e7c1e
+      script:
+      - docker/travis/build-push-images.sh
