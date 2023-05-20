@@ -1,20 +1,48 @@
-dist: bionic
-matrix:
-  include:
-    - language: go
-      sudo: false
-      go: "1.20"
-      before_install:
-        - go get github.com/mattn/goveralls@v0.0.8
-      install:
-        - export PATH=$PATH:$GOPATH/bin
-      script:
-        - make goinstall
-        - make check >& /tmp/check.log
-      after_failure:
-        - grep -C 200 FAIL /tmp/check.log
-        - tail -200 /tmp/check.log
-      after_success:
-        - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-ci
+os: linux
+services: docker
+dist: jammy
+language: go
+env:
+  global:
+    - DEFAULT_BRANCH: kmr2
+    - GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
 
+jobs:
+  include:
+    - stage: build-images
+      if: tag IS present
+      go: 1.20.x
+      go_import_path: github.com/noironetworks/aci-containers
+      before_script:
+        - export DOCKER_BUILDKIT=1
+      script:
+      - git show --summary
+      - docker login -u=$QUAY_SUMIT_NOIROLABS_ROBO_USER -p=$QUAY_SUMIT_NOIROLABS_ROBO_PSWD quay.io
+      - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp
+      - curl -sSfL https://raw.githubusercontent.com/docker/sbom-cli-plugin/main/install.sh | sh -s --
+      - docker/copy_iptables.sh quay.io/noirolabs/opflex-build-base:sumit-kmr2-test dist-static
+      - docker sbom --format spdx-json quay.io/noirolabs/opflex-build-base:sumit-kmr2-test | /tmp/grype
+      - make -C . all-static
+      - docker/travis/build-openvswitch-travis.sh
+      - docker images
+      - docker build -t quay.io/noirolabs/cnideploy:sumit-kmr2-test --file=docker/travis/Dockerfile-cnideploy .
+      - docker images
+      - docker build -t quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test --file=docker/travis/Dockerfile-controller .
+      - docker images
+      - docker build -t quay.io/noirolabs/aci-containers-host:sumit-kmr2-test --file=docker/travis/Dockerfile-host .
+      - docker images
+      - docker build -t quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test --file=docker/travis/Dockerfile-operator .
+      - docker images
+      - docker sbom --format spdx-json quay.io/noirolabs/cnideploy:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/cnideploy:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-host:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
+      - docker sbom --format spdx-json quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test | /tmp/grype
+      - docker sbom quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
+      - docker push quay.io/noirolabs/openvswitch:sumit-kmr2-test
+      - docker push quay.io/noirolabs/cnideploy:sumit-kmr2-test
+      - docker push quay.io/noirolabs/aci-containers-controller:sumit-kmr2-test
+      - docker push quay.io/noirolabs/aci-containers-host:sumit-kmr2-test
+      - docker push quay.io/noirolabs/aci-containers-operator:sumit-kmr2-test
