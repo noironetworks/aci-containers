@@ -1,0 +1,54 @@
+FROM registry.access.redhat.com/ubi9/ubi:latest
+# Required OpenShift Labels
+LABEL name="ACI CNI Host-Agent" \
+vendor="Cisco" \
+version="v1.1.0" \
+release="1" \
+summary="This is an ACI CNI Host-Agent." \
+description="This will deploy a single instance of ACI CNI Host-Agent."
+RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
+RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft -y --nogpgcheck && rm -rf /var/cache/yum
+
+COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
+RUN tar -zxf /tmp/iptables-bin.tar.gz -C /usr/sbin \
+  && tar -zxf /tmp/iptables-libs.tar.gz -C /lib64
+RUN for i in iptables-legacy iptables-legacy-restore iptables-legacy-save iptables iptables-restore iptables-save; \
+  do \
+  ln -s -f xtables-legacy-multi "/sbin/$i"; \
+  done;
+RUN for i in ip6tables-legacy ip6tables-legacy-restore ip6tables-legacy-save ip6tables ip6tables-restore ip6tables-save; \
+  do \
+  ln -s -f xtables-legacy-multi "/sbin/$i"; \
+  done;
+RUN for i in iptables-nft iptables-nft-restore iptables-nft-save ip6tables-nft ip6tables-nft-restore ip6tables-nft-save \
+  iptables-translate ip6tables-translate iptables-restore-translate ip6tables-restore-translate \
+  arptables-nft arptables arptables-nft-restore arptables-restore arptables-nft-save arptables-save \
+  ebtables-nft ebtables ebtables-nft-restore ebtables-restore ebtables-nft-save ebtables-save xtables-monitor; \
+  do \
+  ln -s -f xtables-nft-multi "/sbin/$i"; \
+  done;
+# Add iptables alternatives at lowst priority before running wrappers
+RUN alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-legacy 1 \
+                 --slave /usr/sbin/iptables-restore iptables-restore /usr/sbin/iptables-legacy-restore \
+                 --slave /usr/sbin/iptables-save iptables-save /usr/sbin/iptables-legacy-save \
+                 --slave /usr/sbin/ip6tables ip6tables /usr/sbin/ip6tables-legacy \
+                 --slave /usr/sbin/ip6tables-restore ip6tables-restore /usr/sbin/ip6tables-legacy-restore \
+                 --slave /usr/sbin/ip6tables-save ip6tables-save /usr/sbin/ip6tables-legacy-save \
+ && alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-nft 1 \
+                 --slave /usr/sbin/iptables-restore iptables-restore /usr/sbin/iptables-nft-restore \
+                 --slave /usr/sbin/iptables-save iptables-save /usr/sbin/iptables-nft-save \
+                 --slave /usr/sbin/ip6tables ip6tables /usr/sbin/ip6tables-nft \
+                 --slave /usr/sbin/ip6tables-restore ip6tables-restore /usr/sbin/ip6tables-nft-restore \
+                 --slave /usr/sbin/ip6tables-save ip6tables-save /usr/sbin/ip6tables-nft-save
+# Add iptables-wrapper alternative at prio 100 that would
+# at run time use one of the above alternatives installed
+RUN /tmp/iptables-wrapper-installer.sh
+# Required Licenses
+COPY docker/licenses /licenses
+COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+RUN echo "send dhcp-client-identifier = hardware;" > /usr/local/etc/dhclient.conf
+ENV TENANT=kube
+ENV NODE_EPG='kubernetes|kube-nodes'
+CMD ["/usr/local/bin/launch-hostagent.sh"]
