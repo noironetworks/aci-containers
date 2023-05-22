@@ -507,7 +507,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  otherNodeArgs,
-			args:     []string{"cat", "/etc/openvswitch/conf.db"},
+			args:     []string{"cat", "/etc/openvswitch/conf.db", "/usr/local/etc/openvswitch/conf.db"},
 		},
 	}
 
