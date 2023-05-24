@@ -323,7 +323,19 @@ func (agent *HostAgent) snatPolicyDeleted(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 	agent.snatPolicyCacheMutex.Lock()
 	defer agent.snatPolicyCacheMutex.Unlock()
-	policyinfo := obj.(*snatpolicy.SnatPolicy)
+	policyinfo, isSnatPolicy := obj.(*snatpolicy.SnatPolicy)
+	if !isSnatPolicy {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		policyinfo, ok = deletedState.Obj.(*snatpolicy.SnatPolicy)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-Snatpolicy object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.log.Infof("Snat Policy Deleted: name=%s", policyinfo.ObjectMeta.Name)
 	agent.deletePolicy(policyinfo)
 	delete(agent.snatPolicyCache, policyinfo.ObjectMeta.Name)

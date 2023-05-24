@@ -195,12 +195,24 @@ func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interf
 }
 
 func (cont *AciController) snatNodeInfoDeleted(obj interface{}) {
-	nodeinfo := obj.(*nodeinfo.NodeInfo)
+	nodeInfo, isNodeInfo := obj.(*nodeinfo.NodeInfo)
+	if !isNodeInfo {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		nodeInfo, ok = deletedState.Obj.(*nodeinfo.NodeInfo)
+		if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-NodeInfo object: ", deletedState.Obj)
+			return
+		}
+	}
 	cont.indexMutex.Lock()
-	cont.log.Info("Deleting nodeinfo object with name: ", nodeinfo.ObjectMeta.Name)
-	delete(cont.snatNodeInfoCache, nodeinfo.ObjectMeta.Name)
+	cont.log.Info("Deleting nodeinfo object with name: ", nodeInfo.ObjectMeta.Name)
+	delete(cont.snatNodeInfoCache, nodeInfo.ObjectMeta.Name)
 	cont.indexMutex.Unlock()
-	cont.handleSnatNodeInfo(nodeinfo)
+	cont.handleSnatNodeInfo(nodeInfo)
 }
 
 func (cont *AciController) setSnatPolicyStatus(snatPolicyName string, status snatv1.PolicyState) bool {

@@ -111,7 +111,19 @@ func (cont *AciController) RdConfigUpdated(oldobj interface{}, newobj interface{
 }
 
 func (cont *AciController) RdConfigDeleted(obj interface{}) {
-	rdcon := obj.(*rdConfigv1.RdConfig)
+	rdcon, isRdCon := obj.(*rdConfigv1.RdConfig)
+	if !isRdCon {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		rdcon, ok = deletedState.Obj.(*rdConfigv1.RdConfig)
+		if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-RdConfig object: ", deletedState.Obj)
+			return
+		}
+	}
 	rdconkey, err := cache.MetaNamespaceKeyFunc(rdcon)
 	if err != nil {
 		RdConfigLogger(cont.log, rdcon).Error("Could not create key:" + err.Error())
