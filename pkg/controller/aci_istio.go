@@ -213,7 +213,19 @@ func (cont *AciController) handleIstioUpdate(istiospec *istiov1.AciIstioOperator
 }
 
 func (cont *AciController) istioSpecDeleted(obj interface{}) {
-	istiospec := obj.(*istiov1.AciIstioOperator)
+	istiospec, isIstiospec := obj.(*istiov1.AciIstioOperator)
+	if !isIstiospec {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		istiospec, ok = deletedState.Obj.(*istiov1.AciIstioOperator)
+		if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-AciIstioOperator object: ", deletedState.Obj)
+			return
+		}
+	}
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(istiospec)
 	if err != nil {
 		IstioLogger(cont.log, istiospec).Error("Could not create key:" + err.Error())

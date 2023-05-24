@@ -733,7 +733,19 @@ func (agent *HostAgent) epDeleted(epUuid *string) {
 }
 
 func (agent *HostAgent) podDeleted(obj interface{}) {
-	pod := obj.(*v1.Pod)
+	pod, isPod := obj.(*v1.Pod)
+	if !isPod {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		pod, ok = deletedState.Obj.(*v1.Pod)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-Pod object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.log.Infof("Pod deleted: name %s namespace %s", pod.ObjectMeta.Name, pod.ObjectMeta.Namespace)
 	podns, podname := pod.ObjectMeta.Namespace, pod.ObjectMeta.Name
 	podid := podns + "/" + podname

@@ -100,7 +100,19 @@ func (agent *HostAgent) namespaceChanged(oldobj interface{},
 }
 
 func (agent *HostAgent) namespaceDeleted(obj interface{}) {
-	ns := obj.(*v1.Namespace)
+	ns, isNs := obj.(*v1.Namespace)
+	if !isNs {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		ns, ok = deletedState.Obj.(*v1.Namespace)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-Namespace object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.handleObjectDeleteForSnat(obj)
 	agent.netPolPods.DeleteNamespace(ns)
 	agent.log.Infof("Namespace %+v deleted", ns)
@@ -171,7 +183,19 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 }
 
 func (agent *HostAgent) networkPolicyDeleted(obj interface{}) {
-	np := obj.(*v1net.NetworkPolicy)
+	np, isNp := obj.(*v1net.NetworkPolicy)
+	if !isNp {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		np, ok = deletedState.Obj.(*v1net.NetworkPolicy)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-NetworkPolicy object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.netPolPods.DeleteSelectorObj(obj)
 	agent.log.Infof("Network policy deleted: %s", np.ObjectMeta.Name)
 }
@@ -260,7 +284,19 @@ func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
 }
 
 func (agent *HostAgent) qosPolicyDeleted(obj interface{}) {
-	qp := obj.(*qospolicy.QosPolicy)
+	qp, isQp := obj.(*qospolicy.QosPolicy)
+	if !isQp {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		qp, ok = deletedState.Obj.(*qospolicy.QosPolicy)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-QosPolicy object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.qosPolPods.DeleteSelectorObj(obj)
 	agent.log.Infof("qos policy deleted: %s", qp.ObjectMeta.Name)
 }
@@ -381,7 +417,19 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 }
 
 func (agent *HostAgent) deploymentDeleted(obj interface{}) {
-	depObj := obj.(*appsv1.Deployment)
+	depObj, isDep := obj.(*appsv1.Deployment)
+	if !isDep {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		depObj, ok = deletedState.Obj.(*appsv1.Deployment)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-Deployment object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.handleObjectDeleteForSnat(obj)
 	agent.indexMutex.Lock()
 	agent.depPods.DeleteSelectorObj(obj)
@@ -482,7 +530,19 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 }
 
 func (agent *HostAgent) rcDeleted(obj interface{}) {
-	rc := obj.(*v1.ReplicationController)
+	rc, isRc := obj.(*v1.ReplicationController)
+	if !isRc {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		rc, ok = deletedState.Obj.(*v1.ReplicationController)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-ReplicationController object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.rcPods.DeleteSelectorObj(obj)
 	rcLogger(agent.log, rc).Info("rcDeleted:")
 }

@@ -144,7 +144,19 @@ func (agent *HostAgent) networkAttDefUpdated(oldobj interface{}, newobj interfac
 }
 
 func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
-	ntd := obj.(*netpolicy.NetworkAttachmentDefinition)
+	ntd, isNtd := obj.(*netpolicy.NetworkAttachmentDefinition)
+	if !isNtd {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		ntd, ok = deletedState.Obj.(*netpolicy.NetworkAttachmentDefinition)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-NetworkAttachmentDefinition object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.log.Infof("network atttachment definition deleted: %s", ntd.ObjectMeta.Name)
 	agent.indexMutex.Lock()
 	delete(agent.netattdefmap, ntd.ObjectMeta.Name)
