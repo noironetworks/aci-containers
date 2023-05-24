@@ -508,7 +508,19 @@ func (agent *HostAgent) serviceDeleted(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 
-	as := obj.(*v1.Service)
+	as, isService := obj.(*v1.Service)
+	if !isService {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			agent.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		as, ok = deletedState.Obj.(*v1.Service)
+		if !ok {
+			agent.log.Error("DeletedFinalStateUnknown contained non-Services object: ", deletedState.Obj)
+			return
+		}
+	}
 	agent.log.Debugf("Service deleted: name=%s namespace=%s",
 		as.ObjectMeta.Name, as.ObjectMeta.Namespace)
 

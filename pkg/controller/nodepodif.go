@@ -134,10 +134,18 @@ func (cont *AciController) nodePodIFUpdated(oldobj interface{}, newobj interface
 }
 
 func (cont *AciController) nodePodIFDeleted(obj interface{}) {
-	np, ok := obj.(*nodePodIf.NodePodIF)
-	if !ok {
-		cont.log.Errorf("nodePodIFDeleted: Bad object type")
-		return
+	np, isNp := obj.(*nodePodIf.NodePodIF)
+	if !isNp {
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			cont.log.Error("Received unexpected object: ", obj)
+			return
+		}
+		np, ok = deletedState.Obj.(*nodePodIf.NodePodIF)
+		if !ok {
+			cont.log.Error("DeletedFinalStateUnknown contained non-NodePodIF object: ", deletedState.Obj)
+			return
+		}
 	}
 	cont.log.Infof("nodepodif Deleted: %s", np.ObjectMeta.Name)
 	podifs := np.Spec.PodIFs
