@@ -18,7 +18,7 @@ RUN git clone https://github.com/noironetworks/3rdparty-debian.git \
   && cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF \
   && make $make_args && make install && make clean \
   && mv /usr/local/lib64/libprometheus-cpp-* /usr/local/lib/ \
-  && git clone -b v1.31.0 https://github.com/grpc/grpc --config submodule.third_party/re2.url=https://github.com/google/re2.git --config submodule.third_party/re2.active=true \
+  && git clone -b v1.52.2 https://github.com/grpc/grpc \
   && cd grpc \
   && git submodule update --init \
   && mkdir -p cmake/build \
@@ -28,9 +28,11 @@ RUN git clone https://github.com/noironetworks/3rdparty-debian.git \
            -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
            -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ../.. \
   && make $make_args && make install \
-  && mv /usr/local/lib64/pkgconfig/proto* /usr/local/lib/pkgconfig/ \
+  && mv /usr/local/lib64/pkgconfig/* /usr/local/lib/pkgconfig/ \
+  && mv /usr/local/lib64/libabsl* /usr/local/lib/ \
   && mv /usr/local/lib64/libproto* /usr/local/lib/ \
-  && mv /usr/local/lib64/libre2* /usr/local/lib/
+  && mv /usr/local/lib64/libre2* /usr/local/lib/ \
+  && cp ../../third_party/re2/re2.pc /usr/local/lib/pkgconfig/
 ENV CFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV CXXFLAGS='-fPIE -D_FORTIFY_SOURCE=2  -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security'
 ENV LDFLAGS='-pie -Wl,-z,now -Wl,-z,relro'
