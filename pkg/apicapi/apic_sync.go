@@ -308,6 +308,10 @@ func (conn *ApicConnection) fullSync() {
 		"updates": len(updates),
 		"deletes": len(deletes),
 	}).Info("APIC full sync completed")
+
+	conn.SyncMutex.Lock()
+	conn.SyncDone = true
+	conn.SyncMutex.Unlock()
 }
 
 func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {

@@ -227,6 +227,9 @@ type ControllerConfig struct {
 	// Default is false
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
 
+	// Default is false
+	AciMultipod bool `json:"aci-multipod,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 

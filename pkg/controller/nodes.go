@@ -396,12 +396,14 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		}
 	}
 
-	nodeAciPod := cont.nodeACIPod[node.ObjectMeta.Name]
-	aciPodAnn := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
-	if cont.nodeSyncEnabled {
-		if aciPodAnn != nodeAciPod {
-			node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = nodeAciPod
-			nodeUpdated = true
+	if cont.config.AciMultipod {
+		nodeAciPod := cont.nodeACIPod[node.ObjectMeta.Name]
+		aciPodAnn := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
+		if cont.nodeSyncEnabled {
+			if aciPodAnn != nodeAciPod && nodeAciPod != "" {
+				node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = nodeAciPod
+				nodeUpdated = true
+			}
 		}
 	}
 	cont.indexMutex.Unlock()
