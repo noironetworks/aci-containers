@@ -230,8 +230,14 @@ type HostAgentConfig struct {
 	//default is false
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
 
+	// Default is false
+	AciMultipod bool `json:"aci-multipod,omitempty"`
+
 	// Max number of time dhcp renew will be executed after multi pod vm migration
 	DhcpRenewMaxRetryCount int `json:"dhcp-renew-max-retry-count,omitempty"`
+
+	// Delay between dhcp release and renew in seconds
+	DhcpDelay int `json:"dhcp-delay,omitempty"`
 
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
@@ -305,6 +311,8 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.DropLogIntInterface, "drop-log-int-iface", "gen1", "Interface in Integration bridge to send dropped packets")
 	flag.UintVar(&config.DropLogExpiryTime, "drop-log-expiry", 10, "Expiry time for droplogs in the pipeline in minutes")
 	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
+	flag.IntVar(&config.DhcpDelay, "dhcp-delay", 5, "Delay between dhcp release and dhcp renew in seconds")
+	flag.IntVar(&config.DhcpRenewMaxRetryCount, "dhcp-renew-max-retry-count", 5, "max number of times dhcp renew should be executed before giving up")
 	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")

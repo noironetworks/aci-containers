@@ -26,14 +26,12 @@ import (
 	"reflect"
 	"strings"
 	"text/template"
-	//	"time"
+	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
-
-const DEFAULT_RETRY_COUNT = 5
 
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
@@ -120,18 +118,18 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
-	if retryCount == 0 {
-		retryCount = DEFAULT_RETRY_COUNT
-	}
+	dhcpDelay := time.Duration(agent.config.DhcpDelay)
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
 		return
 	}
 	var subnet string
-	subnetSlice := strings.Split(aciPodSubnet, "-")
-	if len(subnetSlice) > 2 {
-		subnet = subnetSlice[2]
+	if aciPodSubnet != "none" {
+		subnetSlice := strings.Split(aciPodSubnet, "-")
+		if len(subnetSlice) > 2 {
+			subnet = subnetSlice[2]
+		}
 	}
 	for _, link := range links {
 		switch link := link.(type) {
@@ -140,12 +138,12 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			if link.VlanId != int(agent.config.AciInfraVlan) {
 				continue
 			}
-			if agent.isIpSameSubnet(link.Name, subnet) {
-				agent.log.Debug("Ip already from same subnet ", subnet)
-				break
+			if aciPodSubnet != "none" {
+				if agent.isIpSameSubnet(link.Name, subnet) {
+					agent.log.Debug("Ip already from same subnet ", subnet)
+					break
+				}
 			}
-
-			success := false
 			for i := 0; i < retryCount; i++ {
 				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
 				opt, err := cmd.Output()
@@ -153,21 +151,20 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 					agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
 					continue
 				}
+				time.Sleep(dhcpDelay)
 				cmd = exec.Command("dhclient", link.Name, "--timeout", "30")
 				opt, err = cmd.Output()
 				if err != nil {
 					agent.log.Error("Failed to get new ip: ", err.Error(), " ", string(opt))
 					continue
 				}
-				if agent.isIpSameSubnet(link.Name, subnet) {
-					success = true
-					break
-				} else {
-					agent.log.Debug("Interface ip is not from the subnet ", subnet)
+				if aciPodSubnet != "none" {
+					if agent.isIpSameSubnet(link.Name, subnet) {
+						break
+					} else {
+						agent.log.Debug("Interface ip is not from the subnet ", subnet)
+					}
 				}
-			}
-			if !success {
-				agent.log.Error("Failed to assign ip from pod subnet after ", retryCount, " tries")
 			}
 		}
 	}
