@@ -5,7 +5,7 @@ matrix:
       sudo: false
       go: "1.20"
       before_install:
-        - go get github.com/mattn/goveralls@v0.0.8
+        - go install github.com/mattn/goveralls@v0.0.12
       install:
         - export PATH=$PATH:$GOPATH/bin
       script:
