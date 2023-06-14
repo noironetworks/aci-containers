@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -47,11 +46,11 @@ func writeFault(faultfile string, ep *opflexFault) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	existingdata, err := ioutil.ReadFile(faultfile)
+	existingdata, err := os.ReadFile(faultfile)
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return false, nil
 	}
-	err = ioutil.WriteFile(faultfile, newdata, 0644)
+	err = os.WriteFile(faultfile, newdata, 0644)
 	return true, err
 }
 
@@ -408,7 +407,7 @@ func (agent *HostAgent) writeConfigFile(name string,
 
 	path := filepath.Join(agent.config.OpFlexConfigPath, name)
 
-	existing, err := ioutil.ReadFile(path)
+	existing, err := os.ReadFile(path)
 	if err != nil {
 		if bytes.Equal(existing, buffer.Bytes()) {
 			agent.log.Info("OpFlex agent configuration file ",

@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -75,8 +75,8 @@ type certHandler struct {
 func (h *certHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var raw []byte
 	if req.Method == "POST" {
-		raw, _ := ioutil.ReadAll(req.Body)
-		req.Body = ioutil.NopCloser(bytes.NewBuffer(raw))
+		raw, _ := io.ReadAll(req.Body)
+		req.Body = io.NopCloser(bytes.NewBuffer(raw))
 	}
 	sh := h.handler
 

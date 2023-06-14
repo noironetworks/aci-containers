@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"time"
@@ -60,7 +59,7 @@ func main() {
 
 	if opts.configPath != "None" {
 		logrus.Info("Loading configuration from ", opts.configPath)
-		raw, err := ioutil.ReadFile(opts.configPath)
+		raw, err := os.ReadFile(opts.configPath)
 		if err != nil {
 			panic(err.Error())
 		}

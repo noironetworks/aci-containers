@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -255,12 +254,12 @@ func writeAs(asfile string, as *opflexService) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	existingdata, err := ioutil.ReadFile(asfile)
+	existingdata, err := os.ReadFile(asfile)
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return false, nil
 	}
 
-	err = ioutil.WriteFile(asfile, newdata, 0644)
+	err = os.WriteFile(asfile, newdata, 0644)
 	return true, err
 }
 
@@ -300,7 +299,7 @@ func (agent *HostAgent) syncServices() bool {
 	}
 	agent.indexMutex.Unlock()
 
-	files, err := ioutil.ReadDir(agent.config.OpFlexServiceDir)
+	files, err := os.ReadDir(agent.config.OpFlexServiceDir)
 	if err != nil {
 		agent.log.WithFields(
 			logrus.Fields{"serviceDir": agent.config.OpFlexServiceDir},

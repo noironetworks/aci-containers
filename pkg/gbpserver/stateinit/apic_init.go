@@ -21,7 +21,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/sirupsen/logrus"
-	"io/ioutil"
+	"os"
 )
 
 const (
@@ -109,13 +109,13 @@ func setupApicConn(cfg *gbpserver.GBPServerConfig) *apicapi.ApicConnection {
 	logger.Level = level
 
 	if cfg.Apic.PrivateKeyPath != "" {
-		privKey, err = ioutil.ReadFile(cfg.Apic.PrivateKeyPath)
+		privKey, err = os.ReadFile(cfg.Apic.PrivateKeyPath)
 		if err != nil {
 			panic(err)
 		}
 	}
 	if cfg.Apic.CertPath != "" {
-		apicCert, err = ioutil.ReadFile(cfg.Apic.CertPath)
+		apicCert, err = os.ReadFile(cfg.Apic.CertPath)
 		if err != nil {
 			panic(err)
 		}

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -148,12 +147,12 @@ func writeSnat(snatfile string, snat *OpflexSnatIp) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	existingdata, err := ioutil.ReadFile(snatfile)
+	existingdata, err := os.ReadFile(snatfile)
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return false, nil
 	}
 
-	err = ioutil.WriteFile(snatfile, newdata, 0644)
+	err = os.WriteFile(snatfile, newdata, 0644)
 	return true, err
 }
 
@@ -812,7 +811,7 @@ func (agent *HostAgent) syncSnat() bool {
 		}
 	}
 	agent.indexMutex.Unlock()
-	files, err := ioutil.ReadDir(agent.config.OpFlexSnatDir)
+	files, err := os.ReadDir(agent.config.OpFlexSnatDir)
 	if err != nil {
 		agent.log.WithFields(
 			logrus.Fields{"SnatDir: ": agent.config.OpFlexSnatDir},

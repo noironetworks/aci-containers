@@ -15,7 +15,6 @@
 package hostagent
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +23,7 @@ import (
 )
 
 func doTestOpflex(t *testing.T, agent *testHostAgent) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +68,7 @@ func TestOpflexConfigVlan(t *testing.T) {
 }
 
 func TestDiscoverUpdateOverlayConfig(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +100,7 @@ func TestDiscoverHostConfigInvalidVlan(t *testing.T) {
 }
 
 func TestDiscoverHostConfigMTUMismtach(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "faultdir_test_")
+	tempdir, err := os.MkdirTemp("", "faultdir_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -115,7 +114,7 @@ func TestDiscoverHostConfigMTUMismtach(t *testing.T) {
 }
 
 func TestOpFlexFaultDirRemoveAll(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "faultdir_test_")
+	tempdir, err := os.MkdirTemp("", "faultdir_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +125,7 @@ func TestOpFlexFaultDirRemoveAll(t *testing.T) {
 }
 
 func TestDiscoverHostIPNotSetForLink(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "faultdir_test_")
+	tempdir, err := os.MkdirTemp("", "faultdir_test_")
 	if err != nil {
 		panic(err)
 	}

@@ -19,7 +19,6 @@ import (
 	rdconfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"testing"
@@ -47,7 +46,7 @@ func (agent *testHostAgent) doTestRdConfig(t *testing.T, tempdir string, name st
 		func(last bool) (bool, error) {
 			var err error
 			rdfile := agent.FormRdFilePath()
-			raw, err = ioutil.ReadFile(rdfile)
+			raw, err = os.ReadFile(rdfile)
 			agent.log.Info("rdfile added ", err)
 			if err != nil {
 				return false, nil
@@ -60,7 +59,7 @@ func (agent *testHostAgent) doTestRdConfig(t *testing.T, tempdir string, name st
 }
 
 func TestRdConfig(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +74,7 @@ func TestRdConfig(t *testing.T) {
 	agent.config.AciVrf = "vrf"
 	agent.run()
 	rdconfig := rdConfigdata([]string{"10.10.10.0/24"}, []string{"20.20.20.0/24"})
-	ioutil.WriteFile(agent.FormRdFilePath(), []byte("random gibberish"), 0644)
+	os.WriteFile(agent.FormRdFilePath(), []byte("random gibberish"), 0644)
 	agent.fakeRdConfigSource.Add(rdconfig)
 	agent.doTestRdConfig(t, tempdir, "rdconfig", []string{"10.10.10.0/24", "20.20.20.0/24"}, "create")
 	agent.stop()

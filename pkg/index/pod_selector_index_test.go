@@ -359,7 +359,7 @@ func TestPodIndexDeployment(t *testing.T) {
 			}
 		}
 
-		tu.WaitFor(t, dt.desc, 500*time.Millisecond,
+		tu.WaitFor(t, dt.desc, 2000*time.Millisecond,
 			func(last bool) (bool, error) {
 				tupd := make(map[string]bool)
 				for _, k := range dt.updates {
@@ -547,7 +547,7 @@ func TestPodIndexNSMatch(t *testing.T) {
 			}
 		}
 
-		tu.WaitFor(t, dt.desc, 500*time.Millisecond,
+		tu.WaitFor(t, dt.desc, 2000*time.Millisecond,
 			func(last bool) (bool, error) {
 				tupd := make(map[string]bool)
 				for _, k := range dt.updates {

@@ -17,7 +17,6 @@ package hostagent
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"reflect"
@@ -116,21 +115,21 @@ type integ struct {
 }
 
 func SetupInteg(t *testing.T, c *HostAgentConfig) *integ {
-	cnidir, err := ioutil.TempDir("", "it_cni_")
+	cnidir, err := os.MkdirTemp("", "it_cni_")
 	if err != nil {
 		panic(err)
 	}
 
-	epdir, err := ioutil.TempDir("", "it_ep_")
+	epdir, err := os.MkdirTemp("", "it_ep_")
 	if err != nil {
 		panic(err)
 	}
 
-	svcdir, err := ioutil.TempDir("", "it_svc_")
+	svcdir, err := os.MkdirTemp("", "it_svc_")
 	if err != nil {
 		panic(err)
 	}
-	snatdir, err := ioutil.TempDir("", "it_snat_")
+	snatdir, err := os.MkdirTemp("", "it_snat_")
 	if err != nil {
 		panic(err)
 	}

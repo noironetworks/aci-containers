@@ -19,7 +19,7 @@ package hostagent
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -180,7 +180,7 @@ func (agent *HostAgent) registerHostVeth() {
 		for {
 			ep := &opflexEndpoint{}
 			epfile := filepath.Join(agent.config.OpFlexEndpointDir, hostVethEP)
-			datacont, err := ioutil.ReadFile(epfile)
+			datacont, err := os.ReadFile(epfile)
 			if err != nil {
 				agent.log.Errorf("Unable to read %s - %v", epfile, err)
 				return

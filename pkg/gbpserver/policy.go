@@ -23,7 +23,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -545,9 +545,9 @@ func postEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (in
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
-	content, err := ioutil.ReadAll(r.Body)
+	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "ioutil.ReadAll")
+		return nil, errors.Wrap(err, "io.ReadAll")
 	}
 
 	epg := &EPG{}
@@ -609,9 +609,9 @@ func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
-	content, err := ioutil.ReadAll(r.Body)
+	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "ioutil.ReadAll")
+		return nil, errors.Wrap(err, "io.ReadAll")
 	}
 
 	c := &Contract{}
@@ -953,9 +953,9 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
-	content, err := ioutil.ReadAll(r.Body)
+	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "ioutil.ReadAll")
+		return nil, errors.Wrap(err, "io.ReadAll")
 	}
 
 	c := &NetworkPolicy{}

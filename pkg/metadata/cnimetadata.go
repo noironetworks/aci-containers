@@ -17,7 +17,6 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -59,14 +58,14 @@ func RecordMetadata(datadir string, network string, data ContainerMetadata) erro
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(datafile, datacont, 0644)
+	return os.WriteFile(datafile, datacont, 0644)
 }
 
 func LoadMetadata(datadir string, network string,
 	mdMap *map[string]map[string]*ContainerMetadata) error {
 
 	dir := filepath.Join(datadir, network)
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -89,7 +88,7 @@ func CheckMetadata(datadir string, network string) (int64, error) {
 
 	ipMap := make(map[string]string)
 	dir := filepath.Join(datadir, network)
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return 0, err
 	}
@@ -118,7 +117,7 @@ func GetMetadata(datadir string, network string, id string) (*ContainerMetadata,
 	data := &ContainerMetadata{}
 
 	datafile := filepath.Join(datadir, network, id)
-	datacont, err := ioutil.ReadFile(datafile)
+	datacont, err := os.ReadFile(datafile)
 	if err != nil {
 		return data, err
 	}

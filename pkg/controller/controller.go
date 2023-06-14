@@ -17,8 +17,8 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -478,13 +478,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.config.AciVrfDn = "uni/tn-" + cont.config.AciVrfTenant + "/ctx-" + cont.config.AciVrf
 
 	if cont.config.ApicPrivateKeyPath != "" {
-		privKey, err = ioutil.ReadFile(cont.config.ApicPrivateKeyPath)
+		privKey, err = os.ReadFile(cont.config.ApicPrivateKeyPath)
 		if err != nil {
 			panic(err)
 		}
 	}
 	if cont.config.ApicCertPath != "" {
-		apicCert, err = ioutil.ReadFile(cont.config.ApicCertPath)
+		apicCert, err = os.ReadFile(cont.config.ApicCertPath)
 		if err != nil {
 			panic(err)
 		}

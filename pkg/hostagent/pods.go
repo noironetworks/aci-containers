@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -288,7 +287,7 @@ func (agent *HostAgent) initControllerInformerBase(listWatch *cache.ListWatch) {
 }
 
 func getEp(epfile string) (string, error) {
-	raw, err := ioutil.ReadFile(epfile)
+	raw, err := os.ReadFile(epfile)
 	if err != nil {
 		return "", err
 	}
@@ -311,11 +310,11 @@ func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	existingdata, err := ioutil.ReadFile(epfile)
+	existingdata, err := os.ReadFile(epfile)
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return false, nil
 	}
-	err = ioutil.WriteFile(epfile, newdata, 0644)
+	err = os.WriteFile(epfile, newdata, 0644)
 	return true, err
 }
 
@@ -349,7 +348,7 @@ func (agent *HostAgent) syncOpflexServer() bool {
 	}
 
 	data, _ := json.MarshalIndent(srvCfg, "", "  ")
-	err = ioutil.WriteFile(agent.config.OpFlexServerConfigFile, data, 0644)
+	err = os.WriteFile(agent.config.OpFlexServerConfigFile, data, 0644)
 	if err != nil {
 		agent.log.Errorf("Failed to create file: %s", agent.config.OpFlexServerConfigFile)
 	} else {
@@ -381,7 +380,7 @@ func (agent *HostAgent) syncEps() bool {
 	}
 	agent.indexMutex.Unlock()
 
-	files, err := ioutil.ReadDir(agent.config.OpFlexEndpointDir)
+	files, err := os.ReadDir(agent.config.OpFlexEndpointDir)
 	if err != nil {
 		agent.log.WithFields(
 			logrus.Fields{"endpointDir": agent.config.OpFlexEndpointDir},

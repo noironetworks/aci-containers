@@ -19,7 +19,7 @@ package gbpserver
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -472,9 +472,9 @@ func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string
 	gMutex.Lock()
 	defer gMutex.Unlock()
 
-	content, err := ioutil.ReadAll(r.Body)
+	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "ioutil.ReadAll")
+		return nil, errors.Wrap(err, "io.ReadAll")
 	}
 
 	ep := &Endpoint{}

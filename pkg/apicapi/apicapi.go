@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"regexp"
@@ -53,7 +52,7 @@ var (
 
 func complete(resp *http.Response) {
 	if resp.StatusCode != http.StatusOK {
-		rBody, err := ioutil.ReadAll(resp.Body)
+		rBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			logrus.Errorf("ReadAll :% v", err)
 		} else {

@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -110,7 +110,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 		lcURLs = append(lcURLs, *uu)
 	}
 	// start an etcd server
-	tempDir, err := ioutil.TempDir("", "api_etcd_")
+	tempDir, err := os.MkdirTemp("", "api_etcd_")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 
 	ts.e = e
 
-	dataDir, err := ioutil.TempDir("", "_gbpdata")
+	dataDir, err := os.MkdirTemp("", "_gbpdata")
 	assert.Equal(t, err, nil)
 
 	ts.dataDir = dataDir
@@ -217,7 +217,7 @@ func TestBasic(t *testing.T) {
 			t.Fail()
 		}
 
-		res, err := ioutil.ReadAll(resp.Body)
+		res, err := io.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			log.Info(err)
@@ -453,7 +453,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 
 		defer resp.Body.Close()
 
-		rBody, err := ioutil.ReadAll(resp.Body)
+		rBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.Errorf("ReadAll :%v", err)
 			t.FailNow()
@@ -478,7 +478,7 @@ func verifyRest(t *testing.T, c *http.Client) {
 		}
 
 		defer getResp.Body.Close()
-		gBody, err := ioutil.ReadAll(getResp.Body)
+		gBody, err := io.ReadAll(getResp.Body)
 		if err != nil {
 			log.Errorf("ReadAll :%v", err)
 			t.FailNow()
@@ -812,7 +812,7 @@ rcvLoop:
 }
 
 func verifyPolicy(t *testing.T, moMap map[string]*GBPObject) {
-	data, err := ioutil.ReadFile("./testPolicy.json")
+	data, err := os.ReadFile("./testPolicy.json")
 	if err != nil {
 		log.Infof("Reading ./testPolicy.json - %v", err)
 		t.Fatal(err)
