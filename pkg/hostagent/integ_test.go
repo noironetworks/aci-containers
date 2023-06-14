@@ -691,7 +691,7 @@ func mkSnatGlobalObj() *snatglobal.SnatGlobalInfo {
 			}
 		}
 	}
-	return snatglobaldata("123456", "snatglobalinfo", "test-node", "aci", newglobal)
+	return snatglobaldata("123456", "test-node", "aci", newglobal)
 }
 func (it *integ) checkEpSnatUids(id int, uids []string, sg string) {
 	epid := fmt.Sprintf("%d%s_%d%s_", id, testPodID, id, testPodID)

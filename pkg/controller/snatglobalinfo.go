@@ -341,6 +341,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 
 func (cont *AciController) syncSnatGlobalInfo() bool {
 	env := cont.env.(*K8sEnvironment)
+	requeue := false
 	globalcl := env.snatGlobalClient
 	if globalcl == nil {
 		return false
@@ -356,36 +357,72 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 		}
 	}
 	cont.indexMutex.Unlock()
-	snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl)
-	if errors.IsNotFound(err) {
-		spec := snatglobalinfo.SnatGlobalInfoSpec{
-			GlobalInfos: glInfoCache,
-		}
-		if globalcl != nil {
-			err := util.CreateSnatGlobalInfoCR(*globalcl, spec)
-			if err != nil {
-				cont.log.Error("SnatGlobalInfoCR Create failed requeue the request", err)
-				return true
+	snatglinfos, err := util.ListGlobalInfoCRs(*globalcl)
+	if err != nil {
+		cont.log.Error("Failed to list SnatGlobalInfoCRs", err)
+		requeue = true
+	} else if snatglinfos != nil && len(snatglinfos) > 0 {
+		//delete CR if it's not present in
+		for _, glinfocr := range snatglinfos {
+			namecr := glinfocr.Spec.NodeName
+			delete := true
+			for namecache := range glInfoCache {
+				if namecr == namecache {
+					delete = false
+					break
+				}
+			}
+			if delete {
+				err := util.DeleteGlobalInfoCR(*globalcl, namecr)
+				if err != nil {
+					requeue = true
+					cont.log.Error(namecr, " SnatGlobalInfoCR deletion failed :", err)
+					continue
+				}
+				cont.log.Info("Deleted SnatGlobalInfoCR :", namecr)
 			}
 		}
-		return false
-	} else if err != nil {
-		cont.log.Error("SnatGlobalInfoCR Create failed requeue the request-1: ", err)
-		return true
+
 	}
-	if reflect.DeepEqual(snatglobalInfo.Spec.GlobalInfos, glInfoCache) {
-		return false
+	for name, glinfo := range glInfoCache {
+		spec := snatglobalinfo.SnatGlobalInfoSpec{
+			NodeName: name,
+			GlobalInfos: map[string]snatglobalinfo.GlobalInfoList{
+				name: glinfo,
+			},
+		}
+		snatglobalInfo, err := util.GetGlobalInfoCR(*globalcl, name)
+		if errors.IsNotFound(err) {
+			if globalcl != nil {
+				err := util.CreateSnatGlobalInfoCR(*globalcl, spec)
+				if err != nil {
+					cont.log.Error(name, " SnatGlobalInfoCR Create failed requeue the request", err)
+					requeue = true
+					continue
+				}
+			}
+			continue
+		} else if err != nil {
+			cont.log.Error(name, " SnatGlobalInfoCR Create failed requeue the request-1: ", err)
+			requeue = true
+			continue
+		}
+		if reflect.DeepEqual(snatglobalInfo.Spec, spec) {
+			continue
+		}
+		snatglobalInfo.Spec = spec
+		cont.log.Debug("Update GlobalInfo cache: ", spec)
+		cont.log.Debug("Updating GlobalInfo CR: ", name)
+		err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
+		if err != nil {
+			cont.log.Error(name, " GlobalInfo CR Update Failed: ", err)
+			requeue = true
+			continue
+		}
+		cont.log.Debug(name, " GlobalInfo CR successfully updated")
+
 	}
-	snatglobalInfo.Spec.GlobalInfos = glInfoCache
-	cont.log.Debug("Update GlobalInfo cache: ", glInfoCache)
-	cont.log.Debug("Updating GlobalInfo CR")
-	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
-	if err != nil {
-		cont.log.Error("GlobalInfo CR Update Failed: ", err)
-		return true
-	}
-	cont.log.Debug("GlobalInfo CR successfully updated")
-	return false
+	return requeue
 }
 
 func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.PortRange,
