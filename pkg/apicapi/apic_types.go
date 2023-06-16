@@ -119,6 +119,8 @@ type ApicConnection struct {
 	syncEnabled  bool
 	stopped      bool
 	checkVersion bool
+	SyncDone     bool
+	SyncMutex    sync.Mutex
 
 	desiredState       map[string]ApicSlice
 	desiredStateDn     map[string]ApicObject

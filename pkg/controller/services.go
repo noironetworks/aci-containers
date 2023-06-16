@@ -301,66 +301,6 @@ func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSli
 	return newDevices
 }
 
-func (cont *AciController) getNodeIpByName(nodeName string) string {
-	nodeList := cont.nodeIndexer.List()
-	for _, nodeItem := range nodeList {
-		node := nodeItem.(*v1.Node)
-		if nodeName == node.ObjectMeta.Name {
-			ip := getNodeIP(node, v1.NodeInternalIP)
-			return ip
-		}
-	}
-	return ""
-}
-
-func (cont *AciController) getfvRsCEpToPathEptDn(node string) (string, error) {
-	ip := cont.getNodeIpByName(node)
-	if ip == "" {
-		cont.log.Error("Failed to get ip of node ", node)
-		return "", fmt.Errorf("Failed to get ip of node %s", node)
-	}
-	ipFilter := fmt.Sprintf("query-target-filter=and(eq(fvCEp.ip,\"%s\"))", ip)
-	args := []string{
-		ipFilter,
-		"rsp-subtree-class=fvRsCEpToPathEp",
-		"rsp-subtree=children",
-	}
-	url := fmt.Sprintf("/api/node/class/fvCEp.json?%s", strings.Join(args, "&"))
-	apicresp, err := cont.apicConn.GetApicResponse(url)
-	if err != nil {
-		cont.log.Error("Failed to get APIC response, err: ", err.Error())
-		return "", err
-	}
-	for _, obj := range apicresp.Imdata {
-		for _, body := range obj {
-			dn, dnok := body.Attributes["dn"].(string)
-			if !dnok {
-				continue
-			}
-			dnSlices := strings.Split(dn, "/")
-			if len(dnSlices) < 2 {
-				cont.log.Error("Invalid dn ", dn)
-				continue
-			}
-			tenant := "tn-" + cont.config.AciPolicyTenant
-			if dnSlices[1] != tenant {
-				continue
-			}
-			for _, child := range body.Children {
-				for class, cbody := range child {
-					if class == "fvRsCEpToPathEp" {
-						tDn, ok := cbody.Attributes["tDn"].(string)
-						if ok {
-							return tDn, nil
-						}
-					}
-				}
-			}
-		}
-	}
-	return "", fmt.Errorf("tDn missing in fvRsCEpToPathEp")
-}
-
 func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	podslice := strings.Split(pod, "-")
 	if len(podslice) < 2 {
@@ -391,34 +331,17 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 
 func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (string, error) {
 	if fabricPathDn == "" {
-		// for a multipod vm migration, when there is no opflex device connected
-		// get tDn from fvRsCEpToPathEp (which has info of new pod)
-		// and update annotation (pod-<podid>-<subnet of pod>) on node
-		path, err := cont.getfvRsCEpToPathEptDn(node)
-		if err != nil {
-			return "", err
-		} else {
-			pathSlice := strings.Split(path, "/")
-			if len(pathSlice) > 1 {
-				pod := pathSlice[1]
-				subnet, err := cont.getAciPodSubnet(pod)
-				if err != nil {
-					cont.log.Error("Failed to get subnet of aci pod ", err.Error())
-					return "", err
-				} else {
-					annot := pod + "-" + subnet
-					return annot, nil
-				}
-			}
-		}
+		return "none", nil
 	} else {
 		// when there is already a connected opflex device,
 		// fabricPathDn will have latest pod iformation
+		// and annotation will be in the form pod-<podid>-<subnet of pod>
 		nodeAciPod := cont.nodeACIPod[node]
 		path := fabricPathDn
 		pathSlice := strings.Split(path, "/")
 		if len(pathSlice) > 1 {
 			pod := pathSlice[1]
+
 			// when there is difference in pod info avaliable from fabricPathDn
 			// and what we have in cache, update info in cache and change annotation on node
 			if !strings.Contains(nodeAciPod, pod) {
@@ -435,7 +358,7 @@ func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (st
 			}
 		}
 	}
-	return "", fmt.Errorf("Failed to extract pod from path")
+	return "", nil
 }
 
 func (cont *AciController) deleteOldOpflexDevices() {
@@ -445,12 +368,19 @@ func (cont *AciController) deleteOldOpflexDevices() {
 	for node, devices := range cont.nodeOpflexDevice {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
-		annot, err := cont.createAciPodAnnotation(fabricPathDn, node)
-		if err == nil {
-			cont.nodeACIPod[node] = annot
-			nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
-		} else {
-			cont.log.Error(err.Error())
+		if cont.config.AciMultipod {
+			cont.apicConn.SyncMutex.Lock()
+			syncDone := cont.apicConn.SyncDone
+			cont.apicConn.SyncMutex.Unlock()
+			if syncDone {
+				annot, err := cont.createAciPodAnnotation(fabricPathDn, node)
+				if err == nil && annot != cont.nodeACIPod[node] {
+					cont.nodeACIPod[node] = annot
+					nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
+				} else if err != nil {
+					cont.log.Error(err.Error())
+				}
+			}
 		}
 		if fabricPathDn != "" {
 			for _, device := range devices {
