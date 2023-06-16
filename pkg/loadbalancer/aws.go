@@ -53,14 +53,14 @@ type svcInfo struct {
 	targets []string
 }
 
-func NewAwsLB() *AwsLB {
-	sess := session.New()
+func NewAwsLB() (*AwsLB, error) {
+	sess, err := session.NewSession()
 	return &AwsLB{
 		client:    elbv2.New(sess),
 		services:  make(map[string]*svcInfo),
 		ec2Client: ec2.New(sess),
 		ipToInst:  make(map[string]string),
-	}
+	}, err
 }
 
 func (a *AwsLB) Init(vpc string, subnets []string) error {

@@ -22,7 +22,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/sirupsen/logrus"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -70,13 +70,13 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 	log := logger.WithField("mod", "cAPIC-W")
 
 	if cfg.Apic.PrivateKeyPath != "" {
-		privKey, err = ioutil.ReadFile(cfg.Apic.PrivateKeyPath)
+		privKey, err = os.ReadFile(cfg.Apic.PrivateKeyPath)
 		if err != nil {
 			panic(err)
 		}
 	}
 	if cfg.Apic.CertPath != "" {
-		apicCert, err = ioutil.ReadFile(cfg.Apic.CertPath)
+		apicCert, err = os.ReadFile(cfg.Apic.CertPath)
 		if err != nil {
 			panic(err)
 		}

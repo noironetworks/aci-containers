@@ -16,7 +16,6 @@ package hostagent
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -150,7 +149,7 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 			var err error
 			snatfile := filepath.Join(tempdir,
 				pt.uuid+".snat")
-			raw, err = ioutil.ReadFile(snatfile)
+			raw, err = os.ReadFile(snatfile)
 			if !tu.WaitNil(t, last, err, desc, pt.name, "read snat") {
 				return false, nil
 			}
@@ -173,7 +172,7 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 }
 
 func TestSnatSync(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -189,7 +188,7 @@ func TestSnatSync(t *testing.T) {
 	agent.run()
 	for i, pt := range podTests {
 		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir,
+			os.WriteFile(filepath.Join(tempdir,
 				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
 				[]byte("random gibberish"), 0644)
 		}
@@ -214,7 +213,7 @@ func TestSnatSync(t *testing.T) {
 	var snatglobalinfo *snatglobal.SnatGlobalInfo
 	for i, pt := range snatGlobals {
 		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir,
+			os.WriteFile(filepath.Join(tempdir,
 				pt.uuid+".snat"),
 				[]byte("random gibberish"), 0644)
 		}
@@ -245,7 +244,7 @@ func TestSnatSync(t *testing.T) {
 }
 
 func TestSnatPortExhausted(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}

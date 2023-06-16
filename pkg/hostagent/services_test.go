@@ -16,7 +16,6 @@ package hostagent
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -223,7 +222,7 @@ func (agent *testHostAgent) doTestService(t *testing.T, tempdir string,
 			var err error
 			{
 				asfile := filepath.Join(tempdir, st.uuid+".service")
-				raw, err = ioutil.ReadFile(asfile)
+				raw, err = os.ReadFile(asfile)
 				if !tu.WaitNil(t, last, err, desc, st.name, "read service") {
 					return false, nil
 				}
@@ -235,7 +234,7 @@ func (agent *testHostAgent) doTestService(t *testing.T, tempdir string,
 
 			if st.externalIp != "" {
 				asfile := filepath.Join(tempdir, st.uuid+"-external.service")
-				raw, err = ioutil.ReadFile(asfile)
+				raw, err = os.ReadFile(asfile)
 				if !tu.WaitNil(t, last, err, desc, st.name, "read service") {
 					return false, nil
 				}
@@ -264,7 +263,7 @@ func (agent *testHostAgent) doTestService(t *testing.T, tempdir string,
 }
 
 func TestServiceSync(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -295,9 +294,9 @@ func TestServiceSync(t *testing.T) {
 
 	for i, st := range serviceTests {
 		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
 				[]byte("random gibberish"), 0644)
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
 		service := service(st.uuid, st.namespace, st.name,
@@ -318,7 +317,7 @@ func TestServiceSync(t *testing.T) {
 				r := true
 				{
 					asfile := filepath.Join(tempdir, st.uuid+".service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read service") {
 						r = false
 					}
@@ -326,7 +325,7 @@ func TestServiceSync(t *testing.T) {
 
 				{
 					asfile := filepath.Join(tempdir, st.uuid+"-external.service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read external service") {
 						r = false
 					}
@@ -341,7 +340,7 @@ func TestServiceSync(t *testing.T) {
 
 // Test Service with endpointslice
 func TestServiceSyncWithEps(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -373,9 +372,9 @@ func TestServiceSyncWithEps(t *testing.T) {
 	agent.run()
 	for i, st := range serviceTests {
 		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
 				[]byte("random gibberish"), 0644)
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
 		service := service(st.uuid, st.namespace, st.name,
@@ -396,7 +395,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 				r := true
 				{
 					asfile := filepath.Join(tempdir, st.uuid+".service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read service") {
 						r = false
 					}
@@ -404,7 +403,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 
 				{
 					asfile := filepath.Join(tempdir, st.uuid+"-external.service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read external service") {
 						r = false
 					}
@@ -419,7 +418,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 
 // TopoKeys testing.
 func TestServiceWithTopoKeys(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -452,9 +451,9 @@ func TestServiceWithTopoKeys(t *testing.T) {
 	agent.run()
 	for i, st := range serviceTests {
 		if i%2 == 0 {
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+".service"),
 				[]byte("random gibberish"), 0644)
-			ioutil.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
+			os.WriteFile(filepath.Join(tempdir, st.uuid+"-external.service"),
 				[]byte("random gibberish"), 0644)
 		}
 		service := service(st.uuid, st.namespace, st.name,
@@ -475,7 +474,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 				r := true
 				{
 					asfile := filepath.Join(tempdir, st.uuid+".service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read service") {
 						r = false
 					}
@@ -483,7 +482,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 
 				{
 					asfile := filepath.Join(tempdir, st.uuid+"-external.service")
-					_, err := ioutil.ReadFile(asfile)
+					_, err := os.ReadFile(asfile)
 					if !tu.WaitNotNil(t, last, err, "read external service") {
 						r = false
 					}
@@ -502,7 +501,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 // 4. Check ServiceIp's updated properly for the Pod created
 // 5. Delete the Service Make sure that cleanup happend
 func TestServiceEptoSerMap(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -563,7 +562,7 @@ func TestServiceEptoSerMap(t *testing.T) {
 // 4. Check ServiceIp's updated properly for the Pod created
 // 5. Delete the Service Make sure that cleanup happend
 func TestSingleStackIPv6ServiceEptoSerMap(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}
@@ -624,7 +623,7 @@ func TestSingleStackIPv6ServiceEptoSerMap(t *testing.T) {
 // 4. Check ServiceIp's updated properly for the Pod created
 // 5. Delete the Service Make sure that cleanup happend
 func TestDualStackServiceEptoSerMap(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "hostagent_test_")
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
 	if err != nil {
 		panic(err)
 	}

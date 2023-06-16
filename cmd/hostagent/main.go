@@ -21,7 +21,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -99,7 +98,7 @@ func main() {
 
 	if configPath != nil && *configPath != "" {
 		log.Info("Loading configuration from ", *configPath)
-		raw, err := ioutil.ReadFile(*configPath)
+		raw, err := os.ReadFile(*configPath)
 		if err != nil {
 			panic(err.Error())
 		}

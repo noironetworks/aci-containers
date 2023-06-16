@@ -20,7 +20,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -56,7 +55,7 @@ func main() {
 
 	if configPath != nil && *configPath != "" {
 		log.Info("Loading configuration from ", *configPath)
-		raw, err := ioutil.ReadFile(*configPath)
+		raw, err := os.ReadFile(*configPath)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -107,7 +106,11 @@ func main() {
 
 	if awsSubnets != nil && *awsSubnets != "None" {
 		nList := strings.Split(*awsSubnets, ",")
-		awslb := loadbalancer.NewAwsLB()
+		awslb, err := loadbalancer.NewAwsLB()
+		if err != nil {
+			log.Errorf("NewAwsLB: %v", err)
+		}
+
 		err = awslb.Init(*vpcID, nList)
 		if err != nil {
 			log.Errorf("lb init: %v", err)

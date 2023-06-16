@@ -19,7 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -712,7 +712,7 @@ func (s *Server) kafkaEPDel(ep *Endpoint) {
 func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 	uri := r.URL.RequestURI()
 	log.Debugf("handleWrite: %s", uri)
-	content, err := ioutil.ReadAll(r.Body)
+	content, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

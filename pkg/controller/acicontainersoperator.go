@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"reflect"
@@ -533,7 +532,7 @@ func (c *Controller) GetAciContainersOperatorCR() (*operators.AciContainersOpera
 	return acicnioperator, nil
 }
 func (c *Controller) ReadConfigMap(field string) ([]byte, error) {
-	raw, err := ioutil.ReadFile(field)
+	raw, err := os.ReadFile(field)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -550,7 +549,7 @@ func (c *Controller) WriteConfigMap(field string, data *corev1.ConfigMap) error 
 		log.Error(err)
 		return err
 	}
-	err = ioutil.WriteFile(field, data_byte, 0777)
+	err = os.WriteFile(field, data_byte, 0777)
 	if err != nil {
 		log.Error(err)
 		return err

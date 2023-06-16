@@ -19,7 +19,6 @@ package hostagent
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -116,11 +115,11 @@ func writeRdFile(rdfile string, rdconfig *opflexRdConfig) error {
 	if err != nil {
 		return err
 	}
-	existingdata, err := ioutil.ReadFile(rdfile)
+	existingdata, err := os.ReadFile(rdfile)
 	if err == nil && reflect.DeepEqual(existingdata, newdata) {
 		return nil
 	}
-	err = ioutil.WriteFile(rdfile, newdata, 0644)
+	err = os.WriteFile(rdfile, newdata, 0644)
 	return err
 }
 

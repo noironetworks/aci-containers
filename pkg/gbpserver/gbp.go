@@ -19,7 +19,6 @@ package gbpserver
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	osexec "os/exec"
@@ -817,7 +816,7 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
 	if err != nil {
 		fmt.Printf("ERROR: %v", err)
 	}
-	err = ioutil.WriteFile(outFile, policyJson, 0644)
+	err = os.WriteFile(outFile, policyJson, 0644)
 	if err != nil {
 		log.Errorf("%s - %v", outFile, err)
 	} else {
