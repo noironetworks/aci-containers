@@ -434,6 +434,9 @@ func (agent *HostAgent) writeConfigFile(name string,
 }
 
 func (agent *HostAgent) updateOpflexConfig() {
+	if agent.config.ChainedMode {
+		return
+	}
 	if agent.config.OpFlexConfigPath == "" {
 		agent.log.Debug("OpFlex agent configuration path not set")
 		return

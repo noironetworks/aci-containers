@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
+	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned/typed/aci.fabricattachment/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
@@ -53,6 +55,8 @@ type HostAgent struct {
 	opflexEps             map[string][]*opflexEndpoint
 	opflexServices        map[string]*opflexService
 	epMetadata            map[string]map[string]*md.ContainerMetadata
+	podNetworkMetadata    map[string]map[string]map[string]*md.ContainerMetadata
+	primaryNetworkName    string
 	podIpToName           map[string]string
 	cniToPodID            map[string]string
 	podUidToName          map[string]string
@@ -60,6 +64,7 @@ type HostAgent struct {
 	serviceEp             md.ServiceEndpoint
 	crdClient             aciv1.AciV1Interface
 	nodePodIFClient       nodepodifv1.AciV1Interface
+	fabAttClient          fabattv1.AciV1Interface
 	podInformer           cache.SharedIndexInformer
 	endpointsInformer     cache.SharedIndexInformer
 	serviceInformer       cache.SharedIndexInformer
@@ -112,8 +117,10 @@ type HostAgent struct {
 	// integration test checker
 	integ_test *string `json:",omitempty"`
 	//network attachment definition map
-	netattdefmap map[string]*NetworkAttachmentData
-	deviceIdMap  map[string][]string
+	netattdefmap         map[string]*NetworkAttachmentData
+	netattdefifacemap    map[string]*NetworkAttachmentData
+	deviceIdMap          map[string][]string
+	fabricDiscoveryAgent FabricDiscoveryAgent
 }
 
 type ServiceEndPointType interface {
@@ -174,8 +181,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		servicetoPodUids:      make(map[string]map[string]struct{}),
 		podtoServiceUids:      make(map[string]map[string][]string),
 		netattdefmap:          make(map[string]*NetworkAttachmentData),
+		netattdefifacemap:     make(map[string]*NetworkAttachmentData),
 		deviceIdMap:           make(map[string][]string),
 		podToNetAttachDef:     make(map[string][]string),
+		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -224,6 +233,19 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		}
 		ha.nodePodIFClient = nodepodifClient.AciV1()
 	}
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		log.Errorf("ERROR getting cluster config: %v", err)
+		return ha
+	}
+	ha.fabricDiscoveryAgent = GetFabricDiscoveryAgent(FabricDiscoveryLLDPNMState)
+	fabAttClient, err := fabattclset.NewForConfig(cfg)
+	if err != nil {
+		log.Errorf("ERROR getting fabric attachment client: %v", err)
+		return ha
+	}
+	ha.fabAttClient = fabAttClient.AciV1()
+
 	return ha
 }
 
@@ -287,8 +309,18 @@ func (agent *HostAgent) DeleteMatchingSnatPolicyLabel(policy string) {
 
 func (agent *HostAgent) Init() {
 	agent.log.Debug("Initializing endpoint CNI metadata")
+	primaryNetwork := agent.config.CniNetwork
+	if agent.config.ChainedMode {
+		err := agent.LoadCniNetworks()
+		if err != nil {
+			agent.log.Infof("%v", err)
+		}
+		primaryNetwork = agent.primaryNetworkName
+		agent.LoadAdditionalNetworkMetadata()
+	}
+
 	err := md.LoadMetadata(agent.config.CniMetadataDir,
-		agent.config.CniNetwork, &agent.epMetadata)
+		primaryNetwork, &agent.epMetadata)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -309,6 +341,12 @@ func (agent *HostAgent) Init() {
 	err = agent.env.Init(agent)
 	if err != nil {
 		panic(err.Error())
+	}
+	if agent.config.ChainedMode {
+		err = agent.fabricDiscoveryAgent.Init(agent)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 }
 
@@ -429,7 +467,9 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 	}
-
+	if agent.config.ChainedMode {
+		agent.fabricDiscoveryAgent.CollectDiscoveryData(stopCh)
+	}
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)
 	if err != nil {

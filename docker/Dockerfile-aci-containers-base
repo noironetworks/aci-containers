@@ -1,3 +1,5 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
 RUN yum install -y curl
+RUN yum install -y nmstate
+RUN yum install -y jq
 CMD ["/usr/bin/sh"]
