@@ -33,6 +33,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const DHCLIENT_CONF = "/usr/local/etc/dhclient.conf"
+
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
 	Severity    string `json:"severity"`
@@ -145,14 +147,14 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				}
 			}
 			for i := 0; i < retryCount; i++ {
-				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30")
+				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30", "-cf", DHCLIENT_CONF)
 				opt, err := cmd.Output()
 				if err != nil {
 					agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
 					continue
 				}
-				time.Sleep(dhcpDelay)
-				cmd = exec.Command("dhclient", link.Name, "--timeout", "30")
+				time.Sleep(dhcpDelay * time.Second)
+				cmd = exec.Command("dhclient", link.Name, "--timeout", "30", "-cf", DHCLIENT_CONF)
 				opt, err = cmd.Output()
 				if err != nil {
 					agent.log.Error("Failed to get new ip: ", err.Error(), " ", string(opt))
@@ -164,6 +166,8 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 					} else {
 						agent.log.Debug("Interface ip is not from the subnet ", subnet)
 					}
+				} else {
+					agent.log.Debug("dhcp release and renew done. Iteration : ", i+1)
 				}
 			}
 		}
