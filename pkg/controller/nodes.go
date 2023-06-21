@@ -292,6 +292,9 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 }
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
+	if cont.config.ChainedMode {
+		return
+	}
 	tunnelID := cont.getTunnelID(node)
 	//cont.log.Infof("=>  Node: %s, tunnelID: %v", node.Name, tunnelID)
 	key := cont.aciNameForKey("node-vmm", node.Name)
@@ -330,6 +333,9 @@ func (cont *AciController) nodeChangedByName(nodeName string) {
 }
 
 func (cont *AciController) nodeChanged(obj interface{}) {
+	if cont.config.ChainedMode {
+		return
+	}
 	cont.indexMutex.Lock()
 
 	node := obj.(*v1.Node)
@@ -434,6 +440,9 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 }
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
+	if cont.config.ChainedMode {
+		return
+	}
 	node, isNode := obj.(*v1.Node)
 	if !isNode {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)

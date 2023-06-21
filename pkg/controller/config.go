@@ -250,6 +250,15 @@ type ControllerConfig struct {
 
 	// Configure sleep time for global SNAT sync
 	SleepTimeSnatGlobalInfoSync int `json:"sleep-time-snat-global-info-sync,omitempty"`
+
+	// PhysDom for additional networks in chained mode
+	AciPhysDom string `json:"aci-phys-dom,omitempty"`
+
+	// CNI is in chained mode
+	ChainedMode bool `json:"chained-mode,omitempty"`
+
+	// PhysDom for additional networks in chained mode
+	AciAdditionalPhysDom string `json:"aci-additional-phys-dom,omitempty"`
 }
 
 type netIps struct {
@@ -288,6 +297,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.IntVar(&config.MaxCSRTunnels, "max-csr-tunnels", 16, "Number of CSR tunnels")
 	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
+	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,

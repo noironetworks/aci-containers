@@ -192,8 +192,12 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 }
 
 func (env *K8sEnvironment) InitStaticAciObjects() {
-	env.cont.initStaticNetPolObjs()
-	env.cont.initStaticServiceObjs()
+	if env.cont.config.ChainedMode {
+		env.cont.initStaticChainedModeObjs()
+	} else {
+		env.cont.initStaticNetPolObjs()
+		env.cont.initStaticServiceObjs()
+	}
 }
 
 func (env *K8sEnvironment) NodeAnnotationChanged(nodeName string) {
@@ -301,6 +305,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.registerCRDHook(netflowCRDName, netflowInit)
 	cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
 	cont.registerCRDHook(erspanCRDName, erspanInit)
+	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	go cont.crdInformer.Run(stopCh)
 
 	cache.WaitForCacheSync(stopCh,

@@ -339,6 +339,9 @@ func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {
 
 func (conn *ApicConnection) updateDnIndex(objects ApicSlice) {
 	for _, obj := range objects {
+		if obj.GetDn() == "" {
+			continue
+		}
 		conn.desiredStateDn[obj.GetDn()] = obj
 		for _, body := range obj {
 			conn.updateDnIndex(body.Children)
@@ -347,6 +350,9 @@ func (conn *ApicConnection) updateDnIndex(objects ApicSlice) {
 }
 
 func (conn *ApicConnection) removeFromDnIndex(dn string) {
+	if dn == "" {
+		return
+	}
 	if obj, ok := conn.desiredStateDn[dn]; ok {
 		delete(conn.desiredStateDn, dn)
 
@@ -360,14 +366,13 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 }
 
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
-	container bool) {
+	container bool, areStaticObjs bool) {
 
 	tag := getTagFromKey(conn.prefix, key)
 	prepareApicSliceTag(objects, tag)
 
 	conn.indexMutex.Lock()
 	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
-
 	// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 	// found in deletes
 	var temp_deletes []string
@@ -435,15 +440,19 @@ func (conn *ApicConnection) ClearApicContainer(key string) {
 }
 
 func (conn *ApicConnection) WriteApicContainer(key string, objects ApicSlice) {
-	conn.doWriteApicObjects(key, objects, true)
+	conn.doWriteApicObjects(key, objects, true, false)
 }
 
 func (conn *ApicConnection) ClearApicObjects(key string) {
 	conn.WriteApicObjects(key, nil)
 }
 
+func (conn *ApicConnection) WriteStaticApicObjects(key string, objects ApicSlice) {
+	conn.doWriteApicObjects(key, objects, false, true)
+}
+
 func (conn *ApicConnection) WriteApicObjects(key string, objects ApicSlice) {
-	conn.doWriteApicObjects(key, objects, false)
+	conn.doWriteApicObjects(key, objects, false, false)
 }
 
 func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
