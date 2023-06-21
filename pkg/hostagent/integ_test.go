@@ -308,10 +308,12 @@ func (it *integ) cniDel(podName, cid string) error {
 	}
 
 	defer eprpc.Close()
-	md := metadata.ContainerId{
-		ContId:    cid,
-		Namespace: it.testNS,
-		Pod:       podName,
+	md := metadata.ContainerMetadata{
+		Id: metadata.ContainerId{
+			ContId:    cid,
+			Namespace: it.testNS,
+			Pod:       podName,
+		},
 	}
 
 	_, err = eprpc.Unregister(&md)

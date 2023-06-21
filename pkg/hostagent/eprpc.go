@@ -99,17 +99,17 @@ func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result
 	return nil
 }
 
-func (r *EpRPC) Unregister(id *md.ContainerId, ack *bool) error {
-	if id.Namespace == "" || id.Pod == "" || id.ContId == "" {
+func (r *EpRPC) Unregister(metadata *md.ContainerMetadata, ack *bool) error {
+	if metadata.Id.Namespace == "" || metadata.Id.Pod == "" || metadata.Id.ContId == "" {
 		return errors.New("Metadata has empty key fields")
 	}
 
-	r.agent.log.Debug("Unregistering ", id)
+	r.agent.log.Debug("Unregistering ", metadata.Id)
 
-	err := r.agent.unconfigureContainerIfaces(id)
+	err := r.agent.unconfigureContainerIfaces(metadata)
 	if err != nil {
 		r.agent.log.WithFields(logrus.Fields{
-			"id": id,
+			"id": metadata.Id,
 		}).Error("Failed to unconfigure container interface: ", err)
 		return err
 	}

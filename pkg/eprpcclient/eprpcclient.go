@@ -44,9 +44,9 @@ func (c *Client) Register(metadata *md.ContainerMetadata) (*cnitypes.Result, err
 	return result, err
 }
 
-func (c *Client) Unregister(id *md.ContainerId) (bool, error) {
+func (c *Client) Unregister(metadata *md.ContainerMetadata) (bool, error) {
 	var result bool
-	err := c.connection.Call("EpRPC.Unregister", id, &result)
+	err := c.connection.Call("EpRPC.Unregister", metadata, &result)
 	return result, err
 }
 

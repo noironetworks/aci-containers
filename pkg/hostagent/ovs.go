@@ -108,6 +108,9 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 }
 
 func (agent *HostAgent) syncPorts(socket string) error {
+	if agent.config.ChainedMode {
+		return nil
+	}
 	var connectString string
 	agent.log.Debug("Syncing OVS ports")
 

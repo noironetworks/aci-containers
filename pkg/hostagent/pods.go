@@ -42,6 +42,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	cnimeta "github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -751,7 +752,18 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 	mdmap, ok := agent.epMetadata[podid]
 	if ok {
 		for contid, v := range mdmap {
-			err := agent.unconfigureContainerIfaces(&v.Id)
+			metadata := cnimeta.ContainerMetadata{
+				Id: cnimeta.ContainerId{
+					ContId:    contid,
+					Namespace: podns,
+					Pod:       podname,
+				},
+				Network: cnimeta.ContainerNetworkMetadata{
+					NetworkName: v.Network.NetworkName,
+					ChainedMode: agent.config.ChainedMode,
+				},
+			}
+			err := agent.unconfigureContainerIfaces(&metadata)
 			if err != nil {
 				agent.log.Warnf("Could not unconfigure container:%s, %s ", contid, err)
 			}
