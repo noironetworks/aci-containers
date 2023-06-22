@@ -1848,7 +1848,7 @@ func (cont *AciController) isDeleteEndpointSlice(oldendpointslice, newendpointsl
 	del := false
 
 	// if any endpoint is removed from endpontslice
-	if len(newendpointslice.Endpoints) < len(newendpointslice.Endpoints) {
+	if len(newendpointslice.Endpoints) < len(oldendpointslice.Endpoints) {
 		del = true
 	}
 
