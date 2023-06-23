@@ -53,7 +53,7 @@ func netflowInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.processQueue(cont.netflowQueue, cont.netflowIndexer,
 		func(obj interface{}) bool {
 			return cont.handleNetflowPolUpdate(obj)
-		}, nil, stopCh)
+		}, nil, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.netflowInformer.HasSynced)
 }
 
