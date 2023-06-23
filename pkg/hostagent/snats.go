@@ -355,7 +355,7 @@ func (agent *HostAgent) handleSnatUpdate(policy *snatpolicy.SnatPolicy) {
 		//handle policy for service pods
 		var services []*v1.Service
 		var poduids []string
-		selector := labels.SelectorFromSet(labels.Set(policy.Spec.Selector.Labels))
+		selector := labels.SelectorFromSet(policy.Spec.Selector.Labels)
 		cache.ListAll(agent.serviceInformer.GetIndexer(), selector,
 			func(servobj interface{}) {
 				services = append(services, servobj.(*v1.Service))
@@ -446,7 +446,7 @@ func (agent *HostAgent) updateSnatPolicyLabels(obj interface{}, policyname strin
 // Get all the pods matching the Policy Selector
 func (agent *HostAgent) getPodUidsMatchingLabel(namespace string, label map[string]string, policyname string) (poduids []string,
 	deppoduids []string, nspoduids []string) {
-	selector := labels.SelectorFromSet(labels.Set(label))
+	selector := labels.SelectorFromSet(label)
 	cache.ListAll(agent.podInformer.GetIndexer(), selector,
 		func(podobj interface{}) {
 			pod := podobj.(*v1.Pod)
@@ -743,9 +743,7 @@ func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
 	globalInfo := snat.Spec.GlobalInfos
 	agent.indexMutex.Lock()
 	for nodename := range globalInfo {
-		if _, ok := agent.opflexSnatGlobalInfos[nodename]; ok {
-			delete(agent.opflexSnatGlobalInfos, nodename)
-		}
+		delete(agent.opflexSnatGlobalInfos, nodename)
 	}
 	agent.indexMutex.Unlock()
 }
@@ -871,17 +869,15 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 	if agent.isPolicyNameSpaceMatches(policyname, metadata.GetNamespace()) == false {
 		return
 	}
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *v1.Pod:
-		pod, _ := obj.(*v1.Pod)
-		poduids = append(poduids, string(pod.ObjectMeta.UID))
+		poduids = append(poduids, string(obj.ObjectMeta.UID))
 		if len(poduids) != 0 {
 			agent.log.Info("Matching pod uids: ", poduids)
 		}
 	case *appsv1.Deployment:
-		deployment, _ := obj.(*appsv1.Deployment)
 		depkey, _ :=
-			cache.MetaNamespaceKeyFunc(deployment)
+			cache.MetaNamespaceKeyFunc(obj)
 		for _, podkey := range agent.depPods.GetPodForObj(depkey) {
 			podobj, exists, err := agent.podInformer.GetStore().GetByKey(podkey)
 			if err != nil {
@@ -899,10 +895,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 		}
 		res = DEPLOYMENT
 	case *v1.Service:
-		service, _ := obj.(*v1.Service)
-		selector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+		selector := labels.SelectorFromSet(obj.Spec.Selector)
 		cache.ListAllByNamespace(agent.podInformer.GetIndexer(),
-			service.ObjectMeta.Namespace, selector,
+			obj.ObjectMeta.Namespace, selector,
 			func(podobj interface{}) {
 				pod := podobj.(*v1.Pod)
 				if pod.Spec.NodeName == agent.config.NodeName {
@@ -914,9 +909,8 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 		}
 		res = SERVICE
 	case *v1.Namespace:
-		ns, _ := obj.(*v1.Namespace)
 		cache.ListAllByNamespace(agent.podInformer.GetIndexer(),
-			ns.ObjectMeta.Name, labels.Everything(),
+			obj.ObjectMeta.Name, labels.Everything(),
 			func(podobj interface{}) {
 				pod := podobj.(*v1.Pod)
 				if pod.Spec.NodeName == agent.config.NodeName {
@@ -1025,7 +1019,7 @@ func (agent *HostAgent) getMatchingServices(namespace string, label map[string]s
 		if service.Spec.Selector == nil {
 			continue
 		}
-		svcSelector := labels.SelectorFromSet(labels.Set(service.Spec.Selector))
+		svcSelector := labels.SelectorFromSet(service.Spec.Selector)
 		if svcSelector.Matches(labels.Set(label)) {
 			matchingServices = append(matchingServices, service)
 		}

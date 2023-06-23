@@ -23,7 +23,7 @@ type SnatPolicySpec struct {
 	SnatIp    []string    `json:"snatIp"`
 	DestIp    []string    `json:"destIp"`
 	Selector  PodSelector `json:"selector,omitempty"`
-	PortRange []PortRange `json:"portRange, omitempty"`
+	PortRange []PortRange `json:"portRange,omitempty"`
 	// +kubebuilder:validation:Enum=tcp,udp,icmp
 	Protocols []string `json:"protocols,omitempty"`
 }

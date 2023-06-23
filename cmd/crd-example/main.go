@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -30,7 +31,7 @@ func main() {
 		glog.Fatalf("Error building aciaw clientset: %v", err)
 	}
 
-	list, err := aciawClient.AciV1().Epgs("default").List(metav1.ListOptions{})
+	list, err := aciawClient.AciV1().Epgs("default").List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		glog.Fatalf("Error listing all epgs: %v", err)
 	}
@@ -39,7 +40,7 @@ func main() {
 		fmt.Printf("Epg %+v \n", epg)
 	}
 
-	cList, err := aciawClient.AciV1().Contracts("default").List(metav1.ListOptions{})
+	cList, err := aciawClient.AciV1().Contracts("default").List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		glog.Fatalf("Error listing all contracts: %v", err)
 	}

@@ -400,17 +400,17 @@ func (g *gbpCommonMo) getChildMos() []*gbpCommonMo {
 func (g *gbpCommonMo) AddProperty(name string, data interface{}) {
 	var pVal isProperty_Value
 
-	switch data.(type) {
+	switch data := data.(type) {
 	case string:
-		pVal = &Property_StrVal{StrVal: data.(string)}
+		pVal = &Property_StrVal{StrVal: data}
 	case int32:
-		pVal = &Property_IntVal{IntVal: data.(int32)}
+		pVal = &Property_IntVal{IntVal: data}
 	case uint:
-		pVal = &Property_IntVal{IntVal: int32(data.(uint))}
+		pVal = &Property_IntVal{IntVal: int32(data)}
 	case int:
-		pVal = &Property_IntVal{IntVal: int32(data.(int))}
+		pVal = &Property_IntVal{IntVal: int32(data)}
 	case Reference:
-		ref := data.(Reference)
+		ref := data
 		pVal = &Property_RefVal{RefVal: &ref}
 	default:
 		log.Fatalf("Unknown type for property %s", name)

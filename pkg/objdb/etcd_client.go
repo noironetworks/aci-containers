@@ -97,11 +97,11 @@ func (ec *EtcdClient) GetObj(key string, retVal interface{}) error {
 	}
 
 	if len(resp.Kvs) <= 0 {
-		log.Errorf("Returned empty value for key : ", keyName)
+		log.Errorf("Returned empty value for key : %s", keyName)
 		return fmt.Errorf("Returned empty value for key : %s", keyName)
 	}
 	// Parse JSON response
-	if err := json.Unmarshal([]byte(resp.Kvs[0].Value), retVal); err != nil {
+	if err := json.Unmarshal(resp.Kvs[0].Value, retVal); err != nil {
 		log.Errorf("Error parsing object %s, Err %v", resp.Kvs[0].Value, err)
 		return err
 	}
@@ -122,11 +122,11 @@ func (ec *EtcdClient) GetRaw(key string) ([]byte, error) {
 	}
 
 	if len(resp.Kvs) <= 0 {
-		log.Errorf("Returned empty value for key : ", keyName)
+		log.Errorf("Returned empty value for key : %s", keyName)
 		return nil, fmt.Errorf("Returned empty value for key : %s", keyName)
 	}
 
-	return []byte(resp.Kvs[0].Value), nil
+	return resp.Kvs[0].Value, nil
 }
 
 // Recursive function to look thru each directory and get the files
