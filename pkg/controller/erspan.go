@@ -58,7 +58,7 @@ func erspanInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
 		func(obj interface{}) bool {
 			return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
-		}, nil, stopCh)
+		}, nil, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.erspanInformer.HasSynced)
 	cont.erspanSyncOpflexDev()
 }
