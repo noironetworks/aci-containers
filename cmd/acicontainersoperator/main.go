@@ -31,7 +31,7 @@ func getOperatorClient() operatorclientset.Interface {
 
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
-		log.Error("Failed to obtain rest client config %v", err)
+		log.Errorf("Failed to obtain rest client config %v", err)
 		return nil
 	}
 
@@ -50,7 +50,7 @@ func getAccProvisionClient() accprovisioninputclientset.Interface {
 
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
-		log.Error("Failed to obtain rest client config %v", err)
+		log.Errorf("Failed to obtain rest client config %v", err)
 		return nil
 	}
 
