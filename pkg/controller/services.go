@@ -1489,6 +1489,13 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	return false
 }
 
+func (cont *AciController) handleServiceDelete(servicekey string) bool {
+	cont.clearLbService(servicekey)
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service-vmm",
+		servicekey))
+	return false
+}
+
 func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	servicekey, err := cache.MetaNamespaceKeyFunc(service)
 	if err != nil {
@@ -1519,7 +1526,6 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	} else if aciLB {
 		cont.clearLbService(servicekey)
 	}
-
 	cont.writeApicSvc(servicekey, service)
 	return requeue
 }
@@ -1681,7 +1687,6 @@ func (cont *AciController) serviceUpdated(old interface{}, new interface{}) {
 		cont.queuePortNetPolUpdates(newPorts)
 		cont.indexMutex.Unlock()
 	}
-
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
@@ -1707,9 +1712,6 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 			Error("Could not create service key: ", err)
 		return
 	}
-	cont.clearLbService(servicekey)
-	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service-vmm",
-		servicekey))
 
 	ports := getServiceTargetPorts(service)
 	cont.indexMutex.Lock()
@@ -1717,6 +1719,9 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 	cont.queuePortNetPolUpdates(ports)
 	delete(cont.snatServices, servicekey)
 	cont.indexMutex.Unlock()
+
+	deletedServiceKey := "DELETED_" + servicekey
+	cont.queueServiceUpdateByKey(deletedServiceKey)
 }
 
 func (cont *AciController) serviceFullSync() {

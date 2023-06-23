@@ -409,6 +409,7 @@ func (cont *AciController) Init() {
 
 func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 	store cache.Store, handler func(interface{}) bool,
+	deleteHandler func(string) bool,
 	postDelHandler func() bool, stopCh <-chan struct{}) {
 	go wait.Until(func() {
 		for {
@@ -422,17 +423,22 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 			case chan struct{}:
 				close(key)
 			case string:
-				obj, exists, err := store.GetByKey(key)
-				if err != nil {
-					cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
-				}
-				//Handle Add/Update/Delete
-				if exists && handler != nil {
-					requeue = handler(obj)
-				}
-				//Handle Post Delete
-				if !exists && postDelHandler != nil {
-					requeue = postDelHandler()
+				if strings.HasPrefix(key, "DELETED_") {
+					delKey := strings.Trim(key, "DELETED_")
+					requeue = deleteHandler(delKey)
+				} else {
+					obj, exists, err := store.GetByKey(key)
+					if err != nil {
+						cont.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+					}
+					//Handle Add/Update/Delete
+					if exists && handler != nil {
+						requeue = handler(obj)
+					}
+					//Handle Post Delete
+					if !exists && postDelHandler != nil {
+						requeue = postDelHandler()
+					}
 				}
 			}
 			if requeue {
