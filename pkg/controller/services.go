@@ -720,8 +720,8 @@ func apicFilter(name string, tenantName string,
 
 	if snat {
 		portSpec := []portRangeSnat{snatRange}
-		p_start := strconv.Itoa(int(portSpec[0].start))
-		p_end := strconv.Itoa(int(portSpec[0].end))
+		p_start := strconv.Itoa(portSpec[0].start)
+		p_end := strconv.Itoa(portSpec[0].end)
 
 		fe1 := apicFilterEntry(filterDn, strconv.Itoa(i+1), p_start,
 			p_end, "tcp", "no", false, false)
@@ -739,8 +739,8 @@ func apicFilterSnat(name string, tenantName string,
 	filter := apicapi.NewVzFilter(tenantName, name)
 	filterDn := filter.GetDn()
 
-	p_start := strconv.Itoa(int(portSpec[0].start))
-	p_end := strconv.Itoa(int(portSpec[0].end))
+	p_start := strconv.Itoa(portSpec[0].start)
+	p_end := strconv.Itoa(portSpec[0].end)
 
 	fe := apicFilterEntry(filterDn, "0", p_start,
 		p_end, "tcp", "no", true, outTerm)
@@ -1296,7 +1296,7 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 		break
 	}
 	if service.Spec.ClusterIP != "" && service.Spec.ClusterIP != "None" {
-		aobj.SetAttr("clusterIp", string(service.Spec.ClusterIP))
+		aobj.SetAttr("clusterIp", service.Spec.ClusterIP)
 	}
 
 	var t string
@@ -1548,10 +1548,6 @@ func getEndpointsIps(endpoints *v1.Endpoints) map[string]bool {
 	return ips
 }
 
-func servicePortKey(p *v1.ServicePort) string {
-	return portProto(&p.Protocol) + "-num-" + strconv.Itoa(int(p.Port))
-}
-
 func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
 	ports := make(map[string]targetPort)
 	for _, port := range service.Spec.Ports {
@@ -1559,7 +1555,7 @@ func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
 		if portNum <= 0 {
 			portNum = int(port.Port)
 		}
-		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(int(portNum))
+		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(portNum)
 		ports[key] = targetPort{
 			proto: port.Protocol,
 			ports: []int{portNum},
@@ -2138,7 +2134,7 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 	// 1. Get all the Endpoint slices matching the label service-name
 	// 2. update the node map matching with endpoints nodes name
 	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
-	selector := labels.SelectorFromSet(labels.Set(label))
+	selector := labels.SelectorFromSet(label)
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
 			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
@@ -2187,7 +2183,7 @@ func (sep *serviceEndpoint) SetServiceApicObject(aobj apicapi.ApicObject, servic
 func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, service *v1.Service) bool {
 	cont := seps.cont
 	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
-	selector := labels.SelectorFromSet(labels.Set(label))
+	selector := labels.SelectorFromSet(label)
 	epcount := 0
 	childs := make(map[string]struct{})
 	var exists = struct{}{}

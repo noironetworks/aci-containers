@@ -40,7 +40,7 @@ import (
 
 	"k8s.io/kubernetes/pkg/controller"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	cnimeta "github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -458,9 +458,7 @@ func (agent *HostAgent) syncEps() bool {
 			if err == nil {
 				k := agent.getPodIFName(staleEp.Attributes["namespace"], staleEp.Attributes["vm-name"])
 				agent.EPRegDelEP(k)
-				if _, ok := agent.nodePodIfEPs[staleEp.Uuid]; ok {
-					delete(agent.nodePodIfEPs, staleEp.Uuid)
-				}
+				delete(agent.nodePodIfEPs, staleEp.Uuid)
 			}
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)

@@ -95,7 +95,7 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 		n.WaitForNetworkDuration = 210
 	}
 
-	log.Debug("NetConf: %v", n)
+	log.Debugf("NetConf: %v", n)
 
 	k8sArgs := &K8SArgs{}
 	err = types.LoadArgs(args.Args, k8sArgs)

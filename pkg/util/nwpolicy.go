@@ -186,7 +186,7 @@ func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
 		for k := range labelsel.MatchLabels {
 			matchLKeys = append(matchLKeys, k)
 		}
-		sort.Sort(sort.StringSlice(matchLKeys))
+		sort.Strings(matchLKeys)
 		for _, key := range matchLKeys {
 			keyval := key + "_" + labelsel.MatchLabels[key]
 			str += keyval
