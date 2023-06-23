@@ -151,9 +151,7 @@ func (cont *AciController) nodePodIFDeleted(obj interface{}) {
 	podifs := np.Spec.PodIFs
 	for _, podif := range podifs {
 		cont.indexMutex.Lock()
-		if _, ok := cont.podIftoEp[getPodifKey(podif)]; ok {
-			delete(cont.podIftoEp, getPodifKey(podif))
-		}
+		delete(cont.podIftoEp, getPodifKey(podif))
 		cont.indexMutex.Unlock()
 	}
 }

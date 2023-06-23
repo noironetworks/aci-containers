@@ -108,7 +108,7 @@ type KubeConfigSpec struct {
 type SnatSpec struct {
 	PortRange                         *PortRangeSpec `json:"port_range,omitempty"`
 	ContractScope                     string         `json:"contract_scope,omitempty"`
-	DisablePeriodicSnatGlobalInfoSync bool           `json:disable_periodic_snat_global_info_sync,omitempty"`
+	DisablePeriodicSnatGlobalInfoSync bool           `json:"disable_periodic_snat_global_info_sync,omitempty"`
 }
 
 type PortRangeSpec struct {

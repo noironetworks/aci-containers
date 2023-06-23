@@ -2,7 +2,6 @@ package util
 
 import (
 	"bytes"
-	"fmt"
 	"net"
 	"sort"
 )
@@ -82,7 +81,7 @@ func sortIps(ips []string) []string {
 
 	outputIps := make([]string, 0, len(realIPs))
 	for _, ip := range realIPs {
-		outputIps = append(outputIps, fmt.Sprintf("%s", ip))
+		outputIps = append(outputIps, ip.String())
 	}
 	return outputIps
 }
