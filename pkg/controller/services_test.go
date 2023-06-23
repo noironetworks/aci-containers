@@ -102,12 +102,14 @@ func TestServiceIpV6(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(v6service("testns", "service2", "2002::1"))
+		cont.handleServiceDelete("testns/service2")
 		assert.True(t, ipam.HasIp(cont.staticServiceIps.V6, net.ParseIP("2002::1")),
 			"delete static return")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(v6service("testns", "service5", ""))
+		cont.handleServiceDelete("testns/service5")
 		assert.True(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[1], net.ParseIP("2001::32")),
 			"delete pool return")
 	}
@@ -172,12 +174,14 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service1", "10.4.2.2"))
+		cont.handleServiceDelete("testns/service1")
 		assert.True(t, ipam.HasIp(cont.staticServiceIps.V4, net.ParseIP("10.4.2.2")),
 			"delete static return")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.serviceDeleted(service("testns", "service5", ""))
+		cont.handleServiceDelete("testns/service5")
 		assert.True(t, ipam.HasIp(cont.serviceIps.GetV4IpCache()[1], net.ParseIP("10.4.1.32")),
 			"delete pool return")
 	}
