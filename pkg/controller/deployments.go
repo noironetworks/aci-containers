@@ -89,6 +89,9 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 }
 
 func (cont *AciController) writeApicDepl(dep *appsv1.Deployment) {
+	if cont.config.ChainedMode {
+		return
+	}
 	depkey, err :=
 		cache.MetaNamespaceKeyFunc(dep)
 	if err != nil {

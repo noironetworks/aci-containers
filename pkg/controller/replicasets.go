@@ -64,6 +64,9 @@ func replicaSetLogger(log *logrus.Logger, rs *appsv1.ReplicaSet) *logrus.Entry {
 }
 
 func (cont *AciController) writeApicRs(rs *appsv1.ReplicaSet) {
+	if cont.config.ChainedMode {
+		return
+	}
 	rskey, err :=
 		cache.MetaNamespaceKeyFunc(rs)
 	if err != nil {

@@ -1257,6 +1257,9 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 }
 
 func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
+	if cont.config.ChainedMode {
+		return
+	}
 	aobj := apicapi.NewVmmInjectedSvc(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		service.Namespace, service.Name)

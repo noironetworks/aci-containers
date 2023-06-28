@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -62,16 +63,17 @@ type AciController struct {
 
 	unitTestMode bool
 
-	podQueue          workqueue.RateLimitingInterface
-	netPolQueue       workqueue.RateLimitingInterface
-	qosQueue          workqueue.RateLimitingInterface
-	serviceQueue      workqueue.RateLimitingInterface
-	snatQueue         workqueue.RateLimitingInterface
-	netflowQueue      workqueue.RateLimitingInterface
-	erspanQueue       workqueue.RateLimitingInterface
-	snatNodeInfoQueue workqueue.RateLimitingInterface
-	rdConfigQueue     workqueue.RateLimitingInterface
-	istioQueue        workqueue.RateLimitingInterface
+	podQueue           workqueue.RateLimitingInterface
+	netPolQueue        workqueue.RateLimitingInterface
+	qosQueue           workqueue.RateLimitingInterface
+	serviceQueue       workqueue.RateLimitingInterface
+	snatQueue          workqueue.RateLimitingInterface
+	netflowQueue       workqueue.RateLimitingInterface
+	erspanQueue        workqueue.RateLimitingInterface
+	snatNodeInfoQueue  workqueue.RateLimitingInterface
+	rdConfigQueue      workqueue.RateLimitingInterface
+	istioQueue         workqueue.RateLimitingInterface
+	nodeFabNetAttQueue workqueue.RateLimitingInterface
 
 	namespaceIndexer      cache.Indexer
 	namespaceInformer     cache.Controller
@@ -112,6 +114,8 @@ type AciController struct {
 	updatePod             podUpdateFunc
 	updateNode            nodeUpdateFunc
 	updateServiceStatus   serviceUpdateFunc
+	nodeFabNetAttIndexer  cache.Indexer
+	nodeFabNetAttInformer cache.Controller
 
 	indexMutex sync.Mutex
 
@@ -173,6 +177,8 @@ type AciController struct {
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
+	additionalNetworkCache   map[string]*AdditionalNetworkMeta
+	lldpIfCache              map[string]string
 }
 
 type hppReference struct {
@@ -236,6 +242,14 @@ type EndPointData struct {
 type ctrPortNameEntry struct {
 	// Proto+port->pods
 	ctrNmpToPods map[string]map[string]bool
+}
+
+type AdditionalNetworkMeta struct {
+	NetworkName string
+	EncapVlan   string
+	//node+localiface->fabricLinks
+	FabricLink map[string]map[string][]string
+	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
 }
 
 type ServiceEndPointType interface {
@@ -316,16 +330,17 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		defaultSg:    "",
 		unitTestMode: unittestmode,
 
-		podQueue:          createQueue("pod"),
-		netPolQueue:       createQueue("networkPolicy"),
-		qosQueue:          createQueue("qos"),
-		netflowQueue:      createQueue("netflow"),
-		erspanQueue:       createQueue("erspan"),
-		serviceQueue:      createQueue("service"),
-		snatQueue:         createQueue("snat"),
-		snatNodeInfoQueue: createQueue("snatnodeinfo"),
-		rdConfigQueue:     createQueue("rdconfig"),
-		istioQueue:        createQueue("istio"),
+		podQueue:           createQueue("pod"),
+		netPolQueue:        createQueue("networkPolicy"),
+		qosQueue:           createQueue("qos"),
+		netflowQueue:       createQueue("netflow"),
+		erspanQueue:        createQueue("erspan"),
+		serviceQueue:       createQueue("service"),
+		snatQueue:          createQueue("snat"),
+		snatNodeInfoQueue:  createQueue("snatnodeinfo"),
+		rdConfigQueue:      createQueue("rdconfig"),
+		istioQueue:         createQueue("istio"),
+		nodeFabNetAttQueue: createQueue("nodefabricnetworkattachment"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -340,21 +355,23 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeACIPod:       make(map[string]string),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache: make(map[string]*nodeServiceMeta),
-		nodePodNetCache:      make(map[string]*nodePodNetMeta),
-		serviceMetaCache:     make(map[string]*serviceMeta),
-		snatPolicyCache:      make(map[string]*ContSnatPolicy),
-		snatServices:         make(map[string]bool),
-		snatNodeInfoCache:    make(map[string]*nodeinfo.NodeInfo),
-		rdConfigCache:        make(map[string]*rdConfig.RdConfig),
-		rdConfigSubnetCache:  make(map[string]*rdConfig.RdConfigSpec),
-		podIftoEp:            make(map[string]*EndPointData),
-		snatGlobalInfoCache:  make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:           make(map[string]*istiov1.AciIstioOperator),
-		crdHandlers:          make(map[string]func(*AciController, <-chan struct{})),
-		ctrPortNameCache:     make(map[string]*ctrPortNameEntry),
-		nmPortNp:             make(map[string]bool),
-		hppRef:               make(map[string]hppReference),
+		nodeServiceMetaCache:   make(map[string]*nodeServiceMeta),
+		nodePodNetCache:        make(map[string]*nodePodNetMeta),
+		serviceMetaCache:       make(map[string]*serviceMeta),
+		snatPolicyCache:        make(map[string]*ContSnatPolicy),
+		snatServices:           make(map[string]bool),
+		snatNodeInfoCache:      make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:          make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:    make(map[string]*rdConfig.RdConfigSpec),
+		podIftoEp:              make(map[string]*EndPointData),
+		snatGlobalInfoCache:    make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:             make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:            make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:       make(map[string]*ctrPortNameEntry),
+		nmPortNp:               make(map[string]bool),
+		hppRef:                 make(map[string]hppReference),
+		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
+		lldpIfCache:            make(map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -365,7 +382,10 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 }
 
 func (cont *AciController) Init() {
-	if cont.config.LBType != lbTypeAci {
+	if cont.config.ChainedMode {
+		cont.log.Info("In chained mode")
+	}
+	if cont.config.LBType != lbTypeAci && !cont.config.ChainedMode {
 		err := apicapi.AddMetaDataChild("vmmInjectedNs", "vmmInjectedNwPol")
 		if err != nil {
 			panic(err.Error())
@@ -464,7 +484,7 @@ func (cont *AciController) aciNameForKey(ktype string, key string) string {
 
 func (cont *AciController) initStaticObjs() {
 	cont.env.InitStaticAciObjects()
-	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_static",
+	cont.apicConn.WriteStaticApicObjects(cont.config.AciPrefix+"_static",
 		cont.globalStaticObjs())
 }
 
@@ -626,7 +646,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		}
 	}
 
-	if len(cont.config.ApicHosts) != 0 && cont.vmmClusterFaultSupported {
+	if len(cont.config.ApicHosts) != 0 && cont.vmmClusterFaultSupported && !cont.config.ChainedMode {
 		//Clear fault instances when the controller starts
 		cont.clearFaultInstances()
 		//Subscribe for vmmEpPD for a given domain
@@ -647,6 +667,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	cont.initStaticObjs()
+
 	err = cont.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())
@@ -683,24 +704,32 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.scheduleRdConfig()
 	}
 
-	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
-		[]string{"hostprotPol"})
+	if !cont.config.ChainedMode {
+		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
+			[]string{"hostprotPol"})
+	} else {
+		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
+			[]string{"fvBD", "fvAp"})
+	}
 	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
-		[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
-			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
-			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
-	cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
-		cont.config.AciVrfTenant, cont.config.AciL3Out),
-		[]string{"fvRsCons"})
-	vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
-		cont.env.VmmPolicy(), cont.config.AciVmmDomain,
-		cont.config.AciVmmController)
-	// Before subscribing to vmm objects, add vmmInjectedLabel as a child after explicit APIC version check
-	// Since it is not supported for APIC versions < "5.0"
-	cont.addVmmInjectedLabel()
-	cont.apicConn.AddSubscriptionDn(vmmDn,
-		[]string{"vmmInjectedHost", "vmmInjectedNs"})
-
+		[]string{"fvBD"})
+	if !cont.config.ChainedMode {
+		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
+			[]string{"vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
+				"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
+				"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
+		cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
+			cont.config.AciVrfTenant, cont.config.AciL3Out),
+			[]string{"fvRsCons"})
+		vmmDn := fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont",
+			cont.env.VmmPolicy(), cont.config.AciVmmDomain,
+			cont.config.AciVmmController)
+		// Before subscribing to vmm objects, add vmmInjectedLabel as a child after explicit APIC version check
+		// Since it is not supported for APIC versions < "5.0"
+		cont.addVmmInjectedLabel()
+		cont.apicConn.AddSubscriptionDn(vmmDn,
+			[]string{"vmmInjectedHost", "vmmInjectedNs"})
+	}
 	var tnTargetFilter string
 	if len(cont.config.AciVrfRelatedTenants) > 0 {
 		for _, tn := range cont.config.AciVrfRelatedTenants {
@@ -724,17 +753,19 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			cont.SubnetDeleted(dn)
 		})
 
-	cont.apicConn.AddSubscriptionClass("opflexODev",
-		[]string{"opflexODev"}, "")
+	if !cont.config.ChainedMode {
+		cont.apicConn.AddSubscriptionClass("opflexODev",
+			[]string{"opflexODev"}, "")
 
-	cont.apicConn.SetSubscriptionHooks("opflexODev",
-		func(obj apicapi.ApicObject) bool {
-			cont.opflexDeviceChanged(obj)
-			return true
-		},
-		func(dn string) {
-			cont.opflexDeviceDeleted(dn)
-		})
+		cont.apicConn.SetSubscriptionHooks("opflexODev",
+			func(obj apicapi.ApicObject) bool {
+				cont.opflexDeviceChanged(obj)
+				return true
+			},
+			func(dn string) {
+				cont.opflexDeviceDeleted(dn)
+			})
+	}
 	go cont.apicConn.Run(stopCh)
 }
 

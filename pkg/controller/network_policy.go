@@ -1082,6 +1082,9 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 }
 
 func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
+	if cont.config.ChainedMode {
+		return false
+	}
 	key, err := cache.MetaNamespaceKeyFunc(np)
 	logger := networkPolicyLogger(cont.log, np)
 	if err != nil {
@@ -1262,6 +1265,9 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 		return
 	}
 	cont.writeApicNP(npkey, np)
+	if cont.config.ChainedMode {
+		return
+	}
 	cont.netPolPods.UpdateSelectorObj(obj)
 	cont.netPolIngressPods.UpdateSelectorObj(obj)
 	cont.netPolEgressPods.UpdateSelectorObj(obj)
@@ -1280,6 +1286,9 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 
 func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
 	if cont.config.LBType == lbTypeAci {
+		return
+	}
+	if cont.config.ChainedMode {
 		return
 	}
 

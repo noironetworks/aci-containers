@@ -157,6 +157,10 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	if !podFilter(pod) {
 		return false
 	}
+	if cont.config.ChainedMode {
+		return false
+	}
+
 	logger := podLogger(cont.log, pod)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
@@ -177,6 +181,9 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 }
 
 func (cont *AciController) writeApicPod(pod *v1.Pod) {
+	if cont.config.ChainedMode {
+		return
+	}
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		podLogger(cont.log, pod).Error("Could not create pod key: ", err)

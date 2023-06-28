@@ -275,9 +275,11 @@ func (o ApicObject) SetTag(tag string) {
 		}
 		break
 	}
+	if o.GetDn() != "" {
+		o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
+			SetAttr("value", tag))
+	}
 
-	o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
-		SetAttr("value", tag))
 }
 
 func (o ApicObject) SetAttr(name string, value interface{}) ApicObject {
@@ -370,8 +372,6 @@ func (o ApicObject) Copy() ApicObject {
 func NewFvTenant(name string) ApicObject {
 	ret := newApicObject("fvTenant")
 	ret["fvTenant"].Attributes["name"] = name
-	ret["fvTenant"].Attributes["dn"] =
-		fmt.Sprintf("uni/tn-%s", name)
 	return ret
 }
 
@@ -432,11 +432,52 @@ func NewFvCtx(tenantName string, name string) ApicObject {
 	return ret
 }
 
+func NewFvRsDomAttPhysDom(physDom string) ApicObject {
+	physDomDn := fmt.Sprintf("uni/phys-%s", physDom)
+	ret := newApicObject("fvRsDomAtt")
+	ret["fvRsDomAtt"].Attributes["tDn"] = physDomDn
+	return ret
+
+}
+
+func NewFvAP(ap string) ApicObject {
+	ret := newApicObject("fvAp")
+	ret["fvAp"].Attributes["name"] = ap
+	return ret
+}
+
+func NewFvAEPg(tenant string, ap string, name string) ApicObject {
+	ret := newApicObject("fvAEPg")
+	ret["fvAEPg"].Attributes["dn"] = fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", tenant, ap, name)
+	ret["fvAEPg"].Attributes["name"] = name
+	return ret
+}
+
+func NewFvRsBD(bdName string) ApicObject {
+	ret := newApicObject("fvRsBd")
+	ret["fvRsBd"].Attributes["tnFvBDName"] = bdName
+	return ret
+}
+
+func NewFvRsPathAtt(path string, encap string) ApicObject {
+	ret := newApicObject("fvRsPathAtt")
+	ret["fvRsPathAtt"].Attributes["tDn"] = path
+	ret["fvRsPathAtt"].Attributes["encap"] = "vlan-" + encap
+	return ret
+
+}
+
 func NewFvBD(tenantName string, name string) ApicObject {
 	ret := newApicObject("fvBD")
 	ret["fvBD"].Attributes["name"] = name
 	ret["fvBD"].Attributes["dn"] =
 		fmt.Sprintf("uni/tn-%s/BD-%s", tenantName, name)
+	return ret
+}
+
+func NewFvRsCtx(vrfName string) ApicObject {
+	ret := newApicObject("fvRsCtx")
+	ret["fvRsCtx"].Attributes["tnFvCtxName"] = vrfName
 	return ret
 }
 

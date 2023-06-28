@@ -66,6 +66,9 @@ func (cont *AciController) updatePodsForNamespace(ns string) {
 }
 
 func (cont *AciController) writeApicNs(ns *v1.Namespace) {
+	if cont.config.ChainedMode {
+		return
+	}
 	aobj := apicapi.NewVmmInjectedNs(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
 		ns.Name)

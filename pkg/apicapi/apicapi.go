@@ -1056,6 +1056,10 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 }
 
 func (conn *ApicConnection) DeleteDn(dn string) bool {
+	if dn == "" {
+		conn.log.Debug("Skip delete for empty Dn: ")
+		return false
+	}
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
 		"dn":  dn,
