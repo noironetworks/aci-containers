@@ -259,6 +259,9 @@ type ControllerConfig struct {
 
 	// PhysDom for additional networks in chained mode
 	AciAdditionalPhysDom string `json:"aci-additional-phys-dom,omitempty"`
+
+	//User can provision Static Objects separately, so have a knob
+	ReconcileStaticObjects bool `json:"reconcileStaticObjects,omitempty"`
 }
 
 type netIps struct {
@@ -298,6 +301,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
+	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 }
 
 func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,

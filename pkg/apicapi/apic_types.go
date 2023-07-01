@@ -29,6 +29,7 @@ import (
 )
 
 type ApicObjectBody struct {
+	HintDn     string                 `json:"-"`
 	Attributes map[string]interface{} `json:"attributes,omitempty"`
 	Children   ApicSlice              `json:"children,omitempty"`
 }
@@ -172,21 +173,23 @@ func cmpAttr(a *ApicObjectBody, b *ApicObjectBody, attr string) int {
 }
 
 func cmpApicObject(a ApicObject, b ApicObject) int {
-	for _, bodya := range a {
-		for _, bodyb := range b {
-			return cmpAttr(bodya, bodyb, "dn")
-		}
-		break
-	}
-	return 0
+	return strings.Compare(a.GetDn(), b.GetDn())
 }
 
 func (s ApicSlice) Less(i, j int) bool {
 	return cmpApicObject(s[i], s[j]) < 0
 }
 
-func (o ApicObject) GetDn() string {
+func (o ApicObject) GetAttrDn() string {
 	return o.GetAttrStr("dn")
+}
+
+func (o ApicObject) GetDn() string {
+	attrDn := o.GetAttrStr("dn")
+	if attrDn == "" {
+		return o.GetHintDn()
+	}
+	return attrDn
 }
 
 func (o ApicObject) String() string {
@@ -275,8 +278,8 @@ func (o ApicObject) SetTag(tag string) {
 		}
 		break
 	}
-	if o.GetDn() != "" {
-		o.AddChild(NewTagAnnotation(o.GetDn(), aciContainersAnnotKey).
+	if o.GetAttrDn() != "" {
+		o.AddChild(NewTagAnnotation(o.GetAttrDn(), aciContainersAnnotKey).
 			SetAttr("value", tag))
 	}
 
@@ -314,6 +317,13 @@ func (o ApicObject) GetAttrStr(name string) string {
 		default:
 			return ""
 		}
+	}
+	return ""
+}
+
+func (o ApicObject) GetHintDn() string {
+	for _, body := range o {
+		return body.HintDn
 	}
 	return ""
 }
@@ -432,12 +442,12 @@ func NewFvCtx(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewFvRsDomAttPhysDom(physDom string) ApicObject {
+func NewFvRsDomAttPhysDom(parentDn string, physDom string) ApicObject {
 	physDomDn := fmt.Sprintf("uni/phys-%s", physDom)
 	ret := newApicObject("fvRsDomAtt")
 	ret["fvRsDomAtt"].Attributes["tDn"] = physDomDn
+	ret["fvRsDomAtt"].HintDn = parentDn + "/rsdomAtt-[" + physDomDn + "]"
 	return ret
-
 }
 
 func NewFvAP(ap string) ApicObject {
@@ -453,18 +463,19 @@ func NewFvAEPg(tenant string, ap string, name string) ApicObject {
 	return ret
 }
 
-func NewFvRsBD(bdName string) ApicObject {
+func NewFvRsBD(parentDn string, bdName string) ApicObject {
 	ret := newApicObject("fvRsBd")
 	ret["fvRsBd"].Attributes["tnFvBDName"] = bdName
+	ret["fvRsBd"].HintDn = parentDn + "/rsbd"
 	return ret
 }
 
-func NewFvRsPathAtt(path string, encap string) ApicObject {
+func NewFvRsPathAtt(parentDn string, path string, encap string) ApicObject {
 	ret := newApicObject("fvRsPathAtt")
 	ret["fvRsPathAtt"].Attributes["tDn"] = path
 	ret["fvRsPathAtt"].Attributes["encap"] = "vlan-" + encap
+	ret["fvRsPathAtt"].HintDn = parentDn + "/" + "rspathAtt-[" + path + "]"
 	return ret
-
 }
 
 func NewFvBD(tenantName string, name string) ApicObject {
@@ -475,9 +486,10 @@ func NewFvBD(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewFvRsCtx(vrfName string) ApicObject {
+func NewFvRsCtx(parentDn string, vrfName string) ApicObject {
 	ret := newApicObject("fvRsCtx")
 	ret["fvRsCtx"].Attributes["tnFvCtxName"] = vrfName
+	ret["fvRsCtx"].HintDn = parentDn + "/rsctx"
 	return ret
 }
 

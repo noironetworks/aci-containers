@@ -342,7 +342,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 func (cont *AciController) syncSnatGlobalInfo() bool {
 	env := cont.env.(*K8sEnvironment)
 	globalcl := env.snatGlobalClient
-	if globalcl == nil {
+	if globalcl == nil || cont.config.ChainedMode {
 		return false
 	}
 	cont.indexMutex.Lock()

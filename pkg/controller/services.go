@@ -1493,6 +1493,9 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 }
 
 func (cont *AciController) handleServiceDelete(servicekey string) bool {
+	if cont.config.ChainedMode {
+		return false
+	}
 	cont.clearLbService(servicekey)
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("service-vmm",
 		servicekey))
@@ -1506,7 +1509,9 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 			Error("Could not create service key: ", err)
 		return false
 	}
-
+	if cont.config.ChainedMode {
+		return false
+	}
 	var requeue bool
 	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
 	aciLB := cont.config.LBType == lbTypeAci
