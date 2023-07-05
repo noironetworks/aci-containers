@@ -190,7 +190,7 @@ func (cont *AciController) syncRdConfig() bool {
 	cont.indexMutex.Unlock()
 	env := cont.env.(*K8sEnvironment)
 	rdConfigClient := env.rdConfigClient
-	if rdConfigClient == nil {
+	if rdConfigClient == nil || cont.config.ChainedMode {
 		return false
 	}
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")

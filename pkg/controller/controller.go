@@ -709,13 +709,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"hostprotPol"})
 	} else {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
-			[]string{"fvBD", "fvAp"})
+			[]string{"fvBD", "fvAp", "fvRsPathAtt"})
 	}
-	cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
-		[]string{"fvBD"})
 	if !cont.config.ChainedMode {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
-			[]string{"vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
+			[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
 				"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
 				"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
 		cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",

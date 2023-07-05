@@ -66,12 +66,12 @@ func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
-	fvRsCtx := apicapi.NewFvRsCtx(cont.config.AciVrf)
+	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, "netop-"+cont.config.AciPolicyTenant, "netop-nodes")
-	fvRsBd := apicapi.NewFvRsBD("netop-nodes")
+	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), "netop-nodes")
 	epg.AddChild(fvRsBd)
-	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(cont.config.AciPhysDom)
+	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciPhysDom)
 	epg.AddChild(fvRsDomAtt)
 	ap.AddChild(epg)
 	tenant.AddChild(bd)
@@ -81,6 +81,9 @@ func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 }
 
 func (cont *AciController) initStaticChainedModeObjs() {
+	if !cont.config.ReconcileStaticObjects {
+		return
+	}
 	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_chainedmode_static",
 		cont.staticChainedModeObjs())
 }
@@ -173,7 +176,7 @@ func (cont *AciController) populateFabricPaths(addNet *AdditionalNetworkMeta, ep
 			} else {
 				actualFabricLink = strings.Replace(fabricLinks[0], "node-", "paths-", 1)
 			}
-			fvRsPathAtt := apicapi.NewFvRsPathAtt(actualFabricLink, addNet.EncapVlan)
+			fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, addNet.EncapVlan)
 			epg.AddChild(fvRsPathAtt)
 		}
 	}
@@ -200,14 +203,14 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
-	fvRsCtx := apicapi.NewFvRsCtx(cont.config.AciVrf)
+	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	apName := "netop-" + cont.config.AciPolicyTenant
 	apicSlice = append(apicSlice, bd)
 	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, apName, addNet.NetworkName)
-	fvRsBd := apicapi.NewFvRsBD(addNet.NetworkName)
+	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), addNet.NetworkName)
 	epg.AddChild(fvRsBd)
-	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(cont.config.AciAdditionalPhysDom)
+	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciAdditionalPhysDom)
 	epg.AddChild(fvRsDomAtt)
 	linkPresent := map[string]bool{}
 	for iface, aciLink := range nodeFabNetAtt.Spec.AciTopology {
@@ -300,13 +303,13 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) bool {
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
-	fvRsCtx := apicapi.NewFvRsCtx(cont.config.AciVrf)
+	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	apName := "netop-" + cont.config.AciPolicyTenant
 	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, apName, addNet.NetworkName)
-	fvRsBd := apicapi.NewFvRsBD(addNet.NetworkName)
+	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), addNet.NetworkName)
 	epg.AddChild(fvRsBd)
-	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(cont.config.AciAdditionalPhysDom)
+	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciAdditionalPhysDom)
 	epg.AddChild(fvRsDomAtt)
 	cont.populateFabricPaths(addNet, epg)
 	apicSlice = append(apicSlice, bd)

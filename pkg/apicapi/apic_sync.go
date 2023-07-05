@@ -111,6 +111,17 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			for i < len(bodyc.Children) && j < len(bodyd.Children) {
 				cmp := cmpApicObject(bodyc.Children[i], bodyd.Children[j])
 				if cmp < 0 {
+					deletable := true
+					for class := range bodyc.Children[i] {
+						if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
+							deletable = false
+							break
+						}
+					}
+					if !deletable {
+						i++
+						continue
+					}
 					deletes = append(deletes, bodyc.Children[i].GetDn())
 					i++
 				} else if cmp > 0 {
@@ -129,6 +140,17 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 				}
 			}
 			for i < len(bodyc.Children) {
+				deletable := true
+				for class := range bodyc.Children[i] {
+					if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
+						deletable = false
+						break
+					}
+				}
+				if !deletable {
+					i++
+					continue
+				}
 				deletes = append(deletes, bodyc.Children[i].GetDn())
 				i++
 			}
@@ -158,6 +180,17 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	for i < len(currentState) && j < len(desiredState) {
 		cmp := cmpApicObject(currentState[i], desiredState[j])
 		if cmp < 0 {
+			deletable := true
+			for class := range currentState[i] {
+				if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
+					deletable = false
+					break
+				}
+			}
+			if !deletable {
+				i++
+				continue
+			}
 			deletes = append(deletes, currentState[i].GetDn())
 			i++
 			delete = true
@@ -187,6 +220,17 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	}
 	// extra old objects
 	for i < len(currentState) {
+		deletable := true
+		for class := range currentState[i] {
+			if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
+				deletable = false
+				break
+			}
+		}
+		if !deletable {
+			i++
+			continue
+		}
 		deletes = append(deletes, currentState[i].GetDn())
 		i++
 		delete = true
