@@ -54,7 +54,6 @@ func AciNameForKey(prefix, ktype, key string) string {
 }
 
 func Hash(key string) string {
-
 	hash := sha256.New()
 	hash.Write([]byte(key))
 

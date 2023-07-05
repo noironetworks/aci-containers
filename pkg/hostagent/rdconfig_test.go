@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-func rdConfigdata(usersubnets []string, discoveredsubnets []string) *rdconfig.RdConfig {
+func rdConfigdata(usersubnets, discoveredsubnets []string) *rdconfig.RdConfig {
 	rdcon := &rdconfig.RdConfig{
 		Spec: rdconfig.RdConfigSpec{
 			UserSubnets:       usersubnets,
@@ -38,7 +38,7 @@ func rdConfigdata(usersubnets []string, discoveredsubnets []string) *rdconfig.Rd
 	return rdcon
 }
 
-func (agent *testHostAgent) doTestRdConfig(t *testing.T, tempdir string, name string, internalsubnets []string, desc string) {
+func (agent *testHostAgent) doTestRdConfig(t *testing.T, name string, internalsubnets []string, desc string) {
 	var raw []byte
 	rdcon := &opflexRdConfig{}
 
@@ -76,6 +76,6 @@ func TestRdConfig(t *testing.T) {
 	rdconfig := rdConfigdata([]string{"10.10.10.0/24"}, []string{"20.20.20.0/24"})
 	os.WriteFile(agent.FormRdFilePath(), []byte("random gibberish"), 0644)
 	agent.fakeRdConfigSource.Add(rdconfig)
-	agent.doTestRdConfig(t, tempdir, "rdconfig", []string{"10.10.10.0/24", "20.20.20.0/24"}, "create")
+	agent.doTestRdConfig(t, "rdconfig", []string{"10.10.10.0/24", "20.20.20.0/24"}, "create")
 	agent.stop()
 }

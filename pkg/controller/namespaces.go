@@ -33,7 +33,6 @@ import (
 
 func (cont *AciController) initNamespaceInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initNamespaceInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "namespaces",
@@ -96,7 +95,6 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 
 func (cont *AciController) namespaceChanged(oldobj interface{},
 	newobj interface{}) {
-
 	oldns := oldobj.(*v1.Namespace)
 	newns := newobj.(*v1.Namespace)
 
@@ -137,7 +135,6 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 }
 
 func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {
-
 	nskey := cont.aciNameForKey("nsfs", ns.Name)
 	if nskey == "" {
 		cont.log.Error("Could not retrieve namespace key")
@@ -148,6 +145,4 @@ func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {
 		severity := critical
 		cont.handleEpgAnnotationUpdate(nskey, nsFaultCode, severity, ns.Name, epGroup)
 	}
-
-	return
 }

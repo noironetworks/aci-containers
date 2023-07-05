@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -96,8 +97,7 @@ func (h *certHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		sh = &errorHandler{code: "401", status: 401, text: "Signature missing"}
 	} else {
 		hash := hash(req.Method, req.URL.Path, raw)
-		switch k := h.pubKey.(type) {
-		case *rsa.PublicKey:
+		if k, ok := h.pubKey.(*rsa.PublicKey); ok {
 			err := rsa.VerifyPKCS1v15(k, crypto.SHA256, hash, sig)
 			if err != nil {
 				sh = &errorHandler{code: "401", status: 401, text: err.Error()}
@@ -156,7 +156,8 @@ func (h *socketHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		for {
 			_, _, err := c.ReadMessage()
-			if _, k := err.(*websocket.CloseError); k {
+			var closeError *websocket.CloseError
+			if errors.As(err, &closeError) {
 				break
 			}
 		}
@@ -212,7 +213,7 @@ func (h *errorHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-func newErrorHandler(code string, text string, status int) *errorHandler {
+func newErrorHandler(code, text string, status int) *errorHandler {
 	return &errorHandler{
 		code:   code,
 		text:   text,
@@ -313,7 +314,7 @@ func TestLoginRetry(t *testing.T) {
 }
 
 func TestCertLogin(t *testing.T) {
-	priv, err := rsa.GenerateKey(rand.Reader, 1024)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	assert.Nil(t, err)
 
 	server := newTestServer()
@@ -545,7 +546,6 @@ type syncTest struct {
 }
 
 func TestFullSync(t *testing.T) {
-
 	bd0 := NewFvBD("common", "testbd0")
 	bd4 := NewFvBD("common", "testbd4")
 	ns := NewVmmInjectedNs("v", "d", "c", "n")
@@ -706,7 +706,6 @@ func TestReconcile(t *testing.T) {
 		subnet2 := NewFvSubnet(bd1.GetDn(), "10.43.10.1/16")
 		bd1.AddChild(subnet)
 		bd1.AddChild(subnet2)
-
 	}
 
 	subnet_mod := NewFvSubnet(bd1.GetDn(), "10.42.10.1/16")

@@ -79,7 +79,6 @@ func (nfw *NetflowWatcher) InitNetflowInformer(stopCh <-chan struct{}) {
 }
 
 func (nfw *NetflowWatcher) watchNetflow(stopCh <-chan struct{}) {
-
 	NetflowLw := cache.NewListWatchFromClient(nfw.rc, "netflowpolicies", metav1.NamespaceAll, fields.Everything())
 	_, netflowInformer := cache.NewInformer(NetflowLw, &netflowpolicy.NetflowPolicy{}, 0,
 		cache.ResourceEventHandlerFuncs{
@@ -154,7 +153,6 @@ func (nf *netflowCRD) URI(gs *gbpserver.Server) string {
 }
 
 func (nf *netflowCRD) Properties() map[string]interface{} {
-
 	nf.convertFlowType()
 	return map[string]interface{}{
 		"dstAddr":           nf.DstAddr,

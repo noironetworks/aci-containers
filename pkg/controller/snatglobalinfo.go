@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"strconv"
 
-	uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
@@ -119,7 +119,7 @@ func (cont *AciController) initSnatCfgInformerBase(listWatch *cache.ListWatch) {
 }
 
 // Handle any changes to snatOperator Config
-func (cont *AciController) snatCfgUpdate(oldObj interface{}, newObj interface{}) {
+func (cont *AciController) snatCfgUpdate(oldObj, newObj interface{}) {
 	oldSnatcfg := oldObj.(*v1.ConfigMap)
 	newSnatcfg := newObj.(*v1.ConfigMap)
 	oldData := oldSnatcfg.Data
@@ -174,7 +174,7 @@ func (cont *AciController) queueNodeInfoUpdateByKey(key string) {
 	cont.snatNodeInfoQueue.Add(key)
 }
 
-func (cont *AciController) snatNodeInfoUpdated(oldobj interface{}, newobj interface{}) {
+func (cont *AciController) snatNodeInfoUpdated(oldobj, newobj interface{}) {
 	oldnodeinfo := oldobj.(*nodeinfo.NodeInfo)
 	newnodeinfo := newobj.(*nodeinfo.NodeInfo)
 	nodeinfokey, err := cache.MetaNamespaceKeyFunc(newnodeinfo)
@@ -289,14 +289,12 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 				snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, "")
 				cont.log.Infof("Handling nodeinfo for node %s and snatpolicy %s: ", nodename, name)
 				cont.log.Info("Allocated SNAT IP and Port Range: ", snatIp, portrange)
-				if alloc == false {
+				if !alloc {
 					cont.log.Errorf("Port Range Exhausted for node %s, snat policy %s", nodename, name)
 					allocfailed[name] = true
 					continue
-				} else {
-					if cont.checksnatPolicyPortExhausted(name) {
-						markready[name] = true
-					}
+				} else if cont.checksnatPolicyPortExhausted(name) {
+					markready[name] = true
 				}
 				cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
 					nodeinfo.Spec.Macaddress, name)
@@ -313,14 +311,12 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, snatip)
 					cont.log.Infof("Handling nodeinfo for node %s and snatpolicy %s: ", nodename, name)
 					cont.log.Info("Allocated SNAT IP and Port Range: ", snatIp, portrange)
-					if alloc == false {
+					if !alloc {
 						cont.log.Errorf("Port Range Exhausted for node %s, snat policy %s", nodename, name)
 						allocfailed[name] = true
 						continue
-					} else {
-						if cont.checksnatPolicyPortExhausted(name) {
-							markready[name] = true
-						}
+					} else if cont.checksnatPolicyPortExhausted(name) {
+						markready[name] = true
 					}
 					cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
 						nodeinfo.Spec.Macaddress, name)
@@ -329,7 +325,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 			}
 		}
 		ret = cont.setSnatPoliciesState(allocfailed, snatv1.IpPortsExhausted)
-		ret = cont.setSnatPoliciesState(markready, snatv1.Ready)
+		ret = cont.setSnatPoliciesState(markready, snatv1.Ready) && ret
 	}
 
 	if updated {
@@ -411,7 +407,7 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 	cont.indexMutex.Unlock()
 }
 
-func (cont *AciController) checkIfPolicyApplied(nodename string, snatpolicyname string, snatIps []string) bool {
+func (cont *AciController) checkIfPolicyApplied(nodename, snatpolicyname string, snatIps []string) bool {
 	var nodeSNATEntryFound bool
 	for _, snatip := range snatIps {
 		if policyEntries, ok := cont.snatGlobalInfoCache[snatip]; ok {
@@ -483,7 +479,7 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(snatPolicyNames map[str
 	for snatip, glinfos := range cont.snatGlobalInfoCache {
 		if v, ok := glinfos[nodename]; ok {
 			if cont.checksnatPolicyPortExhausted(v.SnatPolicyName) {
-				if cont.setSnatPolicyStatus(v.SnatPolicyName, snatv1.Ready) == true {
+				if cont.setSnatPolicyStatus(v.SnatPolicyName, snatv1.Ready) {
 					return true
 				}
 			}
@@ -500,7 +496,7 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(snatPolicyNames map[str
 	// in the global info cache.
 	for name := range snatPolicyNames {
 		if cont.checksnatPolicyPortExhausted(name) {
-			if cont.setSnatPolicyStatus(name, snatv1.Ready) == true {
+			if cont.setSnatPolicyStatus(name, snatv1.Ready) {
 				return true
 			}
 		}
@@ -509,8 +505,7 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(snatPolicyNames map[str
 }
 
 func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []string) {
-	services := cont.getServicesBySelector(labels.SelectorFromSet(
-		labels.Set(policy.Selector.Labels)),
+	services := cont.getServicesBySelector(labels.SelectorFromSet(policy.Selector.Labels),
 		policy.Selector.Namespace)
 	for _, service := range services {
 		var ips []string
@@ -522,13 +517,13 @@ func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []s
 	return serviceIps
 }
 
-func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,
+func (cont *AciController) updateSnatIpandPorts(oldPolicyNames,
 	newPolicynames map[string]bool, nodename string) {
 	for oldkey := range oldPolicyNames {
 		if _, ok := newPolicynames[oldkey]; !ok {
 			cont.clearSnatGlobalCache(oldkey, nodename)
 			if cont.checksnatPolicyPortExhausted(oldkey) {
-				if cont.setSnatPolicyStatus(oldkey, snatv1.Ready) == false {
+				if !cont.setSnatPolicyStatus(oldkey, snatv1.Ready) {
 					cont.log.Error("Failed to set the status for snat policy: ", oldkey)
 				}
 			}
@@ -536,7 +531,7 @@ func (cont *AciController) updateSnatIpandPorts(oldPolicyNames map[string]bool,
 	}
 }
 
-func (cont *AciController) clearSnatGlobalCache(policyName string, nodename string) {
+func (cont *AciController) clearSnatGlobalCache(policyName, nodename string) {
 	var expandedIps []string
 	contSnatPolicy, ok := cont.snatPolicyCache[policyName]
 	if !ok {
@@ -584,7 +579,7 @@ func (cont *AciController) setSnatPoliciesState(names map[string]bool, status sn
 	// Any alloc failures mark the policy with Status IpPortsExhausted
 	ret := false
 	for name := range names {
-		if cont.setSnatPolicyStatus(name, status) == true {
+		if cont.setSnatPolicyStatus(name, status) {
 			cont.log.Info("Set status true for policy name: ", name)
 			ret = true
 		}

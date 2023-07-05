@@ -45,7 +45,6 @@ const DefaultServiceExtSubNetShared = false
 
 func (cont *AciController) initEndpointsInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initEndpointsInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "endpoints",
@@ -54,7 +53,6 @@ func (cont *AciController) initEndpointsInformerFromClient(
 
 func (cont *AciController) initEndpointSliceInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initEndpointSliceInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.DiscoveryV1().RESTClient(), "endpointslices",
@@ -99,7 +97,6 @@ func (cont *AciController) initEndpointsInformerBase(listWatch *cache.ListWatch)
 
 func (cont *AciController) initServiceInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
-
 	cont.initServiceInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "services",
@@ -153,7 +150,7 @@ func (cont *AciController) queueIPNetPolUpdates(ips map[string]bool) {
 
 func (cont *AciController) queuePortNetPolUpdates(ports map[string]targetPort) {
 	for portkey := range ports {
-		entry, _ := cont.targetPortIndex[portkey]
+		entry := cont.targetPortIndex[portkey]
 		if entry == nil {
 			continue
 		}
@@ -192,7 +189,6 @@ func (cont *AciController) queueMatchingNamedNp(served map[string]bool, podkey s
 		}
 	}
 	cont.indexMutex.Unlock()
-
 }
 func (cont *AciController) queueEndpointsNetPolUpdates(endpoints *v1.Endpoints) {
 	for _, subset := range endpoints.Subsets {
@@ -289,7 +285,7 @@ func (cont *AciController) getActiveFabricPathDn(node string) string {
 	return fabricPathDn
 }
 
-func deleteDevicesFromList(delDevices apicapi.ApicSlice, devices apicapi.ApicSlice) apicapi.ApicSlice {
+func deleteDevicesFromList(delDevices, devices apicapi.ApicSlice) apicapi.ApicSlice {
 	var newDevices apicapi.ApicSlice
 	for delDev := range delDevices {
 		for _, device := range devices {
@@ -515,12 +511,11 @@ func (cont *AciController) apicRedirectPol(name string, tenantName string, nodes
 
 func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
 	cidr bool, sharedSec bool) apicapi.ApicObject {
-
 	if !cidr {
 		if ipv4 {
-			ingress = ingress + "/32"
+			ingress += "/32"
 		} else {
-			ingress = ingress + "/128"
+			ingress += "/128"
 		}
 	}
 	subnet := apicapi.NewL3extSubnet(enDn, ingress)
@@ -532,7 +527,6 @@ func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
 
 func apicExtNet(name string, tenantName string, l3Out string,
 	ingresses []string, sharedSecurity bool, snat bool) apicapi.ApicObject {
-
 	en := apicapi.NewL3extInstP(tenantName, l3Out, name)
 	enDn := en.GetDn()
 	if snat {
@@ -569,14 +563,12 @@ func apicExtNet(name string, tenantName string, l3Out string,
 
 func apicExtNetCons(conName string, tenantName string,
 	l3Out string, net string) apicapi.ApicObject {
-
 	enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
 	return apicapi.NewFvRsCons(enDn, conName)
 }
 
 func apicExtNetProv(conName string, tenantName string,
 	l3Out string, net string) apicapi.ApicObject {
-
 	enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
 	return apicapi.NewFvRsProv(enDn, conName)
 }
@@ -651,7 +643,6 @@ func apicContract(conName string, tenantName string,
 
 func apicDevCtx(name string, tenantName string,
 	graphName string, deviceName string, bdName string, rpDn string, isSnatPbrFltrChain bool) apicapi.ApicObject {
-
 	cc := apicapi.NewVnsLDevCtx(tenantName, name, graphName, "loadbalancer")
 	ccDn := cc.GetDn()
 	graphDn := fmt.Sprintf("uni/tn-%s/lDevVip-%s", tenantName, deviceName)
@@ -679,7 +670,6 @@ func apicDevCtx(name string, tenantName string,
 
 func apicFilterEntry(filterDn string, count string, p_start string,
 	p_end string, protocol string, stateful string, snat bool, outTerm bool) apicapi.ApicObject {
-
 	fe := apicapi.NewVzEntry(filterDn, count)
 	fe.SetAttr("etherT", "ip")
 	fe.SetAttr("prot", protocol)
@@ -704,7 +694,6 @@ func apicFilterEntry(filterDn string, count string, p_start string,
 }
 func apicFilter(name string, tenantName string,
 	portSpec []v1.ServicePort, snat bool, snatRange portRangeSnat) apicapi.ApicObject {
-
 	filter := apicapi.NewVzFilter(tenantName, name)
 	filterDn := filter.GetDn()
 
@@ -735,7 +724,6 @@ func apicFilter(name string, tenantName string,
 
 func apicFilterSnat(name string, tenantName string,
 	portSpec []portRangeSnat, outTerm bool) apicapi.ApicObject {
-
 	filter := apicapi.NewVzFilter(tenantName, name)
 	filterDn := filter.GetDn()
 
@@ -774,7 +762,6 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 			err := errors.New(errString)
 			serviceLogger(cont.log, service).Error("Could not create contract: ", err)
 			return err
-
 		} else {
 			conScope = normScopeVal
 		}
@@ -802,7 +789,6 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 
 	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
-
 		// 1. Service redirect policy
 		// The service redirect policy contains the MAC address
 		// and IP address of each of the service endpoints for
@@ -895,7 +881,6 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	graphName := cont.aciNameForKey("svc", "global")
 	var serviceObjs apicapi.ApicSlice
 	if len(nodes) > 0 {
-
 		// 1. Service redirect policy
 		// The service redirect policy contains the MAC address
 		// and IP address of each of the service endpoints for
@@ -986,7 +971,6 @@ func (cont *AciController) queueServiceUpdate(service *v1.Service) {
 func apicDeviceCluster(name string, vrfTenant string,
 	physDom string, encap string,
 	nodes []string, nodeMap map[string]string) (apicapi.ApicObject, string) {
-
 	dc := apicapi.NewVnsLDevVip(vrfTenant, name)
 	dc.SetAttr("managed", "no")
 	dcDn := dc.GetDn()
@@ -1017,7 +1001,6 @@ func apicDeviceCluster(name string, vrfTenant string,
 
 func apicServiceGraph(name string, tenantName string,
 	dcDn string) apicapi.ApicObject {
-
 	sg := apicapi.NewVnsAbsGraph(tenantName, name)
 	sgDn := sg.GetDn()
 	var provDn string
@@ -1078,7 +1061,6 @@ func apicServiceGraph(name string, tenantName string,
 }
 func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
-
 	cont.indexMutex.Lock()
 	for node := range cont.nodeOpflexDevice {
 		cont.log.Debug("Processing node in nodeOpflexDevice cache : ", node)
@@ -1119,7 +1101,6 @@ func (cont *AciController) updateDeviceCluster() {
 
 func (cont *AciController) fabricPathLogger(node string,
 	obj apicapi.ApicObject) *logrus.Entry {
-
 	return cont.log.WithFields(logrus.Fields{
 		"fabricPath": obj.GetAttr("fabricPathDn"),
 		"mac":        obj.GetAttr("mac"),
@@ -1129,7 +1110,6 @@ func (cont *AciController) fabricPathLogger(node string,
 }
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
-
 	devType := obj.GetAttrStr("devType")
 	domName := obj.GetAttrStr("domName")
 	ctrlrName := obj.GetAttrStr("ctrlrName")
@@ -1183,7 +1163,6 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 				} else if (device.GetAttrStr("mac") != obj.GetAttrStr("mac")) ||
 					(device.GetAttrStr("fabricPathDn") != obj.GetAttrStr("fabricPathDn")) ||
 					(device.GetAttrStr("state") != obj.GetAttrStr("state")) {
-
 					cont.fabricPathLogger(node, obj).
 						Debug("Updating opflex device")
 
@@ -1216,7 +1195,6 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			cont.erspanSyncOpflexDev()
 		}
 		cont.updateDeviceCluster()
-
 	}
 }
 
@@ -1363,7 +1341,6 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 
 		// Read any existing IPs and attempt to allocate them to the pod
 		for _, ingress := range service.Status.LoadBalancer.Ingress {
-
 			ip := net.ParseIP(ingress.IP)
 			if ip == nil {
 				continue
@@ -1904,8 +1881,7 @@ func (cont *AciController) doendpointSliceUpdatedDelay(oldendpointslice *discove
 	if svcDelay > 0 {
 		delay = svcDelay
 	}
-	var delayedsvc bool
-	delayedsvc = exists && delay > 0
+	delayedsvc := exists && delay > 0
 	if delayedsvc {
 		cont.log.Debug("Delay of ", delay, " seconds is applicable for svc :", svc, " in ns: ", ns)
 		var delayedepslice DelayedEpSlice
@@ -1925,9 +1901,9 @@ func (cont *AciController) doendpointSliceUpdatedDelay(oldendpointslice *discove
 		cont.log.Debug("Proceeding by ignoring delay as the update is due to delete of endpoint")
 		cont.doendpointSliceUpdated(oldendpointslice, newendpointslice)
 	}
-	return
 }
-func (cont *AciController) endpointSliceUpdated(oldobj interface{}, newobj interface{}) {
+
+func (cont *AciController) endpointSliceUpdated(oldobj, newobj interface{}) {
 	oldendpointslice, ok := oldobj.(*discovery.EndpointSlice)
 	if !ok {
 		cont.log.Error("error processing Endpointslice object: ", oldobj)
@@ -2062,7 +2038,6 @@ func (cont *AciController) setNodeMap(nodeMap map[string]*metadata.ServiceEndpoi
 		return
 	}
 	nodeMap[nodeName] = &nodeMeta.serviceEp
-
 }
 
 // 2 cases when epslices corresponding to given service is presnt in delayedEpSlices:
@@ -2107,7 +2082,6 @@ func (cont *AciController) setNodeMapDelay(nodeMap map[string]*metadata.ServiceE
 	}
 	if cont.config.NoWaitForServiceEpReadiness ||
 		(endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready) {
-
 		if endpoint.NodeName != nil && *endpoint.NodeName != "" {
 			// donot setNodeMap for endpoint if:
 			//   endpoint is newly added

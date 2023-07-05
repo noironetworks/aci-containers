@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fakev1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/fake"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
@@ -29,7 +28,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -111,38 +109,6 @@ func (s *eps_suite) setup() {
 	eps.log = logrus.New().WithField("mod", "epsync-test")
 	eps.epgQuery = fmt.Sprintf("/api/mo/uni/tn-%s/ctx-%s.json?query-target=children&target-subtree-class=fvRtCloudEPgCtx", epsTenant, epsVrf)
 	s.eps = eps
-}
-
-func (s *eps_suite) expectMsg(op int, msg interface{}) error {
-	gotOp, gotMsg, err := s.s.UTReadMsg(200 * time.Millisecond)
-	if err != nil {
-		return err
-	}
-
-	if gotOp != op {
-		return fmt.Errorf("Exp op: %d, got: %d", op, gotOp)
-	}
-
-	if !reflect.DeepEqual(msg, gotMsg) {
-		spew.Dump(msg)
-		spew.Dump(gotMsg)
-		return fmt.Errorf("msgs don't match")
-	}
-
-	return nil
-}
-
-func (s *eps_suite) expectOp(op int) error {
-	gotOp, _, err := s.s.UTReadMsg(200 * time.Millisecond)
-	if err != nil {
-		return err
-	}
-
-	if gotOp != op {
-		return fmt.Errorf("Exp op: %d, got: %d", op, gotOp)
-	}
-
-	return nil
 }
 
 func fvRtCloudEPgCtxHandler(w http.ResponseWriter, r *http.Request) {

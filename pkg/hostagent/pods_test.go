@@ -54,7 +54,6 @@ func pod(uuid string, namespace string, name string,
 
 func cnimd(namespace string, name string,
 	ip string, cont string, veth string) *md.ContainerMetadata {
-
 	return &md.ContainerMetadata{
 		Id: md.ContainerId{
 			Namespace: namespace,
@@ -170,7 +169,6 @@ func (agent *testHostAgent) doTestPod(t *testing.T, tempdir string,
 		desc, pt.name, "eg")
 	assert.Equal(t, sg, ep.SecurityGroup, desc, pt.name, "secgroup")
 	assert.Equal(t, qp, ep.QosPolicy, desc, pt.name, "qos")
-
 }
 
 func TestPodSync(t *testing.T) {

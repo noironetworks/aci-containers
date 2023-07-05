@@ -55,7 +55,6 @@ type TestKubeObj struct {
 
 func (in *TestKubeObj) DeepCopyInto(out *TestKubeObj) {
 	*out = *in
-	return
 }
 
 func (in *TestKubeObj) DeepCopy() *TestKubeObj {
@@ -68,11 +67,7 @@ func (in *TestKubeObj) DeepCopy() *TestKubeObj {
 }
 
 func (in *TestKubeObj) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	} else {
-		return nil
-	}
+	return in.DeepCopy()
 }
 
 func newTestIndex(log *logrus.Logger, dep bool) *testIndex {
@@ -205,9 +200,8 @@ func namespace(namespace string, labels map[string]string) *v1.Namespace {
 	}
 }
 
-func deployment(namespace string, name string,
+func deployment(namespace, name string,
 	matchLabels map[string]string) *v1beta1.Deployment {
-
 	return &v1beta1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -387,7 +381,7 @@ func TestPodIndexDeployment(t *testing.T) {
 	testIndex.stop()
 }
 
-func testObj(namespace string, name string, s []PodSelector) *TestKubeObj {
+func testObj(namespace, name string, s []PodSelector) *TestKubeObj {
 	return &TestKubeObj{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,

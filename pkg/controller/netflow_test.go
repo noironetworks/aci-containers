@@ -41,7 +41,6 @@ type nfTest struct {
 
 func makeNf(name string, dstAddr string, dstPort int,
 	ver string, activeFlowTimeOut int, idleFlowTimeOut int, samplingRate int) apicapi.ApicSlice {
-
 	nf1 := apicapi.NewNetflowVmmExporterPol(name)
 	apicSlice := apicapi.ApicSlice{nf1}
 	nf1.SetAttr("dstAddr", dstAddr)

@@ -23,18 +23,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	discovery "k8s.io/api/discovery/v1"
 )
 
 func service(uuid string, namespace string, name string,
 	clusterIp string, externalIp string, ports []int32) *v1.Service {
-	var timeout int32
-	timeout = 10000
+	var timeout int32 = 10000
 	s := &v1.Service{
 		Spec: v1.ServiceSpec{
 			ClusterIP:             clusterIp,

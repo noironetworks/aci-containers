@@ -336,5 +336,4 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.DpuOvsDBSocket, "dpu-ovsdb-socket", "tcp:192.168.200.2:6640", "TCP socket on DPU to connect to")
 	flag.BoolVar(&config.ChainedMode, "chained_mode", false, "Chained Mode")
 	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")
-
 }

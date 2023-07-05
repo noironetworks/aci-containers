@@ -89,7 +89,6 @@ func (cont *AciController) initStaticChainedModeObjs() {
 }
 
 func (cont *AciController) initNodeFabNetAttInformerFromClient(fabAttClient *fabattclset.Clientset) {
-
 	cont.initNodeFabNetAttInformerBase(
 		cache.NewListWatchFromClient(
 			fabAttClient.AciV1().RESTClient(), "nodefabricnetworkattachments",
@@ -312,8 +311,7 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) bool {
 	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciAdditionalPhysDom)
 	epg.AddChild(fvRsDomAtt)
 	cont.populateFabricPaths(addNet, epg)
-	apicSlice = append(apicSlice, bd)
-	apicSlice = append(apicSlice, epg)
+	apicSlice = append(apicSlice, bd, epg)
 
 	labelKey := cont.aciNameForKey("nfna", addNet.NetworkName)
 	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
@@ -326,7 +324,6 @@ func (cont *AciController) queueNodeFabNetAttByKey(key string) {
 
 // func returns false if executed without error, true if the caller has to requeue.
 func (cont *AciController) handleNodeFabricNetworkAttachmentUpdate(obj interface{}) bool {
-
 	nodeFabNetAtt, ok := obj.(*fabattv1.NodeFabricNetworkAttachment)
 	if !ok {
 		cont.log.Error("handleNodeFabricNetworkAttUpdate: Bad object type")
@@ -340,7 +337,6 @@ func (cont *AciController) handleNodeFabricNetworkAttachmentUpdate(obj interface
 }
 
 func (cont *AciController) handleNodeFabricNetworkAttachmentDelete(key string) bool {
-
 	cont.deleteNodeFabNetAttObj(key)
 
 	return false

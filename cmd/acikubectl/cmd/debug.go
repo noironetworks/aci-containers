@@ -531,9 +531,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 				args: []string{"cp", systemNamespace + "/" + podName + ":" +
 					"/usr/local/var/lib/opflex-agent-ovs", tempName},
 				skipOutputFile: true,
-			})
-
-			cmds = append(cmds, reportCmdElem{
+			}, reportCmdElem{
 				name: fmt.Sprintf(nodeItem.path, node.Name),
 				args: nodeItem.argFunc(systemNamespace, podName,
 					nodeItem.cont, nodeItem.args),
@@ -661,7 +659,7 @@ func aciContainerHostVersionCmdArgs(systemNamespace string) []string {
 		"aci-containers-host-agent", "--version"}
 }
 
-func hostAgentLogCmdArgs(systemNamespace string, podName string, containerName string, args []string) []string {
+func hostAgentLogCmdArgs(systemNamespace, podName, containerName string, args []string) []string {
 	return append([]string{"-n", systemNamespace, "exec", podName,
 		"-c", containerName}, args...)
 }

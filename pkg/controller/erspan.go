@@ -135,7 +135,6 @@ func (cont *AciController) erspanPolicyDeleted(obj interface{}) {
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("span", spankey))
 	cont.erspanPolPods.DeleteSelectorObj(obj)
-
 }
 
 func (cont *AciController) erspanSyncOpflexDev() {
@@ -233,7 +232,6 @@ func transformMac(mac string) string {
 }
 
 func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apicapi.ApicSlice {
-
 	spankey, _ := cache.MetaNamespaceKeyFunc(span)
 	labelKey := cont.aciNameForKey("span", spankey)
 	cont.log.Infof("Creating erspan policy: %s", span.ObjectMeta.Name)
@@ -283,7 +281,6 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 		cont.log.Info("No Virtual Port Channels found for erspan binding.")
 	}
 	for _, bundleName := range vpcs {
-
 		accBndlGrp := apicapi.NewInfraAccBndlGrp(bundleName)
 		infraRsSpanVSrcGrp := apicapi.NewInfraRsSpanVSrcGrp(bundleName, labelKey)
 		accBndlGrp.AddChild(infraRsSpanVSrcGrp)
@@ -299,7 +296,6 @@ func (cont *AciController) buildErspanObjs(span *erspanpolicy.ErspanPolicy) apic
 		cont.log.Info("No Leaf Access Ports found for erspan binding.")
 	}
 	for _, portName := range accPorts {
-
 		accPortGrp := apicapi.NewInfraAccPortGrp(portName)
 		infraRsSpanVSrcGrpAP := apicapi.NewInfraRsSpanVSrcGrpAP(portName, labelKey)
 		accPortGrp.AddChild(infraRsSpanVSrcGrpAP)

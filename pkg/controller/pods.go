@@ -52,7 +52,6 @@ const (
 
 func (cont *AciController) initPodInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initPodInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "pods",
@@ -99,7 +98,6 @@ func (cont *AciController) queuePodUpdate(pod *v1.Pod) {
 }
 
 func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
-
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		podLogger(cont.log, pod).Error("Could not create pod key: ", err)
@@ -112,11 +110,9 @@ func (cont *AciController) checkIfEpgExistPod(pod *v1.Pod) {
 		severity := major
 		cont.handleEpgAnnotationUpdate(key, podFaultCode, severity, pod.Name, epGroup)
 	}
-
-	return
 }
 
-func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, severity int, entity string, epGroup string) bool {
+func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode, severity int, entity, epGroup string) bool {
 	var egval metadata.OpflexGroup
 	epgExist, egval, setFaultInst := cont.checkEpgCache(epGroup, "EpgAnnotation")
 
@@ -124,7 +120,6 @@ func (cont *AciController) handleEpgAnnotationUpdate(key string, faultCode int, 
 		//clearing existing faults upon correct annotation
 		cont.apicConn.ClearApicObjects(key)
 	} else if !epgExist {
-
 		if setFaultInst {
 			desc := fmt.Sprintf("Annotation failed on Ns/Dep/Pod for the entity %s, Reason being: Cannot resolve the EPG:%s for the tenant:%s and app-profile:%s",
 
@@ -173,7 +168,6 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	if pod.Spec.NodeName != "" {
 		// note here we're assuming pods do not change nodes
 		cont.addPodToNode(pod.Spec.NodeName, podkey)
-
 	}
 	cont.indexMutex.Unlock()
 	go cont.updateCtrNmPortForPod(pod, podkey)
@@ -241,7 +235,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	cont.checkIfEpgExistPod(pod)
 }
 
-func (cont *AciController) podUpdated(oldobj interface{}, newobj interface{}) {
+func (cont *AciController) podUpdated(oldobj, newobj interface{}) {
 	oldpod := oldobj.(*v1.Pod)
 	newpod := newobj.(*v1.Pod)
 

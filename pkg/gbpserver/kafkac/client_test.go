@@ -26,11 +26,12 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
 const (
@@ -45,7 +46,6 @@ type suite struct {
 	store      map[string]int // index to messageq
 	lastOffset int64
 	prodErr    bool
-	consErr    bool
 	consChan   chan *sarama.ConsumerMessage
 }
 
@@ -136,7 +136,6 @@ func (ts *suite) SendMessage(msg *sarama.ProducerMessage) (partition int32, offs
 		if err != nil {
 			return 0, 0, errors.Wrap(err, "Value Encode")
 		}
-
 	}
 
 	cm := &sarama.ConsumerMessage{
@@ -251,6 +250,7 @@ func TestNew(t *testing.T) {
 	go kc.run()
 
 	// random concurrency
+	//nolint:gosec
 	if rand.Intn(100) > 50 {
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -353,15 +353,13 @@ func TestExisting(t *testing.T) {
 	}
 
 	for _, v := range kset1 {
-		var m *sarama.ProducerMessage
-		m = epMsgToProdMsg(v)
+		m := epMsgToProdMsg(v)
 		_, _, err := ts.SendMessage(m)
 		assert.Equal(t, err, nil)
 	}
 
 	for _, v := range kset2 {
-		var m *sarama.ProducerMessage
-		m = epMsgToProdMsg(v)
+		m := epMsgToProdMsg(v)
 		_, _, err := ts.SendMessage(m)
 		assert.Equal(t, err, nil)
 	}
@@ -380,6 +378,7 @@ func TestExisting(t *testing.T) {
 	go kc.run()
 
 	// random concurrency
+	//nolint:gosec
 	if rand.Intn(200) > 95 {
 		time.Sleep(10 * time.Millisecond)
 	}

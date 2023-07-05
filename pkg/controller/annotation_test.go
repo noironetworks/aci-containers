@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net"
 	"testing"
 
@@ -101,7 +102,6 @@ func (h *loginSucc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (h *SocketHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c, err := upgrader.Upgrade(w, req, nil)
-
 	if err != nil {
 		h.err = err
 		return
@@ -112,7 +112,9 @@ func (h *SocketHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		for {
 			_, _, err := c.ReadMessage()
-			if _, k := err.(*websocket.CloseError); k {
+			var closeErr *websocket.CloseError
+			ok := errors.As(err, &closeErr)
+			if ok {
 				break
 			}
 		}
@@ -239,7 +241,6 @@ func TestFaultDnPost(t *testing.T) {
 	cont := initCont()
 	cont.run()
 	for _, pt := range podTests {
-
 		namespace := namespace(pt.name, pt.eg, pt.sg)
 		nskey := cont.aciNameForKey("ns", namespace.Name)
 		if nskey == "" {

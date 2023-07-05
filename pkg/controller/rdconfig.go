@@ -91,7 +91,7 @@ func (cont *AciController) RdConfigAdded(obj interface{}) {
 	cont.queueRdConfigUpdateByKey(rdconkey)
 }
 
-func (cont *AciController) RdConfigUpdated(oldobj interface{}, newobj interface{}) {
+func (cont *AciController) RdConfigUpdated(oldobj, newobj interface{}) {
 	oldrdcon := oldobj.(*rdConfigv1.RdConfig)
 	newrdcon := newobj.(*rdConfigv1.RdConfig)
 	rdconkey, err := cache.MetaNamespaceKeyFunc(newrdcon)
@@ -107,7 +107,6 @@ func (cont *AciController) RdConfigUpdated(oldobj interface{}, newobj interface{
 	cont.rdConfigCache[newrdcon.ObjectMeta.Name] = newrdcon
 	cont.indexMutex.Unlock()
 	cont.queueRdConfigUpdateByKey(rdconkey)
-
 }
 
 func (cont *AciController) RdConfigDeleted(obj interface{}) {
@@ -202,7 +201,7 @@ func (cont *AciController) syncRdConfig() bool {
 			spec := rdConfigv1.RdConfigSpec{
 				DiscoveredSubnets: discoveredSubnets,
 			}
-			if cont.config.AddExternalSubnetsToRdconfig == true {
+			if cont.config.AddExternalSubnetsToRdconfig {
 				spec.UserSubnets = userSubnets
 			}
 			err := util.CreateRdConfigCR(*rdConfigClient, spec)
@@ -211,24 +210,23 @@ func (cont *AciController) syncRdConfig() bool {
 				return true
 			}
 			cont.log.Debugf("RdConfig: %s Created with spec: %v", name, spec)
-
 		} else {
 			cont.log.Debugf("Unable to get RDConfig: %s, err: %v", name, err)
 		}
 	} else {
-		cont.log.Debugf("Comparing existing rdconfig DiscoveredSubnets with cached values")
+		cont.log.Debug("Comparing existing rdconfig DiscoveredSubnets with cached values")
 
-		var isUpdated bool = false
+		var isUpdated = false
 
 		if !reflect.DeepEqual(rdCon.Spec.DiscoveredSubnets, discoveredSubnets) {
 			rdCon.Spec.DiscoveredSubnets = discoveredSubnets
 			isUpdated = true
 		}
-		if !reflect.DeepEqual(rdCon.Spec.UserSubnets, userSubnets) && cont.config.AddExternalSubnetsToRdconfig == true {
+		if !reflect.DeepEqual(rdCon.Spec.UserSubnets, userSubnets) && cont.config.AddExternalSubnetsToRdconfig {
 			// add new usersubnet to already present subnets
 			prev_userSubnets := rdCon.Spec.UserSubnets
 			for _, new_user_subnet := range userSubnets {
-				var isPresent bool = false
+				var isPresent = false
 				for _, prev_user_subnet := range prev_userSubnets {
 					if new_user_subnet == prev_user_subnet {
 						isPresent = true
@@ -242,10 +240,9 @@ func (cont *AciController) syncRdConfig() bool {
 			}
 
 			rdCon.Spec.UserSubnets = prev_userSubnets
-
 		}
 
-		if isUpdated == true {
+		if isUpdated {
 			_, err = rdConfigClient.AciV1().RdConfigs(ns).Update(context.TODO(), rdCon, metav1.UpdateOptions{})
 			if err != nil {
 				cont.log.Debugf("Unable to Update RDConfig: %s, err: %v", name, err)

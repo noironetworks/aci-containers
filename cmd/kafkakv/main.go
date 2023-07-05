@@ -101,12 +101,11 @@ looper:
 				break looper
 			}
 
-			if m.Value == nil || string(m.Value) == "" {
+			if m.Value == nil || len(m.Value) == 0 {
 				delete(kv, string(m.Key))
 			} else {
 				kv[string(m.Key)] = true
 			}
-
 		}
 	}
 

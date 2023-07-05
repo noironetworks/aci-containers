@@ -18,10 +18,11 @@ import (
 	kubecontext "context"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
@@ -518,7 +519,6 @@ func init() {
 			BoolP("raw", "", false,
 				"Get the raw annotation value without formatting")
 		getDefaultSgCmd.AddCommand(cmd)
-
 	}
 
 	set.AddCommand(setDefaultEgCmd)

@@ -156,23 +156,7 @@ func truncatedName(name string) string {
 	return nameAlias
 }
 
-func cmpAttr(a *ApicObjectBody, b *ApicObjectBody, attr string) int {
-	var attra string
-	var attrb string
-
-	switch d := a.Attributes[attr].(type) {
-	case string:
-		attra = d
-	}
-	switch d := b.Attributes[attr].(type) {
-	case string:
-		attrb = d
-	}
-
-	return strings.Compare(attra, attrb)
-}
-
-func cmpApicObject(a ApicObject, b ApicObject) int {
+func cmpApicObject(a, b ApicObject) int {
 	return strings.Compare(a.GetDn(), b.GetDn())
 }
 
@@ -202,11 +186,9 @@ func (o ApicObject) String() string {
 
 func (o ApicObject) GetRn() string {
 	for _, body := range o {
-		switch r := body.Attributes["rn"].(type) {
-		case string:
+		if r, ok := body.Attributes["rn"].(string); ok {
 			return r
 		}
-		break
 	}
 	return ""
 }
@@ -234,11 +216,9 @@ func (o ApicObject) GetTag() string {
 					if cbody.Attributes == nil {
 						continue
 					}
-					switch k := cbody.Attributes["key"].(type) {
-					case string:
+					if k, ok := cbody.Attributes["key"].(string); ok {
 						if k == aciContainersAnnotKey {
-							switch t := cbody.Attributes["value"].(type) {
-							case string:
+							if t, isStr := cbody.Attributes["value"].(string); isStr {
 								return t
 							}
 							return ""
@@ -260,8 +240,7 @@ func (o ApicObject) SetTag(tag string) {
 				if class == "tagAnnotation" {
 					isTag = true
 					if cbody.Attributes != nil {
-						switch k := cbody.Attributes["key"].(type) {
-						case string:
+						if k, ok := cbody.Attributes["key"].(string); ok {
 							if k == aciContainersAnnotKey {
 								cbody.Attributes["value"] = tag
 								return
@@ -282,7 +261,6 @@ func (o ApicObject) SetTag(tag string) {
 		o.AddChild(NewTagAnnotation(o.GetAttrDn(), aciContainersAnnotKey).
 			SetAttr("value", tag))
 	}
-
 }
 
 func (o ApicObject) SetAttr(name string, value interface{}) ApicObject {
@@ -345,7 +323,7 @@ func newApicObject(class string) ApicObject {
 	}
 }
 
-func EmptyApicObject(class string, dn string) ApicObject {
+func EmptyApicObject(class, dn string) ApicObject {
 	attrs := map[string]interface{}{
 		"dn": dn,
 	}
@@ -434,7 +412,7 @@ func NewCloudSubnet(cidrDn, ip string) ApicObject {
 	return ret
 }
 
-func NewFvCtx(tenantName string, name string) ApicObject {
+func NewFvCtx(tenantName, name string) ApicObject {
 	ret := newApicObject("fvCtx")
 	ret["fvCtx"].Attributes["name"] = name
 	ret["fvCtx"].Attributes["dn"] =
@@ -442,7 +420,7 @@ func NewFvCtx(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewFvRsDomAttPhysDom(parentDn string, physDom string) ApicObject {
+func NewFvRsDomAttPhysDom(parentDn, physDom string) ApicObject {
 	physDomDn := fmt.Sprintf("uni/phys-%s", physDom)
 	ret := newApicObject("fvRsDomAtt")
 	ret["fvRsDomAtt"].Attributes["tDn"] = physDomDn
@@ -456,21 +434,21 @@ func NewFvAP(ap string) ApicObject {
 	return ret
 }
 
-func NewFvAEPg(tenant string, ap string, name string) ApicObject {
+func NewFvAEPg(tenant, ap, name string) ApicObject {
 	ret := newApicObject("fvAEPg")
 	ret["fvAEPg"].Attributes["dn"] = fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", tenant, ap, name)
 	ret["fvAEPg"].Attributes["name"] = name
 	return ret
 }
 
-func NewFvRsBD(parentDn string, bdName string) ApicObject {
+func NewFvRsBD(parentDn, bdName string) ApicObject {
 	ret := newApicObject("fvRsBd")
 	ret["fvRsBd"].Attributes["tnFvBDName"] = bdName
 	ret["fvRsBd"].HintDn = parentDn + "/rsbd"
 	return ret
 }
 
-func NewFvRsPathAtt(parentDn string, path string, encap string) ApicObject {
+func NewFvRsPathAtt(parentDn, path, encap string) ApicObject {
 	ret := newApicObject("fvRsPathAtt")
 	ret["fvRsPathAtt"].Attributes["tDn"] = path
 	ret["fvRsPathAtt"].Attributes["encap"] = "vlan-" + encap
@@ -478,7 +456,7 @@ func NewFvRsPathAtt(parentDn string, path string, encap string) ApicObject {
 	return ret
 }
 
-func NewFvBD(tenantName string, name string) ApicObject {
+func NewFvBD(tenantName, name string) ApicObject {
 	ret := newApicObject("fvBD")
 	ret["fvBD"].Attributes["name"] = name
 	ret["fvBD"].Attributes["dn"] =
@@ -486,14 +464,14 @@ func NewFvBD(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewFvRsCtx(parentDn string, vrfName string) ApicObject {
+func NewFvRsCtx(parentDn, vrfName string) ApicObject {
 	ret := newApicObject("fvRsCtx")
 	ret["fvRsCtx"].Attributes["tnFvCtxName"] = vrfName
 	ret["fvRsCtx"].HintDn = parentDn + "/rsctx"
 	return ret
 }
 
-func NewCloudApp(tenantName string, name string) ApicObject {
+func NewCloudApp(tenantName, name string) ApicObject {
 	ret := newApicObject("cloudApp")
 	ret["cloudApp"].Attributes["name"] = name
 	ret["cloudApp"].Attributes["dn"] =
@@ -509,7 +487,7 @@ func NewCloudEpg(tenantName, appName, name string) ApicObject {
 	return ret
 }
 
-func NewFvSubnet(parentDn string, gwIpMask string) ApicObject {
+func NewFvSubnet(parentDn, gwIpMask string) ApicObject {
 	ret := newApicObject("fvSubnet")
 	ret["fvSubnet"].Attributes["ip"] = gwIpMask
 	ret["fvSubnet"].Attributes["dn"] =
@@ -517,7 +495,7 @@ func NewFvSubnet(parentDn string, gwIpMask string) ApicObject {
 	return ret
 }
 
-func NewRsCtx(parentDn string, ctx string) ApicObject {
+func NewRsCtx(parentDn, ctx string) ApicObject {
 	ret := newApicObject("fvRsCtx")
 	ret["fvRsCtx"].Attributes["tnFvCtxName"] = ctx
 	ret["fvRsCtx"].Attributes["dn"] =
@@ -525,7 +503,7 @@ func NewRsCtx(parentDn string, ctx string) ApicObject {
 	return ret
 }
 
-func NewRsBdToOut(parentDn string, l3out string) ApicObject {
+func NewRsBdToOut(parentDn, l3out string) ApicObject {
 	ret := newApicObject("fvRsBDToOut")
 	ret["fvRsBDToOut"].Attributes["tnL3extOutName"] = l3out
 	ret["fvRsBDToOut"].Attributes["dn"] =
@@ -533,7 +511,7 @@ func NewRsBdToOut(parentDn string, l3out string) ApicObject {
 	return ret
 }
 
-func NewTagInst(parentDn string, name string) ApicObject {
+func NewTagInst(parentDn, name string) ApicObject {
 	ret := newApicObject("tagInst")
 	ret["tagInst"].Attributes["name"] = name
 	ret["tagInst"].Attributes["dn"] =
@@ -541,7 +519,7 @@ func NewTagInst(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewTagAnnotation(parentDn string, key string) ApicObject {
+func NewTagAnnotation(parentDn, key string) ApicObject {
 	dn := ""
 	ret := newApicObject("tagAnnotation")
 	ret["tagAnnotation"].Attributes["key"] = key
@@ -554,7 +532,7 @@ func NewTagAnnotation(parentDn string, key string) ApicObject {
 	return ret
 }
 
-func NewHostprotPol(tenantName string, name string) ApicObject {
+func NewHostprotPol(tenantName, name string) ApicObject {
 	ret := newApicObject("hostprotPol")
 	ret["hostprotPol"].Attributes["name"] = name
 	ret["hostprotPol"].Attributes["dn"] =
@@ -562,8 +540,7 @@ func NewHostprotPol(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewHostprotSubj(parentDn string, name string) ApicObject {
-
+func NewHostprotSubj(parentDn, name string) ApicObject {
 	ret := newApicObject("hostprotSubj")
 	ret["hostprotSubj"].Attributes["name"] = name
 	ret["hostprotSubj"].Attributes["dn"] =
@@ -571,8 +548,7 @@ func NewHostprotSubj(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewHostprotRule(parentDn string, name string) ApicObject {
-
+func NewHostprotRule(parentDn, name string) ApicObject {
 	ret := newApicObject("hostprotRule")
 	ret["hostprotRule"].Attributes["name"] = name
 	ret["hostprotRule"].Attributes["dn"] =
@@ -580,8 +556,7 @@ func NewHostprotRule(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
-
+func NewHostprotRemoteIp(parentDn, addr string) ApicObject {
 	ret := newApicObject("hostprotRemoteIp")
 	ret["hostprotRemoteIp"].Attributes["addr"] = addr
 	ret["hostprotRemoteIp"].Attributes["dn"] =
@@ -589,8 +564,7 @@ func NewHostprotRemoteIp(parentDn string, addr string) ApicObject {
 	return ret
 }
 
-func NewQosDppPol(tenantName string, name string) ApicObject {
-
+func NewQosDppPol(tenantName, name string) ApicObject {
 	ret := newApicObject("qosDppPol")
 	ret["qosDppPol"].Attributes["name"] = name
 	ret["qosDppPol"].Attributes["dn"] =
@@ -598,7 +572,7 @@ func NewQosDppPol(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewQosRequirement(tenantName string, name string) ApicObject {
+func NewQosRequirement(tenantName, name string) ApicObject {
 	ret := newApicObject("qosRequirement")
 	ret["qosRequirement"].Attributes["name"] = name
 	ret["qosRequirement"].Attributes["dn"] =
@@ -606,7 +580,7 @@ func NewQosRequirement(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewRsEgressDppPol(parentDn string, dppPolName string) ApicObject {
+func NewRsEgressDppPol(parentDn, dppPolName string) ApicObject {
 	ret := newApicObject("qosRsEgressDppPol")
 	ret["qosRsEgressDppPol"].Attributes["tnQosDppPolName"] = dppPolName
 	ret["qosRsEgressDppPol"].Attributes["dn"] =
@@ -614,7 +588,7 @@ func NewRsEgressDppPol(parentDn string, dppPolName string) ApicObject {
 	return ret
 }
 
-func NewRsIngressDppPol(parentDn string, dppPolName string) ApicObject {
+func NewRsIngressDppPol(parentDn, dppPolName string) ApicObject {
 	ret := newApicObject("qosRsIngressDppPol")
 	ret["qosRsIngressDppPol"].Attributes["tnQosDppPolName"] = dppPolName
 	ret["qosRsIngressDppPol"].Attributes["dn"] =
@@ -622,7 +596,7 @@ func NewRsIngressDppPol(parentDn string, dppPolName string) ApicObject {
 	return ret
 }
 
-func NewQosEpDscpMarking(qosreqDn string, name string) ApicObject {
+func NewQosEpDscpMarking(qosreqDn, name string) ApicObject {
 	ret := newApicObject("qosEpDscpMarking")
 	ret["qosEpDscpMarking"].Attributes["name"] = name
 	ret["qosEpDscpMarking"].Attributes["dn"] =
@@ -630,7 +604,7 @@ func NewQosEpDscpMarking(qosreqDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsLDevVip(tenantName string, name string) ApicObject {
+func NewVnsLDevVip(tenantName, name string) ApicObject {
 	ret := newApicObject("vnsLDevVip")
 	ret["vnsLDevVip"].Attributes["name"] = name
 	ret["vnsLDevVip"].Attributes["dn"] =
@@ -638,7 +612,7 @@ func NewVnsLDevVip(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsALDevToPhysDomP(parentDn string, physDomDn string) ApicObject {
+func NewVnsRsALDevToPhysDomP(parentDn, physDomDn string) ApicObject {
 	ret := newApicObject("vnsRsALDevToPhysDomP")
 	ret["vnsRsALDevToPhysDomP"].Attributes["tDn"] = physDomDn
 	ret["vnsRsALDevToPhysDomP"].Attributes["dn"] =
@@ -646,7 +620,7 @@ func NewVnsRsALDevToPhysDomP(parentDn string, physDomDn string) ApicObject {
 	return ret
 }
 
-func NewVnsLIf(parentDn string, name string) ApicObject {
+func NewVnsLIf(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsLIf")
 	ret["vnsLIf"].Attributes["name"] = name
 	ret["vnsLIf"].Attributes["dn"] =
@@ -654,7 +628,7 @@ func NewVnsLIf(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsCIfAttN(parentDn string, cifDn string) ApicObject {
+func NewVnsRsCIfAttN(parentDn, cifDn string) ApicObject {
 	ret := newApicObject("vnsRsCIfAttN")
 	ret["vnsRsCIfAttN"].Attributes["tDn"] = cifDn
 	ret["vnsRsCIfAttN"].Attributes["dn"] =
@@ -662,7 +636,7 @@ func NewVnsRsCIfAttN(parentDn string, cifDn string) ApicObject {
 	return ret
 }
 
-func NewVnsCDev(parentDn string, name string) ApicObject {
+func NewVnsCDev(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsCDev")
 	ret["vnsCDev"].Attributes["name"] = name
 	ret["vnsCDev"].Attributes["dn"] =
@@ -670,7 +644,7 @@ func NewVnsCDev(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsCif(parentDn string, name string) ApicObject {
+func NewVnsCif(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsCIf")
 	ret["vnsCIf"].Attributes["name"] = name
 	ret["vnsCIf"].Attributes["dn"] =
@@ -678,7 +652,7 @@ func NewVnsCif(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsCIfPathAtt(parentDn string, pathDn string) ApicObject {
+func NewVnsRsCIfPathAtt(parentDn, pathDn string) ApicObject {
 	ret := newApicObject("vnsRsCIfPathAtt")
 	ret["vnsRsCIfPathAtt"].Attributes["tDn"] = pathDn
 	ret["vnsRsCIfPathAtt"].Attributes["dn"] =
@@ -686,7 +660,7 @@ func NewVnsRsCIfPathAtt(parentDn string, pathDn string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsGraph(tenantName string, name string) ApicObject {
+func NewVnsAbsGraph(tenantName, name string) ApicObject {
 	ret := newApicObject("vnsAbsGraph")
 	ret["vnsAbsGraph"].Attributes["name"] = name
 	ret["vnsAbsGraph"].Attributes["dn"] =
@@ -694,7 +668,7 @@ func NewVnsAbsGraph(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsTermNodeCon(parentDn string, name string) ApicObject {
+func NewVnsAbsTermNodeCon(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsAbsTermNodeCon")
 	ret["vnsAbsTermNodeCon"].Attributes["name"] = name
 	ret["vnsAbsTermNodeCon"].Attributes["dn"] =
@@ -702,7 +676,7 @@ func NewVnsAbsTermNodeCon(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsTermNodeProv(parentDn string, name string) ApicObject {
+func NewVnsAbsTermNodeProv(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsAbsTermNodeProv")
 	ret["vnsAbsTermNodeProv"].Attributes["name"] = name
 	ret["vnsAbsTermNodeProv"].Attributes["dn"] =
@@ -731,7 +705,7 @@ func NewVnsOutTerm(parentDn string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsConnection(parentDn string, name string) ApicObject {
+func NewVnsAbsConnection(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsAbsConnection")
 	ret["vnsAbsConnection"].Attributes["name"] = name
 	ret["vnsAbsConnection"].Attributes["dn"] =
@@ -739,7 +713,7 @@ func NewVnsAbsConnection(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsAbsConnectionConns(parentDn string, tDn string) ApicObject {
+func NewVnsRsAbsConnectionConns(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsAbsConnectionConns")
 	ret["vnsRsAbsConnectionConns"].Attributes["tDn"] = tDn
 	ret["vnsRsAbsConnectionConns"].Attributes["dn"] =
@@ -747,7 +721,7 @@ func NewVnsRsAbsConnectionConns(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsNode(parentDn string, name string) ApicObject {
+func NewVnsAbsNode(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsAbsNode")
 	ret["vnsAbsNode"].Attributes["name"] = name
 	ret["vnsAbsNode"].Attributes["dn"] =
@@ -755,7 +729,7 @@ func NewVnsAbsNode(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsAbsFuncConn(parentDn string, name string) ApicObject {
+func NewVnsAbsFuncConn(parentDn, name string) ApicObject {
 	ret := newApicObject("vnsAbsFuncConn")
 	ret["vnsAbsFuncConn"].Attributes["name"] = name
 	ret["vnsAbsFuncConn"].Attributes["dn"] =
@@ -763,7 +737,7 @@ func NewVnsAbsFuncConn(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsNodeToLDev(parentDn string, tDn string) ApicObject {
+func NewVnsRsNodeToLDev(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsNodeToLDev")
 	ret["vnsRsNodeToLDev"].Attributes["tDn"] = tDn
 	ret["vnsRsNodeToLDev"].Attributes["dn"] =
@@ -771,7 +745,7 @@ func NewVnsRsNodeToLDev(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsSvcRedirectPol(tenantName string, name string) ApicObject {
+func NewVnsSvcRedirectPol(tenantName, name string) ApicObject {
 	ret := newApicObject("vnsSvcRedirectPol")
 	ret["vnsSvcRedirectPol"].Attributes["name"] = name
 	ret["vnsSvcRedirectPol"].Attributes["dn"] =
@@ -779,7 +753,7 @@ func NewVnsSvcRedirectPol(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRedirectDest(parentDn string, ip string, mac string) ApicObject {
+func NewVnsRedirectDest(parentDn, ip, mac string) ApicObject {
 	ret := newApicObject("vnsRedirectDest")
 	ret["vnsRedirectDest"].Attributes["ip"] = ip
 	ret["vnsRedirectDest"].Attributes["mac"] = mac
@@ -788,7 +762,7 @@ func NewVnsRedirectDest(parentDn string, ip string, mac string) ApicObject {
 	return ret
 }
 
-func NewFvIPSLAMonitoringPol(tenantName string, name string) ApicObject {
+func NewFvIPSLAMonitoringPol(tenantName, name string) ApicObject {
 	ret := newApicObject("fvIPSLAMonitoringPol")
 	ret["fvIPSLAMonitoringPol"].Attributes["name"] = name
 	ret["fvIPSLAMonitoringPol"].Attributes["dn"] =
@@ -796,7 +770,7 @@ func NewFvIPSLAMonitoringPol(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsIPSLAMonitoringPol(parentDn string, tDn string) ApicObject {
+func NewVnsRsIPSLAMonitoringPol(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsIPSLAMonitoringPol")
 	ret["vnsRsIPSLAMonitoringPol"].Attributes["tDn"] = tDn
 	ret["vnsRsIPSLAMonitoringPol"].Attributes["dn"] =
@@ -804,7 +778,7 @@ func NewVnsRsIPSLAMonitoringPol(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsRedirectHealthGroup(tenantName string, name string) ApicObject {
+func NewVnsRedirectHealthGroup(tenantName, name string) ApicObject {
 	ret := newApicObject("vnsRedirectHealthGroup")
 	ret["vnsRedirectHealthGroup"].Attributes["name"] = name
 	ret["vnsRedirectHealthGroup"].Attributes["dn"] =
@@ -812,7 +786,7 @@ func NewVnsRedirectHealthGroup(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVnsRsRedirectHealthGroup(parentDn string, tDn string) ApicObject {
+func NewVnsRsRedirectHealthGroup(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsRedirectHealthGroup")
 	ret["vnsRsRedirectHealthGroup"].Attributes["tDn"] = tDn
 	ret["vnsRsRedirectHealthGroup"].Attributes["dn"] =
@@ -820,7 +794,7 @@ func NewVnsRsRedirectHealthGroup(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsLDevCtx(tenantName string, ctrctNameOrLbl string,
+func NewVnsLDevCtx(tenantName, ctrctNameOrLbl string,
 	graphNameOrLbl string, nodeNameOrLbl string) ApicObject {
 	ret := newApicObject("vnsLDevCtx")
 	ret["vnsLDevCtx"].Attributes["ctrctNameOrLbl"] = ctrctNameOrLbl
@@ -832,7 +806,7 @@ func NewVnsLDevCtx(tenantName string, ctrctNameOrLbl string,
 	return ret
 }
 
-func NewVnsRsLDevCtxToLDev(parentDn string, tDn string) ApicObject {
+func NewVnsRsLDevCtxToLDev(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsLDevCtxToLDev")
 	ret["vnsRsLDevCtxToLDev"].Attributes["tDn"] = tDn
 	ret["vnsRsLDevCtxToLDev"].Attributes["dn"] =
@@ -840,7 +814,7 @@ func NewVnsRsLDevCtxToLDev(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsLIfCtx(parentDn string, connNameOrLbl string) ApicObject {
+func NewVnsLIfCtx(parentDn, connNameOrLbl string) ApicObject {
 	ret := newApicObject("vnsLIfCtx")
 	ret["vnsLIfCtx"].Attributes["connNameOrLbl"] = connNameOrLbl
 	ret["vnsLIfCtx"].Attributes["dn"] =
@@ -848,7 +822,7 @@ func NewVnsLIfCtx(parentDn string, connNameOrLbl string) ApicObject {
 	return ret
 }
 
-func NewVnsRsLIfCtxToSvcRedirectPol(parentDn string, tDn string) ApicObject {
+func NewVnsRsLIfCtxToSvcRedirectPol(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsLIfCtxToSvcRedirectPol")
 	ret["vnsRsLIfCtxToSvcRedirectPol"].Attributes["tDn"] = tDn
 	ret["vnsRsLIfCtxToSvcRedirectPol"].Attributes["dn"] =
@@ -856,7 +830,7 @@ func NewVnsRsLIfCtxToSvcRedirectPol(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsRsLIfCtxToBD(parentDn string, tDn string) ApicObject {
+func NewVnsRsLIfCtxToBD(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsLIfCtxToBD")
 	ret["vnsRsLIfCtxToBD"].Attributes["tDn"] = tDn
 	ret["vnsRsLIfCtxToBD"].Attributes["dn"] =
@@ -864,7 +838,7 @@ func NewVnsRsLIfCtxToBD(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVnsRsLIfCtxToLIf(parentDn string, tDn string) ApicObject {
+func NewVnsRsLIfCtxToLIf(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vnsRsLIfCtxToLIf")
 	ret["vnsRsLIfCtxToLIf"].Attributes["tDn"] = tDn
 	ret["vnsRsLIfCtxToLIf"].Attributes["dn"] =
@@ -872,7 +846,7 @@ func NewVnsRsLIfCtxToLIf(parentDn string, tDn string) ApicObject {
 	return ret
 }
 
-func NewVzBrCP(tenantName string, name string) ApicObject {
+func NewVzBrCP(tenantName, name string) ApicObject {
 	ret := newApicObject("vzBrCP")
 	ret["vzBrCP"].Attributes["name"] = name
 	ret["vzBrCP"].Attributes["dn"] =
@@ -880,7 +854,7 @@ func NewVzBrCP(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVzSubj(parentDn string, name string) ApicObject {
+func NewVzSubj(parentDn, name string) ApicObject {
 	ret := newApicObject("vzSubj")
 	ret["vzSubj"].Attributes["name"] = name
 	ret["vzSubj"].Attributes["dn"] =
@@ -902,7 +876,7 @@ func NewVzOutTerm(parentDn string) ApicObject {
 	return ret
 }
 
-func NewVzRsFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
+func NewVzRsFiltAtt(parentDn, tnVzFilterName string) ApicObject {
 	ret := newApicObject("vzRsFiltAtt")
 	ret["vzRsFiltAtt"].Attributes["tnVzFilterName"] = tnVzFilterName
 	ret["vzRsFiltAtt"].Attributes["dn"] =
@@ -910,7 +884,7 @@ func NewVzRsFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
 	return ret
 }
 
-func NewVzRsInTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject {
+func NewVzRsInTermGraphAtt(parentDn, tnVnsAbsGraphName string) ApicObject {
 	ret := newApicObject("vzRsInTermGraphAtt")
 	ret["vzRsInTermGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
 	ret["vzRsInTermGraphAtt"].Attributes["dn"] =
@@ -918,7 +892,7 @@ func NewVzRsInTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject
 	return ret
 }
 
-func NewVzRsOutTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObject {
+func NewVzRsOutTermGraphAtt(parentDn, tnVnsAbsGraphName string) ApicObject {
 	ret := newApicObject("vzRsOutTermGraphAtt")
 	ret["vzRsOutTermGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
 	ret["vzRsOutTermGraphAtt"].Attributes["dn"] =
@@ -926,7 +900,7 @@ func NewVzRsOutTermGraphAtt(parentDn string, tnVnsAbsGraphName string) ApicObjec
 	return ret
 }
 
-func NewVzRsSubjFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
+func NewVzRsSubjFiltAtt(parentDn, tnVzFilterName string) ApicObject {
 	ret := newApicObject("vzRsSubjFiltAtt")
 	ret["vzRsSubjFiltAtt"].Attributes["tnVzFilterName"] = tnVzFilterName
 	ret["vzRsSubjFiltAtt"].Attributes["dn"] =
@@ -934,7 +908,7 @@ func NewVzRsSubjFiltAtt(parentDn string, tnVzFilterName string) ApicObject {
 	return ret
 }
 
-func NewVzRsSubjGraphAtt(parentDn string, tnVnsAbsGraphName string, customSG bool) ApicObject {
+func NewVzRsSubjGraphAtt(parentDn, tnVnsAbsGraphName string, customSG bool) ApicObject {
 	ret := newApicObject("vzRsSubjGraphAtt")
 	ret["vzRsSubjGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
 	if customSG {
@@ -945,7 +919,7 @@ func NewVzRsSubjGraphAtt(parentDn string, tnVnsAbsGraphName string, customSG boo
 	return ret
 }
 
-func NewVzFilter(tenantName string, name string) ApicObject {
+func NewVzFilter(tenantName, name string) ApicObject {
 	ret := newApicObject("vzFilter")
 	ret["vzFilter"].Attributes["name"] = name
 	ret["vzFilter"].Attributes["dn"] =
@@ -953,7 +927,7 @@ func NewVzFilter(tenantName string, name string) ApicObject {
 	return ret
 }
 
-func NewVzEntry(parentDn string, name string) ApicObject {
+func NewVzEntry(parentDn, name string) ApicObject {
 	ret := newApicObject("vzEntry")
 	ret["vzEntry"].Attributes["name"] = name
 	ret["vzEntry"].Attributes["dn"] =
@@ -961,7 +935,7 @@ func NewVzEntry(parentDn string, name string) ApicObject {
 	return ret
 }
 
-func NewL3extInstP(tenantName string, outName string, name string) ApicObject {
+func NewL3extInstP(tenantName, outName, name string) ApicObject {
 	ret := newApicObject("l3extInstP")
 	ret["l3extInstP"].Attributes["name"] = name
 	ret["l3extInstP"].Attributes["dn"] =
@@ -969,7 +943,7 @@ func NewL3extInstP(tenantName string, outName string, name string) ApicObject {
 	return ret
 }
 
-func NewL3extSubnet(parentDn string, ip string) ApicObject {
+func NewL3extSubnet(parentDn, ip string) ApicObject {
 	ret := newApicObject("l3extSubnet")
 	ret["l3extSubnet"].Attributes["ip"] = ip
 	ret["l3extSubnet"].Attributes["dn"] =
@@ -977,7 +951,7 @@ func NewL3extSubnet(parentDn string, ip string) ApicObject {
 	return ret
 }
 
-func NewFvRsProv(parentDn string, tnVzBrCPName string) ApicObject {
+func NewFvRsProv(parentDn, tnVzBrCPName string) ApicObject {
 	ret := newApicObject("fvRsProv")
 	ret["fvRsProv"].Attributes["tnVzBrCPName"] = tnVzBrCPName
 	ret["fvRsProv"].Attributes["dn"] =
@@ -985,7 +959,7 @@ func NewFvRsProv(parentDn string, tnVzBrCPName string) ApicObject {
 	return ret
 }
 
-func NewFvRsCons(parentDn string, tnVzBrCPName string) ApicObject {
+func NewFvRsCons(parentDn, tnVzBrCPName string) ApicObject {
 	ret := newApicObject("fvRsCons")
 	ret["fvRsCons"].Attributes["tnVzBrCPName"] = tnVzBrCPName
 	ret["fvRsCons"].Attributes["dn"] =
@@ -1006,7 +980,6 @@ func NewVmmInjectedContGrp(vendor string, domain string, controller string,
 
 func NewVmmInjectedDepl(vendor string, domain string, controller string,
 	namespace string, name string) ApicObject {
-
 	ret := newApicObject("vmmInjectedDepl")
 	ret["vmmInjectedDepl"].Attributes["name"] = name
 	ret["vmmInjectedDepl"].Attributes["nameAlias"] = truncatedName(name)
@@ -1018,7 +991,6 @@ func NewVmmInjectedDepl(vendor string, domain string, controller string,
 
 func NewVmmInjectedReplSet(vendor string, domain string, controller string,
 	namespace string, name string) ApicObject {
-
 	ret := newApicObject("vmmInjectedReplSet")
 	ret["vmmInjectedReplSet"].Attributes["name"] = name
 	ret["vmmInjectedReplSet"].Attributes["nameAlias"] = truncatedName(name)
@@ -1030,7 +1002,6 @@ func NewVmmInjectedReplSet(vendor string, domain string, controller string,
 
 func NewVmmInjectedSvc(vendor string, domain string, controller string,
 	namespace string, name string) ApicObject {
-
 	ret := newApicObject("vmmInjectedSvc")
 	ret["vmmInjectedSvc"].Attributes["name"] = name
 	ret["vmmInjectedSvc"].Attributes["nameAlias"] = truncatedName(name)
@@ -1040,7 +1011,7 @@ func NewVmmInjectedSvc(vendor string, domain string, controller string,
 	return ret
 }
 
-func NewVmmInjectedSvcEp(parentDn string, contGrpName string) ApicObject {
+func NewVmmInjectedSvcEp(parentDn, contGrpName string) ApicObject {
 	ret := newApicObject("vmmInjectedSvcEp")
 	ret["vmmInjectedSvcEp"].Attributes["contGrpName"] = contGrpName
 	ret["vmmInjectedSvcEp"].Attributes["dn"] =
@@ -1048,7 +1019,7 @@ func NewVmmInjectedSvcEp(parentDn string, contGrpName string) ApicObject {
 	return ret
 }
 
-func NewVmmInjectedSvcPort(parentDn string, port string,
+func NewVmmInjectedSvcPort(parentDn, port string,
 	protocol string, targetPort string) ApicObject {
 	ret := newApicObject("vmmInjectedSvcPort")
 	port = normalizePort(port)
@@ -1063,9 +1034,7 @@ func NewVmmInjectedSvcPort(parentDn string, port string,
 	return ret
 }
 
-func NewVmmInjectedHost(vendor string, domain string, controller string,
-	name string) ApicObject {
-
+func NewVmmInjectedHost(vendor, domain, controller, name string) ApicObject {
 	ret := newApicObject("vmmInjectedHost")
 	ret["vmmInjectedHost"].Attributes["name"] = name
 	ret["vmmInjectedHost"].Attributes["nameAlias"] = truncatedName(name)
@@ -1075,9 +1044,7 @@ func NewVmmInjectedHost(vendor string, domain string, controller string,
 	return ret
 }
 
-func NewVmmInjectedNs(vendor string, domain string, controller string,
-	name string) ApicObject {
-
+func NewVmmInjectedNs(vendor, domain, controller, name string) ApicObject {
 	ret := newApicObject("vmmInjectedNs")
 	ret["vmmInjectedNs"].Attributes["name"] = name
 	ret["vmmInjectedNs"].Attributes["nameAlias"] = truncatedName(name)
@@ -1087,9 +1054,7 @@ func NewVmmInjectedNs(vendor string, domain string, controller string,
 	return ret
 }
 
-func NewVmmInjectedNwPol(vendor string, domain string, controller string,
-	ns string, name string) ApicObject {
-
+func NewVmmInjectedNwPol(vendor, domain, controller, ns, name string) ApicObject {
 	ret := newApicObject("vmmInjectedNwPol")
 	ret["vmmInjectedNwPol"].Attributes["name"] = name
 	ret["vmmInjectedNwPol"].Attributes["nameAlias"] = truncatedName(name)
@@ -1155,14 +1120,14 @@ func NewNetflowVmmExporterPol(name string) ApicObject {
 	return ret
 }
 
-func NewVmmVSwitchPolicyCont(domainType string, domainName string) ApicObject {
+func NewVmmVSwitchPolicyCont(domainType, domainName string) ApicObject {
 	ret := newApicObject("vmmVSwitchPolicyCont")
 	ret["vmmVSwitchPolicyCont"].Attributes["dn"] =
 		fmt.Sprintf("uni/vmmp-%s/dom-%s/vswitchpolcont", domainType, domainName)
 	return ret
 }
 
-func NewVmmRsVswitchExporterPol(parentDn string, tDn string) ApicObject {
+func NewVmmRsVswitchExporterPol(parentDn, tDn string) ApicObject {
 	ret := newApicObject("vmmRsVswitchExporterPol")
 	ret["vmmRsVswitchExporterPol"].Attributes["tDn"] = tDn
 	ret["vmmRsVswitchExporterPol"].Attributes["dn"] =
@@ -1178,7 +1143,7 @@ func NewSpanVSrcGrp(name string) ApicObject {
 		fmt.Sprintf("uni/infra/vsrcgrp-%s", name)
 	return ret
 }
-func NewSpanVSrc(vSourceGroup string, name string) ApicObject {
+func NewSpanVSrc(vSourceGroup, name string) ApicObject {
 	ret := newApicObject("spanVSrc")
 	ret["spanVSrc"].Attributes["name"] = name
 	ret["spanVSrc"].Attributes["nameAlias"] = truncatedName(name)
@@ -1186,7 +1151,7 @@ func NewSpanVSrc(vSourceGroup string, name string) ApicObject {
 		fmt.Sprintf("%s/vsrc-%s", vSourceGroup, name)
 	return ret
 }
-func NewSpanRsSrcToVPort(parentDn string, tDn string) ApicObject {
+func NewSpanRsSrcToVPort(parentDn, tDn string) ApicObject {
 	ret := newApicObject("spanRsSrcToVPort")
 	ret["spanRsSrcToVPort"].Attributes["tDn"] = tDn
 	ret["spanRsSrcToVPort"].Attributes["dn"] =
@@ -1201,7 +1166,7 @@ func NewSpanVDestGrp(name string) ApicObject {
 		fmt.Sprintf("uni/infra/vdestgrp-%s", name)
 	return ret
 }
-func NewSpanVDest(vDestGroup string, name string) ApicObject {
+func NewSpanVDest(vDestGroup, name string) ApicObject {
 	ret := newApicObject("spanVDest")
 	ret["spanVDest"].Attributes["name"] = name
 	ret["spanVDest"].Attributes["nameAlias"] = truncatedName(name)
@@ -1215,7 +1180,7 @@ func NewSpanVEpgSummary(parentDn string) ApicObject {
 		fmt.Sprintf("%s/vepgsummary", parentDn)
 	return ret
 }
-func NewSpanSpanLbl(vSourceGroup string, name string) ApicObject {
+func NewSpanSpanLbl(vSourceGroup, name string) ApicObject {
 	ret := newApicObject("spanSpanLbl")
 	ret["spanSpanLbl"].Attributes["name"] = name
 	ret["spanSpanLbl"].Attributes["nameAlias"] = truncatedName(name)
@@ -1239,7 +1204,7 @@ func NewInfraAccPortGrp(name string) ApicObject {
 		fmt.Sprintf("uni/infra/funcprof/accportgrp-%s", name)
 	return ret
 }
-func NewInfraRsSpanVSrcGrp(accBndlGrpName string, tnSpanVSrcGrpName string) ApicObject {
+func NewInfraRsSpanVSrcGrp(accBndlGrpName, tnSpanVSrcGrpName string) ApicObject {
 	ret := newApicObject("infraRsSpanVSrcGrp")
 	ret["infraRsSpanVSrcGrp"].Attributes["tnSpanVSrcGrpName"] = tnSpanVSrcGrpName
 	ret["infraRsSpanVSrcGrp"].Attributes["dn"] =
@@ -1247,7 +1212,7 @@ func NewInfraRsSpanVSrcGrp(accBndlGrpName string, tnSpanVSrcGrpName string) Apic
 			accBndlGrpName, tnSpanVSrcGrpName)
 	return ret
 }
-func NewInfraRsSpanVDestGrp(accBndlGrpName string, tnSpanVDestGrpName string) ApicObject {
+func NewInfraRsSpanVDestGrp(accBndlGrpName, tnSpanVDestGrpName string) ApicObject {
 	ret := newApicObject("infraRsSpanVDestGrp")
 	ret["infraRsSpanVDestGrp"].Attributes["tnSpanVDestGrpName"] = tnSpanVDestGrpName
 	ret["infraRsSpanVDestGrp"].Attributes["dn"] =
@@ -1255,7 +1220,7 @@ func NewInfraRsSpanVDestGrp(accBndlGrpName string, tnSpanVDestGrpName string) Ap
 			accBndlGrpName, tnSpanVDestGrpName)
 	return ret
 }
-func NewInfraRsSpanVSrcGrpAP(accPortGrpName string, tnSpanVSrcGrpName string) ApicObject {
+func NewInfraRsSpanVSrcGrpAP(accPortGrpName, tnSpanVSrcGrpName string) ApicObject {
 	ret := newApicObject("infraRsSpanVSrcGrp")
 	ret["infraRsSpanVSrcGrp"].Attributes["tnSpanVSrcGrpName"] = tnSpanVSrcGrpName
 	ret["infraRsSpanVSrcGrp"].Attributes["dn"] =
@@ -1263,7 +1228,7 @@ func NewInfraRsSpanVSrcGrpAP(accPortGrpName string, tnSpanVSrcGrpName string) Ap
 			accPortGrpName, tnSpanVSrcGrpName)
 	return ret
 }
-func NewInfraRsSpanVDestGrpAP(accPortGrpName string, tnSpanVDestGrpName string) ApicObject {
+func NewInfraRsSpanVDestGrpAP(accPortGrpName, tnSpanVDestGrpName string) ApicObject {
 	ret := newApicObject("infraRsSpanVDestGrp")
 	ret["infraRsSpanVDestGrp"].Attributes["tnSpanVDestGrpName"] = tnSpanVDestGrpName
 	ret["infraRsSpanVDestGrp"].Attributes["dn"] =
@@ -1271,21 +1236,20 @@ func NewInfraRsSpanVDestGrpAP(accPortGrpName string, tnSpanVDestGrpName string) 
 			accPortGrpName, tnSpanVDestGrpName)
 	return ret
 }
-func NewVmmInjectedClusterInfo(vendor string, domain string, controller string) ApicObject {
+func NewVmmInjectedClusterInfo(vendor, domain, controller string) ApicObject {
 	ret := newApicObject("vmmInjectedClusterInfo")
 	ret["vmmInjectedClusterInfo"].Attributes["dn"] =
 		fmt.Sprintf("comp/prov-%s/ctrlr-[%s]-%s/injcont/info",
 			vendor, domain, controller)
 	return ret
-
 }
-func NewVmmClusterFaultInfo(parentDn string, faultCode string) ApicObject {
+func NewVmmClusterFaultInfo(parentDn, faultCode string) ApicObject {
 	ret := newApicObject("vmmClusterFaultInfo")
 	ret["vmmClusterFaultInfo"].Attributes["dn"] =
 		fmt.Sprintf("%s/clusterfaultinfo-%s", parentDn, faultCode)
 	return ret
 }
-func NewVmmInjectedLabel(parentDn string, name string, value string) ApicObject {
+func NewVmmInjectedLabel(parentDn, name, value string) ApicObject {
 	if name == "" {
 		name = " "
 	}

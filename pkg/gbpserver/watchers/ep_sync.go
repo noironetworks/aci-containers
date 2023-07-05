@@ -18,17 +18,19 @@ package watchers
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	restclient "k8s.io/client-go/rest"
-	"strings"
-	"time"
 )
 
 const (
@@ -153,8 +155,7 @@ func (eps *EPSyncer) processRemoteEPG(obj apicapi.ApicObject) {
 	for _, body := range obj {
 		for _, cc := range body.Children {
 			for class := range cc {
-				switch class {
-				case "cloudEPSelector":
+				if class == "cloudEPSelector" {
 					sel = cc.GetAttrStr("matchExpression")
 				}
 			}

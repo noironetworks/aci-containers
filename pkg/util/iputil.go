@@ -23,10 +23,10 @@ func GetIPsFromCIDR(cidr string) []string {
 	if err != nil {
 		ip_temp := net.ParseIP(cidr)
 		if ip_temp != nil && ip_temp.To4() != nil {
-			cidr = cidr + "/32"
+			cidr += "/32"
 			ip, ipnet, _ = net.ParseCIDR(cidr)
 		} else if ip_temp != nil && ip_temp.To16() != nil {
-			cidr = cidr + "/128"
+			cidr += "/128"
 			ip, ipnet, _ = net.ParseCIDR(cidr)
 		} else {
 			return output
@@ -42,17 +42,6 @@ func GetIPsFromCIDR(cidr string) []string {
 	} else {
 		return output[1 : length-1]
 	}
-}
-
-// Given two slices of IP addresses, finds the difference of two sets
-func SetDifferenceIPs(inputIps []string, usedIps []string) []string {
-	var output []string
-	return output
-}
-
-// Draw free IP address from the given list
-func DrawIP(freeIps []string) {
-	sort.Strings(freeIps)
 }
 
 // Given generic list of CIDRs for subnets

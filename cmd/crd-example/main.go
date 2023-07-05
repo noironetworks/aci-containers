@@ -36,8 +36,8 @@ func main() {
 		glog.Fatalf("Error listing all epgs: %v", err)
 	}
 
-	for _, epg := range list.Items {
-		fmt.Printf("Epg %+v \n", epg)
+	for i := range list.Items {
+		fmt.Printf("Epg %+v \n", list.Items[i])
 	}
 
 	cList, err := aciawClient.AciV1().Contracts("default").List(context.Background(), metav1.ListOptions{})
@@ -45,7 +45,7 @@ func main() {
 		glog.Fatalf("Error listing all contracts: %v", err)
 	}
 
-	for _, c := range cList.Items {
-		fmt.Printf("Contract %+v \n", c)
+	for i := range cList.Items {
+		fmt.Printf("Contract %+v \n", cList.Items[i])
 	}
 }

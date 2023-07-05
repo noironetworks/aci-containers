@@ -66,7 +66,6 @@ var PluginCloner Cloner
 // func (c *Cloner) runPluginCmd(method, fsuid string, args interface{},
 func (c *Cloner) runPluginCmd(method string, args interface{},
 	reply interface{}) error {
-
 	if c.Stub {
 		// if we are in stub mode, just return success
 		return nil
@@ -113,7 +112,6 @@ func runSetupVeth(sandbox string, ifName string,
 // GenerateHardwareAddr4 generates 48 bit virtual mac addresses based on the IP4 input.
 func GenerateHardwareAddr4(ip net.IP, prefix []byte) (net.HardwareAddr, error) {
 	switch {
-
 	case ip.To4() == nil:
 		return nil, fmt.Errorf("GenerateHardwareAddr4 only supports valid IPv4 address as input")
 
@@ -123,7 +121,7 @@ func GenerateHardwareAddr4(ip net.IP, prefix []byte) (net.HardwareAddr, error) {
 	}
 
 	ipByteLen := len(ip)
-	return (net.HardwareAddr)(
+	return net.HardwareAddr(
 		append(
 			prefix,
 			ip[ipByteLen-ipRelevantByteLen:ipByteLen]...),
@@ -132,10 +130,10 @@ func GenerateHardwareAddr4(ip net.IP, prefix []byte) (net.HardwareAddr, error) {
 
 // https://github.com/containernetworking/plugins/blob/v0.9.1/pkg/ip/link_linux.go#L228
 // Reusing code as the fn is removed in v1.0.0
-func SetHWAddrByIP(ifName string, ip4 net.IP, ip6 net.IP) error {
+func SetHWAddrByIP(ifName string, ip4, ip6 net.IP) error {
 	iface, err := netlink.LinkByName(ifName)
 	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", ifName, err)
+		return fmt.Errorf("failed to lookup %q: %w", ifName, err)
 	}
 
 	switch {
@@ -143,14 +141,12 @@ func SetHWAddrByIP(ifName string, ip4 net.IP, ip6 net.IP) error {
 		return fmt.Errorf("neither ip4 or ip6 specified")
 
 	case ip4 != nil:
-		{
-			hwAddr, err := GenerateHardwareAddr4(ip4, PrivateMACPrefix)
-			if err != nil {
-				return fmt.Errorf("failed to generate hardware addr: %v", err)
-			}
-			if err = netlink.LinkSetHardwareAddr(iface, hwAddr); err != nil {
-				return fmt.Errorf("failed to add hardware addr to %q: %v", ifName, err)
-			}
+		hwAddr, err := GenerateHardwareAddr4(ip4, PrivateMACPrefix)
+		if err != nil {
+			return fmt.Errorf("failed to generate hardware addr: %w", err)
+		}
+		if err = netlink.LinkSetHardwareAddr(iface, hwAddr); err != nil {
+			return fmt.Errorf("failed to add hardware addr to %q: %w", ifName, err)
 		}
 	case ip6 != nil:
 		// TODO: IPv6
@@ -162,7 +158,7 @@ func SetHWAddrByIP(ifName string, ip4 net.IP, ip6 net.IP) error {
 func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error {
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+		return fmt.Errorf("failed to open netns %q: %w", args.Sandbox, err)
 	}
 	defer netns.Close()
 
@@ -181,7 +177,7 @@ func (*ClientRPC) SetupVeth(args *SetupVethArgs, result *SetupVethResult) error 
 
 		if args.Ip.To4() != nil {
 			if err := SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
-				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
+				return fmt.Errorf("failed Ip based MAC address allocation for v4: %w", err)
 			}
 		}
 
@@ -210,8 +206,8 @@ type SetupVfArgs struct {
 	OffloadMode   string
 }
 
-func runSetupVf(sandbox string, ifName string,
-	mtu int, ip net.IP, sriovDeviceId string, offloadMode string) (string, string, string, error) {
+func runSetupVf(sandbox, ifName string,
+	mtu int, ip net.IP, sriovDeviceId, offloadMode string) (string, string, string, error) {
 	result := &SetupVfResult{}
 	err := PluginCloner.runPluginCmd("ClientRPC.SetupVf",
 		&SetupVfArgs{sandbox, ifName, mtu, ip, sriovDeviceId, offloadMode}, result)
@@ -312,7 +308,7 @@ func (*ClientRPC) SetupVf(args *SetupVfArgs, result *SetupVfResult) error {
 		}
 		if args.Ip.To4() != nil {
 			if err := SetHWAddrByIP(args.IfName, args.Ip, nil); err != nil {
-				return fmt.Errorf("failed Ip based MAC address allocation for v4: %v", err)
+				return fmt.Errorf("failed Ip based MAC address allocation for v4: %w", err)
 			}
 		}
 		contIface, err := netlink.LinkByName(args.IfName)
@@ -335,7 +331,7 @@ type ClearVethArgs struct {
 	IfName  string
 }
 
-func runClearVeth(sandbox string, ifName string) error {
+func runClearVeth(sandbox, ifName string) error {
 	ack := false
 	err := PluginCloner.runPluginCmd("ClientRPC.ClearVeth",
 		&ClearVethArgs{sandbox, ifName}, &ack)
@@ -345,7 +341,7 @@ func runClearVeth(sandbox string, ifName string) error {
 func (c *ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+		return fmt.Errorf("failed to open netns %q: %w", args.Sandbox, err)
 	}
 	defer netns.Close()
 
@@ -353,12 +349,12 @@ func (c *ClientRPC) ClearVeth(args *ClearVethArgs, ack *bool) error {
 	if err := netns.Do(func(_ ns.NetNS) error {
 		iface, err := netlink.LinkByName(args.IfName)
 		if err != nil {
-			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
+			return fmt.Errorf("failed to lookup %q: %w", args.IfName, err)
 		}
 
 		err = netlink.LinkDel(iface)
 		if err != nil {
-			return fmt.Errorf("failed to delete %q: %v", args.IfName, err)
+			return fmt.Errorf("failed to delete %q: %w", args.IfName, err)
 		}
 
 		return nil
@@ -377,7 +373,7 @@ type ClearVfArgs struct {
 	VfNetDev      string
 }
 
-func runClearVf(sandbox string, ifName string, sriovDeviceid string, vfnetdev string) error {
+func runClearVf(sandbox, ifName, sriovDeviceid, vfnetdev string) error {
 	ack := false
 	err := PluginCloner.runPluginCmd("ClientRPC.ClearVf",
 		&ClearVfArgs{sandbox, ifName, sriovDeviceid, vfnetdev}, &ack)
@@ -387,24 +383,24 @@ func runClearVf(sandbox string, ifName string, sriovDeviceid string, vfnetdev st
 func (c *ClientRPC) ClearVf(args *ClearVfArgs, ack *bool) error {
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+		return fmt.Errorf("failed to open netns %q: %w", args.Sandbox, err)
 	}
 	defer netns.Close()
 
 	currentNs, err := ns.GetCurrentNS()
 	if err != nil {
-		return fmt.Errorf("failed to open current netns: %v", err)
+		return fmt.Errorf("failed to open current netns: %w", err)
 	}
 	*ack = false
 
 	if err := netns.Do(func(_ ns.NetNS) error {
 		vfNetLink, err := netlink.LinkByName(args.IfName)
 		if err != nil {
-			return fmt.Errorf("failed to lookup %q: %v", args.IfName, err)
+			return fmt.Errorf("failed to lookup %q: %w", args.IfName, err)
 		}
 		err = netlink.LinkSetDown(vfNetLink)
 		if err != nil {
-			return fmt.Errorf("failed to bring down Vf Netdevice link: %v", err)
+			return fmt.Errorf("failed to bring down Vf Netdevice link: %w", err)
 		}
 		err = netlink.LinkSetName(vfNetLink, args.VfNetDev)
 		if err != nil {
@@ -412,7 +408,7 @@ func (c *ClientRPC) ClearVf(args *ClearVfArgs, ack *bool) error {
 		}
 		err = netlink.LinkSetNsFd(vfNetLink, int(currentNs.Fd()))
 		if err != nil {
-			return fmt.Errorf("Failed to move Vf netdevice to host's namespace:%v", err)
+			return fmt.Errorf("Failed to move Vf netdevice to host's namespace: %w", err)
 		}
 
 		return nil
@@ -430,9 +426,7 @@ type SetupNetworkArgs struct {
 	Result  *cnicur.Result
 }
 
-func runSetupNetwork(sandbox string, ifName string,
-	result *cnicur.Result) error {
-
+func runSetupNetwork(sandbox, ifName string, result *cnicur.Result) error {
 	ack := false
 	err := PluginCloner.runPluginCmd("ClientRPC.SetupNetwork",
 		&SetupNetworkArgs{sandbox, ifName, result}, &ack)
@@ -442,7 +436,7 @@ func runSetupNetwork(sandbox string, ifName string,
 func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
 	netns, err := ns.GetNS(args.Sandbox)
 	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Sandbox, err)
+		return fmt.Errorf("failed to open netns %q: %w", args.Sandbox, err)
 	}
 	defer netns.Close()
 
@@ -470,7 +464,6 @@ func (*ClientRPC) SetupNetwork(args *SetupNetworkArgs, ack *bool) error {
 
 func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 	index int, result *cnicur.Result) {
-
 	result.Interfaces = append(result.Interfaces,
 		&cnicur.Interface{
 			Name:    iface.Name,
@@ -493,7 +486,6 @@ func (agent *HostAgent) addToResult(iface *md.ContainerIfaceMd,
 				Gateway:   ip.Gateway,
 			})
 	}
-
 }
 
 func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata) (*cnicur.Result, error) {
@@ -561,13 +553,10 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 					for i := 0; i < 3; i++ {
 						agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
 						if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
-							if fabAttData != nil {
-								for _, nbr := range fabAttData {
-									if nbr.StaticPath != "" {
-										return result, nil
-									}
+							for _, nbr := range fabAttData {
+								if nbr.StaticPath != "" {
+									return result, nil
 								}
-
 							}
 						}
 					}
@@ -578,7 +567,6 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 				agent.indexMutex.Unlock()
 				return result, errors.New(errorMsg)
 			}
-
 		}
 		agent.indexMutex.Unlock()
 		if isPrimaryNetwork {
@@ -587,7 +575,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			}
 			agent.env.CniDeviceChanged(&podid, &metadata.Id)
 		}
-		err := md.RecordMetadata(agent.config.CniMetadataDir, networkName, *metadata)
+		err := md.RecordMetadata(agent.config.CniMetadataDir, networkName, metadata)
 		if err != nil {
 			logger.Debug("ERROR RecordMetadata")
 			return result, err
@@ -606,7 +594,6 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 			logger.Debug("Sriov resource allocated: ", metadata.Id.DeviceId)
 			logger.Debugf("Num of Sriov resource allocated: %d :", len(metadata.Id.DeviceId))
 		}
-
 	}
 
 	podKey := makePodKey(metadata.Id.Namespace, metadata.Id.Pod)
@@ -663,7 +650,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 							runSetupVf(iface.Sandbox, iface.Name, mtu, ip.Address.IP, metadata.Id.DeviceId, agent.config.OpflexMode)
 					}
 					if err != nil {
-						fmt.Errorf("VF allocation failed :%v", err)
+						logger.Errorf("VF allocation failed :%v", err)
 					} else {
 						logger.Debugf("Assigned VF representator is %s and VF netdevice is %s", iface.HostVethName, iface.VfNetDevice)
 						break
@@ -742,7 +729,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 
 	err := md.RecordMetadata(agent.config.CniMetadataDir,
-		agent.config.CniNetwork, *metadata)
+		agent.config.CniNetwork, metadata)
 	if err != nil {
 		logger.Debug("ERROR RecordMetadata")
 		return nil, err

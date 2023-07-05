@@ -16,13 +16,15 @@
 package controller
 
 import (
-	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
-	nodePodIfclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+	"reflect"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
-	"strings"
+
+	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
+	nodePodIfclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
 )
 
 const (
@@ -107,7 +109,7 @@ func (cont *AciController) nodePodIFAdded(obj interface{}) {
 	}
 }
 
-func (cont *AciController) nodePodIFUpdated(oldobj interface{}, newobj interface{}) {
+func (cont *AciController) nodePodIFUpdated(oldobj, newobj interface{}) {
 	oldnp := oldobj.(*nodePodIf.NodePodIF)
 	newnp := newobj.(*nodePodIf.NodePodIF)
 	cont.log.Infof("nodepodif updated: %s", oldnp.ObjectMeta.Name)

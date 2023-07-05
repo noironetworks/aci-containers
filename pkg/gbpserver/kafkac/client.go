@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 )
 
 const (
@@ -49,12 +50,10 @@ type KafkaClient struct {
 	// cache of ep's received from kafka
 	kafkaCache *epCache
 
-	syncComplete bool
 	// to be sent to kafka
 	inbox    chan *CapicEPMsg
 	addCount uint64
 	delCount uint64
-	errCount uint64
 }
 
 type CloudInfo struct {
@@ -224,7 +223,6 @@ func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config
 }
 
 func GetClientConfig(cfg *KafkaCfg) (*sarama.Config, error) {
-
 	c := sarama.NewConfig()
 	if cfg.ClientKeyPath != "" {
 		tlsConfig, err := newTLSConfig(cfg.ClientCertPath,
@@ -256,7 +254,6 @@ func GetClientConfig(cfg *KafkaCfg) (*sarama.Config, error) {
 }
 
 func (kc *KafkaClient) kafkaSetup() error {
-
 	kc.log.Infof("cfg is: %+v", kc.cfg)
 	producerConfig, err := GetClientConfig(kc.cfg)
 	if err != nil {
@@ -318,7 +315,6 @@ func (kc *KafkaClient) run() {
 			logrus.Infof("Sent create for %s", m.Name)
 		}
 	}
-
 }
 
 func (kc *KafkaClient) sendOneMsg(key string, val *CapicEPMsg, delay time.Duration) int64 {

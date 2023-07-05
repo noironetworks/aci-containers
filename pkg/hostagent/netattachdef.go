@@ -17,9 +17,8 @@ package hostagent
 import (
 	"bytes"
 	"context"
-
 	"encoding/json"
-
+	"errors"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
@@ -83,7 +82,7 @@ type ClientInfo struct {
 	NetClient netattclient.K8sCniCncfIoV1Interface
 }
 
-func (agent *HostAgent) getNetDevFromVFPCI(pci string, pfName string) string {
+func (agent *HostAgent) getNetDevFromVFPCI(pci, pfName string) string {
 	vfIndex, err := sriovnet.GetVfIndexByPciAddress(pci)
 	if err != nil {
 		agent.log.Errorf("GetPfIndexByVfPciAddress:%s err:%v", pci, err)
@@ -112,7 +111,7 @@ func (agent *HostAgent) getPFFromVFPCI(vfPCI string) string {
 	return ""
 }
 
-func (agent *HostAgent) getIfacesFromSriovResource(resourcePlugin string, resourceName string) []string {
+func (agent *HostAgent) getIfacesFromSriovResource(resourcePlugin, resourceName string) []string {
 	var ifaces []string
 	kubeClient := agent.env.(*K8sEnvironment).kubeClient
 	var cfgMapNamespace string
@@ -156,7 +155,6 @@ func (agent *HostAgent) getIfacesFromSriovResource(resourcePlugin string, resour
 
 func (agent *HostAgent) initNetworkAttDefInformerFromClient(
 	netClientSet *netClient.Clientset) {
-
 	agent.initNetworkAttachmentDefinitionInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -282,7 +280,6 @@ func (agent *HostAgent) LoadCniNetworks() error {
 			for _, localIface := range netAttData.Ifaces {
 				agent.netattdefifacemap[localIface] = &netAttData
 			}
-
 		} else {
 			agent.log.Errorf("Failed to read additional network file %s:%v", path, err2)
 			return nil
@@ -362,7 +359,6 @@ func (agent *HostAgent) NotifyFabricAdjacency(iface string, fabAttData []*Fabric
 		}
 	}
 	agent.indexMutex.Unlock()
-
 }
 
 func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.PodAttachment, networkName string, podDeleted bool) error {
@@ -415,7 +411,6 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 }
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *NetworkAttachmentData) error {
-
 	populateTopology := func(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
 		for iface := range netAttData.FabricAttachmentData {
 			staticPaths := []string{}
@@ -434,7 +429,6 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 			}
 			fabNetAtt.Spec.AciTopology[iface] = aciNodeLink
 		}
-
 	}
 	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
@@ -448,7 +442,6 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		populateTopology(fabNetAtt, netAttData)
 		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
 		agent.RecordNetworkMetadata(netAttData)
-
 	} else if apierrors.IsNotFound(err) {
 		fabNetAtt = &fabattv1.NodeFabricNetworkAttachment{
 			TypeMeta: metav1.TypeMeta{
@@ -474,7 +467,6 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		agent.RecordNetworkMetadata(netAttData)
 	}
 	return err
-
 }
 
 func (agent *HostAgent) deleteNodeFabricNetworkAttachment(netattData *NetworkAttachmentData) error {
@@ -501,7 +493,6 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 				}
 				agent.log.Infof("Using resource %s", netattData.ResourceName)
 				netattData.EncapVlan = fmt.Sprintf("%d", plugin.Vlan)
-
 			} else if plugin.Type == "macvlan" {
 				netattData.PrimaryCNI = PrimaryCNIMACVLAN
 				parts := strings.Split(plugin.Master, ".")
@@ -519,7 +510,6 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 				relevantChain = true
 			}
 		}
-
 	}
 	return relevantChain
 }
@@ -637,7 +627,7 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 	}
 }
 
-func (agent *HostAgent) networkAttDefUpdated(oldobj interface{}, newobj interface{}) {
+func (agent *HostAgent) networkAttDefUpdated(oldobj, newobj interface{}) {
 	ntd := newobj.(*netpolicy.NetworkAttachmentDefinition)
 	agent.log.Infof("network attachment definition changed: %s", ntd.ObjectMeta.Name)
 	agent.networkAttDefChanged(ntd)
@@ -726,7 +716,7 @@ func (agent *HostAgent) isAcicniNetwork(metadata *md.ContainerMetadata) (bool, e
 func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 	podResourceSock := path.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
 	if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
-		return fmt.Errorf("Could not retreive the kubelet sock %v", err)
+		return fmt.Errorf("Could not retreive the kubelet sock %w", err)
 	}
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
@@ -734,17 +724,17 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 
 	podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(podResourceSock, timeout, podResourcesMaxSizeDefault)
 	if err != nil {
-		return fmt.Errorf("Could not retreive the pod resource client %v", err)
+		return fmt.Errorf("Could not retreive the pod resource client %w", err)
 	}
 	defer podResourcesConn.Close()
 
 	resp, err := podResourcesClient.List(ctx, &podresourcesv1alpha1.ListPodResourcesRequest{})
 
 	if err != nil {
-		return fmt.Errorf("Could not get pod resource from the client %v", err)
+		return fmt.Errorf("Could not get pod resource from the client %w", err)
 	}
 	if resp == nil {
-		return fmt.Errorf("Not able to process PodResourcesResponse")
+		return errors.New("Not able to process PodResourcesResponse")
 	}
 
 	podResource := &kubeletPodResources{}
@@ -757,7 +747,7 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 				for _, devices := range container.Devices {
 					DeviceList := devices.DeviceIds
 					if len(DeviceList) != 1 {
-						return fmt.Errorf("Virtual function allocation failed : Multiple device id found")
+						return errors.New("Virtual function allocation failed : Multiple device id found")
 					} else {
 						deviceInfo := &DeviceInfo{
 							DeviceId:     strings.Join(DeviceList, " "),

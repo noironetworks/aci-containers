@@ -56,7 +56,6 @@ func mditem(ip string) metadata.ContainerMetadata {
 			},
 		},
 	}
-
 }
 
 var buildIpamTests = []buildIpamTest{
@@ -157,7 +156,6 @@ func TestBuildIpam(t *testing.T) {
 					tu.WaitEqual(t, last, test.freeListV4,
 						agent.podIps.CombineV4(), test.desc), nil
 			})
-
 	}
 
 	agent.stop()

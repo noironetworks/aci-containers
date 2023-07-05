@@ -79,7 +79,6 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	} else if wrote {
 		agent.log.Debug("Created fault files at the location: ", faultFilePath)
 	}
-	return
 }
 
 func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
@@ -90,10 +89,9 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 	}
 	_, ipnet, _ := net.ParseCIDR(subnet)
 	for _, link := range links {
-		switch link := link.(type) {
-		case *netlink.Vlan:
-			if link.Name == iface {
-				addrs, err := netlink.AddrList(link, 2)
+		if nlLink, ok := link.(*netlink.Vlan); ok {
+			if nlLink.Name == iface {
+				addrs, err := netlink.AddrList(nlLink, 2)
 				if err != nil {
 					agent.log.Error("Could not enumerate addresses: ", err)
 					return false
@@ -396,13 +394,12 @@ var opflexConfigVlan = initTempl("opflex-config-vlan", `{
 }
 `)
 
-func initTempl(name string, templ string) *template.Template {
+func initTempl(name, templ string) *template.Template {
 	return template.Must(template.New(name).Parse(templ))
 }
 
 func (agent *HostAgent) writeConfigFile(name string,
 	templ *template.Template) error {
-
 	var buffer bytes.Buffer
 	templ.Execute(&buffer, agent.config)
 
@@ -465,7 +462,6 @@ func (agent *HostAgent) updateOpflexConfig() {
 	agent.indexMutex.Lock()
 	if !reflect.DeepEqual(*newNodeConfig, agent.config.HostAgentNodeConfig) ||
 		!agent.opflexConfigWritten {
-
 		// reset opflexConfigWritten flag when node-config differs
 		agent.opflexConfigWritten = false
 

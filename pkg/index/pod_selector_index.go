@@ -49,7 +49,6 @@ type GetPodSelectorFunc func(interface{}) []PodSelector
 // and label selector
 func PodSelectorFromNsAndSelector(ns string,
 	selector *metav1.LabelSelector) []PodSelector {
-
 	s, err := metav1.LabelSelectorAsSelector(selector)
 
 	if err != nil {
@@ -62,11 +61,6 @@ func PodSelectorFromNsAndSelector(ns string,
 			PodSelector: s,
 		},
 	}
-}
-
-// Return a nil selector
-func NilSelectorFunc(interface{}) []PodSelector {
-	return nil
 }
 
 // Return a unique key for the indexed selector object
@@ -119,7 +113,6 @@ func NewPodSelectorIndex(log *logrus.Logger,
 	objIndexer cache.Indexer,
 	getKey GetKeyFunc,
 	getPodSelector GetPodSelectorFunc) *PodSelectorIndex {
-
 	return &PodSelectorIndex{
 		log:              log,
 		podIndexer:       podIndexer,
@@ -255,17 +248,15 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 		}
 	}
 
-	{
-		// when pod hash changes call all object callbacks and not
-		// just those that result from label changes.
-		if podHash != state.podHash {
-			for k, v := range matched {
-				updatedObjs[k] = v
-			}
+	// when pod hash changes call all object callbacks and not
+	// just those that result from label changes.
+	if podHash != state.podHash {
+		for k, v := range matched {
+			updatedObjs[k] = v
 		}
-		state.objKeys = matched
-		state.podHash = podHash
 	}
+	state.objKeys = matched
+	state.podHash = podHash
 	i.indexMutex.Unlock()
 
 	i.updateObjs(updatedObjs)
@@ -359,7 +350,6 @@ func (i *PodSelectorIndex) getObjNamespaces(obj interface{}) map[string][]labels
 // Must have index lock
 func (i *PodSelectorIndex) updateSelectorObjForNs(obj interface{},
 	namespaces map[string][]labels.Selector) (set, bool) {
-
 	objkey, err := i.getKey(obj)
 	if err != nil {
 		i.log.Error("Could not create object key: ", err)
@@ -480,7 +470,6 @@ func (i *PodSelectorIndex) updatePods(updated set) {
 	for key := range updated {
 		i.updatePod(key)
 	}
-
 }
 
 func (i *PodSelectorIndex) updateObjs(updated set) {
@@ -490,5 +479,4 @@ func (i *PodSelectorIndex) updateObjs(updated set) {
 	for key := range updated {
 		i.updateObj(key)
 	}
-
 }

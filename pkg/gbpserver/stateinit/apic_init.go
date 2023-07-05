@@ -17,11 +17,13 @@ package stateinit
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
-	"github.com/sirupsen/logrus"
-	"os"
 )
 
 const (
@@ -59,7 +61,6 @@ func cleanupInjected(cfg *gbpserver.GBPServerConfig) {
 			panic(err)
 		}
 	}
-
 }
 
 func DnsFromQry(conn *apicapi.ApicConnection, q string) []string {

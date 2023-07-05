@@ -16,6 +16,7 @@ package gbpserver
 
 import (
 	"flag"
+
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 

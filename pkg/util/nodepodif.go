@@ -16,8 +16,10 @@ package util
 
 import (
 	"context"
-	nc "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	nc "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
 )
 
 // DeleteNodePodIfCR Deletes a NodePodIf CR

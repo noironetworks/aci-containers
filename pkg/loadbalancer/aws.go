@@ -16,13 +16,14 @@ package loadbalancer
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"sync"
 )
 
 var (
@@ -45,8 +46,6 @@ type svcInfo struct {
 	svc *v1.Service
 	// elb listener info for this service
 	elbListeners []*elbv2.Listener
-	// nodePort on kube nodes for this service
-	nodePort int
 	//elb target groups
 	targetGroupARN *string
 	// nodes that have pods serving this service
@@ -64,7 +63,6 @@ func NewAwsLB() (*AwsLB, error) {
 }
 
 func (a *AwsLB) Init(vpc string, subnets []string) error {
-
 	a.vpcID = vpc
 	netList := make([]*string, len(subnets))
 	for ix := range subnets {
@@ -88,7 +86,6 @@ func (a *AwsLB) Init(vpc string, subnets []string) error {
 
 	a.elbList = append(a.elbList, result)
 	return nil
-
 }
 
 func (a *AwsLB) UpdateService(s *v1.Service, nodeIPs []string) error {

@@ -33,7 +33,6 @@ import (
 
 func waitForSEpAnnot(t *testing.T, cont *testAciController,
 	ipv4 net.IP, ipv6 net.IP, mac *string, desc string) {
-
 	tu.WaitFor(t, desc, 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			if !tu.WaitCondition(t, last, func() bool {

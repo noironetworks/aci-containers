@@ -54,7 +54,7 @@ func (ks *K8sStateDriver) StateExists() (bool, error) {
 	s, err := ks.gsi.Get(context.TODO(), stateObject, metav1.GetOptions{})
 	if err != nil || s == nil {
 		// no state
-		return false, nil
+		return false, nil //nolint:nilerr
 	}
 
 	return true, nil

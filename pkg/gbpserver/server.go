@@ -18,6 +18,7 @@ package gbpserver
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -54,8 +55,6 @@ const (
 	OpaddGBPCustomMo
 	OpdelGBPCustomMo
 )
-
-var DefETCD = []string{"127.0.0.1:2379"}
 
 type PostResp struct {
 	URI string
@@ -167,7 +166,8 @@ func (h *socketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		for {
 			_, _, err := c.ReadMessage()
-			if _, k := err.(*websocket.CloseError); k {
+			var closeErr *websocket.CloseError
+			if errors.As(err, &closeErr) {
 				break
 			}
 		}
@@ -227,7 +227,6 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) (*Server, error) {
-
 	s := NewServer(config)
 	s.InitState(sd)
 	s.InitDB()
@@ -255,7 +254,6 @@ func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) 
 		r.Handle("/api/aaaLogin.json", &loginHandler{})
 		r.Handle("/api/aaaRefresh.json", &refreshSucc{})
 		r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
-		//r.PathPrefix("/api/node").HandlerFunc(wHandler)
 
 		t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
 		// gbp rest handlers
@@ -281,7 +279,6 @@ func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) 
 		if err != nil {
 			return nil, err
 		}
-		//	tlsCfg.BuildNameToCertificate()
 
 		listenPort := fmt.Sprintf(":%d", config.ProxyListenPort)
 		go func() {
@@ -738,8 +735,6 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := s.objapi.GetRaw(uri)
 	if err != nil {
-		//	http.Error(w, err.Error(), http.StatusInternalServerError)
-		//	return
 		nullResp := &apicapi.ApicResponse{
 			SubscriptionId: "4-3-3",
 		}

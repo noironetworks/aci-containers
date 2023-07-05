@@ -94,7 +94,6 @@ func (conn *ApicConnection) apicCntCmp(current ApicObject,
 
 func (conn *ApicConnection) apicObjCmp(current ApicObject,
 	desired ApicObject) (update bool, deletes []string) {
-
 	for classc, bodyc := range current {
 		for classd, bodyd := range desired {
 			if classc != classd {
@@ -159,18 +158,11 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			}
 		}
 	}
-	//if update {
-	//	conn.log.WithFields(logrus.Fields{
-	//		"current": current,
-	//		"desired": desired,
-	//	}).Debug("Update required")
-	//}
 	return
 }
 
 func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	desiredState ApicSlice) (updates ApicSlice, deletes []string) {
-
 	i := 0
 	j := 0
 
@@ -270,12 +262,12 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	}
 }
 
-func getTagFromKey(prefix string, key string) string {
+func getTagFromKey(prefix, key string) string {
 	hash := sha256.Sum256([]byte(key))
 	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(hash[:16]))
 }
 
-func PrepareApicSlice(objects ApicSlice, prefix string, key string) ApicSlice {
+func PrepareApicSlice(objects ApicSlice, prefix, key string) ApicSlice {
 	return prepareApicSliceTag(objects, getTagFromKey(prefix, key))
 }
 
@@ -411,7 +403,6 @@ func (conn *ApicConnection) removeFromDnIndex(dn string) {
 
 func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	container bool, areStaticObjs bool) {
-
 	tag := getTagFromKey(conn.prefix, key)
 	prepareApicSliceTag(objects, tag)
 
@@ -439,7 +430,6 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 					if class == "vnsRedirectDest" {
 						deletes = append(deletes, child.GetDn())
 						newDelete = true
-
 					}
 				}
 			}

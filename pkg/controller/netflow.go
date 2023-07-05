@@ -83,7 +83,6 @@ func (cont *AciController) initNetflowInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing Netflow Policy Informers")
-
 }
 
 func (cont *AciController) netflowPolicyUpdated(obj interface{}) {
@@ -99,7 +98,6 @@ func (cont *AciController) netflowPolicyUpdated(obj interface{}) {
 		return
 	}
 	cont.queueNetflowUpdateByKey(key)
-
 }
 
 func (cont *AciController) queueNetflowUpdateByKey(key string) {
@@ -130,12 +128,10 @@ func (cont *AciController) netflowPolicyDelete(obj interface{}) bool {
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nfp", nfkey))
 	return true
-
 }
 
 // netflowPolObjs is used to build Netflow Policy objects
 func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apicapi.ApicSlice {
-
 	key, err := cache.MetaNamespaceKeyFunc(nfp)
 	if err != nil {
 		NetflowPolicyLogger(cont.log, nfp).
@@ -166,12 +162,10 @@ func (cont *AciController) netflowPolObjs(nfp *netflowpolicy.NetflowPolicy) apic
 	cont.log.Info("Netflow ApicSlice: ", apicSlice)
 
 	return apicapi.ApicSlice{nf, VmmVSwitch}
-
 }
 
 // func returns false if exceuted without error, true if the caller has to requeue.
 func (cont *AciController) handleNetflowPolUpdate(obj interface{}) bool {
-
 	// Ability to configure Netflow Policy is available only in APIC versions >= 5.0(x).
 	// In APIC versions < 5.0(x), Netflow VMM Exporter Policy can be associated with VMware domains only.
 	if apicapi.ApicVersion < "5.0" {

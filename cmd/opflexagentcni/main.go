@@ -71,7 +71,7 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 		EpRpcSock: "/var/run/aci-containers-ep-rpc.sock",
 	}
 	if err := json.Unmarshal(args.StdinData, n); err != nil {
-		return nil, nil, "", fmt.Errorf("failed to load netconf: %v", err)
+		return nil, nil, "", fmt.Errorf("failed to load netconf: %w", err)
 	}
 
 	log.Out = os.Stderr
@@ -111,7 +111,6 @@ func loadConf(args *skel.CmdArgs) (*NetConf, *K8SArgs, string, error) {
 
 func waitForAllNetwork(result *current.Result, id string,
 	timeout time.Duration) error {
-
 	for index, iface := range result.Interfaces {
 		netns, err := ns.GetNS(iface.Sandbox)
 		if err != nil {
@@ -126,12 +125,10 @@ func waitForAllNetwork(result *current.Result, id string,
 		}
 	}
 	return nil
-
 }
 
 func waitForNetwork(netns ns.NetNS, result *current.Result,
 	id string, index int, timeout time.Duration) error {
-
 	logger := log.WithFields(logrus.Fields{
 		"id": id,
 	})
@@ -228,7 +225,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 			for _, ip := range result.IPs {
 				ip.Interface = &zero
 			}
-
 		} else {
 			result = &current.Result{}
 			result.DNS = n.DNS

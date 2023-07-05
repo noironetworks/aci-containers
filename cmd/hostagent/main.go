@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 
@@ -34,7 +35,6 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/noironetworks/aci-containers/pkg/hostagent"
-	_ "net/http/pprof"
 )
 
 func main() {
@@ -163,18 +163,18 @@ func getNodeIP() (string, error) {
 
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
-		return "", fmt.Errorf("Error getting config: %v", err)
+		return "", fmt.Errorf("Error getting config: %w", err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(restconfig)
 	if err != nil {
-		return "", fmt.Errorf("Error initializing client: %v", err)
+		return "", fmt.Errorf("Error initializing client: %w", err)
 	}
 
 	options.FieldSelector = fields.Set{"metadata.name": nodeName}.String()
 	nodeList, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
 	if err != nil {
-		return "", fmt.Errorf("Error listing nodes: %v", err)
+		return "", fmt.Errorf("Error listing nodes: %w", err)
 	}
 
 	for _, node := range nodeList.Items {

@@ -416,7 +416,6 @@ func TestIPAM(t *testing.T) {
 		if ipCount != poolSizes[0] && ipCount != poolSizes[1] {
 			t.Fatalf("DEL Iter: %d IP addr leak -- total: %v used: %v avail: %v", jx, poolSizes, used, avail)
 		}
-
 	}
 
 	close(stopCh)
@@ -763,8 +762,7 @@ func TestSnatPolicy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
 	var uids []string
-	uids = append(uids, "uid-policy1")
-	uids = append(uids, "uid-policy2")
+	uids = append(uids, "uid-policy1", "uid-policy2")
 	it.checkEpSnatUids(1, uids, emptyJSON)
 	uids = []string{}
 	uids = append(uids, "uid-policy2")
@@ -818,8 +816,7 @@ func TestSnatPolicyDep(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
 	var uids []string
-	uids = append(uids, "uid-policy2")
-	uids = append(uids, "uid-policy1")
+	uids = append(uids, "uid-policy2", "uid-policy1")
 	it.checkEpSnatUids(6, uids, emptyJSON)
 	it.ta.fakeSnatPolicySource.Delete(snatobj1)
 	it.ta.fakeSnatPolicySource.Delete(snatobj2)
@@ -909,10 +906,9 @@ func TestEPUpdateContainerId(t *testing.T) {
 
 	delVerify(1, 1)
 	delVerify(0, 2)
-
 }
 
-func mkservice(namespace string, name string, snatlabel map[string]string) *v1.Service {
+func mkservice(namespace, name string, snatlabel map[string]string) *v1.Service {
 	return &v1.Service{
 		Spec: v1.ServiceSpec{
 			Type: v1.ServiceTypeLoadBalancer,

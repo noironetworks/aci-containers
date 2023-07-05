@@ -35,8 +35,7 @@ func uuidSetToMap(set interface{}) map[string]bool {
 	switch t := set.(type) {
 	case libovsdb.OvsSet:
 		for _, p := range t.GoSet {
-			switch pt := p.(type) {
-			case libovsdb.UUID:
+			if pt, ok := p.(libovsdb.UUID); ok {
 				ports[pt.GoUUID] = true
 			}
 		}
@@ -49,7 +48,6 @@ func uuidSetToMap(set interface{}) map[string]bool {
 
 func loadBridges(ovs *libovsdb.OvsdbClient,
 	brNames []string) (map[string]ovsBridge, error) {
-
 	bridges := map[string]ovsBridge{}
 
 	requests := make(map[string]libovsdb.MonitorRequest)
@@ -78,8 +76,7 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 		return nil, fmt.Errorf("Bridges table not found")
 	}
 	for uuid, row := range tableUpdate.Rows {
-		switch n := row.New.Fields["name"].(type) {
-		case string:
+		if n, ok := row.New.Fields["name"].(string); ok {
 			for _, brName := range brNames {
 				if brName == n {
 					br := ovsBridge{
@@ -87,8 +84,7 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 						ports: map[string]string{},
 					}
 					for uuid := range uuidSetToMap(row.New.Fields["ports"]) {
-						switch pn := pcache[uuid].Fields["name"].(type) {
-						case string:
+						if pn, ok := pcache[uuid].Fields["name"].(string); ok {
 							br.ports[pn] = uuid
 						}
 					}
@@ -147,7 +143,6 @@ func (agent *HostAgent) syncPorts(socket string) error {
 }
 
 func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Operation {
-
 	var ops []libovsdb.Operation
 
 	found := make(map[string]map[string]bool)
@@ -477,7 +472,6 @@ func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, e
 
 func addUplinkIfaceOps(config *HostAgentConfig,
 	intBrUuid string) ([]libovsdb.Operation, error) {
-
 	uuidUplinkP := "uplink_uuid_port"
 	uuidUplinkI := "uplink_uuid_interface"
 
@@ -522,7 +516,6 @@ func addUplinkIfaceOps(config *HostAgentConfig,
 func addIfaceOps(hostVethName string, patchIntName string,
 	patchAccessName string, accessBrUuid string,
 	intBrUuid string, opid string) ([]libovsdb.Operation, error) {
-
 	uuidHostP := "host_veth_uuid_port_" + opid
 	uuidHostI := "host_veth_uuid_interface" + opid
 	uuidPatchIntP := "patch_int_uuid_port" + opid

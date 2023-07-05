@@ -139,5 +139,4 @@ func TestNodePodIF(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("podIftoEp after delete: ", cont.AciController.podIftoEp)
 	cont.stop()
-
 }

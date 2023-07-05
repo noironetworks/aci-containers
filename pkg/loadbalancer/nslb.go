@@ -65,7 +65,6 @@ func NewNSLB(p LBProvider) (*NSLoadBalancer, error) {
 	nslb.initSvcWatch()
 
 	return nslb, nil
-
 }
 
 func (n *NSLoadBalancer) Stop() {

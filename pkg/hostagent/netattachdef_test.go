@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func testnetattach(name string, namespace string, config string, annot map[string]string) *netpolicy.NetworkAttachmentDefinition {
+func testnetattach(name, namespace, config string, annot map[string]string) *netpolicy.NetworkAttachmentDefinition {
 	netattachdef := &netpolicy.NetworkAttachmentDefinition{
 		Spec: netpolicy.NetworkAttachmentDefinitionSpec{
 			Config: config,
