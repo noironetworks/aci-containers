@@ -19,6 +19,7 @@ type LLDPInterfaceState struct {
 type FabricDiscoveryAgentLLDPNMState struct {
 	hostAgent       *HostAgent
 	indexMutex      sync.Mutex
+	collectTrigger  chan bool
 	LLDPIntfMap     map[string]*LLDPInterfaceState
 	LLDPNeighborMap map[string]map[string]*FabricAttachmentData
 }
@@ -32,10 +33,15 @@ func (agent *FabricDiscoveryAgentLLDPNMState) RunCommand(cmd string, cmdArgs ...
 
 func (agent *FabricDiscoveryAgentLLDPNMState) Init(ha *HostAgent) error {
 	agent.hostAgent = ha
+	agent.collectTrigger = make(chan bool)
 	agent.LLDPIntfMap = make(map[string]*LLDPInterfaceState)
 	agent.LLDPNeighborMap = make(map[string]map[string]*FabricAttachmentData)
 	_, err := agent.RunCommand("nmstatectl", "show")
 	return err
+}
+
+func (agent *FabricDiscoveryAgentLLDPNMState) TriggerCollectionDiscoveryData() {
+	agent.collectTrigger <- true
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan struct{}) {
@@ -47,6 +53,7 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 			select {
 			case <-stopCh:
 				return
+			case <-agent.collectTrigger:
 			case <-ticker.C:
 				//Scan for new interfaces
 				out, err := agent.RunCommand("nmstatectl", "show", "--json")
