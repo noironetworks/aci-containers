@@ -367,10 +367,11 @@ func (agent *HostAgent) NotifyFabricAdjacency(iface string, fabAttData []*Fabric
 
 func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.PodAttachment, networkName string, podDeleted bool) error {
 	var err error
+	var podIface string
+	adjFound := false
 	podKey := pod.PodRef.Name + "-" + pod.PodRef.Namespace
 	netAttDefName := pod.PodRef.Namespace + "/" + networkName
 	if _, ok := agent.netattdefmap[netAttDefName]; ok {
-		var podIface string
 		netattData := agent.netattdefmap[netAttDefName]
 		if netattData.PrimaryCNI == "sriov" {
 			for _, podNetMeta := range agent.podNetworkMetadata[pod.PodRef.Namespace+"/"+pod.PodRef.Name][networkName] {
@@ -397,7 +398,18 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 			podIfaceMap[podKey] = *pod
 			netattData.Pods[podIface] = podIfaceMap
 			agent.updateNodeFabricNetworkAttachmentLocked(netattData)
+			if nbrList, ok := netattData.FabricAttachmentData[podIface]; ok {
+				for _, nbr := range nbrList {
+					if nbr.StaticPath != "" {
+						adjFound = true
+						break
+					}
+				}
+			}
 		}
+	}
+	if !adjFound {
+		err = fmt.Errorf("LLDP adjacency with ACI fabric not found on interface %v", podIface)
 	}
 	return err
 }

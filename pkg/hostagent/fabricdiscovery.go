@@ -15,6 +15,7 @@ type FabricAttachmentData struct {
 type FabricDiscoveryAgent interface {
 	Init(agent *HostAgent) error
 	CollectDiscoveryData(stopCh <-chan struct{})
+	TriggerCollectionDiscoveryData()
 	GetNeighborData(iface string) ([]*FabricAttachmentData, error)
 }
 
