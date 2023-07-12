@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -27,8 +28,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/server/v3/lease/leasepb"
-	"go.etcd.io/etcd/server/v3/storage/backend"
-	"go.etcd.io/etcd/server/v3/storage/schema"
+	"go.etcd.io/etcd/server/v3/mvcc/backend"
+	"go.etcd.io/etcd/server/v3/mvcc/buckets"
 	"go.uber.org/zap"
 )
 
@@ -351,7 +352,7 @@ func (le *lessor) Revoke(id LeaseID) error {
 	// lease deletion needs to be in the same backend transaction with the
 	// kv deletion. Or we might end up with not executing the revoke or not
 	// deleting the keys if etcdserver fails in between.
-	schema.UnsafeDeleteLease(le.b.BatchTx(), &leasepb.Lease{ID: int64(l.ID)})
+	le.b.BatchTx().UnsafeDelete(buckets.Lease, int64ToBytes(int64(l.ID)))
 
 	txn.End()
 
@@ -653,10 +654,9 @@ func (le *lessor) revokeExpiredLeases() {
 // checkpointScheduledLeases finds all scheduled lease checkpoints that are due and
 // submits them to the checkpointer to persist them to the consensus log.
 func (le *lessor) checkpointScheduledLeases() {
-	var cps []*pb.LeaseCheckpoint
-
 	// rate limit
 	for i := 0; i < leaseCheckpointRate/2; i++ {
+		var cps []*pb.LeaseCheckpoint
 		le.mu.Lock()
 		if le.isPrimary() {
 			cps = le.findDueScheduledCheckpoints(maxLeaseCheckpointBatchSize)
@@ -796,10 +796,10 @@ func (le *lessor) findDueScheduledCheckpoints(checkpointLimit int) []*pb.LeaseCh
 
 func (le *lessor) initAndRecover() {
 	tx := le.b.BatchTx()
+	tx.LockOutsideApply()
 
-	tx.Lock()
-	schema.UnsafeCreateLeaseBucket(tx)
-	lpbs := schema.MustUnsafeGetAllLeases(tx)
+	tx.UnsafeCreateBucket(buckets.Lease)
+	lpbs := unsafeGetAllLeases(tx)
 	tx.Unlock()
 	for _, lpb := range lpbs {
 		ID := LeaseID(lpb.ID)
@@ -843,11 +843,17 @@ func (l *Lease) expired() bool {
 }
 
 func (l *Lease) persistTo(b backend.Backend) {
+	key := int64ToBytes(int64(l.ID))
+
 	lpb := leasepb.Lease{ID: int64(l.ID), TTL: l.ttl, RemainingTTL: l.remainingTTL}
-	tx := b.BatchTx()
-	tx.Lock()
-	defer tx.Unlock()
-	schema.MustUnsafePutLease(tx, &lpb)
+	val, err := lpb.Marshal()
+	if err != nil {
+		panic("failed to marshal lease proto item")
+	}
+
+	b.BatchTx().LockInsideApply()
+	b.BatchTx().UnsafePut(buckets.Lease, key, val)
+	b.BatchTx().Unlock()
 }
 
 // TTL returns the TTL of the Lease.
@@ -908,6 +914,30 @@ func int64ToBytes(n int64) []byte {
 	bytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(bytes, uint64(n))
 	return bytes
+}
+
+func bytesToLeaseID(bytes []byte) int64 {
+	if len(bytes) != 8 {
+		panic(fmt.Errorf("lease ID must be 8-byte"))
+	}
+	return int64(binary.BigEndian.Uint64(bytes))
+}
+
+func unsafeGetAllLeases(tx backend.ReadTx) []*leasepb.Lease {
+	ls := make([]*leasepb.Lease, 0)
+	err := tx.UnsafeForEach(buckets.Lease, func(k, v []byte) error {
+		var lpb leasepb.Lease
+		err := lpb.Unmarshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to Unmarshal lease proto item; lease ID=%016x", bytesToLeaseID(k))
+		}
+		ls = append(ls, &lpb)
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ls
 }
 
 // FakeLessor is a fake implementation of Lessor interface.

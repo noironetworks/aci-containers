@@ -125,6 +125,10 @@ type Error struct {
 	Index     uint64 `json:"index"`
 }
 
+func NewRequestError(errorCode int, cause string) *Error {
+	return NewError(errorCode, cause, 0)
+}
+
 func NewError(errorCode int, cause string, index uint64) *Error {
 	return &Error{
 		ErrorCode: errorCode,

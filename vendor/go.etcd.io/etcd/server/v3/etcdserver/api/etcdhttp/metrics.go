@@ -58,7 +58,7 @@ func HandlePrometheus(mux *http.ServeMux) {
 }
 
 // NewHealthHandler handles '/health' requests.
-func NewHealthHandler(lg *zap.Logger, hfunc func(excludedAlarms AlarmSet, Serializable bool) Health) http.HandlerFunc {
+func NewHealthHandler(lg *zap.Logger, hfunc func(excludedAlarms AlarmSet, serializable bool) Health) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
@@ -126,7 +126,7 @@ func getExcludedAlarms(r *http.Request) (alarms AlarmSet) {
 	alms, found := r.URL.Query()["exclude"]
 	if found {
 		for _, alm := range alms {
-			if len(alm) == 0 {
+			if len(alms) == 0 {
 				continue
 			}
 			alarms[alm] = struct{}{}
@@ -167,7 +167,7 @@ func checkHealth(lg *zap.Logger, srv etcdserver.ServerV2, excludedAlarms AlarmSe
 		}
 	}
 
-	if !serializable && (uint64(srv.Leader()) == raft.None) {
+	if !serializable && uint64(srv.Leader()) == raft.None {
 		h.Health = "false"
 		h.Reason = "RAFT NO LEADER"
 		lg.Warn("serving /health false; no leader")

@@ -15,18 +15,26 @@
 package etcdserver
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/client/pkg/v3/logutil"
+	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/pkg/v3/contention"
+	"go.etcd.io/etcd/pkg/v3/pbutil"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.etcd.io/etcd/server/v3/config"
+	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/rafthttp"
-	serverstorage "go.etcd.io/etcd/server/v3/storage"
+	"go.etcd.io/etcd/server/v3/wal"
+	"go.etcd.io/etcd/server/v3/wal/walpb"
 	"go.uber.org/zap"
 )
 
@@ -103,7 +111,7 @@ type raftNodeConfig struct {
 	isIDRemoved func(id uint64) bool
 	raft.Node
 	raftStorage *raft.MemoryStorage
-	storage     serverstorage.Storage
+	storage     Storage
 	heartbeat   time.Duration // for logging
 	// transport specifies the transport to send and receive msgs to members.
 	// Sending messages MUST NOT block. It is okay to drop messages, since
@@ -209,6 +217,14 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 				updateCommittedIndex(&ap, rh)
 
+				waitWALSync := shouldWaitWALSync(rd)
+				if waitWALSync {
+					// gofail: var raftBeforeSaveWaitWalSync struct{}
+					if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
+						r.lg.Fatal("failed to save Raft hard state and entries", zap.Error(err))
+					}
+				}
+
 				select {
 				case r.applyc <- ap:
 				case <-r.stopped:
@@ -233,9 +249,11 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					// gofail: var raftAfterSaveSnap struct{}
 				}
 
-				// gofail: var raftBeforeSave struct{}
-				if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
-					r.lg.Fatal("failed to save Raft hard state and entries", zap.Error(err))
+				if !waitWALSync {
+					// gofail: var raftBeforeSave struct{}
+					if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
+						r.lg.Fatal("failed to save Raft hard state and entries", zap.Error(err))
+					}
 				}
 				if !raft.IsEmptyHardState(rd.HardState) {
 					proposalsCommitted.Set(float64(rd.HardState.Commit))
@@ -312,6 +330,42 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 			}
 		}
 	}()
+}
+
+// For a cluster with only one member, the raft may send both the
+// unstable entries and committed entries to etcdserver, and there
+// may have overlapped log entries between them.
+//
+// etcd responds to the client once it finishes (actually partially)
+// the applying workflow. But when the client receives the response,
+// it doesn't mean etcd has already successfully saved the data,
+// including BoltDB and WAL, because:
+//    1. etcd commits the boltDB transaction periodically instead of on each request;
+//    2. etcd saves WAL entries in parallel with applying the committed entries.
+// Accordingly, it might run into a situation of data loss when the etcd crashes
+// immediately after responding to the client and before the boltDB and WAL
+// successfully save the data to disk.
+// Note that this issue can only happen for clusters with only one member.
+//
+// For clusters with multiple members, it isn't an issue, because etcd will
+// not commit & apply the data before it being replicated to majority members.
+// When the client receives the response, it means the data must have been applied.
+// It further means the data must have been committed.
+// Note: for clusters with multiple members, the raft will never send identical
+// unstable entries and committed entries to etcdserver.
+//
+// Refer to https://github.com/etcd-io/etcd/issues/14370.
+func shouldWaitWALSync(rd raft.Ready) bool {
+	if len(rd.CommittedEntries) == 0 || len(rd.Entries) == 0 {
+		return false
+	}
+
+	// Check if there is overlap between unstable and committed entries
+	// assuming that their index and term are only incrementing.
+	lastCommittedEntry := rd.CommittedEntries[len(rd.CommittedEntries)-1]
+	firstUnstableEntry := rd.Entries[0]
+	return lastCommittedEntry.Term > firstUnstableEntry.Term ||
+		(lastCommittedEntry.Term == firstUnstableEntry.Term && lastCommittedEntry.Index >= firstUnstableEntry.Index)
 }
 
 func updateCommittedIndex(ap *apply, rh *raftReadyHandler) {
@@ -410,4 +464,272 @@ func (r *raftNode) advanceTicks(ticks int) {
 	for i := 0; i < ticks; i++ {
 		r.tick()
 	}
+}
+
+func startNode(cfg config.ServerConfig, cl *membership.RaftCluster, ids []types.ID) (id types.ID, n raft.Node, s *raft.MemoryStorage, w *wal.WAL) {
+	var err error
+	member := cl.MemberByName(cfg.Name)
+	metadata := pbutil.MustMarshal(
+		&pb.Metadata{
+			NodeID:    uint64(member.ID),
+			ClusterID: uint64(cl.ID()),
+		},
+	)
+	if w, err = wal.Create(cfg.Logger, cfg.WALDir(), metadata); err != nil {
+		cfg.Logger.Panic("failed to create WAL", zap.Error(err))
+	}
+	if cfg.UnsafeNoFsync {
+		w.SetUnsafeNoFsync()
+	}
+	peers := make([]raft.Peer, len(ids))
+	for i, id := range ids {
+		var ctx []byte
+		ctx, err = json.Marshal((*cl).Member(id))
+		if err != nil {
+			cfg.Logger.Panic("failed to marshal member", zap.Error(err))
+		}
+		peers[i] = raft.Peer{ID: uint64(id), Context: ctx}
+	}
+	id = member.ID
+	cfg.Logger.Info(
+		"starting local member",
+		zap.String("local-member-id", id.String()),
+		zap.String("cluster-id", cl.ID().String()),
+	)
+	s = raft.NewMemoryStorage()
+	c := &raft.Config{
+		ID:              uint64(id),
+		ElectionTick:    cfg.ElectionTicks,
+		HeartbeatTick:   1,
+		Storage:         s,
+		MaxSizePerMsg:   maxSizePerMsg,
+		MaxInflightMsgs: maxInflightMsgs,
+		CheckQuorum:     true,
+		PreVote:         cfg.PreVote,
+		Logger:          NewRaftLoggerZap(cfg.Logger.Named("raft")),
+	}
+	if len(peers) == 0 {
+		n = raft.RestartNode(c)
+	} else {
+		n = raft.StartNode(c, peers)
+	}
+	raftStatusMu.Lock()
+	raftStatus = n.Status
+	raftStatusMu.Unlock()
+	return id, n, s, w
+}
+
+func restartNode(cfg config.ServerConfig, snapshot *raftpb.Snapshot) (types.ID, *membership.RaftCluster, raft.Node, *raft.MemoryStorage, *wal.WAL) {
+	var walsnap walpb.Snapshot
+	if snapshot != nil {
+		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
+	}
+	w, id, cid, st, ents := readWAL(cfg.Logger, cfg.WALDir(), walsnap, cfg.UnsafeNoFsync)
+
+	cfg.Logger.Info(
+		"restarting local member",
+		zap.String("cluster-id", cid.String()),
+		zap.String("local-member-id", id.String()),
+		zap.Uint64("commit-index", st.Commit),
+	)
+	cl := membership.NewCluster(cfg.Logger)
+	cl.SetID(id, cid)
+	s := raft.NewMemoryStorage()
+	if snapshot != nil {
+		s.ApplySnapshot(*snapshot)
+	}
+	s.SetHardState(st)
+	s.Append(ents)
+	c := &raft.Config{
+		ID:              uint64(id),
+		ElectionTick:    cfg.ElectionTicks,
+		HeartbeatTick:   1,
+		Storage:         s,
+		MaxSizePerMsg:   maxSizePerMsg,
+		MaxInflightMsgs: maxInflightMsgs,
+		CheckQuorum:     true,
+		PreVote:         cfg.PreVote,
+		Logger:          NewRaftLoggerZap(cfg.Logger.Named("raft")),
+	}
+
+	n := raft.RestartNode(c)
+	raftStatusMu.Lock()
+	raftStatus = n.Status
+	raftStatusMu.Unlock()
+	return id, cl, n, s, w
+}
+
+func restartAsStandaloneNode(cfg config.ServerConfig, snapshot *raftpb.Snapshot) (types.ID, *membership.RaftCluster, raft.Node, *raft.MemoryStorage, *wal.WAL) {
+	var walsnap walpb.Snapshot
+	if snapshot != nil {
+		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
+	}
+	w, id, cid, st, ents := readWAL(cfg.Logger, cfg.WALDir(), walsnap, cfg.UnsafeNoFsync)
+
+	// discard the previously uncommitted entries
+	for i, ent := range ents {
+		if ent.Index > st.Commit {
+			cfg.Logger.Info(
+				"discarding uncommitted WAL entries",
+				zap.Uint64("entry-index", ent.Index),
+				zap.Uint64("commit-index-from-wal", st.Commit),
+				zap.Int("number-of-discarded-entries", len(ents)-i),
+			)
+			ents = ents[:i]
+			break
+		}
+	}
+
+	// force append the configuration change entries
+	toAppEnts := createConfigChangeEnts(
+		cfg.Logger,
+		getIDs(cfg.Logger, snapshot, ents),
+		uint64(id),
+		st.Term,
+		st.Commit,
+	)
+	ents = append(ents, toAppEnts...)
+
+	// force commit newly appended entries
+	err := w.Save(raftpb.HardState{}, toAppEnts)
+	if err != nil {
+		cfg.Logger.Fatal("failed to save hard state and entries", zap.Error(err))
+	}
+	if len(ents) != 0 {
+		st.Commit = ents[len(ents)-1].Index
+	}
+
+	cfg.Logger.Info(
+		"forcing restart member",
+		zap.String("cluster-id", cid.String()),
+		zap.String("local-member-id", id.String()),
+		zap.Uint64("commit-index", st.Commit),
+	)
+
+	cl := membership.NewCluster(cfg.Logger)
+	cl.SetID(id, cid)
+	s := raft.NewMemoryStorage()
+	if snapshot != nil {
+		s.ApplySnapshot(*snapshot)
+	}
+	s.SetHardState(st)
+	s.Append(ents)
+	c := &raft.Config{
+		ID:              uint64(id),
+		ElectionTick:    cfg.ElectionTicks,
+		HeartbeatTick:   1,
+		Storage:         s,
+		MaxSizePerMsg:   maxSizePerMsg,
+		MaxInflightMsgs: maxInflightMsgs,
+		CheckQuorum:     true,
+		PreVote:         cfg.PreVote,
+		Logger:          NewRaftLoggerZap(cfg.Logger.Named("raft")),
+	}
+
+	n := raft.RestartNode(c)
+	raftStatus = n.Status
+	return id, cl, n, s, w
+}
+
+// getIDs returns an ordered set of IDs included in the given snapshot and
+// the entries. The given snapshot/entries can contain three kinds of
+// ID-related entry:
+// - ConfChangeAddNode, in which case the contained ID will be added into the set.
+// - ConfChangeRemoveNode, in which case the contained ID will be removed from the set.
+// - ConfChangeAddLearnerNode, in which the contained ID will be added into the set.
+func getIDs(lg *zap.Logger, snap *raftpb.Snapshot, ents []raftpb.Entry) []uint64 {
+	ids := make(map[uint64]bool)
+	if snap != nil {
+		for _, id := range snap.Metadata.ConfState.Voters {
+			ids[id] = true
+		}
+	}
+	for _, e := range ents {
+		if e.Type != raftpb.EntryConfChange {
+			continue
+		}
+		var cc raftpb.ConfChange
+		pbutil.MustUnmarshal(&cc, e.Data)
+		switch cc.Type {
+		case raftpb.ConfChangeAddLearnerNode:
+			ids[cc.NodeID] = true
+		case raftpb.ConfChangeAddNode:
+			ids[cc.NodeID] = true
+		case raftpb.ConfChangeRemoveNode:
+			delete(ids, cc.NodeID)
+		case raftpb.ConfChangeUpdateNode:
+			// do nothing
+		default:
+			lg.Panic("unknown ConfChange Type", zap.String("type", cc.Type.String()))
+		}
+	}
+	sids := make(types.Uint64Slice, 0, len(ids))
+	for id := range ids {
+		sids = append(sids, id)
+	}
+	sort.Sort(sids)
+	return []uint64(sids)
+}
+
+// createConfigChangeEnts creates a series of Raft entries (i.e.
+// EntryConfChange) to remove the set of given IDs from the cluster. The ID
+// `self` is _not_ removed, even if present in the set.
+// If `self` is not inside the given ids, it creates a Raft entry to add a
+// default member with the given `self`.
+func createConfigChangeEnts(lg *zap.Logger, ids []uint64, self uint64, term, index uint64) []raftpb.Entry {
+	found := false
+	for _, id := range ids {
+		if id == self {
+			found = true
+		}
+	}
+
+	var ents []raftpb.Entry
+	next := index + 1
+
+	// NB: always add self first, then remove other nodes. Raft will panic if the
+	// set of voters ever becomes empty.
+	if !found {
+		m := membership.Member{
+			ID:             types.ID(self),
+			RaftAttributes: membership.RaftAttributes{PeerURLs: []string{"http://localhost:2380"}},
+		}
+		ctx, err := json.Marshal(m)
+		if err != nil {
+			lg.Panic("failed to marshal member", zap.Error(err))
+		}
+		cc := &raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  self,
+			Context: ctx,
+		}
+		e := raftpb.Entry{
+			Type:  raftpb.EntryConfChange,
+			Data:  pbutil.MustMarshal(cc),
+			Term:  term,
+			Index: next,
+		}
+		ents = append(ents, e)
+		next++
+	}
+
+	for _, id := range ids {
+		if id == self {
+			continue
+		}
+		cc := &raftpb.ConfChange{
+			Type:   raftpb.ConfChangeRemoveNode,
+			NodeID: id,
+		}
+		e := raftpb.Entry{
+			Type:  raftpb.EntryConfChange,
+			Data:  pbutil.MustMarshal(cc),
+			Term:  term,
+			Index: next,
+		}
+		ents = append(ents, e)
+		next++
+	}
+
+	return ents
 }

@@ -20,7 +20,7 @@ import (
 	"time"
 
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	"go.etcd.io/etcd/server/v3/storage/mvcc"
+	"go.etcd.io/etcd/server/v3/mvcc"
 
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
@@ -54,9 +54,8 @@ func newPeriodic(lg *zap.Logger, clock clockwork.Clock, h time.Duration, rg RevG
 		period: h,
 		rg:     rg,
 		c:      c,
+		revs:   make([]int64, 0),
 	}
-	// revs won't be longer than the retentions.
-	pc.revs = make([]int64, 0, pc.getRetentions())
 	pc.ctx, pc.cancel = context.WithCancel(context.Background())
 	return pc
 }
@@ -67,7 +66,7 @@ Compaction period 1-hour:
   2. record revisions for every 1/10 of 1-hour (6-minute)
   3. keep recording revisions with no compaction for first 1-hour
   4. do compact with revs[0]
-	- success? continue on for-loop and move sliding window; revs = revs[1:]
+	- success? contiue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 1-hour (6-minute)
 
 Compaction period 24-hour:
@@ -75,7 +74,7 @@ Compaction period 24-hour:
   2. record revisions for every 1/10 of 1-hour (6-minute)
   3. keep recording revisions with no compaction for first 24-hour
   4. do compact with revs[0]
-	- success? continue on for-loop and move sliding window; revs = revs[1:]
+	- success? contiue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 1-hour (6-minute)
 
 Compaction period 59-min:
@@ -83,7 +82,7 @@ Compaction period 59-min:
   2. record revisions for every 1/10 of 59-min (5.9-min)
   3. keep recording revisions with no compaction for first 59-min
   4. do compact with revs[0]
-	- success? continue on for-loop and move sliding window; revs = revs[1:]
+	- success? contiue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 59-min (5.9-min)
 
 Compaction period 5-sec:
@@ -91,7 +90,7 @@ Compaction period 5-sec:
   2. record revisions for every 1/10 of 5-sec (0.5-sec)
   3. keep recording revisions with no compaction for first 5-sec
   4. do compact with revs[0]
-	- success? continue on for-loop and move sliding window; revs = revs[1:]
+	- success? contiue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 5-sec (0.5-sec)
 */
 
@@ -114,9 +113,9 @@ func (pc *Periodic) Run() {
 			case <-pc.ctx.Done():
 				return
 			case <-pc.clock.After(retryInterval):
-				pc.mu.RLock()
+				pc.mu.Lock()
 				p := pc.paused
-				pc.mu.RUnlock()
+				pc.mu.Unlock()
 				if p {
 					continue
 				}
