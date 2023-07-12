@@ -23,9 +23,8 @@ import (
 	"go.etcd.io/etcd/server/v3/auth"
 	"go.etcd.io/etcd/server/v3/etcdserver"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
-	"go.etcd.io/etcd/server/v3/etcdserver/version"
 	"go.etcd.io/etcd/server/v3/lease"
-	"go.etcd.io/etcd/server/v3/storage/mvcc"
+	"go.etcd.io/etcd/server/v3/mvcc"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -54,16 +53,17 @@ var toGRPCErrorMap = map[error]error{
 	etcdserver.ErrTimeout:                    rpctypes.ErrGRPCTimeout,
 	etcdserver.ErrTimeoutDueToLeaderFail:     rpctypes.ErrGRPCTimeoutDueToLeaderFail,
 	etcdserver.ErrTimeoutDueToConnectionLost: rpctypes.ErrGRPCTimeoutDueToConnectionLost,
+	etcdserver.ErrTimeoutWaitAppliedIndex:    rpctypes.ErrGRPCTimeoutWaitAppliedIndex,
 	etcdserver.ErrUnhealthy:                  rpctypes.ErrGRPCUnhealthy,
 	etcdserver.ErrKeyNotFound:                rpctypes.ErrGRPCKeyNotFound,
 	etcdserver.ErrCorrupt:                    rpctypes.ErrGRPCCorrupt,
 	etcdserver.ErrBadLeaderTransferee:        rpctypes.ErrGRPCBadLeaderTransferee,
 
-	etcdserver.ErrClusterVersionUnavailable:   rpctypes.ErrGRPCClusterVersionUnavailable,
-	etcdserver.ErrWrongDowngradeVersionFormat: rpctypes.ErrGRPCWrongDowngradeVersionFormat,
-	version.ErrInvalidDowngradeTargetVersion:  rpctypes.ErrGRPCInvalidDowngradeTargetVersion,
-	version.ErrDowngradeInProcess:             rpctypes.ErrGRPCDowngradeInProcess,
-	version.ErrNoInflightDowngrade:            rpctypes.ErrGRPCNoInflightDowngrade,
+	etcdserver.ErrClusterVersionUnavailable:     rpctypes.ErrGRPCClusterVersionUnavailable,
+	etcdserver.ErrWrongDowngradeVersionFormat:   rpctypes.ErrGRPCWrongDowngradeVersionFormat,
+	etcdserver.ErrInvalidDowngradeTargetVersion: rpctypes.ErrGRPCInvalidDowngradeTargetVersion,
+	etcdserver.ErrDowngradeInProcess:            rpctypes.ErrGRPCDowngradeInProcess,
+	etcdserver.ErrNoInflightDowngrade:           rpctypes.ErrGRPCNoInflightDowngrade,
 
 	lease.ErrLeaseNotFound:    rpctypes.ErrGRPCLeaseNotFound,
 	lease.ErrLeaseExists:      rpctypes.ErrGRPCLeaseExist,

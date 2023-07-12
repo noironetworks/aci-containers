@@ -223,10 +223,7 @@ func StartNode(c *Config, peers []Peer) Node {
 	if err != nil {
 		panic(err)
 	}
-	err = rn.Bootstrap(peers)
-	if err != nil {
-		c.Logger.Warningf("error occurred during starting a new node: %v", err)
-	}
+	rn.Bootstrap(peers)
 
 	n := newNode(rn)
 
@@ -372,15 +369,13 @@ func (n *node) run() {
 			// very sound and likely has bugs.
 			if _, okAfter := r.prs.Progress[r.id]; okBefore && !okAfter {
 				var found bool
+			outer:
 				for _, sl := range [][]uint64{cs.Voters, cs.VotersOutgoing} {
 					for _, id := range sl {
 						if id == r.id {
 							found = true
-							break
+							break outer
 						}
-					}
-					if found {
-						break
 					}
 				}
 				if !found {

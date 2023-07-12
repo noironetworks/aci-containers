@@ -16,7 +16,6 @@ package clientv3
 
 import (
 	"context"
-	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 
@@ -146,14 +145,10 @@ func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
 	var err error
 	switch op.t {
 	case tRange:
-		if op.IsSortOptionValid() {
-			var resp *pb.RangeResponse
-			resp, err = kv.remote.Range(ctx, op.toRangeRequest(), kv.callOpts...)
-			if err == nil {
-				return OpResponse{get: (*GetResponse)(resp)}, nil
-			}
-		} else {
-			err = rpctypes.ErrInvalidSortOption
+		var resp *pb.RangeResponse
+		resp, err = kv.remote.Range(ctx, op.toRangeRequest(), kv.callOpts...)
+		if err == nil {
+			return OpResponse{get: (*GetResponse)(resp)}, nil
 		}
 	case tPut:
 		var resp *pb.PutResponse

@@ -37,8 +37,7 @@ func NewRaftLogger(lcfg *zap.Config) (raft.Logger, error) {
 
 // NewRaftLoggerZap converts "*zap.Logger" to "raft.Logger".
 func NewRaftLoggerZap(lg *zap.Logger) raft.Logger {
-	skipCallerLg := lg.WithOptions(zap.AddCallerSkip(1))
-	return &zapRaftLogger{lg: skipCallerLg, sugar: skipCallerLg.Sugar()}
+	return &zapRaftLogger{lg: lg, sugar: lg.Sugar()}
 }
 
 // NewRaftLoggerFromZapCore creates "raft.Logger" from "zap.Core"

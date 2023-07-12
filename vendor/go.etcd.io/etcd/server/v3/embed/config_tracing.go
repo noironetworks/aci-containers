@@ -1,4 +1,4 @@
-// Copyright 2021 The etcd Authors
+// Copyright 2022 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ package embed
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -26,19 +25,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
 )
-
-const maxSamplingRatePerMillion = 1000000
-
-func validateTracingConfig(samplingRate int) error {
-	if samplingRate < 0 {
-		return fmt.Errorf("tracing sampling rate must be positive")
-	}
-	if samplingRate > maxSamplingRatePerMillion {
-		return fmt.Errorf("tracing sampling rate must be less than %d", maxSamplingRatePerMillion)
-	}
-
-	return nil
-}
 
 func setupTracingExporter(ctx context.Context, cfg *Config) (exporter tracesdk.SpanExporter, options []otelgrpc.Option, err error) {
 	exporter, err = otlptracegrpc.New(ctx,
@@ -78,9 +64,7 @@ func setupTracingExporter(ctx context.Context, cfg *Config) (exporter tracesdk.S
 			tracesdk.NewTracerProvider(
 				tracesdk.WithBatcher(exporter),
 				tracesdk.WithResource(res),
-				tracesdk.WithSampler(
-					tracesdk.ParentBased(determineSampler(cfg.ExperimentalDistributedTracingSamplingRatePerMillion)),
-				),
+				tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.NeverSample())),
 			),
 		),
 	)
@@ -90,18 +74,9 @@ func setupTracingExporter(ctx context.Context, cfg *Config) (exporter tracesdk.S
 		zap.String("address", cfg.ExperimentalDistributedTracingAddress),
 		zap.String("service-name", cfg.ExperimentalDistributedTracingServiceName),
 		zap.String("service-instance-id", cfg.ExperimentalDistributedTracingServiceInstanceID),
-		zap.Int("sampling-rate", cfg.ExperimentalDistributedTracingSamplingRatePerMillion),
 	)
 
 	return exporter, options, err
-}
-
-func determineSampler(samplingRate int) tracesdk.Sampler {
-	sampler := tracesdk.NeverSample()
-	if samplingRate == 0 {
-		return sampler
-	}
-	return tracesdk.TraceIDRatioBased(float64(samplingRate) / float64(maxSamplingRatePerMillion))
 }
 
 // As Tracing service Instance ID must be unique, it should

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"sort"
 	"strings"
@@ -28,6 +29,8 @@ import (
 	"go.etcd.io/etcd/api/v3/authpb"
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
+	"go.etcd.io/etcd/server/v3/mvcc/backend"
+	"go.etcd.io/etcd/server/v3/mvcc/buckets"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -37,10 +40,11 @@ import (
 )
 
 var (
-	authEnabled  = []byte{1}
-	authDisabled = []byte{0}
+	enableFlagKey = []byte("authEnabled")
+	authEnabled   = []byte{1}
+	authDisabled  = []byte{0}
 
-	rootPerm = authpb.Permission{PermType: authpb.READWRITE, Key: []byte{}, RangeEnd: []byte{0}}
+	revisionKey = []byte("authRevision")
 
 	ErrRootUserNotExist     = errors.New("auth: root user does not exist")
 	ErrRootRoleNotExist     = errors.New("auth: root user does not have root role")
@@ -73,6 +77,8 @@ const (
 
 	tokenTypeSimple = "simple"
 	tokenTypeJWT    = "jwt"
+
+	revBytesLen = 8
 )
 
 type AuthInfo struct {
@@ -101,7 +107,7 @@ type AuthStore interface {
 	Authenticate(ctx context.Context, username, password string) (*pb.AuthenticateResponse, error)
 
 	// Recover recovers the state of auth store from the given backend
-	Recover(be AuthBackend)
+	Recover(b backend.Backend)
 
 	// UserAdd adds a new user
 	UserAdd(r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse, error)
@@ -193,48 +199,23 @@ type TokenProvider interface {
 	genTokenPrefix() (string, error)
 }
 
-type AuthBackend interface {
-	CreateAuthBuckets()
-	ForceCommit()
-	BatchTx() AuthBatchTx
-
-	GetUser(string) *authpb.User
-	GetAllUsers() []*authpb.User
-	GetRole(string) *authpb.Role
-	GetAllRoles() []*authpb.Role
-}
-
-type AuthBatchTx interface {
-	AuthReadTx
-	UnsafeSaveAuthEnabled(enabled bool)
-	UnsafeSaveAuthRevision(rev uint64)
-	UnsafePutUser(*authpb.User)
-	UnsafeDeleteUser(string)
-	UnsafePutRole(*authpb.Role)
-	UnsafeDeleteRole(string)
-}
-
-type AuthReadTx interface {
-	UnsafeReadAuthEnabled() bool
-	UnsafeReadAuthRevision() uint64
-	UnsafeGetUser(string) *authpb.User
-	UnsafeGetRole(string) *authpb.Role
-	UnsafeGetAllUsers() []*authpb.User
-	UnsafeGetAllRoles() []*authpb.Role
-	Lock()
-	Unlock()
-}
-
 type authStore struct {
 	// atomic operations; need 64-bit align, or 32-bit tests will crash
 	revision uint64
 
 	lg        *zap.Logger
-	be        AuthBackend
+	be        backend.Backend
 	enabled   bool
 	enabledMu sync.RWMutex
 
-	rangePermCache map[string]*unifiedRangePermissions // username -> unifiedRangePermissions
+	// rangePermCache needs to be protected by rangePermCacheMu
+	// rangePermCacheMu needs to be write locked only in initialization phase or configuration changes
+	// Hot paths like Range(), needs to acquire read lock for improving performance
+	//
+	// Note that BatchTx and ReadTx cannot be a mutex for rangePermCache because they are independent resources
+	// see also: https://github.com/etcd-io/etcd/pull/13920#discussion_r849114855
+	rangePermCache   map[string]*unifiedRangePermissions // username -> unifiedRangePermissions
+	rangePermCacheMu sync.RWMutex
 
 	tokenProvider TokenProvider
 	bcryptCost    int // the algorithm cost / strength for hashing auth passwords
@@ -247,14 +228,15 @@ func (as *authStore) AuthEnable() error {
 		as.lg.Info("authentication is already enabled; ignored auth enable request")
 		return nil
 	}
-	tx := as.be.BatchTx()
-	tx.Lock()
+	b := as.be
+	tx := b.BatchTx()
+	tx.LockInsideApply()
 	defer func() {
 		tx.Unlock()
-		as.be.ForceCommit()
+		b.ForceCommit()
 	}()
 
-	u := tx.UnsafeGetUser(rootUser)
+	u := getUser(as.lg, tx, rootUser)
 	if u == nil {
 		return ErrRootUserNotExist
 	}
@@ -263,13 +245,14 @@ func (as *authStore) AuthEnable() error {
 		return ErrRootRoleNotExist
 	}
 
-	tx.UnsafeSaveAuthEnabled(true)
+	tx.UnsafePut(buckets.Auth, enableFlagKey, authEnabled)
+
 	as.enabled = true
 	as.tokenProvider.enable()
 
-	as.rangePermCache = make(map[string]*unifiedRangePermissions)
+	as.refreshRangePermCache(tx)
 
-	as.setRevision(tx.UnsafeReadAuthRevision())
+	as.setRevision(getRevision(tx))
 
 	as.lg.Info("enabled authentication")
 	return nil
@@ -282,13 +265,11 @@ func (as *authStore) AuthDisable() {
 		return
 	}
 	b := as.be
-
 	tx := b.BatchTx()
-	tx.Lock()
-	tx.UnsafeSaveAuthEnabled(false)
+	tx.LockInsideApply()
+	tx.UnsafePut(buckets.Auth, enableFlagKey, authDisabled)
 	as.commitRevision(tx)
 	tx.Unlock()
-
 	b.ForceCommit()
 
 	as.enabled = false
@@ -311,7 +292,12 @@ func (as *authStore) Authenticate(ctx context.Context, username, password string
 	if !as.IsAuthEnabled() {
 		return nil, ErrAuthNotEnabled
 	}
-	user := as.be.GetUser(username)
+
+	tx := as.be.BatchTx()
+	tx.LockInsideApply()
+	defer tx.Unlock()
+
+	user := getUser(as.lg, tx, username)
 	if user == nil {
 		return nil, ErrAuthFailed
 	}
@@ -345,11 +331,11 @@ func (as *authStore) CheckPassword(username, password string) (uint64, error) {
 	// CompareHashAndPassword is very expensive, so we use closures
 	// to avoid putting it in the critical section of the tx lock.
 	revision, err := func() (uint64, error) {
-		tx := as.be.BatchTx()
+		tx := as.be.ReadTx()
 		tx.Lock()
 		defer tx.Unlock()
 
-		user = tx.UnsafeGetUser(username)
+		user = getUser(as.lg, tx, username)
 		if user == nil {
 			return 0, ErrAuthFailed
 		}
@@ -358,7 +344,7 @@ func (as *authStore) CheckPassword(username, password string) (uint64, error) {
 			return 0, ErrNoPasswordUser
 		}
 
-		return tx.UnsafeReadAuthRevision(), nil
+		return getRevision(tx), nil
 	}()
 	if err != nil {
 		return 0, err
@@ -371,13 +357,20 @@ func (as *authStore) CheckPassword(username, password string) (uint64, error) {
 	return revision, nil
 }
 
-func (as *authStore) Recover(be AuthBackend) {
+func (as *authStore) Recover(be backend.Backend) {
+	enabled := false
 	as.be = be
-	tx := be.BatchTx()
+	tx := be.ReadTx()
 	tx.Lock()
+	_, vs := tx.UnsafeRange(buckets.Auth, enableFlagKey, nil, 0)
+	if len(vs) == 1 {
+		if bytes.Equal(vs[0], authEnabled) {
+			enabled = true
+		}
+	}
 
-	enabled := tx.UnsafeReadAuthEnabled()
-	as.setRevision(tx.UnsafeReadAuthRevision())
+	as.setRevision(getRevision(tx))
+	as.refreshRangePermCache(tx)
 
 	tx.Unlock()
 
@@ -403,10 +396,10 @@ func (as *authStore) UserAdd(r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse,
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(r.Name)
+	user := getUser(as.lg, tx, r.Name)
 	if user != nil {
 		return nil, ErrUserAlreadyExist
 	}
@@ -433,9 +426,11 @@ func (as *authStore) UserAdd(r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse,
 		Password: password,
 		Options:  options,
 	}
-	tx.UnsafePutUser(newUser)
+
+	putUser(as.lg, tx, newUser)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info("added a user", zap.String("user-name", r.Name))
 	return &pb.AuthUserAddResponse{}, nil
@@ -448,18 +443,19 @@ func (as *authStore) UserDelete(r *pb.AuthUserDeleteRequest) (*pb.AuthUserDelete
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(r.Name)
+	user := getUser(as.lg, tx, r.Name)
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
-	tx.UnsafeDeleteUser(r.Name)
+
+	delUser(tx, r.Name)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
-	as.invalidateCachedPerm(r.Name)
 	as.tokenProvider.invalidateUser(r.Name)
 
 	as.lg.Info(
@@ -472,10 +468,10 @@ func (as *authStore) UserDelete(r *pb.AuthUserDeleteRequest) (*pb.AuthUserDelete
 
 func (as *authStore) UserChangePassword(r *pb.AuthUserChangePasswordRequest) (*pb.AuthUserChangePasswordResponse, error) {
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(r.Name)
+	user := getUser(as.lg, tx, r.Name)
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
@@ -496,11 +492,12 @@ func (as *authStore) UserChangePassword(r *pb.AuthUserChangePasswordRequest) (*p
 		Password: password,
 		Options:  user.Options,
 	}
-	tx.UnsafePutUser(updatedUser)
+
+	putUser(as.lg, tx, updatedUser)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
-	as.invalidateCachedPerm(r.Name)
 	as.tokenProvider.invalidateUser(r.Name)
 
 	as.lg.Info(
@@ -513,16 +510,16 @@ func (as *authStore) UserChangePassword(r *pb.AuthUserChangePasswordRequest) (*p
 
 func (as *authStore) UserGrantRole(r *pb.AuthUserGrantRoleRequest) (*pb.AuthUserGrantRoleResponse, error) {
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(r.User)
+	user := getUser(as.lg, tx, r.User)
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
 
 	if r.Role != rootRole {
-		role := tx.UnsafeGetRole(r.Role)
+		role := getRole(as.lg, tx, r.Role)
 		if role == nil {
 			return nil, ErrRoleNotFound
 		}
@@ -542,11 +539,10 @@ func (as *authStore) UserGrantRole(r *pb.AuthUserGrantRoleRequest) (*pb.AuthUser
 	user.Roles = append(user.Roles, r.Role)
 	sort.Strings(user.Roles)
 
-	tx.UnsafePutUser(user)
-
-	as.invalidateCachedPerm(r.User)
+	putUser(as.lg, tx, user)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info(
 		"granted a role to a user",
@@ -558,7 +554,10 @@ func (as *authStore) UserGrantRole(r *pb.AuthUserGrantRoleRequest) (*pb.AuthUser
 }
 
 func (as *authStore) UserGet(r *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse, error) {
-	user := as.be.GetUser(r.Name)
+	tx := as.be.BatchTx()
+	tx.LockInsideApply()
+	user := getUser(as.lg, tx, r.Name)
+	tx.Unlock()
 
 	if user == nil {
 		return nil, ErrUserNotFound
@@ -570,7 +569,10 @@ func (as *authStore) UserGet(r *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse,
 }
 
 func (as *authStore) UserList(r *pb.AuthUserListRequest) (*pb.AuthUserListResponse, error) {
-	users := as.be.GetAllUsers()
+	tx := as.be.BatchTx()
+	tx.LockInsideApply()
+	users := getAllUsers(as.lg, tx)
+	tx.Unlock()
 
 	resp := &pb.AuthUserListResponse{Users: make([]string, len(users))}
 	for i := range users {
@@ -590,10 +592,10 @@ func (as *authStore) UserRevokeRole(r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUs
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(r.Name)
+	user := getUser(as.lg, tx, r.Name)
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
@@ -614,11 +616,10 @@ func (as *authStore) UserRevokeRole(r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUs
 		return nil, ErrRoleNotGranted
 	}
 
-	tx.UnsafePutUser(updatedUser)
-
-	as.invalidateCachedPerm(r.Name)
+	putUser(as.lg, tx, updatedUser)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info(
 		"revoked a role from a user",
@@ -631,22 +632,25 @@ func (as *authStore) UserRevokeRole(r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUs
 }
 
 func (as *authStore) RoleGet(r *pb.AuthRoleGetRequest) (*pb.AuthRoleGetResponse, error) {
+	tx := as.be.BatchTx()
+	tx.LockInsideApply()
+	defer tx.Unlock()
+
 	var resp pb.AuthRoleGetResponse
 
-	role := as.be.GetRole(r.Role)
+	role := getRole(as.lg, tx, r.Role)
 	if role == nil {
 		return nil, ErrRoleNotFound
 	}
-	if rootRole == string(role.Name) {
-		resp.Perm = append(resp.Perm, &rootPerm)
-	} else {
-		resp.Perm = append(resp.Perm, role.KeyPermission...)
-	}
+	resp.Perm = append(resp.Perm, role.KeyPermission...)
 	return &resp, nil
 }
 
 func (as *authStore) RoleList(r *pb.AuthRoleListRequest) (*pb.AuthRoleListResponse, error) {
-	roles := as.be.GetAllRoles()
+	tx := as.be.BatchTx()
+	tx.LockInsideApply()
+	roles := getAllRoles(as.lg, tx)
+	tx.Unlock()
 
 	resp := &pb.AuthRoleListResponse{Roles: make([]string, len(roles))}
 	for i := range roles {
@@ -657,10 +661,10 @@ func (as *authStore) RoleList(r *pb.AuthRoleListRequest) (*pb.AuthRoleListRespon
 
 func (as *authStore) RoleRevokePermission(r *pb.AuthRoleRevokePermissionRequest) (*pb.AuthRoleRevokePermissionResponse, error) {
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	role := tx.UnsafeGetRole(r.Role)
+	role := getRole(as.lg, tx, r.Role)
 	if role == nil {
 		return nil, ErrRoleNotFound
 	}
@@ -679,13 +683,10 @@ func (as *authStore) RoleRevokePermission(r *pb.AuthRoleRevokePermissionRequest)
 		return nil, ErrPermissionNotGranted
 	}
 
-	tx.UnsafePutRole(updatedRole)
-
-	// TODO(mitake): currently single role update invalidates every cache
-	// It should be optimized.
-	as.clearCachedPerm()
+	putRole(as.lg, tx, updatedRole)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info(
 		"revoked a permission on range",
@@ -703,17 +704,17 @@ func (as *authStore) RoleDelete(r *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDelete
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	role := tx.UnsafeGetRole(r.Role)
+	role := getRole(as.lg, tx, r.Role)
 	if role == nil {
 		return nil, ErrRoleNotFound
 	}
 
-	tx.UnsafeDeleteRole(r.Role)
+	delRole(tx, r.Role)
 
-	users := tx.UnsafeGetAllUsers()
+	users := getAllUsers(as.lg, tx)
 	for _, user := range users {
 		updatedUser := &authpb.User{
 			Name:     user.Name,
@@ -731,12 +732,12 @@ func (as *authStore) RoleDelete(r *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDelete
 			continue
 		}
 
-		tx.UnsafePutUser(updatedUser)
+		putUser(as.lg, tx, updatedUser)
 
-		as.invalidateCachedPerm(string(user.Name))
 	}
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info("deleted a role", zap.String("role-name", r.Role))
 	return &pb.AuthRoleDeleteResponse{}, nil
@@ -748,10 +749,10 @@ func (as *authStore) RoleAdd(r *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse,
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	role := tx.UnsafeGetRole(r.Name)
+	role := getRole(as.lg, tx, r.Name)
 	if role != nil {
 		return nil, ErrRoleAlreadyExist
 	}
@@ -760,7 +761,7 @@ func (as *authStore) RoleAdd(r *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse,
 		Name: []byte(r.Name),
 	}
 
-	tx.UnsafePutRole(newRole)
+	putRole(as.lg, tx, newRole)
 
 	as.commitRevision(tx)
 
@@ -792,10 +793,10 @@ func (as *authStore) RoleGrantPermission(r *pb.AuthRoleGrantPermissionRequest) (
 	}
 
 	tx := as.be.BatchTx()
-	tx.Lock()
+	tx.LockInsideApply()
 	defer tx.Unlock()
 
-	role := tx.UnsafeGetRole(r.Name)
+	role := getRole(as.lg, tx, r.Name)
 	if role == nil {
 		return nil, ErrRoleNotFound
 	}
@@ -819,13 +820,10 @@ func (as *authStore) RoleGrantPermission(r *pb.AuthRoleGrantPermissionRequest) (
 		sort.Sort(permSlice(role.KeyPermission))
 	}
 
-	tx.UnsafePutRole(role)
-
-	// TODO(mitake): currently single role update invalidates every cache
-	// It should be optimized.
-	as.clearCachedPerm()
+	putRole(as.lg, tx, role)
 
 	as.commitRevision(tx)
+	as.refreshRangePermCache(tx)
 
 	as.lg.Info(
 		"granted/updated a permission to a user",
@@ -855,11 +853,11 @@ func (as *authStore) isOpPermitted(userName string, revision uint64, key, rangeE
 		return ErrAuthOldRevision
 	}
 
-	tx := as.be.BatchTx()
+	tx := as.be.ReadTx()
 	tx.Lock()
 	defer tx.Unlock()
 
-	user := tx.UnsafeGetUser(userName)
+	user := getUser(as.lg, tx, userName)
 	if user == nil {
 		as.lg.Error("cannot find a user for permission check", zap.String("user-name", userName))
 		return ErrPermissionDenied
@@ -870,7 +868,7 @@ func (as *authStore) isOpPermitted(userName string, revision uint64, key, rangeE
 		return nil
 	}
 
-	if as.isRangeOpPermitted(tx, userName, key, rangeEnd, permTyp) {
+	if as.isRangeOpPermitted(userName, key, rangeEnd, permTyp) {
 		return nil
 	}
 
@@ -897,7 +895,10 @@ func (as *authStore) IsAdminPermitted(authInfo *AuthInfo) error {
 		return ErrUserEmpty
 	}
 
-	u := as.be.GetUser(authInfo.Username)
+	tx := as.be.ReadTx()
+	tx.Lock()
+	u := getUser(as.lg, tx, authInfo.Username)
+	tx.Unlock()
 
 	if u == nil {
 		return ErrUserNotFound
@@ -910,6 +911,111 @@ func (as *authStore) IsAdminPermitted(authInfo *AuthInfo) error {
 	return nil
 }
 
+func getUser(lg *zap.Logger, tx backend.ReadTx, username string) *authpb.User {
+	_, vs := tx.UnsafeRange(buckets.AuthUsers, []byte(username), nil, 0)
+	if len(vs) == 0 {
+		return nil
+	}
+
+	user := &authpb.User{}
+	err := user.Unmarshal(vs[0])
+	if err != nil {
+		lg.Panic(
+			"failed to unmarshal 'authpb.User'",
+			zap.String("user-name", username),
+			zap.Error(err),
+		)
+	}
+	return user
+}
+
+func getAllUsers(lg *zap.Logger, tx backend.ReadTx) []*authpb.User {
+	var vs [][]byte
+	err := tx.UnsafeForEach(buckets.AuthUsers, func(k []byte, v []byte) error {
+		vs = append(vs, v)
+		return nil
+	})
+	if err != nil {
+		lg.Panic("failed to get users",
+			zap.Error(err))
+	}
+	if len(vs) == 0 {
+		return nil
+	}
+
+	users := make([]*authpb.User, len(vs))
+	for i := range vs {
+		user := &authpb.User{}
+		err := user.Unmarshal(vs[i])
+		if err != nil {
+			lg.Panic("failed to unmarshal 'authpb.User'", zap.Error(err))
+		}
+		users[i] = user
+	}
+	return users
+}
+
+func putUser(lg *zap.Logger, tx backend.BatchTx, user *authpb.User) {
+	b, err := user.Marshal()
+	if err != nil {
+		lg.Panic("failed to unmarshal 'authpb.User'", zap.Error(err))
+	}
+	tx.UnsafePut(buckets.AuthUsers, user.Name, b)
+}
+
+func delUser(tx backend.BatchTx, username string) {
+	tx.UnsafeDelete(buckets.AuthUsers, []byte(username))
+}
+
+func getRole(lg *zap.Logger, tx backend.ReadTx, rolename string) *authpb.Role {
+	_, vs := tx.UnsafeRange(buckets.AuthRoles, []byte(rolename), nil, 0)
+	if len(vs) == 0 {
+		return nil
+	}
+
+	role := &authpb.Role{}
+	err := role.Unmarshal(vs[0])
+	if err != nil {
+		lg.Panic("failed to unmarshal 'authpb.Role'", zap.Error(err))
+	}
+	return role
+}
+
+func getAllRoles(lg *zap.Logger, tx backend.ReadTx) []*authpb.Role {
+	_, vs := tx.UnsafeRange(buckets.AuthRoles, []byte{0}, []byte{0xff}, -1)
+	if len(vs) == 0 {
+		return nil
+	}
+
+	roles := make([]*authpb.Role, len(vs))
+	for i := range vs {
+		role := &authpb.Role{}
+		err := role.Unmarshal(vs[i])
+		if err != nil {
+			lg.Panic("failed to unmarshal 'authpb.Role'", zap.Error(err))
+		}
+		roles[i] = role
+	}
+	return roles
+}
+
+func putRole(lg *zap.Logger, tx backend.BatchTx, role *authpb.Role) {
+	b, err := role.Marshal()
+	if err != nil {
+		lg.Panic(
+			"failed to marshal 'authpb.Role'",
+			zap.String("role-name", string(role.Name)),
+			zap.Error(err),
+		)
+	}
+
+	tx.UnsafePut(buckets.AuthRoles, role.Name, b)
+}
+
+func delRole(tx backend.BatchTx, rolename string) {
+	tx.UnsafeDelete(buckets.AuthRoles, []byte(rolename))
+}
+
 func (as *authStore) IsAuthEnabled() bool {
 	as.enabledMu.RLock()
 	defer as.enabledMu.RUnlock()
@@ -917,7 +1023,7 @@ func (as *authStore) IsAuthEnabled() bool {
 }
 
 // NewAuthStore creates a new AuthStore.
-func NewAuthStore(lg *zap.Logger, be AuthBackend, tp TokenProvider, bcryptCost int) *authStore {
+func NewAuthStore(lg *zap.Logger, be backend.Backend, tp TokenProvider, bcryptCost int) *authStore {
 	if lg == nil {
 		lg = zap.NewNop()
 	}
@@ -933,12 +1039,23 @@ func NewAuthStore(lg *zap.Logger, be AuthBackend, tp TokenProvider, bcryptCost i
 		bcryptCost = bcrypt.DefaultCost
 	}
 
-	be.CreateAuthBuckets()
 	tx := be.BatchTx()
-	tx.Lock()
-	enabled := tx.UnsafeReadAuthEnabled()
+	tx.LockOutsideApply()
+
+	tx.UnsafeCreateBucket(buckets.Auth)
+	tx.UnsafeCreateBucket(buckets.AuthUsers)
+	tx.UnsafeCreateBucket(buckets.AuthRoles)
+
+	enabled := false
+	_, vs := tx.UnsafeRange(buckets.Auth, enableFlagKey, nil, 0)
+	if len(vs) == 1 {
+		if bytes.Equal(vs[0], authEnabled) {
+			enabled = true
+		}
+	}
+
 	as := &authStore{
-		revision:       tx.UnsafeReadAuthRevision(),
+		revision:       getRevision(tx),
 		lg:             lg,
 		be:             be,
 		enabled:        enabled,
@@ -957,6 +1074,8 @@ func NewAuthStore(lg *zap.Logger, be AuthBackend, tp TokenProvider, bcryptCost i
 
 	as.setupMetricsReporter()
 
+	as.refreshRangePermCache(tx)
+
 	tx.Unlock()
 	be.ForceCommit()
 
@@ -969,9 +1088,20 @@ func hasRootRole(u *authpb.User) bool {
 	return idx != len(u.Roles) && u.Roles[idx] == rootRole
 }
 
-func (as *authStore) commitRevision(tx AuthBatchTx) {
+func (as *authStore) commitRevision(tx backend.BatchTx) {
 	atomic.AddUint64(&as.revision, 1)
-	tx.UnsafeSaveAuthRevision(as.Revision())
+	revBytes := make([]byte, revBytesLen)
+	binary.BigEndian.PutUint64(revBytes, as.Revision())
+	tx.UnsafePut(buckets.Auth, revisionKey, revBytes)
+}
+
+func getRevision(tx backend.ReadTx) uint64 {
+	_, vs := tx.UnsafeRange(buckets.Auth, revisionKey, nil, 0)
+	if len(vs) != 1 {
+		// this can happen in the initialization phase
+		return 0
+	}
+	return binary.BigEndian.Uint64(vs[0])
 }
 
 func (as *authStore) setRevision(rev uint64) {
@@ -1026,10 +1156,6 @@ func (as *authStore) AuthInfoFromTLS(ctx context.Context) (ai *AuthInfo) {
 }
 
 func (as *authStore) AuthInfoFromCtx(ctx context.Context) (*AuthInfo, error) {
-	if !as.IsAuthEnabled() {
-		return nil, nil
-	}
-
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, nil
@@ -1169,8 +1295,8 @@ func (as *authStore) WithRoot(ctx context.Context) context.Context {
 
 func (as *authStore) HasRole(user, role string) bool {
 	tx := as.be.BatchTx()
-	tx.Lock()
-	u := tx.UnsafeGetUser(user)
+	tx.LockInsideApply()
+	u := getUser(as.lg, tx, user)
 	tx.Unlock()
 
 	if u == nil {
