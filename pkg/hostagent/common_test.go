@@ -196,7 +196,7 @@ func (agent *testHostAgent) stop() {
 	close(agent.stopCh)
 }
 
-func mkNamespace(name string, egAnnot string, sgAnnot string, qpAnnot string) *v1.Namespace {
+func mkNamespace(name, egAnnot, sgAnnot, qpAnnot string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -209,7 +209,7 @@ func mkNamespace(name string, egAnnot string, sgAnnot string, qpAnnot string) *v
 	}
 }
 
-func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot string) *appsv1.Deployment {
+func mkDeployment(namespace, name, egAnnot, sgAnnot, qpAnnot string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -231,7 +231,7 @@ func mkDeployment(namespace string, name string, egAnnot string, sgAnnot string,
 	}
 }
 
-func mkRC(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot string) *v1.ReplicationController {
+func mkRC(namespace, name, egAnnot, sgAnnot, qpAnnot string) *v1.ReplicationController {
 	return &v1.ReplicationController{
 		Spec: v1.ReplicationControllerSpec{
 			Template: &v1.PodTemplateSpec{},
@@ -248,7 +248,7 @@ func mkRC(namespace string, name string, egAnnot string, sgAnnot string, qpAnnot
 	}
 }
 
-func mkNetPol(namespace string, name string, podSelector *metav1.LabelSelector,
+func mkNetPol(namespace, name string, podSelector *metav1.LabelSelector,
 	irules []v1net.NetworkPolicyIngressRule,
 	erules []v1net.NetworkPolicyEgressRule,
 	ptypes []v1net.PolicyType) *v1net.NetworkPolicy {

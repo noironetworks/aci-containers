@@ -19,10 +19,11 @@ import (
 	"bytes"
 	kubecontext "context"
 	"fmt"
-	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func getVersion(cmd *cobra.Command, args []string) {

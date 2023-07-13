@@ -205,7 +205,7 @@ func TestBasic(t *testing.T) {
 
 	for _, u := range urlList {
 		log.Infof("Verify gets")
-		req, err := http.NewRequest("GET", u, nil)
+		req, err := http.NewRequest("GET", u, http.NoBody)
 		if err != nil {
 			log.Info(err)
 			t.Fail()
@@ -240,7 +240,7 @@ func getClient(cert []byte) (*http.Client, error) {
 	var tlsCfg tls.Config
 
 	if cert == nil {
-		tlsCfg.InsecureSkipVerify = true
+		tlsCfg.InsecureSkipVerify = true //nolint:gosec
 	} else {
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(cert) {
@@ -258,7 +258,6 @@ func getClient(cert []byte) (*http.Client, error) {
 }
 
 func addContract(t *testing.T, srv *Server) {
-
 	rule := v1.WLRule{
 		Protocol: "tcp",
 		Ports: v1.IntRange{
@@ -381,7 +380,6 @@ func addEPs(t *testing.T, srv *Server) {
 				t.FailNow()
 			}
 		}
-
 	}
 
 	extEPList := []Endpoint{
@@ -529,8 +527,9 @@ func verifyRest(t *testing.T, c *http.Client) {
 	}
 
 	for _, reqUri := range getList.URIs {
-		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri), nil)
-		_, err = c.Do(req)
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri), http.NoBody)
+		resp, err := c.Do(req)
+		resp.Body.Close()
 		if err != nil {
 			log.Errorf("Delete %s :%v", reqUri, err)
 			t.FailNow()
@@ -549,8 +548,9 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Errorf("EPs present: %q", getList.URIs)
 		t.FailNow()
 	}
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), nil)
-	_, err = c.Do(req)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), http.NoBody)
+	resp, err := c.Do(req)
+	resp.Body.Close()
 	if err != nil {
 		log.Errorf("Delete :%v", err)
 		t.FailNow()
@@ -586,14 +586,9 @@ func TestAPIC(t *testing.T) {
 		cCtxMoBody.Children = append(cCtxMoBody.Children, child)
 	}
 
-	//	epgASel := apicapi.EmptyApicObject("cloudEPSelector", "")
-	//	epgASel["cloudEPSelector"].Attributes["name"] = "selSubnet102.176.1.0"
-	//	epgASel["cloudEPSelector"].Attributes["matchExpression"] = "IP=='102.176.1.0/24'"
-
 	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
 	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = testVrf
 	cepgA := apicapi.NewCloudEpg(testTenant, "gbpApp1", "cEPG-A")
-	//	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgASel)
 	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
 	var cfgMos = []apicapi.ApicObject{
 		apicapi.NewFvTenant(testTenant),

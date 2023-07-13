@@ -22,8 +22,9 @@ import (
 	"strconv"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
-	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/sirupsen/logrus"
+
+	md "github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 type EpRPC struct {

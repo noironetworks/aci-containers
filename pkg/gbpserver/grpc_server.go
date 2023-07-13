@@ -16,8 +16,8 @@ limitations under the License.
 package gbpserver
 
 import (
+	"context"
 	"fmt"
-	"golang.org/x/net/context"
 	"net"
 	"strings"
 
@@ -80,7 +80,6 @@ func (gw *gbpWatch) Stop() {
 // ListObjects is the list-watch streaming method invoked by the client.
 // It blocks after each send, until a new operation is avaialable to send
 func (gw *gbpWatch) ListObjects(v *Version, ss GBP_ListObjectsServer) error {
-
 	// extract peer ip from context
 	peer, ok := peer.FromContext(ss.Context())
 	if !ok {

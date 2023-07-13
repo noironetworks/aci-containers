@@ -30,7 +30,7 @@ type signer struct {
 	key interface{}
 }
 
-func hash(method string, url string, body []byte) []byte {
+func hash(method, url string, body []byte) []byte {
 	h := sha256.New()
 	h.Write([]byte(method))
 	h.Write([]byte(url))
@@ -40,7 +40,7 @@ func hash(method string, url string, body []byte) []byte {
 	return h.Sum(nil)
 }
 
-func (s *signer) sign(method string, url string,
+func (s *signer) sign(method, url string,
 	body []byte) (sig string, err error) {
 	h := hash(method, url, body)
 
@@ -55,9 +55,6 @@ func (s *signer) sign(method string, url string,
 		err = errors.New("Unsupported key type")
 		return
 	}
-
-	//fmt.Println("s ", method, " ", url, " ",
-	//	base64.StdEncoding.EncodeToString(h))
 
 	sig = base64.StdEncoding.EncodeToString(raw)
 	return

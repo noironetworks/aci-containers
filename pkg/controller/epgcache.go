@@ -49,7 +49,6 @@ func (cont *AciController) clearFaultInstances() {
 			}
 		}
 	}
-	return
 }
 
 func (cont *AciController) getEpgFromEppd(dn string) string {
@@ -84,10 +83,9 @@ func (cont *AciController) removeSlice(s []string, searchterm string) {
 	if i < len(s) && s[i] == searchterm {
 		s = append(s[:i], s[i+1:]...)
 	}
-	return
 }
 
-func (cont *AciController) checkEpgCache(epGroup string, comment string) (bool, metadata.OpflexGroup, bool) {
+func (cont *AciController) checkEpgCache(epGroup, comment string) (bool, metadata.OpflexGroup, bool) {
 	var egval metadata.OpflexGroup
 	var setFaultInst bool
 

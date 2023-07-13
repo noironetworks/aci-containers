@@ -122,7 +122,7 @@ func (agent *HostAgent) getIPMetadata(ip net.IP) (net.IP, net.IPMask) {
 	return nil, nil
 }
 
-func makeIFaceIp(ip net.IP, gw net.IP, mask net.IPMask) metadata.ContainerIfaceIP {
+func makeIFaceIp(ip, gw net.IP, mask net.IPMask) metadata.ContainerIfaceIP {
 	return metadata.ContainerIfaceIP{
 		Address: net.IPNet{
 			IP:   ip,
@@ -145,13 +145,13 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 		ip, err = agent.podIps.AllocateIp(isv4)
 		if err != nil {
 			result =
-				fmt.Errorf("Could not allocate IPv4 address: %v", err)
+				fmt.Errorf("Could not allocate IPv4 address: %w", err)
 			return false
 		} else {
 			gateway, mask := agent.getIPMetadata(ip)
 			if mask == nil {
 				err := errors.New("Unable to find Mask")
-				fmt.Errorf("Could not allocate address: %v", err)
+				fmt.Errorf("Could not allocate address: %w", err)
 				return false
 			}
 			oldKey, found := agent.usedIPs[ip.String()]

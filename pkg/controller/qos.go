@@ -80,7 +80,6 @@ func (cont *AciController) initQosInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing Qos Policy Informers")
-
 }
 
 func (cont *AciController) qosPolicyUpdated(obj interface{}) {
@@ -97,7 +96,6 @@ func (cont *AciController) qosPolicyUpdated(obj interface{}) {
 	}
 	cont.queueQosUpdateByKey(key)
 	cont.log.Infof("qos policy updated: %s", qosPolicy.ObjectMeta.Name)
-
 }
 
 func (cont *AciController) queueQosUpdateByKey(key string) {
@@ -128,11 +126,9 @@ func (cont *AciController) qosPolicyDeleted(qosobj interface{}) {
 	}
 
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("qp", qrkey))
-
 }
 
 func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
-
 	// Ability to configure Qos Policy is available only in APIC versions >= 5.1(x).
 	if apicapi.ApicVersion < "5.1" {
 		cont.log.Error("Cannot create Qos Policy in APIC versions < 5.1(x). Actual APIC version: ",
@@ -163,7 +159,6 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
-
 		DppPolIngressName := labelKey + "_ingress"
 		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolIngressName)
 		DppPolIngress.SetAttr("rate", strconv.Itoa(qp.Spec.Ingress.PolicingRate))
@@ -178,7 +173,6 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 
 	// Generate egress policies
 	if qp.Spec.Egress.PolicingRate != 0 && qp.Spec.Egress.PolicingBurst != 0 {
-
 		DppPolEgressName := labelKey + "_egress"
 		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolEgressName)
 		DppPolEgress.SetAttr("rate", strconv.Itoa(qp.Spec.Egress.PolicingRate))
@@ -194,5 +188,4 @@ func (cont *AciController) handleQosPolUpdate(obj interface{}) bool {
 	cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 
 	return false
-
 }

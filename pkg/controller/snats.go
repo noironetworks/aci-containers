@@ -88,7 +88,6 @@ func (cont *AciController) initSnatInformerBase(listWatch *cache.ListWatch) {
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 	cont.log.Debug("Initializing Snat Policy Informers")
-
 }
 
 func (cont *AciController) snatPolicyUpdated(obj interface{}) {
@@ -100,7 +99,6 @@ func (cont *AciController) snatPolicyUpdated(obj interface{}) {
 		return
 	}
 	cont.queueSnatUpdateByKey(key)
-
 }
 
 func (cont *AciController) queueSnatUpdateByKey(key string) {
@@ -252,7 +250,7 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 
 	if len(snatpolicy.Spec.SnatIp) == 0 {
 		ServiceList := cont.getServicesBySelector(labels.SelectorFromSet(
-			labels.Set(snatpolicy.Spec.Selector.Labels)),
+			snatpolicy.Spec.Selector.Labels),
 			snatpolicy.Spec.Selector.Namespace)
 		if len(ServiceList) > 0 {
 			for _, service := range ServiceList {
@@ -391,11 +389,11 @@ func parseIP(cidr string) (net.IP, *net.IPNet, error) {
 	if err != nil {
 		ip_temp := net.ParseIP(cidr)
 		if ip_temp != nil && ip_temp.To4() != nil {
-			cidr = cidr + "/32"
+			cidr += "/32"
 			ip, ipnet, _ = net.ParseCIDR(cidr)
 			return ip, ipnet, nil
 		} else if ip_temp != nil && ip_temp.To16() != nil {
-			cidr = cidr + "/128"
+			cidr += "/128"
 			ip, ipnet, _ = net.ParseCIDR(cidr)
 			return ip, ipnet, nil
 		} else {

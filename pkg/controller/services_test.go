@@ -32,7 +32,6 @@ import (
 
 func waitForSStatus(t *testing.T, cont *testAciController,
 	ips []string, desc string) {
-
 	tu.WaitFor(t, desc, 500*time.Millisecond,
 		func(last bool) (bool, error) {
 			if !tu.WaitCondition(t, last, func() bool {
@@ -381,7 +380,6 @@ func TestServiceAnnotation(t *testing.T) {
 	//Function to check if an object is present in the apic connection at a specific key
 	sgPresentObject := func(t *testing.T, desc string, cont *testAciController,
 		key string, expected string, present bool) {
-
 		tu.WaitFor(t, desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				cont.indexMutex.Lock()
@@ -399,7 +397,6 @@ func TestServiceAnnotation(t *testing.T) {
 				return false, nil
 			})
 		cont.log.Info("Finished waiting for ", desc)
-
 	}
 
 	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "tenn"
@@ -666,7 +663,6 @@ func TestServiceGraph(t *testing.T) {
 		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.stop()
-
 }
 
 func TestEndpointsIpIndex(t *testing.T) {
@@ -725,8 +721,8 @@ func TestEndpointsIpIndex(t *testing.T) {
 			c3, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
 			return (!c1 && !c2 && !c3)
 		})
-
 }
+
 func TestEndpointsliceIpIndex(t *testing.T) {
 	ready := true
 	service1 := service("ns1", "service1", "")
@@ -841,7 +837,6 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("2001::1"))
 			return c1
 		})
-
 }
 
 // Service annotation test with EndPointSlice
@@ -1000,7 +995,6 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 	//Function to check if an object is present in the apic connection at a specific key
 	sgPresentObject := func(t *testing.T, desc string, cont *testAciController,
 		key string, expected string, present bool) {
-
 		tu.WaitFor(t, desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				cont.indexMutex.Lock()
@@ -1018,7 +1012,6 @@ func TestServiceAnnotationWithEps(t *testing.T) {
 				return false, nil
 			})
 		cont.log.Info("Finished waiting for ", desc)
-
 	}
 
 	service1.ObjectMeta.Annotations[metadata.ServiceContractScopeAnnotation] = "tenn"
@@ -1325,5 +1318,4 @@ func TestServiceGraphiWithEps(t *testing.T) {
 		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.stop()
-
 }

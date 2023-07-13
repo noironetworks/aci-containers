@@ -66,7 +66,7 @@ func CreateHashFromNetPol(np *v1net.NetworkPolicy) (string, error) {
 		}
 	}
 
-	key = key + pt
+	key += pt
 
 	return Hash(key), nil
 }

@@ -33,6 +33,7 @@ import (
 	discovery "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -46,7 +47,6 @@ import (
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
-	"k8s.io/client-go/kubernetes"
 )
 
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
@@ -467,7 +467,6 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				queue.Forget(key)
 			}
 			queue.Done(key)
-
 		}
 	}, time.Second, stopCh)
 	<-stopCh
@@ -478,7 +477,7 @@ func (cont *AciController) globalStaticObjs() apicapi.ApicSlice {
 	return apicapi.ApicSlice{}
 }
 
-func (cont *AciController) aciNameForKey(ktype string, key string) string {
+func (cont *AciController) aciNameForKey(ktype, key string) string {
 	return util.AciNameForKey(cont.config.AciPrefix, ktype, key)
 }
 
@@ -628,7 +627,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		if version >= "5.2" {
 			cont.vmmClusterFaultSupported = true
 		}
-
 	} else { // For unit-tests
 		cont.apicConn.SnatPbrFltrChain = true
 	}
@@ -663,7 +661,6 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			func(dn string) {
 				cont.vmmEpPDDeleted(dn)
 			})
-
 	}
 
 	cont.initStaticObjs()
@@ -866,20 +863,17 @@ func (cont *AciController) snatGlobalInfoSync(stopCh <-chan struct{}, seconds in
 				}
 				cont.log.Info("Queuing nodeinfokey for globalinfo sync: ", nodeinfokey)
 				cont.queueNodeInfoUpdateByKey(nodeinfokey)
-			} else {
-				if iteration%5 == 0 {
-					cont.log.Info("Nodeinfo and globalinfo in sync for node: ", nodeName)
-				}
+			} else if iteration%5 == 0 {
+				cont.log.Info("Nodeinfo and globalinfo in sync for node: ", nodeName)
 			}
 		}
 		time.Sleep(time.Duration(seconds) * time.Second)
-		iteration = iteration + 1
+		iteration++
 	}
 }
 
 func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
-
 	go wait.Until(func() {
 		for {
 			syncType, quit := queue.Get()
@@ -887,9 +881,8 @@ func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterfac
 				break
 			}
 			var requeue bool
-			switch syncType := syncType.(type) {
-			case string:
-				if f, ok := cont.syncProcessors[syncType]; ok {
+			if sType, ok := syncType.(string); ok {
+				if f, ok := cont.syncProcessors[sType]; ok {
 					requeue = f()
 				}
 			}
@@ -899,7 +892,6 @@ func (cont *AciController) processSyncQueue(queue workqueue.RateLimitingInterfac
 				queue.Forget(syncType)
 			}
 			queue.Done(syncType)
-
 		}
 	}, time.Second, queueStop)
 	<-queueStop

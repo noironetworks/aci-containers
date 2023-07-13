@@ -132,7 +132,7 @@ func checkOverlap(first, second *ipam.IpRange, verbose bool) error {
 		logrus.Infof("checkOverlap: %s vs %s", string(raw1), string(raw2))
 	}
 
-	if bytes.Compare(first.Start, second.Start) == 0 {
+	if net.IP.Equal(first.Start, second.Start) {
 		return fmt.Errorf("Duplicate found %+v, %+v", first, second)
 	}
 

@@ -26,10 +26,6 @@ import (
 	"sync"
 	"time"
 
-	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
-	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
-	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
-	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routesv1 "github.com/openshift/api/route/v1"
@@ -51,6 +47,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	accprovisioninput "github.com/noironetworks/aci-containers/pkg/accprovisioninput/apis/aci.ctrl/v1alpha1"
+	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
+	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
+	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 )
 
 // AciResources is a struct for handeling the resources of aci fabric
@@ -133,7 +134,6 @@ func NewAciContainersOperator(
 	acicnioperatorclient operatorclientset.Interface,
 	accprovisioninputclient accprovisioninputclientset.Interface,
 	k8sclient kubernetes.Interface) *Controller {
-
 	log.Info("Setting up the Queue")
 	operator_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	deployment_queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
@@ -244,7 +244,6 @@ func NewAciContainersOperator(
 				)
 			}
 		}
-
 	}
 
 	controller := &Controller{
@@ -378,7 +377,6 @@ func NewAciContainersOperator(
 					config_map_queue.Add(key)
 				}
 			}
-
 		},
 		UpdateFunc: func(prevObj, currentObj interface{}) {
 			current_Obj := currentObj.(*corev1.ConfigMap)
@@ -422,7 +420,7 @@ func NewAciContainersOperator(
 	return controller
 }
 
-func (c *Controller) handledeploymentUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+func (c *Controller) handledeploymentUpdate(oldobj, newobj interface{}, queue workqueue.RateLimitingInterface) {
 	old_dep := oldobj.(*appsv1.Deployment)
 	new_dep := newobj.(*appsv1.Deployment)
 
@@ -436,7 +434,7 @@ func (c *Controller) handledeploymentUpdate(oldobj interface{}, newobj interface
 	}
 }
 
-func (c *Controller) handledaemonsetUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+func (c *Controller) handledaemonsetUpdate(oldobj, newobj interface{}, queue workqueue.RateLimitingInterface) {
 	old_ds := oldobj.(*appsv1.DaemonSet)
 	new_ds := newobj.(*appsv1.DaemonSet)
 
@@ -502,7 +500,7 @@ func (c *Controller) handleConfigMapCreate(newobj interface{}) bool {
 	return false
 }
 
-func (c *Controller) handleConfigMapUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+func (c *Controller) handleConfigMapUpdate(oldobj, newobj interface{}, queue workqueue.RateLimitingInterface) {
 	old_cm := oldobj.(*corev1.ConfigMap)
 	new_cm := newobj.(*corev1.ConfigMap)
 	log.Info("In ConfigMap update handler: ", new_cm.Name)
@@ -623,7 +621,6 @@ func (c *Controller) CreateAccProvisionInputObj() *accprovisioninput.AccProvisio
 }
 
 func (c *Controller) CreateAccProvisionInputCR() error {
-
 	obj := c.CreateAccProvisionInputObj()
 	log.Info("Reading the acc-provision-operator-config ConfigMap providing CR")
 	rawACCSpec, errACC := c.ReadConfigMap(Acc_provision_config_path)
@@ -698,7 +695,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			}
 		}
 	}
-	if acicnioperatorsuccess == true {
+	if acicnioperatorsuccess {
 		log.Info("Checking if accprovisioninput CR already present")
 		accprovisioninput, err := c.GetAccProvisionInputCR()
 		if err != nil {
@@ -817,7 +814,6 @@ func (c *Controller) processQueue(queue workqueue.RateLimitingInterface,
 					log.Info("Controller.processNextItem: object deleted detected:", key)
 					deletehandler(key)
 				}
-
 			}
 			if requeue {
 				log.Info("Adding the key back to the queue ", key)
@@ -901,7 +897,6 @@ func (c *Controller) UpdateHostDaemonsetOwnerReference(acicontainersoperator *op
 	}
 
 	return true
-
 }
 
 func (c *Controller) UpdateOvsDaemonsetOwnerReference(acicontainersoperator *operators.AciContainersOperator) bool {
@@ -935,7 +930,6 @@ func (c *Controller) UpdateOvsDaemonsetOwnerReference(acicontainersoperator *ope
 }
 
 func (c *Controller) handleOperatorCreate(obj interface{}) bool {
-
 	log.Info("OperatorHandler.ObjectCreated")
 
 	acicontainersoperator := obj.(*operators.AciContainersOperator)
@@ -988,7 +982,6 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 	log.Info("Platform flavor is ", acicontainersoperator.Spec.Flavor)
 
 	if Version[acicontainersoperator.Spec.Flavor] {
-
 		clusterConfig := &configv1.Network{
 			TypeMeta:   metav1.TypeMeta{APIVersion: configv1.GroupVersion.String(), Kind: "Network"},
 			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
@@ -1024,7 +1017,6 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 		if !reflect.DeepEqual(clusterConfig.Status.ClusterNetwork, clusterConfig.Spec.ClusterNetwork) ||
 			!reflect.DeepEqual(clusterConfig.Status.NetworkType, clusterConfig.Spec.NetworkType) ||
 			!reflect.DeepEqual(clusterConfig.Status.NetworkType, clusterConfig.Spec.NetworkType) {
-
 			log.Info("Updating status field of openshift resource of type network  ....")
 
 			clusterConfig.Status.ClusterNetwork = clusterConfig.Spec.ClusterNetwork
@@ -1040,7 +1032,6 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 				return true
 			}
 		}
-
 	}
 
 	log.Info("Applying Aci Deployment")
@@ -1439,7 +1430,7 @@ func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
 		var options metav1.ListOptions
 		for {
 			Pods, err := c.K8s_Clientset.CoreV1().Pods("openshift-apiserver").List(context.TODO(), options)
-			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.ContainerStatuses[0].Ready == true) {
+			if err == nil && (len(Pods.Items) > 0 && Pods.Items[0].Status.ContainerStatuses[0].Ready) {
 				log.Info("Openshift-apiserver Pod found start router informer")
 				err = c.updatednsOperator()
 				if err != nil {
@@ -1461,7 +1452,7 @@ func (c *Controller) enableRouteInformer(stopCh <-chan struct{}) {
 		}
 	}()
 }
-func (c *Controller) handleNodeUpdate(oldobj interface{}, newobj interface{}, queue workqueue.RateLimitingInterface) {
+func (c *Controller) handleNodeUpdate(oldobj, newobj interface{}, queue workqueue.RateLimitingInterface) {
 	old_node := oldobj.(*v1.Node)
 	new_node := newobj.(*v1.Node)
 	if !reflect.DeepEqual(old_node.Status.Addresses, new_node.Status.Addresses) {

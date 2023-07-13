@@ -106,5 +106,4 @@ func (s *Server) processDelGBPCustomMoLocked(crd GBPCustomMo) {
 	if mo != nil {
 		mo.delRecursive()
 	}
-
 }

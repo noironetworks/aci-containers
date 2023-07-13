@@ -75,7 +75,6 @@ func (agent *HostAgent) getPodIFName(ns, podName string) string {
 }
 
 func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
-
 	if agent.crdClient == nil {
 		ep.registered = true
 		return false // crd not used
@@ -105,7 +104,6 @@ func (agent *HostAgent) EPRegAdd(ep *opflexEndpoint) bool {
 			logrus.Errorf("Create error %v, podif: %+v", err, remEP)
 			return true
 		}
-
 	} else {
 		// update it
 		podif.Status = remEP.Status
@@ -137,7 +135,6 @@ func (agent *HostAgent) getNodePodIFName(nodeName string) string {
 }
 
 func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bool {
-
 	if agent.nodePodIFClient == nil {
 		agent.log.Debug("NodePodIF client or Kube clients are not intialized")
 		return false // crd not used
@@ -181,7 +178,6 @@ func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bo
 				return true
 			}
 		}
-
 	} else {
 		// update nodepodif
 		if !reflect.DeepEqual(nodePodif.Spec.PodIFs, podifs) {
@@ -202,7 +198,6 @@ func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bo
 
 func (agent *HostAgent) initPodInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
-
 	agent.initPodInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -229,7 +224,6 @@ func (agent *HostAgent) initPodInformerFromClient(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
-				//options.LabelSelector = "name=aci-containers-controller"
 				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), options)
 				if err != nil {
 					agent.log.Fatal("Failed to list Pods during initialization of ControllerInformer")
@@ -238,7 +232,6 @@ func (agent *HostAgent) initPodInformerFromClient(
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				options.LabelSelector = labels.Set{"name": "aci-containers-controller"}.String()
-				//options.LabelSelector = "name=aci-containers-controller"
 				obj, err := kubeClient.CoreV1().Pods(metav1.NamespaceAll).Watch(context.TODO(), options)
 				if err != nil {
 					agent.log.Fatal("Failed to watch Pods during initialization of ControllerInformer")
@@ -543,7 +536,6 @@ func (agent *HostAgent) creatNullMacEp() {
 	} else if wrote {
 		agent.log.Debug("Created null mac Ep file")
 	}
-
 }
 
 func podFilter(pod *v1.Pod) bool {
@@ -682,10 +674,8 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			}
 
 			ep.Attributes = make(map[string]string)
-			if epAttributes != nil {
-				for k, v := range epAttributes {
-					ep.Attributes[k] = v
-				}
+			for k, v := range epAttributes {
+				ep.Attributes[k] = v
 			}
 
 			ep.Attributes["interface-name"] = iface.HostVethName

@@ -20,9 +20,6 @@ import (
 	"os/exec"
 	"reflect"
 
-	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
-	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	iopv1alpha1 "istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -35,6 +32,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
+	istioclient "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 )
 
 func (cont *AciController) initIstioInformerFromClient(
@@ -87,7 +87,7 @@ func (cont *AciController) queueIstioSpecUpdateByKey(key string) {
 	cont.istioQueue.Add(key)
 }
 
-func (cont *AciController) istioSpecUpdated(oldobj interface{}, newobj interface{}) {
+func (cont *AciController) istioSpecUpdated(oldobj, newobj interface{}) {
 	oldistio := oldobj.(*istiov1.AciIstioOperator)
 	newistio := newobj.(*istiov1.AciIstioOperator)
 	istiospeckey, err := cache.MetaNamespaceKeyFunc(newistio)
@@ -299,8 +299,8 @@ func (cont *AciController) isOwnerReferenceMarked(reference []metav1.OwnerRefere
 	return false
 }
 
-func IstioLogger(log *logrus.Logger, i *istiov1.AciIstioOperator) *logrus.Entry {
-	return log.WithFields((logrus.Fields{
+func IstioLogger(logger *log.Logger, i *istiov1.AciIstioOperator) *log.Entry {
+	return logger.WithFields((log.Fields{
 		"name":      i.ObjectMeta.Name,
 		"namespace": i.ObjectMeta.Namespace,
 		"spec":      i.Spec,

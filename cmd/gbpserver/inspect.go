@@ -22,10 +22,11 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 
 func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {

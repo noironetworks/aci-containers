@@ -213,7 +213,6 @@ func TestSnatGraph(t *testing.T) {
 	}
 	sgWait(t, "snat graph deleted", cont, expectedNoSnat)
 	cont.stop()
-
 }
 func snatPolicyCount(t *testing.T, desc string, cont *testAciController, count int) {
 	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
@@ -258,5 +257,4 @@ func TestSnatPolicyVerify(t *testing.T) {
 	cont.fakeSnatPolicySource.Add(policy3)
 	snatPolicyCount(t, "snat test", cont, 1)
 	cont.stop()
-
 }

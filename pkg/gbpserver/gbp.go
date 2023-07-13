@@ -29,9 +29,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -60,7 +61,6 @@ type gbpBaseMo struct {
 }
 
 func (g *gbpBaseMo) save() {
-
 	// json fixup
 	if g.Children == nil {
 		g.Children = []string{}
@@ -93,9 +93,6 @@ func getMoSubTree(url string) []*GBPObject {
 // returns the preOrder traversal of the GBP subtree rooted at g.
 func (g *gbpBaseMo) getSubTree() []*GBPObject {
 	st := make([]*GBPObject, 0, 8)
-	//	gMutex.Lock()
-	//	defer gMutex.Unlock()
-
 	return g.preOrder(st)
 }
 
@@ -159,7 +156,7 @@ func (g *gbpBaseMo) GetRefURIs(subject string) (map[string]string, error) {
 		if cMo.isRef && cMo.Subject == subject {
 			target, err := cMo.getTarget()
 			if err != nil {
-				return nil, fmt.Errorf("Target for %s not found - %v", c, err)
+				return nil, fmt.Errorf("Target for %s not found - %w", c, err)
 			}
 
 			result[target] = c
@@ -470,14 +467,14 @@ func freeEncapClass(objURI string) {
 
 func createEIC(pSub, pURI string) (*GBPeInstContext, error) {
 	uURI := filepath.Join(pURI, subjEIC)
-	uURI = uURI + "/"
+	uURI += "/"
 	enc, class := getEncapClass(uURI)
 	return createEICWithEncap(pSub, pURI, enc, class)
 }
 
 func createEICWithEncap(pSub, pURI string, enc, class uint) (*GBPeInstContext, error) {
 	uURI := filepath.Join(pURI, subjEIC)
-	uURI = uURI + "/"
+	uURI += "/"
 	eic := &GBPeInstContext{}
 	err := eic.Make("", uURI)
 	if err != nil {
@@ -565,7 +562,6 @@ func (s *GBPSubnet) Make(name, uri string) error {
 	s.AddProperty(propName, name)
 	s.AddProperty(propGw, fields[0])
 	s.AddProperty(propPrefix, pLen)
-	//	s.AddProperty(propMac, defRMac)
 	s.AddProperty(propNw, strings.Split(ipnet.String(), "/")[0])
 	s.save()
 	return nil
@@ -741,7 +737,6 @@ func getSnapShot(vtep string) []*GBPObject {
 }
 
 func DoAll() {
-
 	if !theServer.config.PushJsonFile {
 		return
 	}
@@ -786,7 +781,6 @@ func saveDBToFile() {
 		vtepFile := filepath.Join(invDir, vtep)
 		printSorted(invToCommon(vtep), vtepFile, debugDB)
 	}
-
 }
 
 func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
@@ -805,10 +799,8 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
 		if !ok {
 			fmt.Printf("ERROR: missing mo")
 			continue
-		} else {
-			if debug {
-				fmt.Printf("Appending mo %s\n", m.Uri)
-			}
+		} else if debug {
+			fmt.Printf("Appending mo %s\n", m.Uri)
 		}
 		sortedMos = append(sortedMos, m)
 	}
@@ -819,10 +811,8 @@ func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
 	err = os.WriteFile(outFile, policyJson, 0644)
 	if err != nil {
 		log.Errorf("%s - %v", outFile, err)
-	} else {
-		if debug {
-			log.Infof("Wrote %s", outFile)
-		}
+	} else if debug {
+		log.Infof("Wrote %s", outFile)
 	}
 }
 

@@ -56,7 +56,7 @@ type ContainerMetadata struct {
 	Network ContainerNetworkMetadata `json:"network,omitempty"`
 }
 
-func RecordMetadata(datadir string, network string, data ContainerMetadata) error {
+func RecordMetadata(datadir, network string, data *ContainerMetadata) error {
 	dir := filepath.Join(datadir, network)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -92,8 +92,7 @@ func LoadMetadata(datadir string, network string,
 	return nil
 }
 
-func CheckMetadata(datadir string, network string) (int64, error) {
-
+func CheckMetadata(datadir, network string) (int64, error) {
 	ipMap := make(map[string]string)
 	dir := filepath.Join(datadir, network)
 	files, err := os.ReadDir(dir)
@@ -121,7 +120,7 @@ func CheckMetadata(datadir string, network string) (int64, error) {
 	return int64(len(ipMap)), nil
 }
 
-func GetMetadata(datadir string, network string, id string) (*ContainerMetadata, error) {
+func GetMetadata(datadir, network, id string) (*ContainerMetadata, error) {
 	data := &ContainerMetadata{}
 
 	datafile := filepath.Join(datadir, network, id)
@@ -134,7 +133,7 @@ func GetMetadata(datadir string, network string, id string) (*ContainerMetadata,
 	return data, err
 }
 
-func ClearMetadata(datadir string, network string, id string) error {
+func ClearMetadata(datadir, network, id string) error {
 	datafile := filepath.Join(datadir, network, id)
 	return os.Remove(datafile)
 }

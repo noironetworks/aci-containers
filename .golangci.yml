@@ -1,0 +1,157 @@
+linters-settings:
+  dupl:
+    threshold: 100
+  exhaustive:
+    default-signifies-exhaustive: false
+  # setting higher than desired for existing code
+  funlen:
+    lines: 300
+    statements: 150
+  gci:
+    local-prefixes: github.com/golangci/golangci-lint
+  grouper:
+    const-require-grouping: true
+    import-require-single-import: true
+    import-require-grouping: true
+    var-require-grouping: true
+  goconst:
+    min-len: 2
+    min-occurrences: 10
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - commentFormatting
+      - dupImport # https://github.com/go-critic/go-critic/issues/845
+      - ifElseChain
+      - nestingReduce
+      - octalLiteral
+      - unnamedResult
+      - whyNoLint
+      - wrapperFunc
+  gocyclo:
+    min-complexity: 40
+  goimports:
+    local-prefixes: github.com/noironetworks/aci-containers
+  golint:
+    min-confidence: 0
+  gomnd:
+    settings:
+      mnd:
+        # don't include the "operation" and "assign"
+        checks: argument,case,condition,return
+  govet:
+    check-shadowing: false
+    settings:
+      printf:
+        funcs:
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+  lll:
+    line-length: 160
+  maligned:
+    suggest-new: true
+  misspell:
+    locale: US
+  nolintlint:
+    allow-leading-space: true # don't require machine-readable nolint directives (i.e. with no leading space)
+    allow-unused: false # report any unused nolint directives
+    require-explanation: false # don't require an explanation for nolint directives
+    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
+
+linters:
+  # please, do not use `enable-all`: it's deprecated and will be removed soon.
+  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
+  disable-all: true
+  enable:
+    - bidichk
+    - bodyclose
+#    - contextcheck
+#    - depguard
+    - dogsled
+#    - dupl
+    - durationcheck
+#    - errcheck - temporarily disabled
+    - errname
+    - errorlint
+    - exhaustive
+#    - exhaustivestruct
+    - exportloopref
+#    - forcetypeassert
+#    - funlen
+#    - grouper - disabled for now
+#    - gochecknoinits
+#    - goconst
+    - gocritic
+#    - gocyclo
+    - gofmt
+    - goimports
+ #   - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+#    - lll
+    - makezero
+#    - misspell
+#    - nakedret
+    - nilerr
+#    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - promlinter
+#    - revive
+#    - rowserrcheck
+#    - staticcheck
+#    - stylecheck
+    - typecheck
+    - unconvert
+#    - unparam
+    - unused
+#    - wastedassign
+    - whitespace
+
+  # don't enable:
+  # - asciicheck
+  # - gochecknoglobals
+  # - gocognit
+  # - godot
+  # - godox
+  # - goerr113
+  # - maligned
+  # - nestif
+  # - prealloc
+  # - testpackage
+  # - wsl
+  #  - interfacer
+
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+
+    - linters:
+        - gocritic
+      text: "unnecessaryDefer:"
+
+run:
+  timeout: 5m
+  skip-dirs:
+    - .go
+
+# golangci.com configuration
+# https://github.com/golangci/golangci/wiki/Configuration
+service:
+  golangci-lint-version: 1.53.3 # use the fixed version to not introduce new linters unexpectedly
+  prepare:
+    - echo "I wish I could be prepared. But, nothing to do here for the moment"

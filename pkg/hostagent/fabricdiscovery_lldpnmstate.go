@@ -122,7 +122,6 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 									agent.hostAgent.log.Infof("LLDP Adjacency discovered for iface %s: %s", iface, fabricAtt.StaticPath)
 									needNotify = true
 								}
-
 							} else {
 								agent.LLDPNeighborMap[iface] = make(map[string]*FabricAttachmentData)
 								agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = &fabricAtt
@@ -130,7 +129,6 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 								needNotify = true
 							}
 							agent.indexMutex.Unlock()
-
 						}
 						if needNotify {
 							adj := []*FabricAttachmentData{}
@@ -143,7 +141,6 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 						}
 					}
 				}
-
 			}
 		}
 	}()

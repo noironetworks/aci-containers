@@ -31,7 +31,6 @@ import (
 
 func (cont *AciController) initReplicaSetInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initReplicaSetInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.AppsV1().RESTClient(), "replicasets",

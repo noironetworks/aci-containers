@@ -32,17 +32,14 @@ func (p *Property) MarshalJSON() ([]byte, error) {
 	}
 
 	s.Name = p.Name
-	switch p.Value.(type) {
+	switch pv := p.Value.(type) {
 	case *Property_StrVal:
-		ps := p.Value.(*Property_StrVal)
-		s.Data = ps.StrVal
+		s.Data = pv.StrVal
 	case *Property_IntVal:
-		pi := p.Value.(*Property_IntVal)
-		s.Data = pi.IntVal
+		s.Data = pv.IntVal
 	case *Property_RefVal:
-		pr := p.Value.(*Property_RefVal)
-		rp.Subject = pr.RefVal.Subject
-		rp.Ref = pr.RefVal.ReferenceUri
+		rp.Subject = pv.RefVal.Subject
+		rp.Ref = pv.RefVal.ReferenceUri
 		s.Data = rp
 	}
 
@@ -70,14 +67,12 @@ func (p *Property) UnmarshalJSON(data []byte) error {
 	}
 
 	p.Name = s.Name
-	switch s.Data.(type) {
+	switch pt := s.Data.(type) {
 	case string:
-		ps := s.Data.(string)
-		psv := &Property_StrVal{StrVal: ps}
+		psv := &Property_StrVal{StrVal: pt}
 		p.Value = psv
 	case float64:
-		pi := s.Data.(float64)
-		piv := &Property_IntVal{IntVal: int32(pi)}
+		piv := &Property_IntVal{IntVal: int32(pt)}
 		p.Value = piv
 	default:
 		if err := json.Unmarshal(data, &ss); err != nil {

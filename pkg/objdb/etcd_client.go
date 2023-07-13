@@ -96,7 +96,7 @@ func (ec *EtcdClient) GetObj(key string, retVal interface{}) error {
 		return err
 	}
 
-	if len(resp.Kvs) <= 0 {
+	if len(resp.Kvs) == 0 {
 		log.Errorf("Returned empty value for key : %s", keyName)
 		return fmt.Errorf("Returned empty value for key : %s", keyName)
 	}
@@ -121,7 +121,7 @@ func (ec *EtcdClient) GetRaw(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(resp.Kvs) <= 0 {
+	if len(resp.Kvs) == 0 {
 		log.Errorf("Returned empty value for key : %s", keyName)
 		return nil, fmt.Errorf("Returned empty value for key : %s", keyName)
 	}

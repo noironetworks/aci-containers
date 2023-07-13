@@ -29,7 +29,6 @@ func (cont *AciController) registerCRDHook(crdName string, h func(*AciController
 }
 
 func (cont *AciController) initCRDInformer() {
-
 	restConfig := cont.env.RESTConfig()
 	crdClient, _ := extv1.NewForConfig(restConfig)
 	cont.initCRDInformerBase(

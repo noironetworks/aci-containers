@@ -16,7 +16,6 @@ package util
 
 import (
 	"context"
-	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
@@ -42,7 +41,6 @@ const MAX_PORT = 65000
 // Given generic list of start and end of each port range,
 // return sorted array(based on start of the range) of portranges based on number of per node
 func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglobal.PortRange {
-
 	expandedPortRange := []snatglobal.PortRange{}
 	for _, item := range currPortRange {
 		temp := item.Start
@@ -50,7 +48,7 @@ func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglob
 			if temp+step-1 <= item.End-1 {
 				expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
 			}
-			temp = temp + step
+			temp += step
 		}
 	}
 
@@ -97,34 +95,6 @@ func GetGlobalInfoCR(c snatglobalclset.Clientset) (snatglobal.SnatGlobalInfo, er
 	return *globalinfo, nil
 }
 
-// CreateNodeInfoCR Creates a NodeInfo CR
-func CreateNodeInfoCR(c nodeinfoclset.Clientset,
-	nodeInfoSpec nodeinfo.NodeInfoSpec, nodename string) error {
-	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	obj := &nodeinfo.NodeInfo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodename,
-			Namespace: ns,
-		},
-		Spec: nodeInfoSpec,
-	}
-	_, err := c.AciV1().NodeInfos(ns).Create(context.TODO(), obj, metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// UpdateNodeInfoCR Updates a UpdateNodeInfoInfo CR
-func UpdateNodeInfoCR(c nodeinfoclset.Clientset, nodeinfo nodeinfo.NodeInfo) error {
-	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	_, err := c.AciV1().NodeInfos(ns).Update(context.TODO(), &nodeinfo, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // UpdateNodeInfoCR Updates a UpdateNodeInfoInfo CR
 func DeleteNodeInfoCR(c nodeinfoclset.Clientset, name string) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
@@ -156,7 +126,7 @@ func GetPortRangeFromConfigMap(c *kubernetes.Clientset) (snatglobal.PortRange, i
 	return resultPortRange, portsPerNode
 }
 
-func MatchLabels(policylabels map[string]string, reslabels map[string]string) bool {
+func MatchLabels(policylabels, reslabels map[string]string) bool {
 	if len(policylabels) == 0 {
 		return true
 	}

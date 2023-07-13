@@ -26,8 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var dummy struct{}
-
 const globalInfoSyncWaitTime = 5 // seconds
 
 func snatpolicydata(name string, namespace string,
@@ -164,7 +162,6 @@ func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatgl
 		}
 		return true, nil
 	})
-
 }
 func snatWaitForIpUpdated(t *testing.T, desc string, snatIp string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
 	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
@@ -174,7 +171,6 @@ func snatWaitForIpUpdated(t *testing.T, desc string, snatIp string, actual map[s
 		}
 		return true, nil
 	})
-
 }
 
 func TestSnatnodeInfo(t *testing.T) {
@@ -322,8 +318,7 @@ func TestSnatCfgChangeTest(t *testing.T) {
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
 	time.Sleep(time.Millisecond * 700)
-	expected := map[string]snatglobalinfo.GlobalInfo{}
-	expected = map[string]snatglobalinfo.GlobalInfo{
+	expected := map[string]snatglobalinfo.GlobalInfo{
 		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
 	}
 	snatWait(t, "snat test", expected,
@@ -351,7 +346,6 @@ func TestSnatCfgChangeTest(t *testing.T) {
 		},
 	}
 	cont.fakeSnatCfgSource.Modify(modconfigmap)
-	expected = map[string]snatglobalinfo.GlobalInfo{}
 	expected = map[string]snatglobalinfo.GlobalInfo{
 		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 10000, End: 14999}}},
 	}

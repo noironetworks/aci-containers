@@ -304,9 +304,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 }
 
-func (cont *AciController) loadIpRanges(v4 *ipam.IpAlloc, v6 *ipam.IpAlloc,
-	ipranges []ipam.IpRange) {
-
+func (cont *AciController) loadIpRanges(v4, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {
 	for _, r := range ipranges {
 		if r.Start.To4() != nil && r.End.To4() != nil {
 			v4.AddRange(r.Start, r.End)

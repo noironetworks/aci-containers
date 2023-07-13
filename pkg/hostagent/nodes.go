@@ -47,7 +47,6 @@ const (
 
 func (agent *HostAgent) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
-
 	agent.initNodeInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -212,7 +211,6 @@ func (agent *HostAgent) registerHostVeth() {
 func (agent *HostAgent) nodeDeleted(obj interface{}) {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-
 }
 
 func (agent *HostAgent) routeInit() {

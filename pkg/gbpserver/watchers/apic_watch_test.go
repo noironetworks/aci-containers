@@ -17,13 +17,15 @@ package watchers
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 )
 
 type suite struct {
@@ -251,8 +253,6 @@ func TestApicEPG(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected timeout")
 	}
-
-	//spew.Dump(ts.aw.idb)
 
 	// deleting the filter should result in removal of the contract
 	ts.aw.FilterDeleted("uni/tn-test-kube/flt-tcp-6020")

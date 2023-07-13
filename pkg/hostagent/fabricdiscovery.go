@@ -20,9 +20,7 @@ type FabricDiscoveryAgent interface {
 }
 
 func GetFabricDiscoveryAgent(method FabricDiscoveryMethod) FabricDiscoveryAgent {
-
-	switch method {
-	case FabricDiscoveryLLDPNMState:
+	if method == FabricDiscoveryLLDPNMState {
 		return NewFabricDiscoveryAgentLLDPNMState()
 	}
 	return nil

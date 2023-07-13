@@ -15,21 +15,22 @@ limitations under the License.
 package kafkac
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"reflect"
 	"time"
 
-	"context"
 	"github.com/Shopify/sarama"
-	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
-	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	restclient "k8s.io/client-go/rest"
+
+	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
+	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 )
 
 const (
@@ -70,7 +71,6 @@ func (pc *podIFCache) Init() error {
 	marker.ObjectMeta.Name = markerName
 
 	go func() {
-
 		for {
 			podif, err := pc.crdClient.PodIFs("kube-system").Get(context.TODO(), markerName, metav1.GetOptions{})
 			if err != nil {
@@ -147,7 +147,6 @@ func (ec *epCache) Init(markerOffset int64, consumer sarama.PartitionConsumer) c
 	go func() {
 		consChan := consumer.Messages()
 		for {
-
 			m, ok := <-consChan
 			if !ok {
 				ec.log.Infof("Consumer closed")

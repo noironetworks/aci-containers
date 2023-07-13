@@ -17,17 +17,17 @@ package watchers
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver"
-	netflowpolicy "github.com/noironetworks/aci-containers/pkg/netflowpolicy/apis/aci.netflow/v1alpha"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"time"
-)
 
-var err error
+	"github.com/davecgh/go-spew/spew"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
+	netflowpolicy "github.com/noironetworks/aci-containers/pkg/netflowpolicy/apis/aci.netflow/v1alpha"
+)
 
 type netflow_suite struct {
 	s     *gbpserver.Server
@@ -36,16 +36,15 @@ type netflow_suite struct {
 }
 
 func (s *netflow_suite) setup() {
-
 	gCfg := &gbpserver.GBPServerConfig{}
 	gCfg.AciVmmDomain = "test-dom"
 	gCfg.WatchLogLevel = "info"
-	log := log.WithField("mod", "test")
+	logger := log.WithField("mod", "test")
 	s.s = gbpserver.NewServer(gCfg)
-	s.nf, err = NewNetflowWatcher(s.s)
+	s.nf, _ = NewNetflowWatcher(s.s)
 
 	s.nf = &NetflowWatcher{
-		log: log,
+		log: logger,
 		gs:  s.s,
 	}
 }

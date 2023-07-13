@@ -56,7 +56,6 @@ func addPolicy(gset map[metadata.OpflexGroup]bool, g metadata.OpflexGroup,
 }
 
 func (agent *HostAgent) mergeQosPolicy(podkey string, qpval metadata.OpflexGroup) metadata.OpflexGroup {
-
 	gset := make(map[metadata.OpflexGroup]bool)
 	var g metadata.OpflexGroup
 
@@ -192,7 +191,6 @@ func (agent *HostAgent) getParentAnn(podKey string) (string, string, string, boo
 						rc.ObjectMeta.Annotations[metadata.SgAnnotation],
 						rc.ObjectMeta.Annotations[metadata.QpAnnotation], true
 				}
-
 			}
 		}
 	}

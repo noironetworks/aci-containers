@@ -18,14 +18,16 @@ package watchers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver"
-	"github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 )
 
 const (
@@ -294,8 +296,7 @@ func (aw *ApicWatcher) ContractChanged(obj apicapi.ApicObject) {
 	for _, body := range obj {
 		for _, cc := range body.Children {
 			for class, o := range cc {
-				switch class {
-				case "vzSubj":
+				if class == "vzSubj" {
 					fDn := getFilterDn(o)
 					contract.Filters = append(contract.Filters, dnToCN(fDn))
 				}
@@ -310,8 +311,7 @@ func (aw *ApicWatcher) ContractChanged(obj apicapi.ApicObject) {
 func getFilterDn(body *apicapi.ApicObjectBody) string {
 	for _, cc := range body.Children {
 		for class := range cc {
-			switch class {
-			case "vzRsSubjFiltAtt":
+			if class == "vzRsSubjFiltAtt" {
 				return cc.GetAttrStr("tDn")
 			}
 		}
@@ -361,8 +361,7 @@ func (aw *ApicWatcher) FilterChanged(obj apicapi.ApicObject) {
 	for _, body := range obj {
 		for _, cc := range body.Children {
 			for class := range cc {
-				switch class {
-				case "vzEntry":
+				if class == "vzEntry" {
 					r := new(v1.WLRule)
 					prot := cc.GetAttrStr("prot")
 					if prot != "unspecified" {
@@ -394,7 +393,6 @@ func (aw *ApicWatcher) FilterDeleted(dn string) {
 }
 
 func (aw *ApicWatcher) NetPolChanged(obj apicapi.ApicObject) {
-
 	aw.Lock()
 	defer aw.Unlock()
 	dn := obj.GetAttrStr("dn")
@@ -420,7 +418,6 @@ func (aw *ApicWatcher) NetPolChanged(obj apicapi.ApicObject) {
 }
 
 func (aw *ApicWatcher) NetPolDeleted(dn string) {
-
 	aw.Lock()
 	defer aw.Unlock()
 	aw.gs.DelNetPol(dn)

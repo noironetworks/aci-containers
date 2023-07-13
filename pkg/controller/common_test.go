@@ -49,7 +49,6 @@ type testAciController struct {
 	fakeNetflowPolicySource *framework.FakeControllerSource
 	fakeErspanPolicySource  *framework.FakeControllerSource
 	fakeNodePodIFSource     *framework.FakeControllerSource
-	fakeAimSource           *framework.FakeControllerSource
 	fakeNodeInfoSource      *framework.FakeControllerSource
 	fakeIstioSource         *framework.FakeControllerSource
 	fakeSnatCfgSource       *framework.FakeControllerSource
@@ -253,7 +252,7 @@ func namespaceLabel(name string, labels map[string]string) *v1.Namespace {
 	}
 }
 
-func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
+func namespace(name, egAnnot, sgAnnot string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -265,7 +264,7 @@ func namespace(name string, egAnnot string, sgAnnot string) *v1.Namespace {
 	}
 }
 
-func podOnNode(namespace string, name string, nodeName string) *v1.Pod {
+func podOnNode(namespace, name, nodeName string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: nodeName,
@@ -278,7 +277,7 @@ func podOnNode(namespace string, name string, nodeName string) *v1.Pod {
 	}
 }
 
-func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
+func podLabel(namespace, name string, labels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "test-node",
@@ -301,7 +300,7 @@ func podLabel(namespace string, name string, labels map[string]string) *v1.Pod {
 	}
 }
 
-func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod {
+func pod(namespace, name, egAnnot, sgAnnot string) *v1.Pod {
 	pod := podLabel(namespace, name, map[string]string{
 		"app":  "sample-app",
 		"tier": "sample-tier",
@@ -314,7 +313,7 @@ func pod(namespace string, name string, egAnnot string, sgAnnot string) *v1.Pod 
 	return pod
 }
 
-func deployment(namespace string, name string, egAnnot string, sgAnnot string) *appsv1.Deployment {
+func deployment(namespace, name, egAnnot, sgAnnot string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -335,7 +334,7 @@ func deployment(namespace string, name string, egAnnot string, sgAnnot string) *
 	}
 }
 
-func service(namespace string, name string, lbIP string) *v1.Service {
+func service(namespace, name, lbIP string) *v1.Service {
 	return &v1.Service{
 		Spec: v1.ServiceSpec{
 			Type:           v1.ServiceTypeLoadBalancer,
@@ -350,7 +349,7 @@ func service(namespace string, name string, lbIP string) *v1.Service {
 	}
 }
 
-func v6service(namespace string, name string, lbIP string) *v1.Service {
+func v6service(namespace, name, lbIP string) *v1.Service {
 	return &v1.Service{
 		Spec: v1.ServiceSpec{
 			Type:           v1.ServiceTypeLoadBalancer,
@@ -367,8 +366,8 @@ func v6service(namespace string, name string, lbIP string) *v1.Service {
 
 // nodes ands addrs must have same length if present, but are
 // optional.
-func endpoints(namespace string, name string,
-	nodes []string, addrs []string, ports []v1.EndpointPort) *v1.Endpoints {
+func endpoints(namespace, name string,
+	nodes, addrs []string, ports []v1.EndpointPort) *v1.Endpoints {
 	var eaddrs []v1.EndpointAddress
 	if len(nodes) == 0 {
 		for i := 0; i < len(addrs); i++ {
@@ -376,10 +375,10 @@ func endpoints(namespace string, name string,
 		}
 	}
 	for i, n := range nodes {
-		ncopy := string(n)
+		ncopy := n
 		ip := "42.42.42.42"
 		if addrs != nil {
-			ip = string(addrs[i])
+			ip = addrs[i]
 		}
 		eaddrs = append(eaddrs, v1.EndpointAddress{
 			IP:       ip,
@@ -403,7 +402,7 @@ func endpoints(namespace string, name string,
 }
 
 // endpointslice.
-func endpointslice(namespace string, name string, endpoints []discovery.Endpoint,
+func endpointslice(namespace, name string, endpoints []discovery.Endpoint,
 	servicename string) *discovery.EndpointSlice {
 	return &discovery.EndpointSlice{
 		AddressType: discovery.AddressTypeIPv4,

@@ -393,7 +393,7 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service, key str
 		// Directly using the Uplink MacAdress instead of using Opflex injected mac
 		ofas.ServiceMac = agent.config.UplinkMacAdress
 		ofas.InterfaceIp = agent.serviceEp.Ipv4.String()
-		ofas.Uuid = ofas.Uuid + "-external"
+		ofas.Uuid += "-external"
 	}
 	hasValidMapping := false
 	for _, sp := range as.Spec.Ports {
@@ -594,8 +594,7 @@ func (agent *HostAgent) getInfrastucreIp(serviceName string) string {
 	if infraStructureInfo.Status.Platform == configv1.OpenStackPlatformType {
 		if infraStructureInfo.Status.PlatformStatus != nil &&
 			infraStructureInfo.Status.PlatformStatus.OpenStack != nil {
-			switch serviceName {
-			case RouterInternalDefault:
+			if serviceName == RouterInternalDefault {
 				return infraStructureInfo.Status.PlatformStatus.OpenStack.IngressIP
 			}
 		}
@@ -638,7 +637,6 @@ func (agent *HostAgent) setOpenShfitService(as *v1.Service, external bool, ofas 
 			}
 		}
 	}
-
 }
 
 func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service,
@@ -673,7 +671,6 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 		for _, e := range endpoints.Subsets {
 			if len(e.Addresses) == 0 {
 				continue
-
 			}
 			parsedClusterIp := net.ParseIP(clusterIP)
 			parsedPodIp := net.ParseIP(e.Addresses[0].IP)
@@ -748,17 +745,6 @@ func getSessionAffinity(as *v1.Service) *opflexSessionAffinityConfig {
 		}
 	}
 	return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: TempSessionAffinityTimer}}
-}
-
-func checkKeyMatch(topology, nodelabels map[string]string, key string) bool {
-	val1, ok1 := topology[key]
-	val2, ok2 := nodelabels[key]
-	if ok1 && ok2 {
-		if val1 == val2 {
-			return true
-		}
-	}
-	return false
 }
 
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
@@ -853,7 +839,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							// endpointslice controller to add hints
 							// Currently-1.22 only zones are used as hints.
 							// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
-							var hintsEnabled bool = false
+							var hintsEnabled = false
 							if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
 								hintsEnabled = true
 							}
@@ -942,7 +928,7 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 		// reconcile with the current pods matching the service
 		// if there is any stale info remove that from service matching the pods
 		// update the revese map for the pod to service
-		poduids, _ := agent.servicetoPodUids[suid]
+		poduids := agent.servicetoPodUids[suid]
 		for id := range poduids {
 			if _, ok := current[id]; !ok {
 				delete(agent.servicetoPodUids[suid], id)
@@ -955,7 +941,6 @@ func (agent *HostAgent) updateEpFileWithClusterIp(as *v1.Service, deleted bool) 
 	} else {
 		agent.deleteServIpFromEp(suid)
 	}
-
 }
 
 func (agent *HostAgent) getPodKeysFromSm(sm []opflexServiceMapping) []string {

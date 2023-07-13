@@ -79,7 +79,6 @@ func (kw *K8sWatcher) InitIntentInformers(stopCh <-chan struct{}) error {
 }
 
 func (kw *K8sWatcher) watchEpgs(stopCh <-chan struct{}) {
-
 	epgLw := cache.NewListWatchFromClient(kw.rc, "epgs", sysNs, fields.Everything())
 	_, epgInformer := cache.NewInformer(epgLw, &aciv1.Epg{}, 0,
 		cache.ResourceEventHandlerFuncs{
@@ -97,7 +96,6 @@ func (kw *K8sWatcher) watchEpgs(stopCh <-chan struct{}) {
 }
 
 func (kw *K8sWatcher) watchContracts(stopCh <-chan struct{}) {
-
 	contractLw := cache.NewListWatchFromClient(kw.rc, "contracts", sysNs, fields.Everything())
 	_, contractInformer := cache.NewInformer(contractLw, &aciv1.Contract{}, 0,
 		cache.ResourceEventHandlerFuncs{
@@ -115,7 +113,6 @@ func (kw *K8sWatcher) watchContracts(stopCh <-chan struct{}) {
 }
 
 func (kw *K8sWatcher) watchPodIFs(stopCh <-chan struct{}) {
-
 	podIFLw := cache.NewListWatchFromClient(kw.rc, "podifs", sysNs, fields.Everything())
 	_, podIFInformer := cache.NewInformer(podIFLw, &aciv1.PodIF{}, 0,
 		cache.ResourceEventHandlerFuncs{
@@ -257,13 +254,11 @@ func (kw *K8sWatcher) podIFDeleted(obj interface{}) {
 func getEPUuid(podif *aciv1.PodIF) string {
 	if podif.Status.ContainerID == "" {
 		return fmt.Sprintf("%s.%s", podif.ObjectMeta.Name, gbpserver.NoContainer)
-	} else {
-		return fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 	}
+	return fmt.Sprintf("%s.%s.%s", podif.Status.PodNS, podif.Status.PodName, podif.Status.ContainerID)
 }
 
 func (kw *K8sWatcher) watchGBPState(stopCh <-chan struct{}) {
-
 	gbpsLw := cache.NewListWatchFromClient(kw.rc, "gbpsstates", sysNs, fields.Everything())
 	_, gbpsInformer := cache.NewInformer(gbpsLw, &aciv1.GBPSState{}, 0,
 		cache.ResourceEventHandlerFuncs{

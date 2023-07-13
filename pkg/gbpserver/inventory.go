@@ -24,9 +24,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 type gbpInvMo struct {
@@ -359,7 +360,7 @@ func (ep *Endpoint) pushTocAPIC(add bool) error {
 	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
 	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn(cApicName(ep.EPG))
 	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
-	epName := string(ep.Uuid[len(ep.Uuid)-12:])
+	epName := ep.Uuid[len(ep.Uuid)-12:]
 	epName = fmt.Sprintf("%s.%s", epName, ep.VTEP)
 	cEP["hcloudEndPoint"].Attributes["name"] = epName
 	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr[0]

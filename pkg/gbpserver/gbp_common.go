@@ -19,9 +19,10 @@ package gbpserver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
-	"strings"
 )
 
 const (
@@ -256,7 +257,6 @@ func (bds *BDSubnet) CreateEPG(name, uri string) *gbpBaseMo {
 	epg.AddChild(snetRef.Uri)
 	snetRef.SetParent(epg.Subject, snetRef.Subject, epg.Uri)
 	return getMoDB()[uri]
-
 }
 
 type GBPMo interface {
@@ -457,7 +457,6 @@ func (g *gbpCommonMo) GetIntProperty(name string) int {
 }
 
 func (g *gbpCommonMo) getTarget() (string, error) {
-
 	for _, p := range g.Properties {
 		if p.Name == propTarget {
 			ref := p.GetRefVal()

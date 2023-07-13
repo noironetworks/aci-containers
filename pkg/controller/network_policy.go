@@ -48,7 +48,6 @@ import (
 
 func (cont *AciController) initNetworkPolicyInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initNetworkPolicyInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.NetworkingV1().RESTClient(), "networkpolicies",
@@ -76,7 +75,6 @@ func (cont *AciController) initNetworkPolicyInformerBase(listWatch *cache.ListWa
 
 func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,
 	peers []v1net.NetworkPolicyPeer) []index.PodSelector {
-
 	var ret []index.PodSelector
 	for _, peer := range peers {
 		podselector, err :=
@@ -110,9 +108,7 @@ func (cont *AciController) peerPodSelector(np *v1net.NetworkPolicy,
 				NsSelector:  nsselector,
 				PodSelector: labels.Everything(),
 			})
-
 		}
-
 	}
 	return ret
 }
@@ -192,21 +188,19 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			cont.aciNameForKey("np", "static-ingress"))
 	{
 		ingressSubj := apicapi.NewHostprotSubj(hppIngress.GetDn(), "ingress")
-		{
-			if !cont.configuredPodNetworkIps.V6.Empty() {
-				outbound := apicapi.NewHostprotRule(ingressSubj.GetDn(),
-					"allow-all-reflexive-v6")
-				outbound.SetAttr("direction", "ingress")
-				outbound.SetAttr("ethertype", "ipv6")
-				ingressSubj.AddChild(outbound)
-			}
-			if !cont.configuredPodNetworkIps.V4.Empty() {
-				outbound := apicapi.NewHostprotRule(ingressSubj.GetDn(),
-					"allow-all-reflexive")
-				outbound.SetAttr("direction", "ingress")
-				outbound.SetAttr("ethertype", "ipv4")
-				ingressSubj.AddChild(outbound)
-			}
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			outbound := apicapi.NewHostprotRule(ingressSubj.GetDn(),
+				"allow-all-reflexive-v6")
+			outbound.SetAttr("direction", "ingress")
+			outbound.SetAttr("ethertype", "ipv6")
+			ingressSubj.AddChild(outbound)
+		}
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			outbound := apicapi.NewHostprotRule(ingressSubj.GetDn(),
+				"allow-all-reflexive")
+			outbound.SetAttr("direction", "ingress")
+			outbound.SetAttr("ethertype", "ipv4")
+			ingressSubj.AddChild(outbound)
 		}
 		hppIngress.AddChild(ingressSubj)
 	}
@@ -216,21 +210,19 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			cont.aciNameForKey("np", "static-egress"))
 	{
 		egressSubj := apicapi.NewHostprotSubj(hppEgress.GetDn(), "egress")
-		{
-			if !cont.configuredPodNetworkIps.V6.Empty() {
-				outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
-					"allow-all-reflexive-v6")
-				outbound.SetAttr("direction", "egress")
-				outbound.SetAttr("ethertype", "ipv6")
-				egressSubj.AddChild(outbound)
-			}
-			if !cont.configuredPodNetworkIps.V4.Empty() {
-				outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
-					"allow-all-reflexive")
-				outbound.SetAttr("direction", "egress")
-				outbound.SetAttr("ethertype", "ipv4")
-				egressSubj.AddChild(outbound)
-			}
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
+				"allow-all-reflexive-v6")
+			outbound.SetAttr("direction", "egress")
+			outbound.SetAttr("ethertype", "ipv6")
+			egressSubj.AddChild(outbound)
+		}
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			outbound := apicapi.NewHostprotRule(egressSubj.GetDn(),
+				"allow-all-reflexive")
+			outbound.SetAttr("direction", "egress")
+			outbound.SetAttr("ethertype", "ipv4")
+			egressSubj.AddChild(outbound)
 		}
 		hppEgress.AddChild(egressSubj)
 	}
@@ -255,43 +247,39 @@ func (cont *AciController) staticNetPolObjs() apicapi.ApicSlice {
 			arpout.SetAttr("connTrack", "normal")
 			discSubj.AddChild(arpout)
 		}
-		{
-			if !cont.configuredPodNetworkIps.V4.Empty() {
-				icmpin := apicapi.NewHostprotRule(discDn, "icmp-ingress")
-				icmpin.SetAttr("direction", "ingress")
-				icmpin.SetAttr("ethertype", "ipv4")
-				icmpin.SetAttr("protocol", "icmp")
-				icmpin.SetAttr("connTrack", "normal")
-				discSubj.AddChild(icmpin)
-			}
-
-			if !cont.configuredPodNetworkIps.V6.Empty() {
-				icmpin := apicapi.NewHostprotRule(discDn, "icmpv6-ingress")
-				icmpin.SetAttr("direction", "ingress")
-				icmpin.SetAttr("ethertype", "ipv6")
-				icmpin.SetAttr("protocol", "icmpv6")
-				icmpin.SetAttr("connTrack", "normal")
-				discSubj.AddChild(icmpin)
-			}
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			icmpin := apicapi.NewHostprotRule(discDn, "icmp-ingress")
+			icmpin.SetAttr("direction", "ingress")
+			icmpin.SetAttr("ethertype", "ipv4")
+			icmpin.SetAttr("protocol", "icmp")
+			icmpin.SetAttr("connTrack", "normal")
+			discSubj.AddChild(icmpin)
 		}
-		{
-			if !cont.configuredPodNetworkIps.V4.Empty() {
-				icmpout := apicapi.NewHostprotRule(discDn, "icmp-egress")
-				icmpout.SetAttr("direction", "egress")
-				icmpout.SetAttr("ethertype", "ipv4")
-				icmpout.SetAttr("protocol", "icmp")
-				icmpout.SetAttr("connTrack", "normal")
-				discSubj.AddChild(icmpout)
-			}
 
-			if !cont.configuredPodNetworkIps.V6.Empty() {
-				icmpout := apicapi.NewHostprotRule(discDn, "icmpv6-egress")
-				icmpout.SetAttr("direction", "egress")
-				icmpout.SetAttr("ethertype", "ipv6")
-				icmpout.SetAttr("protocol", "icmpv6")
-				icmpout.SetAttr("connTrack", "normal")
-				discSubj.AddChild(icmpout)
-			}
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			icmpin := apicapi.NewHostprotRule(discDn, "icmpv6-ingress")
+			icmpin.SetAttr("direction", "ingress")
+			icmpin.SetAttr("ethertype", "ipv6")
+			icmpin.SetAttr("protocol", "icmpv6")
+			icmpin.SetAttr("connTrack", "normal")
+			discSubj.AddChild(icmpin)
+		}
+		if !cont.configuredPodNetworkIps.V4.Empty() {
+			icmpout := apicapi.NewHostprotRule(discDn, "icmp-egress")
+			icmpout.SetAttr("direction", "egress")
+			icmpout.SetAttr("ethertype", "ipv4")
+			icmpout.SetAttr("protocol", "icmp")
+			icmpout.SetAttr("connTrack", "normal")
+			discSubj.AddChild(icmpout)
+		}
+
+		if !cont.configuredPodNetworkIps.V6.Empty() {
+			icmpout := apicapi.NewHostprotRule(discDn, "icmpv6-egress")
+			icmpout.SetAttr("direction", "egress")
+			icmpout.SetAttr("ethertype", "ipv6")
+			icmpout.SetAttr("protocol", "icmpv6")
+			icmpout.SetAttr("connTrack", "normal")
+			discSubj.AddChild(icmpout)
 		}
 
 		hppDiscovery.AddChild(discSubj)
@@ -360,7 +348,6 @@ func ipsForPod(pod *v1.Pod) []string {
 			}
 			return ips
 		}
-
 	}
 	if pod.Status.PodIP != "" {
 		return []string{pod.Status.PodIP}
@@ -415,19 +402,19 @@ func parseCIDR(sub string) *net.IPNet {
 	}
 }
 
-func netEqual(a net.IPNet, b net.IPNet) bool {
+func netEqual(a, b net.IPNet) bool {
 	return a.IP.Equal(b.IP) && bytes.Equal(a.Mask, b.Mask)
 }
 
 func (cont *AciController) updateIpIndexEntry(index cidranger.Ranger,
 	subnetStr string, key string, add bool) bool {
-
 	net := parseCIDR(subnetStr)
 	if net == nil {
 		cont.log.WithFields(logrus.Fields{
 			"subnet": subnetStr,
 			"netpol": key,
 		}).Warning("Invalid subnet or IP")
+		return false
 	}
 
 	entries, err := index.CoveredNetworks(*net)
@@ -471,7 +458,6 @@ func (cont *AciController) updateIpIndexEntry(index cidranger.Ranger,
 
 func (cont *AciController) updateIpIndex(index cidranger.Ranger,
 	oldSubnets map[string]bool, newSubnets map[string]bool, key string) {
-
 	for subStr := range oldSubnets {
 		if newSubnets[subStr] {
 			continue
@@ -530,6 +516,7 @@ func (cont *AciController) updateTargetPortIndex(service bool, key string,
 		}
 	}
 }
+
 func (cont *AciController) getPortNumsFromPortName(podKeys []string, portName string) []int {
 	var ports []int
 	portmap := make(map[int]bool)
@@ -612,7 +599,6 @@ func (cont *AciController) getNetPolTargetPorts(np *v1net.NetworkPolicy) map[str
 func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	namespace string, peerPods []*v1.Pod, peerNs map[string]*v1.Namespace,
 	logger *logrus.Entry) ([]string, map[string]bool) {
-
 	var remoteSubnets []string
 	subnetMap := make(map[string]bool)
 	if len(peers) > 0 {
@@ -651,9 +637,8 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	return remoteSubnets, subnetMap
 }
 
-func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
-	direction string, ethertype string, proto string, port string,
-	remoteSubnets []string) {
+func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName,
+	direction, ethertype, proto, port string, remoteSubnets []string) {
 	ruleNameWithEtherType := fmt.Sprintf("%s-%s", ruleName, ethertype)
 	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleNameWithEtherType)
 	rule.SetAttr("direction", direction)
@@ -664,7 +649,6 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName string,
 	for _, subnetStr := range remoteSubnets {
 		_, subnet, err := net.ParseCIDR(subnetStr)
 		if err == nil && subnet != nil {
-
 			// subnetStr is a valid CIDR notation, check its IP version and add the subnet to the rule
 			if (ethertype == "ipv4" && subnet.IP.To4() != nil) || (ethertype == "ipv6" && subnet.IP.To4() == nil) {
 				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), subnetStr))
@@ -701,38 +685,38 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 				"ipv6", "", "", remoteSubnets)
 		}
 	} else {
-		for j, p := range ports {
-			proto := portProto(p.Protocol)
-			var ports []string
+		for j := range ports {
+			proto := portProto(ports[j].Protocol)
+			var portList []string
 
-			if p.Port != nil {
-				if p.Port.Type == intstr.Int {
-					ports = append(ports, p.Port.String())
+			if ports[j].Port != nil {
+				if ports[j].Port.Type == intstr.Int {
+					portList = append(portList, ports[j].Port.String())
 				} else {
 					var portnums []int
 					if direction == "egress" {
-						portnums = append(portnums, cont.getPortNums(&p)...)
+						portnums = append(portnums, cont.getPortNums(&ports[j])...)
 					} else {
 						// TODO need to handle empty Pod Selector
 						if reflect.DeepEqual(np.Spec.PodSelector, metav1.LabelSelector{}) {
 							logger.Warning("Empty PodSelctor for NamedPort is not supported in ingress direction"+
-								"port in network policy: ", p.Port.String())
+								"port in network policy: ", ports[j].Port.String())
 							continue
 						}
 						podKeys := cont.netPolPods.GetPodForObj(npKey)
-						portnums = cont.getPortNumsFromPortName(podKeys, p.Port.String())
+						portnums = cont.getPortNumsFromPortName(podKeys, ports[j].Port.String())
 					}
 					if len(portnums) == 0 {
 						logger.Warning("There is no matching  ports in ingress/egress direction "+
-							"port in network policy: ", p.Port.String())
+							"port in network policy: ", ports[j].Port.String())
 						continue
 					}
 					for _, portnum := range portnums {
-						ports = append(ports, strconv.Itoa(portnum))
+						portList = append(portList, strconv.Itoa(portnum))
 					}
 				}
 			}
-			for i, port := range ports {
+			for i, port := range portList {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
 					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
 						"ipv4", proto, port, remoteSubnets)
@@ -751,16 +735,14 @@ func (cont *AciController) getPortNums(port *v1net.NetworkPolicyPort) []int {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
 	cont.log.Debug("PortKey1: ", portkey)
-	entry, _ := cont.targetPortIndex[portkey]
+	entry := cont.targetPortIndex[portkey]
 	var length int
 	if entry == nil || len(entry.port.ports) == 0 {
 		return []int{}
 	}
 	length = len(entry.port.ports)
 	ports := make([]int, length)
-	if entry != nil {
-		copy(ports, entry.port.ports)
-	}
+	copy(ports, entry.port.ports)
 	return ports
 }
 func portProto(protocol *v1.Protocol) string {
@@ -790,7 +772,6 @@ func portKey(p *v1net.NetworkPolicyPort) string {
 
 func checkEndpoints(subnetIndex cidranger.Ranger,
 	addresses []v1.EndpointAddress) bool {
-
 	for _, addr := range addresses {
 		ip := net.ParseIP(addr.IP)
 		if ip == nil {
@@ -806,7 +787,6 @@ func checkEndpoints(subnetIndex cidranger.Ranger,
 }
 func checkEndpointslices(subnetIndex cidranger.Ranger,
 	addresses []string) bool {
-
 	for _, addr := range addresses {
 		ip := net.ParseIP(addr)
 		if ip == nil {
@@ -829,7 +809,6 @@ type portRemoteSubnet struct {
 func updatePortRemoteSubnets(portRemoteSubs map[string]*portRemoteSubnet,
 	portkey string, port *v1net.NetworkPolicyPort, subnetMap map[string]bool,
 	hasNamedTarget bool) {
-
 	if prs, ok := portRemoteSubs[portkey]; ok {
 		for s := range subnetMap {
 			prs.subnetMap[s] = true
@@ -844,7 +823,7 @@ func updatePortRemoteSubnets(portRemoteSubs map[string]*portRemoteSubnet,
 	}
 }
 
-func portServiceAugmentKey(proto string, port string) string {
+func portServiceAugmentKey(proto, port string) string {
 	return proto + "-" + port
 }
 
@@ -854,8 +833,7 @@ type portServiceAugment struct {
 	ipMap map[string]bool
 }
 
-func updateServiceAugment(portAugments map[string]*portServiceAugment,
-	proto string, port string, ip string) {
+func updateServiceAugment(portAugments map[string]*portServiceAugment, proto, port, ip string) {
 	key := portServiceAugmentKey(proto, port)
 	if psa, ok := portAugments[key]; ok {
 		psa.ipMap[ip] = true
@@ -869,8 +847,7 @@ func updateServiceAugment(portAugments map[string]*portServiceAugment,
 }
 
 func updateServiceAugmentForService(portAugments map[string]*portServiceAugment,
-	proto string, port string, service *v1.Service) {
-
+	proto, port string, service *v1.Service) {
 	if service.Spec.ClusterIP != "" {
 		updateServiceAugment(portAugments,
 			proto, port, service.Spec.ClusterIP)
@@ -882,15 +859,13 @@ func updateServiceAugmentForService(portAugments map[string]*portServiceAugment,
 		updateServiceAugment(portAugments,
 			proto, port, ig.IP)
 	}
-
 }
 
 // build service augment by matching peers against the endpoints ip
 // index
-func (cont *AciController) getServiceAugmentBySubnet(subj apicapi.ApicObject,
+func (cont *AciController) getServiceAugmentBySubnet(
 	prs *portRemoteSubnet, portAugments map[string]*portServiceAugment,
 	logger *logrus.Entry) {
-
 	matchedServices := make(map[string]bool)
 	subnetIndex := cidranger.NewPCTrieRanger()
 
@@ -939,10 +914,9 @@ func (cont *AciController) getServiceAugmentBySubnet(subj apicapi.ApicObject,
 
 // build service augment by matching against services with a given
 // target port
-func (cont *AciController) getServiceAugmentByPort(subj apicapi.ApicObject,
+func (cont *AciController) getServiceAugmentByPort(
 	prs *portRemoteSubnet, portAugments map[string]*portServiceAugment,
 	logger *logrus.Entry) {
-
 	// nil port means it matches against all ports.  If we're here, it
 	// means this is a rule that matches all ports with all
 	// destinations, so there's no need to augment anything.
@@ -953,14 +927,13 @@ func (cont *AciController) getServiceAugmentByPort(subj apicapi.ApicObject,
 
 	portkey := portKey(prs.port)
 	cont.indexMutex.Lock()
-	//var serviceKeys []string
 	entries := make(map[string]*portIndexEntry)
-	entry, _ := cont.targetPortIndex[portkey]
+	entry := cont.targetPortIndex[portkey]
 	if entry != nil && prs.port.Port.Type == intstr.String {
 		for _, port := range entry.port.ports {
 			portstring := strconv.Itoa(port)
 			key := portProto(prs.port.Protocol) + "-" + "num" + "-" + portstring
-			portEntry, _ := cont.targetPortIndex[key]
+			portEntry := cont.targetPortIndex[key]
 			if portEntry != nil {
 				entries[portstring] = portEntry
 			}
@@ -1044,14 +1017,13 @@ func (cont *AciController) getServiceAugmentByPort(subj apicapi.ApicObject,
 // efficient matching when allowing egress to all.
 func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 	portRemoteSubs map[string]*portRemoteSubnet, logger *logrus.Entry) {
-
 	portAugments := make(map[string]*portServiceAugment)
 	for _, prs := range portRemoteSubs {
 		// TODO ipv6
 		if prs.subnetMap["0.0.0.0/0"] {
-			cont.getServiceAugmentByPort(subj, prs, portAugments, logger)
+			cont.getServiceAugmentByPort(prs, portAugments, logger)
 		} else {
-			cont.getServiceAugmentBySubnet(subj, prs, portAugments, logger)
+			cont.getServiceAugmentBySubnet(prs, portAugments, logger)
 		}
 	}
 	for _, augment := range portAugments {
@@ -1163,11 +1135,11 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 					"0.0.0.0/0": true,
 				}
 			}
-			for _, p := range egress.Ports {
-				portkey := portKey(&p)
-				port := p
+			for idx := range egress.Ports {
+				port := egress.Ports[idx]
+				portkey := portKey(&port)
 				updatePortRemoteSubnets(portRemoteSubs, portkey, &port, subnetMap,
-					p.Port != nil && p.Port.Type == intstr.Int)
+					port.Port != nil && port.Port.Type == intstr.Int)
 			}
 			if len(egress.Ports) == 0 {
 				updatePortRemoteSubnets(portRemoteSubs, "", nil, subnetMap,
@@ -1184,7 +1156,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 	return false
 }
 
-func (cont *AciController) addToHppCache(labelKey string, key string, hpp apicapi.ApicSlice) {
+func (cont *AciController) addToHppCache(labelKey, key string, hpp apicapi.ApicSlice) {
 	cont.indexMutex.Lock()
 	hppRef, ok := cont.hppRef[labelKey]
 	if ok {
@@ -1240,12 +1212,10 @@ func (cont *AciController) removeFromHppCache(np *v1net.NetworkPolicy, key strin
 	}
 	cont.indexMutex.Unlock()
 	return labelKey, noRef
-
 }
 
 func getNetworkPolicyEgressIpBlocks(np *v1net.NetworkPolicy) map[string]bool {
 	subnets := make(map[string]bool)
-
 	for _, egress := range np.Spec.Egress {
 		for _, to := range egress.To {
 			if to.IPBlock != nil && to.IPBlock.CIDR != "" {
@@ -1307,41 +1277,6 @@ func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
 	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{npObj})
 }
 
-func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
-	var str string
-	if labelsel != nil {
-		str = "["
-		for key, val := range labelsel.MatchLabels {
-			keyval := key + "_" + val
-			str += keyval
-		}
-		for _, expressions := range labelsel.MatchExpressions {
-			str += expressions.Key
-			str += string(expressions.Operator)
-			for _, values := range expressions.Values {
-				str += values
-			}
-		}
-		str += "]"
-	}
-	return str
-}
-
-func selectorsToStr(peers []v1net.NetworkPolicyPeer, ns string) string {
-	var str string
-	for _, p := range peers {
-		podSel := labelSelectorToStr(p.PodSelector)
-		str += podSel
-		nsSel := labelSelectorToStr(p.NamespaceSelector)
-		if podSel != "" && nsSel == "" {
-			str += ns
-		} else {
-			str += nsSel
-		}
-	}
-	return str
-}
-
 func peersToStr(peers []v1net.NetworkPolicyPeer) string {
 	pStr := "["
 	for _, p := range peers {
@@ -1381,41 +1316,6 @@ func portsToStr(ports []v1net.NetworkPolicyPort) string {
 	return pStr
 }
 
-func egressStrSorted(np *v1net.NetworkPolicy) string {
-	eStr := ""
-	for _, rule := range np.Spec.Egress {
-		eStr += selectorsToStr(rule.To, np.Namespace)
-		eStr += peersToStr(rule.To)
-		eStr += portsToStr(rule.Ports)
-		eStr += "+"
-	}
-	eStr = strings.TrimSuffix(eStr, "+")
-	return eStr
-}
-
-func ingressStrSorted(np *v1net.NetworkPolicy) string {
-	iStr := ""
-	for _, rule := range np.Spec.Ingress {
-		iStr += selectorsToStr(rule.From, np.Namespace)
-		iStr += peersToStr(rule.From)
-		iStr += portsToStr(rule.Ports)
-		iStr += "+"
-	}
-	iStr = strings.TrimSuffix(iStr, "+")
-	return iStr
-}
-
-func sortPolicyTypes(pType []v1net.PolicyType) []string {
-	var strPolicyTypes []string
-	for _, pt := range pType {
-		strPolicyTypes = append(strPolicyTypes, string(pt))
-	}
-	sort.Slice(strPolicyTypes, func(i, j int) bool {
-		return strPolicyTypes[i] < strPolicyTypes[j]
-	})
-	return strPolicyTypes
-}
-
 func ingressStr(np *v1net.NetworkPolicy) string {
 	iStr := ""
 	for _, rule := range np.Spec.Ingress {
@@ -1440,7 +1340,6 @@ func egressStr(np *v1net.NetworkPolicy) string {
 
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	newobj interface{}) {
-
 	oldnp := oldobj.(*v1net.NetworkPolicy)
 	newnp := newobj.(*v1net.NetworkPolicy)
 	npkey, err := cache.MetaNamespaceKeyFunc(newnp)
@@ -1616,7 +1515,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 		portstrings[strconv.Itoa(port)] = true
 	}
 	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
-	selector := labels.SelectorFromSet(labels.Set(label))
+	selector := labels.SelectorFromSet(label)
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
 			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)

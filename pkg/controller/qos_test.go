@@ -60,7 +60,6 @@ func addQosServices(cont *testAciController, augment *qrTestAugment) {
 
 func makeQr(ingress apicapi.ApicSlice, egress apicapi.ApicSlice, name string, policingRateI int,
 	policingBurstI int, policingRateE int, policingBurstE int, dscpMark int) apicapi.ApicObject {
-
 	qr1 := apicapi.NewQosRequirement("test-tenant_qos", name)
 	qEpDscpMarking := apicapi.NewQosEpDscpMarking(qr1.GetDn(), "EpDscpMarking")
 	qEpDscpMarking.SetAttr("mark", strconv.Itoa(dscpMark))
@@ -122,7 +121,6 @@ func (cont *AciController) qosPolUpdate(qp *qospolicy.QosPolicy) apicapi.ApicObj
 
 	// Generate ingress policies
 	if qp.Spec.Ingress.PolicingRate != 0 && qp.Spec.Ingress.PolicingBurst != 0 {
-
 		DppPolIngressName := labelKey + "_ingress"
 		DppPolIngress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolIngressName)
 		DppPolIngress.SetAttr("rate", strconv.Itoa(qp.Spec.Ingress.PolicingRate))
@@ -134,7 +132,6 @@ func (cont *AciController) qosPolUpdate(qp *qospolicy.QosPolicy) apicapi.ApicObj
 
 	// Generate egress policies
 	if qp.Spec.Egress.PolicingRate != 0 && qp.Spec.Egress.PolicingBurst != 0 {
-
 		DppPolEgressName := labelKey + "_egress"
 		DppPolEgress := apicapi.NewQosDppPol(cont.config.AciPolicyTenant, DppPolEgressName)
 		DppPolEgress.SetAttr("rate", strconv.Itoa(qp.Spec.Egress.PolicingRate))

@@ -16,14 +16,15 @@ package hostagent
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/tools/reference"
-	"strings"
-	"time"
 )
 
 type EventPoster struct {
@@ -63,7 +64,7 @@ func (agent *HostAgent) translateDropReason(reason string) string {
 }
 
 // Submit an event using kube API with message attached
-func (agent *HostAgent) submitEvent(pod *v1.Pod, message string, dropReason string) error {
+func (agent *HostAgent) submitEvent(pod *v1.Pod, message, dropReason string) error {
 	agent.log.Debug("Posting event ", message)
 	ref, err := reference.GetReference(scheme.Scheme, pod)
 	if err != nil {
@@ -97,7 +98,7 @@ func (agent *HostAgent) shouldIgnore(packetEvent PacketEvent, currTime time.Time
 }
 
 // Construct packet drop message
-func getPacketDropMessage(etherType string, srcIp string, dstIp string) string {
+func getPacketDropMessage(etherType, srcIp, dstIp string) string {
 	return fmt.Sprintf("%s packet from %s to %s was dropped", etherType, srcIp, dstIp)
 }
 
@@ -158,7 +159,7 @@ func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime tim
 	}
 
 	if eventDestination != nil {
-		var eventSrcName, eventDstName string = packetEvent.SourceIP, packetEvent.DestinationIP
+		var eventSrcName, eventDstName = packetEvent.SourceIP, packetEvent.DestinationIP
 		if srcOk {
 			eventSrcName = srcPodKey
 		}

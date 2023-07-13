@@ -137,7 +137,6 @@ func (agent *HostAgent) syncRdConfig() bool {
 		if err != nil {
 			agent.log.Error("Error writing Rd file:", err)
 			return true
-
 		}
 	} else {
 		os.Remove(rdfile)

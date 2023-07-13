@@ -136,7 +136,6 @@ func netpol(namespace string, name string, podSelector *metav1.LabelSelector,
 
 func npservice(namespace string, name string,
 	clusterIP string, ports []v1.ServicePort) *v1.Service {
-
 	service := service(namespace, name, "")
 	service.Spec.ClusterIP = clusterIP
 	service.Spec.Ports = ports
@@ -161,7 +160,7 @@ func staticNetPolKey() string {
 }
 
 func addPods(cont *testAciController, incIps bool, ips []string, ipv4 bool) {
-	pods := []*v1.Pod{}
+	var pods []*v1.Pod
 	if ipv4 {
 		pods = []*v1.Pod{
 			podLabel("testns", "pod1", map[string]string{"l1": "v1"}),
@@ -227,7 +226,6 @@ func makeNp(ingress apicapi.ApicSlice,
 
 func makeEps(namespace string, name string,
 	addrs []v1.EndpointAddress, ports []v1.EndpointPort) *v1.Endpoints {
-
 	return &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{
 			{

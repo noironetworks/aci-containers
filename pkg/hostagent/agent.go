@@ -20,6 +20,16 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned/typed/aci.fabricattachment/v1"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
@@ -31,15 +41,6 @@ import (
 	nodepodifv1 "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned/typed/acipolicy/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
-	"github.com/sirupsen/logrus"
-	"github.com/vishvananda/netlink"
-	"golang.org/x/time/rate"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 )
 
 type HostAgent struct {
@@ -249,7 +250,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 	return ha
 }
 
-func addPodRoute(ipn types.IPNet, dev string, src string) error {
+func addPodRoute(ipn types.IPNet, dev, src string) error {
 	link, err := netlink.LinkByName(dev)
 	if err != nil {
 		return err
@@ -273,7 +274,7 @@ func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]ResourceType
 	return value, ok
 }
 
-func (agent *HostAgent) WriteSnatPolicyLabel(key string, policy string, res ResourceType) {
+func (agent *HostAgent) WriteSnatPolicyLabel(key, policy string, res ResourceType) {
 	agent.snatPolicyLabelMutex.Lock()
 	defer agent.snatPolicyLabelMutex.Unlock()
 	agent.snatPolicyLabels[key][policy] = res
@@ -285,7 +286,7 @@ func (agent *HostAgent) WriteNewSnatPolicyLabel(key string) {
 	agent.snatPolicyLabels[key] = make(map[string]ResourceType)
 }
 
-func (agent *HostAgent) DeleteSnatPolicyLabelEntry(key string, policy string) {
+func (agent *HostAgent) DeleteSnatPolicyLabelEntry(key, policy string) {
 	agent.snatPolicyLabelMutex.Lock()
 	defer agent.snatPolicyLabelMutex.Unlock()
 	delete(agent.snatPolicyLabels[key], policy)
@@ -399,7 +400,6 @@ func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
-
 	go wait.Until(func() {
 		for {
 			syncType, quit := queue.Get()
@@ -408,9 +408,8 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 			}
 
 			var requeue bool
-			switch syncType := syncType.(type) {
-			case string:
-				if f, ok := agent.syncProcessors[syncType]; ok {
+			if sType, ok := syncType.(string); ok {
+				if f, ok := agent.syncProcessors[sType]; ok {
 					requeue = f()
 				}
 			}
@@ -420,7 +419,6 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 				queue.Forget(syncType)
 			}
 			queue.Done(syncType)
-
 		}
 	}, time.Second, queueStop)
 	<-queueStop
@@ -430,7 +428,7 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 func (agent *HostAgent) EnableSync() (changed bool) {
 	changed = false
 	agent.indexMutex.Lock()
-	if agent.syncEnabled == false {
+	if !agent.syncEnabled {
 		agent.syncEnabled = true
 		changed = true
 	}
@@ -460,7 +458,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		agent.config.OpFlexServiceDir == "" ||
 		agent.config.OpFlexSnatDir == "" {
 		agent.log.Warn("OpFlex endpoint,service or snat directories not set")
-
 	} else {
 		if syncEnabled {
 			agent.EnableSync()

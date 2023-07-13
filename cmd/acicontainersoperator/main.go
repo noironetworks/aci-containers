@@ -28,7 +28,6 @@ import (
 
 // Create Aci Operator Client
 func getOperatorClient() operatorclientset.Interface {
-
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
 		log.Errorf("Failed to obtain rest client config %v", err)
@@ -47,7 +46,6 @@ func getOperatorClient() operatorclientset.Interface {
 
 // Create ACC provision Client
 func getAccProvisionClient() accprovisioninputclientset.Interface {
-
 	restconfig, err := restclient.InClusterConfig()
 	if err != nil {
 		log.Errorf("Failed to obtain rest client config %v", err)

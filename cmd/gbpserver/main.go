@@ -149,7 +149,6 @@ func parseCli(opts *cliOpts) {
 
 // panics on error
 func startEtcd(c *gbpserver.GBPServerConfig) []string {
-
 	urlMaker := func(portNo int) []url.URL {
 		var urlList []url.URL
 		var rawList = []string{fmt.Sprintf("http://localhost:%d", portNo)}

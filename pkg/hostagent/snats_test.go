@@ -35,7 +35,7 @@ type portRange struct {
 	end   int
 }
 
-func snatglobaldata(uuid string, name string, nodename string, namespace string, globalinfo snatglobal.GlobalInfoList) *snatglobal.SnatGlobalInfo {
+func snatglobaldata(uuid, name, nodename, namespace string, globalinfo snatglobal.GlobalInfoList) *snatglobal.SnatGlobalInfo {
 	GlobalInfos := make(map[string]snatglobal.GlobalInfoList, 10)
 	GlobalInfos[nodename] = globalinfo
 	return &snatglobal.SnatGlobalInfo{
@@ -51,8 +51,8 @@ func snatglobaldata(uuid string, name string, nodename string, namespace string,
 	}
 }
 
-func snatpolicydata(name string, namespace string,
-	snatIp []string, destIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
+func snatpolicydata(name, namespace string,
+	snatIp, destIp []string, labels map[string]string) *snatpolicy.SnatPolicy {
 	policy := &snatpolicy.SnatPolicy{
 		Spec: snatpolicy.SnatPolicySpec{
 			SnatIp: snatIp,
@@ -167,8 +167,6 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 	case pt.policyname == "policy2":
 		assert.Equal(t, []string{"10.10.0.0/16"}, snat.DestIpAddress, desc, pt.name, "destip")
 	}
-	//assert.Equal(t, pt.port_range.start, snat.PortRange[0].Start, desc, pt.name, "port start")
-	//assert.Equal(t, pt.port_range.end, snat.PortRange[0].End, desc, pt.name, "port end")
 }
 
 func TestSnatSync(t *testing.T) {
@@ -206,7 +204,6 @@ func TestSnatSync(t *testing.T) {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.destip, pt.labels)
 		agent.fakeSnatPolicySource.Add(snatObj)
 		agent.log.Info("Snat Obj Created #### ", snatObj)
-
 	}
 	time.Sleep(1000 * time.Millisecond)
 	var newglobal snatglobal.GlobalInfoList
@@ -272,7 +269,6 @@ func TestSnatPortExhausted(t *testing.T) {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.destip, pt.labels)
 		agent.fakeSnatPolicySource.Add(snatObj)
 		agent.log.Info("Snat Obj Created #### ", snatObj)
-
 	}
 	time.Sleep(1000 * time.Millisecond)
 

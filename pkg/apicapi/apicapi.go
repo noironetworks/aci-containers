@@ -54,11 +54,10 @@ func complete(resp *http.Response) {
 	if resp.StatusCode != http.StatusOK {
 		rBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			logrus.Errorf("ReadAll :% v", err)
+			logrus.Errorf("ReadAll :%v", err)
 		} else {
 			logrus.Infof("Resp: %s", rBody)
 		}
-
 	}
 	resp.Body.Close()
 }
@@ -78,7 +77,7 @@ func (conn *ApicConnection) sign(req *http.Request, uri string, body []byte) {
 	req.Header.Set("Cookie", conn.apicSigCookie(sig, conn.token))
 }
 
-func (conn *ApicConnection) apicSigCookie(sig string, token string) string {
+func (conn *ApicConnection) apicSigCookie(sig, token string) string {
 	tokc := ""
 	if token != "" {
 		tokc = "; APIC-WebSocket-Session=" + token
@@ -159,12 +158,11 @@ func (conn *ApicConnection) login() (string, error) {
 		if !ok {
 			return "", errors.New("Token not found in login response")
 		}
-		switch token := token.(type) {
-		default:
+		stoken, isStr := token.(string)
+		if !isStr {
 			return "", errors.New("Token is not a string")
-		case string:
-			return token, nil
 		}
+		return stoken, nil
 	}
 	return "", errors.New("Login response not found")
 }
@@ -258,10 +256,8 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 
 	for _, obj := range apicresp.Imdata {
 		for _, body := range obj {
-			switch dn := body.Attributes["dn"].(type) {
-			case string:
-				switch status := body.Attributes["status"].(type) {
-				case string:
+			if dn, ok := body.Attributes["dn"].(string); ok {
+				if status, isStr := body.Attributes["status"].(string); isStr {
 					var pendingKind int
 					if status == "deleted" {
 						pendingKind = pendingChangeDelete
@@ -388,7 +384,6 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 
 func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
-
 	go wait.Until(func() {
 		for {
 			dn, quit := queue.Get()
@@ -397,8 +392,7 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 			}
 			conn.log.Debug("Processing queue for:", dn)
 			var requeue bool
-			switch dn := dn.(type) {
-			case string:
+			if dn, ok := dn.(string); ok {
 				requeue = conn.handleQueuedDn(dn)
 			}
 			if requeue {
@@ -434,8 +428,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		for {
 			var apicresp ApicResponse
 			err := conn.connection.ReadJSON(&apicresp)
-			if c, k := err.(*websocket.CloseError); k {
-				conn.log.Info("Websocket connection closed: ", c.Code)
+			var closeErr *websocket.CloseError
+			if errors.As(err, &closeErr) {
+				conn.log.Info("Websocket connection closed: ", closeErr.Code)
 				conn.restart()
 				break
 			} else if err != nil {
@@ -581,7 +576,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 		}
 		conn.token = token
 
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, http.NoBody)
 		if err != nil {
 			conn.log.Error("Could not create request:", err)
 			continue
@@ -606,7 +601,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 			continue
 		}
 		for _, obj := range apicresp.Imdata {
-			vresp, _ := obj["firmwareCtrlrRunning"]
+			vresp := obj["firmwareCtrlrRunning"]
 			version, ok := vresp.Attributes["version"]
 			if !ok {
 				conn.log.Debug("No version attribute in the response??!")
@@ -643,7 +638,6 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 			defer func() {
 				conn.ApicIndex = (conn.ApicIndex + 1) % len(conn.Apic)
 				time.Sleep(conn.ReconnectInterval)
-
 			}()
 
 			conn.logger.WithFields(logrus.Fields{
@@ -691,7 +685,7 @@ func (conn *ApicConnection) refresh() {
 	if conn.signer == nil {
 		url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
 			conn.Apic[conn.ApicIndex])
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, http.NoBody)
 		if err != nil {
 			conn.log.Error("Could not create request: ", err)
 			return
@@ -716,7 +710,7 @@ func (conn *ApicConnection) refresh() {
 		refreshId := func(id string) {
 			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
 			url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-			req, err := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest("GET", url, http.NoBody)
 			if err != nil {
 				conn.log.Error("Could not create request: ", err)
 				return
@@ -759,12 +753,10 @@ func (conn *ApicConnection) logErrorResp(message string, resp *http.Response) {
 		for _, o := range apicresp.Imdata {
 			if ob, ok := o["error"]; ok {
 				if ob.Attributes != nil {
-					switch t := ob.Attributes["text"].(type) {
-					case string:
+					if t, isStr := ob.Attributes["text"].(string); isStr {
 						text = t
 					}
-					switch c := ob.Attributes["code"].(type) {
-					case int:
+					if c, isInt := ob.Attributes["code"].(int); isInt {
 						code = c
 					}
 				}
@@ -791,7 +783,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", acivrfdn, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
 		return err
@@ -838,7 +830,6 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 
 func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	updateHandlers []ApicObjectHandler) {
-
 	args := []string{
 		"rsp-subtree=full",
 	}
@@ -850,7 +841,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	conn.log.Debugf("URL: %v", url)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
 		return
@@ -1000,7 +991,7 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 	}).Debug("Deleting Dn Inline")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("DELETE", url, nil)
+	req, err := http.NewRequest("DELETE", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
 		return err
@@ -1028,7 +1019,6 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 	}
-	//conn.log.Debug(string(raw))
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
@@ -1048,9 +1038,8 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 		conn.logErrorResp("Could not update dn "+dn, resp)
 		if resp.StatusCode == 400 {
 			return true
-		} else {
-			conn.restart()
 		}
+		conn.restart()
 	}
 	return false
 }
@@ -1066,7 +1055,7 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 	}).Debug("Deleting Dn")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("DELETE", url, nil)
+	req, err := http.NewRequest("DELETE", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create delete request: ", err)
 		conn.restart()
@@ -1089,7 +1078,6 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 
 func doComputeRespClasses(targetClasses []string,
 	visited map[string]bool) {
-
 	for _, class := range targetClasses {
 		if visited[class] {
 			continue
@@ -1099,11 +1087,9 @@ func doComputeRespClasses(targetClasses []string,
 			doComputeRespClasses(md.children, visited)
 		}
 	}
-
 }
 
 func computeRespClasses(targetClasses []string) []string {
-
 	visited := make(map[string]bool)
 	doComputeRespClasses(targetClasses, visited)
 
@@ -1125,7 +1111,6 @@ func computeRespClasses(targetClasses []string) []string {
 // the root. Changes will cause entire subtree of the rootdn to be fetched
 func (conn *ApicConnection) AddSubscriptionTree(class string,
 	targetClasses []string, targetFilter string) {
-
 	if _, ok := classDepth[class]; !ok {
 		errStr := fmt.Sprintf("classDepth not for class %s", class)
 		panic(errStr)
@@ -1143,7 +1128,6 @@ func (conn *ApicConnection) AddSubscriptionTree(class string,
 
 func (conn *ApicConnection) AddSubscriptionClass(class string,
 	targetClasses []string, targetFilter string) {
-
 	conn.indexMutex.Lock()
 	conn.subscriptions.subs[class] = &subscription{
 		kind:          apicSubClass,
@@ -1174,7 +1158,6 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 
 func (conn *ApicConnection) SetSubscriptionHooks(value string,
 	updateHook ApicObjectHandler, deleteHook ApicDnHandler) {
-
 	conn.indexMutex.Lock()
 	if s, ok := conn.subscriptions.subs[value]; ok {
 		s.updateHook = updateHook
@@ -1188,7 +1171,7 @@ func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	var apicresp ApicResponse
 	conn.log.Debug("Apic Get url: ", url)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
 		return apicresp, err
@@ -1214,14 +1197,13 @@ func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 
 func (conn *ApicConnection) doSubscribe(args []string,
 	kind, value, refresh_interval string, apicresp *ApicResponse) bool {
-
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
 		kind, value, refresh_interval, strings.Join(args, "&"))
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	conn.log.Info("APIC connection URL: ", url)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		conn.log.Error("Could not create request: ", err)
 		return false
@@ -1255,7 +1237,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 	}
 
 	const defaultArgs = 1
-	var argCount int = defaultArgs
+	var argCount = defaultArgs
 	var combinableSubClasses, separableSubClasses []string
 	var splitTargetClasses [][]string
 	var splitRespClasses [][]string
@@ -1304,8 +1286,7 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 				subscribingClasses[separableSubClasses[i]] = true
 				argSet[argCount] = make([]string, len(baseArgs))
 				copy(argSet[argCount], baseArgs)
-				argSet[argCount] = append(argSet[argCount], "target-subtree-class="+separableSubClasses[i])
-				argSet[argCount] = append(argSet[argCount], "rsp-subtree-class=tagAnnotation")
+				argSet[argCount] = append(argSet[argCount], "target-subtree-class="+separableSubClasses[i], "rsp-subtree-class=tagAnnotation")
 				splitTargetClasses[argCount] = append(splitTargetClasses[argCount], separableSubClasses[i])
 				splitRespClasses[argCount] = computeRespClasses([]string{separableSubClasses[i]})
 				argCount++
@@ -1340,13 +1321,10 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		if !conn.doSubscribe(argSet[i], kind, value, refresh_interval, &apicresp) {
 			return false
 		}
-		var subId string
-		switch id := apicresp.SubscriptionId.(type) {
-		default:
+		subId, ok := apicresp.SubscriptionId.(string)
+		if !ok {
 			conn.log.Error("Subscription ID is not a string")
 			return false
-		case string:
-			subId = id
 		}
 
 		conn.logger.WithFields(logrus.Fields{
@@ -1370,7 +1348,6 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 		conn.indexMutex.Unlock()
 		var respObjCount int
 		for _, obj := range apicresp.Imdata {
-
 			dn := obj.GetDn()
 			if dn == "" {
 				continue
@@ -1417,7 +1394,6 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 				"moCount": respObjCount,
 			}).Debug("ResponseObjCount")
 		}
-
 	}
 
 	return true

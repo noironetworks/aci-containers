@@ -59,7 +59,6 @@ func erspanpol(name string, namespace string, dest erspanpolicy.ErspanDestType,
 
 func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
 	dir string, macs []string, vpcs []string) bool {
-
 	srcGrp := apicapi.NewSpanVSrcGrp(name)
 	srcGrp.SetAttr("adminSt", adminSt)
 	apicSlice := apicapi.ApicSlice{srcGrp}
@@ -95,7 +94,6 @@ func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
 		apicSlice = append(apicSlice, infraRsSpanVDstGrp)
 	}
 	return false
-
 }
 
 func checkDeleteErspan(t *testing.T, spanTest erspanTest, cont *testAciController) {
@@ -164,7 +162,6 @@ func TestErspanPolicy(t *testing.T) {
 	//Function to check if erspan object is present in the apic connection at a specific key
 	erspanObject := func(t *testing.T, desc string, cont *testAciController,
 		key string, expected string, present bool) {
-
 		tu.WaitFor(t, desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				cont.indexMutex.Lock()
@@ -182,7 +179,6 @@ func TestErspanPolicy(t *testing.T) {
 				return false, nil
 			})
 		cont.log.Info("Finished waiting for ", desc)
-
 	}
 
 	for _, spanTest := range spanTests {
@@ -201,5 +197,4 @@ func TestErspanPolicy(t *testing.T) {
 		checkDeleteErspan(t, spanTests[0], cont)
 		cont.stop()
 	}
-
 }

@@ -16,11 +16,10 @@ package controller
 
 import (
 	"fmt"
-
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
-
 	"sort"
 	"strings"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 func (cont *AciController) SubnetChanged(obj apicapi.ApicObject, aciVrfDn string) {
@@ -44,7 +43,7 @@ func (cont *AciController) SubnetDeleted(dn string) {
 	cont.log.Debug("After Delete: CachedSubnets.subnetDns Map:  ", cont.apicConn.CachedSubnetDns)
 }
 
-func (cont *AciController) UpdateSubnetDnCache(subnetDn string, subnetIp string, aciVrfDn string) {
+func (cont *AciController) UpdateSubnetDnCache(subnetDn, subnetIp, aciVrfDn string) {
 	cont.log.Debug("aciVrfDn: ", aciVrfDn, "; Processing SubnetDn: ", subnetDn)
 	subnetDelimiter := "/subnet"
 	subnetParentDn := strings.Split(subnetDn, subnetDelimiter)[0]
@@ -88,7 +87,7 @@ func (cont *AciController) isBdPresentInVrf(bdDn string) bool {
 	return false
 }
 
-func (cont *AciController) UpdateSubnetDnCacheForDn(subnetDn string, subnetIp string) {
+func (cont *AciController) UpdateSubnetDnCacheForDn(subnetDn, subnetIp string) {
 	cont.log.Debug("Updating SubnetDnCache for dn: ", subnetDn, "ip: ", subnetIp)
 	subnetDelimiter := "/subnet"
 	subnetParentDn := strings.Split(subnetDn, subnetDelimiter)[0]
@@ -138,10 +137,9 @@ func (cont *AciController) UpdateSubnetDnCacheForDn(subnetDn string, subnetIp st
 			}
 		}
 	}
-
 }
 
-func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
+func (cont *AciController) BuildSubnetDnCache(dn, aciVrfDn string) {
 	cont.log.Debug("aciVrfDn: ", aciVrfDn, "; Processing dn: ", dn)
 	var vrfBdDns []string
 	var vrfEpgDns []string
@@ -230,7 +228,6 @@ func (cont *AciController) BuildSubnetDnCache(dn string, aciVrfDn string) {
 		}
 	}
 	cont.log.Debug("cachedSubnetsDns Map:  ", cont.apicConn.CachedSubnetDns)
-	return
 }
 
 func (cont *AciController) contains(s []string, searchterm string) bool {

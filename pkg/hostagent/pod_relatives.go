@@ -37,7 +37,6 @@ import (
 
 func (agent *HostAgent) initNamespaceInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	agent.initNamespaceInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "namespaces",
@@ -84,7 +83,6 @@ func (agent *HostAgent) namespaceAdded(obj interface{}) {
 
 func (agent *HostAgent) namespaceChanged(oldobj interface{},
 	newobj interface{}) {
-
 	oldns := oldobj.(*v1.Namespace)
 	newns := newobj.(*v1.Namespace)
 	agent.log.Infof("Namespace %+v changed", oldns)
@@ -120,7 +118,6 @@ func (agent *HostAgent) namespaceDeleted(obj interface{}) {
 
 func (agent *HostAgent) initNetworkPolicyInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	agent.initNetworkPolicyInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.NetworkingV1().RESTClient(), "networkpolicies",
@@ -252,7 +249,6 @@ func (agent *HostAgent) qosPolicyAdded(obj interface{}) {
 	qp := obj.(*qospolicy.QosPolicy)
 	agent.qosPolPods.UpdateSelectorObj(obj)
 	agent.log.Infof("qos policy added: %s", qp.ObjectMeta.Name)
-
 }
 
 func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
@@ -323,7 +319,6 @@ func (agent *HostAgent) initQoSPolPodIndex() {
 
 func (agent *HostAgent) initDeploymentInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	agent.initDeploymentInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.AppsV1().RESTClient(), "deployments",
@@ -388,7 +383,6 @@ func (agent *HostAgent) deploymentAdded(obj interface{}) {
 // in sync
 func (agent *HostAgent) deploymentChanged(oldobj interface{},
 	newobj interface{}) {
-
 	olddep := oldobj.(*appsv1.Deployment)
 	newdep := newobj.(*appsv1.Deployment)
 	deploymentLogger(agent.log, olddep).Info("Deployment changed:")
@@ -439,7 +433,6 @@ func (agent *HostAgent) deploymentDeleted(obj interface{}) {
 
 func (agent *HostAgent) initRCInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	agent.initRCInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "replicationcontrollers",
@@ -506,7 +499,6 @@ func (agent *HostAgent) rcAdded(obj interface{}) {
 // in sync
 func (agent *HostAgent) rcChanged(oldobj interface{},
 	newobj interface{}) {
-
 	oldrc := oldobj.(*v1.ReplicationController)
 	newrc := newobj.(*v1.ReplicationController)
 	rcLogger(agent.log, oldrc).Info("rcChanged:")

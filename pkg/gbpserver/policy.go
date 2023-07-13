@@ -257,7 +257,6 @@ func (c *Contract) pushTocAPIC() error {
 			fe.SetAttr("dToPort", fmt.Sprintf("%d", r.Ports.End))
 		}
 		filter.AddChild(fe)
-
 	}
 
 	moList := []apicapi.ApicObject{
@@ -440,7 +439,6 @@ func (e *EPG) getURI() string {
 }
 
 func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) error {
-
 	desiredC := e.getContractURIs(contracts)
 	currentC, err := mo.GetRefURIs(refSubj)
 	if err != nil {
@@ -449,7 +447,7 @@ func (e *EPG) setContracts(mo *gbpBaseMo, contracts []string, refSubj string) er
 
 	// delete any ref no longer required
 	for tgt, ref := range currentC {
-		if desiredC[tgt] == false {
+		if !desiredC[tgt] {
 			mo.DelChild(ref)
 			delete(currentC, tgt)
 			delete(getMoDB(), ref)
@@ -518,7 +516,6 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 				if err != nil {
 					log.Errorf("Target not found for %s", c)
 					continue
-
 				}
 
 				comps := strings.Split(target, "/")
@@ -917,10 +914,6 @@ func (hsc *HpSubjChild) getRemoteIPs() []string {
 
 func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	ipSet := hsc.getRemoteIPs()
-	//	if len(ipSet) == 0 {
-	//		log.Infof("No subnets in network policy")
-	//		return
-	//	}
 	log.Debugf("Subnets are: %v", ipSet)
 	ss := &GBPSubnetSet{}
 	ssUri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), escapeName(name, false))
@@ -928,7 +921,7 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	hsc.subnetSetUri = ssUri
 	for _, addr := range ipSet {
 		if len(strings.Split(addr, "/")) == 1 {
-			addr = addr + "/32"
+			addr += "/32"
 		}
 		s := &GBPSubnet{}
 		sUri := fmt.Sprintf("%sGbpSubnet/%s/", ssUri, escapeName(addr, false))

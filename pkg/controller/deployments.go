@@ -37,7 +37,6 @@ import (
 
 func (cont *AciController) initDeploymentInformerFromClient(
 	kubeClient kubernetes.Interface) {
-
 	cont.initDeploymentInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.AppsV1().RESTClient(), "deployments",
@@ -129,7 +128,6 @@ func (cont *AciController) deploymentAdded(obj interface{}) {
 
 func (cont *AciController) deploymentChanged(oldobj interface{},
 	newobj interface{}) {
-
 	olddep := oldobj.(*appsv1.Deployment)
 	newdep := newobj.(*appsv1.Deployment)
 
@@ -199,6 +197,4 @@ func (cont *AciController) checkIfEpgExistDep(dep *appsv1.Deployment) {
 		severity := major
 		cont.handleEpgAnnotationUpdate(key, depFaultCode, severity, dep.Name, epGroup)
 	}
-
-	return
 }

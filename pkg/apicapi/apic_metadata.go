@@ -75,8 +75,7 @@ func normalizePorts(b *ApicObjectBody, ports []string) {
 	for _, port := range ports {
 		v, ok := b.Attributes[port]
 		if ok {
-			switch vStr := v.(type) {
-			case string:
+			if vStr, isStr := v.(string); isStr {
 				b.Attributes[port] = normalizePort(vStr)
 			}
 		}
@@ -97,8 +96,7 @@ func redirectDestNormalizer(b *ApicObjectBody) {
 
 	v, ok := b.Attributes["mac"]
 	if ok {
-		switch vStr := v.(type) {
-		case string:
+		if vStr, isStr := v.(string); isStr {
 			b.Attributes["mac"] = strings.ToUpper(vStr)
 		}
 	}
@@ -112,8 +110,7 @@ func ruleNormalizer(b *ApicObjectBody) {
 
 	v, ok := b.Attributes["proto"]
 	if ok {
-		switch vStr := v.(type) {
-		case string:
+		if vStr, isStr := v.(string); isStr {
 			b.Attributes["proto"] = normalizeProto(vStr)
 		}
 	}
@@ -129,8 +126,7 @@ func filterEntryNormalizer(b *ApicObjectBody) {
 
 	v, ok := b.Attributes["prot"]
 	if ok {
-		switch vStr := v.(type) {
-		case string:
+		if vStr, isStr := v.(string); isStr {
 			b.Attributes["prot"] = normalizeProto(vStr)
 		}
 	}
@@ -144,8 +140,7 @@ func injectedSvcPortNormalizer(b *ApicObjectBody) {
 
 	v, ok := b.Attributes["protocol"]
 	if ok {
-		switch vStr := v.(type) {
-		case string:
+		if vStr, isStr := v.(string); isStr {
 			b.Attributes["protocol"] = normalizeProto(vStr)
 		}
 	}

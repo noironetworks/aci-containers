@@ -15,12 +15,14 @@
 package hostagent
 
 import (
-	"github.com/noironetworks/aci-containers/pkg/metadata"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 // Check if ignoring PacketEvent based on time of reporting works

@@ -55,7 +55,6 @@ type tunnelState struct {
 
 func (cont *AciController) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
-
 	cont.initNodeInformerBase(
 		cache.NewListWatchFromClient(
 			kubeClient.CoreV1().RESTClient(), "nodes",
@@ -83,7 +82,6 @@ func (cont *AciController) initNodeInformerBase(listWatch *cache.ListWatch) {
 
 func apicNodeNetPol(name string, tenantName string,
 	nodeIps map[string]bool) apicapi.ApicObject {
-
 	hpp := apicapi.NewHostprotPol(tenantName, name)
 	hppDn := hpp.GetDn()
 	nodeSubj := apicapi.NewHostprotSubj(hppDn, "local-node")
@@ -127,8 +125,7 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 		})
 }
 
-func (cont *AciController) createServiceEndpoint(existing *metadata.ServiceEndpoint, ep *metadata.ServiceEndpoint, deviceMac string, nodeName string) error {
-
+func (cont *AciController) createServiceEndpoint(existing, ep *metadata.ServiceEndpoint, deviceMac, nodeName string) error {
 	_, err := net.ParseMAC(deviceMac)
 	if err == nil && deviceMac != "00:00:00:00:00:00" {
 		ep.Mac = deviceMac
@@ -267,7 +264,7 @@ func (cont *AciController) getTunnelID(node *v1.Node) int64 {
 				cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
 			}
 
-			cont.tunnelGetter.nextID = cont.tunnelGetter.nextID + tunnelIDIncr
+			cont.tunnelGetter.nextID += tunnelIDIncr
 		}
 	}
 
@@ -296,7 +293,6 @@ func (cont *AciController) writeApicNode(node *v1.Node) {
 		return
 	}
 	tunnelID := cont.getTunnelID(node)
-	//cont.log.Infof("=>  Node: %s, tunnelID: %v", node.Name, tunnelID)
 	key := cont.aciNameForKey("node-vmm", node.Name)
 	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
@@ -315,7 +311,6 @@ func getNodeIP(node *v1.Node, aType v1.NodeAddressType) string {
 		if a.Type == aType {
 			return a.Address
 		}
-
 	}
 
 	return ""
@@ -420,7 +415,8 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	if nodeUpdated {
 		_, err := cont.updateNode(node)
 		if err != nil {
-			if serr, ok := err.(*kubeerr.StatusError); ok {
+			var serr *kubeerr.StatusError
+			if errors.As(err, &serr) {
 				if serr.ErrStatus.Code == http.StatusConflict {
 					logger.Debug("Conflict updating node; ",
 						"will retry on next update")
@@ -517,7 +513,7 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 }
 
 // must have index lock
-func (cont *AciController) addPodToNode(nodename string, key string) {
+func (cont *AciController) addPodToNode(nodename, key string) {
 	existing, ok := cont.nodePodNetCache[nodename]
 	if !ok {
 		existing = newNodePodNetMeta()
@@ -530,7 +526,7 @@ func (cont *AciController) addPodToNode(nodename string, key string) {
 }
 
 // must have index lock
-func (cont *AciController) removePodFromNode(nodename string, key string) {
+func (cont *AciController) removePodFromNode(nodename, key string) {
 	if existing, ok := cont.nodePodNetCache[nodename]; ok {
 		delete(existing.nodePods, key)
 		cont.checkNodePodNet(nodename)
@@ -649,5 +645,4 @@ func (cont *AciController) checkNodePodNet(nodename string) {
 	if v4changed || v6changed {
 		go cont.env.NodePodNetworkChanged(nodename)
 	}
-
 }
