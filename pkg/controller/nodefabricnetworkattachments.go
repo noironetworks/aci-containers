@@ -261,11 +261,9 @@ func (cont *AciController) nodeFabNetAttDeleted(obj interface{}) {
 			return
 		}
 	}
-	key, err := cache.MetaNamespaceKeyFunc(nodeFabNetAtt)
-	if err != nil {
-		return
-	}
-	cont.queueNodeFabNetAttByKey("DELETED_" + nodeFabNetAtt.Spec.NodeName + "_" + key)
+
+	addNetKey := nodeFabNetAtt.Spec.NetworkRef.Namespace + "/" + nodeFabNetAtt.Spec.NetworkRef.Name
+	cont.queueNodeFabNetAttByKey("DELETED_" + nodeFabNetAtt.Spec.NodeName + "_" + addNetKey)
 }
 
 func (cont *AciController) deleteNodeFabNetAttObj(key string) bool {

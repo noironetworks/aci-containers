@@ -210,7 +210,7 @@ func (agent *HostAgent) LoadAdditionalNetworkMetadata() error {
 		dir := filepath.Join(agent.config.CniMetadataDir, fabNetAttName)
 		files, err := ioutil.ReadDir(dir)
 		if err != nil {
-			agent.log.Infof("Failed to read podnetmeta for %s: %v", fabNetAttName, err)
+			agent.log.Infof("No local pods for %s: %v", fabNetAttName, err)
 			continue
 		}
 		for _, file := range files {
@@ -408,7 +408,7 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 			}
 		}
 	}
-	if !adjFound {
+	if !adjFound && !podDeleted {
 		err = fmt.Errorf("LLDP adjacency with ACI fabric not found on interface %v", podIface)
 	}
 	return err

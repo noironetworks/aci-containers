@@ -142,9 +142,16 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			for i < len(bodyc.Children) {
 				deletable := true
 				for class := range bodyc.Children[i] {
-					if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
-						deletable = false
-						break
+					if _, ok := metadata[class]; ok {
+						if metadata[class].hints != nil {
+							if val, ok := metadata[class].hints["deletable"]; ok {
+								deletableValue, ok := val.(bool)
+								if ok && deletableValue == false {
+									deletable = false
+									break
+								}
+							}
+						}
 					}
 				}
 				if !deletable {
