@@ -5,7 +5,7 @@ matrix:
       sudo: false
       go: "1.20"
       before_install:
-        - go get github.com/mattn/goveralls@v0.0.8
+        - go install github.com/mattn/goveralls@v0.0.12
       install:
         - export PATH=$PATH:$GOPATH/bin
       script:
@@ -16,5 +16,5 @@ matrix:
         - tail -200 /tmp/check.log
       after_success:
         - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-ci
+        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
 
