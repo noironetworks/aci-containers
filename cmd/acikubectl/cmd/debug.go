@@ -165,7 +165,7 @@ func addFileToTarball(path string, tarWriter *tar.Writer) error {
 	if stat, err := file.Stat(); err == nil {
 		// now lets create the header as needed for this file within the tarball
 		header := new(tar.Header)
-		header.Name = "cluster-report/hostfiles.tar"
+		header.Name = "cluster-report/" + path
 		header.Size = stat.Size()
 		header.Mode = 0644
 		header.ModTime = time.Now()
@@ -195,7 +195,22 @@ func createTarForClusterReport(tarWriter *tar.Writer) error {
 	// write hostfiles.tar file to cluster-report tar
 	err = addFileToTarball("hostfiles.tar", tarWriter)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not add files.tar to cluster-report tar")
+		fmt.Fprintln(os.Stderr, "Could not add hostfiles.tar to cluster-report tar")
+		return err
+	}
+
+	// Create tar file for pod logs
+	createTarCmd = exec.Command("tar", "-cvf", "pod-logs.tar", "pod-logs")
+	err = createTarCmd.Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error while running command")
+		return err
+	}
+
+	// write pod-logs.tar file to cluster-report tar
+	err = addFileToTarball("pod-logs.tar", tarWriter)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not add pod-logs.tar to cluster-report tar")
 		return err
 	}
 
@@ -203,6 +218,8 @@ func createTarForClusterReport(tarWriter *tar.Writer) error {
 	deleteCmds := []string{"rm -rf cluster-report/",
 		"rm -rf hostfiles.tar",
 		"rm -rf hostfiles",
+		"rm -rf pod-logs.tar",
+		"rm -rf pod-logs",
 	}
 
 	for _, cmd := range deleteCmds {
@@ -243,6 +260,8 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			"Could not find aci-containers system namespace:", err)
 		return
 	}
+
+	collectPodLogs(kubeClient, systemNamespace)
 
 	ipam_path := "-o=jsonpath={range.items[*]}{@.metadata.name}\n{@.metadata.annotations.opflex\\.cisco\\.com/pod-network-ranges}\n"
 
@@ -598,6 +617,75 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Fprintln(os.Stderr, "Finished writing report to", output)
 	}
+}
+
+func collectPodLogs(kubeClient kubernetes.Interface, systemNamespace string) {
+	/*
+		Collect pod logs.
+		Collect *ALL* available log files in: /var/log/pods/<namespace>_<pod_name>_<poduid>/<container>
+		e.g
+			/var/log/pods/aci-containers-system_aci-containers-host-<uid>/opflex-agent/*
+			/var/log/pods/aci-containers-system_aci-containers-host-<uid>/mcast-daemon/*
+			/var/log/pods/aci-containers-system_aci-containers-host-<uid>/aci-containers-host/*
+			/var/log/pods/aci-containers-system_aci-containers-openvswitch-<uid>/aci-containers-openvswitch/*
+			/var/log/pods/aci-containers-system_aci-containers-controller-<uid>/aci-containers-controller/*
+			/var/log/pods/aci-containers-system_aci-containers-operator-<uid>/aci-containers-operator/*
+	*/
+
+	pod_logs_dir := "pod-logs"
+	err := os.MkdirAll(pod_logs_dir, os.ModePerm)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	pods, _ := ListPods(kubeClient, systemNamespace)
+
+	// create slice of kubectl pod log collect cmds
+	pod_logs_cmds := make([]string, 0)
+
+	for _, pod := range pods.Items {
+		podname := pod.Name
+		poduid := fmt.Sprintf("%v", pod.UID)
+		container := ""
+		// fmt.Println("Pod details - ", pod)
+		if strings.Contains(podname, "aci-containers-host") {
+			container = "aci-containers-host"
+		} else if strings.Contains(podname, "aci-containers-controller") {
+			container = "aci-containers-controller"
+		} else if strings.Contains(podname, "aci-containers-openvswitch") {
+			container = "aci-containers-openvswitch"
+		} else if strings.Contains(podname, "aci-containers-operator") {
+			container = "aci-containers-operator"
+		} else {
+			continue
+		}
+		cmd := []string{"kubectl", "--kubeconfig", kubeconfig, "-n", systemNamespace, "exec", podname, "-c", container,
+			"--", "tar cfh - var/log/pods/" + systemNamespace + "_" + podname + "_" + poduid,
+			"| tar xf - -C", pod_logs_dir, "--strip-components=3"}
+
+		pod_logs_cmds = append(pod_logs_cmds, strings.Join(cmd, " "))
+	}
+
+	// execute all pod_log_cmds one by one
+	for _, value := range pod_logs_cmds {
+		run_cmd := exec.Command("/bin/sh", "-c", value)
+		fmt.Println("Running command: ", run_cmd)
+		var stderr bytes.Buffer
+		run_cmd.Stderr = &stderr
+		err := run_cmd.Run()
+		if err != nil {
+			fmt.Println(fmt.Sprint(err) + " : " + stderr.String())
+		}
+	}
+}
+
+func ListPods(kubeClient kubernetes.Interface, systemNamespace string) (*v1.PodList, error) {
+	pods, err := kubeClient.CoreV1().Pods(systemNamespace).List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not get aci pods list:", err)
+		return nil, err
+	}
+	return pods, nil
 }
 
 func getOutfile(output string) (string, *os.File, error) {
