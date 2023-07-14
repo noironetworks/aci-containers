@@ -652,8 +652,6 @@ func (s *Server) handleMsgs() {
 			log.Errorf("Unknown msg type: %d", m.op)
 			continue
 		}
-
-		DoAll()
 	}
 }
 

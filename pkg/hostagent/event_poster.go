@@ -79,7 +79,7 @@ func (agent *HostAgent) submitEvent(pod *v1.Pod, message, dropReason string) err
 }
 
 // Check if given PacketEvent should be ignored
-func (agent *HostAgent) shouldIgnore(packetEvent PacketEvent, currTime time.Time) bool {
+func (agent *HostAgent) shouldIgnore(packetEvent *PacketEvent, currTime time.Time) bool {
 	// ignore if the given packetDrop is out of date
 	logTime, err := time.Parse(time.UnixDate, packetEvent.TimeStamp)
 	if (err != nil) || (currTime.Sub(logTime).Minutes() > float64(agent.config.DropLogExpiryTime)) {
@@ -103,7 +103,7 @@ func getPacketDropMessage(etherType, srcIp, dstIp string) string {
 }
 
 // Handle the given PacketDrop, return error if api server does not work
-func (agent *HostAgent) processPacketEvent(packetEvent PacketEvent, currTime time.Time) error {
+func (agent *HostAgent) processPacketEvent(packetEvent *PacketEvent, currTime time.Time) error {
 	if packetEvent.SourceIP == "" || packetEvent.DestinationIP == "" {
 		return nil
 	}

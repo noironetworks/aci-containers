@@ -1605,9 +1605,9 @@ func (cont *AciController) endpointsDeleted(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
-func (cont *AciController) endpointsUpdated(old interface{}, new interface{}) {
-	oldendpoints := old.(*v1.Endpoints)
-	newendpoints := new.(*v1.Endpoints)
+func (cont *AciController) endpointsUpdated(oldEps, newEps interface{}) {
+	oldendpoints := oldEps.(*v1.Endpoints)
+	newendpoints := newEps.(*v1.Endpoints)
 	servicekey, err := cache.MetaNamespaceKeyFunc(newendpoints)
 	if err != nil {
 		cont.log.Error("Could not create service key: ", err)
@@ -1650,9 +1650,9 @@ func (cont *AciController) serviceAdded(obj interface{}) {
 	cont.queueServiceUpdateByKey(servicekey)
 }
 
-func (cont *AciController) serviceUpdated(old interface{}, new interface{}) {
-	oldservice := old.(*v1.Service)
-	newservice := new.(*v1.Service)
+func (cont *AciController) serviceUpdated(oldSvc, newSvc interface{}) {
+	oldservice := oldSvc.(*v1.Service)
+	newservice := newSvc.(*v1.Service)
 	servicekey, err := cache.MetaNamespaceKeyFunc(newservice)
 	if err != nil {
 		serviceLogger(cont.log, newservice).
@@ -1732,7 +1732,7 @@ func (cont *AciController) notReadyEndpointPresent(endpointSlice *discovery.Endp
 	return false
 }
 
-func (cont *AciController) getEndpointSliceEpIps(endpoints discovery.Endpoint) map[string]bool {
+func (cont *AciController) getEndpointSliceEpIps(endpoints *discovery.Endpoint) map[string]bool {
 	ips := make(map[string]bool)
 	for _, addr := range endpoints.Addresses {
 		ips[addr] = true
@@ -1849,13 +1849,13 @@ func (cont *AciController) isDeleteEndpointSlice(oldendpointslice, newendpointsl
 	}
 	if !del {
 		// if any one of endpoint moved from ready state to not-ready state
-		for _, oldendpoint := range oldendpointslice.Endpoints {
-			oldips := cont.getEndpointSliceEpIps(oldendpoint)
-			for _, newendpoint := range newendpointslice.Endpoints {
-				newips := cont.getEndpointSliceEpIps(newendpoint)
+		for ix := range oldendpointslice.Endpoints {
+			oldips := cont.getEndpointSliceEpIps(&oldendpointslice.Endpoints[ix])
+			for newIx := range newendpointslice.Endpoints {
+				newips := cont.getEndpointSliceEpIps(&newendpointslice.Endpoints[newIx])
 				if reflect.DeepEqual(oldips, newips) {
-					if (oldendpoint.Conditions.Ready != nil && *oldendpoint.Conditions.Ready) &&
-						(newendpoint.Conditions.Ready != nil && !*newendpoint.Conditions.Ready) {
+					if (oldendpointslice.Endpoints[ix].Conditions.Ready != nil && *oldendpointslice.Endpoints[ix].Conditions.Ready) &&
+						(newendpointslice.Endpoints[newIx].Conditions.Ready != nil && !*newendpointslice.Endpoints[newIx].Conditions.Ready) {
 						del = true
 					}
 					break
@@ -2045,18 +2045,18 @@ func (cont *AciController) setNodeMap(nodeMap map[string]*metadata.ServiceEndpoi
 //  2. endpoint present in delayedEpSlices of the service but in not ready state
 //
 // indexMutex lock must be acquired before calling the function
-func (cont *AciController) isDelayedEndpoint(endpoint discovery.Endpoint, svckey string) bool {
+func (cont *AciController) isDelayedEndpoint(endpoint *discovery.Endpoint, svckey string) bool {
 	delayed := false
 	endpointips := cont.getEndpointSliceEpIps(endpoint)
 	for _, delayedepslices := range cont.delayedEpSlices {
 		if delayedepslices.ServiceKey == svckey {
 			var found bool
 			epslice := delayedepslices.OldEpSlice
-			for _, ep := range epslice.Endpoints {
-				epips := cont.getEndpointSliceEpIps(ep)
+			for ix := range epslice.Endpoints {
+				epips := cont.getEndpointSliceEpIps(&epslice.Endpoints[ix])
 				if reflect.DeepEqual(endpointips, epips) {
 					// case 2
-					if ep.Conditions.Ready != nil && !*ep.Conditions.Ready {
+					if epslice.Endpoints[ix].Conditions.Ready != nil && !*epslice.Endpoints[ix].Conditions.Ready {
 						delayed = true
 					}
 					found = true
@@ -2073,8 +2073,7 @@ func (cont *AciController) isDelayedEndpoint(endpoint discovery.Endpoint, svckey
 
 // set nodemap only if endoint is ready and not in delayedEpSlices
 func (cont *AciController) setNodeMapDelay(nodeMap map[string]*metadata.ServiceEndpoint,
-	endpoint discovery.Endpoint, service *v1.Service) {
-
+	endpoint *discovery.Endpoint, service *v1.Service) {
 	svckey, err := cache.MetaNamespaceKeyFunc(service)
 	if err != nil {
 		cont.log.Error("Could not create service key: ", err)
@@ -2125,13 +2124,13 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
 			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
-			for _, endpoint := range endpointSlices.Endpoints {
+			for ix := range endpointSlices.Endpoints {
 				if cont.config.ServiceGraphEndpointAddDelay.Delay > 0 {
-					cont.setNodeMapDelay(nodeMap, endpoint, service)
+					cont.setNodeMapDelay(nodeMap, &endpointSlices.Endpoints[ix], service)
 				} else if cont.config.NoWaitForServiceEpReadiness ||
-					(endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready) {
-					if endpoint.NodeName != nil && *endpoint.NodeName != "" {
-						cont.setNodeMap(nodeMap, *endpoint.NodeName)
+					(endpointSlices.Endpoints[ix].Conditions.Ready != nil && *endpointSlices.Endpoints[ix].Conditions.Ready) {
+					if endpointSlices.Endpoints[ix].NodeName != nil && *endpointSlices.Endpoints[ix].NodeName != "" {
+						cont.setNodeMap(nodeMap, *endpointSlices.Endpoints[ix].NodeName)
 					}
 				}
 			}

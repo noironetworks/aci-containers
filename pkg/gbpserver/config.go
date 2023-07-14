@@ -66,8 +66,6 @@ type GBPServerConfig struct {
 	Apic       *ApicInfo `json:"apic,omitempty"`
 	SyncRemEps bool      `json:"sync-rem-eps,omitempty"`
 	CSRList    string    `json:"csr-list,omitempty"`
-
-	PushJsonFile bool `json:"push-json-file,omitempty"`
 }
 
 type ApicInfo struct {
@@ -115,7 +113,6 @@ func InitConfig(config *GBPServerConfig) {
 	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
 	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "node subnet")
-	flag.BoolVar(&config.PushJsonFile, "push-json-file", false, "push file to opflexserver (testing)")
 	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
 	flag.StringVar(&config.CSRList, "csr-list", "", "comma separated list of csr vteps")
 	flag.IntVar(&config.VrfEncapID, "vrf-encap-id", RdEncapID, "encap-id for vrf")

@@ -718,12 +718,12 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 	agent.indexMutex.Unlock()
 
-	for _, v := range StaleContMetadata {
-		err := agent.cleanStatleMetadata(v.Id.ContId)
+	for ix := range StaleContMetadata {
+		err := agent.cleanStatleMetadata(StaleContMetadata[ix].Id.ContId)
 		if err == nil {
-			agent.deallocateMdIps(&v)
+			agent.deallocateMdIps(&StaleContMetadata[ix])
 			agent.ipamMutex.Lock()
-			delete(agent.epMetadata[podid], v.Id.ContId)
+			delete(agent.epMetadata[podid], StaleContMetadata[ix].Id.ContId)
 			agent.ipamMutex.Unlock()
 		}
 	}

@@ -63,7 +63,6 @@ func makeNf(name string, dstAddr string, dstPort int,
 func checkDeleteNf(t *testing.T, nt nfTest, cont *testAciController) {
 	tu.WaitFor(t, "delete", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			//nf := nfTests[0]
 			key := cont.aciNameForKey("nf", nt.netflowPol.Name)
 			if !tu.WaitEqual(t, last, 0,
 				len(cont.apicConn.GetDesiredState(key)), "delete") {

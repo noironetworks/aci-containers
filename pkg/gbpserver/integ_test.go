@@ -31,13 +31,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	//etcd_integ "github.com/etcd-io/etcd/integration"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/server/v3/embed"
+	"google.golang.org/grpc"
+
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 )
 
 const (
@@ -205,26 +205,7 @@ func TestBasic(t *testing.T) {
 
 	for _, u := range urlList {
 		log.Infof("Verify gets")
-		req, err := http.NewRequest("GET", u, http.NoBody)
-		if err != nil {
-			log.Info(err)
-			t.Fail()
-		}
-
-		resp, err := cli.Do(req)
-		if err != nil {
-			log.Info(err)
-			t.Fail()
-		}
-
-		res, err := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		if err != nil {
-			log.Info(err)
-			t.Fail()
-		}
-
-		log.Infof("==>> Response: %s", res)
+		verifyGets(t, u, cli)
 	}
 
 	time.Sleep(2 * time.Second)
@@ -233,7 +214,31 @@ func TestBasic(t *testing.T) {
 	addEPs(t, nil)
 	verifyRest(t, cli)
 	close(stopCh)
-	DoAll()
+}
+
+// extracted into a separate function to avoid defer calls from waiting
+// until after loop has completed
+func verifyGets(t *testing.T, url string, cli *http.Client) {
+	req, err := http.NewRequest("GET", url, http.NoBody)
+	if err != nil {
+		log.Info(err)
+		t.Fail()
+	}
+
+	resp, err := cli.Do(req)
+	if err != nil {
+		log.Info(err)
+		t.Fail()
+	}
+
+	res, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		log.Info(err)
+		t.Fail()
+	}
+
+	log.Infof("==>> Response: %s", res)
 }
 
 func getClient(cert []byte) (*http.Client, error) {
@@ -367,14 +372,14 @@ func addEPs(t *testing.T, srv *Server) {
 		{EPG: "epgA", VTEP: "101.10.1.3"},
 	}
 
-	for ix, ep := range epList {
-		ep.Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
-		ep.MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
-		ep.IPAddr = []string{fmt.Sprintf("10.2.52.%d", ix)}
+	for ix := range epList {
+		epList[ix].Uuid = fmt.Sprintf("2d62c0ca-049d-11e9-9d5e-005056986463_4646341552ed73d23d688a8578ed51236610a0dec385418%d_veth10%d", ix, ix)
+		epList[ix].MacAddr = fmt.Sprintf("ca:17:aa:10:aa:%d%d", ix, ix)
+		epList[ix].IPAddr = []string{fmt.Sprintf("10.2.52.%d", ix)}
 		if srv != nil {
-			srv.AddEP(ep)
+			srv.AddEP(epList[ix])
 		} else {
-			_, err := ep.Add()
+			_, err := epList[ix].Add()
 			if err != nil {
 				log.Errorf("ep make - %v", err)
 				t.FailNow()
@@ -386,11 +391,11 @@ func addEPs(t *testing.T, srv *Server) {
 		{EPG: "epgD", Uuid: "extNet1", IPAddr: []string{"33.33.0.0/16"}},
 		{EPG: "epgE", Uuid: "extNets2", IPAddr: []string{"34.1.1.0/24", "34.1.2.1/32", "35.1.1.1/32"}},
 	}
-	for _, ep := range extEPList {
+	for ix := range extEPList {
 		if srv != nil {
-			srv.AddEP(ep)
+			srv.AddEP(extEPList[ix])
 		} else {
-			_, err := ep.Add()
+			_, err := extEPList[ix].Add()
 			if err != nil {
 				log.Errorf("ep make - %v", err)
 				t.FailNow()
@@ -434,42 +439,16 @@ func verifyRest(t *testing.T, c *http.Client) {
 	}
 
 	for _, p := range postList {
-		var err error
-		content, ok := p.obj.([]byte)
-		if !ok {
-			content, err = json.Marshal(p.obj)
-			if err != nil {
-				log.Errorf("json.Marshal :%v", err)
-				t.FailNow()
-			}
-		}
-		resp, err := c.Post(p.url, "application/json", strings.NewReader(string(content)))
-		if err != nil {
-			log.Errorf("Post :%v", err)
-			t.FailNow()
-		}
-
-		defer resp.Body.Close()
-
-		rBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Errorf("ReadAll :%v", err)
-			t.FailNow()
-		}
-
-		var reply PostResp
-
-		err = json.Unmarshal(rBody, &reply)
-		if err != nil {
-			log.Errorf("Unmarshal :%v", err)
-			t.FailNow()
-		}
-
-		log.Infof("reply: %+v", reply)
+		verifyPosts(t, c, p.url, p.obj)
 	}
 
 	getter := func(uri string) []byte {
-		getResp, err := c.Get(uri)
+		request, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, uri, http.NoBody)
+		if err != nil {
+			log.Errorf("Error creating request :%v", err)
+			t.FailNow()
+		}
+		getResp, err := c.Do(request)
 		if err != nil {
 			log.Errorf("Get :%v", err)
 			t.FailNow()
@@ -555,6 +534,47 @@ func verifyRest(t *testing.T, c *http.Client) {
 		log.Errorf("Delete :%v", err)
 		t.FailNow()
 	}
+}
+
+func verifyPosts(t *testing.T, c *http.Client, url string, obj interface{}) {
+	var err error
+	content, ok := obj.([]byte)
+	if !ok {
+		content, err = json.Marshal(obj)
+		if err != nil {
+			log.Errorf("json.Marshal :%v", err)
+			t.FailNow()
+		}
+	}
+	request, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, url, strings.NewReader(string(content)))
+	if err != nil {
+		log.Errorf("Error creating request :%v", err)
+		t.FailNow()
+	}
+	request.Header.Set("Content-Type", "application/json")
+	resp, err := c.Do(request)
+	if err != nil {
+		log.Errorf("Post :%v", err)
+		t.FailNow()
+	}
+
+	defer resp.Body.Close()
+
+	rBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("ReadAll :%v", err)
+		t.FailNow()
+	}
+
+	var reply PostResp
+
+	err = json.Unmarshal(rBody, &reply)
+	if err != nil {
+		log.Errorf("Unmarshal :%v", err)
+		t.FailNow()
+	}
+
+	log.Infof("reply: %+v", reply)
 }
 
 func TestAPIC(t *testing.T) {

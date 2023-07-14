@@ -233,15 +233,15 @@ func getSvcKey(s *v1.Service) string {
 	return fmt.Sprintf("%s-%s", s.ObjectMeta.Namespace, s.ObjectMeta.Name)
 }
 
-func targetsDiff(old, new []string) ([]*elbv2.TargetDescription, []*elbv2.TargetDescription) {
+func targetsDiff(oldTgt, newTgt []string) ([]*elbv2.TargetDescription, []*elbv2.TargetDescription) {
 	// new - old
 	r := make(map[string]bool)
 
-	for _, o := range old {
+	for _, o := range oldTgt {
 		r[o] = false
 	}
 
-	for _, n := range new {
+	for _, n := range newTgt {
 		if _, found := r[n]; found {
 			delete(r, n)
 		} else {

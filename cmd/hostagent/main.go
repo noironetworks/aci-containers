@@ -177,8 +177,8 @@ func getNodeIP() (string, error) {
 		return "", fmt.Errorf("Error listing nodes: %w", err)
 	}
 
-	for _, node := range nodeList.Items {
-		for _, a := range node.Status.Addresses {
+	for ix := range nodeList.Items {
+		for _, a := range nodeList.Items[ix].Status.Addresses {
 			if a.Type == v1.NodeInternalIP {
 				return a.Address, nil
 			}

@@ -70,17 +70,17 @@ func (cont *AciController) initNodePodIfInformerBase(listWatch *cache.ListWatch)
 	cont.log.Debug("Initializing nodepodif Informers")
 }
 
-func getPodifKey(podif nodePodIf.PodIF) string {
+func getPodifKey(podif *nodePodIf.PodIF) string {
 	return podif.PodNS + "/" + podif.PodName
 }
 
-func getPodifEPG(podif nodePodIf.PodIF) string {
+func getPodifEPG(podif *nodePodIf.PodIF) string {
 	deconcatenate := strings.Split(podif.EPG, "|")
 	deconEPG := deconcatenate[len(deconcatenate)-1]
 	return deconEPG
 }
 
-func getPodifAppProfile(podif nodePodIf.PodIF) string {
+func getPodifAppProfile(podif *nodePodIf.PodIF) string {
 	deconcatenate := strings.Split(podif.EPG, "|")
 	deconAppProfile := deconcatenate[0]
 	return deconAppProfile
@@ -95,15 +95,15 @@ func (cont *AciController) nodePodIFAdded(obj interface{}) {
 	cont.log.Infof("nodepodif Added: %s", np.ObjectMeta.Name)
 	podifs := np.Spec.PodIFs
 
-	for _, podif := range podifs {
+	for ix := range podifs {
 		cont.indexMutex.Lock()
 		podifdata := &EndPointData{
-			MacAddr:    podif.MacAddr,
-			EPG:        getPodifEPG(podif),
-			Namespace:  podif.PodNS,
-			AppProfile: getPodifAppProfile(podif),
+			MacAddr:    podifs[ix].MacAddr,
+			EPG:        getPodifEPG(&podifs[ix]),
+			Namespace:  podifs[ix].PodNS,
+			AppProfile: getPodifAppProfile(&podifs[ix]),
 		}
-		podifKey := getPodifKey(podif)
+		podifKey := getPodifKey(&podifs[ix])
 		cont.podIftoEp[podifKey] = podifdata
 		cont.indexMutex.Unlock()
 	}
@@ -115,15 +115,15 @@ func (cont *AciController) nodePodIFUpdated(oldobj, newobj interface{}) {
 	cont.log.Infof("nodepodif updated: %s", oldnp.ObjectMeta.Name)
 	if !reflect.DeepEqual(oldnp.Spec.PodIFs, newnp.Spec.PodIFs) {
 		podifs := newnp.Spec.PodIFs
-		for _, newpodif := range podifs {
+		for ix := range podifs {
 			cont.indexMutex.Lock()
 			podifdata := &EndPointData{
-				MacAddr:    newpodif.MacAddr,
-				EPG:        getPodifEPG(newpodif),
-				Namespace:  newpodif.PodNS,
-				AppProfile: getPodifAppProfile(newpodif),
+				MacAddr:    podifs[ix].MacAddr,
+				EPG:        getPodifEPG(&podifs[ix]),
+				Namespace:  podifs[ix].PodNS,
+				AppProfile: getPodifAppProfile(&podifs[ix]),
 			}
-			podifKey := getPodifKey(newpodif)
+			podifKey := getPodifKey(&podifs[ix])
 			cont.podIftoEp[podifKey] = podifdata
 			cont.indexMutex.Unlock()
 			spankeys := cont.erspanPolPods.GetObjForPod(podifKey)
@@ -151,9 +151,9 @@ func (cont *AciController) nodePodIFDeleted(obj interface{}) {
 	}
 	cont.log.Infof("nodepodif Deleted: %s", np.ObjectMeta.Name)
 	podifs := np.Spec.PodIFs
-	for _, podif := range podifs {
+	for ix := range podifs {
 		cont.indexMutex.Lock()
-		delete(cont.podIftoEp, getPodifKey(podif))
+		delete(cont.podIftoEp, getPodifKey(&podifs[ix]))
 		cont.indexMutex.Unlock()
 	}
 }

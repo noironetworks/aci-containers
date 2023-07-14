@@ -59,7 +59,6 @@ type testAciController struct {
 }
 
 func (cont *testAciController) InitController() {
-
 	cont.env.(*K8sEnvironment).cont = &cont.AciController
 	cont.serviceEndPoints = &serviceEndpoint{}
 	cont.serviceEndPoints.(*serviceEndpoint).cont = &cont.AciController

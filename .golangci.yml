@@ -25,12 +25,18 @@ linters-settings:
       - performance
       - style
     disabled-checks:
+      - appendCombine
       - commentFormatting
       - dupImport # https://github.com/go-critic/go-critic/issues/845
+      - emptyStringTest
+      - equalFold
       - ifElseChain
+      - importShadow
       - nestingReduce
       - octalLiteral
+      - sloppyReassign
       - unnamedResult
+      - unnecessaryBlock
       - whyNoLint
       - wrapperFunc
   gocyclo:

@@ -19,6 +19,7 @@ import (
 	"net"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 

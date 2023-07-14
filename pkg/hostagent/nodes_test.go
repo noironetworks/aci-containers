@@ -135,13 +135,13 @@ func TestBuildIpam(t *testing.T) {
 		agent.epMetadata =
 			make(map[string]map[string]*metadata.ContainerMetadata)
 		agent.podNetAnnotation = ""
-		for _, ep := range test.existingEps {
-			podid := "ns/pod" + ep.Id.ContId
+		for ix := range test.existingEps {
+			podid := "ns/pod" + test.existingEps[ix].Id.ContId
 			if _, ok := agent.epMetadata[podid]; !ok {
 				agent.epMetadata[podid] =
 					make(map[string]*metadata.ContainerMetadata)
 			}
-			agent.epMetadata[podid][ep.Id.ContId] = &ep
+			agent.epMetadata[podid][test.existingEps[ix].Id.ContId] = &test.existingEps[ix]
 		}
 		agent.buildUsedIPs()
 		agent.indexMutex.Unlock()

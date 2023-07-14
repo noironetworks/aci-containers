@@ -197,11 +197,11 @@ func TestPodSync(t *testing.T) {
 				cnimd.Id.ContId: cnimd,
 			}
 		agent.fakePodSource.Add(pod)
-		agent.doTestPod(t, tempdir, &pt, "create")
+		agent.doTestPod(t, tempdir, &podTests[i], "create")
 		agent.log.Info("Created ##### ", i, pt.uuid)
 	}
 
-	for _, pt := range podTests {
+	for i, pt := range podTests {
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
 		cnimd.Ifaces[0].Mac = pt.mac
@@ -210,7 +210,7 @@ func TestPodSync(t *testing.T) {
 				cnimd.Id.ContId: cnimd,
 			}
 		agent.fakePodSource.Add(pod)
-		agent.doTestPod(t, tempdir, &pt, "update")
+		agent.doTestPod(t, tempdir, &podTests[i], "update")
 		agent.log.Info("Updated ##### ", pt.uuid)
 	}
 

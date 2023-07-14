@@ -167,7 +167,6 @@ func TestSnatGraph(t *testing.T) {
 	cont.config.MaxSvcGraphNodes = 2
 	cont.fakeNodeSource.Add(node1)
 	cont.fakeNodeSource.Add(node2)
-	//cont.fakeNodeSource.Add(node3)
 
 	cont.run()
 	cont.fakeSnatPolicySource.Add(policy)

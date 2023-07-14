@@ -396,8 +396,8 @@ func (agent *HostAgent) updateServiceDesc(external bool, as *v1.Service, key str
 		ofas.Uuid += "-external"
 	}
 	hasValidMapping := false
-	for _, sp := range as.Spec.Ports {
-		hasValidMapping = agent.serviceEndPoints.SetOpflexService(ofas, as, external, key, sp)
+	for ix := range as.Spec.Ports {
+		hasValidMapping = agent.serviceEndPoints.SetOpflexService(ofas, as, external, key, &as.Spec.Ports[ix])
 	}
 
 	id := fmt.Sprintf("%s_%s", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
@@ -640,7 +640,7 @@ func (agent *HostAgent) setOpenShfitService(as *v1.Service, external bool, ofas 
 }
 
 func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service,
-	external bool, key string, sp v1.ServicePort) bool {
+	external bool, key string, sp *v1.ServicePort) bool {
 	agent := sep.agent
 	endpointsobj, exists, err :=
 		agent.endpointsInformer.GetStore().GetByKey(key)
@@ -748,7 +748,7 @@ func getSessionAffinity(as *v1.Service) *opflexSessionAffinityConfig {
 }
 
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
-	external bool, key string, sp v1.ServicePort) bool {
+	external bool, key string, sp *v1.ServicePort) bool {
 	agent := seps.agent
 	hasValidMapping := false
 	var endpointSlices []*discovery.EndpointSlice

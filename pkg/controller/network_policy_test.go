@@ -172,15 +172,10 @@ func addPods(cont *testAciController, incIps bool, ips []string, ipv4 bool) {
 			podLabel("testnsv6", "pod2", map[string]string{"l1": "v2"}),
 		}
 	}
-	pods = append(pods, podLabel("ns1", "pod3", map[string]string{"l1": "v1"}))
-	pods = append(pods, podLabel("ns1", "pod4", map[string]string{"l1": "v2"}))
-	pods = append(pods, podLabel("ns2", "pod5", map[string]string{"l1": "v1"}))
-	pods = append(pods, podLabel("ns2", "pod6", map[string]string{"l1": "v2"}))
-	/*
-		ips := []string{
-			"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
-		}
-	*/
+	pods = append(pods, podLabel("ns1", "pod3", map[string]string{"l1": "v1"}),
+		podLabel("ns1", "pod4", map[string]string{"l1": "v2"}),
+		podLabel("ns2", "pod5", map[string]string{"l1": "v1"}),
+		podLabel("ns2", "pod6", map[string]string{"l1": "v2"}))
 	if incIps {
 		for i := range pods {
 			pods[i].Status.PodIP = ips[i]
@@ -281,7 +276,6 @@ func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController)
 func checkDelete(t *testing.T, nt npTest, cont *testAciController) {
 	tu.WaitFor(t, "delete", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			//nt := npTests[0]
 			key := cont.aciNameForKey("np",
 				nt.netPol.Namespace+"_"+nt.netPol.Name)
 			if !tu.WaitEqual(t, last, 0,
@@ -924,29 +918,29 @@ func TestNetworkPolicy(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPods(cont, true, ips, true)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -1607,29 +1601,29 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPods(cont, true, ips, true)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -2186,30 +2180,30 @@ func TestNetworkPolicyv6(t *testing.T) {
 	ips := []string{
 		"2001::2", "2001::3", "2001::4", "2001::5", "2001::6", "",
 	}
-	for _, nt := range np6Tests {
+	for ix := range np6Tests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", np6Tests[ix].desc)
 		addPods(cont, true, ips, false)
-		addServices(cont, nt.augment)
+		addServices(cont, np6Tests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(np6Tests[ix].netPol)
+		checkNp(t, &np6Tests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", np6Tests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(np6Tests[ix].netPol)
 		checkDelete(t, np6Tests[0], cont)
 		cont.stop()
 	}
 
-	for _, nt := range np6Tests {
+	for ix := range np6Tests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", np6Tests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(np6Tests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, np6Tests[ix].augment)
 		addPods(cont, false, ips, false)
 		addPods(cont, true, ips, false)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &np6Tests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -2754,30 +2748,30 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 	ips := []string{
 		"2001::2", "2001::3", "2001::4", "2001::5", "2001::6", "",
 	}
-	for _, nt := range np6Tests {
+	for ix := range np6Tests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", np6Tests[ix].desc)
 		addPods(cont, true, ips, false)
-		addServices(cont, nt.augment)
+		addServices(cont, np6Tests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(np6Tests[ix].netPol)
+		checkNp(t, &np6Tests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", np6Tests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(np6Tests[ix].netPol)
 		checkDelete(t, np6Tests[0], cont)
 		cont.stop()
 	}
 
-	for _, nt := range np6Tests {
+	for ix := range np6Tests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", np6Tests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(np6Tests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, np6Tests[ix].augment)
 		addPods(cont, false, ips, false)
 		addPods(cont, true, ips, false)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &np6Tests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -3207,29 +3201,29 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPods(cont, true, ips, true)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -3631,29 +3625,29 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 	ips := []string{
 		"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "",
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPods(cont, true, ips, true)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
 
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -3793,29 +3787,29 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 		}
 		cont.fakePodSource.Add(pod)
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
 		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
 		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }
@@ -3948,29 +3942,29 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 		}
 		cont.fakePodSource.Add(pod)
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting podsfirst ", nt.desc)
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
 		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
 		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		cont.run()
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
-		checkNp(t, &nt, "podsfirst", cont)
-		cont.log.Info("Starting delete ", nt.desc)
-		cont.fakeNetworkPolicySource.Delete(nt.netPol)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
 		checkDelete(t, npTests[0], cont)
 		cont.stop()
 	}
-	for _, nt := range npTests {
+	for ix := range npTests {
 		cont := initCont()
-		cont.log.Info("Starting npfirst ", nt.desc)
-		cont.fakeNetworkPolicySource.Add(nt.netPol)
+		cont.log.Info("Starting npfirst ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
 		cont.run()
-		addServices(cont, nt.augment)
+		addServices(cont, npTests[ix].augment)
 		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
 		addPod(cont, "testns", "pod2", map[string]string{"l1": "v2"}, ports1)
-		checkNp(t, &nt, "npfirst", cont)
+		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
 }

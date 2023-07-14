@@ -43,7 +43,7 @@ func TestShouldIgnoreDelayed(t *testing.T) {
 	agent.config.DropLogExpiryTime = 10
 	agent.config.DropLogRepeatIntervalTime = 2
 	currTime, _ := time.Parse(time.UnixDate, "Sun Mar 08 20:13:59 EDT 2020")
-	assert.Equal(t, true, agent.shouldIgnore(packetEvent, currTime), "late event prune test failed")
+	assert.Equal(t, true, agent.shouldIgnore(&packetEvent, currTime), "late event prune test failed")
 }
 
 // Check if ignoring PacketEvent based on frequency works
@@ -95,14 +95,14 @@ func TestShouldIgnoreRepeated(t *testing.T) {
 	}
 	time.Sleep(3000 * time.Millisecond)
 	currTime, _ := time.Parse(time.UnixDate, "Sun Mar 08 20:03:59 EDT 2020")
-	err = agent.processPacketEvent(packetEvent, currTime)
+	err = agent.processPacketEvent(&packetEvent, currTime)
 	assert.Nil(t, err, "Failed to process event")
 	packetEvent.TimeStamp = "Sun Mar 08 20:04:59 EDT 2020"
 	currTime = currTime.Add(time.Minute * 1)
-	assert.Equal(t, true, agent.shouldIgnore(packetEvent, currTime), "repeated event prune test failed")
+	assert.Equal(t, true, agent.shouldIgnore(&packetEvent, currTime), "repeated event prune test failed")
 	packetEvent.TimeStamp = "Sun Mar 08 20:06:59 EDT 2020"
 	currTime = currTime.Add(time.Minute * 5)
-	assert.Equal(t, false, agent.shouldIgnore(packetEvent, currTime), "post event test failed")
+	assert.Equal(t, false, agent.shouldIgnore(&packetEvent, currTime), "post event test failed")
 	for _, pt := range podTests {
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
 		agent.fakePodSource.Delete(pod)
