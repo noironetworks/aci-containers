@@ -459,6 +459,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 				},
 				EncapVlan:   netAttData.EncapVlan,
 				NodeName:    agent.config.NodeName,
+				PrimaryCNI:  string(netAttData.PrimaryCNI),
 				AciTopology: make(map[string]fabattv1.AciNodeLinkAdjacency),
 			},
 		}
@@ -475,6 +476,18 @@ func (agent *HostAgent) deleteNodeFabricNetworkAttachment(netattData *NetworkAtt
 }
 
 func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAttachmentData) bool {
+	handlePluginVlan := func(vlan int) (encap string) {
+		if vlan == 0 {
+			encap = "0"
+			if agent.config.AciAdditionalVlans != "" {
+				encap = fmt.Sprintf("%s", agent.config.AciAdditionalVlans)
+			}
+			return encap
+		}
+		encap = fmt.Sprintf("%d", vlan)
+		return encap
+	}
+
 	relevantChain := false
 	for idx, plugin := range config.Plugins {
 		if idx == 0 {
@@ -492,14 +505,17 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 					agent.log.Errorf("resourcename %s unrecognized in  net-att-def %s/%s", netattData.Annot, netattData.Namespace, netattData.Name)
 				}
 				agent.log.Infof("Using resource %s", netattData.ResourceName)
-				netattData.EncapVlan = fmt.Sprintf("%d", plugin.Vlan)
+				netattData.EncapVlan = handlePluginVlan(plugin.Vlan)
 			} else if plugin.Type == "macvlan" {
 				netattData.PrimaryCNI = PrimaryCNIMACVLAN
 				parts := strings.Split(plugin.Master, ".")
+				netattData.ResourceName = parts[0]
 				if len(parts) != 2 {
-					agent.log.Errorf("master interface %s unrecognized in  net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
+					netattData.EncapVlan = handlePluginVlan(0)
+					if len(parts) != 1 {
+						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
+					}
 				} else {
-					netattData.ResourceName = parts[0]
 					netattData.EncapVlan = parts[1]
 				}
 			} else {

@@ -39,6 +39,8 @@ type NodeFabricNetworkAttachmentSpec struct {
 	NodeName   string `json:"nodeName,omitempty"`
 	// Map of iface to fabricLink
 	AciTopology map[string]AciNodeLinkAdjacency `json:"aciTopology,omitempty"`
+	// informational: primaryCNI sriov/macvlan
+	PrimaryCNI string `json:"primaryCni,omitempty"`
 }
 
 // NodeFabricAttachmentStatus defines the observed state of FabricAttachment

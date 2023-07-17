@@ -58,16 +58,8 @@ type testAciController struct {
 	serviceUpdates          []*v1.Service
 }
 
-func testController() *testAciController {
-	log := logrus.New()
-	log.Level = logrus.DebugLevel
-	log.Formatter = &logrus.TextFormatter{
-		DisableColors: true,
-	}
+func (cont *testAciController) InitController() {
 
-	cont := &testAciController{
-		AciController: *NewController(NewConfig(), &K8sEnvironment{}, log, true),
-	}
 	cont.env.(*K8sEnvironment).cont = &cont.AciController
 	cont.serviceEndPoints = &serviceEndpoint{}
 	cont.serviceEndPoints.(*serviceEndpoint).cont = &cont.AciController
@@ -221,7 +213,47 @@ func testController() *testAciController {
 	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
 	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
+}
 
+func testController() *testAciController {
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{
+		DisableColors: true,
+	}
+
+	cont := &testAciController{
+		AciController: *NewController(NewConfig(), &K8sEnvironment{}, log, true),
+	}
+	cont.InitController()
+	return cont
+}
+
+func testChainedController() *testAciController {
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{
+		DisableColors: true,
+	}
+
+	cont := &testAciController{
+		AciController: *NewController(&ControllerConfig{
+			AciPolicyTenant:      "kubernetes",
+			AciPrefix:            "kube",
+			AciVrf:               "kube-vrf",
+			AciVrfTenant:         "common",
+			ChainedMode:          true,
+			AciPhysDom:           "first-physdom",
+			AciAdditionalPhysDom: "second-physdom",
+		},
+			&K8sEnvironment{}, log, true),
+	}
+	cont.InitController()
+	// Hardcode lldpIfMOs
+	cont.lldpIfCache["/topology/pod-1/node-101/pathep-[eth1/34]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
+	cont.lldpIfCache["/topology/pod-1/node-102/pathep-[eth1/34]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
+	cont.lldpIfCache["/topology/pod-1/node-101/pathep-[eth1/31]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
+	cont.lldpIfCache["/topology/pod-1/node-102/pathep-[eth1/31]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
 	return cont
 }
 

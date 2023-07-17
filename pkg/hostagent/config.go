@@ -260,6 +260,9 @@ type HostAgentConfig struct {
 
 	// Primary cni path
 	PrimaryCniPath string `json:"primary-cni-path,omitempty"`
+
+	// List of secondary-vlans to be used as encaps for additionalnetworks in chained mode
+	AciAdditionalVlans string `json:"aci-additional-vlans,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
