@@ -367,6 +367,10 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: "cluster-report/status/ipam_details_all_nodes.log",
 			args: []string{"get", "nodes", ipam_path},
 		},
+		{
+			name: "cluster-report/status/network_policy.log",
+			args: []string{"get", "networkpolicy", "--all-namespaces", "-o", "yaml"},
+		},
 	}
 
 	// Get all nodes of k8s cluster
