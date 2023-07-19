@@ -108,6 +108,10 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 									}
 								}
 							}
+							if !strings.Contains(fabricAtt.StaticPath, "topology") || !strings.Contains(fabricAtt.StaticPath, "pod") || !strings.Contains(fabricAtt.StaticPath, "node") {
+								agent.hostAgent.log.Debugf("Skipping invalid staticpath from non-ACI neighbor:%s", fabricAtt.StaticPath)
+								continue
+							}
 							agent.indexMutex.Lock()
 							existingNeighbors, ok := agent.LLDPNeighborMap[iface]
 							if ok {

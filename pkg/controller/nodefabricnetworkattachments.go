@@ -216,9 +216,10 @@ func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int,
 	}
 	vlanElems := strings.Split(listContents, ",")
 	for idx := range vlanElems {
-		if strings.Contains(vlanElems[idx], "-") {
-			rangeErr := fmt.Errorf("Failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanElems[idx])
-			vlanRange := strings.Split(vlanElems[idx], "-")
+		vlanStr := strings.TrimSpace(vlanElems[idx])
+		if strings.Contains(vlanStr, "-") {
+			rangeErr := fmt.Errorf("Failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanStr)
+			vlanRange := strings.Split(vlanStr, "-")
 			if len(vlanRange) != 2 {
 				return vlans, rangeErr
 			}
@@ -235,9 +236,9 @@ func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int,
 			}
 
 		} else {
-			vlan, err := strconv.Atoi(vlanElems[idx])
+			vlan, err := strconv.Atoi(vlanStr)
 			if err != nil || vlan > 4095 {
-				err := fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanElems[idx])
+				err := fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
 				return vlans, err
 			}
 			vlans = append(vlans, vlan)

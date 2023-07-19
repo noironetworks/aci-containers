@@ -16,7 +16,9 @@ package metadata
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -70,11 +72,15 @@ func RecordMetadata(datadir, network string, data *ContainerMetadata) error {
 }
 
 func LoadMetadata(datadir string, network string,
-	mdMap *map[string]map[string]*ContainerMetadata) error {
+	mdMap *map[string]map[string]*ContainerMetadata, chainedMode bool) error {
 
 	dir := filepath.Join(datadir, network)
 	files, err := os.ReadDir(dir)
 	if err != nil {
+		if chainedMode && errors.Is(err, fs.ErrNotExist) {
+			err = os.Mkdir(dir, 0755)
+			return err
+		}
 		return err
 	}
 
