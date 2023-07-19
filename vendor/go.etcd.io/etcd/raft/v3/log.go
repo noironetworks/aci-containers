@@ -95,9 +95,6 @@ func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry
 			l.logger.Panicf("entry %d conflict with committed entry [committed(%d)]", ci, l.committed)
 		default:
 			offset := index + 1
-			if ci-offset > uint64(len(ents)) {
-				l.logger.Panicf("index, %d, is out of range [%d]", ci-offset, len(ents))
-			}
 			l.append(ents[ci-offset:]...)
 		}
 		l.commitTo(min(committed, lastnewi))

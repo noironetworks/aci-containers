@@ -17,6 +17,7 @@ package fileutil
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -35,7 +36,7 @@ func IsDirWriteable(dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(f, []byte(""), PrivateFileMode); err != nil {
+	if err := ioutil.WriteFile(f, []byte(""), PrivateFileMode); err != nil {
 		return err
 	}
 	return os.Remove(f)

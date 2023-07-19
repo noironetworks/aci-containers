@@ -23,14 +23,14 @@ import (
 	"time"
 
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	"go.etcd.io/etcd/api/v3/version"
+	"go.etcd.io/etcd/api/v3/membershippb"
 	"go.etcd.io/etcd/pkg/v3/traceutil"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/server/v3/auth"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
 	"go.etcd.io/etcd/server/v3/lease"
 	"go.etcd.io/etcd/server/v3/lease/leasehttp"
-	"go.etcd.io/etcd/server/v3/storage/mvcc"
+	"go.etcd.io/etcd/server/v3/mvcc"
 
 	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
@@ -45,6 +45,10 @@ const (
 	maxGapBetweenApplyAndCommitIndex = 5000
 	traceThreshold                   = 100 * time.Millisecond
 	readIndexRetryTime               = 500 * time.Millisecond
+
+	// The timeout for the node to catch up its applied index, and is used in
+	// lease related operations, such as LeaseRenew and LeaseTimeToLive.
+	applyTimeout = time.Second
 )
 
 type RaftKV interface {
@@ -271,6 +275,18 @@ func (s *EtcdServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*
 	return resp.(*pb.LeaseGrantResponse), nil
 }
 
+func (s *EtcdServer) waitAppliedIndex() error {
+	select {
+	case <-s.ApplyWait():
+	case <-s.stopping:
+		return ErrStopped
+	case <-time.After(applyTimeout):
+		return ErrTimeoutWaitAppliedIndex
+	}
+
+	return nil
+}
+
 func (s *EtcdServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
 	resp, err := s.raftRequestOnce(ctx, pb.InternalRaftRequest{LeaseRevoke: r})
 	if err != nil {
@@ -280,12 +296,18 @@ func (s *EtcdServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) 
 }
 
 func (s *EtcdServer) LeaseRenew(ctx context.Context, id lease.LeaseID) (int64, error) {
-	ttl, err := s.lessor.Renew(id)
-	if err == nil { // already requested to primary lessor(leader)
-		return ttl, nil
-	}
-	if err != lease.ErrNotPrimary {
-		return -1, err
+	if s.isLeader() {
+		if err := s.waitAppliedIndex(); err != nil {
+			return 0, err
+		}
+
+		ttl, err := s.lessor.Renew(id)
+		if err == nil { // already requested to primary lessor(leader)
+			return ttl, nil
+		}
+		if err != lease.ErrNotPrimary {
+			return -1, err
+		}
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, s.Cfg.ReqTimeout())
@@ -299,7 +321,7 @@ func (s *EtcdServer) LeaseRenew(ctx context.Context, id lease.LeaseID) (int64, e
 		}
 		for _, url := range leader.PeerURLs {
 			lurl := url + leasehttp.LeasePrefix
-			ttl, err = leasehttp.RenewHTTP(cctx, id, lurl, s.peerRt)
+			ttl, err := leasehttp.RenewHTTP(cctx, id, lurl, s.peerRt)
 			if err == nil || err == lease.ErrLeaseNotFound {
 				return ttl, err
 			}
@@ -315,7 +337,10 @@ func (s *EtcdServer) LeaseRenew(ctx context.Context, id lease.LeaseID) (int64, e
 }
 
 func (s *EtcdServer) LeaseTimeToLive(ctx context.Context, r *pb.LeaseTimeToLiveRequest) (*pb.LeaseTimeToLiveResponse, error) {
-	if s.Leader() == s.ID() {
+	if s.isLeader() {
+		if err := s.waitAppliedIndex(); err != nil {
+			return nil, err
+		}
 		// primary; timetolive directly from leader
 		le := s.lessor.Lookup(lease.LeaseID(r.ID))
 		if le == nil {
@@ -384,7 +409,7 @@ func (s *EtcdServer) waitLeader(ctx context.Context) (*membership.Member, error)
 			return nil, ErrNoLeader
 		}
 	}
-	if len(leader.PeerURLs) == 0 {
+	if leader == nil || len(leader.PeerURLs) == 0 {
 		return nil, ErrNoLeader
 	}
 	return leader, nil
@@ -709,7 +734,7 @@ func (s *EtcdServer) Watchable() mvcc.WatchableKV { return s.KV() }
 func (s *EtcdServer) linearizableReadLoop() {
 	for {
 		requestId := s.reqIDGen.Next()
-		leaderChangedNotifier := s.leaderChanged.Receive()
+		leaderChangedNotifier := s.LeaderChangedNotify()
 		select {
 		case <-leaderChangedNotifier:
 			continue
@@ -775,7 +800,7 @@ func (s *EtcdServer) requestCurrentIndex(leaderChangedNotifier <-chan struct{}, 
 	retryTimer := time.NewTimer(readIndexRetryTime)
 	defer retryTimer.Stop()
 
-	firstCommitInTermNotifier := s.firstCommitInTerm.Receive()
+	firstCommitInTermNotifier := s.FirstCommitInTermNotify()
 
 	for {
 		select {
@@ -803,7 +828,7 @@ func (s *EtcdServer) requestCurrentIndex(leaderChangedNotifier <-chan struct{}, 
 			// return a retryable error.
 			return 0, ErrLeaderChanged
 		case <-firstCommitInTermNotifier:
-			firstCommitInTermNotifier = s.firstCommitInTerm.Receive()
+			firstCommitInTermNotifier = s.FirstCommitInTermNotify()
 			lg.Info("first commit in current term: resending ReadIndex request")
 			err := s.sendReadIndex(requestId)
 			if err != nil {
@@ -919,40 +944,73 @@ func (s *EtcdServer) downgradeValidate(ctx context.Context, v string) (*pb.Downg
 		return nil, err
 	}
 
+	// gets leaders commit index and wait for local store to finish applying that index
+	// to avoid using stale downgrade information
+	err = s.linearizableReadNotify(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	cv := s.ClusterVersion()
 	if cv == nil {
 		return nil, ErrClusterVersionUnavailable
 	}
-	resp.Version = version.Cluster(cv.String())
-	err = s.Version().DowngradeValidate(ctx, targetVersion)
-	if err != nil {
-		return nil, err
+	resp.Version = cv.String()
+
+	allowedTargetVersion := membership.AllowedDowngradeVersion(cv)
+	if !targetVersion.Equal(*allowedTargetVersion) {
+		return nil, ErrInvalidDowngradeTargetVersion
 	}
 
+	downgradeInfo := s.cluster.DowngradeInfo()
+	if downgradeInfo.Enabled {
+		// Todo: return the downgrade status along with the error msg
+		return nil, ErrDowngradeInProcess
+	}
 	return resp, nil
 }
 
 func (s *EtcdServer) downgradeEnable(ctx context.Context, r *pb.DowngradeRequest) (*pb.DowngradeResponse, error) {
+	// validate downgrade capability before starting downgrade
+	v := r.Version
 	lg := s.Logger()
-	targetVersion, err := convertToClusterVersion(r.Version)
+	if resp, err := s.downgradeValidate(ctx, v); err != nil {
+		lg.Warn("reject downgrade request", zap.Error(err))
+		return resp, err
+	}
+	targetVersion, err := convertToClusterVersion(v)
 	if err != nil {
 		lg.Warn("reject downgrade request", zap.Error(err))
 		return nil, err
 	}
-	err = s.Version().DowngradeEnable(ctx, targetVersion)
+
+	raftRequest := membershippb.DowngradeInfoSetRequest{Enabled: true, Ver: targetVersion.String()}
+	_, err = s.raftRequest(ctx, pb.InternalRaftRequest{DowngradeInfoSet: &raftRequest})
 	if err != nil {
 		lg.Warn("reject downgrade request", zap.Error(err))
 		return nil, err
 	}
-	resp := pb.DowngradeResponse{Version: version.Cluster(s.ClusterVersion().String())}
+	resp := pb.DowngradeResponse{Version: s.ClusterVersion().String()}
 	return &resp, nil
 }
 
 func (s *EtcdServer) downgradeCancel(ctx context.Context) (*pb.DowngradeResponse, error) {
-	err := s.Version().DowngradeCancel(ctx)
-	if err != nil {
-		s.lg.Warn("failed to cancel downgrade", zap.Error(err))
+	// gets leaders commit index and wait for local store to finish applying that index
+	// to avoid using stale downgrade information
+	if err := s.linearizableReadNotify(ctx); err != nil {
+		return nil, err
 	}
-	resp := pb.DowngradeResponse{Version: version.Cluster(s.ClusterVersion().String())}
+
+	downgradeInfo := s.cluster.DowngradeInfo()
+	if !downgradeInfo.Enabled {
+		return nil, ErrNoInflightDowngrade
+	}
+
+	raftRequest := membershippb.DowngradeInfoSetRequest{Enabled: false}
+	_, err := s.raftRequest(ctx, pb.InternalRaftRequest{DowngradeInfoSet: &raftRequest})
+	if err != nil {
+		return nil, err
+	}
+	resp := pb.DowngradeResponse{Version: s.ClusterVersion().String()}
 	return &resp, nil
 }

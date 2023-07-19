@@ -21,7 +21,6 @@ import (
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/server/v3/etcdserver"
-	"go.etcd.io/etcd/server/v3/storage"
 )
 
 type quotaKVServer struct {
@@ -30,7 +29,7 @@ type quotaKVServer struct {
 }
 
 type quotaAlarmer struct {
-	q  storage.Quota
+	q  etcdserver.Quota
 	a  Alarmer
 	id types.ID
 }
@@ -53,7 +52,7 @@ func (qa *quotaAlarmer) check(ctx context.Context, r interface{}) error {
 func NewQuotaKVServer(s *etcdserver.EtcdServer) pb.KVServer {
 	return &quotaKVServer{
 		NewKVServer(s),
-		quotaAlarmer{storage.NewBackendQuota(s.Cfg, s.Backend(), "kv"), s, s.ID()},
+		quotaAlarmer{etcdserver.NewBackendQuota(s, "kv"), s, s.ID()},
 	}
 }
 
@@ -86,6 +85,6 @@ func (s *quotaLeaseServer) LeaseGrant(ctx context.Context, cr *pb.LeaseGrantRequ
 func NewQuotaLeaseServer(s *etcdserver.EtcdServer) pb.LeaseServer {
 	return &quotaLeaseServer{
 		NewLeaseServer(s),
-		quotaAlarmer{storage.NewBackendQuota(s.Cfg, s.Backend(), "lease"), s, s.ID()},
+		quotaAlarmer{etcdserver.NewBackendQuota(s, "lease"), s, s.ID()},
 	}
 }

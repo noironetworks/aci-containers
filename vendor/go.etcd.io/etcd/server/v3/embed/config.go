@@ -15,8 +15,9 @@
 package embed
 
 import (
-	"errors"
 	"fmt"
+	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,9 +36,7 @@ import (
 	"go.etcd.io/etcd/pkg/v3/netutil"
 	"go.etcd.io/etcd/server/v3/config"
 	"go.etcd.io/etcd/server/v3/etcdserver"
-	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/v3compactor"
-	"go.etcd.io/etcd/server/v3/etcdserver/api/v3discovery"
 
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/multierr"
@@ -51,23 +50,17 @@ const (
 	ClusterStateFlagNew      = "new"
 	ClusterStateFlagExisting = "existing"
 
-	DefaultName                        = "default"
-	DefaultMaxSnapshots                = 5
-	DefaultMaxWALs                     = 5
-	DefaultMaxTxnOps                   = uint(128)
-	DefaultWarningApplyDuration        = 100 * time.Millisecond
-	DefaultWarningUnaryRequestDuration = 300 * time.Millisecond
-	DefaultMaxRequestBytes             = 1.5 * 1024 * 1024
-	DefaultGRPCKeepAliveMinTime        = 5 * time.Second
-	DefaultGRPCKeepAliveInterval       = 2 * time.Hour
-	DefaultGRPCKeepAliveTimeout        = 20 * time.Second
-	DefaultDowngradeCheckTime          = 5 * time.Second
-	DefaultWaitClusterReadyTimeout     = 5 * time.Second
-
-	DefaultDiscoveryDialTimeout      = 2 * time.Second
-	DefaultDiscoveryRequestTimeOut   = 5 * time.Second
-	DefaultDiscoveryKeepAliveTime    = 2 * time.Second
-	DefaultDiscoveryKeepAliveTimeOut = 6 * time.Second
+	DefaultName                  = "default"
+	DefaultMaxSnapshots          = 5
+	DefaultMaxWALs               = 5
+	DefaultMaxTxnOps             = uint(128)
+	DefaultWarningApplyDuration  = 100 * time.Millisecond
+	DefaultMaxRequestBytes       = 1.5 * 1024 * 1024
+	DefaultMaxConcurrentStreams  = math.MaxUint32
+	DefaultGRPCKeepAliveMinTime  = 5 * time.Second
+	DefaultGRPCKeepAliveInterval = 2 * time.Hour
+	DefaultGRPCKeepAliveTimeout  = 20 * time.Second
+	DefaultDowngradeCheckTime    = 5 * time.Second
 
 	DefaultListenPeerURLs   = "http://localhost:2380"
 	DefaultListenClientURLs = "http://localhost:2379"
@@ -94,6 +87,9 @@ const (
 	// DefaultStrictReconfigCheck is the default value for "--strict-reconfig-check" flag.
 	// It's enabled by default.
 	DefaultStrictReconfigCheck = true
+	// DefaultEnableV2 is the default value for "--enable-v2" flag.
+	// v2 API is disabled by default.
+	DefaultEnableV2 = false
 
 	// maxElectionMs specifies the maximum value of election timeout.
 	// More details are listed in ../Documentation/tuning.md#time-parameters.
@@ -104,7 +100,7 @@ const (
 
 var (
 	ErrConflictBootstrapFlags = fmt.Errorf("multiple discovery or bootstrap flags are set. " +
-		"Choose one of \"initial-cluster\", \"discovery\", \"discovery-endpoints\" or \"discovery-srv\"")
+		"Choose one of \"initial-cluster\", \"discovery\" or \"discovery-srv\"")
 	ErrUnsetAdvertiseClientURLsFlag = fmt.Errorf("--advertise-client-urls is required when --listen-client-urls is set explicitly")
 	ErrLogRotationInvalidLogOutput  = fmt.Errorf("--log-outputs requires a single file path when --log-rotate-config-json is defined")
 
@@ -204,6 +200,10 @@ type Config struct {
 	MaxTxnOps           uint   `json:"max-txn-ops"`
 	MaxRequestBytes     uint   `json:"max-request-bytes"`
 
+	// MaxConcurrentStreams specifies the maximum number of concurrent
+	// streams that each client can open at a time.
+	MaxConcurrentStreams uint32 `json:"max-concurrent-streams"`
+
 	LPUrls, LCUrls []url.URL
 	APUrls, ACUrls []url.URL
 	ClientTLSInfo  transport.TLSInfo
@@ -224,14 +224,15 @@ type Config struct {
 	DNSCluster            string `json:"discovery-srv"`
 	DNSClusterServiceName string `json:"discovery-srv-name"`
 	Dproxy                string `json:"discovery-proxy"`
+	Durl                  string `json:"discovery"`
+	InitialCluster        string `json:"initial-cluster"`
+	InitialClusterToken   string `json:"initial-cluster-token"`
+	StrictReconfigCheck   bool   `json:"strict-reconfig-check"`
 
-	Durl         string                      `json:"discovery"`
-	DiscoveryCfg v3discovery.DiscoveryConfig `json:"discovery-config"`
-
-	InitialCluster                      string        `json:"initial-cluster"`
-	InitialClusterToken                 string        `json:"initial-cluster-token"`
-	StrictReconfigCheck                 bool          `json:"strict-reconfig-check"`
-	ExperimentalWaitClusterReadyTimeout time.Duration `json:"wait-cluster-ready-timeout"`
+	// EnableV2 exposes the deprecated V2 API surface.
+	// TODO: Delete in 3.6 (https://github.com/etcd-io/etcd/issues/12913)
+	// Deprecated in 3.5.
+	EnableV2 bool `json:"enable-v2"`
 
 	// AutoCompactionMode is either 'periodic' or 'revision'.
 	AutoCompactionMode string `json:"auto-compaction-mode"`
@@ -257,7 +258,7 @@ type Config struct {
 	GRPCKeepAliveTimeout time.Duration `json:"grpc-keepalive-timeout"`
 
 	// SocketOpts are socket options passed to listener config.
-	SocketOpts transport.SocketOpts `json:"socket-options"`
+	SocketOpts transport.SocketOpts
 
 	// PreVote is true to enable Raft Pre-Vote.
 	// If enabled, Raft runs an additional election phase
@@ -310,33 +311,32 @@ type Config struct {
 	AuthToken  string `json:"auth-token"`
 	BcryptCost uint   `json:"bcrypt-cost"`
 
-	//The AuthTokenTTL in seconds of the simple token
+	// AuthTokenTTL specifies the TTL in seconds of the simple token
 	AuthTokenTTL uint `json:"auth-token-ttl"`
 
-	ExperimentalInitialCorruptCheck bool          `json:"experimental-initial-corrupt-check"`
-	ExperimentalCorruptCheckTime    time.Duration `json:"experimental-corrupt-check-time"`
+	ExperimentalInitialCorruptCheck     bool          `json:"experimental-initial-corrupt-check"`
+	ExperimentalCorruptCheckTime        time.Duration `json:"experimental-corrupt-check-time"`
+	ExperimentalCompactHashCheckEnabled bool          `json:"experimental-compact-hash-check-enabled"`
+	ExperimentalCompactHashCheckTime    time.Duration `json:"experimental-compact-hash-check-time"`
+	// ExperimentalEnableV2V3 configures URLs that expose deprecated V2 API working on V3 store.
+	// Deprecated in v3.5.
+	// TODO: Delete in v3.6 (https://github.com/etcd-io/etcd/issues/12913)
+	ExperimentalEnableV2V3 string `json:"experimental-enable-v2v3"`
 	// ExperimentalEnableLeaseCheckpoint enables leader to send regular checkpoints to other members to prevent reset of remaining TTL on leader change.
 	ExperimentalEnableLeaseCheckpoint bool `json:"experimental-enable-lease-checkpoint"`
 	// ExperimentalEnableLeaseCheckpointPersist enables persisting remainingTTL to prevent indefinite auto-renewal of long lived leases. Always enabled in v3.6. Should be used to ensure smooth upgrade from v3.5 clusters with this feature enabled.
 	// Requires experimental-enable-lease-checkpoint to be enabled.
 	// Deprecated in v3.6.
 	// TODO: Delete in v3.7
-	ExperimentalEnableLeaseCheckpointPersist bool `json:"experimental-enable-lease-checkpoint-persist"`
-	ExperimentalCompactionBatchLimit         int  `json:"experimental-compaction-batch-limit"`
-	// ExperimentalCompactionSleepInterval is the sleep interval between every etcd compaction loop.
-	ExperimentalCompactionSleepInterval     time.Duration `json:"experimental-compaction-sleep-interval"`
-	ExperimentalWatchProgressNotifyInterval time.Duration `json:"experimental-watch-progress-notify-interval"`
+	ExperimentalEnableLeaseCheckpointPersist bool          `json:"experimental-enable-lease-checkpoint-persist"`
+	ExperimentalCompactionBatchLimit         int           `json:"experimental-compaction-batch-limit"`
+	ExperimentalWatchProgressNotifyInterval  time.Duration `json:"experimental-watch-progress-notify-interval"`
 	// ExperimentalWarningApplyDuration is the time duration after which a warning is generated if applying request
 	// takes more time than this value.
 	ExperimentalWarningApplyDuration time.Duration `json:"experimental-warning-apply-duration"`
 	// ExperimentalBootstrapDefragThresholdMegabytes is the minimum number of megabytes needed to be freed for etcd server to
 	// consider running defrag during bootstrap. Needs to be set to non-zero value to take effect.
 	ExperimentalBootstrapDefragThresholdMegabytes uint `json:"experimental-bootstrap-defrag-threshold-megabytes"`
-	// ExperimentalWarningUnaryRequestDuration is the time duration after which a warning is generated if applying
-	// unary request takes more time than this value.
-	ExperimentalWarningUnaryRequestDuration time.Duration `json:"experimental-warning-unary-request-duration"`
-	// ExperimentalMaxLearners sets a limit to the number of learner members that can exist in the cluster membership.
-	ExperimentalMaxLearners int `json:"experimental-max-learners"`
 
 	// ForceNewCluster starts a new cluster even if previously started; unsafe.
 	ForceNewCluster bool `json:"force-new-cluster"`
@@ -359,17 +359,12 @@ type Config struct {
 	// that exist at the same time.
 	// Can only be used if ExperimentalEnableDistributedTracing is true.
 	ExperimentalDistributedTracingServiceInstanceID string `json:"experimental-distributed-tracing-instance-id"`
-	// ExperimentalDistributedTracingSamplingRatePerMillion is the number of samples to collect per million spans.
-	// Defaults to 0.
-	ExperimentalDistributedTracingSamplingRatePerMillion int `json:"experimental-distributed-tracing-sampling-rate"`
 
 	// Logger is logger options: currently only supports "zap".
 	// "capnslog" is removed in v3.5.
 	Logger string `json:"logger"`
 	// LogLevel configures log level. Only supports debug, info, warn, error, panic, or fatal. Default 'info'.
 	LogLevel string `json:"log-level"`
-	// LogFormat set log encoding. Only supports json, console. Default is 'json'.
-	LogFormat string `json:"log-format"`
 	// LogOutputs is either:
 	//  - "default" as os.Stderr,
 	//  - "stderr" as os.Stderr,
@@ -461,18 +456,14 @@ func NewConfig() *Config {
 
 		MaxTxnOps:                        DefaultMaxTxnOps,
 		MaxRequestBytes:                  DefaultMaxRequestBytes,
+		MaxConcurrentStreams:             DefaultMaxConcurrentStreams,
 		ExperimentalWarningApplyDuration: DefaultWarningApplyDuration,
-
-		ExperimentalWarningUnaryRequestDuration: DefaultWarningUnaryRequestDuration,
 
 		GRPCKeepAliveMinTime:  DefaultGRPCKeepAliveMinTime,
 		GRPCKeepAliveInterval: DefaultGRPCKeepAliveInterval,
 		GRPCKeepAliveTimeout:  DefaultGRPCKeepAliveTimeout,
 
-		SocketOpts: transport.SocketOpts{
-			ReusePort:    false,
-			ReuseAddress: false,
-		},
+		SocketOpts: transport.SocketOpts{},
 
 		TickMs:                     100,
 		ElectionMs:                 1000,
@@ -483,12 +474,12 @@ func NewConfig() *Config {
 		APUrls: []url.URL{*apurl},
 		ACUrls: []url.URL{*acurl},
 
-		ClusterState:                        ClusterStateFlagNew,
-		InitialClusterToken:                 "etcd-cluster",
-		ExperimentalWaitClusterReadyTimeout: DefaultWaitClusterReadyTimeout,
+		ClusterState:        ClusterStateFlagNew,
+		InitialClusterToken: "etcd-cluster",
 
 		StrictReconfigCheck: DefaultStrictReconfigCheck,
 		Metrics:             "basic",
+		EnableV2:            DefaultEnableV2,
 
 		CORS:          map[string]struct{}{"*": {}},
 		HostWhitelist: map[string]struct{}{"*": {}},
@@ -511,16 +502,11 @@ func NewConfig() *Config {
 		ExperimentalDowngradeCheckTime:           DefaultDowngradeCheckTime,
 		ExperimentalMemoryMlock:                  false,
 		ExperimentalTxnModeWriteWithSharedBuffer: true,
-		ExperimentalMaxLearners:                  membership.DefaultMaxLearners,
+
+		ExperimentalCompactHashCheckEnabled: false,
+		ExperimentalCompactHashCheckTime:    time.Minute,
 
 		V2Deprecation: config.V2_DEPR_DEFAULT,
-
-		DiscoveryCfg: v3discovery.DiscoveryConfig{
-			DialTimeout:      DefaultDiscoveryDialTimeout,
-			RequestTimeOut:   DefaultDiscoveryRequestTimeOut,
-			KeepAliveTime:    DefaultDiscoveryKeepAliveTime,
-			KeepAliveTimeout: DefaultDiscoveryKeepAliveTimeOut,
-		},
 	}
 	cfg.InitialCluster = cfg.InitialClusterFromName(cfg.Name)
 	return cfg
@@ -535,7 +521,7 @@ func ConfigFromFile(path string) (*Config, error) {
 }
 
 func (cfg *configYAML) configFromFile(path string) error {
-	b, err := os.ReadFile(path)
+	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -602,8 +588,8 @@ func (cfg *configYAML) configFromFile(path string) error {
 		cfg.HostWhitelist = uv.Values
 	}
 
-	// If a discovery or discovery-endpoints flag is set, clear default initial cluster set by InitialClusterFromName
-	if (cfg.Durl != "" || cfg.DNSCluster != "" || len(cfg.DiscoveryCfg.Endpoints) > 0) && cfg.InitialCluster == defaultInitialCluster {
+	// If a discovery flag is set, clear default initial cluster set by InitialClusterFromName
+	if (cfg.Durl != "" || cfg.DNSCluster != "") && cfg.InitialCluster == defaultInitialCluster {
 		cfg.InitialCluster = ""
 	}
 	if cfg.ClusterState == "" {
@@ -633,13 +619,9 @@ func updateCipherSuites(tls *transport.TLSInfo, ss []string) error {
 		return fmt.Errorf("TLSInfo.CipherSuites is already specified (given %v)", ss)
 	}
 	if len(ss) > 0 {
-		cs := make([]uint16, len(ss))
-		for i, s := range ss {
-			var ok bool
-			cs[i], ok = tlsutil.GetCipherSuite(s)
-			if !ok {
-				return fmt.Errorf("unexpected TLS cipher suite %q", s)
-			}
+		cs, err := tlsutil.GetCipherSuites(ss)
+		if err != nil {
+			return err
 		}
 		tls.CipherSuites = cs
 	}
@@ -670,7 +652,7 @@ func (cfg *Config) Validate() error {
 	}
 	// Check if conflicting flags are passed.
 	nSet := 0
-	for _, v := range []bool{cfg.Durl != "", cfg.InitialCluster != "", cfg.DNSCluster != "", len(cfg.DiscoveryCfg.Endpoints) > 0} {
+	for _, v := range []bool{cfg.Durl != "", cfg.InitialCluster != "", cfg.DNSCluster != ""} {
 		if v {
 			nSet++
 		}
@@ -682,28 +664,6 @@ func (cfg *Config) Validate() error {
 
 	if nSet > 1 {
 		return ErrConflictBootstrapFlags
-	}
-
-	// Check if both v2 discovery and v3 discovery flags are passed.
-	v2discoveryFlagsExist := cfg.Dproxy != ""
-	v3discoveryFlagsExist := len(cfg.DiscoveryCfg.Endpoints) > 0 ||
-		cfg.DiscoveryCfg.Token != "" ||
-		cfg.DiscoveryCfg.CertFile != "" ||
-		cfg.DiscoveryCfg.KeyFile != "" ||
-		cfg.DiscoveryCfg.TrustedCAFile != "" ||
-		cfg.DiscoveryCfg.User != "" ||
-		cfg.DiscoveryCfg.Password != ""
-
-	if v2discoveryFlagsExist && v3discoveryFlagsExist {
-		return errors.New("both v2 discovery settings (discovery, discovery-proxy) " +
-			"and v3 discovery settings (discovery-token, discovery-endpoints, discovery-cert, " +
-			"discovery-key, discovery-cacert, discovery-user, discovery-password) are set")
-	}
-
-	// If one of `discovery-token` and `discovery-endpoints` is provided,
-	// then the other one must be provided as well.
-	if (cfg.DiscoveryCfg.Token != "") != (len(cfg.DiscoveryCfg.Endpoints) > 0) {
-		return errors.New("both --discovery-token and --discovery-endpoints must be set")
 	}
 
 	if cfg.TickMs == 0 {
@@ -731,19 +691,16 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("unknown auto-compaction-mode %q", cfg.AutoCompactionMode)
 	}
 
-	// Validate distributed tracing configuration but only if enabled.
-	if cfg.ExperimentalEnableDistributedTracing {
-		if err := validateTracingConfig(cfg.ExperimentalDistributedTracingSamplingRatePerMillion); err != nil {
-			return fmt.Errorf("distributed tracing configurition is not valid: (%v)", err)
-		}
-	}
-
 	if !cfg.ExperimentalEnableLeaseCheckpointPersist && cfg.ExperimentalEnableLeaseCheckpoint {
 		cfg.logger.Warn("Detected that checkpointing is enabled without persistence. Consider enabling experimental-enable-lease-checkpoint-persist")
 	}
 
 	if cfg.ExperimentalEnableLeaseCheckpointPersist && !cfg.ExperimentalEnableLeaseCheckpoint {
 		return fmt.Errorf("setting experimental-enable-lease-checkpoint-persist requires experimental-enable-lease-checkpoint")
+	}
+
+	if cfg.ExperimentalCompactHashCheckTime <= 0 {
+		return fmt.Errorf("--experimental-compact-hash-check-time must be >0 (set to %v)", cfg.ExperimentalCompactHashCheckTime)
 	}
 
 	return nil
@@ -755,17 +712,10 @@ func (cfg *Config) PeerURLsMapAndToken(which string) (urlsmap types.URLsMap, tok
 	switch {
 	case cfg.Durl != "":
 		urlsmap = types.URLsMap{}
-		// If using v2 discovery, generate a temporary cluster based on
+		// If using discovery, generate a temporary cluster based on
 		// self's advertised peer URLs
 		urlsmap[cfg.Name] = cfg.APUrls
 		token = cfg.Durl
-
-	case len(cfg.DiscoveryCfg.Endpoints) > 0:
-		urlsmap = types.URLsMap{}
-		// If using v3 discovery, generate a temporary cluster based on
-		// self's advertised peer URLs
-		urlsmap[cfg.Name] = cfg.APUrls
-		token = cfg.DiscoveryCfg.Token
 
 	case cfg.DNSCluster != "":
 		clusterStrs, cerr := cfg.GetDNSClusterNames()

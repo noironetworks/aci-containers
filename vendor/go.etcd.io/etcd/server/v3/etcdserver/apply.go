@@ -31,10 +31,8 @@ import (
 	"go.etcd.io/etcd/server/v3/auth"
 	"go.etcd.io/etcd/server/v3/etcdserver/api"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
-	"go.etcd.io/etcd/server/v3/etcdserver/version"
 	"go.etcd.io/etcd/server/v3/lease"
-	serverstorage "go.etcd.io/etcd/server/v3/storage"
-	"go.etcd.io/etcd/server/v3/storage/mvcc"
+	"go.etcd.io/etcd/server/v3/mvcc"
 
 	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
@@ -148,15 +146,15 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest, shouldApplyV3 member
 	case r.ClusterVersionSet != nil: // Implemented in 3.5.x
 		op = "ClusterVersionSet"
 		a.s.applyV3Internal.ClusterVersionSet(r.ClusterVersionSet, shouldApplyV3)
-		return ar
+		return nil
 	case r.ClusterMemberAttrSet != nil:
 		op = "ClusterMemberAttrSet" // Implemented in 3.5.x
 		a.s.applyV3Internal.ClusterMemberAttrSet(r.ClusterMemberAttrSet, shouldApplyV3)
-		return ar
+		return nil
 	case r.DowngradeInfoSet != nil:
 		op = "DowngradeInfoSet" // Implemented in 3.5.x
 		a.s.applyV3Internal.DowngradeInfoSet(r.DowngradeInfoSet, shouldApplyV3)
-		return ar
+		return nil
 	}
 
 	if !shouldApplyV3 {
@@ -337,8 +335,6 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 	resp := &pb.RangeResponse{}
 	resp.Header = &pb.ResponseHeader{}
 
-	lg := a.s.Logger()
-
 	if txn == nil {
 		txn = a.s.kv.Read(mvcc.ConcurrentReadTxMode, trace)
 		defer txn.End()
@@ -390,11 +386,6 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 		// sorted by keys in lexiographically ascending order,
 		// sort ASCEND by default only when target is not 'KEY'
 		sortOrder = pb.RangeRequest_ASCEND
-	} else if r.SortTarget == pb.RangeRequest_KEY && sortOrder == pb.RangeRequest_ASCEND {
-		// Since current mvcc.Range implementation returns results
-		// sorted by keys in lexiographically ascending order,
-		// don't re-sort when target is 'KEY' and order is ASCEND
-		sortOrder = pb.RangeRequest_NONE
 	}
 	if sortOrder != pb.RangeRequest_NONE {
 		var sorter sort.Interface
@@ -409,8 +400,6 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 			sorter = &kvSortByMod{&kvSort{rr.KVs}}
 		case r.SortTarget == pb.RangeRequest_VALUE:
 			sorter = &kvSortByValue{&kvSort{rr.KVs}}
-		default:
-			lg.Panic("unexpected sort target", zap.Int32("sort-target", int32(r.SortTarget)))
 		}
 		switch {
 		case sortOrder == pb.RangeRequest_ASCEND:
@@ -439,6 +428,7 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 }
 
 func (a *applierV3backend) Txn(ctx context.Context, rt *pb.TxnRequest) (*pb.TxnResponse, *traceutil.Trace, error) {
+	lg := a.s.Logger()
 	trace := traceutil.Get(ctx)
 	if trace.IsEmpty() {
 		trace = traceutil.New("transaction", a.s.Logger())
@@ -485,7 +475,18 @@ func (a *applierV3backend) Txn(ctx context.Context, rt *pb.TxnRequest) (*pb.TxnR
 		txn.End()
 		txn = a.s.KV().Write(trace)
 	}
-	a.applyTxn(ctx, txn, rt, txnPath, txnResp)
+	_, err := a.applyTxn(ctx, txn, rt, txnPath, txnResp)
+	if err != nil {
+		if isWrite {
+			// end txn to release locks before panic
+			txn.End()
+			// When txn with write operations starts it has to be successful
+			// We don't have a way to recover state in case of write failure
+			lg.Panic("unexpected error during txn with writes", zap.Error(err))
+		} else {
+			lg.Error("unexpected error during readonly txn", zap.Error(err))
+		}
+	}
 	rev := txn.Rev()
 	if len(txn.Changes()) != 0 {
 		rev++
@@ -497,7 +498,7 @@ func (a *applierV3backend) Txn(ctx context.Context, rt *pb.TxnRequest) (*pb.TxnR
 		traceutil.Field{Key: "number_of_response", Value: len(txnResp.Responses)},
 		traceutil.Field{Key: "response_revision", Value: txnResp.Header.Revision},
 	)
-	return txnResp, trace, nil
+	return txnResp, trace, err
 }
 
 // newTxnResp allocates a txn response for a txn request given a path.
@@ -628,14 +629,13 @@ func compareKV(c *pb.Compare, ckv mvccpb.KeyValue) bool {
 	return true
 }
 
-func (a *applierV3backend) applyTxn(ctx context.Context, txn mvcc.TxnWrite, rt *pb.TxnRequest, txnPath []bool, tresp *pb.TxnResponse) (txns int) {
+func (a *applierV3backend) applyTxn(ctx context.Context, txn mvcc.TxnWrite, rt *pb.TxnRequest, txnPath []bool, tresp *pb.TxnResponse) (txns int, err error) {
 	trace := traceutil.Get(ctx)
 	reqs := rt.Success
 	if !txnPath[0] {
 		reqs = rt.Failure
 	}
 
-	lg := a.s.Logger()
 	for i, req := range reqs {
 		respi := tresp.Responses[i].Response
 		switch tv := req.Request.(type) {
@@ -646,7 +646,7 @@ func (a *applierV3backend) applyTxn(ctx context.Context, txn mvcc.TxnWrite, rt *
 				traceutil.Field{Key: "range_end", Value: string(tv.RequestRange.RangeEnd)})
 			resp, err := a.Range(ctx, txn, tv.RequestRange)
 			if err != nil {
-				lg.Panic("unexpected error during txn", zap.Error(err))
+				return 0, fmt.Errorf("applyTxn: failed Range: %w", err)
 			}
 			respi.(*pb.ResponseOp_ResponseRange).ResponseRange = resp
 			trace.StopSubTrace()
@@ -657,26 +657,30 @@ func (a *applierV3backend) applyTxn(ctx context.Context, txn mvcc.TxnWrite, rt *
 				traceutil.Field{Key: "req_size", Value: tv.RequestPut.Size()})
 			resp, _, err := a.Put(ctx, txn, tv.RequestPut)
 			if err != nil {
-				lg.Panic("unexpected error during txn", zap.Error(err))
+				return 0, fmt.Errorf("applyTxn: failed Put: %w", err)
 			}
 			respi.(*pb.ResponseOp_ResponsePut).ResponsePut = resp
 			trace.StopSubTrace()
 		case *pb.RequestOp_RequestDeleteRange:
 			resp, err := a.DeleteRange(txn, tv.RequestDeleteRange)
 			if err != nil {
-				lg.Panic("unexpected error during txn", zap.Error(err))
+				return 0, fmt.Errorf("applyTxn: failed DeleteRange: %w", err)
 			}
 			respi.(*pb.ResponseOp_ResponseDeleteRange).ResponseDeleteRange = resp
 		case *pb.RequestOp_RequestTxn:
 			resp := respi.(*pb.ResponseOp_ResponseTxn).ResponseTxn
-			applyTxns := a.applyTxn(ctx, txn, tv.RequestTxn, txnPath[1:], resp)
+			applyTxns, err := a.applyTxn(ctx, txn, tv.RequestTxn, txnPath[1:], resp)
+			if err != nil {
+				// don't wrap the error. It's a recursive call and err should be already wrapped
+				return 0, err
+			}
 			txns += applyTxns + 1
 			txnPath = txnPath[applyTxns+1:]
 		default:
 			// empty union
 		}
 	}
-	return txns
+	return txns, nil
 }
 
 func (a *applierV3backend) Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, *traceutil.Trace, error) {
@@ -781,7 +785,7 @@ func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error)
 
 type applierV3Capped struct {
 	applierV3
-	q serverstorage.BackendQuota
+	q backendQuota
 }
 
 // newApplierV3Capped creates an applyV3 that will reject Puts and transactions
@@ -936,20 +940,7 @@ func (a *applierV3backend) RoleList(r *pb.AuthRoleListRequest) (*pb.AuthRoleList
 }
 
 func (a *applierV3backend) ClusterVersionSet(r *membershippb.ClusterVersionSetRequest, shouldApplyV3 membership.ShouldApplyV3) {
-	prevVersion := a.s.Cluster().Version()
-	newVersion := semver.Must(semver.NewVersion(r.Ver))
-	a.s.cluster.SetVersion(newVersion, api.UpdateCapability, shouldApplyV3)
-	// Force snapshot after cluster version downgrade.
-	if prevVersion != nil && newVersion.LessThan(*prevVersion) {
-		lg := a.s.Logger()
-		if lg != nil {
-			lg.Info("Cluster version downgrade detected, forcing snapshot",
-				zap.String("prev-cluster-version", prevVersion.String()),
-				zap.String("new-cluster-version", newVersion.String()),
-			)
-		}
-		a.s.forceSnapshot = true
-	}
+	a.s.cluster.SetVersion(semver.Must(semver.NewVersion(r.Ver)), api.UpdateCapability, shouldApplyV3)
 }
 
 func (a *applierV3backend) ClusterMemberAttrSet(r *membershippb.ClusterMemberAttrSetRequest, shouldApplyV3 membership.ShouldApplyV3) {
@@ -964,20 +955,20 @@ func (a *applierV3backend) ClusterMemberAttrSet(r *membershippb.ClusterMemberAtt
 }
 
 func (a *applierV3backend) DowngradeInfoSet(r *membershippb.DowngradeInfoSetRequest, shouldApplyV3 membership.ShouldApplyV3) {
-	d := version.DowngradeInfo{Enabled: false}
+	d := membership.DowngradeInfo{Enabled: false}
 	if r.Enabled {
-		d = version.DowngradeInfo{Enabled: true, TargetVersion: r.Ver}
+		d = membership.DowngradeInfo{Enabled: true, TargetVersion: r.Ver}
 	}
 	a.s.cluster.SetDowngradeInfo(&d, shouldApplyV3)
 }
 
 type quotaApplierV3 struct {
 	applierV3
-	q serverstorage.Quota
+	q Quota
 }
 
 func newQuotaApplierV3(s *EtcdServer, app applierV3) applierV3 {
-	return &quotaApplierV3{app, serverstorage.NewBackendQuota(s.Cfg, s.Backend(), "v3-applier")}
+	return &quotaApplierV3{app, NewBackendQuota(s, "v3-applier")}
 }
 
 func (a *quotaApplierV3) Put(ctx context.Context, txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {
