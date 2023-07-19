@@ -321,7 +321,7 @@ func (agent *HostAgent) Init() {
 	}
 
 	err := md.LoadMetadata(agent.config.CniMetadataDir,
-		primaryNetwork, &agent.epMetadata)
+		primaryNetwork, &agent.epMetadata, agent.config.ChainedMode)
 	if err != nil {
 		panic(err.Error())
 	}

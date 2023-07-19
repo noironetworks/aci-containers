@@ -36,6 +36,7 @@ func TestNFNAVlanParse(t *testing.T) {
 		{"[1,5-10,15]", []int{1, 5, 6, 7, 8, 9, 10, 15}, false},
 		{"1,5-8,10", []int{1, 5, 6, 7, 8, 10}, false},
 		{"[5-6]", []int{5, 6}, false},
+		{"[100, 102, 103, 104]", []int{100, 102, 103, 104}, false},
 	}
 	cont := testController()
 	for _, tc := range vlanTests {
