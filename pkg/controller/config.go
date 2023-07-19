@@ -257,8 +257,8 @@ type ControllerConfig struct {
 	// CNI is in chained mode
 	ChainedMode bool `json:"chained-mode,omitempty"`
 
-	// PhysDom for additional networks in chained mode
-	AciAdditionalPhysDom string `json:"aci-additional-phys-dom,omitempty"`
+	// AEP for additional networks in chained mode
+	AciAdditionalAep string `json:"aci-additional-aep,omitempty"`
 
 	//User can provision Static Objects separately, so have a knob
 	ReconcileStaticObjects bool `json:"reconcileStaticObjects,omitempty"`
