@@ -276,6 +276,9 @@ func (cont *AciController) snatPolicyDelete(snatobj interface{}) {
 
 func (cont *AciController) createGlobalInfoCache(unittestmode bool) bool {
 	cont.log.Info("Checking if snatglobalinfo CR already exists")
+	if cont.config.ChainedMode {
+		return false
+	}
 
 	var nodeInfos []*nodeinfo.NodeInfo
 	cont.indexMutex.Lock()

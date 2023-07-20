@@ -559,8 +559,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
 	}
-	cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
-
+	if !cont.config.ChainedMode {
+		cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
+	}
 	// If not valid, default to 5000-65000
 	// other permissible values 1-65000
 	defStart := 5000
@@ -596,8 +597,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.MaxSvcGraphNodes == 0 {
 		cont.config.MaxSvcGraphNodes = 32
 	}
-	cont.log.Info("Max number of nodes per svc graph is set to: ", cont.config.MaxSvcGraphNodes)
-
+	if !cont.config.ChainedMode {
+		cont.log.Info("Max number of nodes per svc graph is set to: ", cont.config.MaxSvcGraphNodes)
+	}
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
@@ -631,16 +633,18 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.SnatPbrFltrChain = true
 	}
 
-	cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
-	// Make sure Pod/NodeBDs are assoicated to same VRF.
-	if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
-		var expectedVrfRelations []string
-		expectedVrfRelations = append(expectedVrfRelations, cont.config.AciPodBdDn, cont.config.AciNodeBdDn)
-		cont.log.Debug("expectedVrfRelations:", expectedVrfRelations)
-		err = cont.apicConn.ValidateAciVrfAssociation(cont.config.AciVrfDn, expectedVrfRelations)
-		if err != nil {
-			cont.log.Error("Pod/NodeBDs and AciL3Out VRF association is incorrect")
-			panic(err)
+	if !cont.config.ChainedMode {
+		cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
+		// Make sure Pod/NodeBDs are assoicated to same VRF.
+		if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
+			var expectedVrfRelations []string
+			expectedVrfRelations = append(expectedVrfRelations, cont.config.AciPodBdDn, cont.config.AciNodeBdDn)
+			cont.log.Debug("expectedVrfRelations:", expectedVrfRelations)
+			err = cont.apicConn.ValidateAciVrfAssociation(cont.config.AciVrfDn, expectedVrfRelations)
+			if err != nil {
+				cont.log.Error("Pod/NodeBDs and AciL3Out VRF association is incorrect")
+				panic(err)
+			}
 		}
 	}
 
@@ -696,7 +700,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.log.Debug("Checkpoint complete")
 	}
 
-	if len(cont.config.ApicHosts) != 0 {
+	if len(cont.config.ApicHosts) != 0 && !cont.config.ChainedMode {
 		cont.BuildSubnetDnCache(cont.config.AciVrfDn, cont.config.AciVrfDn)
 		cont.scheduleRdConfig()
 	}
@@ -706,13 +710,15 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"hostprotPol"})
 	} else {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
-			[]string{"fvBD", "fvAp", "fvRsPathAtt"})
-		cont.apicConn.AddSubscriptionDn("uni/tn-infra",
-			[]string{"fvnsVlanInstP"})
-		cont.apicConn.AddSubscriptionClass("physDomP",
-			[]string{"physDomP"}, "")
+			[]string{"fvBD", "fvAp"})
+		cont.apicConn.AddSubscriptionClass("fvnsVlanInstP",
+			[]string{"fvnsVlanInstP"}, "")
 		cont.apicConn.AddSubscriptionClass("infraRsDomP",
 			[]string{"infraRsDomP"}, "")
+		cont.apicConn.AddSubscriptionClass("physDomP",
+			[]string{"physDomP"}, "")
+		cont.apicConn.AddSubscriptionClass("infraRsVlanNs",
+			[]string{"infraRsVlanNs"}, "")
 	}
 	if !cont.config.ChainedMode {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
@@ -730,31 +736,30 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.addVmmInjectedLabel()
 		cont.apicConn.AddSubscriptionDn(vmmDn,
 			[]string{"vmmInjectedHost", "vmmInjectedNs"})
-	}
-	var tnTargetFilter string
-	if len(cont.config.AciVrfRelatedTenants) > 0 {
-		for _, tn := range cont.config.AciVrfRelatedTenants {
-			tnTargetFilter += fmt.Sprintf("tn-%s|", tn)
+
+		var tnTargetFilter string
+		if len(cont.config.AciVrfRelatedTenants) > 0 {
+			for _, tn := range cont.config.AciVrfRelatedTenants {
+				tnTargetFilter += fmt.Sprintf("tn-%s|", tn)
+			}
+		} else {
+			tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
+				cont.config.AciPolicyTenant, cont.config.AciVrfTenant)
 		}
-	} else {
-		tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
-			cont.config.AciPolicyTenant, cont.config.AciVrfTenant)
-	}
-	subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
-		tnTargetFilter)
-	cont.apicConn.AddSubscriptionClass("fvSubnet",
-		[]string{"fvSubnet"}, subnetTargetFilter)
+		subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
+			tnTargetFilter)
+		cont.apicConn.AddSubscriptionClass("fvSubnet",
+			[]string{"fvSubnet"}, subnetTargetFilter)
 
-	cont.apicConn.SetSubscriptionHooks("fvSubnet",
-		func(obj apicapi.ApicObject) bool {
-			cont.SubnetChanged(obj, cont.config.AciVrfDn)
-			return true
-		},
-		func(dn string) {
-			cont.SubnetDeleted(dn)
-		})
+		cont.apicConn.SetSubscriptionHooks("fvSubnet",
+			func(obj apicapi.ApicObject) bool {
+				cont.SubnetChanged(obj, cont.config.AciVrfDn)
+				return true
+			},
+			func(dn string) {
+				cont.SubnetDeleted(dn)
+			})
 
-	if !cont.config.ChainedMode {
 		cont.apicConn.AddSubscriptionClass("opflexODev",
 			[]string{"opflexODev"}, "")
 
