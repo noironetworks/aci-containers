@@ -23,13 +23,18 @@ linters-settings:
   gocritic:
     enabled-tags:
       - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
+      # - experimental
+      # - opinionated
+      # - performance
+      # - style
     disabled-checks:
-      - wrapperFunc
+      - assignOp
+      - appendAssign
+      - commentedOutCode
       - ifElseChain
+      - singleCaseSwitch
+      - sloppyReassign
+      - wrapperFunc
   funlen:
     lines: 300
     statements: 300
@@ -38,37 +43,46 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    # - deadcode
+    - deadcode
     - depguard
+    - exportloopref
     - dogsled
     # - dupl
-    # - errcheck
+    - errcheck
+    - errorlint
     - funlen
-    # - gocritic
+    - gochecknoinits
+    # - goconst
+    - gocritic
     - gocyclo
     - gofmt
-    # - goimports
+    - goimports
     # - golint
-    # - gosec
+    - gosec
     # - gosimple
     - govet
     # - ineffassign
-    # - interfacer
-    # - misspell
+    - misspell
     # - nakedret
+    - nilerr
+    # - paralleltest
     # - scopelint
-    # - staticcheck
-    # - structcheck
+    - staticcheck
+    - structcheck
     # - stylecheck
     - typecheck
-    # - unconvert
-    # - unused
-    # - varcheck
+    - unconvert
+    - unused
+    - varcheck
     - whitespace
-    # - goconst
-    # - gochecknoinits
 
 issues:
   exclude:
-    - consider giving a name to these results
-    - include an explanation for nolint directive
+    - "G404: Use of weak random number generator"
+  exclude-rules:
+    # exclude some linters from running on certains files.
+    - path: functional.*_test\.go
+      linters:
+        - paralleltest
+  # maximum count of issues with the same text. set to 0 for unlimited. default is 3.
+  max-same-issues: 0

@@ -23,5 +23,9 @@ _testmain.go
 
 *.exe
 
-coverage.txt
-profile.out
+/bin
+/coverage.txt
+/profile.out
+/output.json
+
+.idea
