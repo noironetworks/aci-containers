@@ -707,6 +707,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	} else {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
 			[]string{"fvBD", "fvAp", "fvRsPathAtt"})
+		cont.apicConn.AddSubscriptionDn("uni/tn-infra",
+			[]string{"fvnsVlanInstP"})
+		cont.apicConn.AddSubscriptionClass("physDomP",
+			[]string{"physDomP"}, "")
+		cont.apicConn.AddSubscriptionClass("infraRsDomP",
+			[]string{"infraRsDomP"}, "")
 	}
 	if !cont.config.ChainedMode {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,

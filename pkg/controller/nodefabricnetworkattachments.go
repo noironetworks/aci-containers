@@ -295,7 +295,7 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 		if strings.Contains(encapBlk, "-") {
 			vlanRange = strings.Split(encapBlk, "-")
 		}
-		fvnsEncapBlk := NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
+		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
 		fvnsVlanInstP.AddChild(fvnsEncapBlk)
 	}
 	apicSlice = append(apicSlice, fvnsVlanInstP)
@@ -304,7 +304,7 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	apicSlice = append(apicSlice, physDom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
-	infraRsDomP := NewInfraRsDomP(secondaryAepDn, physDom)
+	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
 	apicSlice = append(apicSlice, infraRsDomP)
 
 	linkPresent := map[string]bool{}
@@ -400,6 +400,11 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	apicSlice = append(apicSlice, bd)
+	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
+	if err != nil {
+		cont.log.Errorf("%v", err)
+		return apicSlice, addNet.NetworkName, false
+	}
 	// Create vlan pool
 	fvnsVlanInstP := apicapi.NewFvnsVlanInstP(cont.config.AciPolicyTenant, addNet.NetworkName)
 	// Create vlan blocks
@@ -407,8 +412,11 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 		var vlanRange []string
 		if strings.Contains(encapBlk, "-") {
 			vlanRange = strings.Split(encapBlk, "-")
+		} else {
+			vlanRange = append(vlanRange, encapBlk)
+			vlanRange = append(vlanRange, encapBlk)
 		}
-		fvnsEncapBlk := NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
+		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
 		fvnsVlanInstP.AddChild(fvnsEncapBlk)
 	}
 	apicSlice = append(apicSlice, fvnsVlanInstP)
@@ -417,7 +425,7 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 	apicSlice = append(apicSlice, physDom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
-	infraRsDomP := NewInfraRsDomP(secondaryAepDn, physDom)
+	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
 	apicSlice = append(apicSlice, infraRsDomP)
 	apicSlice = cont.populateFabricPaths(addNet, apicSlice)
 
