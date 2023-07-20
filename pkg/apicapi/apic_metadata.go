@@ -272,6 +272,8 @@ var metadata = map[string]*apicMeta{
 			"fvRsBd",
 			"fvRsCons",
 			"fvRsProv",
+			"fvRsDomAtt",
+			"fvRsPathAtt",
 		},
 	},
 	"cloudEPg": {
@@ -355,6 +357,9 @@ var metadata = map[string]*apicMeta{
 			"name":      "",
 			"allocMode": "",
 		},
+		children: []string{
+			"fvnsEncapBlk",
+		},
 	},
 	"fvnsEncapBlk": {
 		attributes: map[string]interface{}{
@@ -366,6 +371,9 @@ var metadata = map[string]*apicMeta{
 	"physDomP": {
 		attributes: map[string]interface{}{
 			"name": "",
+		},
+		children: []string{
+			"infraRsVlanNs",
 		},
 	},
 	"infraRsDomP": {

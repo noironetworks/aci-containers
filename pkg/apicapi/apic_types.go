@@ -440,14 +440,14 @@ func NewFvnsVlanInstP(tenant, name string) ApicObject {
 func NewPhysDomP(physDom string) ApicObject {
 	ret := newApicObject("physDomP")
 	ret["physDomP"].Attributes["name"] = physDom
-	ret["physDomP"].HintDn = "uni/phys-[" + physDom + "]"
+	ret["physDomP"].HintDn = "uni/phys-" + physDom
 	return ret
 }
 
 func NewInfraRsDomP(parentDn, tDn string) ApicObject {
 	ret := newApicObject("infraRsDomP")
 	ret["infraRsDomP"].Attributes["tDn"] = tDn
-	ret["infraRsDomP"].HintDn = parentDn + "/rsDomP-[" + tDn + "]"
+	ret["infraRsDomP"].HintDn = parentDn + "/rsdomP-[" + tDn + "]"
 	return ret
 }
 

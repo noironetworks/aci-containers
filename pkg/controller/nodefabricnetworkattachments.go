@@ -301,6 +301,8 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	apicSlice = append(apicSlice, fvnsVlanInstP)
 	// Create physdom
 	physDom := apicapi.NewPhysDomP(cont.config.AciPolicyTenant + "-" + addNet.NetworkName)
+	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
+	physDom.AddChild(infraRsVlanNs)
 	apicSlice = append(apicSlice, physDom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
@@ -422,6 +424,8 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 	apicSlice = append(apicSlice, fvnsVlanInstP)
 	// Create physdom
 	physDom := apicapi.NewPhysDomP(cont.config.AciPolicyTenant + "-" + addNet.NetworkName)
+	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
+	physDom.AddChild(infraRsVlanNs)
 	apicSlice = append(apicSlice, physDom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep

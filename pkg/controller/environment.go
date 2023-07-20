@@ -255,9 +255,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.log.Debug("Waiting for snat cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.snatInformer.HasSynced)
-	cont.indexMutex.Lock()
-	cont.snatSyncEnabled = true
-	cont.indexMutex.Unlock()
+	if !cont.config.ChainedMode {
+		cont.indexMutex.Lock()
+		cont.snatSyncEnabled = true
+		cont.indexMutex.Unlock()
+	}
 	go cont.snatNodeInformer.Run(stopCh)
 	cont.log.Debug("Waiting for snat nodeinfo cache sync")
 	cache.WaitForCacheSync(stopCh, cont.snatNodeInformer.HasSynced)

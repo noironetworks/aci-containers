@@ -70,6 +70,8 @@ func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment) apicapi.ApicSlic
 	fvnsVlanInstP.AddChild(fvnsEncapBlk)
 	apicSlice = append(apicSlice, fvnsVlanInstP)
 	physDom := apicapi.NewPhysDomP("kubernetes-" + networkName)
+	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
+	physDom.AddChild(infraRsVlanNs)
 	apicSlice = append(apicSlice, physDom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + "second-aep"
