@@ -40,7 +40,7 @@ func TestNFNAVlanParse(t *testing.T) {
 	}
 	cont := testController()
 	for _, tc := range vlanTests {
-		vlanList, err := cont.parseNodeFabNetAttVlanList(tc.EncapString)
+		vlanList, _, err := cont.parseNodeFabNetAttVlanList(tc.EncapString)
 		if err != nil {
 			if tc.ExpectError {
 				assert.True(t, true, "")
@@ -55,14 +55,27 @@ func TestNFNAVlanParse(t *testing.T) {
 	}
 }
 
-func CreateNFNABD(nfna *fabattv1.NodeFabricNetworkAttachment) apicapi.ApicObject {
-	bd := apicapi.NewFvBD("kubernetes", nfna.Spec.NetworkRef.Namespace+"-"+nfna.Spec.NetworkRef.Name)
+func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment) apicapi.ApicSlice {
+	var apicSlice apicapi.ApicSlice
+	networkName := nfna.Spec.NetworkRef.Namespace + "-" + nfna.Spec.NetworkRef.Name
+	bd := apicapi.NewFvBD("kubernetes", networkName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), "kube-vrf")
 	bd.AddChild(fvRsCtx)
-	return bd
+	apicSlice = append(apicSlice, bd)
+	fvnsVlanInstP := apicapi.NewFvnsVlanInstP("kubernetes", networkName)
+	fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "5", "6")
+	fvnsVlanInstP.AddChild(fvnsEncapBlk)
+	apicSlice = append(apicSlice, fvnsVlanInstP)
+	physDom := apicapi.NewPhysDomP("kubernetes-" + networkName)
+	apicSlice = append(apicSlice, physDom)
+	// associate aep with physdom
+	secondaryAepDn := "uni/infra/attentp-" + "second-aep"
+	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
+	apicSlice = append(apicSlice, infraRsDomP)
+	return apicSlice
 }
 
 func PopulateFabricPaths(nfna *fabattv1.NodeFabricNetworkAttachment, fabricLinks []string, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
@@ -85,7 +98,7 @@ func CreateNFNAEPG(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int) apicapi
 	epg := apicapi.NewFvAEPg("kubernetes", apName, networkName+"-vlan-"+encap)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), networkName)
 	epg.AddChild(fvRsBd)
-	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), "second-physdom")
+	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), "kubernetes-"+networkName)
 	epg.AddChild(fvRsDomAtt)
 	return epg
 
@@ -153,7 +166,7 @@ func TestNFNACRUD(t *testing.T) {
 	}
 	apicSlice := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
-	expectedApicSlice1 = append(expectedApicSlice1, CreateNFNABD(nfna1))
+	expectedApicSlice1 = CreateNFNAObjs(nfna1)
 	expectedApicSlice1 = PopulateFabricPaths(nfna1,
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 		expectedApicSlice1)
@@ -161,7 +174,7 @@ func TestNFNACRUD(t *testing.T) {
 
 	apicSlice = cont.updateNodeFabNetAttObj(nfna2)
 	var expectedApicSlice2 apicapi.ApicSlice
-	expectedApicSlice2 = append(expectedApicSlice2, CreateNFNABD(nfna2))
+	expectedApicSlice2 = CreateNFNAObjs(nfna2)
 	expectedApicSlice2 = PopulateFabricPaths(nfna2,
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]",
 			"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]",
@@ -172,7 +185,7 @@ func TestNFNACRUD(t *testing.T) {
 
 	apicSlice, networkName, deleted := cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
 	var expectedApicSlice3 apicapi.ApicSlice
-	expectedApicSlice3 = append(expectedApicSlice3, CreateNFNABD(nfna2))
+	expectedApicSlice3 = CreateNFNAObjs(nfna2)
 	expectedApicSlice3 = PopulateFabricPaths(nfna2,
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
 		expectedApicSlice3)

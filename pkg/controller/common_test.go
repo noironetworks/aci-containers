@@ -238,13 +238,13 @@ func testChainedController() *testAciController {
 
 	cont := &testAciController{
 		AciController: *NewController(&ControllerConfig{
-			AciPolicyTenant:      "kubernetes",
-			AciPrefix:            "kube",
-			AciVrf:               "kube-vrf",
-			AciVrfTenant:         "common",
-			ChainedMode:          true,
-			AciPhysDom:           "first-physdom",
-			AciAdditionalPhysDom: "second-physdom",
+			AciPolicyTenant:  "kubernetes",
+			AciPrefix:        "kube",
+			AciVrf:           "kube-vrf",
+			AciVrfTenant:     "common",
+			ChainedMode:      true,
+			AciPhysDom:       "first-physdom",
+			AciAdditionalAep: "second-aep",
 		},
 			&K8sEnvironment{}, log, true),
 	}

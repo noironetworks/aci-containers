@@ -420,6 +420,44 @@ func NewFvCtx(tenantName, name string) ApicObject {
 	return ret
 }
 
+func NewFvnsEncapBlk(parentDn, from, to string) ApicObject {
+	ret := newApicObject("fvnsEncapBlk")
+	ret["fvnsEncapBlk"].Attributes["from"] = "vlan-" + from
+	ret["fvnsEncapBlk"].Attributes["to"] = "vlan-" + to
+	ret["fvnsEncapBlk"].Attributes["allocMode"] = "static"
+	ret["fvnsEncapBlk"].HintDn = parentDn + "/from-[vlan-" + from + "]-to-[vlan-" + to + "]"
+	return ret
+}
+
+func NewFvnsVlanInstP(tenant, name string) ApicObject {
+	ret := newApicObject("fvnsVlanInstP")
+	ret["fvnsVlanInstP"].Attributes["name"] = tenant + "-" + name
+	ret["fvnsVlanInstP"].Attributes["allocMode"] = "static"
+	ret["fvnsVlanInstP"].HintDn = "uni/infra/vlanns-[" + tenant + "-" + name + "]-static"
+	return ret
+}
+
+func NewPhysDomP(physDom string) ApicObject {
+	ret := newApicObject("physDomP")
+	ret["physDomP"].Attributes["name"] = physDom
+	ret["physDomP"].HintDn = "uni/phys-[" + physDom + "]"
+	return ret
+}
+
+func NewInfraRsDomP(parentDn, tDn string) ApicObject {
+	ret := newApicObject("infraRsDomP")
+	ret["infraRsDomP"].Attributes["tDn"] = tDn
+	ret["infraRsDomP"].HintDn = parentDn + "/rsDomP-[" + tDn + "]"
+	return ret
+}
+
+func NewInfraRsVlanNs(parentDn, tDn string) ApicObject {
+	ret := newApicObject("infraRsVlanNs")
+	ret["infraRsVlanNs"].Attributes["tDn"] = tDn
+	ret["infraRsVlanNs"].HintDn = parentDn + "/rsvlanNs"
+	return ret
+}
+
 func NewFvRsDomAttPhysDom(parentDn, physDom string) ApicObject {
 	physDomDn := fmt.Sprintf("uni/phys-%s", physDom)
 	ret := newApicObject("fvRsDomAtt")

@@ -350,6 +350,34 @@ var metadata = map[string]*apicMeta{
 			"encap": "",
 		},
 	},
+	"fvnsVlanInstP": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"allocMode": "",
+		},
+	},
+	"fvnsEncapBlk": {
+		attributes: map[string]interface{}{
+			"from":      "",
+			"to":        "",
+			"allocMode": "",
+		},
+	},
+	"physDomP": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+	},
+	"infraRsDomP": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+	},
+	"infraRsVlanNs": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+	},
 	"tagInst": {
 		attributes: map[string]interface{}{
 			"name": "",
