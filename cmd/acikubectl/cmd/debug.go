@@ -535,33 +535,33 @@ func clusterReport(cmd *cobra.Command, args []string) {
 	}
 
 	nodePodMap := make(map[string]string)
-	for _, node := range nodes.Items {
-		for _, nodeItem := range nodeItems {
-			key := node.Name + ";" + nodeItem.selector
+	for ix := range nodes.Items {
+		for ix := range nodeItems {
+			key := nodes.Items[ix].Name + ";" + nodeItems[ix].selector
 			podName, cached := nodePodMap[key]
 			if !cached {
 				podName, err = podForNode(kubeClient, systemNamespace,
-					node.Name, nodeItem.selector)
+					nodes.Items[ix].Name, nodeItems[ix].selector)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					continue
 				}
 			}
 			// Prepare kubectl cp command for opflex-agent-ovs
-			tempName := fmt.Sprintf("hostfiles/node-%s/opflex-agent-ovs/", node.Name)
+			tempName := fmt.Sprintf("hostfiles/node-%s/opflex-agent-ovs/", nodes.Items[ix].Name)
 			cmds = append(cmds, reportCmdElem{
 				name: tempName,
 				args: []string{"cp", systemNamespace + "/" + podName + ":" +
 					"/usr/local/var/lib/opflex-agent-ovs", tempName},
 				skipOutputFile: true,
 			}, reportCmdElem{
-				name: fmt.Sprintf(nodeItem.path, node.Name),
-				args: nodeItem.argFunc(systemNamespace, podName,
-					nodeItem.cont, nodeItem.args),
+				name: fmt.Sprintf(nodeItems[ix].path, nodes.Items[ix].Name),
+				args: nodeItems[ix].argFunc(systemNamespace, podName,
+					nodeItems[ix].cont, nodeItems[ix].args),
 			})
 
 			//Prepare kubectl cp command for aci-conatiners-host
-			tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/k8s-pod-network/", node.Name)
+			tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/k8s-pod-network/", nodes.Items[ix].Name)
 			cmds = append(cmds, reportCmdElem{
 				name: tempName,
 				args: []string{"cp", systemNamespace + "/" + podName + ":" +
@@ -570,7 +570,7 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			})
 		}
 		//Prepare kubectl exec command for aci-conatiners-host version
-		tempName := fmt.Sprintf("cluster-report/logs/node-%s/aci-containers-host-version.log", node.Name)
+		tempName := fmt.Sprintf("cluster-report/logs/node-%s/aci-containers-host-version.log", nodes.Items[ix].Name)
 		cmds = append(cmds, reportCmdElem{
 			name: tempName,
 			args: aciContainerHostVersionCmdArgs(systemNamespace),
@@ -776,8 +776,8 @@ func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, namespace := range namespaces.Items {
-		return namespace.Name, nil
+	for ix := range namespaces.Items {
+		return namespaces.Items[ix].Name, nil
 	}
 	return "kube-system", nil
 }
@@ -792,9 +792,9 @@ func podForNode(kubeClient kubernetes.Interface,
 	if err != nil {
 		return "", err
 	}
-	for _, pod := range pods.Items {
-		if pod.Spec.NodeName == node {
-			return pod.Name, nil
+	for ix := range pods.Items {
+		if pods.Items[ix].Spec.NodeName == node {
+			return pods.Items[ix].Name, nil
 		}
 	}
 	return "", errors.New("Could not find pod on node: " + node)

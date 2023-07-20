@@ -408,8 +408,8 @@ func netEqual(a, b net.IPNet) bool {
 
 func (cont *AciController) updateIpIndexEntry(index cidranger.Ranger,
 	subnetStr string, key string, add bool) bool {
-	net := parseCIDR(subnetStr)
-	if net == nil {
+	cidr := parseCIDR(subnetStr)
+	if cidr == nil {
 		cont.log.WithFields(logrus.Fields{
 			"subnet": subnetStr,
 			"netpol": key,
@@ -417,14 +417,14 @@ func (cont *AciController) updateIpIndexEntry(index cidranger.Ranger,
 		return false
 	}
 
-	entries, err := index.CoveredNetworks(*net)
+	entries, err := index.CoveredNetworks(*cidr)
 	if err != nil {
 		cont.log.Error("Corrupted subnet index: ", err)
 		return false
 	}
 	if add {
 		for _, entryObj := range entries {
-			if netEqual(entryObj.Network(), *net) {
+			if netEqual(entryObj.Network(), *cidr) {
 				entry := entryObj.(*ipIndexEntry)
 				existing := entry.keys[key]
 				entry.keys[key] = true
@@ -433,7 +433,7 @@ func (cont *AciController) updateIpIndexEntry(index cidranger.Ranger,
 		}
 
 		entry := &ipIndexEntry{
-			ipNet: *net,
+			ipNet: *cidr,
 			keys: map[string]bool{
 				key: true,
 			},
@@ -604,10 +604,10 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	if len(peers) > 0 {
 		// only applies to matching pods
 		for _, pod := range peerPods {
-			for _, peer := range peers {
+			for peerIx := range peers {
 				if ns, ok := peerNs[pod.ObjectMeta.Namespace]; ok &&
 					cont.peerMatchesPod(namespace,
-						&peer, pod, ns) {
+						&peers[peerIx], pod, ns) {
 					podIps := ipsForPod(pod)
 					for _, ip := range podIps {
 						if _, exists := subnetMap[ip]; !exists {
@@ -873,13 +873,13 @@ func (cont *AciController) getServiceAugmentBySubnet(
 	// endpoints selected by the egress rule
 	cont.indexMutex.Lock()
 	for sub := range prs.subnetMap {
-		net := parseCIDR(sub)
-		if net == nil {
+		cidr := parseCIDR(sub)
+		if cidr == nil {
 			continue
 		}
-		subnetIndex.Insert(cidranger.NewBasicRangerEntry(*net))
+		subnetIndex.Insert(cidranger.NewBasicRangerEntry(*cidr))
 
-		entries, err := cont.endpointsIpIndex.CoveredNetworks(*net)
+		entries, err := cont.endpointsIpIndex.CoveredNetworks(*cidr)
 		if err != nil {
 			logger.Error("endpointsIpIndex corrupted: ", err)
 			continue
@@ -1469,11 +1469,11 @@ func (sep *serviceEndpoint) SetNpServiceAugmentForService(servicekey string, ser
 		}
 		for _, subset := range endpoints.Subsets {
 			var foundEpPort *v1.EndpointPort
-			for _, endpointPort := range subset.Ports {
-				if endpointPort.Name == svcPort.Name ||
+			for ix := range subset.Ports {
+				if subset.Ports[ix].Name == svcPort.Name ||
 					(len(service.Spec.Ports) == 1 &&
-						endpointPort.Name == "") {
-					foundEpPort = &endpointPort
+						subset.Ports[ix].Name == "") {
+					foundEpPort = &subset.Ports[ix]
 					break
 				}
 			}
@@ -1527,11 +1527,11 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 					continue
 				}
 				var foundEpPort *discovery.EndpointPort
-				for _, endpointPort := range endpointSlices.Ports {
-					if *endpointPort.Name == svcPort.Name ||
+				for ix := range endpointSlices.Ports {
+					if *endpointSlices.Ports[ix].Name == svcPort.Name ||
 						(len(service.Spec.Ports) == 1 &&
-							*endpointPort.Name == "") {
-						foundEpPort = &endpointPort
+							*endpointSlices.Ports[ix].Name == "") {
+						foundEpPort = &endpointSlices.Ports[ix]
 						cont.log.Debug("Found EpPort: ", foundEpPort)
 						break
 					}

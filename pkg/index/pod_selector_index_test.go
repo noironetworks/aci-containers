@@ -181,21 +181,21 @@ func (i *testIndex) stop() {
 	close(i.stopCh)
 }
 
-func pod(namespace string, name string, labels map[string]string) *v1.Pod {
+func pod(namespace, name string, podLabels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
-			Labels:    labels,
+			Labels:    podLabels,
 		},
 	}
 }
 
-func namespace(namespace string, labels map[string]string) *v1.Namespace {
+func namespace(namespace string, nsLabels map[string]string) *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   namespace,
-			Labels: labels,
+			Labels: nsLabels,
 		},
 	}
 }

@@ -90,7 +90,6 @@ func makeQr(ingress apicapi.ApicSlice, egress apicapi.ApicSlice, name string, po
 func checkDeleteQr(t *testing.T, qt qrTest, cont *testAciController) {
 	tu.WaitFor(t, "delete", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			//qr := qrTests[0]
 			key := cont.aciNameForKey("qr",
 				qt.qosPol.Namespace+"_"+qt.qosPol.Name)
 			if !tu.WaitEqual(t, last, 0,

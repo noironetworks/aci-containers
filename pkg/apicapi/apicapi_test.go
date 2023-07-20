@@ -889,13 +889,13 @@ func TestReconcile(t *testing.T) {
 		}
 
 		for _, deleteDn := range test.deletes {
-			delete := test.deleteBody[deleteDn]
-			for _, d := range delete {
+			deleteMo := test.deleteBody[deleteDn]
+			for _, d := range deleteMo {
 				d.SetAttr("status", "deleted")
 			}
 			data := map[string]interface{}{
 				"subscriptionId": []string{"42"},
-				"imdata":         delete,
+				"imdata":         deleteMo,
 			}
 			server.sh.socketConn.WriteJSON(data)
 		}

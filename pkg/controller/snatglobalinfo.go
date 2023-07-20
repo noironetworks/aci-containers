@@ -375,7 +375,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 	snatglobalInfo.Spec.GlobalInfos = glInfoCache
 	cont.log.Debug("Update GlobalInfo cache: ", glInfoCache)
 	cont.log.Debug("Updating GlobalInfo CR")
-	err = util.UpdateGlobalInfoCR(*globalcl, snatglobalInfo)
+	err = util.UpdateGlobalInfoCR(*globalcl, &snatglobalInfo)
 	if err != nil {
 		cont.log.Error("GlobalInfo CR Update Failed: ", err)
 		return true

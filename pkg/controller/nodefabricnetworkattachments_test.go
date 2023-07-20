@@ -101,7 +101,6 @@ func CreateNFNAEPG(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int) apicapi
 	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), "kubernetes-"+networkName)
 	epg.AddChild(fvRsDomAtt)
 	return epg
-
 }
 
 func TestNFNACRUD(t *testing.T) {

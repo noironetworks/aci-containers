@@ -103,7 +103,6 @@ func (cont *AciController) checkEpgCache(epGroup, comment string) (bool, metadat
 	}
 
 	if len(egval.Name) != 0 {
-
 		if len(cont.cachedEpgDns) != 0 {
 			if egval.Tenant != "" && egval.AppProfile != "" {
 				dn := fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", egval.Tenant, egval.AppProfile, egval.Name)

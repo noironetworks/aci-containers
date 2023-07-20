@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func rdConfigdata(usersubnets []string, discoveredsubnets []string) *rdconfig.RdConfig {
+func rdConfigdata(usersubnets, discoveredsubnets []string) *rdconfig.RdConfig {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
 	name := os.Getenv("ACI_RDCONFIG_NAME")
 	rdcon := &rdconfig.RdConfig{

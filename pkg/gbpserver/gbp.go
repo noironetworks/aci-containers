@@ -17,11 +17,8 @@ limitations under the License.
 package gbpserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
-	"os"
-	osexec "os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -36,7 +33,6 @@ import (
 )
 
 const (
-	gbpUpdPath   = "/usr/local/bin/gbp_update.sh"
 	tokenTime    = 20 * time.Second
 	numClassIDs  = 32000
 	firstClassID = 32000
@@ -45,9 +41,7 @@ const (
 	firstEncapID = 7700000
 )
 
-var debugDB = false
 var gMutex sync.Mutex
-var dbDataDir string
 var apicCon *apicapi.ApicConnection
 var theServer *Server
 
@@ -691,14 +685,6 @@ func (s *Server) InitDB() {
 	SendDefaultsToAPIC()
 }
 
-func getMoFile() string {
-	return filepath.Join(dbDataDir, "mo.json")
-}
-
-func getInvDir() string {
-	return filepath.Join(dbDataDir, "inventory")
-}
-
 func addToMap(sum, addend map[string]*gbpCommonMo) {
 	for k, m := range addend {
 		sum[k] = m
@@ -734,86 +720,6 @@ func getSnapShot(vtep string) []*GBPObject {
 	}
 
 	return moList
-}
-
-func DoAll() {
-	if !theServer.config.PushJsonFile {
-		return
-	}
-
-	for vtep := range theServer.invDB {
-		moMap := getMoMap()
-		addToMap(moMap, GetInvMoMap(vtep))
-		fileName := fmt.Sprintf("/tmp/gen_policy.%s.json", vtep)
-		printSorted(moMap, fileName, false)
-		out, err := osexec.Command(gbpUpdPath, vtep).CombinedOutput()
-		if err != nil {
-			log.Errorf("%s returned %v", gbpUpdPath, err)
-		} else {
-			log.Infof("wrote vtep %s -- %s", vtep, out)
-		}
-	}
-
-	saveDBToFile()
-}
-func invToCommon(vtep string) map[string]*gbpCommonMo {
-	moMap := make(map[string]*gbpCommonMo)
-
-	invM := InvDB[vtep]
-	for k, mo := range invM {
-		moMap[k] = &mo.gbpCommonMo
-	}
-
-	return moMap
-}
-
-func saveDBToFile() {
-	invDir := getInvDir()
-	err := os.MkdirAll(invDir, 0777)
-	if err != nil {
-		log.Errorf("os.MkDirAll: %s - %v", invDir, err)
-		return
-	}
-
-	moMap := getMoMap()
-	printSorted(moMap, getMoFile(), debugDB)
-	for vtep := range InvDB {
-		vtepFile := filepath.Join(invDir, vtep)
-		printSorted(invToCommon(vtep), vtepFile, debugDB)
-	}
-}
-
-func printSorted(mos map[string]*gbpCommonMo, outFile string, debug bool) {
-	var keys []string
-
-	for k := range mos {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	var sortedMos []*gbpCommonMo
-
-	for _, kk := range keys {
-		m, ok := mos[kk]
-		if !ok {
-			fmt.Printf("ERROR: missing mo")
-			continue
-		} else if debug {
-			fmt.Printf("Appending mo %s\n", m.Uri)
-		}
-		sortedMos = append(sortedMos, m)
-	}
-	policyJson, err := json.MarshalIndent(sortedMos, "", "    ")
-	if err != nil {
-		fmt.Printf("ERROR: %v", err)
-	}
-	err = os.WriteFile(outFile, policyJson, 0644)
-	if err != nil {
-		log.Errorf("%s - %v", outFile, err)
-	} else if debug {
-		log.Infof("Wrote %s", outFile)
-	}
 }
 
 func SendDefaultsToAPIC() {

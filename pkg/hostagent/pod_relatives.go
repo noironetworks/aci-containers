@@ -173,8 +173,8 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 	}
 	if !sameSpec {
 		peerPodKeys := agent.netPolPods.GetPodForObj(npkey)
-		for _, podkey := range peerPodKeys {
-			agent.podChanged(&podkey)
+		for i := range peerPodKeys {
+			agent.podChanged(&peerPodKeys[i])
 		}
 	}
 }
@@ -267,14 +267,14 @@ func (agent *HostAgent) qosPolicyChanged(oldobj, newobj interface{}) {
 
 	if !reflect.DeepEqual(oldqp.Spec.Ingress, newqp.Spec.Ingress) {
 		peerPodKeys := agent.qosPolPods.GetPodForObj(qpkey)
-		for _, podkey := range peerPodKeys {
-			agent.podChanged(&podkey)
+		for ix := range peerPodKeys {
+			agent.podChanged(&peerPodKeys[ix])
 		}
 	}
 	if !reflect.DeepEqual(oldqp.Spec.Egress, newqp.Spec.Egress) {
 		peerPodKeys := agent.qosPolPods.GetPodForObj(qpkey)
-		for _, podkey := range peerPodKeys {
-			agent.podChanged(&podkey)
+		for ix := range peerPodKeys {
+			agent.podChanged(&peerPodKeys[ix])
 		}
 	}
 }
@@ -400,8 +400,8 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 				Error("Could not create key: ", err)
 			return
 		}
-		for _, podkey := range agent.depPods.GetPodForObj(depkey) {
-			agent.podChanged(&podkey)
+		for ix := range agent.depPods.GetPodForObj(depkey) {
+			agent.podChanged(&agent.depPods.GetPodForObj(depkey)[ix])
 		}
 	}
 	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
@@ -467,12 +467,12 @@ func (agent *HostAgent) initRCPodIndex() {
 		cache.MetaNamespaceKeyFunc,
 		func(obj interface{}) []index.PodSelector {
 			rc := obj.(*v1.ReplicationController)
-			labels := rc.Spec.Selector
-			if len(labels) == 0 {
+			podLabels := rc.Spec.Selector
+			if len(podLabels) == 0 {
 				agent.log.Infof("RC %s/%s has no selector. Using template", rc.ObjectMeta.Namespace, rc.ObjectMeta.Name)
-				labels = rc.Spec.Template.Labels
+				podLabels = rc.Spec.Template.Labels
 			}
-			ls := &metav1.LabelSelector{MatchLabels: labels}
+			ls := &metav1.LabelSelector{MatchLabels: podLabels}
 			return index.PodSelectorFromNsAndSelector(rc.ObjectMeta.Namespace, ls)
 		},
 	)
@@ -515,8 +515,8 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 				Error("Could not create key: ", err)
 			return
 		}
-		for _, podkey := range agent.rcPods.GetPodForObj(rckey) {
-			agent.podChanged(&podkey)
+		for ix := range agent.rcPods.GetPodForObj(rckey) {
+			agent.podChanged(&agent.rcPods.GetPodForObj(rckey)[ix])
 		}
 	}
 }

@@ -66,8 +66,8 @@ func (agent *HostAgent) RunPacketEventListener(stopCh <-chan struct{}) {
 						agent.log.Debug("Unmarshaling error ", err1)
 						continue
 					}
-					for _, event := range m {
-						err2 := agent.processPacketEvent(event, time.Now())
+					for ix := range m {
+						err2 := agent.processPacketEvent(&m[ix], time.Now())
 						if err2 != nil {
 							agent.log.Debugf("Failed to post event %d", err2)
 						}

@@ -128,7 +128,7 @@ type ServiceEndPointType interface {
 	InitClientInformer(kubeClient *kubernetes.Clientset)
 	Run(stopCh <-chan struct{})
 	SetOpflexService(ofas *opflexService, as *v1.Service,
-		external bool, key string, sp v1.ServicePort) bool
+		external bool, key string, sp *v1.ServicePort) bool
 }
 
 type serviceEndpoint struct {

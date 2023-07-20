@@ -22,8 +22,6 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
-
-	"github.com/noironetworks/aci-containers/pkg/metadata"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +31,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/index"
+	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
 func (cont *AciController) initDeploymentInformerFromClient(

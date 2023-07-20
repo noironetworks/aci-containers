@@ -307,8 +307,8 @@ func (cont *AciController) podDeleted(obj interface{}) {
 func (cont *AciController) updateCtrNmPortForPod(pod *v1.Pod, podkey string) {
 	cont.indexMutex.Lock()
 	nmport := false
-	for _, ctr := range pod.Spec.Containers {
-		for _, ctrportspec := range ctr.Ports {
+	for ix := range pod.Spec.Containers {
+		for _, ctrportspec := range pod.Spec.Containers[ix].Ports {
 			if ctrportspec.Name != "" {
 				key := portProto(&ctrportspec.Protocol) + "-" + strconv.Itoa(int(ctrportspec.ContainerPort))
 				ctrNmpEntry, ok := cont.ctrPortNameCache[ctrportspec.Name]
@@ -352,8 +352,8 @@ func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
 	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)
 	nmport := false
-	for _, ctr := range pod.Spec.Containers {
-		for _, ctrportspec := range ctr.Ports {
+	for ix := range pod.Spec.Containers {
+		for _, ctrportspec := range pod.Spec.Containers[ix].Ports {
 			if ctrportspec.Name != "" {
 				ctrNmpEntry, ok := cont.ctrPortNameCache[ctrportspec.Name]
 				if ok {

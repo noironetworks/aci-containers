@@ -303,7 +303,7 @@ func TestServiceSync(t *testing.T) {
 		endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointsSource.Add(endpoints)
-		agent.doTestService(t, tempdir, &st, "create")
+		agent.doTestService(t, tempdir, &serviceTests[i], "create")
 	}
 
 	for _, st := range serviceTests {
@@ -381,7 +381,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointSliceSource.Add(endpoints)
-		agent.doTestService(t, tempdir, &st, "create")
+		agent.doTestService(t, tempdir, &serviceTests[i], "create")
 	}
 
 	for _, st := range serviceTests {
@@ -460,7 +460,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, agent.config.NodeName)
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointSliceSource.Add(endpoints)
-		agent.doTestService(t, tempdir, &st, "create")
+		agent.doTestService(t, tempdir, &serviceTests[i], "create")
 	}
 
 	for _, st := range serviceTests {

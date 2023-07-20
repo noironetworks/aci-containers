@@ -99,7 +99,6 @@ func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
 func checkDeleteErspan(t *testing.T, spanTest erspanTest, cont *testAciController) {
 	tu.WaitFor(t, "delete", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			//span := spanTests[0]
 			key := cont.aciNameForKey("span",
 				spanTest.erspanPol.Namespace+"_"+spanTest.erspanPol.Name)
 			if !tu.WaitEqual(t, last, 0,

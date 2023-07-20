@@ -16,16 +16,18 @@ package util
 
 import (
 	"context"
+	"os"
+	"sort"
+	"strconv"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"os"
-	"sort"
-	"strconv"
 )
 
 type StartSorter []snatglobal.PortRange
@@ -77,9 +79,9 @@ func CreateSnatGlobalInfoCR(c snatglobalclset.Clientset,
 }
 
 // UpdateSnatGlobalInfoCR Updates a SnatGlobalInfo CR
-func UpdateGlobalInfoCR(c snatglobalclset.Clientset, globalInfo snatglobal.SnatGlobalInfo) error {
+func UpdateGlobalInfoCR(c snatglobalclset.Clientset, globalInfo *snatglobal.SnatGlobalInfo) error {
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
-	_, err := c.AciV1().SnatGlobalInfos(ns).Update(context.TODO(), &globalInfo, metav1.UpdateOptions{})
+	_, err := c.AciV1().SnatGlobalInfos(ns).Update(context.TODO(), globalInfo, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}

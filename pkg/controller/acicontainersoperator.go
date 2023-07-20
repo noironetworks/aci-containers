@@ -1185,11 +1185,11 @@ func (c *Controller) updatednsOperator() error {
 	log.Info("NodeAddress: ", nodeAddress)
 	// compute the dns servers info
 	var servers []operatorv1.Server
-	for _, route := range routes.Items {
+	for ix := range routes.Items {
 		var server operatorv1.Server
-		key := route.ObjectMeta.Namespace + "/" + route.ObjectMeta.Name
+		key := routes.Items[ix].ObjectMeta.Namespace + "/" + routes.Items[ix].ObjectMeta.Name
 		server.Name = key
-		server.Zones = append(server.Zones, route.Spec.Host)
+		server.Zones = append(server.Zones, routes.Items[ix].Spec.Host)
 		server.ForwardPlugin.Upstreams = nodeAddress
 		servers = append(servers, server)
 	}
@@ -1202,8 +1202,8 @@ func (c *Controller) updatednsOperator() error {
 		}
 	}
 	c.indexMutex.Lock()
-	for _, route := range routes.Items {
-		key := route.ObjectMeta.Namespace + "/" + route.ObjectMeta.Name
+	for ix := range routes.Items {
+		key := routes.Items[ix].ObjectMeta.Namespace + "/" + routes.Items[ix].ObjectMeta.Name
 		log.Infof("Route added to cache: %s", key)
 		c.routes[key] = true
 	}
@@ -1220,14 +1220,14 @@ func (c *Controller) getNodeOS() (string, error) {
 		log.Info("Failed to List the nodes: ", err)
 		return osImage, err
 	}
-	for _, node := range nodelist.Items {
-		if node.DeletionTimestamp != nil {
+	for ix := range nodelist.Items {
+		if nodelist.Items[ix].DeletionTimestamp != nil {
 			continue
 		}
-		if _, ok := node.ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
+		if _, ok := nodelist.Items[ix].ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
 			continue
 		}
-		osImage = node.Status.NodeInfo.OSImage
+		osImage = nodelist.Items[ix].Status.NodeInfo.OSImage
 		break
 	}
 	return osImage, nil
@@ -1241,14 +1241,14 @@ func (c *Controller) getNodeAddress() ([]string, error) {
 		return []string{}, err
 	}
 	var nodeAddress []string
-	for _, node := range nodelist.Items {
-		if node.DeletionTimestamp != nil {
+	for ix := range nodelist.Items {
+		if nodelist.Items[ix].DeletionTimestamp != nil {
 			continue
 		}
-		if _, ok := node.ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
+		if _, ok := nodelist.Items[ix].ObjectMeta.Labels["node-role.kubernetes.io/master"]; ok {
 			continue
 		}
-		address := node.Status.Addresses
+		address := nodelist.Items[ix].Status.Addresses
 		for _, val := range address {
 			if val.Type == v1.NodeInternalIP {
 				nodeAddress = append(nodeAddress, val.Address)

@@ -45,8 +45,6 @@ const (
 	csrDefMac       = "00:00:5e:00:52:13"
 )
 
-var InvDB = make(map[string]map[string]*gbpInvMo)
-
 func (g *gbpInvMo) save(vtep string) {
 	db := getInvDB(vtep)
 	db[g.Uri] = g
@@ -485,7 +483,6 @@ func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string
 	}
 
 	uri, err := ep.Add()
-	DoAll()
 	return &PostResp{URI: uri}, err
 }
 
@@ -551,7 +548,6 @@ func deleteEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]stri
 
 	log.Debugf("deleteEndpoint - VTEP: %s", ep.VTEP)
 	err = ep.Delete()
-	DoAll()
 	return nil, err
 }
 

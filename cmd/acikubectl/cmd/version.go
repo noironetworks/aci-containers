@@ -52,10 +52,10 @@ func getVersion(cmd *cobra.Command, args []string) {
 	if err1 != nil {
 		fmt.Fprintln(os.Stderr, "Could not list pods:", err1)
 	}
-	for _, pod := range systemNamespacePods.Items {
-		if strings.Contains(pod.Name, "aci-containers-controller") {
+	for ix := range systemNamespacePods.Items {
+		if strings.Contains(systemNamespacePods.Items[ix].Name, "aci-containers-controller") {
 			buffer := new(bytes.Buffer)
-			mylist := []string{"exec", "-c" + "aci-containers-controller", "-n" + systemNamespace, pod.Name,
+			mylist := []string{"exec", "-c" + "aci-containers-controller", "-n" + systemNamespace, systemNamespacePods.Items[ix].Name,
 				"--", "/bin/sh", "-c", "aci-containers-controller -version"}
 			execKubectl(mylist, buffer)
 			trimString := strings.TrimSpace(buffer.String())

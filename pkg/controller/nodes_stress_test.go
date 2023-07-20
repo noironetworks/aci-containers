@@ -101,17 +101,17 @@ func (nr *nodeRec) ValidatePodNets(verbose bool) error {
 	// look for overlaps, duplicates
 	var prev ipam.IpRange
 
-	for _, ipr := range podIpr.IPRanges {
-		if bytes.Compare(ipr.Start, ipr.End) > 0 {
-			return fmt.Errorf("Bad range %+v", ipr)
+	for ix := range podIpr.IPRanges {
+		if bytes.Compare(podIpr.IPRanges[ix].Start, podIpr.IPRanges[ix].End) > 0 {
+			return fmt.Errorf("Bad range %+v", podIpr.IPRanges[ix])
 		}
 
-		err := checkOverlap(&prev, &ipr, verbose)
+		err := checkOverlap(&prev, &podIpr.IPRanges[ix], verbose)
 		if err != nil {
 			return err
 		}
 
-		prev = ipr
+		prev = podIpr.IPRanges[ix]
 	}
 
 	logrus.Infof("Validated %d net ranges", len(podIpr.IPRanges))
@@ -132,7 +132,7 @@ func checkOverlap(first, second *ipam.IpRange, verbose bool) error {
 		logrus.Infof("checkOverlap: %s vs %s", string(raw1), string(raw2))
 	}
 
-	if net.IP.Equal(first.Start, second.Start) {
+	if first.Start.Equal(second.Start) {
 		return fmt.Errorf("Duplicate found %+v, %+v", first, second)
 	}
 

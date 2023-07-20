@@ -21,13 +21,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apitypes "k8s.io/apimachinery/pkg/types"
+
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apitypes "k8s.io/apimachinery/pkg/types"
 )
 
 type portRange struct {
@@ -235,7 +236,7 @@ func TestSnatSync(t *testing.T) {
 		snatglobalinfo = snatglobaldata(pt.uuid, pt.name, pt.nodename, pt.namespace, newglobal)
 		agent.fakeSnatGlobalSource.Add(snatglobalinfo)
 		agent.log.Info("Complete Globale Info #### ", snatglobalinfo)
-		agent.doTestSnat(t, tempdir, &pt, "create")
+		agent.doTestSnat(t, tempdir, &snatGlobals[i], "create")
 	}
 	agent.stop()
 }

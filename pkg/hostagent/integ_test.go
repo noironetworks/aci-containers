@@ -154,7 +154,7 @@ func (it *integ) tearDown() {
 	os.RemoveAll(it.hcf.OpFlexSnatDir)
 }
 
-func (it *integ) setupNode(ipam buildIpam, wait bool) {
+func (it *integ) setupNode(ipam *buildIpam, wait bool) {
 	it.ta.indexMutex.Lock()
 
 	if it.ta.epMetadata == nil {
@@ -364,8 +364,8 @@ func TestIPAM(t *testing.T) {
 		return total
 	}
 
-	for ix, am := range updIpams {
-		it.setupNode(am, true)
+	for ix := range updIpams {
+		it.setupNode(&updIpams[ix], true)
 		poolSizes[ix] = ipCounter()
 		log.Infof("IP pool size is %v", poolSizes[ix])
 	}
@@ -379,7 +379,7 @@ func TestIPAM(t *testing.T) {
 			case <-stopCh:
 				return
 			case <-time.After(2 * time.Millisecond):
-				it.setupNode(updIpams[ix], false)
+				it.setupNode(&updIpams[ix], false)
 			}
 
 			ix++
@@ -425,10 +425,11 @@ func TestIPAM(t *testing.T) {
 func TestEPDelete(t *testing.T) {
 	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
 	hcf := &HostAgentConfig{
-		NodeName:  "node1",
-		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
-		NetConfig: []cniNetConfig{ncf},
-		AciPrefix: "it",
+		NodeName:       "node1",
+		EpRpcSock:      "/tmp/aci-containers-ep-rpc.sock",
+		EpRpcSockPerms: "0600",
+		NetConfig:      []cniNetConfig{ncf},
+		AciPrefix:      "it",
 		GroupDefaults: GroupDefaults{
 			DefaultEg: metadata.OpflexGroup{
 				PolicySpace: "tenantA",
@@ -449,7 +450,7 @@ func TestEPDelete(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// Add pods intf via cni
@@ -508,7 +509,7 @@ func TestGroupAssign(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace
@@ -616,7 +617,7 @@ func TestNPGroupAssign(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace
@@ -672,21 +673,21 @@ func TestNPGroupAssign(t *testing.T) {
 
 func mkSnatGlobalObj() *snatglobal.SnatGlobalInfo {
 	var newglobal []snatglobal.GlobalInfo
-	for i, pt := range snatGlobals {
+	for i := range snatGlobals {
 		var globalinfo snatglobal.GlobalInfo
 		portrange := make([]snatglobal.PortRange, 1)
-		portrange[0].Start = pt.port_range.start
-		portrange[0].End = pt.port_range.end
-		globalinfo.MacAddress = pt.mac
-		globalinfo.SnatIp = pt.ip
-		globalinfo.SnatIpUid = pt.uuid
+		portrange[0].Start = snatGlobals[i].port_range.start
+		portrange[0].End = snatGlobals[i].port_range.end
+		globalinfo.MacAddress = snatGlobals[i].mac
+		globalinfo.SnatIp = snatGlobals[i].ip
+		globalinfo.SnatIpUid = snatGlobals[i].uuid
 		globalinfo.PortRanges = portrange
-		globalinfo.SnatPolicyName = pt.policyname
+		globalinfo.SnatPolicyName = snatGlobals[i].policyname
 		if i == 0 {
 			newglobal = append(newglobal, globalinfo)
 		}
 		for _, v := range newglobal {
-			if v.MacAddress != pt.mac {
+			if v.MacAddress != snatGlobals[i].mac {
 				newglobal = append(newglobal, globalinfo)
 			}
 		}
@@ -730,7 +731,7 @@ func TestSnatPolicy(t *testing.T) {
 	}
 	it := SetupInteg(t, hcf)
 	it.ta.config.NodeName = "test-node"
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace
@@ -788,7 +789,7 @@ func TestSnatPolicyDep(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace
@@ -859,7 +860,7 @@ func TestEPUpdateContainerId(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// Add pods intf via cni
@@ -947,7 +948,7 @@ func TestSnatPolicyService(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace
@@ -1010,7 +1011,7 @@ func TestSnatPolicylabelUpdate(t *testing.T) {
 	}
 
 	it := SetupInteg(t, hcf)
-	it.setupNode(itIpam, true)
+	it.setupNode(&itIpam, true)
 	defer it.tearDown()
 
 	// add an annotated namespace

@@ -15,15 +15,17 @@
 package main
 
 import (
-	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
-	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
-	"github.com/noironetworks/aci-containers/pkg/controller"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
 	"os"
 	"os/signal"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+
+	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
+	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
+	"github.com/noironetworks/aci-containers/pkg/controller"
 )
 
 // Create Aci Operator Client

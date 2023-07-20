@@ -146,12 +146,13 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 		if err != nil {
 			result =
 				fmt.Errorf("Could not allocate IPv4 address: %w", err)
+			agent.log.Error(result)
 			return false
 		} else {
 			gateway, mask := agent.getIPMetadata(ip)
 			if mask == nil {
 				err := errors.New("Unable to find Mask")
-				fmt.Errorf("Could not allocate address: %w", err)
+				agent.log.Error(fmt.Errorf("Could not allocate address: %w", err))
 				return false
 			}
 			oldKey, found := agent.usedIPs[ip.String()]
@@ -166,12 +167,12 @@ func (agent *HostAgent) allocateIps(iface *metadata.ContainerIfaceMd, podKey str
 	}
 
 	var v4Allocated, v6Allocated bool
-	for _, nc := range agent.config.NetConfig {
-		if nc.Subnet.IP != nil {
-			if nc.Subnet.IP.To4() != nil && !v4Allocated {
-				v4Allocated = allocIP(true, &nc)
-			} else if nc.Subnet.IP.To16() != nil && !v6Allocated {
-				v6Allocated = allocIP(false, &nc)
+	for ix := range agent.config.NetConfig {
+		if agent.config.NetConfig[ix].Subnet.IP != nil {
+			if agent.config.NetConfig[ix].Subnet.IP.To4() != nil && !v4Allocated {
+				v4Allocated = allocIP(true, &agent.config.NetConfig[ix])
+			} else if agent.config.NetConfig[ix].Subnet.IP.To16() != nil && !v6Allocated {
+				v6Allocated = allocIP(false, &agent.config.NetConfig[ix])
 			}
 		}
 	}

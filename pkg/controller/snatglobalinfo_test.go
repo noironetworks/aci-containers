@@ -48,7 +48,7 @@ func snatpolicydata(name string, namespace string,
 	return policy
 }
 
-func Nodeinfodata(name string, namespace string, macaddr string, snatplcy map[string]bool) *nodeinfo.NodeInfo {
+func Nodeinfodata(name, namespace, macaddr string, snatplcy map[string]bool) *nodeinfo.NodeInfo {
 	info := &nodeinfo.NodeInfo{
 		Spec: nodeinfo.NodeInfoSpec{
 			SnatPolicyNames: snatplcy,
@@ -163,7 +163,7 @@ func snatdeleted(t *testing.T, desc string, actual map[string]map[string]*snatgl
 		return true, nil
 	})
 }
-func snatWaitForIpUpdated(t *testing.T, desc string, snatIp string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
+func snatWaitForIpUpdated(t *testing.T, desc, snatIp string, actual map[string]map[string]*snatglobalinfo.GlobalInfo) {
 	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
 		_, ok := actual[snatIp]
 		if !ok {

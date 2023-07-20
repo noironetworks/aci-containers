@@ -215,15 +215,12 @@ func TestPodNetV6Annotation(t *testing.T) {
 	cont.AciController.initIpam()
 	cont.run()
 
-	{
-		cont.nodeUpdates = nil
-		cont.fakeNodeSource.Add(node("node1"))
-		waitForPodNetAnnot(t, cont, &metadata.NetIps{
-			V6: []ipam.IpRange{
-				{Start: net.ParseIP("1:1:1:1::2"), End: net.ParseIP("1:1:1:1::3")},
-			},
-		}, "simple")
-	}
+	cont.nodeUpdates = nil
+	cont.fakeNodeSource.Add(node("node1"))
+	waitForPodNetAnnot(t, cont, &metadata.NetIps{
+		V6: []ipam.IpRange{
+			{Start: net.ParseIP("1:1:1:1::2"), End: net.ParseIP("1:1:1:1::3")}},
+	}, "simple")
 
 	cont.stop()
 }
