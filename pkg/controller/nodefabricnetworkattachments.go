@@ -294,6 +294,9 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 		var vlanRange []string
 		if strings.Contains(encapBlk, "-") {
 			vlanRange = strings.Split(encapBlk, "-")
+		} else {
+			vlanRange = append(vlanRange, encapBlk)
+			vlanRange = append(vlanRange, encapBlk)
 		}
 		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
 		fvnsVlanInstP.AddChild(fvnsEncapBlk)

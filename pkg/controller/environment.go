@@ -169,25 +169,31 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initReplicaSetInformerFromClient(kubeClient)
 	cont.initDeploymentInformerFromClient(kubeClient)
 	cont.initPodInformerFromClient(kubeClient)
-	cont.initEndpointSliceInformerFromClient(kubeClient)
-	cont.serviceEndPoints.InitClientInformer(kubeClient)
-	cont.initServiceInformerFromClient(kubeClient)
-	cont.initNetworkPolicyInformerFromClient(kubeClient)
-	cont.initCRDInformer()
-	cont.initSnatInformerFromClient(snatClient)
-	cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
-	cont.initRdConfigInformerFromClient(env.rdConfigClient)
-	cont.initSnatCfgFromClient(kubeClient)
-	if cont.config.InstallIstio {
-		cont.initIstioInformerFromClient(env.istioClient)
+	if !cont.config.ChainedMode {
+		cont.initEndpointSliceInformerFromClient(kubeClient)
+		cont.serviceEndPoints.InitClientInformer(kubeClient)
+		cont.initServiceInformerFromClient(kubeClient)
+		cont.initNetworkPolicyInformerFromClient(kubeClient)
+		cont.initCRDInformer()
+		cont.initSnatInformerFromClient(snatClient)
+		cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+		cont.initRdConfigInformerFromClient(env.rdConfigClient)
+		cont.initSnatCfgFromClient(kubeClient)
+		if cont.config.InstallIstio {
+			cont.initIstioInformerFromClient(env.istioClient)
+		}
+	} else {
+		cont.initCRDInformer()
 	}
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
-	cont.initNetPolPodIndex()
-	cont.initErspanPolPodIndex()
-	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
-	cont.targetPortIndex = make(map[string]*portIndexEntry)
-	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
+	if !cont.config.ChainedMode {
+		cont.initNetPolPodIndex()
+		cont.initErspanPolPodIndex()
+		cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
+		cont.targetPortIndex = make(map[string]*portIndexEntry)
+		cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
+	}
 	return nil
 }
 
@@ -228,99 +234,113 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
 	cont.log.Info("Node/namespace cache sync successful")
-	cont.serviceEndPoints.Run(stopCh)
-	go cont.serviceInformer.Run(stopCh)
-	go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
-		func(obj interface{}) bool {
-			return cont.handleServiceUpdate(obj.(*v1.Service))
-		}, func(obj string) bool {
-			return cont.handleServiceDelete(obj)
-		}, nil, stopCh)
-	cont.log.Debug("Waiting for service cache sync")
-	cont.serviceEndPoints.Wait(stopCh)
-	cont.indexMutex.Lock()
-	cont.serviceSyncEnabled = true
-	cont.indexMutex.Unlock()
-	cont.serviceFullSync()
-	cont.log.Info("Service cache sync successful")
-
+	if !cont.config.ChainedMode {
+		cont.serviceEndPoints.Run(stopCh)
+		go cont.serviceInformer.Run(stopCh)
+		go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
+			func(obj interface{}) bool {
+				return cont.handleServiceUpdate(obj.(*v1.Service))
+			}, func(obj string) bool {
+				return cont.handleServiceDelete(obj)
+			}, nil, stopCh)
+		cont.log.Debug("Waiting for service cache sync")
+		cont.serviceEndPoints.Wait(stopCh)
+		cont.indexMutex.Lock()
+		cont.serviceSyncEnabled = true
+		cont.indexMutex.Unlock()
+		cont.serviceFullSync()
+		cont.log.Info("Service cache sync successful")
+	}
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
-	go cont.snatInformer.Run(stopCh)
-	go cont.processQueue(cont.snatQueue, cont.snatIndexer,
-		func(obj interface{}) bool {
-			return cont.handleSnatUpdate(obj.(*snatpolicy.SnatPolicy))
-		}, nil, nil, stopCh)
-	cont.log.Debug("Waiting for snat cache sync")
-	cache.WaitForCacheSync(stopCh,
-		cont.snatInformer.HasSynced)
 	if !cont.config.ChainedMode {
+		go cont.snatInformer.Run(stopCh)
+		go cont.processQueue(cont.snatQueue, cont.snatIndexer,
+			func(obj interface{}) bool {
+				return cont.handleSnatUpdate(obj.(*snatpolicy.SnatPolicy))
+			}, nil, nil, stopCh)
+		cont.log.Debug("Waiting for snat cache sync")
+		cache.WaitForCacheSync(stopCh,
+			cont.snatInformer.HasSynced)
 		cont.indexMutex.Lock()
 		cont.snatSyncEnabled = true
 		cont.indexMutex.Unlock()
+		go cont.snatNodeInformer.Run(stopCh)
+		cont.log.Debug("Waiting for snat nodeinfo cache sync")
+		cache.WaitForCacheSync(stopCh, cont.snatNodeInformer.HasSynced)
+		cont.createGlobalInfoCache(cont.unitTestMode)
+		cont.snatFullSync()
+		cont.log.Info("Snat cache sync successful")
+		go cont.networkPolicyInformer.Run(stopCh)
 	}
-	go cont.snatNodeInformer.Run(stopCh)
-	cont.log.Debug("Waiting for snat nodeinfo cache sync")
-	cache.WaitForCacheSync(stopCh, cont.snatNodeInformer.HasSynced)
-	cont.createGlobalInfoCache(cont.unitTestMode)
-	cont.snatFullSync()
-	cont.log.Info("Snat cache sync successful")
-	go cont.networkPolicyInformer.Run(stopCh)
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, nil, nil, stopCh)
-	go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
-		func(obj interface{}) bool {
-			return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
-		}, nil, nil, stopCh)
-	go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
-		func(obj interface{}) bool {
-			return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
-		}, nil, nil, stopCh)
-	go cont.processSyncQueue(cont.syncQueue, stopCh)
-	if cont.config.InstallIstio {
-		go cont.istioInformer.Run(stopCh)
-		go cont.processQueue(cont.istioQueue, cont.istioIndexer,
+	if !cont.config.ChainedMode {
+		go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 			func(obj interface{}) bool {
-				return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
+				return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 			}, nil, nil, stopCh)
-		cont.log.Debug("Waiting for AciIstio cache sync")
-		cache.WaitForCacheSync(stopCh,
-			cont.istioInformer.HasSynced)
-		cont.scheduleCreateIstioCR()
+		go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
+			func(obj interface{}) bool {
+				return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
+			}, nil, nil, stopCh)
+		go cont.processSyncQueue(cont.syncQueue, stopCh)
 	}
-	go cont.rdConfigInformer.Run(stopCh)
-	cont.log.Debug("Waiting for RdConfig cache sync")
-	cache.WaitForCacheSync(stopCh, cont.rdConfigInformer.HasSynced)
-	go cont.processQueue(cont.rdConfigQueue, cont.rdConfigIndexer,
-		func(obj interface{}) bool {
-			return cont.handleRdConfig(obj.(*rdConfig.RdConfig))
-		}, nil, func() bool {
-			return cont.postDelHandleRdConfig()
-		}, stopCh)
-	cont.log.Info("Waiting for cache sync for remaining objects")
-	go cont.snatCfgInformer.Run(stopCh)
-	// Intialize all the CRD's
-	cont.registerCRDHook(qosCRDName, qosInit)
-	cont.registerCRDHook(netflowCRDName, netflowInit)
-	cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
-	cont.registerCRDHook(erspanCRDName, erspanInit)
+	if !cont.config.ChainedMode {
+		if cont.config.InstallIstio {
+			go cont.istioInformer.Run(stopCh)
+			go cont.processQueue(cont.istioQueue, cont.istioIndexer,
+				func(obj interface{}) bool {
+					return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
+				}, nil, nil, stopCh)
+			cont.log.Debug("Waiting for AciIstio cache sync")
+			cache.WaitForCacheSync(stopCh,
+				cont.istioInformer.HasSynced)
+			cont.scheduleCreateIstioCR()
+		}
+		go cont.rdConfigInformer.Run(stopCh)
+		cont.log.Debug("Waiting for RdConfig cache sync")
+		cache.WaitForCacheSync(stopCh, cont.rdConfigInformer.HasSynced)
+		go cont.processQueue(cont.rdConfigQueue, cont.rdConfigIndexer,
+			func(obj interface{}) bool {
+				return cont.handleRdConfig(obj.(*rdConfig.RdConfig))
+			}, nil, func() bool {
+				return cont.postDelHandleRdConfig()
+			}, stopCh)
+		cont.log.Info("Waiting for cache sync for remaining objects")
+		go cont.snatCfgInformer.Run(stopCh)
+		// Intialize all the CRD's
+		cont.registerCRDHook(qosCRDName, qosInit)
+		cont.registerCRDHook(netflowCRDName, netflowInit)
+		cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
+		cont.registerCRDHook(erspanCRDName, erspanInit)
+	}
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	go cont.crdInformer.Run(stopCh)
-
-	cache.WaitForCacheSync(stopCh,
-		cont.namespaceInformer.HasSynced,
-		cont.replicaSetInformer.HasSynced,
-		cont.deploymentInformer.HasSynced,
-		cont.podInformer.HasSynced,
-		cont.networkPolicyInformer.HasSynced)
-	cont.log.Info("Cache sync successful")
-	if !cont.config.DisablePeriodicSnatGlobalInfoSync {
-		go cont.snatGlobalInfoSync(stopCh, cont.config.SleepTimeSnatGlobalInfoSync)
+	if !cont.config.ChainedMode {
+		cache.WaitForCacheSync(stopCh,
+			cont.namespaceInformer.HasSynced,
+			cont.replicaSetInformer.HasSynced,
+			cont.deploymentInformer.HasSynced,
+			cont.podInformer.HasSynced,
+			cont.networkPolicyInformer.HasSynced)
+	} else {
+		cache.WaitForCacheSync(stopCh,
+			cont.namespaceInformer.HasSynced,
+			cont.replicaSetInformer.HasSynced,
+			cont.deploymentInformer.HasSynced,
+			cont.podInformer.HasSynced)
 	}
-	go cont.syncOpflexDevices(stopCh, 60)
-	go cont.syncDelayedEpSlices(stopCh, 1)
+	cont.log.Info("Cache sync successful")
+	if !cont.config.ChainedMode {
+		if !cont.config.DisablePeriodicSnatGlobalInfoSync {
+			go cont.snatGlobalInfoSync(stopCh, cont.config.SleepTimeSnatGlobalInfoSync)
+		}
+		go cont.syncOpflexDevices(stopCh, 60)
+		go cont.syncDelayedEpSlices(stopCh, 1)
+	}
 	return nil
 }
