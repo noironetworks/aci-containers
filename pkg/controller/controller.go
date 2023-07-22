@@ -683,10 +683,16 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		qs := make([]workqueue.RateLimitingInterface, 0)
 		_, ok := cont.env.(*K8sEnvironment)
 		if ok {
-			qs = []workqueue.RateLimitingInterface{
-				cont.podQueue, cont.netPolQueue, cont.qosQueue,
-				cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
-				cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
+			if !cont.config.ChainedMode {
+				qs = []workqueue.RateLimitingInterface{
+					cont.podQueue, cont.netPolQueue, cont.qosQueue,
+					cont.serviceQueue, cont.snatQueue, cont.netflowQueue,
+					cont.snatNodeInfoQueue, cont.rdConfigQueue, cont.erspanQueue,
+				}
+			} else {
+				qs = []workqueue.RateLimitingInterface{
+					cont.podQueue,
+				}
 			}
 		}
 		for _, q := range qs {

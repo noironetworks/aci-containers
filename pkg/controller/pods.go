@@ -227,10 +227,12 @@ func (cont *AciController) podAdded(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	cont.writeApicPod(pod)
 	cont.depPods.UpdatePodNoCallback(pod)
-	cont.erspanPolPods.UpdatePodNoCallback(pod)
-	cont.netPolPods.UpdatePodNoCallback(pod)
-	cont.netPolIngressPods.UpdatePodNoCallback(pod)
-	cont.netPolEgressPods.UpdatePodNoCallback(pod)
+	if !cont.config.ChainedMode {
+		cont.erspanPolPods.UpdatePodNoCallback(pod)
+		cont.netPolPods.UpdatePodNoCallback(pod)
+		cont.netPolIngressPods.UpdatePodNoCallback(pod)
+		cont.netPolEgressPods.UpdatePodNoCallback(pod)
+	}
 	cont.queuePodUpdate(pod)
 	cont.checkIfEpgExistPod(pod)
 }
@@ -246,14 +248,16 @@ func (cont *AciController) podUpdated(oldobj, newobj interface{}) {
 		!reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
 		shouldqueue =
 			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
-		shouldqueue =
-			cont.erspanPolPods.UpdatePodNoCallback(newpod) || shouldqueue
-		shouldqueue =
-			cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
-		shouldqueue =
-			cont.netPolIngressPods.UpdatePodNoCallback(newpod) || shouldqueue
-		shouldqueue =
-			cont.netPolEgressPods.UpdatePodNoCallback(newpod) || shouldqueue
+		if !cont.config.ChainedMode {
+			shouldqueue =
+				cont.erspanPolPods.UpdatePodNoCallback(newpod) || shouldqueue
+			shouldqueue =
+				cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
+			shouldqueue =
+				cont.netPolIngressPods.UpdatePodNoCallback(newpod) || shouldqueue
+			shouldqueue =
+				cont.netPolEgressPods.UpdatePodNoCallback(newpod) || shouldqueue
+		}
 	}
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
 		newpod.ObjectMeta.Annotations) {
@@ -292,10 +296,12 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", podkey))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("podfs", podkey))
 	cont.depPods.DeletePod(pod)
-	cont.erspanPolPods.DeletePod(pod)
-	cont.netPolPods.DeletePod(pod)
-	cont.netPolIngressPods.DeletePod(pod)
-	cont.netPolEgressPods.DeletePod(pod)
+	if !cont.config.ChainedMode {
+		cont.erspanPolPods.DeletePod(pod)
+		cont.netPolPods.DeletePod(pod)
+		cont.netPolIngressPods.DeletePod(pod)
+		cont.netPolEgressPods.DeletePod(pod)
+	}
 
 	cont.indexMutex.Lock()
 	cont.removePodFromNode(pod.Spec.NodeName, podkey)

@@ -87,8 +87,10 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
 	cont.writeApicNs(ns)
 	cont.depPods.UpdateNamespace(ns)
-	cont.netPolPods.UpdateNamespace(ns)
-	cont.netPolIngressPods.UpdateNamespace(ns)
+	if !cont.config.ChainedMode {
+		cont.netPolPods.UpdateNamespace(ns)
+		cont.netPolIngressPods.UpdateNamespace(ns)
+	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 	cont.checkIfEpgExistNs(ns)
 }
@@ -102,8 +104,10 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 
 	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
 		cont.depPods.UpdateNamespace(newns)
-		cont.netPolPods.UpdateNamespace(newns)
-		cont.netPolIngressPods.UpdateNamespace(newns)
+		if !cont.config.ChainedMode {
+			cont.netPolPods.UpdateNamespace(newns)
+			cont.netPolIngressPods.UpdateNamespace(newns)
+		}
 	}
 	if !reflect.DeepEqual(oldns.ObjectMeta.Annotations,
 		newns.ObjectMeta.Annotations) {
@@ -129,8 +133,10 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("ns", ns.Name))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nsfs", ns.Name))
 	cont.depPods.DeleteNamespace(ns)
-	cont.netPolPods.DeleteNamespace(ns)
-	cont.netPolIngressPods.DeleteNamespace(ns)
+	if !cont.config.ChainedMode {
+		cont.netPolPods.DeleteNamespace(ns)
+		cont.netPolIngressPods.DeleteNamespace(ns)
+	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
 
