@@ -114,6 +114,30 @@ func (cont *AciController) initNodeFabNetAttInformerBase(listWatch *cache.ListWa
 	)
 }
 
+func (cont *AciController) clearGlobalScopeVlanConfig() {
+	labelKey := cont.aciNameForKey("nfna", "secondary")
+	if !cont.unitTestMode {
+		cont.apicConn.ClearApicObjects(labelKey)
+	}
+	cont.globalVlanConfig.SharedPhysDom = nil
+}
+
+func (cont *AciController) setGlobalScopeVlanConfig(encapStr string) (apicapi.ApicSlice, error) {
+	var apicSlice apicapi.ApicSlice
+	if !cont.config.AciUseGlobalScopeVlan {
+		return apicSlice, fmt.Errorf("Cannot set globalscope objects in per-port vlan mode")
+	}
+	if cont.globalVlanConfig.SharedPhysDom != nil {
+		return apicSlice, nil
+	}
+	apicSlice, err := cont.updateNodeFabNetAttDom(encapStr, "secondary")
+	labelKey := cont.aciNameForKey("nfna", "secondary")
+	if !cont.unitTestMode {
+		cont.apicConn.WriteApicObjects(labelKey, apicSlice)
+	}
+	return apicSlice, err
+}
+
 func (cont *AciController) getLLDPIf(fabricLink string) string {
 	var lldpIf, apicIf string
 	if lldpIf, ok := cont.lldpIfCache[fabricLink]; ok {
@@ -248,14 +272,54 @@ func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int,
 }
 
 func (cont *AciController) createNodeFabNetAttEpg(addNet *AdditionalNetworkMeta, vlan int) apicapi.ApicObject {
+	var fvRsDomAtt apicapi.ApicObject
 	apName := "netop-" + cont.config.AciPolicyTenant
 	encap := fmt.Sprintf("%d", vlan)
 	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, apName, addNet.NetworkName+"-vlan-"+encap)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), addNet.NetworkName)
 	epg.AddChild(fvRsBd)
-	fvRsDomAtt := apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciPolicyTenant+"-"+addNet.NetworkName)
+	if !cont.config.AciUseGlobalScopeVlan {
+		fvRsDomAtt = apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciPolicyTenant+"-"+addNet.NetworkName)
+	} else {
+		fvRsDomAtt = apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciPolicyTenant+"-secondary")
+	}
 	epg.AddChild(fvRsDomAtt)
 	return epg
+}
+
+func (cont *AciController) updateNodeFabNetAttDom(encapVlan string, networkName string) (apicapi.ApicSlice, error) {
+	var apicSlice apicapi.ApicSlice
+	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(encapVlan)
+	if err != nil {
+		cont.log.Errorf("%v", err)
+		return apicSlice, err
+	}
+	// Create vlan pool
+	fvnsVlanInstP := apicapi.NewFvnsVlanInstP(cont.config.AciPolicyTenant, networkName)
+	// Create vlan blocks
+	for _, encapBlk := range encapBlks {
+		var vlanRange []string
+		if strings.Contains(encapBlk, "-") {
+			vlanRange = strings.Split(encapBlk, "-")
+		}
+		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
+		fvnsVlanInstP.AddChild(fvnsEncapBlk)
+	}
+	apicSlice = append(apicSlice, fvnsVlanInstP)
+	// Create physdom
+	physDom := apicapi.NewPhysDomP(cont.config.AciPolicyTenant + "-" + networkName)
+	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
+	physDom.AddChild(infraRsVlanNs)
+	apicSlice = append(apicSlice, physDom)
+	// associate aep with physdom
+	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
+	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
+	apicSlice = append(apicSlice, infraRsDomP)
+	if cont.config.AciUseGlobalScopeVlan {
+		cont.globalVlanConfig.SharedPhysDom = physDom
+	}
+	return apicSlice, nil
+
 }
 
 func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment) apicapi.ApicSlice {
@@ -282,36 +346,13 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	apicSlice = append(apicSlice, bd)
-	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
-	if err != nil {
-		cont.log.Errorf("%v", err)
-		return apicSlice
-	}
-	// Create vlan pool
-	fvnsVlanInstP := apicapi.NewFvnsVlanInstP(cont.config.AciPolicyTenant, addNet.NetworkName)
-	// Create vlan blocks
-	for _, encapBlk := range encapBlks {
-		var vlanRange []string
-		if strings.Contains(encapBlk, "-") {
-			vlanRange = strings.Split(encapBlk, "-")
-		} else {
-			vlanRange = append(vlanRange, encapBlk)
-			vlanRange = append(vlanRange, encapBlk)
+	if !cont.config.AciUseGlobalScopeVlan {
+		if apicSlice2, err := cont.updateNodeFabNetAttDom(addNet.EncapVlan, addNet.NetworkName); err == nil {
+			apicSlice = append(apicSlice, apicSlice2...)
 		}
-		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
-		fvnsVlanInstP.AddChild(fvnsEncapBlk)
+	} else {
+		cont.setGlobalScopeVlanConfig(addNet.EncapVlan)
 	}
-	apicSlice = append(apicSlice, fvnsVlanInstP)
-	// Create physdom
-	physDom := apicapi.NewPhysDomP(cont.config.AciPolicyTenant + "-" + addNet.NetworkName)
-	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
-	physDom.AddChild(infraRsVlanNs)
-	apicSlice = append(apicSlice, physDom)
-	// associate aep with physdom
-	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
-	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
-	apicSlice = append(apicSlice, infraRsDomP)
-
 	linkPresent := map[string]bool{}
 	for iface, aciLink := range nodeFabNetAtt.Spec.AciTopology {
 		if _, ok := addNet.FabricLink[nodeFabNetAtt.Spec.NodeName]; !ok || (addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] == nil) {
@@ -387,6 +428,10 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 		if !cont.unitTestMode {
 			cont.apicConn.ClearApicObjects(labelKey)
 		}
+		delete(cont.additionalNetworkCache, nodeFabNetAttKey)
+		if (len(cont.additionalNetworkCache) == 0) && cont.config.AciUseGlobalScopeVlan {
+			cont.clearGlobalScopeVlanConfig()
+		}
 		return apicSlice, "", true
 	}
 
@@ -405,35 +450,12 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (apicapi.ApicSlice
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	apicSlice = append(apicSlice, bd)
-	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
-	if err != nil {
-		cont.log.Errorf("%v", err)
-		return apicSlice, addNet.NetworkName, false
-	}
-	// Create vlan pool
-	fvnsVlanInstP := apicapi.NewFvnsVlanInstP(cont.config.AciPolicyTenant, addNet.NetworkName)
-	// Create vlan blocks
-	for _, encapBlk := range encapBlks {
-		var vlanRange []string
-		if strings.Contains(encapBlk, "-") {
-			vlanRange = strings.Split(encapBlk, "-")
-		} else {
-			vlanRange = append(vlanRange, encapBlk)
-			vlanRange = append(vlanRange, encapBlk)
+
+	if !cont.config.AciUseGlobalScopeVlan {
+		if apicSlice2, err := cont.updateNodeFabNetAttDom(addNet.EncapVlan, addNet.NetworkName); err == nil {
+			apicSlice = append(apicSlice, apicSlice2...)
 		}
-		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
-		fvnsVlanInstP.AddChild(fvnsEncapBlk)
 	}
-	apicSlice = append(apicSlice, fvnsVlanInstP)
-	// Create physdom
-	physDom := apicapi.NewPhysDomP(cont.config.AciPolicyTenant + "-" + addNet.NetworkName)
-	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
-	physDom.AddChild(infraRsVlanNs)
-	apicSlice = append(apicSlice, physDom)
-	// associate aep with physdom
-	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
-	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
-	apicSlice = append(apicSlice, infraRsDomP)
 	apicSlice = cont.populateFabricPaths(addNet, apicSlice)
 
 	return apicSlice, addNet.NetworkName, false
