@@ -262,6 +262,9 @@ type ControllerConfig struct {
 
 	//User can provision Static Objects separately, so have a knob
 	ReconcileStaticObjects bool `json:"reconcileStaticObjects,omitempty"`
+
+	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
+	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 }
 
 type netIps struct {
@@ -302,6 +305,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
+	flag.BoolVar(&config.AciUseGlobalScopeVlan, "aci-use-global-scope-vlan", false, "Use global vlans for NADs in chained mode")
 }
 
 func (cont *AciController) loadIpRanges(v4, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {

@@ -179,6 +179,11 @@ type AciController struct {
 	vmmClusterFaultSupported bool
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	lldpIfCache              map[string]string
+	globalVlanConfig         globalVlanConfig
+}
+
+type globalVlanConfig struct {
+	SharedPhysDom apicapi.ApicObject
 }
 
 type hppReference struct {
