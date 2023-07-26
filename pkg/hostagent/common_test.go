@@ -19,12 +19,15 @@ import (
 	"time"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 	record "k8s.io/client-go/tools/record"
@@ -50,6 +53,8 @@ type testHostAgent struct {
 	fakeSnatGlobalSource    *framework.FakeControllerSource
 	fakeRdConfigSource      *framework.FakeControllerSource
 	fakeNetAttachDefSource  *framework.FakeControllerSource
+	fakeConfigMapSource     *framework.FakeControllerSource
+	fakeFabAttSource        *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -61,6 +66,22 @@ func testAgent() *testHostAgent {
 	}
 	return testAgentWithConf(hcf)
 }
+
+func testAgentEnvtest(hcf *HostAgentConfig, kubeClient *kubernetes.Clientset, cfg *rest.Config) *testHostAgent {
+	log := logrus.New()
+	log.Level = logrus.InfoLevel
+
+	agent := &testHostAgent{
+		HostAgent: NewHostAgent(hcf, &K8sEnvironment{kubeClient: kubeClient}, log),
+	}
+	if agent.config.ChainedMode {
+		fabAttClSet, _ := fabattclset.NewForConfig(cfg)
+		agent.HostAgent.fabAttClient = fabAttClSet.AciV1()
+
+	}
+	return testAgentInit(agent)
+}
+
 func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	log := logrus.New()
 	log.Level = logrus.InfoLevel
@@ -68,7 +89,10 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	agent := &testHostAgent{
 		HostAgent: NewHostAgent(hcf, &K8sEnvironment{}, log),
 	}
+	return testAgentInit(agent)
+}
 
+func testAgentInit(agent *testHostAgent) *testHostAgent {
 	agent.env.(*K8sEnvironment).agent = agent.HostAgent
 	agent.serviceEndPoints = &serviceEndpoint{}
 	agent.serviceEndPoints.(*serviceEndpoint).agent = agent.HostAgent
@@ -175,7 +199,7 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 			ListFunc:  agent.fakeNetAttachDefSource.List,
 			WatchFunc: agent.fakeNetAttachDefSource.Watch,
 		})
-	agent.initNetPolPodIndex()
+	agent.fakeFabAttSource = framework.NewFakeControllerSource()
 	agent.initNetPolPodIndex()
 	agent.initDepPodIndex()
 	agent.initRCPodIndex()
@@ -184,6 +208,10 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 	integ_test := "true"
 	agent.integ_test = &integ_test
 
+	if agent.config.ChainedMode {
+		agent.fabricDiscoveryAgent = GetFabricDiscoveryAgent(FabricDiscoveryLLDPNMState)
+		agent.fabricDiscoveryAgent.Init(agent.HostAgent)
+	}
 	return agent
 }
 
@@ -263,5 +291,16 @@ func mkNetPol(namespace, name string, podSelector *metav1.LabelSelector,
 			Ingress:     irules,
 			Egress:      erules,
 		},
+	}
+}
+
+func mkConfigMap(namespace, name string, data map[string]string) *v1.ConfigMap {
+
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: data,
 	}
 }

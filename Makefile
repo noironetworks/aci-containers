@@ -242,14 +242,19 @@ check-index:
 	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
 	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS}
-check-hostagent:
-	${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS}
+check-hostagent: test-tools
+	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS}
 check-gbpserver:
 	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
 check-keyvalueservice:
 	${TEST_CMD} -coverprofile=covprof-keyvalueservice ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
+
+.PHONY: test-tools
+test-tools:
+	. ./tools/setup-envtest.bash ; setup_envs
+	echo ${TEST_ASSET_KUBECTL}
 
 DEB_PKG_DIR=build-deb-pkg
 dsc: dist

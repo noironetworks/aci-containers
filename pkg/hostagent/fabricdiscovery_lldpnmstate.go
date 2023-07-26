@@ -36,8 +36,12 @@ func (agent *FabricDiscoveryAgentLLDPNMState) Init(ha *HostAgent) error {
 	agent.collectTrigger = make(chan bool)
 	agent.LLDPIntfMap = make(map[string]*LLDPInterfaceState)
 	agent.LLDPNeighborMap = make(map[string]map[string]*FabricAttachmentData)
-	_, err := agent.RunCommand("nmstatectl", "show")
-	return err
+	if ha.integ_test == nil {
+		_, err := agent.RunCommand("nmstatectl", "show")
+		return err
+	} else {
+		return nil
+	}
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) TriggerCollectionDiscoveryData() {
@@ -45,6 +49,9 @@ func (agent *FabricDiscoveryAgentLLDPNMState) TriggerCollectionDiscoveryData() {
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan struct{}) {
+	if agent.hostAgent.integ_test != nil {
+		return
+	}
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()

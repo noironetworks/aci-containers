@@ -264,6 +264,9 @@ type HostAgentConfig struct {
 
 	// List of secondary-vlans to be used as encaps for additionalnetworks in chained mode
 	AciAdditionalVlans string `json:"aci-additional-vlans,omitempty"`
+
+	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
+	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
