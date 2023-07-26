@@ -112,8 +112,8 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 				if cmp < 0 {
 					deletable := true
 					for class := range bodyc.Children[i] {
-						if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
-							deletable = false
+						deletable = conn.checkNonDeletable(class)
+						if !deletable {
 							break
 						}
 					}
@@ -141,16 +141,9 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			for i < len(bodyc.Children) {
 				deletable := true
 				for class := range bodyc.Children[i] {
-					if _, ok := metadata[class]; ok {
-						if metadata[class].hints != nil {
-							if val, ok := metadata[class].hints["deletable"]; ok {
-								deletableValue, ok := val.(bool)
-								if ok && deletableValue == false {
-									deletable = false
-									break
-								}
-							}
-						}
+					deletable = conn.checkNonDeletable(class)
+					if !deletable {
+						break
 					}
 				}
 				if !deletable {
@@ -168,6 +161,21 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 	return
 }
 
+func (conn *ApicConnection) checkNonDeletable(class string) bool {
+	deletable := true
+	if _, ok := metadata[class]; ok {
+		if metadata[class].hints != nil {
+			if val, ok := metadata[class].hints["deletable"]; ok {
+				deletableValue, ok := val.(bool)
+				if ok && deletableValue == false {
+					deletable = false
+				}
+			}
+		}
+	}
+	return deletable
+}
+
 func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	desiredState ApicSlice) (updates ApicSlice, deletes []string) {
 	i := 0
@@ -181,8 +189,8 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 		if cmp < 0 {
 			deletable := true
 			for class := range currentState[i] {
-				if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
-					deletable = false
+				deletable = conn.checkNonDeletable(class)
+				if !deletable {
 					break
 				}
 			}
@@ -221,8 +229,8 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	for i < len(currentState) {
 		deletable := true
 		for class := range currentState[i] {
-			if metadata[class].hints != nil && !metadata[class].hints["deletable"].(bool) {
-				deletable = false
+			deletable = conn.checkNonDeletable(class)
+			if !deletable {
 				break
 			}
 		}
