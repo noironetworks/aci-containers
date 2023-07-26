@@ -58,6 +58,7 @@ type K8sEnvironment struct {
 	serviceInformer     cache.SharedIndexInformer
 	nodeInformer        cache.SharedIndexInformer
 	netClient           *netClientSet.Clientset
+	configmapInformer   cache.SharedIndexInformer
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
