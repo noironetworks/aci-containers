@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +50,7 @@ const (
 	fabNetAttDefNamespace         = "aci-containers-system"
 	defaultAnnot                  = "k8s.v1.cni.cncf.io/networks"
 	resourceNameAnnot             = "k8s.v1.cni.cncf.io/resourceName"
+	vlanAnnot                     = "netop-cni.cisco.com/vlans"
 	netAttachDefCRDName           = "network-attachment-definitions.k8s.cni.cncf.io"
 	kubeletPodResourceDefaultPath = "/usr/local/var/lib/kubelet/pod-resources"
 	podResourcesMaxSizeDefault    = 1024 * 1024 * 16 // 16 Mb
@@ -76,6 +78,7 @@ type NetworkAttachmentData struct {
 	EncapVlan            string
 	FabricAttachmentData map[string][]*FabricAttachmentData
 	Pods                 map[string]map[string]fabattv1.PodAttachment
+	KnownAnnots          map[string]string
 }
 
 type ClientInfo struct {
@@ -475,11 +478,70 @@ func (agent *HostAgent) deleteNodeFabricNetworkAttachment(netattData *NetworkAtt
 	return agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Delete(context.TODO(), fabNetAttKey, metav1.DeleteOptions{})
 }
 
+func validateVlanAnnotation(vlanStr string) (string, error) {
+	vlanStr = strings.TrimSpace(vlanStr)
+	firstStageStr := vlanStr
+	_, after, found := strings.Cut(vlanStr, "[")
+	if found {
+		var found2 bool
+		firstStageStr, _, found2 = strings.Cut(after, "]")
+		if !found2 {
+			return "", fmt.Errorf("Mismatched brackets")
+		}
+	}
+	resultStr := "["
+	vlanElemStr := ""
+	vlans := strings.Split(firstStageStr, ",")
+	firstInst := true
+	for _, vlan := range vlans {
+		vlanTrimmed := strings.TrimSpace(vlan)
+		vlanRange := strings.Split(vlanTrimmed, "-")
+		if len(vlanRange) > 2 {
+			return "", fmt.Errorf("Incorrect vlan range %s", vlanTrimmed)
+		}
+		if len(vlanRange) == 2 {
+			vlanFrom, err1 := strconv.Atoi(vlanRange[0])
+			vlanTo, err2 := strconv.Atoi(vlanRange[1])
+			if (err1 != nil) || (err2 != nil) || (vlanFrom > vlanTo) {
+				return "", fmt.Errorf("Incorrect vlan range %s", vlanTrimmed)
+			}
+			vlanElemStr = fmt.Sprintf("%d-%d", vlanFrom, vlanTo)
+		} else if len(vlanRange) == 1 {
+			singleVlan, err3 := strconv.Atoi(vlanRange[0])
+			if err3 != nil {
+				return "", fmt.Errorf("Incorrect vlan range %s", vlanTrimmed)
+			}
+			vlanElemStr = fmt.Sprintf("%d", singleVlan)
+		} else {
+			return "", fmt.Errorf("Incorrect vlan %s", vlanTrimmed)
+		}
+		if !firstInst {
+			resultStr += ","
+		}
+		resultStr += vlanElemStr
+		firstInst = false
+	}
+	if firstInst {
+		return "", fmt.Errorf("No vlan in the annotation:%v", firstStageStr)
+	}
+	resultStr += "]"
+	return resultStr, nil
+}
+
 func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAttachmentData) bool {
-	handlePluginVlan := func(vlan int) (encap string) {
+	handlePluginVlan := func(annotMap map[string]string, vlan int) (encap string) {
 		if vlan == 0 {
 			encap = "0"
-			if agent.config.AciAdditionalVlans != "" {
+			vlanSourced := false
+			if val, ok := annotMap[vlanAnnot]; ok {
+				if vlanStr, err := validateVlanAnnotation(val); err == nil {
+					vlanSourced = true
+					encap = vlanStr
+				} else {
+					agent.log.Errorf("Failed to parse vlan annotation:%v", err)
+				}
+			}
+			if !vlanSourced && agent.config.AciAdditionalVlans != "" {
 				encap = fmt.Sprintf("%s", agent.config.AciAdditionalVlans)
 			}
 			return encap
@@ -505,13 +567,13 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 					agent.log.Errorf("resourcename %s unrecognized in  net-att-def %s/%s", netattData.Annot, netattData.Namespace, netattData.Name)
 				}
 				agent.log.Infof("Using resource %s", netattData.ResourceName)
-				netattData.EncapVlan = handlePluginVlan(plugin.Vlan)
+				netattData.EncapVlan = handlePluginVlan(netattData.KnownAnnots, plugin.Vlan)
 			} else if plugin.Type == "macvlan" {
 				netattData.PrimaryCNI = PrimaryCNIMACVLAN
 				parts := strings.Split(plugin.Master, ".")
 				netattData.ResourceName = parts[0]
 				if len(parts) != 2 {
-					netattData.EncapVlan = handlePluginVlan(0)
+					netattData.EncapVlan = handlePluginVlan(netattData.KnownAnnots, 0)
 					if len(parts) != 1 {
 						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
 					}
@@ -542,7 +604,14 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 		Namespace:        ntd.ObjectMeta.Namespace,
 		Config:           ntd.Spec.Config,
 		Annot:            ntd.ObjectMeta.Annotations[resourceNameAnnot],
+		KnownAnnots:      make(map[string]string),
 		IsPrimaryNetwork: false,
+	}
+	/* Add new annotations here for backward compatibilty with ep file */
+	for _, annot := range []string{vlanAnnot} {
+		if val, ok := ntd.ObjectMeta.Annotations[annot]; ok {
+			netattdata.KnownAnnots[annot] = val
+		}
 	}
 	var config Config
 
