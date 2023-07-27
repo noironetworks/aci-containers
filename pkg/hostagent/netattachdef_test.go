@@ -45,10 +45,11 @@ func TestNetAttachmentDef(t *testing.T) {
 	agent.run()
 
 	actual := &NetworkAttachmentData{
-		Name:      "default",
-		Namespace: "kube-system",
-		Config:    configJsondata,
-		Annot:     "mellanox.com/cx5_sriov_switchdev",
+		Name:        "default",
+		Namespace:   "kube-system",
+		Config:      configJsondata,
+		Annot:       "mellanox.com/cx5_sriov_switchdev",
+		KnownAnnots: map[string]string{},
 	}
 
 	expected := agent.netattdefmap["default"]
@@ -110,6 +111,23 @@ func getChainedModeConfig(nodename string) *HostAgentConfig {
 
 }
 
+func TestNADVlanAnnotValidation(t *testing.T) {
+	_, err1 := validateVlanAnnotation("[7-6]")
+	assert.NotNil(t, err1, err1)
+	expectedStr2 := "[1,2,3,4,6-10]"
+	actualStr2, err2 := validateVlanAnnotation(expectedStr2)
+	assert.Nil(t, err2, "valid annotation")
+	assert.Equal(t, actualStr2, expectedStr2)
+	_, err3 := validateVlanAnnotation("[5 4]")
+	assert.NotNil(t, err3, err3)
+	expectedStr3 := "[1,2,3,4]"
+	actualStr3, err4 := validateVlanAnnotation(expectedStr3)
+	assert.Nil(t, err4, "valid annotation")
+	assert.Equal(t, actualStr3, expectedStr3)
+	_, err5 := validateVlanAnnotation("[5")
+	assert.NotNil(t, err5, err5)
+}
+
 func TestNADSRIOVCRUD(t *testing.T) {
 	testenv := &envtest.Environment{CRDDirectoryPaths: []string{"./testdata"}}
 	cfg, err := testenv.Start()
@@ -121,6 +139,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "openshift.io/enp216s0f0"
+	resourceAnnot[vlanAnnot] = "[100,101,195-200]"
 	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
 	configmapData := map[string]string{
 		nodename: `{"resourceList":[{"resourceName":"enp216s0f0","selectors":{"vendors":["8086"],"devices":["154c"],"pfNames":["enp216s0f0#0-15"],"rootDevices":["0000:d8:00.0"],"IsRdma":false,"NeedVhostNet":false},"SelectorObj":null}]}`,
@@ -141,7 +160,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 				Name:      "sriov-net-1",
 				Namespace: "default",
 			},
-			EncapVlan:  "[102-105]",
+			EncapVlan:  "[100,101,195-200]",
 			NodeName:   nodename,
 			PrimaryCNI: "sriov",
 		},
@@ -179,6 +198,7 @@ func TestNADMacVlanCRUD(t *testing.T) {
 
 	configJsondata := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
 
+	configJsondata2 := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1.101", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
 	resourceAnnot := make(map[string]string)
 	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
 	kubeClient.CoreV1().Namespaces().Create(context.Background(), mkNamespace("aci-containers-system", "", "", ""), metav1.CreateOptions{})
@@ -210,6 +230,15 @@ func TestNADMacVlanCRUD(t *testing.T) {
 	)
 	assert.Nil(t, err, "nfna create")
 	assert.Equal(t, expected.Spec, actual.Spec)
+	resourceAnnot[vlanAnnot] = "[103-104]"
+	agent.fakeNetAttachDefSource.Modify(testnetattach("macvlan-net2", "default", configJsondata2, resourceAnnot))
+	assert.Eventually(t, func() bool {
+		err = fabAttClient.Get(context.TODO(),
+			types.NamespacedName{Name: nodename + "-default-macvlan-net2", Namespace: "aci-containers-system"},
+			actual,
+		)
+		return actual.Spec.EncapVlan == "101"
+	}, 5*time.Second, 1*time.Second, "nfna update")
 	agent.fakeNetAttachDefSource.Delete(testnetattach("macvlan-net2", "default", configJsondata, resourceAnnot))
 	assert.Eventually(t, func() bool {
 		err := fabAttClient.Get(context.TODO(),
