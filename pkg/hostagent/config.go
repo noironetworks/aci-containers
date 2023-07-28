@@ -339,7 +339,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
 	flag.BoolVar(&config.EnableNodePodIF, "enable-nodepodif", false, "Enable NodePodIF")
 	flag.StringVar(&config.EPRegistry, "ep-registry", "", "Enable PodIF")
-	flag.BoolVar(&config.OvsHardwareOffload, "enable-sriov-config", false, "SRIOV config and ovs hardware offload feature")
+	flag.BoolVar(&config.OvsHardwareOffload, "enable-ovs-hw-offload", false, "SRIOV config and ovs hardware offload feature")
 	flag.StringVar(&config.DpuOvsDBSocket, "dpu-ovsdb-socket", "tcp:192.168.200.2:6640", "TCP socket on DPU to connect to")
 	flag.BoolVar(&config.ChainedMode, "chained_mode", false, "Chained Mode")
 	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")

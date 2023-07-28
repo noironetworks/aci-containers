@@ -41,6 +41,7 @@ func TestNetAttachmentDef(t *testing.T) {
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
 	agent := testAgent()
+	agent.config.OvsHardwareOffload = true
 	agent.fakeNetAttachDefSource.Add(testnetattach("default", "kube-system", configJsondata, resourceAnnot))
 	agent.run()
 
@@ -67,6 +68,7 @@ func TestNetAttachmentDefWithoutAcii(t *testing.T) {
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
 	agent := testAgent()
+	agent.config.OvsHardwareOffload = true
 	agent.fakeNetAttachDefSource.Add(testnetattach("default", "kube-system", configJsondata, resourceAnnot))
 	agent.run()
 
@@ -87,6 +89,7 @@ func TestNetAttachmentDefDelete(t *testing.T) {
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
 	agent := testAgent()
+	agent.config.OvsHardwareOffload = true
 	agent.fakeNetAttachDefSource.Add(testnetattach("default", "kube-system", configJsondata, resourceAnnot))
 	agent.run()
 
