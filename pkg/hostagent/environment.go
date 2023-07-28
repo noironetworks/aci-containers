@@ -245,11 +245,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.qosPolicyInformer.HasSynced)
 	env.agent.log.Info("qosPolicy cache sync successful")
 
-	env.agent.log.Debug("Starting netAttDef informers")
-	go env.agent.netAttDefInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for netAttDef cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.netAttDefInformer.HasSynced)
-	env.agent.log.Info("netAttDef cache sync successful")
+	if env.agent.config.OvsHardwareOffload || env.agent.config.ChainedMode {
+		env.agent.log.Debug("Starting netAttDef informers")
+		go env.agent.netAttDefInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for netAttDef cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.netAttDefInformer.HasSynced)
+		env.agent.log.Info("netAttDef cache sync successful")
+	}
 
 	env.agent.log.Info("Cache sync successful")
 	return true, nil
