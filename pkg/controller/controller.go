@@ -178,8 +178,10 @@ type AciController struct {
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
-	lldpIfCache              map[string]string
-	globalVlanConfig         globalVlanConfig
+	//Used in Shared mode
+	sharedEncapCache map[int]map[string]*AdditionalNetworkMeta
+	lldpIfCache      map[string]string
+	globalVlanConfig globalVlanConfig
 }
 
 type globalVlanConfig struct {
@@ -376,6 +378,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nmPortNp:               make(map[string]bool),
 		hppRef:                 make(map[string]hppReference),
 		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
+		sharedEncapCache:       make(map[int]map[string]*AdditionalNetworkMeta),
 		lldpIfCache:            make(map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{
