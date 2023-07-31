@@ -230,6 +230,12 @@ type ControllerConfig struct {
 	// Default is false
 	AciMultipod bool `json:"aci-multipod,omitempty"`
 
+	// Timeout in seconds to wait for reconnect when opflexOdev is diconnected for a node
+	// before triggering a dhcp release and renew of vlan interface
+	// Applicable only for multipod case
+	// default is 5s
+	OpflexDeviceReconnectWaitTimeout int `json:"opflex-device-reconnect-wait-timeout,omitempty"`
+
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 

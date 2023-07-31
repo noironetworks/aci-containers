@@ -398,7 +398,8 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	}
 
 	if cont.config.AciMultipod {
-		nodeAciPod := cont.nodeACIPod[node.ObjectMeta.Name]
+		nodeAciPodAnnot := cont.nodeACIPod[node.ObjectMeta.Name]
+		nodeAciPod := nodeAciPodAnnot.aciPod
 		aciPodAnn := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 		if cont.nodeSyncEnabled {
 			if aciPodAnn != nodeAciPod && nodeAciPod != "" {
