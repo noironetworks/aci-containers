@@ -299,6 +299,7 @@ func (cont *AciController) createNodeFabNetAttBd(name string) apicapi.ApicObject
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
+	bd.SetAttr("unicastRoute", "no")
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
 	bd.AddChild(fvRsCtx)
 	return bd
@@ -334,8 +335,12 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 	// Create vlan blocks
 	for _, encapBlk := range encapBlks {
 		var vlanRange []string
+		vlanStr := strings.TrimSpace(encapBlk)
 		if strings.Contains(encapBlk, "-") {
-			vlanRange = strings.Split(encapBlk, "-")
+			vlanRange = strings.Split(vlanStr, "-")
+		} else {
+			vlanRange = append(vlanRange, vlanStr)
+			vlanRange = append(vlanRange, vlanStr)
 		}
 		fvnsEncapBlk := apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), vlanRange[0], vlanRange[1])
 		fvnsVlanInstP.AddChild(fvnsEncapBlk)

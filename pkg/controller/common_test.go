@@ -228,7 +228,7 @@ func testController() *testAciController {
 	return cont
 }
 
-func testChainedController(aciUseGlobalScopeVlan bool) *testAciController {
+func testChainedController(aciUseGlobalScopeVlan bool, additionalVlans string) *testAciController {
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.TextFormatter{
@@ -244,7 +244,7 @@ func testChainedController(aciUseGlobalScopeVlan bool) *testAciController {
 			ChainedMode:           true,
 			AciPhysDom:            "first-physdom",
 			AciAdditionalAep:      "second-aep",
-			AciAdditionalVlans:    "[100-101]",
+			AciAdditionalVlans:    additionalVlans,
 			AciUseGlobalScopeVlan: aciUseGlobalScopeVlan,
 		},
 			&K8sEnvironment{}, log, true),

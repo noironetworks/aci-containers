@@ -21,6 +21,7 @@ import (
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"testing"
 )
 
@@ -64,7 +65,13 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciCont
 	fvnsVlanInstP := apicapi.NewFvnsVlanInstP("kubernetes", networkName)
 	var fvnsEncapBlk apicapi.ApicObject
 	if cont.config.AciUseGlobalScopeVlan {
-		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
+		if !strings.Contains(cont.config.AciAdditionalVlans, "-") {
+			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "100")
+			fvnsVlanInstP.AddChild(fvnsEncapBlk)
+			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "101", "101")
+		} else {
+			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
+		}
 	} else {
 		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "5", "6")
 	}
@@ -90,6 +97,7 @@ func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciCon
 	bd := apicapi.NewFvBD("kubernetes", networkName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
+	bd.SetAttr("unicastRoute", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), "kube-vrf")
 	bd.AddChild(fvRsCtx)
@@ -164,8 +172,8 @@ func CreateNFNA(nadName, nodeName, uplink, podName string, fabricLinks []string)
 	}
 }
 
-func NFNACRUDCase(t *testing.T, globalScopeVlan bool) {
-	cont := testChainedController(globalScopeVlan)
+func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
+	cont := testChainedController(globalScopeVlan, additionalVlans)
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
 	nfna2 := CreateNFNA("macvlan-net1", "master2.cluster.local", "bond1", "pod2-macvlan-net1",
@@ -292,9 +300,13 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool) {
 }
 
 func TestPerPortVlanNFNACRUD(t *testing.T) {
-	NFNACRUDCase(t, false)
+	NFNACRUDCase(t, false, "[100-101]")
 }
 
 func TestGlobalVlanNFNACRUD(t *testing.T) {
-	NFNACRUDCase(t, true)
+	NFNACRUDCase(t, true, "[100,101]")
+}
+
+func TestGlobalVlanRangeNFNACRUD(t *testing.T) {
+	NFNACRUDCase(t, true, "[100-101]")
 }
