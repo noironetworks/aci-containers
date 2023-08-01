@@ -325,14 +325,25 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
-func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (string, error) {
+func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (aciPodAnnot, error) {
+	nodeAciPodAnnot := cont.nodeACIPod[node]
 	if fabricPathDn == "" {
-		return "none", nil
+		if nodeAciPodAnnot.disconnectTime.IsZero() {
+			nodeAciPodAnnot.disconnectTime = time.Now()
+		} else {
+			currentTime := time.Now()
+			diff := currentTime.Sub(nodeAciPodAnnot.disconnectTime)
+			if diff.Seconds() > float64(cont.config.OpflexDeviceReconnectWaitTimeout) {
+				nodeAciPodAnnot.aciPod = "none"
+			}
+		}
+		return nodeAciPodAnnot, nil
 	} else {
 		// when there is already a connected opflex device,
 		// fabricPathDn will have latest pod iformation
 		// and annotation will be in the form pod-<podid>-<subnet of pod>
-		nodeAciPod := cont.nodeACIPod[node]
+		nodeAciPodAnnot.disconnectTime = time.Time{}
+		nodeAciPod := nodeAciPodAnnot.aciPod
 		path := fabricPathDn
 		pathSlice := strings.Split(path, "/")
 		if len(pathSlice) > 1 {
@@ -344,17 +355,17 @@ func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (st
 				subnet, err := cont.getAciPodSubnet(pod)
 				if err != nil {
 					cont.log.Error("Failed to get subnet of aci pod ", err.Error())
-					return "", err
+					return nodeAciPodAnnot, err
 				} else {
-					annot := pod + "-" + subnet
-					return annot, nil
+					nodeAciPodAnnot.aciPod = pod + "-" + subnet
+					return nodeAciPodAnnot, nil
 				}
 			} else {
-				return nodeAciPod, nil
+				return nodeAciPodAnnot, nil
 			}
 		}
 	}
-	return "", nil
+	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
 }
 
 func (cont *AciController) deleteOldOpflexDevices() {

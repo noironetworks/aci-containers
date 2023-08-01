@@ -145,7 +145,7 @@ type AciController struct {
 	apicConn *apicapi.ApicConnection
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
-	nodeACIPod           map[string]string
+	nodeACIPod           map[string]aciPodAnnot
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
@@ -199,6 +199,11 @@ type DelayedEpSlice struct {
 	OldEpSlice  *discovery.EndpointSlice
 	NewEpSlice  *discovery.EndpointSlice
 	DelayedTime time.Time
+}
+
+type aciPodAnnot struct {
+	aciPod         string
+	disconnectTime time.Time
 }
 
 type nodeServiceMeta struct {
@@ -359,7 +364,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		staticServiceIps:        newNetIps(),
 		nodeServiceIps:          newNetIps(),
 
-		nodeACIPod:       make(map[string]string),
+		nodeACIPod:       make(map[string]aciPodAnnot),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
 		nodeServiceMetaCache:   make(map[string]*nodeServiceMeta),
@@ -557,6 +562,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.OpflexDeviceDeleteTimeout == 0 {
 		cont.config.OpflexDeviceDeleteTimeout = 1800
 	}
+
+	// If OpflexDeviceReconnectWaitTimeout is not defined, default to 5s
+	if cont.config.OpflexDeviceReconnectWaitTimeout == 0 {
+		cont.config.OpflexDeviceReconnectWaitTimeout = 5
+	}
+	cont.log.Debug("OpflexDeviceReconnectWaitTimeout set to: ", cont.config.OpflexDeviceReconnectWaitTimeout)
 
 	// If SleepTimeSnatGlobalInfoSync is not defined, default to 60
 	if cont.config.SleepTimeSnatGlobalInfoSync == 0 {
