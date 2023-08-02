@@ -76,12 +76,11 @@ STATIC_BUILD_RACE_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD_RACE} \
 .PHONY: clean goinstall check all
 
 all: dist/aci-containers-host-agent dist/opflex-agent-cni \
-	dist/aci-containers-controller dist/acikubectl dist/ovsresync \
-    dist/gbpserver \
-    dist/aci-containers-operator
+	dist/netop-cni dist/aci-containers-controller dist/acikubectl dist/ovsresync \
+    dist/gbpserver dist/aci-containers-operator
 all-static: dist-static/aci-containers-host-agent \
-	dist-static/opflex-agent-cni dist-static/aci-containers-controller \
-	dist-static/ovsresync dist-static/gbpserver \
+	dist-static/opflex-agent-cni dist-static/netop-cni \
+	dist-static/aci-containers-controller dist-static/ovsresync dist-static/gbpserver \
     dist-static/aci-containers-operator
 
 all-static-race: dist-static-race/aci-containers-host-agent \
@@ -147,7 +146,14 @@ goinstall:
 
 dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+
+dist/netop-cni: ${AGENTCNI_DEPS}
+	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+
+dist-static/netop-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
 dist/aci-containers-host-agent: ${HOSTAGENT_DEPS} 

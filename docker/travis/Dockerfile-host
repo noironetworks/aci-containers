@@ -9,7 +9,7 @@ description="This will deploy a single instance of ACI CNI Host-Agent."
 RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
 RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
 RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft -y --nogpgcheck && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft jq nmstate -y --nogpgcheck && rm -rf /var/cache/yum
 
 COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
 RUN tar -zxf /tmp/iptables-bin.tar.gz -C /usr/sbin \
@@ -47,7 +47,7 @@ RUN alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-legacy
 RUN /tmp/iptables-wrapper-installer.sh
 # Required Licenses
 COPY docker/licenses /licenses
-COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 RUN echo "send dhcp-client-identifier = hardware;" > /usr/local/etc/dhclient.conf
 ENV TENANT=kube
 ENV NODE_EPG='kubernetes|kube-nodes'
