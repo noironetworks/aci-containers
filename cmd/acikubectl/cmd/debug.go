@@ -536,12 +536,12 @@ func clusterReport(cmd *cobra.Command, args []string) {
 
 	nodePodMap := make(map[string]string)
 	for ix := range nodes.Items {
-		for ix := range nodeItems {
-			key := nodes.Items[ix].Name + ";" + nodeItems[ix].selector
+		for index := range nodeItems {
+			key := nodes.Items[ix].Name + ";" + nodeItems[index].selector
 			podName, cached := nodePodMap[key]
 			if !cached {
 				podName, err = podForNode(kubeClient, systemNamespace,
-					nodes.Items[ix].Name, nodeItems[ix].selector)
+					nodes.Items[ix].Name, nodeItems[index].selector)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					continue
@@ -555,9 +555,9 @@ func clusterReport(cmd *cobra.Command, args []string) {
 					"/usr/local/var/lib/opflex-agent-ovs", tempName},
 				skipOutputFile: true,
 			}, reportCmdElem{
-				name: fmt.Sprintf(nodeItems[ix].path, nodes.Items[ix].Name),
-				args: nodeItems[ix].argFunc(systemNamespace, podName,
-					nodeItems[ix].cont, nodeItems[ix].args),
+				name: fmt.Sprintf(nodeItems[index].path, nodes.Items[ix].Name),
+				args: nodeItems[index].argFunc(systemNamespace, podName,
+					nodeItems[index].cont, nodeItems[index].args),
 			})
 
 			//Prepare kubectl cp command for aci-conatiners-host
