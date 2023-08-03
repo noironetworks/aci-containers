@@ -14,6 +14,9 @@ KUBECONFIG=/usr/local/etc/kubeconfig
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
     mkdir -p ${CNIBIN}
+if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ]; then
+    cp ${ACIBIN}/netop-cni $CNIBIN
+fi
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
 
@@ -23,7 +26,7 @@ if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_
     CHAINEDACICNI=$(echo "\
 {\
   \"supportedVersions\": [ \"0.3.0\", \"0.3.1\", \"0.4.0\" ],\
-  \"type\": \"opflex-agent-cni\",\
+  \"type\": \"netop-cni\",\
   \"chaining-mode\": true,\
   \"log-level\": \"debug\",\
   \"log-file\": \"/var/log/opflexagentcni.log\"\
@@ -37,7 +40,7 @@ if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_
                 CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '. | .delegates=[$CHAINED]' $PRIMARY_CNI_PATH)
                 echo $CONTENTS>$PRIMARY_CNI_PATH
 	    else
-                PRESENT=$(jq '.delegates | [.[] | select(.type=="opflex-agent-cni")] | length' $PRIMARY_CNI_PATH)
+                PRESENT=$(jq '.delegates | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
 	      if [ "$PRESENT" == 0 ]; then
                 CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.delegates |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
                 echo $CONTENTS>$PRIMARY_CNI_PATH
@@ -52,7 +55,7 @@ if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_
                 CONTENTS=$(jq --argjson NAME "$NAME" --argjson CHAINED "$CHAINEDACICNI" --argjson CNIVERSION "$CNIVERSION" '{"name":$NAME, "cniVersion":$CNIVERSION, "plugins":[.,$CHAINED]}' $PRIMARY_CNI_PATH)
                 echo $CONTENTS>$PRIMARY_CNI_PATH
             else
-              PRESENT=$(jq '.plugins | [.[] | select(.type=="opflex-agent-cni")] | length' $PRIMARY_CNI_PATH)
+              PRESENT=$(jq '.plugins | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
               if [ "$PRESENT" == 0 ]; then
                 CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.plugins |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
                 echo $CONTENTS>$PRIMARY_CNI_PATH

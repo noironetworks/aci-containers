@@ -10,7 +10,7 @@ summary="This is an ACI CNI Host-Agent." \
 description="This will deploy a single instance of ACI CNI Host-Agent."
 # Required Licenses
 COPY docker/licenses /licenses
-COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 COPY docker/launch-lsyncd.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/launch-lsyncd.sh
 RUN echo "send dhcp-client-identifier = hardware;" >  /usr/local/etc/dhclient.conf
