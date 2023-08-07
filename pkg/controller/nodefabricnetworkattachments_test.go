@@ -151,7 +151,7 @@ func CreateNFNA(nadName, nodeName, uplink, podName string, fabricLinks []string)
 				Name:      nadName,
 				Namespace: "default",
 			},
-			EncapVlan: "[5-6]",
+			EncapVlan: fabattv1.EncapSource{VlanList: "[5-6]"},
 			NodeName:  nodeName,
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				uplink: {

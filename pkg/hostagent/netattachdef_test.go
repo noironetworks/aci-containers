@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"testing"
@@ -163,7 +164,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 				Name:      "sriov-net-1",
 				Namespace: "default",
 			},
-			EncapVlan:  "[100,101,195-200]",
+			EncapVlan:  fabattv1.EncapSource{VlanList: "[100,101,195-200]"},
 			NodeName:   nodename,
 			PrimaryCNI: "sriov",
 		},
@@ -217,7 +218,7 @@ func TestNADMacVlanCRUD(t *testing.T) {
 				Name:      "macvlan-net2",
 				Namespace: "default",
 			},
-			EncapVlan:  "[102-105]",
+			EncapVlan:  fabattv1.EncapSource{VlanList: "[102-105]"},
 			NodeName:   nodename,
 			PrimaryCNI: "macvlan",
 		},
@@ -240,12 +241,110 @@ func TestNADMacVlanCRUD(t *testing.T) {
 			types.NamespacedName{Name: nodename + "-default-macvlan-net2", Namespace: "aci-containers-system"},
 			actual,
 		)
-		return actual.Spec.EncapVlan == "101"
+		return actual.Spec.EncapVlan == fabattv1.EncapSource{VlanList: "101"}
 	}, 5*time.Second, 1*time.Second, "nfna update")
 	agent.fakeNetAttachDefSource.Delete(testnetattach("macvlan-net2", "default", configJsondata, resourceAnnot))
 	assert.Eventually(t, func() bool {
 		err := fabAttClient.Get(context.TODO(),
 			types.NamespacedName{Name: nodename + "-macvlan-net2", Namespace: "aci-containers-system"},
+			actual)
+		return err != nil
+	}, 5*time.Second, 1*time.Second, "nfna delete")
+	err = testenv.Stop()
+	assert.Nil(t, err, "envtest stop")
+	agent.stop()
+}
+
+func TestNADVlanMatch(t *testing.T) {
+	testenv := &envtest.Environment{CRDDirectoryPaths: []string{"./testdata"}}
+	cfg, err := testenv.Start()
+	assert.Nil(t, err, "envtest start")
+	kubeClient, err := kubernetes.NewForConfig(cfg)
+	assert.Nil(t, err, "clientset create")
+
+	configJsondata := `{"cniVersion": "0.3.1", "name": "pc-mm-net1", "plugins":[{"cniVersion": "0.3.1", "name": "pc-mm-net1", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
+	nadVlanMap := &fabattv1.NadVlanMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "nad-vlan-map",
+			Namespace: "aci-containers-system",
+		},
+		Spec: fabattv1.NadVlanMapSpec{
+			NadVlanMapping: map[string][]fabattv1.VlanSpec{
+				"pccmm/pc-mm": {
+					{Label: "pc-mm-oam",
+						Vlans: "103"}},
+			},
+		},
+	}
+	resourceAnnot := make(map[string]string)
+	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
+	kubeClient.CoreV1().Namespaces().Create(context.TODO(), mkNamespace("aci-containers-system", "", "", ""), metav1.CreateOptions{})
+	kubeClient.CoreV1().Namespaces().Create(context.TODO(), mkNamespace("pccmm", "", "", ""), metav1.CreateOptions{})
+	scheme := scheme.Scheme
+	fabattv1.AddToScheme(scheme)
+	fabAttClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	assert.Nil(t, err, "create client")
+	agent.fakeNadVlanMapSource.Add(nadVlanMap)
+	agent.fakeNetAttachDefSource.Add(testnetattach("pc-mm-net1", "pccmm", configJsondata, resourceAnnot))
+	agent.run()
+
+	expected := fabattv1.NodeFabricNetworkAttachment{
+		ObjectMeta: metav1.ObjectMeta{Name: nodename + "-pccmm-pc-mm-net1",
+			Namespace: "aci-containers-system",
+		},
+		Spec: fabattv1.NodeFabricNetworkAttachmentSpec{
+			NetworkRef: fabattv1.ObjRef{
+				Name:      "pc-mm-net1",
+				Namespace: "pccmm",
+			},
+			EncapVlan: fabattv1.EncapSource{
+				EncapRef: fabattv1.EncapRef{
+					NadVlanMapRef: "aci-containers-system/nad-vlan-map",
+					Key:           "pccmm/pc-mm",
+				},
+				VlanList: "[103]"},
+			NodeName:   nodename,
+			PrimaryCNI: "macvlan",
+		},
+	}
+	actual := &fabattv1.NodeFabricNetworkAttachment{}
+	err = fabAttClient.Get(context.TODO(),
+		types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
+		actual,
+	)
+	assert.Nil(t, err, "nfna create")
+	assert.Equal(t, expected.Spec, actual.Spec)
+
+	nadVlanMap.Spec.NadVlanMapping["pccmm/pc-mm"][0].Vlans = "104"
+	agent.fakeNadVlanMapSource.Modify(nadVlanMap)
+	expected.Spec.EncapVlan = fabattv1.EncapSource{
+		EncapRef: fabattv1.EncapRef{
+			NadVlanMapRef: "aci-containers-system/nad-vlan-map",
+			Key:           "pccmm/pc-mm",
+		},
+		VlanList: "[104]",
+	}
+	assert.Eventually(t, func() bool {
+		fabAttClient.Get(context.TODO(),
+			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
+			actual)
+		return reflect.DeepEqual(expected.Spec, actual.Spec)
+	}, 5*time.Second, 1*time.Second, "nadvlanmap update")
+
+	agent.fakeNadVlanMapSource.Delete(nadVlanMap)
+	expected.Spec.EncapVlan = fabattv1.EncapSource{
+		VlanList: "[102-105]",
+	}
+	assert.Eventually(t, func() bool {
+		fabAttClient.Get(context.TODO(),
+			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
+			actual)
+		return reflect.DeepEqual(expected.Spec, actual.Spec)
+	}, 5*time.Second, 1*time.Second, "nadvlanmap delete")
+
+	agent.fakeNetAttachDefSource.Delete(testnetattach("pc-mm-net1", "pccmm", configJsondata, resourceAnnot))
+	assert.Eventually(t, func() bool {
+		err := fabAttClient.Get(context.TODO(),
+			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
 			actual)
 		return err != nil
 	}, 5*time.Second, 1*time.Second, "nfna delete")

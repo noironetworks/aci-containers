@@ -27,12 +27,17 @@ import (
 
 type AciV1Interface interface {
 	RESTClient() rest.Interface
+	NadVlanMapsGetter
 	NodeFabricNetworkAttachmentsGetter
 }
 
 // AciV1Client is used to interact with features provided by the aci.fabricattachment group.
 type AciV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *AciV1Client) NadVlanMaps(namespace string) NadVlanMapInterface {
+	return newNadVlanMaps(c, namespace)
 }
 
 func (c *AciV1Client) NodeFabricNetworkAttachments(namespace string) NodeFabricNetworkAttachmentInterface {

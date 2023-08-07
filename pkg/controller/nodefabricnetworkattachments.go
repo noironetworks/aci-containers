@@ -402,7 +402,7 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	var apicSlice apicapi.ApicSlice
 	var addNet *AdditionalNetworkMeta
 	progMap = make(map[string]apicapi.ApicSlice)
-	vlans, encapBlks, err := cont.parseNodeFabNetAttVlanList(nodeFabNetAtt.Spec.EncapVlan)
+	vlans, encapBlks, err := cont.parseNodeFabNetAttVlanList(nodeFabNetAtt.Spec.EncapVlan.VlanList)
 	if err != nil {
 		cont.log.Errorf("%v", err)
 		return progMap
@@ -413,16 +413,16 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	if !ok {
 		addNet = &AdditionalNetworkMeta{
 			NetworkName: nodeFabNetAtt.Spec.NetworkRef.Namespace + "-" + nodeFabNetAtt.Spec.NetworkRef.Name,
-			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan,
+			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan.VlanList,
 			FabricLink:  make(map[string]map[string][]string),
 			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment)}
 		cont.additionalNetworkCache[addNetKey] = addNet
 	} else if cont.config.AciUseGlobalScopeVlan {
-		if addNet.EncapVlan != nodeFabNetAtt.Spec.EncapVlan {
+		if addNet.EncapVlan != nodeFabNetAtt.Spec.EncapVlan.VlanList {
 			changeSet := make(map[int]bool)
 			// manage the diff in encapvlan set
 			old_vlans, _, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
-			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan
+			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
 			for vlan := range old_vlans {
 				changeSet[vlan] = false
 			}
@@ -436,7 +436,7 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 			}
 		}
 	}
-	addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan
+	addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
 	addNet.NodeCache[nodeFabNetAtt.Spec.NodeName] = nodeFabNetAtt
 
 	cont.log.Infof("nfna update: %v", addNetKey)

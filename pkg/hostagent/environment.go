@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 
+	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
@@ -58,6 +59,7 @@ type K8sEnvironment struct {
 	serviceInformer     cache.SharedIndexInformer
 	nodeInformer        cache.SharedIndexInformer
 	netClient           *netClientSet.Clientset
+	fabattClient        *fabattclientset.Clientset
 	configmapInformer   cache.SharedIndexInformer
 }
 
@@ -136,9 +138,14 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize network attachment definition info client")
 		return nil, err
 	}
+	fabattClient, err := fabattclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize fabric attachment client")
+		return nil, err
+	}
 
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -163,6 +170,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initRCPodIndex()
 	env.agent.initEventPoster(env.kubeClient)
 	env.agent.initNetworkAttDefInformerFromClient(env.netClient)
+	env.agent.initNadVlanInformerFromClient(env.fabattClient)
 	return nil
 }
 
@@ -251,6 +259,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		env.agent.log.Info("Waiting for netAttDef cache sync")
 		cache.WaitForCacheSync(stopCh, env.agent.netAttDefInformer.HasSynced)
 		env.agent.log.Info("netAttDef cache sync successful")
+		env.agent.log.Debug("Starting nadVlanMap informers")
+		go env.agent.nadVlanMapInformer.Run(stopCh)
+		cache.WaitForCacheSync(stopCh, env.agent.nadVlanMapInformer.HasSynced)
+		env.agent.log.Info("nadvlanMap cache sync successful")
 	}
 
 	env.agent.log.Info("Cache sync successful")

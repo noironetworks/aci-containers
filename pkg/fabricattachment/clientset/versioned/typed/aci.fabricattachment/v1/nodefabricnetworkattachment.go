@@ -19,9 +19,12 @@ package v1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+	acifabricattachmentv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/applyconfiguration/aci.fabricattachment/v1"
 	scheme "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -46,6 +49,8 @@ type NodeFabricNetworkAttachmentInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*v1.NodeFabricNetworkAttachmentList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NodeFabricNetworkAttachment, err error)
+	Apply(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error)
+	ApplyStatus(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error)
 	NodeFabricNetworkAttachmentExpansion
 }
 
@@ -187,6 +192,62 @@ func (c *nodeFabricNetworkAttachments) Patch(ctx context.Context, name string, p
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied nodeFabricNetworkAttachment.
+func (c *nodeFabricNetworkAttachments) Apply(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
+	if nodeFabricNetworkAttachment == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(nodeFabricNetworkAttachment)
+	if err != nil {
+		return nil, err
+	}
+	name := nodeFabricNetworkAttachment.Name
+	if name == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment.Name must be provided to Apply")
+	}
+	result = &v1.NodeFabricNetworkAttachment{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("nodefabricnetworkattachments").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *nodeFabricNetworkAttachments) ApplyStatus(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
+	if nodeFabricNetworkAttachment == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(nodeFabricNetworkAttachment)
+	if err != nil {
+		return nil, err
+	}
+
+	name := nodeFabricNetworkAttachment.Name
+	if name == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment.Name must be provided to Apply")
+	}
+
+	result = &v1.NodeFabricNetworkAttachment{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("nodefabricnetworkattachments").
+		Name(*name).
+		SubResource("status").
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

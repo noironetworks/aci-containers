@@ -27,6 +27,10 @@ type FakeAciV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeAciV1) NadVlanMaps(namespace string) v1.NadVlanMapInterface {
+	return &FakeNadVlanMaps{c, namespace}
+}
+
 func (c *FakeAciV1) NodeFabricNetworkAttachments(namespace string) v1.NodeFabricNetworkAttachmentInterface {
 	return &FakeNodeFabricNetworkAttachments{c, namespace}
 }

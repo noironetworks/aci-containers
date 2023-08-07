@@ -89,6 +89,7 @@ type HostAgent struct {
 	podIps                *ipam.IpCache
 	usedIPs               map[string]string
 	netAttDefInformer     cache.SharedIndexInformer
+	nadVlanMapInformer    cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -121,6 +122,7 @@ type HostAgent struct {
 	netattdefmap         map[string]*NetworkAttachmentData
 	netattdefifacemap    map[string]*NetworkAttachmentData
 	deviceIdMap          map[string][]string
+	nadVlanMap           map[string]*nadVlanMatchData
 	fabricDiscoveryAgent FabricDiscoveryAgent
 }
 
@@ -184,6 +186,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		netattdefmap:          make(map[string]*NetworkAttachmentData),
 		netattdefifacemap:     make(map[string]*NetworkAttachmentData),
 		deviceIdMap:           make(map[string][]string),
+		nadVlanMap:            make(map[string]*nadVlanMatchData),
 		podToNetAttachDef:     make(map[string][]string),
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(

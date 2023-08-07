@@ -66,7 +66,20 @@ spec:
                 description: Map of iface to fabricLink
                 type: object
               encapVlan:
-                type: string
+                properties:
+                  encapRef:
+                    properties:
+                      key:
+                        type: string
+                      nadVlanMap:
+                        type: string
+                    required:
+                    - key
+                    - nadVlanMap
+                    type: object
+                  vlanList:
+                    type: string
+                type: object
               networkRef:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "operator-sdk generate k8s" to regenerate code after

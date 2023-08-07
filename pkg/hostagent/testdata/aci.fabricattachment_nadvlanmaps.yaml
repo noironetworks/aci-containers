@@ -1,0 +1,68 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  name: nadvlanmaps.aci.fabricattachment
+spec:
+  group: aci.fabricattachment
+  names:
+    kind: NadVlanMap
+    listKind: NadVlanMapList
+    plural: nadvlanmaps
+    singular: nadvlanmap
+  scope: Cluster
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: NadVlanMap is the Schema for FabricAttachments NAD name to vlan
+          mapping API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              nadVlanMapping:
+                additionalProperties:
+                  items:
+                    properties:
+                      label:
+                        type: string
+                      vlans:
+                        type: string
+                    required:
+                    - vlans
+                    type: object
+                  type: array
+                description: NAD namespace/name to vlan list mapping
+                type: object
+            required:
+            - nadVlanMapping
+            type: object
+          status:
+            properties:
+              status:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - rule: "self.metadata.name == 'nad-vlan-map'"
+          message: "Only one instance with name nad-vlan-map allowed"
+    served: true
+    storage: true
+    subresources:
+      status: {}

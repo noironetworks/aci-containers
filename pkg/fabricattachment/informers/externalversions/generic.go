@@ -52,6 +52,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=aci.fabricattachment, Version=v1
+	case v1.SchemeGroupVersion.WithResource("nadvlanmaps"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NadVlanMaps().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("nodefabricnetworkattachments"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NodeFabricNetworkAttachments().Informer()}, nil
 
