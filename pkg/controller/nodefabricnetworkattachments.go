@@ -369,6 +369,7 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlan(vlan int, nodeFabN
 	delete(nfnaMap, nodeFabNetAttKey)
 	cont.sharedEncapCache[vlan] = nfnaMap
 	if len(cont.sharedEncapCache[vlan]) == 0 {
+		cont.log.Infof("clear shared encap epg: %d", vlan)
 		progMap[labelKey] = nil
 		delete(cont.sharedEncapCache, vlan)
 		return
@@ -419,14 +420,15 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 		cont.additionalNetworkCache[addNetKey] = addNet
 	} else if cont.config.AciUseGlobalScopeVlan {
 		if addNet.EncapVlan != nodeFabNetAtt.Spec.EncapVlan.VlanList {
+			cont.log.Debugf("%s:Change in encap: %s=>%s", addNetKey, addNet.EncapVlan, nodeFabNetAtt.Spec.EncapVlan.VlanList)
 			changeSet := make(map[int]bool)
 			// manage the diff in encapvlan set
 			old_vlans, _, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
 			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
-			for vlan := range old_vlans {
+			for _, vlan := range old_vlans {
 				changeSet[vlan] = false
 			}
-			for vlan := range vlans {
+			for _, vlan := range vlans {
 				changeSet[vlan] = true
 			}
 			for vlan, present := range changeSet {
