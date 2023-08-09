@@ -8,7 +8,6 @@ require (
 	github.com/containernetworking/plugins v1.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v1.1.0
-	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
@@ -32,9 +31,9 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.etcd.io/etcd/server/v3 v3.5.7
 	go.opentelemetry.io/otel/exporters/prometheus v0.39.0
-	golang.org/x/net v0.10.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.56.2
+	google.golang.org/protobuf v1.31.0
 	istio.io/istio v0.0.0-20230607011503-697f4ff0fe6e
 	k8s.io/api v0.27.0
 	k8s.io/apiextensions-apiserver v0.27.0
@@ -83,6 +82,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/cel-go v0.14.0 // indirect
@@ -162,6 +162,7 @@ require (
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.9.0 // indirect
+	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
@@ -172,7 +173,6 @@ require (
 	google.golang.org/genproto v0.0.0-20230526203410-71b5a4ffd15e // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect

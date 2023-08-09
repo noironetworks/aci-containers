@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package gbpserver;
+option go_package = "/gbpserver";
 
 // GBP service definition
 service GBP {
