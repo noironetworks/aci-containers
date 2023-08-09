@@ -19,11 +19,13 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
-	acifabricattachmentv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+	acifabricattachmentv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/applyconfiguration/aci.fabricattachment/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,25 +37,25 @@ type FakeNodeFabricNetworkAttachments struct {
 	ns   string
 }
 
-var nodefabricnetworkattachmentsResource = schema.GroupVersionResource{Group: "aci.fabricattachment", Version: "v1", Resource: "nodefabricnetworkattachments"}
+var nodefabricnetworkattachmentsResource = v1.SchemeGroupVersion.WithResource("nodefabricnetworkattachments")
 
-var nodefabricnetworkattachmentsKind = schema.GroupVersionKind{Group: "aci.fabricattachment", Version: "v1", Kind: "NodeFabricNetworkAttachment"}
+var nodefabricnetworkattachmentsKind = v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachment")
 
 // Get takes name of the nodeFabricNetworkAttachment, and returns the corresponding nodeFabricNetworkAttachment object, and an error if there is any.
-func (c *FakeNodeFabricNetworkAttachments) Get(ctx context.Context, name string, options v1.GetOptions) (result *acifabricattachmentv1.NodeFabricNetworkAttachment, err error) {
+func (c *FakeNodeFabricNetworkAttachments) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(nodefabricnetworkattachmentsResource, c.ns, name), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewGetAction(nodefabricnetworkattachmentsResource, c.ns, name), &v1.NodeFabricNetworkAttachment{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acifabricattachmentv1.NodeFabricNetworkAttachment), err
+	return obj.(*v1.NodeFabricNetworkAttachment), err
 }
 
 // List takes label and field selectors, and returns the list of NodeFabricNetworkAttachments that match those selectors.
-func (c *FakeNodeFabricNetworkAttachments) List(ctx context.Context, opts v1.ListOptions) (result *acifabricattachmentv1.NodeFabricNetworkAttachmentList, err error) {
+func (c *FakeNodeFabricNetworkAttachments) List(ctx context.Context, opts metav1.ListOptions) (result *v1.NodeFabricNetworkAttachmentList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(nodefabricnetworkattachmentsResource, nodefabricnetworkattachmentsKind, c.ns, opts), &acifabricattachmentv1.NodeFabricNetworkAttachmentList{})
+		Invokes(testing.NewListAction(nodefabricnetworkattachmentsResource, nodefabricnetworkattachmentsKind, c.ns, opts), &v1.NodeFabricNetworkAttachmentList{})
 
 	if obj == nil {
 		return nil, err
@@ -63,8 +65,8 @@ func (c *FakeNodeFabricNetworkAttachments) List(ctx context.Context, opts v1.Lis
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &acifabricattachmentv1.NodeFabricNetworkAttachmentList{ListMeta: obj.(*acifabricattachmentv1.NodeFabricNetworkAttachmentList).ListMeta}
-	for _, item := range obj.(*acifabricattachmentv1.NodeFabricNetworkAttachmentList).Items {
+	list := &v1.NodeFabricNetworkAttachmentList{ListMeta: obj.(*v1.NodeFabricNetworkAttachmentList).ListMeta}
+	for _, item := range obj.(*v1.NodeFabricNetworkAttachmentList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -73,69 +75,114 @@ func (c *FakeNodeFabricNetworkAttachments) List(ctx context.Context, opts v1.Lis
 }
 
 // Watch returns a watch.Interface that watches the requested nodeFabricNetworkAttachments.
-func (c *FakeNodeFabricNetworkAttachments) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeNodeFabricNetworkAttachments) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(nodefabricnetworkattachmentsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a nodeFabricNetworkAttachment and creates it.  Returns the server's representation of the nodeFabricNetworkAttachment, and an error, if there is any.
-func (c *FakeNodeFabricNetworkAttachments) Create(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachment, opts v1.CreateOptions) (result *acifabricattachmentv1.NodeFabricNetworkAttachment, err error) {
+func (c *FakeNodeFabricNetworkAttachments) Create(ctx context.Context, nodeFabricNetworkAttachment *v1.NodeFabricNetworkAttachment, opts metav1.CreateOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(nodefabricnetworkattachmentsResource, c.ns, nodeFabricNetworkAttachment), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewCreateAction(nodefabricnetworkattachmentsResource, c.ns, nodeFabricNetworkAttachment), &v1.NodeFabricNetworkAttachment{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acifabricattachmentv1.NodeFabricNetworkAttachment), err
+	return obj.(*v1.NodeFabricNetworkAttachment), err
 }
 
 // Update takes the representation of a nodeFabricNetworkAttachment and updates it. Returns the server's representation of the nodeFabricNetworkAttachment, and an error, if there is any.
-func (c *FakeNodeFabricNetworkAttachments) Update(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachment, opts v1.UpdateOptions) (result *acifabricattachmentv1.NodeFabricNetworkAttachment, err error) {
+func (c *FakeNodeFabricNetworkAttachments) Update(ctx context.Context, nodeFabricNetworkAttachment *v1.NodeFabricNetworkAttachment, opts metav1.UpdateOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(nodefabricnetworkattachmentsResource, c.ns, nodeFabricNetworkAttachment), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewUpdateAction(nodefabricnetworkattachmentsResource, c.ns, nodeFabricNetworkAttachment), &v1.NodeFabricNetworkAttachment{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acifabricattachmentv1.NodeFabricNetworkAttachment), err
+	return obj.(*v1.NodeFabricNetworkAttachment), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNodeFabricNetworkAttachments) UpdateStatus(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachment, opts v1.UpdateOptions) (*acifabricattachmentv1.NodeFabricNetworkAttachment, error) {
+func (c *FakeNodeFabricNetworkAttachments) UpdateStatus(ctx context.Context, nodeFabricNetworkAttachment *v1.NodeFabricNetworkAttachment, opts metav1.UpdateOptions) (*v1.NodeFabricNetworkAttachment, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(nodefabricnetworkattachmentsResource, "status", c.ns, nodeFabricNetworkAttachment), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewUpdateSubresourceAction(nodefabricnetworkattachmentsResource, "status", c.ns, nodeFabricNetworkAttachment), &v1.NodeFabricNetworkAttachment{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acifabricattachmentv1.NodeFabricNetworkAttachment), err
+	return obj.(*v1.NodeFabricNetworkAttachment), err
 }
 
 // Delete takes name of the nodeFabricNetworkAttachment and deletes it. Returns an error if one occurs.
-func (c *FakeNodeFabricNetworkAttachments) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeNodeFabricNetworkAttachments) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(nodefabricnetworkattachmentsResource, c.ns, name, opts), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewDeleteActionWithOptions(nodefabricnetworkattachmentsResource, c.ns, name, opts), &v1.NodeFabricNetworkAttachment{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeNodeFabricNetworkAttachments) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeNodeFabricNetworkAttachments) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(nodefabricnetworkattachmentsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &acifabricattachmentv1.NodeFabricNetworkAttachmentList{})
+	_, err := c.Fake.Invokes(action, &v1.NodeFabricNetworkAttachmentList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched nodeFabricNetworkAttachment.
-func (c *FakeNodeFabricNetworkAttachments) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acifabricattachmentv1.NodeFabricNetworkAttachment, err error) {
+func (c *FakeNodeFabricNetworkAttachments) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NodeFabricNetworkAttachment, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(nodefabricnetworkattachmentsResource, c.ns, name, pt, data, subresources...), &acifabricattachmentv1.NodeFabricNetworkAttachment{})
+		Invokes(testing.NewPatchSubresourceAction(nodefabricnetworkattachmentsResource, c.ns, name, pt, data, subresources...), &v1.NodeFabricNetworkAttachment{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acifabricattachmentv1.NodeFabricNetworkAttachment), err
+	return obj.(*v1.NodeFabricNetworkAttachment), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied nodeFabricNetworkAttachment.
+func (c *FakeNodeFabricNetworkAttachments) Apply(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
+	if nodeFabricNetworkAttachment == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(nodeFabricNetworkAttachment)
+	if err != nil {
+		return nil, err
+	}
+	name := nodeFabricNetworkAttachment.Name
+	if name == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(nodefabricnetworkattachmentsResource, c.ns, *name, types.ApplyPatchType, data), &v1.NodeFabricNetworkAttachment{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1.NodeFabricNetworkAttachment), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeNodeFabricNetworkAttachments) ApplyStatus(ctx context.Context, nodeFabricNetworkAttachment *acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration, opts metav1.ApplyOptions) (result *v1.NodeFabricNetworkAttachment, err error) {
+	if nodeFabricNetworkAttachment == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(nodeFabricNetworkAttachment)
+	if err != nil {
+		return nil, err
+	}
+	name := nodeFabricNetworkAttachment.Name
+	if name == nil {
+		return nil, fmt.Errorf("nodeFabricNetworkAttachment.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(nodefabricnetworkattachmentsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1.NodeFabricNetworkAttachment{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1.NodeFabricNetworkAttachment), err
 }

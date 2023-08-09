@@ -79,6 +79,8 @@ type NetworkAttachmentData struct {
 	FabricAttachmentData map[string][]*FabricAttachmentData
 	Pods                 map[string]map[string]fabattv1.PodAttachment
 	KnownAnnots          map[string]string
+	EncapKey             string
+	PluginVlan           string
 }
 
 type ClientInfo struct {
@@ -413,6 +415,46 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 	return err
 }
 
+func (agent *HostAgent) updateNodeFabricNetworkAttachmentEncap(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
+	fabNetAtt.Spec.EncapVlan = fabattv1.EncapSource{
+		VlanList: netAttData.EncapVlan,
+	}
+	if netAttData.EncapKey != "" {
+		fabNetAtt.Spec.EncapVlan.EncapRef = fabattv1.EncapRef{
+			NadVlanMapRef: "aci-containers-system/nad-vlan-map",
+			Key:           netAttData.EncapKey,
+		}
+	}
+}
+
+func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(nadKey, encapKey, vlanList string, isDelete bool) {
+	netAttData, ok := agent.netattdefmap[nadKey]
+	if !ok {
+		return
+	}
+	if !isDelete {
+		netAttData.EncapVlan = vlanList
+		netAttData.EncapKey = encapKey
+	} else {
+		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
+		agent.handlePluginVlan(netAttData, vlan)
+	}
+	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
+	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
+	if err == nil {
+		fabNetAtt.TypeMeta = metav1.TypeMeta{
+			Kind:       "NodeFabricNetworkAttachment",
+			APIVersion: "aci.fabricattachment/v1",
+		}
+		agent.updateNodeFabricNetworkAttachmentEncap(fabNetAtt, netAttData)
+		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
+		agent.RecordNetworkMetadata(netAttData)
+		if err != nil {
+			agent.log.Errorf("Failed to update nfna %s for encap change: %v", fabNetAttName, err)
+		}
+	}
+}
+
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *NetworkAttachmentData) error {
 	populateTopology := func(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
 		for iface := range netAttData.FabricAttachmentData {
@@ -440,7 +482,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 			Kind:       "NodeFabricNetworkAttachment",
 			APIVersion: "aci.fabricattachment/v1",
 		}
-		fabNetAtt.Spec.EncapVlan = netAttData.EncapVlan
+		agent.updateNodeFabricNetworkAttachmentEncap(fabNetAtt, netAttData)
 		fabNetAtt.Spec.AciTopology = make(map[string]fabattv1.AciNodeLinkAdjacency)
 		populateTopology(fabNetAtt, netAttData)
 		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
@@ -460,12 +502,12 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 					Name:      netAttData.Name,
 					Namespace: netAttData.Namespace,
 				},
-				EncapVlan:   netAttData.EncapVlan,
 				NodeName:    agent.config.NodeName,
 				PrimaryCNI:  string(netAttData.PrimaryCNI),
 				AciTopology: make(map[string]fabattv1.AciNodeLinkAdjacency),
 			},
 		}
+		agent.updateNodeFabricNetworkAttachmentEncap(fabNetAtt, netAttData)
 		populateTopology(fabNetAtt, netAttData)
 		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Create(context.TODO(), fabNetAtt, metav1.CreateOptions{})
 		agent.RecordNetworkMetadata(netAttData)
@@ -528,28 +570,40 @@ func validateVlanAnnotation(vlanStr string) (string, error) {
 	return resultStr, nil
 }
 
-func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAttachmentData) bool {
-	handlePluginVlan := func(annotMap map[string]string, vlan int) (encap string) {
-		if vlan == 0 {
-			encap = "0"
-			vlanSourced := false
-			if val, ok := annotMap[vlanAnnot]; ok {
-				if vlanStr, err := validateVlanAnnotation(val); err == nil {
-					vlanSourced = true
-					encap = vlanStr
-				} else {
-					agent.log.Errorf("Failed to parse vlan annotation:%v", err)
-				}
+func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan int) {
+	nadKey := netAttData.Namespace + "/" + netAttData.Name
+	netAttData.PluginVlan = fmt.Sprintf("%d", vlan)
+	if vlan == 0 {
+		if val, ok := netAttData.KnownAnnots[vlanAnnot]; ok {
+			if vlanStr, err := validateVlanAnnotation(val); err == nil {
+				netAttData.EncapVlan = vlanStr
+				netAttData.EncapKey = ""
+				return
+			} else {
+				agent.log.Errorf("Failed to parse vlan annotation:%v", err)
 			}
-			if !vlanSourced && agent.config.AciAdditionalVlans != "" {
-				encap = fmt.Sprintf("%s", agent.config.AciAdditionalVlans)
-			}
-			return encap
 		}
-		encap = fmt.Sprintf("%d", vlan)
-		return encap
-	}
+		matchingKey, vlanList, match := agent.getNadVlanMapMatchLocked(nadKey)
+		if match {
+			netAttData.EncapVlan = vlanList
+			netAttData.EncapKey = matchingKey
+			return
+		}
 
+		encap := "0"
+		if agent.config.AciAdditionalVlans != "" {
+			encap = fmt.Sprintf("%s", agent.config.AciAdditionalVlans)
+		}
+		netAttData.EncapVlan = encap
+		netAttData.EncapKey = ""
+		return
+	}
+	netAttData.EncapVlan = netAttData.PluginVlan
+	netAttData.EncapKey = ""
+	return
+}
+
+func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAttachmentData) bool {
 	relevantChain := false
 	for idx, plugin := range config.Plugins {
 		if idx == 0 {
@@ -567,18 +621,23 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 					agent.log.Errorf("resourcename %s unrecognized in  net-att-def %s/%s", netattData.Annot, netattData.Namespace, netattData.Name)
 				}
 				agent.log.Infof("Using resource %s", netattData.ResourceName)
-				netattData.EncapVlan = handlePluginVlan(netattData.KnownAnnots, plugin.Vlan)
+				agent.handlePluginVlan(netattData, plugin.Vlan)
 			} else if plugin.Type == "macvlan" {
 				netattData.PrimaryCNI = PrimaryCNIMACVLAN
 				parts := strings.Split(plugin.Master, ".")
 				netattData.ResourceName = parts[0]
 				if len(parts) != 2 {
-					netattData.EncapVlan = handlePluginVlan(netattData.KnownAnnots, 0)
+					agent.handlePluginVlan(netattData, 0)
 					if len(parts) != 1 {
 						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
 					}
 				} else {
-					netattData.EncapVlan = parts[1]
+					vlan, err := strconv.Atoi(parts[1])
+					if err != nil {
+						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
+						vlan = 0
+					}
+					agent.handlePluginVlan(netattData, vlan)
 				}
 			} else {
 				netattData.PrimaryCNI = PrimaryCNIUnk

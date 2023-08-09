@@ -28,15 +28,25 @@ type AciNodeLinkAdjacency struct {
 	Pods       []PodAttachment `json:"pods,omitempty"`
 }
 
+type EncapRef struct {
+	NadVlanMapRef string `json:"nadVlanMap"`
+	Key           string `json:"key"`
+}
+
+type EncapSource struct {
+	VlanList string   `json:"vlanList,omitempty"`
+	EncapRef EncapRef `json:"encapRef,omitempty"`
+}
+
 // NodeFabricAttachmentSpec defines the desired state of network attachment to the fabric
 type NodeFabricNetworkAttachmentSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 	// NetworkRef is the ns/net-att-def name, used as part of the epg ns-<NetworkName>
-	NetworkRef ObjRef `json:"networkRef"`
-	EncapVlan  string `json:"encapVlan,omitempty"`
-	NodeName   string `json:"nodeName,omitempty"`
+	NetworkRef ObjRef      `json:"networkRef"`
+	EncapVlan  EncapSource `json:"encapVlan,omitempty"`
+	NodeName   string      `json:"nodeName,omitempty"`
 	// Map of iface to fabricLink
 	AciTopology map[string]AciNodeLinkAdjacency `json:"aciTopology,omitempty"`
 	// informational: primaryCNI sriov/macvlan

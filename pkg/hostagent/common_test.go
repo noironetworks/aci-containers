@@ -55,6 +55,7 @@ type testHostAgent struct {
 	fakeNetAttachDefSource  *framework.FakeControllerSource
 	fakeConfigMapSource     *framework.FakeControllerSource
 	fakeFabAttSource        *framework.FakeControllerSource
+	fakeNadVlanMapSource    *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -71,11 +72,11 @@ func testAgentEnvtest(hcf *HostAgentConfig, kubeClient *kubernetes.Clientset, cf
 	log := logrus.New()
 	log.Level = logrus.InfoLevel
 
+	fabAttClSet, _ := fabattclset.NewForConfig(cfg)
 	agent := &testHostAgent{
-		HostAgent: NewHostAgent(hcf, &K8sEnvironment{kubeClient: kubeClient}, log),
+		HostAgent: NewHostAgent(hcf, &K8sEnvironment{kubeClient: kubeClient, fabattClient: fabAttClSet}, log),
 	}
 	if agent.config.ChainedMode {
-		fabAttClSet, _ := fabattclset.NewForConfig(cfg)
 		agent.HostAgent.fabAttClient = fabAttClSet.AciV1()
 
 	}
@@ -204,6 +205,13 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 	agent.initDepPodIndex()
 	agent.initRCPodIndex()
 	agent.initQoSPolPodIndex()
+	agent.fakeNadVlanMapSource = framework.NewFakeControllerSource()
+	agent.initNadVlanInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeNadVlanMapSource.List,
+			WatchFunc: agent.fakeNadVlanMapSource.Watch,
+		},
+	)
 
 	integ_test := "true"
 	agent.integ_test = &integ_test

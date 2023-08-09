@@ -17,6 +17,14 @@ limitations under the License.
 
 package v1
 
+// NadVlanMapListerExpansion allows custom methods to be added to
+// NadVlanMapLister.
+type NadVlanMapListerExpansion interface{}
+
+// NadVlanMapNamespaceListerExpansion allows custom methods to be added to
+// NadVlanMapNamespaceLister.
+type NadVlanMapNamespaceListerExpansion interface{}
+
 // NodeFabricNetworkAttachmentListerExpansion allows custom methods to be added to
 // NodeFabricNetworkAttachmentLister.
 type NodeFabricNetworkAttachmentListerExpansion interface{}
