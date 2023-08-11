@@ -50,6 +50,9 @@ const ServiceGraphNameAnnotation = "opflex.cisco.com/service-graph-name"
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
+// Static lb ip annotations
+const LbIpAnnotation = "opflex.cisco.com/lb-ipam-ips"
+
 // Annotation to set service contract scope values. If unset or "", defaults to "context"(VRF). Other valid values: "context", "tenant", and "global"
 const ServiceContractScopeAnnotation = "opflex.cisco.com/ext_service_contract_scope"
 

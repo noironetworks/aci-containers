@@ -217,7 +217,7 @@ type nodePodNetMeta struct {
 }
 
 type serviceMeta struct {
-	requestedIp      net.IP
+	requestedIps     []net.IP
 	ingressIps       []net.IP
 	staticIngressIps []net.IP
 }
