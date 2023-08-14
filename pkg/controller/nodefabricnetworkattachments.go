@@ -374,8 +374,10 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlan(vlan int, nodeFabN
 		delete(cont.sharedEncapCache, vlan)
 		return
 	}
+	var apicSlice apicapi.ApicSlice
 	epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix)
-	apicSlice := cont.depopulateFabricPaths(epg, vlan, nodeFabNetAttKey)
+	apicSlice = append(apicSlice, epg)
+	apicSlice = append(apicSlice, cont.depopulateFabricPaths(epg, vlan, nodeFabNetAttKey)...)
 	progMap[labelKey] = apicSlice
 }
 
