@@ -511,6 +511,10 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 			return
 		}
 	}
+
+	if cont.config.AciMultipod {
+		delete(cont.nodeACIPod, node.ObjectMeta.Name)
+	}
 }
 
 // must have index lock
