@@ -71,7 +71,9 @@ func testAgent() *testHostAgent {
 func testAgentEnvtest(hcf *HostAgentConfig, kubeClient *kubernetes.Clientset, cfg *rest.Config) *testHostAgent {
 	log := logrus.New()
 	log.Level = logrus.InfoLevel
-
+	if hcf.LogLevel == "debug" {
+		log.Level = logrus.DebugLevel
+	}
 	fabAttClSet, _ := fabattclset.NewForConfig(cfg)
 	agent := &testHostAgent{
 		HostAgent: NewHostAgent(hcf, &K8sEnvironment{kubeClient: kubeClient, fabattClient: fabAttClSet}, log),
@@ -219,6 +221,11 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 	if agent.config.ChainedMode {
 		agent.fabricDiscoveryAgent = GetFabricDiscoveryAgent(FabricDiscoveryLLDPNMState)
 		agent.fabricDiscoveryAgent.Init(agent.HostAgent)
+		adjs := map[string][]FabricAttachmentData{
+			"enp216s0f0": {{StaticPath: "topology/pod-1/node-101/pathep-[eth1/24]", SystemName: "fabX-leaf101"}},
+			"bond1":      {{StaticPath: "topology/pod-1/node-101/pathep-[eth1/21]", SystemName: "fabX-leaf101"}, {StaticPath: "topology/pod-1/node-102/pathep-[eth1/21]", SystemName: "fabX-leaf102"}},
+		}
+		agent.fabricDiscoveryAgent.PopulateAdjacencies(adjs)
 	}
 	return agent
 }

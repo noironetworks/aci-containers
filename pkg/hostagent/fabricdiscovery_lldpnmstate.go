@@ -21,7 +21,7 @@ type FabricDiscoveryAgentLLDPNMState struct {
 	indexMutex      sync.Mutex
 	collectTrigger  chan bool
 	LLDPIntfMap     map[string]*LLDPInterfaceState
-	LLDPNeighborMap map[string]map[string]*FabricAttachmentData
+	LLDPNeighborMap map[string]map[string][]FabricAttachmentData
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) RunCommand(cmd string, cmdArgs ...string) ([]byte, error) {
@@ -35,13 +35,26 @@ func (agent *FabricDiscoveryAgentLLDPNMState) Init(ha *HostAgent) error {
 	agent.hostAgent = ha
 	agent.collectTrigger = make(chan bool)
 	agent.LLDPIntfMap = make(map[string]*LLDPInterfaceState)
-	agent.LLDPNeighborMap = make(map[string]map[string]*FabricAttachmentData)
+	agent.LLDPNeighborMap = make(map[string]map[string][]FabricAttachmentData)
 	if ha.integ_test == nil {
 		_, err := agent.RunCommand("nmstatectl", "show")
 		return err
 	} else {
 		return nil
 	}
+}
+
+func (agent *FabricDiscoveryAgentLLDPNMState) PopulateAdjacencies(adjs map[string][]FabricAttachmentData) {
+	agent.indexMutex.Lock()
+	for iface, adj := range adjs {
+		if _, ok := agent.LLDPNeighborMap[iface]; !ok {
+			agent.LLDPNeighborMap[iface] = make(map[string][]FabricAttachmentData)
+		}
+		for _, fabAtt := range adj {
+			agent.LLDPNeighborMap[iface][fabAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabAtt.SystemName], fabAtt)
+		}
+	}
+	agent.indexMutex.Unlock()
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) TriggerCollectionDiscoveryData() {
@@ -63,6 +76,9 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 			case <-agent.collectTrigger:
 			case <-ticker.C:
 				//Scan for new interfaces
+				if agent.hostAgent.integ_test != nil {
+					continue
+				}
 				out, err := agent.RunCommand("nmstatectl", "show", "--json")
 				if err != nil {
 					agent.hostAgent.log.Errorf("nmstatectl failed:%v", err)
@@ -122,20 +138,29 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 							agent.indexMutex.Lock()
 							existingNeighbors, ok := agent.LLDPNeighborMap[iface]
 							if ok {
+
 								if existingNeighbor, ok := existingNeighbors[fabricAtt.SystemName]; ok {
-									if existingNeighbor.StaticPath != fabricAtt.StaticPath {
-										agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = &fabricAtt
+									existingLink := false
+									for _, currLink := range existingNeighbor {
+										if currLink.StaticPath == fabricAtt.StaticPath {
+											existingLink = true
+											break
+										}
+									}
+									if !existingLink {
+										agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
 										agent.hostAgent.log.Infof("LLDP Adjacency updated for iface %s: %s", iface, fabricAtt.StaticPath)
 										needNotify = true
 									}
 								} else {
-									agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = &fabricAtt
+
+									agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
 									agent.hostAgent.log.Infof("LLDP Adjacency discovered for iface %s: %s", iface, fabricAtt.StaticPath)
 									needNotify = true
 								}
 							} else {
-								agent.LLDPNeighborMap[iface] = make(map[string]*FabricAttachmentData)
-								agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = &fabricAtt
+								agent.LLDPNeighborMap[iface] = make(map[string][]FabricAttachmentData)
+								agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
 								agent.hostAgent.log.Infof("LLDP Adjacency discovered for iface %s: %s", iface, fabricAtt.StaticPath)
 								needNotify = true
 							}
@@ -145,7 +170,9 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 							adj := []*FabricAttachmentData{}
 							agent.indexMutex.Lock()
 							for sys := range agent.LLDPNeighborMap[iface] {
-								adj = append(adj, agent.LLDPNeighborMap[iface][sys])
+								for link := range agent.LLDPNeighborMap[iface][sys] {
+									adj = append(adj, &agent.LLDPNeighborMap[iface][sys][link])
+								}
 							}
 							agent.indexMutex.Unlock()
 							agent.hostAgent.NotifyFabricAdjacency(iface, adj)
@@ -164,7 +191,9 @@ func (agent *FabricDiscoveryAgentLLDPNMState) GetNeighborData(iface string) ([]*
 		return nil, fmt.Errorf("LLDP Neighbor Data from NMState is not available yet for %s", iface)
 	}
 	for sysName := range fabAttMap {
-		fabAttData = append(fabAttData, fabAttMap[sysName])
+		for link := range fabAttMap[sysName] {
+			fabAttData = append(fabAttData, &agent.LLDPNeighborMap[iface][sysName][link])
+		}
 	}
 	return fabAttData, nil
 }

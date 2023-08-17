@@ -81,6 +81,7 @@ type NetworkAttachmentData struct {
 	KnownAnnots          map[string]string
 	EncapKey             string
 	PluginVlan           string
+	Programmed           bool
 }
 
 type ClientInfo struct {
@@ -455,6 +456,13 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 	}
 }
 
+func (netAttData *NetworkAttachmentData) isProgrammable() bool {
+	if len(netAttData.FabricAttachmentData) == 0 {
+		return false
+	}
+	return true
+}
+
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *NetworkAttachmentData) error {
 	populateTopology := func(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
 		for iface := range netAttData.FabricAttachmentData {
@@ -475,9 +483,16 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 			fabNetAtt.Spec.AciTopology[iface] = aciNodeLink
 		}
 	}
+	agent.RecordNetworkMetadata(netAttData)
 	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
 	if err == nil {
+		if !netAttData.isProgrammable() {
+			agent.deleteNodeFabricNetworkAttachment(netAttData)
+			netAttData.Programmed = false
+			agent.log.Debugf("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
+			return nil
+		}
 		fabNetAtt.TypeMeta = metav1.TypeMeta{
 			Kind:       "NodeFabricNetworkAttachment",
 			APIVersion: "aci.fabricattachment/v1",
@@ -486,8 +501,12 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		fabNetAtt.Spec.AciTopology = make(map[string]fabattv1.AciNodeLinkAdjacency)
 		populateTopology(fabNetAtt, netAttData)
 		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
-		agent.RecordNetworkMetadata(netAttData)
+		netAttData.Programmed = true
 	} else if apierrors.IsNotFound(err) {
+		if !netAttData.isProgrammable() {
+			agent.log.Debugf("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
+			return nil
+		}
 		fabNetAtt = &fabattv1.NodeFabricNetworkAttachment{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "NodeFabricNetworkAttachment",
@@ -510,7 +529,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		agent.updateNodeFabricNetworkAttachmentEncap(fabNetAtt, netAttData)
 		populateTopology(fabNetAtt, netAttData)
 		_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Create(context.TODO(), fabNetAtt, metav1.CreateOptions{})
-		agent.RecordNetworkMetadata(netAttData)
+		netAttData.Programmed = true
 	}
 	return err
 }
@@ -800,9 +819,11 @@ func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
 	}
 	agent.indexMutex.Lock()
 	if netattDef, ok := agent.netattdefmap[netAttDefKey]; ok {
-		err := agent.deleteNodeFabricNetworkAttachment(netattDef)
-		if err != nil {
-			agent.log.Errorf("node fabric network attachment delete failed:%v", err)
+		if netattDef.Programmed {
+			err := agent.deleteNodeFabricNetworkAttachment(netattDef)
+			if err != nil {
+				agent.log.Errorf("node fabric network attachment delete failed:%v", err)
+			}
 		}
 		if netattDef.PrimaryCNI == PrimaryCNIMACVLAN {
 			delete(agent.netattdefifacemap, netattDef.ResourceName)

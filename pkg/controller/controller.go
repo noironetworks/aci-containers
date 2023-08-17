@@ -179,9 +179,15 @@ type AciController struct {
 	vmmClusterFaultSupported bool
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	//Used in Shared mode
-	sharedEncapCache map[int]map[string]*AdditionalNetworkMeta
+	sharedEncapCache map[int]*sharedEncapData
 	lldpIfCache      map[string]string
 	globalVlanConfig globalVlanConfig
+}
+
+type sharedEncapData struct {
+	//node to NAD to pods
+	Pods   map[string]map[string][]string
+	NetRef map[string]*AdditionalNetworkMeta
 }
 
 type globalVlanConfig struct {
@@ -256,11 +262,16 @@ type ctrPortNameEntry struct {
 	ctrNmpToPods map[string]map[string]bool
 }
 
+type LinkData struct {
+	Link []string
+	Pods []string
+}
+
 type AdditionalNetworkMeta struct {
 	NetworkName string
 	EncapVlan   string
 	//node+localiface->fabricLinks
-	FabricLink map[string]map[string][]string
+	FabricLink map[string]map[string]LinkData
 	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
 }
 
@@ -383,7 +394,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nmPortNp:               make(map[string]bool),
 		hppRef:                 make(map[string]hppReference),
 		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
-		sharedEncapCache:       make(map[int]map[string]*AdditionalNetworkMeta),
+		sharedEncapCache:       make(map[int]*sharedEncapData),
 		lldpIfCache:            make(map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{

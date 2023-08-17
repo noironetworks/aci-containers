@@ -164,7 +164,14 @@ func TestNADSRIOVCRUD(t *testing.T) {
 				Name:      "sriov-net-1",
 				Namespace: "default",
 			},
-			EncapVlan:  fabattv1.EncapSource{VlanList: "[100,101,195-200]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "[100,101,195-200]"},
+			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
+				"enp216s0f0": {
+					FabricLink: []string{
+						"topology/pod-1/node-101/pathep-[eth1/24]",
+					},
+				},
+			},
 			NodeName:   nodename,
 			PrimaryCNI: "sriov",
 		},
@@ -218,7 +225,15 @@ func TestNADMacVlanCRUD(t *testing.T) {
 				Name:      "macvlan-net2",
 				Namespace: "default",
 			},
-			EncapVlan:  fabattv1.EncapSource{VlanList: "[102-105]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "[102-105]"},
+			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
+				"bond1": {
+					FabricLink: []string{
+						"topology/pod-1/node-101/pathep-[eth1/21]",
+						"topology/pod-1/node-102/pathep-[eth1/21]",
+					},
+				},
+			},
 			NodeName:   nodename,
 			PrimaryCNI: "macvlan",
 		},
@@ -302,6 +317,14 @@ func TestNADVlanMatch(t *testing.T) {
 					Key:           "pccmm/pc-mm",
 				},
 				VlanList: "[103]"},
+			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
+				"bond1": {
+					FabricLink: []string{
+						"topology/pod-1/node-101/pathep-[eth1/21]",
+						"topology/pod-1/node-102/pathep-[eth1/21]",
+					},
+				},
+			},
 			NodeName:   nodename,
 			PrimaryCNI: "macvlan",
 		},
