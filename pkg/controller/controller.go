@@ -63,59 +63,62 @@ type AciController struct {
 
 	unitTestMode bool
 
-	podQueue           workqueue.RateLimitingInterface
-	netPolQueue        workqueue.RateLimitingInterface
-	qosQueue           workqueue.RateLimitingInterface
-	serviceQueue       workqueue.RateLimitingInterface
-	snatQueue          workqueue.RateLimitingInterface
-	netflowQueue       workqueue.RateLimitingInterface
-	erspanQueue        workqueue.RateLimitingInterface
-	snatNodeInfoQueue  workqueue.RateLimitingInterface
-	rdConfigQueue      workqueue.RateLimitingInterface
-	istioQueue         workqueue.RateLimitingInterface
-	nodeFabNetAttQueue workqueue.RateLimitingInterface
+	podQueue             workqueue.RateLimitingInterface
+	netPolQueue          workqueue.RateLimitingInterface
+	qosQueue             workqueue.RateLimitingInterface
+	serviceQueue         workqueue.RateLimitingInterface
+	snatQueue            workqueue.RateLimitingInterface
+	netflowQueue         workqueue.RateLimitingInterface
+	erspanQueue          workqueue.RateLimitingInterface
+	snatNodeInfoQueue    workqueue.RateLimitingInterface
+	rdConfigQueue        workqueue.RateLimitingInterface
+	istioQueue           workqueue.RateLimitingInterface
+	nodeFabNetAttQueue   workqueue.RateLimitingInterface
+	staticFabNetAttQueue workqueue.RateLimitingInterface
+	nadVlanMapQueue      workqueue.RateLimitingInterface
 
-	namespaceIndexer      cache.Indexer
-	namespaceInformer     cache.Controller
-	podIndexer            cache.Indexer
-	podInformer           cache.Controller
-	endpointsIndexer      cache.Indexer
-	endpointsInformer     cache.Controller
-	serviceIndexer        cache.Indexer
-	serviceInformer       cache.Controller
-	replicaSetIndexer     cache.Indexer
-	replicaSetInformer    cache.Controller
-	deploymentIndexer     cache.Indexer
-	deploymentInformer    cache.Controller
-	nodeIndexer           cache.Indexer
-	nodeInformer          cache.Controller
-	networkPolicyIndexer  cache.Indexer
-	networkPolicyInformer cache.Controller
-	snatIndexer           cache.Indexer
-	snatInformer          cache.Controller
-	snatNodeInfoIndexer   cache.Indexer
-	snatNodeInformer      cache.Controller
-	crdInformer           cache.Controller
-	rdConfigInformer      cache.Controller
-	rdConfigIndexer       cache.Indexer
-	qosIndexer            cache.Indexer
-	qosInformer           cache.Controller
-	netflowIndexer        cache.Indexer
-	netflowInformer       cache.Controller
-	erspanIndexer         cache.Indexer
-	erspanInformer        cache.Controller
-	nodePodIfIndexer      cache.Indexer
-	nodePodIfInformer     cache.Controller
-	istioIndexer          cache.Indexer
-	istioInformer         cache.Controller
-	endpointSliceIndexer  cache.Indexer
-	endpointSliceInformer cache.Controller
-	snatCfgInformer       cache.Controller
-	updatePod             podUpdateFunc
-	updateNode            nodeUpdateFunc
-	updateServiceStatus   serviceUpdateFunc
-	nodeFabNetAttIndexer  cache.Indexer
-	nodeFabNetAttInformer cache.Controller
+	namespaceIndexer        cache.Indexer
+	namespaceInformer       cache.Controller
+	podIndexer              cache.Indexer
+	podInformer             cache.Controller
+	endpointsIndexer        cache.Indexer
+	endpointsInformer       cache.Controller
+	serviceIndexer          cache.Indexer
+	serviceInformer         cache.Controller
+	replicaSetIndexer       cache.Indexer
+	replicaSetInformer      cache.Controller
+	deploymentIndexer       cache.Indexer
+	deploymentInformer      cache.Controller
+	nodeIndexer             cache.Indexer
+	nodeInformer            cache.Controller
+	networkPolicyIndexer    cache.Indexer
+	networkPolicyInformer   cache.Controller
+	snatIndexer             cache.Indexer
+	snatInformer            cache.Controller
+	snatNodeInfoIndexer     cache.Indexer
+	snatNodeInformer        cache.Controller
+	crdInformer             cache.Controller
+	rdConfigInformer        cache.Controller
+	rdConfigIndexer         cache.Indexer
+	qosIndexer              cache.Indexer
+	qosInformer             cache.Controller
+	netflowIndexer          cache.Indexer
+	netflowInformer         cache.Controller
+	erspanIndexer           cache.Indexer
+	erspanInformer          cache.Controller
+	nodePodIfIndexer        cache.Indexer
+	nodePodIfInformer       cache.Controller
+	istioIndexer            cache.Indexer
+	istioInformer           cache.Controller
+	endpointSliceIndexer    cache.Indexer
+	endpointSliceInformer   cache.Controller
+	snatCfgInformer         cache.Controller
+	updatePod               podUpdateFunc
+	updateNode              nodeUpdateFunc
+	updateServiceStatus     serviceUpdateFunc
+	nodeFabNetAttInformer   cache.SharedIndexInformer
+	staticFabNetAttInformer cache.SharedIndexInformer
+	nadVlanMapInformer      cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 
@@ -180,8 +183,14 @@ type AciController struct {
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	//Used in Shared mode
 	sharedEncapCache map[int]*sharedEncapData
-	lldpIfCache      map[string]string
-	globalVlanConfig globalVlanConfig
+	// vlan to aepList
+	sharedEncapSfnaCache    map[int]map[string]bool
+	sharedEncapSfnaVlanMap  map[int]map[string]bool
+	sharedEncapSfnaLabelMap map[string]map[string]bool
+	// nadVlanMap encapLabel to vlan
+	sharedEncapLabelMap map[string][]int
+	lldpIfCache         map[string]string
+	globalVlanConfig    globalVlanConfig
 }
 
 type sharedEncapData struct {
@@ -353,17 +362,19 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		defaultSg:    "",
 		unitTestMode: unittestmode,
 
-		podQueue:           createQueue("pod"),
-		netPolQueue:        createQueue("networkPolicy"),
-		qosQueue:           createQueue("qos"),
-		netflowQueue:       createQueue("netflow"),
-		erspanQueue:        createQueue("erspan"),
-		serviceQueue:       createQueue("service"),
-		snatQueue:          createQueue("snat"),
-		snatNodeInfoQueue:  createQueue("snatnodeinfo"),
-		rdConfigQueue:      createQueue("rdconfig"),
-		istioQueue:         createQueue("istio"),
-		nodeFabNetAttQueue: createQueue("nodefabricnetworkattachment"),
+		podQueue:             createQueue("pod"),
+		netPolQueue:          createQueue("networkPolicy"),
+		qosQueue:             createQueue("qos"),
+		netflowQueue:         createQueue("netflow"),
+		erspanQueue:          createQueue("erspan"),
+		serviceQueue:         createQueue("service"),
+		snatQueue:            createQueue("snat"),
+		snatNodeInfoQueue:    createQueue("snatnodeinfo"),
+		rdConfigQueue:        createQueue("rdconfig"),
+		istioQueue:           createQueue("istio"),
+		nodeFabNetAttQueue:   createQueue("nodefabricnetworkattachment"),
+		staticFabNetAttQueue: createQueue("staticfabricnetworkattachment"),
+		nadVlanMapQueue:      createQueue("nadvlanmap"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -378,24 +389,28 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeACIPod:       make(map[string]aciPodAnnot),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache:   make(map[string]*nodeServiceMeta),
-		nodePodNetCache:        make(map[string]*nodePodNetMeta),
-		serviceMetaCache:       make(map[string]*serviceMeta),
-		snatPolicyCache:        make(map[string]*ContSnatPolicy),
-		snatServices:           make(map[string]bool),
-		snatNodeInfoCache:      make(map[string]*nodeinfo.NodeInfo),
-		rdConfigCache:          make(map[string]*rdConfig.RdConfig),
-		rdConfigSubnetCache:    make(map[string]*rdConfig.RdConfigSpec),
-		podIftoEp:              make(map[string]*EndPointData),
-		snatGlobalInfoCache:    make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:             make(map[string]*istiov1.AciIstioOperator),
-		crdHandlers:            make(map[string]func(*AciController, <-chan struct{})),
-		ctrPortNameCache:       make(map[string]*ctrPortNameEntry),
-		nmPortNp:               make(map[string]bool),
-		hppRef:                 make(map[string]hppReference),
-		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
-		sharedEncapCache:       make(map[int]*sharedEncapData),
-		lldpIfCache:            make(map[string]string),
+		nodeServiceMetaCache:    make(map[string]*nodeServiceMeta),
+		nodePodNetCache:         make(map[string]*nodePodNetMeta),
+		serviceMetaCache:        make(map[string]*serviceMeta),
+		snatPolicyCache:         make(map[string]*ContSnatPolicy),
+		snatServices:            make(map[string]bool),
+		snatNodeInfoCache:       make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:           make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:     make(map[string]*rdConfig.RdConfigSpec),
+		podIftoEp:               make(map[string]*EndPointData),
+		snatGlobalInfoCache:     make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:              make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:             make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:        make(map[string]*ctrPortNameEntry),
+		nmPortNp:                make(map[string]bool),
+		hppRef:                  make(map[string]hppReference),
+		additionalNetworkCache:  make(map[string]*AdditionalNetworkMeta),
+		sharedEncapCache:        make(map[int]*sharedEncapData),
+		sharedEncapSfnaCache:    make(map[int]map[string]bool),
+		sharedEncapSfnaVlanMap:  make(map[int]map[string]bool),
+		sharedEncapSfnaLabelMap: make(map[string]map[string]bool),
+		sharedEncapLabelMap:     make(map[string][]int),
+		lldpIfCache:             make(map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -755,6 +770,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"physDomP"}, "")
 		cont.apicConn.AddSubscriptionClass("infraRsVlanNs",
 			[]string{"infraRsVlanNs"}, "")
+		cont.apicConn.AddSubscriptionClass("infraGeneric",
+			[]string{"infraGeneric", "infraRsFuncToEpg"}, "")
 	}
 	if !cont.config.ChainedMode {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,

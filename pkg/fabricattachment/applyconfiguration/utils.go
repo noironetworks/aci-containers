@@ -40,6 +40,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.NadVlanMapSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NadVlanMapStatus"):
 		return &acifabricattachmentv1.NadVlanMapStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NADVlanRef"):
+		return &acifabricattachmentv1.NADVlanRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachment"):
 		return &acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachmentSpec"):
@@ -50,6 +52,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.ObjRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("PodAttachment"):
 		return &acifabricattachmentv1.PodAttachmentApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("StaticFabricNetworkAttachment"):
+		return &acifabricattachmentv1.StaticFabricNetworkAttachmentApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("StaticFabricNetworkAttachmentSpec"):
+		return &acifabricattachmentv1.StaticFabricNetworkAttachmentSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("StaticFabricNetworkAttachmentStatus"):
+		return &acifabricattachmentv1.StaticFabricNetworkAttachmentStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("VlanRef"):
+		return &acifabricattachmentv1.VlanRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("VlanSpec"):
 		return &acifabricattachmentv1.VlanSpecApplyConfiguration{}
 

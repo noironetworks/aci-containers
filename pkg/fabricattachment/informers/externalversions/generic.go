@@ -56,6 +56,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NadVlanMaps().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("nodefabricnetworkattachments"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NodeFabricNetworkAttachments().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("staticfabricnetworkattachments"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().StaticFabricNetworkAttachments().Informer()}, nil
 
 	}
 

@@ -20,3 +20,5 @@ package v1
 type NadVlanMapExpansion interface{}
 
 type NodeFabricNetworkAttachmentExpansion interface{}
+
+type StaticFabricNetworkAttachmentExpansion interface{}

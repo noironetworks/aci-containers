@@ -27,6 +27,8 @@ type Interface interface {
 	NadVlanMaps() NadVlanMapInformer
 	// NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 	NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer
+	// StaticFabricNetworkAttachments returns a StaticFabricNetworkAttachmentInformer.
+	StaticFabricNetworkAttachments() StaticFabricNetworkAttachmentInformer
 }
 
 type version struct {
@@ -48,4 +50,9 @@ func (v *version) NadVlanMaps() NadVlanMapInformer {
 // NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 func (v *version) NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer {
 	return &nodeFabricNetworkAttachmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// StaticFabricNetworkAttachments returns a StaticFabricNetworkAttachmentInformer.
+func (v *version) StaticFabricNetworkAttachments() StaticFabricNetworkAttachmentInformer {
+	return &staticFabricNetworkAttachmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

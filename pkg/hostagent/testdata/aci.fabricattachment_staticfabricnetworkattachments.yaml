@@ -1,0 +1,84 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  name: staticfabricnetworkattachments.aci.fabricattachment
+spec:
+  group: aci.fabricattachment
+  names:
+    kind: StaticFabricNetworkAttachment
+    listKind: StaticFabricNetworkAttachmentList
+    plural: staticfabricnetworkattachments
+    shortNames:
+    - sfna
+    singular: staticfabricnetworkattachment
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: StaticFabricAttachment allows attaching aeps to NAD based and
+          regular vlans created by aci controller
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              nadVlanRefs:
+                description: Refer to a NADVlanLabel defined in NadVlanMap CR
+                items:
+                  properties:
+                    aeps:
+                      items:
+                        type: string
+                      type: array
+                    nadVlanLabel:
+                      type: string
+                  required:
+                  - aeps
+                  - nadVlanLabel
+                  type: object
+                type: array
+              vlans:
+                description: Refer to vlan/s directly
+                items:
+                  properties:
+                    aeps:
+                      items:
+                        type: string
+                      type: array
+                    vlans:
+                      type: string
+                  required:
+                  - aeps
+                  - vlans
+                  type: object
+                type: array
+            type: object
+          status:
+            description: StaticFabricNetworkAttachmentStatus defines the observed
+              state of StaticFabricNetworkAttachment
+            properties:
+              state:
+                type: string
+            type: object
+        type: object
+        x-kubernetes-validations:
+        - rule: "self.metadata.name == 'staticfabricnetworkattachment'"
+          message: "Only one instance with name staticfabricnetworkattachment allowed"
+    served: true
+    storage: true
+    subresources:
+      status: {}
