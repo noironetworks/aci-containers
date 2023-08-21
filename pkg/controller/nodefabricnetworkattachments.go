@@ -120,8 +120,6 @@ func (cont *AciController) initNodeFabNetAttInformerBase(listWatch *cache.ListWa
 func (cont *AciController) clearGlobalScopeVlanConfig(progMap map[string]apicapi.ApicSlice) {
 	labelKey := cont.aciNameForKey("nfna", globalScopeVlanDomPrefix)
 	progMap[labelKey] = nil
-	labelKey = cont.aciNameForKey("nfna", globalScopeVlanBdPrefix)
-	progMap[labelKey] = nil
 	cont.globalVlanConfig.SharedPhysDom = nil
 }
 
@@ -142,10 +140,6 @@ func (cont *AciController) setGlobalScopeVlanConfig(encapStr string, progMap map
 	apicSlice = cont.updateNodeFabNetAttDom(encapBlks, globalScopeVlanDomPrefix)
 	labelKey := cont.aciNameForKey("nfna", globalScopeVlanDomPrefix)
 	progMap[labelKey] = apicSlice
-	var apicSlice2 apicapi.ApicSlice
-	apicSlice2 = append(apicSlice2, cont.createNodeFabNetAttBd(globalScopeVlanBdPrefix))
-	labelKey = cont.aciNameForKey("nfna", globalScopeVlanBdPrefix)
-	progMap[labelKey] = apicSlice2
 }
 
 func (cont *AciController) getLLDPIf(fabricLink string) string {
@@ -193,61 +187,65 @@ func (cont *AciController) depopulateFabricPaths(epg apicapi.ApicObject, encap i
 	if !cont.config.AciUseGlobalScopeVlan {
 		return nil
 	}
-	nfnaMap := cont.sharedEncapCache[encap]
+	fabLinks := make(map[string]bool)
+	nfnaMap := cont.sharedEncapCache[encap].NetRef
 	for nfnaKey, currNet := range nfnaMap {
 		if nfnaKey == nodeFabNetAttKey {
 			continue
 		}
-		apicSlice = cont.populateNodeFabNetAttPaths(epg, encap, currNet, apicSlice)
+		cont.populateNodeFabNetAttPaths(epg, encap, currNet, fabLinks)
 	}
+	apicSlice = append(apicSlice, epg)
 	return apicSlice
 }
 
-func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, encap int, addNet *AdditionalNetworkMeta, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
+func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, encap int, addNet *AdditionalNetworkMeta, resultingLinks map[string]bool) {
 	fabLinks := make(map[string]bool)
 	encapVlan := fmt.Sprintf("%d", encap)
 	for _, localIfaceMap := range addNet.FabricLink {
 		for localIface, fabricLinks := range localIfaceMap {
 			var actualFabricLink, vpcIf string
 			// Check if port is part of a PC
-			for i := range fabricLinks {
-				lldpIf := cont.getLLDPIf(fabricLinks[i])
+			for i := range fabricLinks.Link {
+				lldpIf := cont.getLLDPIf(fabricLinks.Link[i])
 				if vpcIf != "" && lldpIf != vpcIf {
 					cont.log.Errorf(" Individual fabricLinks are part of different vpcs(%s): %s %s", localIface, lldpIf, vpcIf)
 					continue
 				}
 				vpcIf = lldpIf
 			}
-			if len(fabricLinks) > 2 {
-				cont.log.Errorf("populate Failed : %d(>2) fabriclinks found ", len(fabricLinks))
+			if len(fabricLinks.Link) > 2 {
+				cont.log.Errorf("populate Failed : %d(>2) fabriclinks found ", len(fabricLinks.Link))
 				continue
 			}
 			if vpcIf != "" {
 				actualFabricLink = vpcIf
 			} else {
-				actualFabricLink = strings.Replace(fabricLinks[0], "node-", "paths-", 1)
+				actualFabricLink = strings.Replace(fabricLinks.Link[0], "node-", "paths-", 1)
 			}
 			// eliminate duplicates in case of VPC links
 			if _, ok := fabLinks[actualFabricLink]; !ok {
 				fabLinks[actualFabricLink] = true
 				fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan)
-				epg.AddChild(fvRsPathAtt)
+				if _, ok := resultingLinks[actualFabricLink]; !ok {
+					resultingLinks[actualFabricLink] = true
+					epg.AddChild(fvRsPathAtt)
+				}
+
 			}
 		}
 	}
-	apicSlice = append(apicSlice, epg)
-	return apicSlice
 }
 
-func (cont *AciController) populateFabricPaths(epg apicapi.ApicObject, encap int, addNet *AdditionalNetworkMeta, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
+func (cont *AciController) populateFabricPaths(epg apicapi.ApicObject, encap int, addNet *AdditionalNetworkMeta) {
+	fabLinks := make(map[string]bool)
 	if cont.config.AciUseGlobalScopeVlan {
-		nfnaMap := cont.sharedEncapCache[encap]
+		nfnaMap := cont.sharedEncapCache[encap].NetRef
 		for _, currNet := range nfnaMap {
-			apicSlice = cont.populateNodeFabNetAttPaths(epg, encap, currNet, apicSlice)
+			cont.populateNodeFabNetAttPaths(epg, encap, currNet, fabLinks)
 		}
-		return apicSlice
 	} else {
-		return cont.populateNodeFabNetAttPaths(epg, encap, addNet, apicSlice)
+		cont.populateNodeFabNetAttPaths(epg, encap, addNet, fabLinks)
 	}
 }
 
@@ -294,8 +292,9 @@ func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int,
 	return vlans, vlanBlks, err
 }
 
-func (cont *AciController) createNodeFabNetAttBd(name string) apicapi.ApicObject {
-	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, name)
+func (cont *AciController) createNodeFabNetAttBd(vlan int, name string) apicapi.ApicObject {
+	bdName := fmt.Sprintf("%s-vlan-%d", name, vlan)
+	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, bdName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
@@ -311,10 +310,10 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string) apicapi
 	var epgName, bdName string
 	if !cont.config.AciUseGlobalScopeVlan {
 		epgName = fmt.Sprintf("%s-vlan-%d", name, vlan)
-		bdName = name
+		bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
 	} else {
 		epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
-		bdName = globalScopeVlanBdPrefix
+		bdName = fmt.Sprintf("%s-vlan-%d", globalScopeVlanBdPrefix, vlan)
 	}
 	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
@@ -365,40 +364,184 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlan(vlan int, nodeFabNetAttKey string, progMap map[string]apicapi.ApicSlice) {
 	epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
 	labelKey := cont.aciNameForKey("nfna", epgName)
-	nfnaMap := cont.sharedEncapCache[vlan]
+	nfnaMap := cont.sharedEncapCache[vlan].NetRef
 	delete(nfnaMap, nodeFabNetAttKey)
-	cont.sharedEncapCache[vlan] = nfnaMap
-	if len(cont.sharedEncapCache[vlan]) == 0 {
+	toDelete := []string{}
+	for node, nodeNads := range cont.sharedEncapCache[vlan].Pods {
+		delete(nodeNads, nodeFabNetAttKey)
+		if len(nodeNads) == 0 {
+			toDelete = append(toDelete, node)
+		}
+		cont.sharedEncapCache[vlan].Pods[node] = nodeNads
+	}
+	for _, node := range toDelete {
+		delete(cont.sharedEncapCache[vlan].Pods, node)
+	}
+	cont.sharedEncapCache[vlan] = &sharedEncapData{
+		Pods:   cont.sharedEncapCache[vlan].Pods,
+		NetRef: nfnaMap}
+	if len(cont.sharedEncapCache[vlan].NetRef) == 0 {
 		cont.log.Infof("clear shared encap epg: %d", vlan)
 		progMap[labelKey] = nil
 		delete(cont.sharedEncapCache, vlan)
 		return
 	}
-	var apicSlice apicapi.ApicSlice
-	epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix)
-	apicSlice = append(apicSlice, epg)
-	apicSlice = append(apicSlice, cont.depopulateFabricPaths(epg, vlan, nodeFabNetAttKey)...)
-	progMap[labelKey] = apicSlice
+	var apicSlice2 apicapi.ApicSlice
+	if cont.isNodeFabNetAttVlanProgrammable(vlan, nil) {
+		apicSlice2 = append(apicSlice2, cont.createNodeFabNetAttBd(vlan, globalScopeVlanBdPrefix))
+		epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix)
+		apicSlice2 = append(apicSlice2, cont.depopulateFabricPaths(epg, vlan, nodeFabNetAttKey)...)
+	}
+	progMap[labelKey] = apicSlice2
+}
+
+func (cont *AciController) isNodeFabNetAttVlanProgrammable(vlan int, addNet *AdditionalNetworkMeta) bool {
+	podCount := 0
+	if !cont.config.AciUseGlobalScopeVlan {
+		for _, nodeIfaceMap := range addNet.FabricLink {
+			for _, aciLink := range nodeIfaceMap {
+				podCount += len(aciLink.Pods)
+			}
+		}
+		return podCount > 0
+	}
+	shrdEncapData, ok := cont.sharedEncapCache[vlan]
+	if !ok {
+		return false
+	}
+	for _, nodeNads := range shrdEncapData.Pods {
+		for _, podList := range nodeNads {
+			podCount += len(podList)
+		}
+	}
+	return podCount > 0
 }
 
 func (cont *AciController) applyNodeFabNetAttObj(vlans []int, addNet *AdditionalNetworkMeta, apicSlice apicapi.ApicSlice, progMap map[string]apicapi.ApicSlice) {
+	skipProgramming := false
 	for _, encap := range vlans {
 		if !cont.config.AciUseGlobalScopeVlan {
+			if skipProgramming || !cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
+				cont.log.Infof("Skipping programming of NAD with no pods: %s", addNet.NetworkName)
+				skipProgramming = true
+				continue
+			}
+			bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName)
+			apicSlice = append(apicSlice, bd)
 			epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName)
-			apicSlice = cont.populateFabricPaths(epg, encap, addNet, apicSlice)
+			cont.populateFabricPaths(epg, encap, addNet)
+			apicSlice = append(apicSlice, epg)
 			continue
 		}
 		var apicSlice2 apicapi.ApicSlice
 		epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, encap)
 		labelKey := cont.aciNameForKey("nfna", epgName)
-		epg := cont.createNodeFabNetAttEpg(encap, epgName)
-		apicSlice2 = cont.populateFabricPaths(epg, encap, addNet, apicSlice2)
+		if cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
+			bd := cont.createNodeFabNetAttBd(encap, globalScopeVlanBdPrefix)
+			apicSlice2 = append(apicSlice2, bd)
+			epg := cont.createNodeFabNetAttEpg(encap, epgName)
+			cont.populateFabricPaths(epg, encap, addNet)
+			apicSlice2 = append(apicSlice2, epg)
+		} else {
+			cont.log.Infof("Skipping programming of shared encap vlan-%d with no pods", encap)
+		}
 		progMap[labelKey] = apicSlice2
 	}
 	if !cont.config.AciUseGlobalScopeVlan {
 		labelKey := cont.aciNameForKey("nfna", addNet.NetworkName)
+		if skipProgramming {
+			progMap[labelKey] = nil
+		}
 		progMap[labelKey] = apicSlice
 	}
+}
+
+func (cont *AciController) updateNodeFabNetAttPods(nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment, vlan int) {
+	addNetKey := nodeFabNetAtt.Spec.NetworkRef.Namespace + "/" + nodeFabNetAtt.Spec.NetworkRef.Name
+	if cont.config.AciUseGlobalScopeVlan {
+		shrdEncapData, ok := cont.sharedEncapCache[vlan]
+		if ok {
+			// Remove old Pods
+			nodeNADs, ok := shrdEncapData.Pods[nodeFabNetAtt.Spec.NodeName]
+			if ok {
+				delete(nodeNADs, addNetKey)
+			}
+			if len(nodeNADs) != 0 {
+				shrdEncapData.Pods[nodeFabNetAtt.Spec.NodeName] = nodeNADs
+			} else {
+				delete(shrdEncapData.Pods, nodeFabNetAtt.Spec.NodeName)
+			}
+		} else {
+			shrdEncapData = &sharedEncapData{
+				NetRef: make(map[string]*AdditionalNetworkMeta),
+				Pods:   make(map[string]map[string][]string),
+			}
+			cont.sharedEncapCache[vlan] = shrdEncapData
+		}
+
+		for _, aciLink := range nodeFabNetAtt.Spec.AciTopology {
+			podList := []string{}
+			for _, podAtt := range aciLink.Pods {
+				podRefStr := podAtt.PodRef.Namespace + "/" + podAtt.PodRef.Name
+				podList = append(podList, podRefStr)
+			}
+			if len(podList) != 0 {
+				nodeNADs, ok := shrdEncapData.Pods[nodeFabNetAtt.Spec.NodeName]
+				if !ok {
+					nodeNADs = make(map[string][]string)
+				}
+				nodeNADs[addNetKey] = podList
+				shrdEncapData.Pods[nodeFabNetAtt.Spec.NodeName] = nodeNADs
+			}
+		}
+	}
+}
+
+func (cont *AciController) updateNodeFabNetAttVlans(nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment, vlans []int, addNet *AdditionalNetworkMeta, progMap map[string]apicapi.ApicSlice) {
+	addNetKey := nodeFabNetAtt.Spec.NetworkRef.Namespace + "/" + nodeFabNetAtt.Spec.NetworkRef.Name
+	if cont.config.AciUseGlobalScopeVlan {
+		if addNet.EncapVlan != nodeFabNetAtt.Spec.EncapVlan.VlanList {
+			cont.log.Debugf("%s:Change in encap: %s=>%s", addNetKey, addNet.EncapVlan, nodeFabNetAtt.Spec.EncapVlan.VlanList)
+			changeSet := make(map[int]bool)
+			// manage the diff in encapvlan set
+			old_vlans, _, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
+			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
+			for _, vlan := range vlans {
+				changeSet[vlan] = true
+			}
+			for _, old_vlan := range old_vlans {
+				if _, ok := changeSet[old_vlan]; !ok {
+					cont.deleteNodeFabNetAttGlobalEncapVlan(old_vlan, addNetKey, progMap)
+				}
+			}
+		}
+	}
+	addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
+}
+
+func (cont *AciController) updateNodeFabNetAttFabricLinks(nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment, addNet *AdditionalNetworkMeta) {
+	linkPresent := map[string]bool{}
+	for iface, aciLink := range nodeFabNetAtt.Spec.AciTopology {
+		if _, ok := addNet.FabricLink[nodeFabNetAtt.Spec.NodeName]; !ok || (addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] == nil) {
+			addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] = make(map[string]LinkData)
+		}
+		podList := []string{}
+		for _, podAtt := range aciLink.Pods {
+			podRefStr := podAtt.PodRef.Namespace + "/" + podAtt.PodRef.Name
+			podList = append(podList, podRefStr)
+		}
+		addNet.FabricLink[nodeFabNetAtt.Spec.NodeName][iface] = LinkData{
+			Link: aciLink.FabricLink,
+			Pods: podList}
+		linkPresent[iface] = true
+	}
+	nodeIfaceMap := addNet.FabricLink[nodeFabNetAtt.Spec.NodeName]
+	for iface := range nodeIfaceMap {
+		if _, ok := linkPresent[iface]; !ok {
+			delete(nodeIfaceMap, iface)
+		}
+	}
+	addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] = nodeIfaceMap
 }
 
 func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment) (progMap map[string]apicapi.ApicSlice) {
@@ -410,68 +553,35 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 		cont.log.Errorf("%v", err)
 		return progMap
 	}
-	cont.log.Debugf("parsed vlan list: %v", vlans)
 	addNetKey := nodeFabNetAtt.Spec.NetworkRef.Namespace + "/" + nodeFabNetAtt.Spec.NetworkRef.Name
+	cont.log.Infof("nfna update: %v", addNetKey)
+	cont.log.Debugf("parsed vlan list: %v", vlans)
 	addNet, ok := cont.additionalNetworkCache[addNetKey]
 	if !ok {
 		addNet = &AdditionalNetworkMeta{
 			NetworkName: nodeFabNetAtt.Spec.NetworkRef.Namespace + "-" + nodeFabNetAtt.Spec.NetworkRef.Name,
 			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan.VlanList,
-			FabricLink:  make(map[string]map[string][]string),
+			FabricLink:  make(map[string]map[string]LinkData),
 			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment)}
 		cont.additionalNetworkCache[addNetKey] = addNet
-	} else if cont.config.AciUseGlobalScopeVlan {
-		if addNet.EncapVlan != nodeFabNetAtt.Spec.EncapVlan.VlanList {
-			cont.log.Debugf("%s:Change in encap: %s=>%s", addNetKey, addNet.EncapVlan, nodeFabNetAtt.Spec.EncapVlan.VlanList)
-			changeSet := make(map[int]bool)
-			// manage the diff in encapvlan set
-			old_vlans, _, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
-			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
-			for _, vlan := range old_vlans {
-				changeSet[vlan] = false
-			}
-			for _, vlan := range vlans {
-				changeSet[vlan] = true
-			}
-			for vlan, present := range changeSet {
-				if !present {
-					cont.deleteNodeFabNetAttGlobalEncapVlan(vlan, addNetKey, progMap)
-				}
-			}
-		}
+	} else {
+		cont.updateNodeFabNetAttVlans(nodeFabNetAtt, vlans, addNet, progMap)
 	}
-	addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
 	addNet.NodeCache[nodeFabNetAtt.Spec.NodeName] = nodeFabNetAtt
 
-	cont.log.Infof("nfna update: %v", addNetKey)
+	// manage the diff in fabriclink set
+	cont.updateNodeFabNetAttFabricLinks(nodeFabNetAtt, addNet)
+
 	if cont.config.AciUseGlobalScopeVlan {
 		cont.setGlobalScopeVlanConfig(cont.config.AciAdditionalVlans, progMap)
 		for _, vlan := range vlans {
-			if _, ok := cont.sharedEncapCache[vlan]; !ok {
-				cont.sharedEncapCache[vlan] = make(map[string]*AdditionalNetworkMeta)
-			}
-			cont.sharedEncapCache[vlan][addNetKey] = addNet
+			cont.updateNodeFabNetAttPods(nodeFabNetAtt, vlan)
+			cont.sharedEncapCache[vlan].NetRef[addNetKey] = addNet
 		}
 	} else {
-		apicSlice = append(apicSlice, cont.createNodeFabNetAttBd(addNet.NetworkName))
 		apicSlice = append(apicSlice, cont.updateNodeFabNetAttDom(encapBlks, addNet.NetworkName)...)
 	}
-	// manage the diff in fabriclink set
-	linkPresent := map[string]bool{}
-	for iface, aciLink := range nodeFabNetAtt.Spec.AciTopology {
-		if _, ok := addNet.FabricLink[nodeFabNetAtt.Spec.NodeName]; !ok || (addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] == nil) {
-			addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] = make(map[string][]string)
-		}
-		addNet.FabricLink[nodeFabNetAtt.Spec.NodeName][iface] = aciLink.FabricLink
-		linkPresent[iface] = true
-	}
-	nodeIfaceMap := addNet.FabricLink[nodeFabNetAtt.Spec.NodeName]
-	for iface := range nodeIfaceMap {
-		if _, ok := linkPresent[iface]; !ok {
-			delete(nodeIfaceMap, iface)
-		}
-	}
-	addNet.FabricLink[nodeFabNetAtt.Spec.NodeName] = nodeIfaceMap
+
 	cont.applyNodeFabNetAttObj(vlans, addNet, apicSlice, progMap)
 	return progMap
 }
@@ -557,7 +667,6 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 		addNet.FabricLink[nodeName] = localIfaceMap
 	}
 	if !cont.config.AciUseGlobalScopeVlan {
-		apicSlice = append(apicSlice, cont.createNodeFabNetAttBd(addNet.NetworkName))
 		apicSlice = append(apicSlice, cont.updateNodeFabNetAttDom(encapBlks, addNet.NetworkName)...)
 	}
 

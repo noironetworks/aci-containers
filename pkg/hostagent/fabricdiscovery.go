@@ -17,6 +17,7 @@ type FabricDiscoveryAgent interface {
 	CollectDiscoveryData(stopCh <-chan struct{})
 	TriggerCollectionDiscoveryData()
 	GetNeighborData(iface string) ([]*FabricAttachmentData, error)
+	PopulateAdjacencies(adjs map[string][]FabricAttachmentData)
 }
 
 func GetFabricDiscoveryAgent(method FabricDiscoveryMethod) FabricDiscoveryAgent {
