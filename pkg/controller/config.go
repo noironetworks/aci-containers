@@ -274,6 +274,10 @@ type ControllerConfig struct {
 
 	// List of secondary-vlans to be used as encaps for additionalnetworks in chained mode
 	AciAdditionalVlans string `json:"aci-additional-vlans,omitempty"`
+
+	// Metrics
+	EnableMetrics bool `json:"enable-metrics,omitempty"`
+	MetricsPort   int  `json:"metrics-port,omitempty"`
 }
 
 type netIps struct {
@@ -315,6 +319,8 @@ func InitFlags(config *ControllerConfig) {
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 	flag.BoolVar(&config.AciUseGlobalScopeVlan, "aci-use-global-scope-vlan", false, "Use global vlans for NADs in chained mode")
+	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
+	flag.IntVar(&config.MetricsPort, "metrics-port", 8191, "Port to expose metrics on")
 }
 
 func (cont *AciController) loadIpRanges(v4, v6 *ipam.IpAlloc, ipranges []ipam.IpRange) {

@@ -102,9 +102,7 @@ clean-dist-static-race:
 	rm -rf dist-static-race/*
 clean-dist:
 	rm -rf dist
-clean-vendor:
-	rm -rf vendor
-clean: clean-dist clean-vendor
+clean: clean-dist
 
 PACKAGE = aci-containers
 VERSION_BASE ?= 1.9.0

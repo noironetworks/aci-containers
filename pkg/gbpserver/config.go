@@ -66,6 +66,10 @@ type GBPServerConfig struct {
 	Apic       *ApicInfo `json:"apic,omitempty"`
 	SyncRemEps bool      `json:"sync-rem-eps,omitempty"`
 	CSRList    string    `json:"csr-list,omitempty"`
+
+	// Metrics
+	EnableMetrics bool `json:"enable-metrics,omitempty"`
+	MetricsPort   int  `json:"metrics-port,omitempty"`
 }
 
 type ApicInfo struct {
@@ -116,4 +120,6 @@ func InitConfig(config *GBPServerConfig) {
 	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
 	flag.StringVar(&config.CSRList, "csr-list", "", "comma separated list of csr vteps")
 	flag.IntVar(&config.VrfEncapID, "vrf-encap-id", RdEncapID, "encap-id for vrf")
+	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
+	flag.IntVar(&config.MetricsPort, "metrics-port", 8192, "Port to expose metrics on")
 }

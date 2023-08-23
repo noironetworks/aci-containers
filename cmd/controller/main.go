@@ -20,15 +20,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/noironetworks/aci-containers/pkg/controller"
 	"github.com/noironetworks/aci-containers/pkg/loadbalancer"
-	_ "net/http/pprof"
 )
 
 func main() {
@@ -123,8 +126,27 @@ func main() {
 		}
 		defer nslb.Stop()
 	}
+
+	if config.EnableMetrics {
+		_, err = prometheus.New()
+		if err != nil {
+			// keep going?
+			log.Error(err)
+		}
+
+		go serveMetrics(log, config.MetricsPort)
+	}
+
 	cont := controller.NewController(config, env, log, false)
 	cont.Init()
 	cont.Run(wait.NeverStop)
 	cont.RunStatus()
+}
+
+func serveMetrics(log *logrus.Logger, metricsPort int) {
+	http.Handle("/metrics", promhttp.Handler())
+	err := http.ListenAndServe(fmt.Sprintf(":%d", metricsPort), nil)
+	if err != nil {
+		log.Errorf("error serving http: %v", err)
+	}
 }
