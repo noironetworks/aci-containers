@@ -1341,6 +1341,84 @@ func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
 	cont.log.Debugf("svcObject: %+v", aobj)
 }
 
+func removeAllConditions(conditions []metav1.Condition, conditionType string) []metav1.Condition {
+	i := 0
+	for _, cond := range conditions {
+		if cond.Type != conditionType {
+			conditions[i] = cond
+		}
+	}
+	return conditions[:i]
+}
+
+func (cont *AciController) updateServiceCondition(service *v1.Service, success bool, reason string, message string) error {
+	conditionType := "LbIpamAllocation"
+
+	var err error
+	var condition metav1.Condition
+	if success {
+		condition.Status = metav1.ConditionTrue
+	} else {
+		condition.Status = metav1.ConditionFalse
+		condition.Message = message
+	}
+	condition.Type = conditionType
+	condition.Reason = reason
+	condition.LastTransitionTime = metav1.Time{time.Now()}
+	for _, cond := range service.Status.Conditions {
+		if cond.Type == conditionType &&
+			cond.Status == condition.Status &&
+			cond.Message == condition.Message &&
+			cond.Reason == condition.Reason {
+			return nil
+		}
+	}
+
+	service.Status.Conditions = removeAllConditions(service.Status.Conditions, conditionType)
+	service.Status.Conditions = append(service.Status.Conditions, condition)
+	_, err = cont.updateServiceStatus(service)
+	return err
+}
+
+func (cont *AciController) validateRequestedIps(lbIpList []string) (net.IP, net.IP, bool) {
+	var ipv4, ipv6 net.IP
+	for _, lbIp := range lbIpList {
+		ip := net.ParseIP(lbIp)
+		if ip != nil {
+			if ip.To4() != nil {
+				if ipv4.Equal(net.IP{}) {
+					ipv4 = ip
+				} else {
+					cont.log.Error("Annotation should have only one ipv4")
+					return ipv4, ipv6, false
+				}
+			} else if ip.To16() != nil {
+				if ipv6.Equal(net.IP{}) {
+					ipv6 = ip
+				} else {
+					cont.log.Error("Annotation should have only one ipv6")
+					return ipv4, ipv6, false
+				}
+			}
+		}
+	}
+	return ipv4, ipv6, true
+}
+
+func (cont *AciController) returnUnusedStaticIngressIps(staticIngressIps, requestedIps []net.IP) {
+	for _, staticIp := range staticIngressIps {
+		found := false
+		for _, reqIp := range requestedIps {
+			if reqIp.Equal(staticIp) {
+				found = true
+			}
+		}
+		if !found {
+			returnIps(cont.staticServiceIps, []net.IP{staticIp})
+		}
+	}
+}
+
 func (cont *AciController) allocateServiceIps(servicekey string,
 	service *v1.Service) bool {
 	logger := serviceLogger(cont.log, service)
@@ -1377,38 +1455,81 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		return false
 	}
 
+	var requestedIps []net.IP
 	// try to give the requested load balancer IP to the pod
-	requestedIp := net.ParseIP(service.Spec.LoadBalancerIP)
-
-	if requestedIp != nil {
-		hasRequestedIp := false
-		for _, ip := range meta.ingressIps {
-			if reflect.DeepEqual(requestedIp, ip) {
-				hasRequestedIp = true
+	lbIps, ok := service.ObjectMeta.Annotations[metadata.LbIpAnnotation]
+	if ok {
+		lbIpList := strings.Split(lbIps, ",")
+		ipv4, ipv6, valid := cont.validateRequestedIps(lbIpList)
+		if valid {
+			if ipv4 != nil {
+				requestedIps = append(requestedIps, ipv4)
 			}
-		}
-		if !hasRequestedIp {
-			if requestedIp.To4() != nil &&
-				cont.staticServiceIps.V4.RemoveIp(requestedIp) {
-				hasRequestedIp = true
-			} else if requestedIp.To16() != nil &&
-				cont.staticServiceIps.V6.RemoveIp(requestedIp) {
-				hasRequestedIp = true
+			if ipv6 != nil {
+				requestedIps = append(requestedIps, ipv6)
 			}
-		}
-		if hasRequestedIp {
+		} else {
 			cont.returnServiceIps(meta.ingressIps)
-			meta.ingressIps = nil
-			meta.staticIngressIps = []net.IP{requestedIp}
-			meta.requestedIp = requestedIp
+			cont.log.Error("Invalid LB IP annotation for service ", servicekey)
+			err := cont.updateServiceCondition(service, false, "InvalidAnnotation", "Invalid Loadbalancer IP annotation")
+			if err != nil {
+				logger.Error("Failed to update service status : ", err)
+				cont.indexMutex.Unlock()
+				return true
+			}
+			cont.indexMutex.Unlock()
+			return false
 		}
-	} else if meta.requestedIp != nil {
-		meta.requestedIp = nil
+	} else {
+		requestedIp := net.ParseIP(service.Spec.LoadBalancerIP)
+		if requestedIp != nil {
+			requestedIps = append(requestedIps, requestedIp)
+		}
+	}
+	if len(requestedIps) > 0 {
+		meta.requestedIps = []net.IP{}
+		for _, requestedIp := range requestedIps {
+			hasRequestedIp := false
+			for _, ip := range meta.staticIngressIps {
+				if reflect.DeepEqual(requestedIp, ip) {
+					hasRequestedIp = true
+				}
+			}
+			if !hasRequestedIp {
+				if requestedIp.To4() != nil &&
+					cont.staticServiceIps.V4.RemoveIp(requestedIp) {
+					hasRequestedIp = true
+				} else if requestedIp.To16() != nil &&
+					cont.staticServiceIps.V6.RemoveIp(requestedIp) {
+					hasRequestedIp = true
+				}
+			}
+			if hasRequestedIp {
+				meta.requestedIps = append(meta.requestedIps, requestedIp)
+			}
+		}
+		cont.returnUnusedStaticIngressIps(meta.staticIngressIps, meta.requestedIps)
+		meta.staticIngressIps = meta.requestedIps
+		cont.returnServiceIps(meta.ingressIps)
+		meta.ingressIps = nil
+		// If no requested ips are allocatable
+		if len(meta.requestedIps) < 1 {
+			logger.Error("No Requested Ip addresses available for service ", servicekey)
+			err := cont.updateServiceCondition(service, false, "RequestedIpsNotAllocatable", "The requested ips for loadbalancer service are not available or not in extern static range")
+			if err != nil {
+				cont.indexMutex.Unlock()
+				logger.Error("Failed to update service status: ", err)
+				return true
+			}
+			cont.indexMutex.Unlock()
+			return false
+		}
+	} else if len(meta.requestedIps) > 0 {
+		meta.requestedIps = nil
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
 		meta.staticIngressIps = nil
 	}
 	ingressIps := make([]net.IP, 0)
-
 	ingressIps = append(ingressIps, meta.ingressIps...)
 	ingressIps = append(ingressIps, meta.staticIngressIps...)
 
@@ -1434,25 +1555,28 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		}
 	}
 	if clusterIPv4 != nil && ipv4 == nil {
-		ipv4, _ = cont.serviceIps.AllocateIp(true)
-		if ipv4 != nil {
-			ingressIps = append(ingressIps, ipv4)
+		if len(requestedIps) < 1 {
+			ipv4, _ = cont.serviceIps.AllocateIp(true)
+			if ipv4 != nil {
+				ingressIps = append(ingressIps, ipv4)
+			}
 		}
 	} else if clusterIPv4 == nil && ipv4 != nil {
 		cont.removeIpFromIngressIPList(&ingressIps, ipv4)
 	}
 
 	if clusterIPv6 != nil && ipv6 == nil {
-		ipv6, _ = cont.serviceIps.AllocateIp(false)
-		if ipv6 != nil {
-			ingressIps = append(ingressIps, ipv6)
+		if len(requestedIps) < 1 {
+			ipv6, _ = cont.serviceIps.AllocateIp(false)
+			if ipv6 != nil {
+				ingressIps = append(ingressIps, ipv6)
+			}
 		}
 	} else if clusterIPv6 == nil && ipv6 != nil {
 		cont.removeIpFromIngressIPList(&ingressIps, ipv6)
 	}
 
 	meta.ingressIps = ingressIps
-
 	if ipv4 == nil && ipv6 == nil {
 		logger.Error("No IP addresses available for service")
 		cont.indexMutex.Unlock()
@@ -1476,6 +1600,20 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 				"status": service.Status.LoadBalancer.Ingress,
 			}).Info("Updated service load balancer status")
 		}
+	}
+
+	success := true
+	reason := "Success"
+	message := ""
+	if len(requestedIps) > 0 && len(requestedIps) != len(meta.ingressIps) {
+		success = false
+		reason = "OneIpNotAllocatable"
+		message = "One of the requested Ips is not allocatable"
+	}
+	err := cont.updateServiceCondition(service, success, reason, message)
+	if err != nil {
+		logger.Error("Failed to update service status: ", err)
+		return true
 	}
 	return false
 }

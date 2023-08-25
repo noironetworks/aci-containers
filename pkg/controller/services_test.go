@@ -28,12 +28,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func waitForSStatus(t *testing.T, cont *testAciController,
-	ips []string, desc string) {
+	ips []string, conditionReason string, desc string) {
 	tu.WaitFor(t, desc, 500*time.Millisecond,
 		func(last bool) (bool, error) {
+			conditionStatus := metav1.ConditionFalse
+			if conditionReason == "Success" {
+				conditionStatus = metav1.ConditionTrue
+			}
 			if !tu.WaitCondition(t, last, func() bool {
 				return len(cont.serviceUpdates) >= 1
 			}, desc, "update") {
@@ -50,7 +55,22 @@ func waitForSStatus(t *testing.T, cont *testAciController,
 			for _, i := range ingress {
 				seen[i.IP] = true
 			}
-			return tu.WaitEqual(t, last, expected, seen, "lb ingress ips"), nil
+			if !tu.WaitEqual(t, last, expected, seen, "lb ingress ips") {
+				return false, nil
+			}
+			var expCondition, actualCondition metav1.Condition
+			expCondition.Status = conditionStatus
+			expCondition.Reason = conditionReason
+			expCondition.Type = "LbIpamAllocation"
+			conditions :=
+				cont.serviceUpdates[len(cont.serviceUpdates)-1].
+					Status.Conditions
+			for _, condition := range conditions {
+				actualCondition.Status = condition.Status
+				actualCondition.Type = condition.Type
+				actualCondition.Reason = condition.Reason
+			}
+			return tu.WaitEqual(t, last, expCondition, actualCondition, "lb service condition"), nil
 		})
 }
 
@@ -68,23 +88,28 @@ func TestServiceIpV6(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(v6service("testv6", "service1", ""))
-		waitForSStatus(t, cont, []string{"2001::1"}, "testv6")
+		waitForSStatus(t, cont, []string{"2001::1"}, "Success", "testv6")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(v6service("testns", "service2", "2002::1"))
-		waitForSStatus(t, cont, []string{"2002::1"}, "static")
+		waitForSStatus(t, cont, []string{"2002::1"}, "Success", "static")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(v6service("testns", "service4", ""))
-		waitForSStatus(t, cont, []string{"2001::2"}, "next ip from pool")
+		waitForSStatus(t, cont, []string{"2001::2"}, "Success", "next ip from pool")
 	}
 	{
 		cont.serviceUpdates = nil
 		s := v6service("testns", "service5", "")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "2001::32"}}
+		var condition metav1.Condition
+		condition.Status = metav1.ConditionTrue
+		condition.Type = "LbIpamAllocation"
+		condition.Reason = "Success"
+		s.Status.Conditions = append(s.Status.Conditions, condition)
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "existing")
 		assert.False(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[0], net.ParseIP("2001::32")),
@@ -95,6 +120,11 @@ func TestServiceIpV6(t *testing.T) {
 		s := v6service("testns", "service6", "2002::3")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "2002::3"}}
+		var condition metav1.Condition
+		condition.Status = metav1.ConditionTrue
+		condition.Type = "LbIpamAllocation"
+		condition.Reason = "Success"
+		s.Status.Conditions = append(s.Status.Conditions, condition)
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "static existing")
 	}
@@ -111,6 +141,27 @@ func TestServiceIpV6(t *testing.T) {
 		cont.handleServiceDelete("testns/service5")
 		assert.True(t, ipam.HasIp(cont.serviceIps.GetV6IpCache()[1], net.ParseIP("2001::32")),
 			"delete pool return")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := v6service("testns", "service7", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "2002::4"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{"2002::4"}, "Success", "lb ip via annotation")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := v6service("testns", "service8", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "2002::4"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{}, "RequestedIpsNotAllocatable", "allocated lb ip via annotation")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := v6service("testns", "service9", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "2002::5,2002::6"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{}, "InvalidAnnotation", "invalid annotation")
 	}
 
 	cont.stop()
@@ -130,33 +181,38 @@ func TestServiceIp(t *testing.T) {
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.1"}, "pool failed")
+		waitForSStatus(t, cont, []string{"10.4.1.1"}, "Success", "pool failed")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service2", "10.4.2.1"))
-		waitForSStatus(t, cont, []string{"10.4.2.1"}, "static")
+		waitForSStatus(t, cont, []string{"10.4.2.1"}, "Success", "static")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service3", "10.4.3.1"))
-		waitForSStatus(t, cont, []string{"10.4.1.2"}, "static invalid failed")
+		waitForSStatus(t, cont, []string{}, "RequestedIpsNotAllocatable", "static invalid failed")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service1", "10.4.2.2"))
-		waitForSStatus(t, cont, []string{"10.4.2.2"}, "add request")
+		waitForSStatus(t, cont, []string{"10.4.2.2"}, "Success", "add request")
 	}
 	{
 		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service4", ""))
-		waitForSStatus(t, cont, []string{"10.4.1.3"}, "next ip from pool")
+		waitForSStatus(t, cont, []string{"10.4.1.2"}, "Success", "next ip from pool")
 	}
 	{
 		cont.serviceUpdates = nil
 		s := service("testns", "service5", "")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "10.4.1.32"}}
+		var condition metav1.Condition
+		condition.Status = metav1.ConditionTrue
+		condition.Type = "LbIpamAllocation"
+		condition.Reason = "Success"
+		s.Status.Conditions = append(s.Status.Conditions, condition)
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "existing")
 		assert.False(t, ipam.HasIp(cont.serviceIps.GetV4IpCache()[0], net.ParseIP("10.4.1.32")),
@@ -167,6 +223,11 @@ func TestServiceIp(t *testing.T) {
 		s := service("testns", "service6", "10.4.2.3")
 		s.Status.LoadBalancer.Ingress =
 			[]v1.LoadBalancerIngress{{IP: "10.4.2.3"}}
+		var condition metav1.Condition
+		condition.Status = metav1.ConditionTrue
+		condition.Type = "LbIpamAllocation"
+		condition.Reason = "Success"
+		s.Status.Conditions = append(s.Status.Conditions, condition)
 		cont.handleServiceUpdate(s)
 		assert.Nil(t, cont.serviceUpdates, "static existing")
 	}
@@ -183,6 +244,27 @@ func TestServiceIp(t *testing.T) {
 		cont.handleServiceDelete("testns/service5")
 		assert.True(t, ipam.HasIp(cont.serviceIps.GetV4IpCache()[1], net.ParseIP("10.4.1.32")),
 			"delete pool return")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := service("testns", "service7", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "10.4.2.4"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{"10.4.2.4"}, "Success", "lb ip via annotation")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := service("testns", "service8", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "10.4.2.4"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{}, "RequestedIpsNotAllocatable", "allocated lb ip via annotation")
+	}
+	{
+		cont.serviceUpdates = nil
+		svc := service("testns", "service9", "")
+		svc.ObjectMeta.Annotations[metadata.LbIpAnnotation] = "10.4.2.5,10.4.2.6"
+		cont.fakeServiceSource.Add(svc)
+		waitForSStatus(t, cont, []string{}, "InvalidAnnotation", "Invalid annotation")
 	}
 
 	cont.stop()
