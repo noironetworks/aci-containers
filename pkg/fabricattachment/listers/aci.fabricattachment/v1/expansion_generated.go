@@ -32,3 +32,11 @@ type NodeFabricNetworkAttachmentListerExpansion interface{}
 // NodeFabricNetworkAttachmentNamespaceListerExpansion allows custom methods to be added to
 // NodeFabricNetworkAttachmentNamespaceLister.
 type NodeFabricNetworkAttachmentNamespaceListerExpansion interface{}
+
+// StaticFabricNetworkAttachmentListerExpansion allows custom methods to be added to
+// StaticFabricNetworkAttachmentLister.
+type StaticFabricNetworkAttachmentListerExpansion interface{}
+
+// StaticFabricNetworkAttachmentNamespaceListerExpansion allows custom methods to be added to
+// StaticFabricNetworkAttachmentNamespaceLister.
+type StaticFabricNetworkAttachmentNamespaceListerExpansion interface{}

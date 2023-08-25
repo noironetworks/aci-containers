@@ -276,6 +276,23 @@ var metadata = map[string]*apicMeta{
 			"fvRsPathAtt",
 		},
 	},
+	"infraGeneric": {
+		attributes: map[string]interface{}{
+			"name":      "",
+			"nameAlias": "",
+		},
+		children: []string{
+			"infraRsFuncToEpg",
+		},
+	},
+	"infraRsFuncToEpg": {
+		attributes: map[string]interface{}{
+			"tDn":   "",
+			"encap": "",
+			"mode":  "",
+		},
+		children: []string{},
+	},
 	"cloudEPg": {
 		attributes: map[string]interface{}{
 			"name":      "",

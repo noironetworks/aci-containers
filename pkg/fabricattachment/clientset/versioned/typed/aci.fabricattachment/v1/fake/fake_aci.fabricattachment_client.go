@@ -35,6 +35,10 @@ func (c *FakeAciV1) NodeFabricNetworkAttachments(namespace string) v1.NodeFabric
 	return &FakeNodeFabricNetworkAttachments{c, namespace}
 }
 
+func (c *FakeAciV1) StaticFabricNetworkAttachments(namespace string) v1.StaticFabricNetworkAttachmentInterface {
+	return &FakeStaticFabricNetworkAttachments{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeAciV1) RESTClient() rest.Interface {

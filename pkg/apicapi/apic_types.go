@@ -479,6 +479,22 @@ func NewFvAEPg(tenant, ap, name string) ApicObject {
 	return ret
 }
 
+func NewInfraGeneric(aep string) ApicObject {
+	ret := newApicObject("infraGeneric")
+	ret["infraGeneric"].Attributes["name"] = "default"
+	ret["infraGeneric"].HintDn = "uni/infra/attentp-" + aep + "/" + "gen-default"
+	return ret
+}
+
+func NewInfraRsFuncToEpg(parentDn, epgDn, vlan, mode string) ApicObject {
+	ret := newApicObject("infraRsFuncToEpg")
+	ret["infraRsFuncToEpg"].Attributes["tDn"] = epgDn
+	ret["infraRsFuncToEpg"].Attributes["encap"] = "vlan-" + vlan
+	ret["infraRsFuncToEpg"].Attributes["mode"] = mode
+	ret["infraRsFuncToEpg"].HintDn = parentDn + "/" + "rsfuncToEpg-[" + epgDn + "]"
+	return ret
+}
+
 func NewFvRsBD(parentDn, bdName string) ApicObject {
 	ret := newApicObject("fvRsBd")
 	ret["fvRsBd"].Attributes["tnFvBDName"] = bdName
