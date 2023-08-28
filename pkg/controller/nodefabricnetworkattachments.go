@@ -488,13 +488,18 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 		bd := cont.createNodeFabNetAttBd(encap, globalScopeVlanBdPrefix)
 		apicSlice2 = append(apicSlice2, bd)
 		epg := cont.createNodeFabNetAttEpg(encap, epgName)
-		if cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
-			cont.populateFabricPaths(epg, encap, addNet)
-			apicSlice2 = append(apicSlice2, epg)
-			apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(encap, "", epg, apicSlice2)
+		if _, ok := cont.sharedEncapCache[encap]; !ok {
+			apicSlice2 = nil
+			cont.log.Infof("Skip shared encap vlan-%d with no nad references", encap)
 		} else {
-			apicSlice2 = append(apicSlice2, epg)
-			cont.log.Infof("Skipping staticpaths of shared encap vlan-%d with no pods", encap)
+			if cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
+				cont.populateFabricPaths(epg, encap, addNet)
+				apicSlice2 = append(apicSlice2, epg)
+				apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(encap, "", epg, apicSlice2)
+			} else {
+				apicSlice2 = append(apicSlice2, epg)
+				cont.log.Infof("Skipping staticpaths of shared encap vlan-%d with no pods", encap)
+			}
 		}
 		progMap[labelKey] = apicSlice2
 	}
