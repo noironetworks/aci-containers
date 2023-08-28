@@ -20,50 +20,60 @@ fi
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
 
+
 #Chained mode
 if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_CNI_PATH ]; then
     IN_CHAINED_MODE="true"
+    PATCH_PRIMARY="false"
+    if [ -z != $CHAINED_MODE_SECONDARY ] && [ "$CHAINED_MODE_SECONDARY" != "true" ]; then
+        PATCH_PRIMARY="true"
+    else
+        if [ -n "$CHAINED_MODE_SECONDARY" ]; then
+           PATCH_PRIMARY="true"
+        fi
+    fi
+    if [ "$PATCH_PRIMARY" == "true" ]; then
     CHAINEDACICNI=$(echo "\
 {\
   \"supportedVersions\": [ \"0.3.0\", \"0.3.1\", \"0.4.0\" ],\
   \"type\": \"netop-cni\",\
   \"chaining-mode\": true,\
-  \"log-level\": \"debug\",\
-  \"log-file\": \"/var/log/opflexagentcni.log\"\
+  \"log-file\": \"/var/log/netopcni.log\"\
 }")
-    if [ -w  $PRIMARY_CNI_PATH ]; then
-        MULTUS=$(jq '.type=="multus"' $PRIMARY_CNI_PATH)
-        if [ "$MULTUS" == "true" ]; then
-            #Primary CNI is multus
-            SEARCHDELEGATES=$(jq '.delegates | length' $PRIMARY_CNI_PATH)
-	    if [ "$SEARCHDELEGATES" == 0 ]; then
-                CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '. | .delegates=[$CHAINED]' $PRIMARY_CNI_PATH)
-                echo $CONTENTS>$PRIMARY_CNI_PATH
-	    else
-                PRESENT=$(jq '.delegates | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
-	      if [ "$PRESENT" == 0 ]; then
-                CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.delegates |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
-                echo $CONTENTS>$PRIMARY_CNI_PATH
-	      fi
-	    fi
-        else
-	    #Primary CNI is not multus
-            SEARCHCHAIN=$(jq '.plugins | length' $PRIMARY_CNI_PATH)
-            if [ "$SEARCHCHAIN" == 0 ]; then
-                NAME=$(jq '.name' $PRIMARY_CNI_PATH)
-                CNIVERSION=$(jq '.cniVersion' $PRIMARY_CNI_PATH)
-                CONTENTS=$(jq --argjson NAME "$NAME" --argjson CHAINED "$CHAINEDACICNI" --argjson CNIVERSION "$CNIVERSION" '{"name":$NAME, "cniVersion":$CNIVERSION, "plugins":[.,$CHAINED]}' $PRIMARY_CNI_PATH)
-                echo $CONTENTS>$PRIMARY_CNI_PATH
+        if [ -w  $PRIMARY_CNI_PATH ]; then
+            MULTUS=$(jq '.type=="multus"' $PRIMARY_CNI_PATH)
+            if [ "$MULTUS" == "true" ]; then
+                #Primary CNI is multus
+                SEARCHDELEGATES=$(jq '.delegates | length' $PRIMARY_CNI_PATH)
+                if [ "$SEARCHDELEGATES" == 0 ]; then
+                    CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '. | .delegates=[$CHAINED]' $PRIMARY_CNI_PATH)
+                    echo $CONTENTS>$PRIMARY_CNI_PATH
+                else
+                    PRESENT=$(jq '.delegates | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
+                  if [ "$PRESENT" == 0 ]; then
+                    CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.delegates |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
+                    echo $CONTENTS>$PRIMARY_CNI_PATH
+                  fi
+                fi
             else
-              PRESENT=$(jq '.plugins | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
-              if [ "$PRESENT" == 0 ]; then
-                CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.plugins |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
-                echo $CONTENTS>$PRIMARY_CNI_PATH
-              fi
+                #Primary CNI is not multus
+                SEARCHCHAIN=$(jq '.plugins | length' $PRIMARY_CNI_PATH)
+                if [ "$SEARCHCHAIN" == 0 ]; then
+                    NAME=$(jq '.name' $PRIMARY_CNI_PATH)
+                    CNIVERSION=$(jq '.cniVersion' $PRIMARY_CNI_PATH)
+                    CONTENTS=$(jq --argjson NAME "$NAME" --argjson CHAINED "$CHAINEDACICNI" --argjson CNIVERSION "$CNIVERSION" '{"name":$NAME, "cniVersion":$CNIVERSION, "plugins":[.,$CHAINED]}' $PRIMARY_CNI_PATH)
+                    echo $CONTENTS>$PRIMARY_CNI_PATH
+                else
+                  PRESENT=$(jq '.plugins | [.[] | select(.type=="netop-cni")] | length' $PRIMARY_CNI_PATH)
+                  if [ "$PRESENT" == 0 ]; then
+                    CONTENTS=$(jq --argjson CHAINED "$CHAINEDACICNI" '.plugins |= [.[],$CHAINED]' $PRIMARY_CNI_PATH)
+                    echo $CONTENTS>$PRIMARY_CNI_PATH
+                  fi
+                fi
             fi
-	fi
-    else
-        echo "Primary CNI path $PRIMARY_CNI_PATH is not writable"
+        else
+            echo "Primary CNI path $PRIMARY_CNI_PATH is not writable"
+        fi
     fi
 else
 IN_CHAINED_MODE="false"
