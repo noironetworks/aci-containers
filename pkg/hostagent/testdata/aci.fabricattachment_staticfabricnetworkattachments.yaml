@@ -11,10 +11,8 @@ spec:
     kind: StaticFabricNetworkAttachment
     listKind: StaticFabricNetworkAttachmentList
     plural: staticfabricnetworkattachments
-    shortNames:
-    - sfna
     singular: staticfabricnetworkattachment
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1
     schema:

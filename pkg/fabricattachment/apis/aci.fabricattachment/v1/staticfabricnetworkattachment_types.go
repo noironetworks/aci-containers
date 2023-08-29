@@ -30,7 +30,6 @@ type StaticFabricNetworkAttachmentSpec struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=sfna
 // StaticFabricAttachment allows attaching aeps to NAD based and regular vlans created by aci controller
 type StaticFabricNetworkAttachment struct {
 	metav1.TypeMeta   `json:",inline"`

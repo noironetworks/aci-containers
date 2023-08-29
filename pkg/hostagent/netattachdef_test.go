@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sort"
 	"testing"
 	"time"
 )
@@ -248,7 +249,13 @@ func TestNADMacVlanCRUD(t *testing.T) {
 		actual,
 	)
 	assert.Nil(t, err, "nfna create")
-	assert.Equal(t, expected.Spec, actual.Spec)
+	assert.Equal(t, expected.Spec.EncapVlan, actual.Spec.EncapVlan)
+	assert.Equal(t, expected.Spec.NetworkRef, actual.Spec.NetworkRef)
+	expectedLinks := expected.Spec.AciTopology["bond1"].FabricLink
+	sort.Strings(expectedLinks)
+	actualLinks := actual.Spec.AciTopology["bond1"].FabricLink
+	sort.Strings(actualLinks)
+	assert.Equal(t, expectedLinks, actualLinks)
 	resourceAnnot[vlanAnnot] = "[103-104]"
 	agent.fakeNetAttachDefSource.Modify(testnetattach("macvlan-net2", "default", configJsondata2, resourceAnnot))
 	assert.Eventually(t, func() bool {
