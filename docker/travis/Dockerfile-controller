@@ -12,8 +12,8 @@ RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=u
 COPY docker/licenses /licenses
 RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl \
   && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl \
-  && curl -sL "https://github.com/istio/istio/releases/download/1.6.5/istioctl-1.6.5-linux-amd64.tar.gz" | tar xz \
-  && chmod u+x istioctl && mv istioctl /usr/local/bin/istioctl \
+  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-amd64.tar.gz" | tar xz \
+  && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
   && mkdir -p /usr/local/var/lib/aci-cni
 COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
 COPY dist-static/aci-containers-controller /usr/local/bin/
