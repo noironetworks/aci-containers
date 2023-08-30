@@ -325,7 +325,8 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
-func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (aciPodAnnot, error) {
+func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
+	fabricPathDn := cont.getActiveFabricPathDn(node)
 	nodeAciPodAnnot := cont.nodeACIPod[node]
 	if fabricPathDn == "" {
 		if nodeAciPodAnnot.disconnectTime.IsZero() {
@@ -369,26 +370,15 @@ func (cont *AciController) createAciPodAnnotation(fabricPathDn, node string) (ac
 }
 
 func (cont *AciController) deleteOldOpflexDevices() {
+	var callAgain bool
 	var nodeUpdates []string
+	var nodes []string
 	var nodeAnnotationUpdates []string
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
-		if cont.config.AciMultipod {
-			cont.apicConn.SyncMutex.Lock()
-			syncDone := cont.apicConn.SyncDone
-			cont.apicConn.SyncMutex.Unlock()
-			if syncDone {
-				annot, err := cont.createAciPodAnnotation(fabricPathDn, node)
-				if err == nil && annot != cont.nodeACIPod[node] {
-					cont.nodeACIPod[node] = annot
-					nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
-				} else if err != nil {
-					cont.log.Error(err.Error())
-				}
-			}
-		}
+		nodes = append(nodes, node)
 		if fabricPathDn != "" {
 			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
@@ -418,7 +408,42 @@ func (cont *AciController) deleteOldOpflexDevices() {
 	cont.indexMutex.Unlock()
 	if len(nodeUpdates) > 0 {
 		cont.postOpflexDeviceDelete(nodeUpdates)
-	} else if len(nodeAnnotationUpdates) > 0 {
+	}
+	if cont.config.AciMultipod {
+		for {
+			callAgain = false
+			for _, node := range nodes {
+				cont.apicConn.SyncMutex.Lock()
+				syncDone := cont.apicConn.SyncDone
+				cont.apicConn.SyncMutex.Unlock()
+				if syncDone {
+					cont.indexMutex.Lock()
+					annot, err := cont.createAciPodAnnotation(node)
+					if err != nil {
+						cont.log.Error(err.Error())
+					} else {
+						existing, ok := cont.nodeACIPod[node]
+						if ok && existing.aciPod != "none" &&
+							annot.aciPod == existing.aciPod &&
+							!annot.disconnectTime.IsZero() {
+							callAgain = true
+						}
+						if annot != cont.nodeACIPod[node] {
+							cont.nodeACIPod[node] = annot
+							nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
+						}
+					}
+					cont.indexMutex.Unlock()
+				}
+			}
+			if callAgain {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			break
+		}
+	}
+	if len(nodeAnnotationUpdates) > 0 {
 		for _, updatednode := range nodeAnnotationUpdates {
 			go cont.env.NodeAnnotationChanged(updatednode)
 		}
