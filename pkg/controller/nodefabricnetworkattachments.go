@@ -684,6 +684,7 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 	cont.log.Infof("nfna delete: %v", nodeFabNetAttKey)
 	progMap = make(map[string]apicapi.ApicSlice)
 	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
 	addNet, ok := cont.additionalNetworkCache[nodeFabNetAttKey]
 	if !ok {
 		return progMap
@@ -727,7 +728,6 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 	}
 
 	cont.applyNodeFabNetAttObjLocked(vlans, addNet, apicSlice, progMap)
-	cont.indexMutex.Unlock()
 	return progMap
 }
 
