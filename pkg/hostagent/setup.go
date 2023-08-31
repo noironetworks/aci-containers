@@ -501,7 +501,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		result := &cnicur.Result{}
 		podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 		agent.indexMutex.Lock()
-		if _, ok := agent.epMetadata[podid]; !ok {
+		if networkName == agent.primaryNetworkName {
 			agent.epMetadata[podid] = make(map[string]*md.ContainerMetadata)
 			agent.epMetadata[podid][metadata.Id.ContId] = metadata
 			isPrimaryNetwork = true
