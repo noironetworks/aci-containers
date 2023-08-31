@@ -27,10 +27,6 @@ if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_
     PATCH_PRIMARY="false"
     if [ -z != $CHAINED_MODE_SECONDARY ] && [ "$CHAINED_MODE_SECONDARY" != "true" ]; then
         PATCH_PRIMARY="true"
-    else
-        if [ -n "$CHAINED_MODE_SECONDARY" ]; then
-           PATCH_PRIMARY="true"
-        fi
     fi
     if [ "$PATCH_PRIMARY" == "true" ]; then
     CHAINEDACICNI=$(echo "\

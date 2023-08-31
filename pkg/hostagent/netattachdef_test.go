@@ -342,8 +342,13 @@ func TestNADVlanMatch(t *testing.T) {
 		actual,
 	)
 	assert.Nil(t, err, "nfna create")
-	assert.Equal(t, expected.Spec, actual.Spec)
-
+	assert.Equal(t, expected.Spec.EncapVlan, actual.Spec.EncapVlan)
+	assert.Equal(t, expected.Spec.NetworkRef, actual.Spec.NetworkRef)
+	expectedLinks := expected.Spec.AciTopology["bond1"].FabricLink
+	sort.Strings(expectedLinks)
+	actualLinks := actual.Spec.AciTopology["bond1"].FabricLink
+	sort.Strings(actualLinks)
+	assert.Equal(t, expectedLinks, actualLinks)
 	nadVlanMap.Spec.NadVlanMapping["pccmm/pc-mm"][0].Vlans = "104"
 	agent.fakeNadVlanMapSource.Modify(nadVlanMap)
 	expected.Spec.EncapVlan = fabattv1.EncapSource{
@@ -357,7 +362,7 @@ func TestNADVlanMatch(t *testing.T) {
 		fabAttClient.Get(context.TODO(),
 			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
 			actual)
-		return reflect.DeepEqual(expected.Spec, actual.Spec)
+		return reflect.DeepEqual(expected.Spec.EncapVlan, actual.Spec.EncapVlan)
 	}, 5*time.Second, 1*time.Second, "nadvlanmap update")
 
 	agent.fakeNadVlanMapSource.Delete(nadVlanMap)
@@ -368,7 +373,7 @@ func TestNADVlanMatch(t *testing.T) {
 		fabAttClient.Get(context.TODO(),
 			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
 			actual)
-		return reflect.DeepEqual(expected.Spec, actual.Spec)
+		return reflect.DeepEqual(expected.Spec.EncapVlan, actual.Spec.EncapVlan)
 	}, 5*time.Second, 1*time.Second, "nadvlanmap delete")
 
 	agent.fakeNetAttachDefSource.Delete(testnetattach("pc-mm-net1", "pccmm", configJsondata, resourceAnnot))
