@@ -22,6 +22,7 @@ fi
 
 
 #Chained mode
+IN_CHAINED_MODE="false"
 if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_CNI_PATH ]; then
     IN_CHAINED_MODE="true"
     PATCH_PRIMARY="false"
@@ -106,7 +107,7 @@ EOF
 fi
 fi
 
-if [  -z !=  $MULTUS ] && [ $MULTUS = "True" ]; then
+if [  -z !=  $MULTUS ] && [ $MULTUS = "True" ] && [ "$IN_CHAINED_MODE" != "true" ]; then
     mkdir -p /mnt/multus-cni-conf/cni/net.d
     cp -r /mnt/cni-conf/cni/net.d/* /mnt/multus-cni-conf/cni/net.d/
 fi
