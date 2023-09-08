@@ -292,7 +292,7 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
-# github.com/imdario/mergo v0.3.13
+# github.com/imdario/mergo v0.3.13 => dario.cat/mergo v0.3.16
 ## explicit; go 1.13
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.1.0
@@ -964,10 +964,10 @@ gopkg.in/yaml.v3
 # howett.net/plist v1.0.0
 ## explicit; go 1.12
 howett.net/plist
-# istio.io/api v0.0.0-20230426171729-6ffd9df402e9
+# istio.io/api v0.0.0-20230524015941-fa6c5f7916bf
 ## explicit; go 1.18
 istio.io/api/operator/v1alpha1
-# istio.io/istio v0.0.0-20230427035138-3654b3040c3d
+# istio.io/istio v0.0.0-20230607011503-697f4ff0fe6e
 ## explicit; go 1.20
 istio.io/istio/operator/pkg/apis/istio/v1alpha1
 # k8s.io/api v0.27.0 => k8s.io/api v0.27.0
@@ -1711,6 +1711,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.3.0 => sigs.k8s.io/yaml v1.1.0
 ## explicit
 sigs.k8s.io/yaml
+# github.com/imdario/mergo => dario.cat/mergo v0.3.16
 # github.com/k8snetworkplumbingwg/sriov-network-device-plugin => github.com/k8snetworkplumbingwg/sriov-network-device-plugin v0.0.0-20230509124106-8ec9db3cbd23
 # github.com/k8snetworkplumbingwg/sriovnet => github.com/k8snetworkplumbingwg/sriovnet v1.2.1-0.20230427090635-4929697df2dc
 # github.com/noironetworks/aci-containers/pkg/ipam => ./pkg/ipam
