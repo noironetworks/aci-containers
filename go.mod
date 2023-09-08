@@ -41,7 +41,7 @@ require (
 	k8s.io/code-generator v0.27.0
 	k8s.io/kubectl v0.27.0
 	k8s.io/kubelet v0.27.0
-	k8s.io/kubernetes v1.27.0
+	k8s.io/kubernetes v1.27.3
 	sigs.k8s.io/controller-runtime v0.13.1-0.20230315234915-a26de2d610c3
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3
 )
@@ -184,9 +184,9 @@ require (
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/klog/v2 v2.90.1 // indirect
 	k8s.io/kms v0.27.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20230327201221-f5883ff37f0c // indirect
+	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.1 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
