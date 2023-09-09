@@ -35,7 +35,7 @@ require (
 	golang.org/x/net v0.10.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.56.2
-	istio.io/istio v0.0.0-20230427035138-3654b3040c3d
+	istio.io/istio v0.0.0-20230607011503-697f4ff0fe6e
 	k8s.io/api v0.27.0
 	k8s.io/apiextensions-apiserver v0.27.0
 	k8s.io/apimachinery v0.27.0
@@ -43,7 +43,7 @@ require (
 	k8s.io/code-generator v0.27.0
 	k8s.io/kubectl v0.27.0
 	k8s.io/kubelet v0.27.0
-	k8s.io/kubernetes v1.27.0
+	k8s.io/kubernetes v1.27.3
 	sigs.k8s.io/controller-runtime v0.13.1-0.20230315234915-a26de2d610c3
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3
 )
@@ -179,7 +179,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v1.0.0 // indirect
-	istio.io/api v0.0.0-20230426171729-6ffd9df402e9 // indirect
+	istio.io/api v0.0.0-20230524015941-fa6c5f7916bf // indirect
 	k8s.io/apiserver v0.27.0 // indirect
 	k8s.io/cloud-provider v0.0.0 // indirect
 	k8s.io/component-base v0.27.0 // indirect
@@ -188,14 +188,15 @@ require (
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/klog/v2 v2.90.1 // indirect
 	k8s.io/kms v0.27.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20230327201221-f5883ff37f0c // indirect
+	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.1 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
 replace (
+	github.com/imdario/mergo => dario.cat/mergo v0.3.16
 	github.com/k8snetworkplumbingwg/sriov-network-device-plugin => github.com/k8snetworkplumbingwg/sriov-network-device-plugin v0.0.0-20230509124106-8ec9db3cbd23
 	github.com/k8snetworkplumbingwg/sriovnet => github.com/k8snetworkplumbingwg/sriovnet v1.2.1-0.20230427090635-4929697df2dc
 	github.com/noironetworks/aci-containers/pkg/ipam => ./pkg/ipam
