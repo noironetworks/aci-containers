@@ -267,6 +267,10 @@ type HostAgentConfig struct {
 
 	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
 	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
+
+	// Metrics
+	EnableMetrics bool `json:"enable-metrics,omitempty"`
+	MetricsPort   int  `json:"metrics-port,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -343,4 +347,6 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.DpuOvsDBSocket, "dpu-ovsdb-socket", "tcp:192.168.200.2:6640", "TCP socket on DPU to connect to")
 	flag.BoolVar(&config.ChainedMode, "chained_mode", false, "Chained Mode")
 	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")
+	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
+	flag.IntVar(&config.MetricsPort, "metrics-port", 8190, "Port to expose metrics on")
 }

@@ -22,11 +22,14 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -147,6 +150,17 @@ func main() {
 			versionInfo.BuildTime)
 	}
 
+	if config.EnableMetrics {
+		_, err = prometheus.New()
+
+		if err != nil {
+			// keep going?
+			log.Error(err)
+		}
+
+		go serveMetrics(log, config.MetricsPort)
+	}
+
 	agent := hostagent.NewHostAgent(config, env, log)
 	agent.Init()
 	agent.Run(wait.NeverStop)
@@ -186,4 +200,12 @@ func getNodeIP() (string, error) {
 	}
 
 	return "", fmt.Errorf("Failed to list node")
+}
+
+func serveMetrics(log *logrus.Logger, metricsPort int) {
+	http.Handle("/metrics", promhttp.Handler())
+	err := http.ListenAndServe(fmt.Sprintf(":%d", metricsPort), nil)
+	if err != nil {
+		log.Errorf("error serving http: %v", err)
+	}
 }

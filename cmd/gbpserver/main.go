@@ -19,12 +19,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/stateinit"
@@ -128,6 +131,16 @@ func main() {
 		nfw.InitNetflowInformer(stopCh)
 	}
 
+	if cfg.EnableMetrics {
+		_, err = prometheus.New()
+		if err != nil {
+			// keep going?
+			logrus.Error(err)
+		}
+
+		go serveMetrics(cfg.MetricsPort)
+	}
+
 	select {}
 }
 
@@ -188,4 +201,12 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 	}
 
 	return []string{fmt.Sprintf("http://localhost:%d", c.EtcdPort)}
+}
+
+func serveMetrics(metricsPort int) {
+	http.Handle("/metrics", promhttp.Handler())
+	err := http.ListenAndServe(fmt.Sprintf(":%d", metricsPort), nil)
+	if err != nil {
+		logrus.Errorf("error serving http: %v", err)
+	}
 }
