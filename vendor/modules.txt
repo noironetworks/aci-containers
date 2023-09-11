@@ -543,7 +543,7 @@ github.com/spf13/viper/internal/encoding/yaml
 # github.com/stoewer/go-strcase v1.3.0
 ## explicit; go 1.11
 github.com/stoewer/go-strcase
-# github.com/stretchr/testify v1.8.3
+# github.com/stretchr/testify v1.8.4
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
 # github.com/subosito/gotenv v1.4.2
@@ -751,7 +751,7 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 go.uber.org/zap/zapgrpc
-# golang.org/x/crypto v0.7.0
+# golang.org/x/crypto v0.9.0
 ## explicit; go 1.17
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
@@ -979,10 +979,10 @@ gopkg.in/yaml.v3
 # howett.net/plist v1.0.0
 ## explicit; go 1.12
 howett.net/plist
-# istio.io/api v0.0.0-20230524015941-fa6c5f7916bf
+# istio.io/api v0.0.0-20230713061407-06047cce866f
 ## explicit; go 1.18
 istio.io/api/operator/v1alpha1
-# istio.io/istio v0.0.0-20230607011503-697f4ff0fe6e
+# istio.io/istio v0.0.0-20230721203100-0183f2886bc0
 ## explicit; go 1.20
 istio.io/istio/operator/pkg/apis/istio/v1alpha1
 # k8s.io/api v0.27.0 => k8s.io/api v0.27.0
