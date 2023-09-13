@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,7 +23,6 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"

@@ -32,6 +32,7 @@ const (
 
 // gbpWatch implements the GBPServer interface
 type gbpWatch struct {
+	UnimplementedGBPServer
 	log     *logrus.Entry
 	gs      *Server
 	l       net.Listener
