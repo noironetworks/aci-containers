@@ -27,8 +27,8 @@ fi
 #To upgrade envtest binaries set the k8sver to 
 # the latest kubecontroller tools version
 k8sver=1.27.1
-goos=linux
-goarch=amd64
+goos=$(go env GOOS)
+goarch=$(go env GOARCH)
 
 FETCHBINARIES=1
 
