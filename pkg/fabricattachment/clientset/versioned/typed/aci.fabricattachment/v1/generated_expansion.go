@@ -17,6 +17,8 @@ limitations under the License.
 
 package v1
 
+type FabricVlanPoolExpansion interface{}
+
 type NadVlanMapExpansion interface{}
 
 type NodeFabricNetworkAttachmentExpansion interface{}

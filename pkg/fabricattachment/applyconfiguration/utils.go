@@ -34,6 +34,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.EncapRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("EncapSource"):
 		return &acifabricattachmentv1.EncapSourceApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricVlanPool"):
+		return &acifabricattachmentv1.FabricVlanPoolApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricVlanPoolSpec"):
+		return &acifabricattachmentv1.FabricVlanPoolSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricVlanPoolStatus"):
+		return &acifabricattachmentv1.FabricVlanPoolStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NadVlanMap"):
 		return &acifabricattachmentv1.NadVlanMapApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NadVlanMapSpec"):

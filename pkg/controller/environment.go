@@ -321,6 +321,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	cont.registerCRDHook(staticFabNetAttCRDName, staticFabNetAttInit)
 	cont.registerCRDHook(nadVlanMapCRDName, nadVlanMapInit)
+	cont.registerCRDHook(fabricVlanPoolCRDName, fabricVlanPoolInit)
 	go cont.crdInformer.Run(stopCh)
 	if !cont.config.ChainedMode {
 		cache.WaitForCacheSync(stopCh,

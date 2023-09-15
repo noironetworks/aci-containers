@@ -17,6 +17,14 @@ limitations under the License.
 
 package v1
 
+// FabricVlanPoolListerExpansion allows custom methods to be added to
+// FabricVlanPoolLister.
+type FabricVlanPoolListerExpansion interface{}
+
+// FabricVlanPoolNamespaceListerExpansion allows custom methods to be added to
+// FabricVlanPoolNamespaceLister.
+type FabricVlanPoolNamespaceListerExpansion interface{}
+
 // NadVlanMapListerExpansion allows custom methods to be added to
 // NadVlanMapLister.
 type NadVlanMapListerExpansion interface{}

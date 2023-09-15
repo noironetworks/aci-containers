@@ -244,7 +244,6 @@ func testChainedController(aciUseGlobalScopeVlan bool, additionalVlans string) *
 			ChainedMode:           true,
 			AciPhysDom:            "first-physdom",
 			AciAdditionalAep:      "second-aep",
-			AciAdditionalVlans:    additionalVlans,
 			AciUseGlobalScopeVlan: aciUseGlobalScopeVlan,
 		},
 			&K8sEnvironment{}, log, true),
