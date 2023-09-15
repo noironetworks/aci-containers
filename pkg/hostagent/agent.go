@@ -53,43 +53,44 @@ type HostAgent struct {
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
 
-	opflexEps             map[string][]*opflexEndpoint
-	opflexServices        map[string]*opflexService
-	epMetadata            map[string]map[string]*md.ContainerMetadata
-	podNetworkMetadata    map[string]map[string]map[string]*md.ContainerMetadata
-	primaryNetworkName    string
-	podIpToName           map[string]string
-	cniToPodID            map[string]string
-	podUidToName          map[string]string
-	podToNetAttachDef     map[string][]string
-	serviceEp             md.ServiceEndpoint
-	crdClient             aciv1.AciV1Interface
-	nodePodIFClient       nodepodifv1.AciV1Interface
-	fabAttClient          fabattv1.AciV1Interface
-	podInformer           cache.SharedIndexInformer
-	endpointsInformer     cache.SharedIndexInformer
-	serviceInformer       cache.SharedIndexInformer
-	nodeInformer          cache.SharedIndexInformer
-	nsInformer            cache.SharedIndexInformer
-	netPolInformer        cache.SharedIndexInformer
-	depInformer           cache.SharedIndexInformer
-	rcInformer            cache.SharedIndexInformer
-	snatGlobalInformer    cache.SharedIndexInformer
-	controllerInformer    cache.SharedIndexInformer
-	snatPolicyInformer    cache.SharedIndexInformer
-	qosPolicyInformer     cache.SharedIndexInformer
-	rdConfigInformer      cache.SharedIndexInformer
-	qosPolPods            *index.PodSelectorIndex
-	endpointSliceInformer cache.SharedIndexInformer
-	netPolPods            *index.PodSelectorIndex
-	depPods               *index.PodSelectorIndex
-	rcPods                *index.PodSelectorIndex
-	podNetAnnotation      string
-	aciPodAnnotation      string
-	podIps                *ipam.IpCache
-	usedIPs               map[string]string
-	netAttDefInformer     cache.SharedIndexInformer
-	nadVlanMapInformer    cache.SharedIndexInformer
+	opflexEps              map[string][]*opflexEndpoint
+	opflexServices         map[string]*opflexService
+	epMetadata             map[string]map[string]*md.ContainerMetadata
+	podNetworkMetadata     map[string]map[string]map[string]*md.ContainerMetadata
+	primaryNetworkName     string
+	podIpToName            map[string]string
+	cniToPodID             map[string]string
+	podUidToName           map[string]string
+	podToNetAttachDef      map[string][]string
+	serviceEp              md.ServiceEndpoint
+	crdClient              aciv1.AciV1Interface
+	nodePodIFClient        nodepodifv1.AciV1Interface
+	fabAttClient           fabattv1.AciV1Interface
+	podInformer            cache.SharedIndexInformer
+	endpointsInformer      cache.SharedIndexInformer
+	serviceInformer        cache.SharedIndexInformer
+	nodeInformer           cache.SharedIndexInformer
+	nsInformer             cache.SharedIndexInformer
+	netPolInformer         cache.SharedIndexInformer
+	depInformer            cache.SharedIndexInformer
+	rcInformer             cache.SharedIndexInformer
+	snatGlobalInformer     cache.SharedIndexInformer
+	controllerInformer     cache.SharedIndexInformer
+	snatPolicyInformer     cache.SharedIndexInformer
+	qosPolicyInformer      cache.SharedIndexInformer
+	rdConfigInformer       cache.SharedIndexInformer
+	qosPolPods             *index.PodSelectorIndex
+	endpointSliceInformer  cache.SharedIndexInformer
+	netPolPods             *index.PodSelectorIndex
+	depPods                *index.PodSelectorIndex
+	rcPods                 *index.PodSelectorIndex
+	podNetAnnotation       string
+	aciPodAnnotation       string
+	podIps                 *ipam.IpCache
+	usedIPs                map[string]string
+	netAttDefInformer      cache.SharedIndexInformer
+	nadVlanMapInformer     cache.SharedIndexInformer
+	fabricVlanPoolInformer cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -124,6 +125,9 @@ type HostAgent struct {
 	deviceIdMap          map[string][]string
 	nadVlanMap           map[string]*nadVlanMatchData
 	fabricDiscoveryAgent FabricDiscoveryAgent
+	// Namespace and poolname to vlanList
+	fabricVlanPoolMap map[string]map[string]string
+	orphanNadMap      map[string]*NetworkAttachmentData
 }
 
 type ServiceEndPointType interface {
@@ -187,6 +191,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		netattdefifacemap:     make(map[string]*NetworkAttachmentData),
 		deviceIdMap:           make(map[string][]string),
 		nadVlanMap:            make(map[string]*nadVlanMatchData),
+		fabricVlanPoolMap:     make(map[string]map[string]string),
+		orphanNadMap:          make(map[string]*NetworkAttachmentData),
 		podToNetAttachDef:     make(map[string][]string),
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(

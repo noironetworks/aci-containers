@@ -82,6 +82,7 @@ type NetworkAttachmentData struct {
 	EncapKey             string
 	PluginVlan           string
 	Programmed           bool
+	vlanUnspecified      bool
 }
 
 type ClientInfo struct {
@@ -286,6 +287,9 @@ func (agent *HostAgent) LoadCniNetworks() error {
 			for _, localIface := range netAttData.Ifaces {
 				agent.netattdefifacemap[localIface] = &netAttData
 			}
+			if netAttData.vlanUnspecified {
+				agent.orphanNadMap[netAttKey] = &netAttData
+			}
 		} else {
 			agent.log.Errorf("Failed to read additional network file %s:%v", path, err2)
 			return nil
@@ -322,9 +326,9 @@ func (agent *HostAgent) LoadCniNetworks() error {
 
 func (agent *HostAgent) NotifyFabricAdjacency(iface string, fabAttData []*FabricAttachmentData) {
 	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	if netAttData, ok := agent.netattdefifacemap[iface]; ok {
 		agent.log.Debugf("Update adjacency for %s", iface)
-		fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 		nbrList := []*FabricAttachmentData{}
 		for nbr := range fabAttData {
 			if fabAttData[nbr].StaticPath != "" {
@@ -332,39 +336,8 @@ func (agent *HostAgent) NotifyFabricAdjacency(iface string, fabAttData []*Fabric
 			}
 			netAttData.FabricAttachmentData[iface] = nbrList
 		}
-		fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
-		if err == nil {
-			if fabNetAtt.Spec.AciTopology == nil {
-				fabNetAtt.Spec.AciTopology = make(map[string]fabattv1.AciNodeLinkAdjacency)
-			}
-			staticPaths := []string{}
-			for nbr := range netAttData.FabricAttachmentData[iface] {
-				staticPaths = append(staticPaths, netAttData.FabricAttachmentData[iface][nbr].StaticPath)
-			}
-			if aciAdj, ok := fabNetAtt.Spec.AciTopology[iface]; ok {
-				aciAdj.FabricLink = staticPaths
-				fabNetAtt.Spec.AciTopology[iface] = aciAdj
-			} else {
-				pods := []fabattv1.PodAttachment{}
-				for podKey := range netAttData.Pods[iface] {
-					pods = append(pods, netAttData.Pods[iface][podKey])
-				}
-				fabNetAtt.Spec.AciTopology[iface] = fabattv1.AciNodeLinkAdjacency{
-					FabricLink: staticPaths,
-					Pods:       pods,
-				}
-			}
-			fabNetAtt.TypeMeta = metav1.TypeMeta{
-				Kind:       "NodeFabricNetworkAttachment",
-				APIVersion: "aci.fabricattachment/v1",
-			}
-			_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
-			if err != nil {
-				agent.log.Errorf("Failed to update adjacency:%v", err)
-			}
-		}
+		agent.updateNodeFabricNetworkAttachmentLocked(netAttData)
 	}
-	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.PodAttachment, networkName string, podDeleted bool) error {
@@ -431,14 +404,22 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentEncap(fabNetAtt *fabatt
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(nadKey, encapKey, vlanList string, isDelete bool) {
 	netAttData, ok := agent.netattdefmap[nadKey]
 	if !ok {
+		agent.log.Debugf("NAD not found %s", nadKey)
 		return
 	}
 	if !isDelete {
+		netAttData.vlanUnspecified = false
 		netAttData.EncapVlan = vlanList
 		netAttData.EncapKey = encapKey
+		agent.log.Debugf("Using nadVlanMap: %s", vlanList)
 	} else {
 		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
 		agent.handlePluginVlan(netAttData, vlan)
+	}
+	if netAttData.vlanUnspecified {
+		agent.orphanNadMap[nadKey] = netAttData
+	} else {
+		delete(agent.orphanNadMap, nadKey)
 	}
 	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
@@ -452,6 +433,31 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 		agent.RecordNetworkMetadata(netAttData)
 		if err != nil {
 			agent.log.Errorf("Failed to update nfna %s for encap change: %v", fabNetAttName, err)
+		}
+	}
+}
+
+func (agent *HostAgent) updateNodeFabricNetworkAttachmentForFabricVlanPoolLocked() {
+	for _, netAttData := range agent.orphanNadMap {
+		vlanStr := agent.getFabricVlanPool(netAttData.Namespace, true)
+		if vlanStr != "" {
+			netAttData.EncapVlan = vlanStr
+		} else {
+			netAttData.EncapVlan = "0"
+		}
+		fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
+		fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
+		if err == nil {
+			fabNetAtt.TypeMeta = metav1.TypeMeta{
+				Kind:       "NodeFabricNetworkAttachment",
+				APIVersion: "aci.fabricattachment/v1",
+			}
+			agent.updateNodeFabricNetworkAttachmentEncap(fabNetAtt, netAttData)
+			_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
+			agent.RecordNetworkMetadata(netAttData)
+			if err != nil {
+				agent.log.Errorf("Failed to update nfna %s for encap change: %v", fabNetAttName, err)
+			}
 		}
 	}
 }
@@ -590,11 +596,13 @@ func validateVlanAnnotation(vlanStr string) (string, error) {
 }
 
 func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan int) {
+	netAttData.vlanUnspecified = false
 	nadKey := netAttData.Namespace + "/" + netAttData.Name
 	netAttData.PluginVlan = fmt.Sprintf("%d", vlan)
 	if vlan == 0 {
 		if val, ok := netAttData.KnownAnnots[vlanAnnot]; ok {
 			if vlanStr, err := validateVlanAnnotation(val); err == nil {
+				agent.log.Debugf("Using annotation: %s", vlanStr)
 				netAttData.EncapVlan = vlanStr
 				netAttData.EncapKey = ""
 				return
@@ -604,19 +612,23 @@ func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan
 		}
 		matchingKey, vlanList, match := agent.getNadVlanMapMatchLocked(nadKey)
 		if match {
+			agent.log.Debugf("Using nadVlanMap: %s", vlanList)
 			netAttData.EncapVlan = vlanList
 			netAttData.EncapKey = matchingKey
 			return
 		}
-
 		encap := "0"
-		if agent.config.AciAdditionalVlans != "" {
-			encap = fmt.Sprintf("%s", agent.config.AciAdditionalVlans)
+		netAttData.vlanUnspecified = true
+		vlanStr := agent.getFabricVlanPool(netAttData.Namespace, true)
+		agent.log.Debugf("Using vlan pool: %s", vlanStr)
+		if vlanStr != "" {
+			encap = vlanStr
 		}
 		netAttData.EncapVlan = encap
 		netAttData.EncapKey = ""
 		return
 	}
+	agent.log.Debugf("Using vlan in NAD: %d", vlan)
 	netAttData.EncapVlan = netAttData.PluginVlan
 	netAttData.EncapKey = ""
 	return
@@ -762,6 +774,11 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 					}
 				}
 			}
+			if netattdata.vlanUnspecified {
+				agent.orphanNadMap[netAttDefKey] = &netattdata
+			} else {
+				delete(agent.orphanNadMap, netAttDefKey)
+			}
 			if err := agent.updateNodeFabricNetworkAttachmentLocked(&netattdata); err != nil {
 				agent.log.Errorf("Failed to create/update nodefabricnetworkattachment %s :%v", nodeFabNetAttName, err)
 			}
@@ -832,6 +849,7 @@ func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
 				delete(agent.netattdefifacemap, iface)
 			}
 		}
+		delete(agent.orphanNadMap, netAttDefKey)
 		agent.DeleteNetworkMetadata(netattDef)
 	}
 	delete(agent.netattdefmap, netAttDefKey)

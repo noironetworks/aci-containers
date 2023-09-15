@@ -76,6 +76,7 @@ type AciController struct {
 	nodeFabNetAttQueue   workqueue.RateLimitingInterface
 	staticFabNetAttQueue workqueue.RateLimitingInterface
 	nadVlanMapQueue      workqueue.RateLimitingInterface
+	fabricVlanPoolQueue  workqueue.RateLimitingInterface
 
 	namespaceIndexer        cache.Indexer
 	namespaceInformer       cache.Controller
@@ -119,6 +120,7 @@ type AciController struct {
 	nodeFabNetAttInformer   cache.SharedIndexInformer
 	staticFabNetAttInformer cache.SharedIndexInformer
 	nadVlanMapInformer      cache.SharedIndexInformer
+	fabricVlanPoolInformer  cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 
@@ -191,6 +193,7 @@ type AciController struct {
 	sharedEncapLabelMap map[string][]int
 	lldpIfCache         map[string]string
 	globalVlanConfig    globalVlanConfig
+	fabricVlanPoolMap   map[string]map[string]string
 }
 
 type sharedEncapData struct {
@@ -375,6 +378,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeFabNetAttQueue:   createQueue("nodefabricnetworkattachment"),
 		staticFabNetAttQueue: createQueue("staticfabricnetworkattachment"),
 		nadVlanMapQueue:      createQueue("nadvlanmap"),
+		fabricVlanPoolQueue:  createQueue("fabricvlanpool"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -411,6 +415,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		sharedEncapSfnaLabelMap: make(map[string]map[string]bool),
 		sharedEncapLabelMap:     make(map[string][]int),
 		lldpIfCache:             make(map[string]string),
+		fabricVlanPoolMap:       make(map[string]map[string]string),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,

@@ -40,6 +40,25 @@ const (
 	globalScopeVlanDomPrefix = "secondary"
 )
 
+func (cont *AciController) updateGlobalConfig(encapStr string, progMap map[string]apicapi.ApicSlice) {
+	var apicSlice apicapi.ApicSlice
+	if !cont.config.AciUseGlobalScopeVlan {
+		cont.log.Errorf("Cannot set globalscope objects in per-port vlan mode")
+		return
+	}
+	if cont.globalVlanConfig.SharedPhysDom == nil {
+		return
+	}
+	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(encapStr)
+	if err != nil {
+		cont.log.Errorf("Error updating GlobalScopeVlanConfig: %v", err)
+		return
+	}
+	apicSlice = cont.updateNodeFabNetAttDom(encapBlks, globalScopeVlanDomPrefix)
+	labelKey := cont.aciNameForKey("nfna", globalScopeVlanDomPrefix)
+	progMap[labelKey] = apicSlice
+}
+
 func NodeFabricNetworkAttachmentLogger(log *logrus.Logger, nodeFabNetAtt *fabattv1.NodeFabricNetworkAttachment) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"name": nodeFabNetAtt.ObjectMeta.Name,
@@ -627,7 +646,8 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	cont.updateNodeFabNetAttFabricLinks(nodeFabNetAtt, addNet)
 
 	if cont.config.AciUseGlobalScopeVlan {
-		cont.setGlobalScopeVlanConfig(cont.config.AciAdditionalVlans, progMap)
+		encapStr := cont.getGlobalFabricVlanPoolLocked()
+		cont.setGlobalScopeVlanConfig(encapStr, progMap)
 		for _, vlan := range vlans {
 			cont.updateNodeFabNetAttPods(nodeFabNetAtt, vlan)
 			cont.sharedEncapCache[vlan].NetRef[addNetKey] = addNet

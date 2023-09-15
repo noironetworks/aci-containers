@@ -171,6 +171,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initEventPoster(env.kubeClient)
 	env.agent.initNetworkAttDefInformerFromClient(env.netClient)
 	env.agent.initNadVlanInformerFromClient(env.fabattClient)
+	env.agent.initFabricVlanPoolsInformerFromClient(env.fabattClient)
 	return nil
 }
 
@@ -263,6 +264,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		go env.agent.nadVlanMapInformer.Run(stopCh)
 		cache.WaitForCacheSync(stopCh, env.agent.nadVlanMapInformer.HasSynced)
 		env.agent.log.Info("nadvlanMap cache sync successful")
+		env.agent.log.Debug("Starting fabricvlanpool informers")
+		go env.agent.fabricVlanPoolInformer.Run(stopCh)
+		cache.WaitForCacheSync(stopCh, env.agent.fabricVlanPoolInformer.HasSynced)
+		env.agent.log.Info("fabricvlanpool cache sync successful")
 	}
 
 	env.agent.log.Info("Cache sync successful")

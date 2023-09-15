@@ -32,6 +32,20 @@ func testnetattach(name, namespace, config string, annot map[string]string) *net
 	return netattachdef
 }
 
+func testFabricVlanPool(namespace, name, vlanStr string) *fabattv1.FabricVlanPool {
+	fabricVlanPool := &fabattv1.FabricVlanPool{
+		Spec: fabattv1.FabricVlanPoolSpec{
+			Vlans: []string{vlanStr},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+
+	return fabricVlanPool
+}
+
 func TestNetAttachmentDef(t *testing.T) {
 	configJsondata := `
 		{ 
@@ -110,7 +124,6 @@ func getChainedModeConfig(nodename string) *HostAgentConfig {
 		AciVrfTenant:          "common",
 		ChainedMode:           true,
 		PrimaryCniPath:        "/mnt/cni-conf/cni/net.d/10-ovn-kubernetes.conf",
-		AciAdditionalVlans:    "[102-105]",
 		AciUseGlobalScopeVlan: true,
 	}
 
@@ -153,6 +166,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 	kubeClient.CoreV1().ConfigMaps("openshift-sriov-network-operator").Create(context.Background(), mkConfigMap("openshift-sriov-network-operator", "device-plugin-config", configmapData), metav1.CreateOptions{})
 	kubeClient.CoreV1().Namespaces().Create(context.Background(), mkNamespace("openshift-sriov-network-operator", "", "", ""), metav1.CreateOptions{})
 	kubeClient.CoreV1().ConfigMaps("openshift-sriov-network-operator").Create(context.Background(), mkConfigMap("openshift-sriov-network-operator", "device-plugin-config", configmapData), metav1.CreateOptions{})
+	agent.fakeFabricVlanPoolSource.Add(testFabricVlanPool("aci-containers-system", "default", "[102-105]"))
 	agent.fakeNetAttachDefSource.Add(testnetattach("sriov-net-1", "default", configJsondata, resourceAnnot))
 	agent.run()
 
@@ -214,6 +228,7 @@ func TestNADMacVlanCRUD(t *testing.T) {
 	resourceAnnot := make(map[string]string)
 	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
 	kubeClient.CoreV1().Namespaces().Create(context.Background(), mkNamespace("aci-containers-system", "", "", ""), metav1.CreateOptions{})
+	agent.fakeFabricVlanPoolSource.Add(testFabricVlanPool("aci-containers-system", "default", "[102-105]"))
 	agent.fakeNetAttachDefSource.Add(testnetattach("macvlan-net2", "default", configJsondata, resourceAnnot))
 	agent.run()
 
@@ -305,6 +320,7 @@ func TestNADVlanMatch(t *testing.T) {
 	fabattv1.AddToScheme(scheme)
 	fabAttClient, err := client.New(cfg, client.Options{Scheme: scheme})
 	assert.Nil(t, err, "create client")
+	agent.fakeFabricVlanPoolSource.Add(testFabricVlanPool("aci-containers-system", "default", "[102-105]"))
 	agent.fakeNadVlanMapSource.Add(nadVlanMap)
 	agent.fakeNetAttachDefSource.Add(testnetattach("pc-mm-net1", "pccmm", configJsondata, resourceAnnot))
 	agent.run()
@@ -351,6 +367,7 @@ func TestNADVlanMatch(t *testing.T) {
 	assert.Equal(t, expectedLinks, actualLinks)
 	nadVlanMap.Spec.NadVlanMapping["pccmm/pc-mm"][0].Vlans = "104"
 	agent.fakeNadVlanMapSource.Modify(nadVlanMap)
+	agent.fakeFabricVlanPoolSource.Add(testFabricVlanPool("aci-containers-system", "default", "[102-105]"))
 	expected.Spec.EncapVlan = fabattv1.EncapSource{
 		EncapRef: fabattv1.EncapRef{
 			NadVlanMapRef: "aci-containers-system/nad-vlan-map",
@@ -373,6 +390,7 @@ func TestNADVlanMatch(t *testing.T) {
 		fabAttClient.Get(context.TODO(),
 			types.NamespacedName{Name: nodename + "-pccmm-pc-mm-net1", Namespace: "aci-containers-system"},
 			actual)
+		agent.log.Debugf("Actual vlan:%s", actual.Spec.EncapVlan)
 		return reflect.DeepEqual(expected.Spec.EncapVlan, actual.Spec.EncapVlan)
 	}, 5*time.Second, 1*time.Second, "nadvlanmap delete")
 

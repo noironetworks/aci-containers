@@ -56,7 +56,7 @@ func TestNFNAVlanParse(t *testing.T) {
 	}
 }
 
-func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciController) apicapi.ApicSlice {
+func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string, cont *testAciController) apicapi.ApicSlice {
 	var apicSlice apicapi.ApicSlice
 	networkName := nfna.Spec.NetworkRef.Namespace + "-" + nfna.Spec.NetworkRef.Name
 	if cont.config.AciUseGlobalScopeVlan {
@@ -65,7 +65,7 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciCont
 	fvnsVlanInstP := apicapi.NewFvnsVlanInstP("kubernetes", networkName)
 	var fvnsEncapBlk apicapi.ApicObject
 	if cont.config.AciUseGlobalScopeVlan {
-		if !strings.Contains(cont.config.AciAdditionalVlans, "-") {
+		if !strings.Contains(encapStr, "-") {
 			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "100")
 			fvnsVlanInstP.AddChild(fvnsEncapBlk)
 			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "101", "101")
@@ -88,10 +88,10 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciCont
 	return apicSlice
 }
 
-func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment, cont *testAciController) apicapi.ApicSlice {
+func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string, cont *testAciController) apicapi.ApicSlice {
 	var apicSlice apicapi.ApicSlice
 	if !cont.config.AciUseGlobalScopeVlan {
-		apicSlice = append(apicSlice, CreateNFNADom(nfna, cont)...)
+		apicSlice = append(apicSlice, CreateNFNADom(nfna, encapStr, cont)...)
 	}
 	return apicSlice
 }
@@ -177,19 +177,34 @@ func CreateNFNA(nadName, nodeName, uplink, podName string, fabricLinks []string)
 	}
 }
 
+func CreateFabricVlanPool(namespace, name, vlanStr string) *fabattv1.FabricVlanPool {
+	return &fabattv1.FabricVlanPool{
+		Spec: fabattv1.FabricVlanPoolSpec{
+			Vlans: []string{vlanStr},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
+
 func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	cont := testChainedController(globalScopeVlan, additionalVlans)
+
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
 	nfna2 := CreateNFNA("macvlan-net1", "master2.cluster.local", "bond1", "pod2-macvlan-net1",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/31]", "/topology/pod-1/node-102/pathep-[eth1/31]"})
+	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
+	cont.handleFabricVlanPoolUpdate(fvp)
 	progMap := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
-	expectedApicSlice1 = CreateNFNAObjs(nfna1, cont)
+	expectedApicSlice1 = CreateNFNAObjs(nfna1, additionalVlans, cont)
 	var labelKey string
 	if globalScopeVlan {
 		assert.Equal(t, 3, len(progMap), "nfna create apicKey count")
-		expectedApicSlice1 = CreateNFNADom(nfna1, cont)
+		expectedApicSlice1 = CreateNFNADom(nfna1, additionalVlans, cont)
 		labelKey = cont.aciNameForKey("nfna", "secondary")
 		assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create global dom")
 		var expectedApicSlice2 apicapi.ApicSlice
@@ -226,7 +241,7 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	}
 	progMap = cont.updateNodeFabNetAttObj(nfna2)
 	var expectedApicSlice2 apicapi.ApicSlice
-	expectedApicSlice2 = CreateNFNAObjs(nfna2, cont)
+	expectedApicSlice2 = CreateNFNAObjs(nfna2, additionalVlans, cont)
 
 	if globalScopeVlan {
 		assert.Equal(t, 2, len(progMap), "nfna create apicKey count")
@@ -295,7 +310,7 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	} else {
 		assert.Equal(t, 1, len(progMap), "nfna create apicKey count")
 		var expectedApicSlice3 apicapi.ApicSlice
-		expectedApicSlice3 = CreateNFNAObjs(nfna2, cont)
+		expectedApicSlice3 = CreateNFNAObjs(nfna2, additionalVlans, cont)
 		for _, encap := range []int{5, 6} {
 			bd := CreateNFNABD(nfna2, encap, cont)
 			expectedApicSlice3 = append(expectedApicSlice3, bd)

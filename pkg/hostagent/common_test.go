@@ -39,23 +39,24 @@ type testHostAgent struct {
 	*HostAgent
 	stopCh chan struct{}
 
-	fakeNodeSource          *framework.FakeControllerSource
-	fakePodSource           *framework.FakeControllerSource
-	fakeEndpointsSource     *framework.FakeControllerSource
-	fakeEndpointSliceSource *framework.FakeControllerSource
-	fakeServiceSource       *framework.FakeControllerSource
-	fakeNamespaceSource     *framework.FakeControllerSource
-	fakeDeploymentSource    *framework.FakeControllerSource
-	fakeRCSource            *framework.FakeControllerSource
-	fakeNetworkPolicySource *framework.FakeControllerSource
-	fakeQosPolicySource     *framework.FakeControllerSource
-	fakeSnatPolicySource    *framework.FakeControllerSource
-	fakeSnatGlobalSource    *framework.FakeControllerSource
-	fakeRdConfigSource      *framework.FakeControllerSource
-	fakeNetAttachDefSource  *framework.FakeControllerSource
-	fakeConfigMapSource     *framework.FakeControllerSource
-	fakeFabAttSource        *framework.FakeControllerSource
-	fakeNadVlanMapSource    *framework.FakeControllerSource
+	fakeNodeSource           *framework.FakeControllerSource
+	fakePodSource            *framework.FakeControllerSource
+	fakeEndpointsSource      *framework.FakeControllerSource
+	fakeEndpointSliceSource  *framework.FakeControllerSource
+	fakeServiceSource        *framework.FakeControllerSource
+	fakeNamespaceSource      *framework.FakeControllerSource
+	fakeDeploymentSource     *framework.FakeControllerSource
+	fakeRCSource             *framework.FakeControllerSource
+	fakeNetworkPolicySource  *framework.FakeControllerSource
+	fakeQosPolicySource      *framework.FakeControllerSource
+	fakeSnatPolicySource     *framework.FakeControllerSource
+	fakeSnatGlobalSource     *framework.FakeControllerSource
+	fakeRdConfigSource       *framework.FakeControllerSource
+	fakeNetAttachDefSource   *framework.FakeControllerSource
+	fakeConfigMapSource      *framework.FakeControllerSource
+	fakeFabAttSource         *framework.FakeControllerSource
+	fakeNadVlanMapSource     *framework.FakeControllerSource
+	fakeFabricVlanPoolSource *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -208,13 +209,19 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 	agent.initRCPodIndex()
 	agent.initQoSPolPodIndex()
 	agent.fakeNadVlanMapSource = framework.NewFakeControllerSource()
+	agent.fakeFabricVlanPoolSource = framework.NewFakeControllerSource()
 	agent.initNadVlanInformerBase(
 		&cache.ListWatch{
 			ListFunc:  agent.fakeNadVlanMapSource.List,
 			WatchFunc: agent.fakeNadVlanMapSource.Watch,
 		},
 	)
-
+	agent.initFabricVlanPoolsInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeFabricVlanPoolSource.List,
+			WatchFunc: agent.fakeFabricVlanPoolSource.Watch,
+		},
+	)
 	integ_test := "true"
 	agent.integ_test = &integ_test
 

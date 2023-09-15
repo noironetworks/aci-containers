@@ -23,6 +23,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// FabricVlanPools returns a FabricVlanPoolInformer.
+	FabricVlanPools() FabricVlanPoolInformer
 	// NadVlanMaps returns a NadVlanMapInformer.
 	NadVlanMaps() NadVlanMapInformer
 	// NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
@@ -40,6 +42,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// FabricVlanPools returns a FabricVlanPoolInformer.
+func (v *version) FabricVlanPools() FabricVlanPoolInformer {
+	return &fabricVlanPoolInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // NadVlanMaps returns a NadVlanMapInformer.

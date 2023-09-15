@@ -42,6 +42,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&StaticFabricNetworkAttachment{}, &StaticFabricNetworkAttachmentList{},
 	)
+	scheme.AddKnownTypes(SchemeGroupVersion,
+		&FabricVlanPool{}, &FabricVlanPoolList{},
+	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }

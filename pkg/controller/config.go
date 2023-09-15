@@ -272,9 +272,6 @@ type ControllerConfig struct {
 	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
 	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 
-	// List of secondary-vlans to be used as encaps for additionalnetworks in chained mode
-	AciAdditionalVlans string `json:"aci-additional-vlans,omitempty"`
-
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
