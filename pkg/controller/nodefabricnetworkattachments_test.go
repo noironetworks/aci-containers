@@ -197,16 +197,17 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	nfna2 := CreateNFNA("macvlan-net1", "master2.cluster.local", "bond1", "pod2-macvlan-net1",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/31]", "/topology/pod-1/node-102/pathep-[eth1/31]"})
 	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
-	cont.handleFabricVlanPoolUpdate(fvp)
+	progMapPool := cont.updateFabricVlanPool(fvp)
 	progMap := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
 	expectedApicSlice1 = CreateNFNAObjs(nfna1, additionalVlans, cont)
 	var labelKey string
 	if globalScopeVlan {
-		assert.Equal(t, 3, len(progMap), "nfna create apicKey count")
+		assert.Equal(t, 1, len(progMapPool), "dom count")
+		assert.Equal(t, 2, len(progMap), "nfna Obj count")
 		expectedApicSlice1 = CreateNFNADom(nfna1, additionalVlans, cont)
 		labelKey = cont.aciNameForKey("nfna", "secondary")
-		assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create global dom")
+		assert.Equal(t, expectedApicSlice1, progMapPool[labelKey], "nfna create global dom")
 		var expectedApicSlice2 apicapi.ApicSlice
 		bd := CreateNFNABD(nfna1, 5, cont)
 		expectedApicSlice2 = append(expectedApicSlice2, bd)
