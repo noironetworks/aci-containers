@@ -46,14 +46,12 @@ func (cont *AciController) updateGlobalConfig(encapStr string, progMap map[strin
 		cont.log.Errorf("Cannot set globalscope objects in per-port vlan mode")
 		return
 	}
-	if cont.globalVlanConfig.SharedPhysDom == nil {
-		return
-	}
 	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(encapStr)
 	if err != nil {
 		cont.log.Errorf("Error updating GlobalScopeVlanConfig: %v", err)
 		return
 	}
+	cont.log.Infof("Setting globalvlanpool: %s", encapStr)
 	apicSlice = cont.updateNodeFabNetAttDom(encapBlks, globalScopeVlanDomPrefix)
 	labelKey := cont.aciNameForKey("nfna", globalScopeVlanDomPrefix)
 	progMap[labelKey] = apicSlice
@@ -282,6 +280,9 @@ func (cont *AciController) populateFabricPaths(epg apicapi.ApicObject, encap int
 }
 
 func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int, vlanBlks []string, err error) {
+	if vlan == "" {
+		return vlans, vlanBlks, err
+	}
 	listContents := vlan
 	_, after, found := strings.Cut(vlan, "[")
 	if found {

@@ -157,7 +157,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "openshift.io/enp216s0f0"
-	resourceAnnot[vlanAnnot] = "[100,101,195-200]"
+	resourceAnnot[vlanAnnot] = "[100,102,195-200]"
 	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
 	configmapData := map[string]string{
 		nodename: `{"resourceList":[{"resourceName":"enp216s0f0","selectors":{"vendors":["8086"],"devices":["154c"],"pfNames":["enp216s0f0#0-15"],"rootDevices":["0000:d8:00.0"],"IsRdma":false,"NeedVhostNet":false},"SelectorObj":null}]}`,
@@ -179,7 +179,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 				Name:      "sriov-net-1",
 				Namespace: "default",
 			},
-			EncapVlan: fabattv1.EncapSource{VlanList: "[100,101,195-200]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "[102]"},
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				"enp216s0f0": {
 					FabricLink: []string{

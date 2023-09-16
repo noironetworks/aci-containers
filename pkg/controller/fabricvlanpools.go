@@ -130,11 +130,12 @@ func fabricVlanPoolInit(cont *AciController, stopCh <-chan struct{}) {
 	cache.WaitForCacheSync(stopCh, cont.fabricVlanPoolInformer.HasSynced)
 }
 
-func (cont *AciController) handleFabricVlanPoolUpdate(obj interface{}) bool {
+func (cont *AciController) updateFabricVlanPool(obj interface{}) map[string]apicapi.ApicSlice {
+	progMap := make(map[string]apicapi.ApicSlice)
 	fabricVlanPoolObj, ok := obj.(*fabattv1.FabricVlanPool)
 	if !ok {
 		cont.log.Error("handleFabricVlanPoolUpdate: Bad object type")
-		return false
+		return progMap
 	}
 	cont.log.Infof("fabricvlanpool update: %s/%s", fabricVlanPoolObj.Namespace, fabricVlanPoolObj.Name)
 
@@ -152,8 +153,12 @@ func (cont *AciController) handleFabricVlanPoolUpdate(obj interface{}) bool {
 	nsVlanPoolMap[fabricVlanPoolObj.Name] = vlanStr
 	cont.fabricVlanPoolMap[fabricVlanPoolObj.Namespace] = nsVlanPoolMap
 	encapStr := cont.getGlobalFabricVlanPoolLocked()
-	progMap := make(map[string]apicapi.ApicSlice)
 	cont.updateGlobalConfig(encapStr, progMap)
+	return progMap
+}
+
+func (cont *AciController) handleFabricVlanPoolUpdate(obj interface{}) bool {
+	progMap := cont.updateFabricVlanPool(obj)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
 			cont.apicConn.ClearApicObjects(labelKey)
@@ -164,14 +169,15 @@ func (cont *AciController) handleFabricVlanPoolUpdate(obj interface{}) bool {
 	return false
 }
 
-func (cont *AciController) handleFabricVlanPoolDelete(key string) bool {
+func (cont *AciController) deleteFabricVlanPool(key string) map[string]apicapi.ApicSlice {
+	progMap := make(map[string]apicapi.ApicSlice)
 	cont.log.Infof("fabricvlanpool delete: %s", key)
-	fabricVlanPoolElems := strings.Split("/", key)
+	fabricVlanPoolElems := strings.Split(key, "/")
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
 	nsVlanPoolMap, ok := cont.fabricVlanPoolMap[fabricVlanPoolElems[0]]
 	if !ok {
-		return false
+		return progMap
 	}
 	delete(nsVlanPoolMap, fabricVlanPoolElems[1])
 	cont.fabricVlanPoolMap[fabricVlanPoolElems[0]] = nsVlanPoolMap
@@ -179,8 +185,12 @@ func (cont *AciController) handleFabricVlanPoolDelete(key string) bool {
 		delete(cont.fabricVlanPoolMap, fabricVlanPoolElems[0])
 	}
 	encapStr := cont.getGlobalFabricVlanPoolLocked()
-	progMap := make(map[string]apicapi.ApicSlice)
 	cont.updateGlobalConfig(encapStr, progMap)
+	return progMap
+}
+
+func (cont *AciController) handleFabricVlanPoolDelete(key string) bool {
+	progMap := cont.deleteFabricVlanPool(key)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
 			cont.apicConn.ClearApicObjects(labelKey)

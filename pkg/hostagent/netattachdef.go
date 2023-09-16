@@ -35,6 +35,7 @@ import (
 	"github.com/k8snetworkplumbingwg/sriovnet"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -82,7 +83,6 @@ type NetworkAttachmentData struct {
 	EncapKey             string
 	PluginVlan           string
 	Programmed           bool
-	vlanUnspecified      bool
 }
 
 type ClientInfo struct {
@@ -287,9 +287,6 @@ func (agent *HostAgent) LoadCniNetworks() error {
 			for _, localIface := range netAttData.Ifaces {
 				agent.netattdefifacemap[localIface] = &netAttData
 			}
-			if netAttData.vlanUnspecified {
-				agent.orphanNadMap[netAttKey] = &netAttData
-			}
 		} else {
 			agent.log.Errorf("Failed to read additional network file %s:%v", path, err2)
 			return nil
@@ -408,18 +405,13 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 		return
 	}
 	if !isDelete {
-		netAttData.vlanUnspecified = false
+		vlanList = agent.getAllowedVlansLocked(vlanList, netAttData.Namespace)
 		netAttData.EncapVlan = vlanList
 		netAttData.EncapKey = encapKey
-		agent.log.Debugf("Using nadVlanMap: %s", vlanList)
+		agent.log.Debugf("Using nadVlanMap allowed list : %s", vlanList)
 	} else {
 		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
 		agent.handlePluginVlan(netAttData, vlan)
-	}
-	if netAttData.vlanUnspecified {
-		agent.orphanNadMap[nadKey] = netAttData
-	} else {
-		delete(agent.orphanNadMap, nadKey)
 	}
 	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
@@ -438,13 +430,9 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 }
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentForFabricVlanPoolLocked() {
-	for _, netAttData := range agent.orphanNadMap {
-		vlanStr := agent.getFabricVlanPool(netAttData.Namespace, true)
-		if vlanStr != "" {
-			netAttData.EncapVlan = vlanStr
-		} else {
-			netAttData.EncapVlan = "0"
-		}
+	for _, netAttData := range agent.netattdefmap {
+		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
+		agent.handlePluginVlan(netAttData, vlan)
 		fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 		fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
 		if err == nil {
@@ -595,13 +583,42 @@ func validateVlanAnnotation(vlanStr string) (string, error) {
 	return resultStr, nil
 }
 
+func (agent *HostAgent) getAllowedVlansLocked(encapStr string, namespace string) (allowedStr string) {
+	poolStr := agent.getFabricVlanPool(namespace, true)
+	poolVlans, _, _, err := util.ParseVlanList([]string{poolStr})
+	if err != nil {
+		return ""
+	}
+	vlans, _, _, err := util.ParseVlanList([]string{encapStr})
+	if err != nil {
+		return ""
+	}
+	vlanMap := make(map[int]bool)
+	for _, elem := range vlans {
+		vlanMap[elem] = false
+	}
+	for _, elem := range poolVlans {
+		if _, ok := vlanMap[elem]; ok {
+			if allowedStr == "" {
+				allowedStr = fmt.Sprintf("[%d", elem)
+				continue
+			}
+			allowedStr += fmt.Sprintf(",%d", elem)
+		}
+	}
+	if len(allowedStr) != 0 {
+		allowedStr += "]"
+	}
+	return allowedStr
+}
+
 func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan int) {
-	netAttData.vlanUnspecified = false
 	nadKey := netAttData.Namespace + "/" + netAttData.Name
 	netAttData.PluginVlan = fmt.Sprintf("%d", vlan)
 	if vlan == 0 {
 		if val, ok := netAttData.KnownAnnots[vlanAnnot]; ok {
 			if vlanStr, err := validateVlanAnnotation(val); err == nil {
+				vlanStr = agent.getAllowedVlansLocked(vlanStr, netAttData.Namespace)
 				agent.log.Debugf("Using annotation: %s", vlanStr)
 				netAttData.EncapVlan = vlanStr
 				netAttData.EncapKey = ""
@@ -612,19 +629,15 @@ func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan
 		}
 		matchingKey, vlanList, match := agent.getNadVlanMapMatchLocked(nadKey)
 		if match {
+			vlanList = agent.getAllowedVlansLocked(vlanList, netAttData.Namespace)
 			agent.log.Debugf("Using nadVlanMap: %s", vlanList)
 			netAttData.EncapVlan = vlanList
 			netAttData.EncapKey = matchingKey
 			return
 		}
-		encap := "0"
-		netAttData.vlanUnspecified = true
 		vlanStr := agent.getFabricVlanPool(netAttData.Namespace, true)
 		agent.log.Debugf("Using vlan pool: %s", vlanStr)
-		if vlanStr != "" {
-			encap = vlanStr
-		}
-		netAttData.EncapVlan = encap
+		netAttData.EncapVlan = vlanStr
 		netAttData.EncapKey = ""
 		return
 	}
@@ -774,11 +787,6 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 					}
 				}
 			}
-			if netattdata.vlanUnspecified {
-				agent.orphanNadMap[netAttDefKey] = &netattdata
-			} else {
-				delete(agent.orphanNadMap, netAttDefKey)
-			}
 			if err := agent.updateNodeFabricNetworkAttachmentLocked(&netattdata); err != nil {
 				agent.log.Errorf("Failed to create/update nodefabricnetworkattachment %s :%v", nodeFabNetAttName, err)
 			}
@@ -849,7 +857,6 @@ func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
 				delete(agent.netattdefifacemap, iface)
 			}
 		}
-		delete(agent.orphanNadMap, netAttDefKey)
 		agent.DeleteNetworkMetadata(netattDef)
 	}
 	delete(agent.netattdefmap, netAttDefKey)
