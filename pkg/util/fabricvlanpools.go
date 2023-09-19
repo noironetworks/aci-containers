@@ -73,3 +73,32 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 	}
 	return vlans, vlanBlks, combinedStr, err
 }
+
+func CombineVlanPoolMaps(nsVlanPoolMap map[string]map[string]string, namespace string) (combinedStr string) {
+	combineNsVlanList := func(ns string) string {
+		for _, vlanStr := range nsVlanPoolMap[ns] {
+			if len(vlanStr) == 0 {
+				continue
+			}
+			var postOpenBrace string
+			preCloseBrace := vlanStr
+			_, postOpenBrace, found := strings.Cut(vlanStr, "[")
+			if found {
+				preCloseBrace, _, _ = strings.Cut(postOpenBrace, "]")
+			}
+			if len(combinedStr) == 0 {
+				combinedStr = preCloseBrace
+				continue
+			}
+			combinedStr += "," + preCloseBrace
+		}
+		return combinedStr
+	}
+	if namespace == "" {
+		for ns := range nsVlanPoolMap {
+			combineNsVlanList(ns)
+		}
+		return combinedStr
+	}
+	return combineNsVlanList(namespace)
+}
