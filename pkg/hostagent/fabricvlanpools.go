@@ -28,21 +28,10 @@ import (
 
 //APIs
 
-func (agent *HostAgent) getGlobalFabricVlanPool() (combinedStr string) {
+func (agent *HostAgent) getGlobalFabricVlanPool() string {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
-	for ns := range agent.fabricVlanPoolMap {
-		vlanStr := agent.getFabricVlanPoolNamespaceLocked(ns)
-		if len(vlanStr) == 0 {
-			continue
-		}
-		if len(combinedStr) == 0 {
-			combinedStr = vlanStr
-			continue
-		}
-		combinedStr += "," + vlanStr
-	}
-	return combinedStr
+	return util.CombineVlanPoolMaps(agent.fabricVlanPoolMap, "")
 }
 
 func (agent *HostAgent) getFabricVlanPool(namespace string, locked bool) string {
@@ -58,20 +47,8 @@ func (agent *HostAgent) getFabricVlanPool(namespace string, locked bool) string 
 
 // End APIs
 
-func (agent *HostAgent) getFabricVlanPoolNamespaceLocked(namespace string) (combinedStr string) {
-	if nsVlanPoolMap, ok := agent.fabricVlanPoolMap[namespace]; ok {
-		for _, vlanStr := range nsVlanPoolMap {
-			if len(vlanStr) == 0 {
-				continue
-			}
-			if len(combinedStr) == 0 {
-				combinedStr = vlanStr
-				continue
-			}
-			combinedStr += "," + vlanStr
-		}
-	}
-	return combinedStr
+func (agent *HostAgent) getFabricVlanPoolNamespaceLocked(namespace string) string {
+	return util.CombineVlanPoolMaps(agent.fabricVlanPoolMap, namespace)
 }
 
 func (agent *HostAgent) initFabricVlanPoolsInformerFromClient(client *fabattclientset.Clientset) {

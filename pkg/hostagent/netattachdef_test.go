@@ -241,7 +241,7 @@ func TestNADMacVlanCRUD(t *testing.T) {
 				Name:      "macvlan-net2",
 				Namespace: "default",
 			},
-			EncapVlan: fabattv1.EncapSource{VlanList: "[102-105]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "102-105"},
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				"bond1": {
 					FabricLink: []string{
@@ -384,7 +384,7 @@ func TestNADVlanMatch(t *testing.T) {
 
 	agent.fakeNadVlanMapSource.Delete(nadVlanMap)
 	expected.Spec.EncapVlan = fabattv1.EncapSource{
-		VlanList: "[102-105]",
+		VlanList: "102-105",
 	}
 	assert.Eventually(t, func() bool {
 		fabAttClient.Get(context.TODO(),

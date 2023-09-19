@@ -21,20 +21,8 @@ const (
 
 // APIs
 
-func (cont *AciController) getGlobalFabricVlanPoolLocked() (combinedStr string) {
-	for _, nsVlanPool := range cont.fabricVlanPoolMap {
-		for _, vlanStr := range nsVlanPool {
-			if len(vlanStr) == 0 {
-				continue
-			}
-			if len(combinedStr) == 0 {
-				combinedStr = vlanStr
-				continue
-			}
-			combinedStr += "," + vlanStr
-		}
-	}
-	return combinedStr
+func (cont *AciController) getGlobalFabricVlanPoolLocked() string {
+	return util.CombineVlanPoolMaps(cont.fabricVlanPoolMap, "")
 }
 
 // End APIs
