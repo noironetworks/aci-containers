@@ -336,11 +336,14 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 	secondaryPhysDomDn := "uni/phys-" + physDom
 	infraRsDomP := apicapi.NewInfraRsDomP(aepDn, secondaryPhysDomDn)
 	apicSlice = append(apicSlice, infraRsDomP)
+	// Workaround alert: Due to the fact that infraGeneric cannot take
+	// any other name than default, we have to follow this hack of not adding
+	// infraRsFuncToEpg as a child and making infraGeneric not deletable.
 	infraGeneric := apicapi.NewInfraGeneric(aep)
 	encap := fmt.Sprintf("%d", vlan)
 	infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
-	infraGeneric.AddChild(infraRsFuncToEpg)
 	apicSlice = append(apicSlice, infraGeneric)
+	apicSlice = append(apicSlice, infraRsFuncToEpg)
 	return apicSlice
 }
 

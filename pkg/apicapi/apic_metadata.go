@@ -277,6 +277,9 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"infraGeneric": {
+		hints: map[string]interface{}{
+			"deletable": false,
+		},
 		attributes: map[string]interface{}{
 			"name":      "",
 			"nameAlias": "",
