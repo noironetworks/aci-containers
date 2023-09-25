@@ -641,8 +641,9 @@ func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan
 		netAttData.EncapKey = ""
 		return
 	}
-	agent.log.Debugf("Using vlan in NAD: %d", vlan)
-	netAttData.EncapVlan = netAttData.PluginVlan
+	vlanStr := agent.getAllowedVlansLocked(netAttData.PluginVlan, netAttData.Namespace)
+	agent.log.Debugf("Using vlan in NAD: %s", vlanStr)
+	netAttData.EncapVlan = vlanStr
 	netAttData.EncapKey = ""
 	return
 }
