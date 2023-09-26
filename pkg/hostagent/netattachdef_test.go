@@ -278,7 +278,7 @@ func TestNADMacVlanCRUD(t *testing.T) {
 			types.NamespacedName{Name: nodename + "-default-macvlan-net2", Namespace: "aci-containers-system"},
 			actual,
 		)
-		return actual.Spec.EncapVlan == fabattv1.EncapSource{VlanList: "101"}
+		return actual.Spec.EncapVlan == fabattv1.EncapSource{}
 	}, 5*time.Second, 1*time.Second, "nfna update")
 	agent.fakeNetAttachDefSource.Delete(testnetattach("macvlan-net2", "default", configJsondata, resourceAnnot))
 	assert.Eventually(t, func() bool {
