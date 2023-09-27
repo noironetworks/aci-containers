@@ -379,6 +379,9 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 				}
 			}
 		}
+		if netattData.EncapVlan == "" || netattData.EncapVlan == "[]" {
+			err = fmt.Errorf("No encap specified/derivable for network-attachment-definition %s/%s. Specify fabricvlanpool at the least or specific vlan to use", netattData.Namespace, netattData.Name)
+		}
 	}
 	if !adjFound && !podDeleted {
 		err = fmt.Errorf("LLDP adjacency with ACI fabric not found on interface %v", podIface)
