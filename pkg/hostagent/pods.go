@@ -697,8 +697,12 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	}
 
 	existing, ok := agent.opflexEps[*epUuid]
-	for ix, ep := range existing { // TODO - fixme
-		neweps[ix].registered = ep.registered
+	for _, ep := range existing {
+		for _, newep := range neweps {
+			if ep.Uuid == newep.Uuid {
+				newep.registered = ep.registered
+			}
+		}
 	}
 
 	if (ok && !reflect.DeepEqual(existing, neweps)) || !ok {
