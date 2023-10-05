@@ -344,6 +344,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		}
 		go cont.syncOpflexDevices(stopCh, 60)
 		go cont.syncDelayedEpSlices(stopCh, 1)
+		if cont.config.AciMultipod {
+			go cont.syncNodeAciPods(stopCh, 1)
+		}
 	}
 	return nil
 }

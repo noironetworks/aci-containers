@@ -118,6 +118,13 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	dhcpDelay := time.Duration(agent.config.DhcpDelay)
+
+	// no dhcp release-renew for none to pod-<id>-subnet case
+	// as this is an odev connect case
+	if agent.aciPodAnnotation == "none" &&
+		aciPodSubnet != "" && aciPodSubnet != "none" {
+		return
+	}
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
