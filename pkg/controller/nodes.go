@@ -489,6 +489,20 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 		nodeinfokey, _ := cache.MetaNamespaceKeyFunc(nodeinfo)
 		cont.queueNodeInfoUpdateByKey(nodeinfokey)
 	}
+
+	if podnet, ok := cont.nodePodNetCache[node.ObjectMeta.Name]; ok {
+		if podnet != nil && cont.podNetworkIps != nil {
+			if cont.podNetworkIps.V4 != nil && podnet.podNetIps.V4 != nil {
+				cont.podNetworkIps.V4.AddRanges(podnet.podNetIps.V4)
+			}
+			if cont.podNetworkIps.V4 != nil && podnet.podNetIps.V6 != nil {
+				cont.podNetworkIps.V6.AddRanges(podnet.podNetIps.V6)
+			}
+		}
+		delete(cont.nodePodNetCache, node.ObjectMeta.Name)
+		cont.log.Debug("Node deleted from nodePodNetCache: ", node.ObjectMeta.Name)
+	}
+
 	np, ok := obj.(*nodePodIf.NodePodIF)
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
