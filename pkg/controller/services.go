@@ -1575,7 +1575,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		}
 		if ip.To4() != nil && clusterIPv4 == nil {
 			clusterIPv4 = ip
-		} else if ip.To16() != nil && clusterIPv6 == nil {
+		} else if ip.To16() != nil && strings.Contains(ip.String(), ":") && clusterIPv6 == nil {
 			clusterIPv6 = ip
 		}
 	}
