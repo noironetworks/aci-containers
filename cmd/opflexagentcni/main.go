@@ -259,6 +259,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 					Name:    result2.Interfaces[idx].Name,
 					Sandbox: result2.Interfaces[idx].Sandbox,
 				}
+				if idx >= 1 {
+					ifaceMd.HostVethName = result2.Interfaces[idx-1].Name
+				}
 				ifaceMds = append(ifaceMds, ifaceMd)
 				ifaceFound = true
 				ifaceResultIdx = idx

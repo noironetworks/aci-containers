@@ -587,6 +587,9 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	pod := podobj.(*v1.Pod)
 	logger := podLogger(agent.log, pod)
 
+	if agent.config.ChainedMode {
+		return
+	}
 	epMetaKey := fmt.Sprintf("%s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	epUuid := string(pod.ObjectMeta.UID)
 
@@ -638,7 +641,9 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	if logger == nil {
 		logger = agent.log.WithFields(logrus.Fields{})
 	}
-
+	if agent.config.ChainedMode {
+		return
+	}
 	logger.Debug("epChanged...")
 	epmetadata, ok := agent.epMetadata[*epMetaKey]
 	if !ok {
