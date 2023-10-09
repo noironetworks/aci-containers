@@ -259,6 +259,12 @@ type HostAgentConfig struct {
 	// chained mode enabled
 	ChainedMode bool `json:"chained-mode,omitempty"`
 
+	// enable chained operation on primary cni chain
+	EnableChainedPrimary bool `json:"enable-chained-primary,omitempty"`
+
+	// enable chained operation on secondary cni chain
+	EnableChainedSecondary bool `json:"enable-chained-secondary,omitempty"`
+
 	// Primary cni path
 	PrimaryCniPath string `json:"primary-cni-path,omitempty"`
 

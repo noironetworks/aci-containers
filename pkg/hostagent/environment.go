@@ -43,6 +43,7 @@ type Environment interface {
 	CniDeviceDeleted(metadataKey *string, id *md.ContainerId)
 
 	CheckPodExists(metadataKey *string) (bool, error)
+	CheckNetAttDefExists(netAttDefKey string) (bool, error)
 }
 
 type K8sEnvironment struct {
@@ -283,5 +284,10 @@ func (env *K8sEnvironment) CniDeviceDeleted(metadataKey *string, id *md.Containe
 
 func (env *K8sEnvironment) CheckPodExists(metadataKey *string) (bool, error) {
 	_, exists, err := env.agent.podInformer.GetStore().GetByKey(*metadataKey)
+	return exists, err
+}
+
+func (env *K8sEnvironment) CheckNetAttDefExists(netAttDefKey string) (bool, error) {
+	_, exists, err := env.agent.netAttDefInformer.GetStore().GetByKey(netAttDefKey)
 	return exists, err
 }
