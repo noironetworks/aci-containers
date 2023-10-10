@@ -285,13 +285,37 @@ func (cont *AciController) getActiveFabricPathDn(node string) string {
 	return fabricPathDn
 }
 
+func (cont *AciController) getOpflexOdevCount(node string) (int, string) {
+	devIdCount := make(map[string]int)
+	var maxCount int
+	var fabricPathDn string
+	for _, device := range cont.nodeOpflexDevice[node] {
+		devId := device.GetAttrStr("devId")
+		count, ok := devIdCount[devId]
+		if ok {
+			devIdCount[devId] = count + 1
+		} else {
+			devIdCount[devId] = 1
+		}
+		if devIdCount[devId] >= maxCount {
+			maxCount = devIdCount[devId]
+			fabricPathDn = device.GetAttrStr("fabricPathDn")
+		}
+	}
+	return maxCount, fabricPathDn
+}
+
 func deleteDevicesFromList(delDevices, devices apicapi.ApicSlice) apicapi.ApicSlice {
 	var newDevices apicapi.ApicSlice
-	for delDev := range delDevices {
-		for _, device := range devices {
-			if !reflect.DeepEqual(delDev, device) {
-				newDevices = append(newDevices, device)
+	for _, device := range devices {
+		found := false
+		for delDev := range delDevices {
+			if reflect.DeepEqual(delDev, device) {
+				found = true
 			}
+		}
+		if !found {
+			newDevices = append(newDevices, device)
 		}
 	}
 	return newDevices
@@ -326,27 +350,53 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 }
 
 func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
-	fabricPathDn := cont.getActiveFabricPathDn(node)
+	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
 	nodeAciPodAnnot := cont.nodeACIPod[node]
-	if fabricPathDn == "" {
-		if nodeAciPodAnnot.disconnectTime.IsZero() {
-			nodeAciPodAnnot.disconnectTime = time.Now()
-		} else {
-			currentTime := time.Now()
-			diff := currentTime.Sub(nodeAciPodAnnot.disconnectTime)
-			if diff.Seconds() > float64(cont.config.OpflexDeviceReconnectWaitTimeout) {
-				nodeAciPodAnnot.aciPod = "none"
+	isSingleOdev := nodeAciPodAnnot.isSingleOpflexOdev
+	if (odevCount == 0) ||
+		(odevCount == 1 && !isSingleOdev) ||
+		(odevCount == 1 && isSingleOdev && !nodeAciPodAnnot.disconnectTime.IsZero()) {
+		if nodeAciPodAnnot.aciPod != "none" {
+			if nodeAciPodAnnot.disconnectTime.IsZero() {
+				nodeAciPodAnnot.disconnectTime = time.Now()
+			} else {
+				currentTime := time.Now()
+				diff := currentTime.Sub(nodeAciPodAnnot.disconnectTime)
+				if diff.Seconds() > float64(cont.config.OpflexDeviceReconnectWaitTimeout) {
+					nodeAciPodAnnot.aciPod = "none"
+					nodeAciPodAnnot.disconnectTime = time.Time{}
+				}
 			}
 		}
+		if odevCount == 1 {
+			nodeAciPodAnnot.isSingleOpflexOdev = true
+		}
+		nodeAciPodAnnot.connectTime = time.Time{}
 		return nodeAciPodAnnot, nil
-	} else {
+	} else if (odevCount == 2) ||
+		(odevCount == 1 && isSingleOdev && nodeAciPodAnnot.disconnectTime.IsZero()) {
 		// when there is already a connected opflex device,
 		// fabricPathDn will have latest pod iformation
 		// and annotation will be in the form pod-<podid>-<subnet of pod>
 		nodeAciPodAnnot.disconnectTime = time.Time{}
 		nodeAciPod := nodeAciPodAnnot.aciPod
-		path := fabricPathDn
-		pathSlice := strings.Split(path, "/")
+		if odevCount == 2 {
+			nodeAciPodAnnot.isSingleOpflexOdev = false
+		}
+		if odevCount == 1 && nodeAciPod == "none" {
+			if nodeAciPodAnnot.connectTime.IsZero() {
+				nodeAciPodAnnot.connectTime = time.Now()
+				return nodeAciPodAnnot, nil
+			} else {
+				currentTime := time.Now()
+				diff := currentTime.Sub(nodeAciPodAnnot.connectTime)
+				if diff.Seconds() < float64(10) {
+					return nodeAciPodAnnot, nil
+				}
+			}
+		}
+		nodeAciPodAnnot.connectTime = time.Time{}
+		pathSlice := strings.Split(fabricPathDn, "/")
 		if len(pathSlice) > 1 {
 			pod := pathSlice[1]
 
@@ -364,21 +414,50 @@ func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, err
 			} else {
 				return nodeAciPodAnnot, nil
 			}
+		} else {
+			cont.log.Error("Invalid fabricPathDn of opflexOdev of node ", node)
+			return nodeAciPodAnnot, fmt.Errorf("Invalid fabricPathDn of opflexOdev")
 		}
 	}
 	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
 }
 
-func (cont *AciController) deleteOldOpflexDevices() {
-	var callAgain bool
-	var nodeUpdates []string
-	var nodes []string
+func (cont *AciController) checkChangeOfOdevAciPod() {
 	var nodeAnnotationUpdates []string
+	cont.apicConn.SyncMutex.Lock()
+	syncDone := cont.apicConn.SyncDone
+	cont.apicConn.SyncMutex.Unlock()
+
+	if !syncDone {
+		return
+	}
+
+	cont.indexMutex.Lock()
+	for node := range cont.nodeACIPod {
+		annot, err := cont.createAciPodAnnotation(node)
+		if err != nil {
+			cont.log.Error(err.Error())
+		} else {
+			if annot != cont.nodeACIPod[node] {
+				cont.nodeACIPod[node] = annot
+				nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+	if len(nodeAnnotationUpdates) > 0 {
+		for _, updatednode := range nodeAnnotationUpdates {
+			go cont.env.NodeAnnotationChanged(updatednode)
+		}
+	}
+}
+
+func (cont *AciController) deleteOldOpflexDevices() {
+	var nodeUpdates []string
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
-		nodes = append(nodes, node)
 		if fabricPathDn != "" {
 			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
@@ -408,45 +487,6 @@ func (cont *AciController) deleteOldOpflexDevices() {
 	cont.indexMutex.Unlock()
 	if len(nodeUpdates) > 0 {
 		cont.postOpflexDeviceDelete(nodeUpdates)
-	}
-	if cont.config.AciMultipod {
-		for {
-			callAgain = false
-			for _, node := range nodes {
-				cont.apicConn.SyncMutex.Lock()
-				syncDone := cont.apicConn.SyncDone
-				cont.apicConn.SyncMutex.Unlock()
-				if syncDone {
-					cont.indexMutex.Lock()
-					annot, err := cont.createAciPodAnnotation(node)
-					if err != nil {
-						cont.log.Error(err.Error())
-					} else {
-						existing, ok := cont.nodeACIPod[node]
-						if ok && existing.aciPod != "none" &&
-							annot.aciPod == existing.aciPod &&
-							!annot.disconnectTime.IsZero() {
-							callAgain = true
-						}
-						if annot != cont.nodeACIPod[node] {
-							cont.nodeACIPod[node] = annot
-							nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
-						}
-					}
-					cont.indexMutex.Unlock()
-				}
-			}
-			if callAgain {
-				time.Sleep(1 * time.Second)
-				continue
-			}
-			break
-		}
-	}
-	if len(nodeAnnotationUpdates) > 0 {
-		for _, updatednode := range nodeAnnotationUpdates {
-			go cont.env.NodeAnnotationChanged(updatednode)
-		}
 	}
 }
 

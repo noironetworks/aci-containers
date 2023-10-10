@@ -220,8 +220,10 @@ type DelayedEpSlice struct {
 }
 
 type aciPodAnnot struct {
-	aciPod         string
-	disconnectTime time.Time
+	aciPod             string
+	isSingleOpflexOdev bool
+	disconnectTime     time.Time
+	connectTime        time.Time
 }
 
 type nodeServiceMeta struct {
@@ -594,9 +596,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.OpflexDeviceDeleteTimeout = 1800
 	}
 
-	// If OpflexDeviceReconnectWaitTimeout is not defined, default to 5s
+	// If OpflexDeviceReconnectWaitTimeout is not defined, default to 25s
 	if cont.config.OpflexDeviceReconnectWaitTimeout == 0 {
-		cont.config.OpflexDeviceReconnectWaitTimeout = 5
+		cont.config.OpflexDeviceReconnectWaitTimeout = 25
 	}
 	cont.log.Debug("OpflexDeviceReconnectWaitTimeout set to: ", cont.config.OpflexDeviceReconnectWaitTimeout)
 
@@ -831,6 +833,21 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			})
 	}
 	go cont.apicConn.Run(stopCh)
+}
+
+func (cont *AciController) syncNodeAciPods(stopCh <-chan struct{}, seconds time.Duration) {
+	cont.log.Debug("Go routine to periodically check the aci pod information in the opflexOdev of a node")
+	ticker := time.NewTicker(seconds * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			cont.checkChangeOfOdevAciPod()
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (cont *AciController) syncOpflexDevices(stopCh <-chan struct{}, seconds time.Duration) {
