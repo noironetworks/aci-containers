@@ -1044,9 +1044,9 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 
 	cmd := exec.Command("kubectl", "apply", "-f", "aci-deployment.yaml")
 	log.Debug(cmd)
-	_, err = cmd.Output()
+	cmdOutput, err := cmd.Output()
 	if err != nil {
-		log.Error(err)
+		log.Errorf("cmdOutput: %s err: %v", cmdOutput, err)
 		return true
 	}
 
