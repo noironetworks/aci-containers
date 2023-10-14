@@ -27,6 +27,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/Mellanox/sriovnet"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -502,83 +503,91 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 		podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 		agent.indexMutex.Lock()
 		if networkName == agent.primaryNetworkName {
-			agent.epMetadata[podid] = make(map[string]*md.ContainerMetadata)
-			agent.epMetadata[podid][metadata.Id.ContId] = metadata
+			if agent.config.EnableChainedPrimary {
+				agent.epMetadata[podid] = make(map[string]*md.ContainerMetadata)
+				agent.epMetadata[podid][metadata.Id.ContId] = metadata
+			}
 			isPrimaryNetwork = true
 		} else {
-			if _, ok := agent.podNetworkMetadata[podid]; !ok {
-				agent.podNetworkMetadata[podid] =
-					make(map[string]map[string]*md.ContainerMetadata)
-			}
-
-			netAttDefKey := metadata.Id.Namespace + "/" + metadata.Network.NetworkName
-			networkName = metadata.Id.Namespace + "-" + metadata.Network.NetworkName
-
-			if netAttDef, ok := agent.netattdefmap[netAttDefKey]; ok {
-				podAtt := &fabattv1.PodAttachment{
-					PodRef: fabattv1.ObjRef{Namespace: metadata.Id.Namespace,
-						Name: metadata.Id.Pod},
+			if agent.config.EnableChainedSecondary {
+				if _, ok := agent.podNetworkMetadata[podid]; !ok {
+					agent.podNetworkMetadata[podid] =
+						make(map[string]map[string]*md.ContainerMetadata)
 				}
-				if netAttDef.PrimaryCNI == "sriov" {
-					err := agent.getAlloccatedDeviceId(metadata, "chained")
-					if err != nil {
-						logger.Error("VF allocation failed ", err)
+
+				netAttDefKey := metadata.Id.Namespace + "/" + metadata.Network.NetworkName
+				networkName = metadata.Id.Namespace + "-" + metadata.Network.NetworkName
+
+				if netAttDef, ok := agent.netattdefmap[netAttDefKey]; ok {
+					podAtt := &fabattv1.PodAttachment{
+						PodRef: fabattv1.ObjRef{Namespace: metadata.Id.Namespace,
+							Name: metadata.Id.Pod},
 					}
-					if len(metadata.Id.DeviceId) == 0 {
-						logger.Error("VF allocation failed: Sriov resource not allocated")
+					if netAttDef.PrimaryCNI == "sriov" {
+						err := agent.getAlloccatedDeviceId(metadata, "chained")
+						if err != nil {
+							logger.Error("VF allocation failed ", err)
+						}
+						if len(metadata.Id.DeviceId) == 0 {
+							logger.Error("VF allocation failed: Sriov resource not allocated")
+						} else {
+							logger.Debug("Sriov resource allocated: ", metadata.Id.DeviceId)
+						}
+						metadata.Network.PFName = agent.getPFFromVFPCI(metadata.Id.DeviceId)
+						metadata.Network.VFName = agent.getNetDevFromVFPCI(metadata.Id.DeviceId, metadata.Network.PFName)
+						logger.Infof("Associated PF: %s, VF: %s", metadata.Network.PFName, metadata.Network.VFName)
 					} else {
-						logger.Debug("Sriov resource allocated: ", metadata.Id.DeviceId)
+						metadata.Network.VFName = metadata.Ifaces[len(metadata.Ifaces)-1].Name
+						metadata.Network.PFName = netAttDef.ResourceName
 					}
-					metadata.Network.PFName = agent.getPFFromVFPCI(metadata.Id.DeviceId)
-					metadata.Network.VFName = agent.getNetDevFromVFPCI(metadata.Id.DeviceId, metadata.Network.PFName)
-					logger.Infof("Associated PF: %s, VF: %s", metadata.Network.PFName, metadata.Network.VFName)
-				} else {
-					metadata.Network.VFName = metadata.Ifaces[len(metadata.Ifaces)-1].Name
-					metadata.Network.PFName = netAttDef.ResourceName
-				}
-				podAtt.LocalIface = metadata.Network.VFName
-				if _, ok := agent.podNetworkMetadata[podid][metadata.Network.NetworkName]; !ok {
-					agent.podNetworkMetadata[podid][metadata.Network.NetworkName] =
-						make(map[string]*md.ContainerMetadata)
-				}
-				agent.podNetworkMetadata[podid][metadata.Network.NetworkName][metadata.Id.ContId] =
-					metadata
+					podAtt.LocalIface = metadata.Network.VFName
+					if _, ok := agent.podNetworkMetadata[podid][metadata.Network.NetworkName]; !ok {
+						agent.podNetworkMetadata[podid][metadata.Network.NetworkName] =
+							make(map[string]*md.ContainerMetadata)
+					}
+					agent.podNetworkMetadata[podid][metadata.Network.NetworkName][metadata.Id.ContId] =
+						metadata
 
-				err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, metadata.Network.NetworkName, false)
-				if err != nil {
-					errorMsg := fmt.Sprintf("Could not create Pod Fabric Attachment: %v", err)
-					agent.indexMutex.Unlock()
+					err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, metadata.Network.NetworkName, false)
+					if err != nil {
+						errorMsg := fmt.Sprintf("Could not create Pod Fabric Attachment: %v", err)
+						agent.indexMutex.Unlock()
 
-					logger.Infof("Forcing refresh of LLDP data for iface %s", metadata.Network.PFName)
-					for i := 0; i < 3; i++ {
-						agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
-						if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
-							for _, nbr := range fabAttData {
-								if nbr.StaticPath != "" {
-									return result, nil
+						logger.Infof("Forcing refresh of LLDP data for iface %s", metadata.Network.PFName)
+						for i := 0; i < 3; i++ {
+							agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
+							if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
+								for _, nbr := range fabAttData {
+									if nbr.StaticPath != "" {
+										return result, nil
+									}
 								}
 							}
 						}
+						return result, errors.New(errorMsg)
 					}
+				} else {
+					errorMsg := fmt.Sprintf("Failed to find network-attachment-definition: %s", netAttDefKey)
+					agent.indexMutex.Unlock()
 					return result, errors.New(errorMsg)
 				}
-			} else {
-				errorMsg := fmt.Sprintf("Failed to find network-attachment-definition: %s", netAttDefKey)
-				agent.indexMutex.Unlock()
-				return result, errors.New(errorMsg)
 			}
 		}
 		agent.indexMutex.Unlock()
 		if isPrimaryNetwork {
-			for _, iface := range metadata.Ifaces {
-				iface.HostVethName = iface.Name
+			if agent.config.EnableChainedPrimary {
+				for _, iface := range metadata.Ifaces {
+					iface.HostVethName = iface.Name
+				}
+				agent.env.CniDeviceChanged(&podid, &metadata.Id)
 			}
-			agent.env.CniDeviceChanged(&podid, &metadata.Id)
 		}
-		err := md.RecordMetadata(agent.config.CniMetadataDir, networkName, metadata)
-		if err != nil {
-			logger.Debug("ERROR RecordMetadata")
-			return result, err
+		if (isPrimaryNetwork && agent.config.EnableChainedPrimary) || (!isPrimaryNetwork && agent.config.EnableChainedSecondary) {
+			err := md.RecordMetadata(agent.config.CniMetadataDir, networkName, metadata)
+			if err != nil {
+				logger.Debug("ERROR RecordMetadata")
+				return result, err
+			}
 		}
 		return result, nil
 	}
@@ -762,6 +771,40 @@ func (agent *HostAgent) cleanStatleMetadata(id string) error {
 	return err
 }
 
+func (agent *HostAgent) unconfigureContainerSecondaryIfacesLocked(podId, networkName, contId string) bool {
+	podIdParts := strings.Split(podId, "/")
+	logger := agent.log.WithFields(logrus.Fields{
+		"ContId":    contId,
+		"Pod":       podIdParts[1],
+		"Namespace": podIdParts[0],
+	})
+	if nwMetaMap, ok := agent.podNetworkMetadata[podId]; ok {
+		if _, ok := nwMetaMap[networkName]; ok {
+			podAtt := &fabattv1.PodAttachment{
+				PodRef: fabattv1.ObjRef{
+					Name:      podIdParts[1],
+					Namespace: podIdParts[0],
+				},
+			}
+			if _, ok := agent.podNetworkMetadata[podId]; ok {
+				if _, ok := agent.podNetworkMetadata[podId][networkName]; ok {
+					podAtt.LocalIface = ""
+					if contId != "" {
+						podAtt.LocalIface = agent.podNetworkMetadata[podId][networkName][contId].Network.VFName
+					}
+				}
+			}
+
+			err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, networkName, true)
+			logger.Errorf("Deleting fabricpodnetworkattachment failed: %s", err)
+			delete(nwMetaMap, networkName)
+			agent.podNetworkMetadata[podId] = nwMetaMap
+			return true
+		}
+	}
+	return false
+}
+
 func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMetadata) error {
 	logger := agent.log.WithFields(logrus.Fields{
 		"ContId":    metadataArg.Id.ContId,
@@ -774,40 +817,35 @@ func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMeta
 
 	agent.indexMutex.Lock()
 
-	if nwMetaMap, ok := agent.podNetworkMetadata[podid]; ok {
-		if _, ok := nwMetaMap[argNetworkName]; ok {
-			podAtt := &fabattv1.PodAttachment{
-				PodRef: fabattv1.ObjRef{
-					Name:      metadataArg.Id.Pod,
-					Namespace: metadataArg.Id.Namespace,
-				},
-			}
-			if _, ok := agent.podNetworkMetadata[podid]; ok {
-				if _, ok := agent.podNetworkMetadata[podid][argNetworkName]; ok {
-					if _, ok := agent.podNetworkMetadata[podid][argNetworkName]; ok {
-						podAtt.LocalIface = agent.podNetworkMetadata[podid][argNetworkName][metadataArg.Id.ContId].Network.VFName
-					}
-				}
-			}
-
-			err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, argNetworkName, true)
-			logger.Errorf("Deleting fabricpodnetworkattachment failed: %s", err)
-			delete(nwMetaMap, argNetworkName)
-			agent.podNetworkMetadata[podid] = nwMetaMap
-			agent.indexMutex.Unlock()
-			return nil
-		}
+	isPrimaryNetwork := false
+	if argNetworkName == agent.primaryNetworkName {
+		isPrimaryNetwork = true
 	}
+	isRelevantChainedConfig := false
+	if agent.config.ChainedMode && ((isPrimaryNetwork && agent.config.EnableChainedPrimary) || (!isPrimaryNetwork && agent.config.EnableChainedSecondary)) {
+		isRelevantChainedConfig = true
+	}
+	isRelevantConfig := !metadataArg.Network.ChainedMode || isRelevantChainedConfig
+
+	if agent.unconfigureContainerSecondaryIfacesLocked(podid, argNetworkName, metadataArg.Id.ContId) {
+		agent.indexMutex.Unlock()
+		return nil
+	}
+
 	mdmap, ok := agent.epMetadata[podid]
 	if !ok {
-		logger.Info("Unconfigure called for pod with no metadata")
+		if isRelevantConfig {
+			logger.Info("Unconfigure called for pod with no metadata")
+		}
 		// Assume container is already unconfigured
 		agent.indexMutex.Unlock()
 		return nil
 	}
 	metadata, ok := mdmap[metadataArg.Id.ContId]
 	if !ok {
-		logger.Error("Unconfigure called for container with no metadata")
+		if isRelevantConfig {
+			logger.Error("Unconfigure called for container with no metadata")
+		}
 		// Assume container is already unconfigured
 		agent.indexMutex.Unlock()
 		return nil
@@ -820,8 +858,10 @@ func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMeta
 
 	err := md.ClearMetadata(agent.config.CniMetadataDir,
 		metadata.Network.NetworkName, metadataArg.Id.ContId)
-	if err != nil {
-		return err
+	if isRelevantConfig {
+		if err != nil {
+			return err
+		}
 	}
 
 	agent.cniEpDelete(podid)
@@ -867,6 +907,38 @@ func (agent *HostAgent) cleanupSetup() {
 		agent.indexMutex.Unlock()
 		agent.log.Info("Sync not enabled, skipping stale container setup")
 		return
+	}
+	if agent.config.ChainedMode {
+		agent.log.Info("Cleaning up stale additional network metadata")
+		for netAttDefKey, netAttData := range agent.netattdefmap {
+			exists, err := agent.env.CheckNetAttDefExists(netAttDefKey)
+			if err != nil {
+				agent.log.Errorf("Could not lookup netattdef %s: %v", netAttDefKey, err)
+				continue
+			}
+			for _, podMap := range netAttData.Pods {
+				for podKey := range podMap {
+					logger := agent.log.WithFields(logrus.Fields{
+						"podkey": podKey,
+					})
+					if !exists {
+						agent.unconfigureContainerSecondaryIfacesLocked(podKey, netAttData.Name, "")
+						continue
+					}
+					podExists, err := agent.env.CheckPodExists(&podKey)
+					if err != nil {
+						logger.Error("Could not lookup pod: ", err)
+						continue
+					}
+					if !podExists {
+						agent.unconfigureContainerSecondaryIfacesLocked(podKey, netAttData.Name, "")
+					}
+				}
+			}
+			if !exists {
+				agent.networkAttDefDeleteByKeyLocked(netAttDefKey)
+			}
+		}
 	}
 	mdcopy := agent.epMetadata
 	agent.indexMutex.Unlock()

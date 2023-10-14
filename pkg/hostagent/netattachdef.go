@@ -768,6 +768,10 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 			relevantChain = agent.parseChainedPlugins(config, &netattdata)
 		}
 		if relevantChain {
+			if !agent.config.EnableChainedSecondary {
+				agent.log.Infof("Secondary chaining disabled while in chained mode")
+				return
+			}
 			agent.log.Infof("Valid netattdef in chained mode: %s", netAttDefKey)
 			agent.indexMutex.Lock()
 			nodeFabNetAttName := agent.config.NodeName + "-" + netattdata.Namespace + "-" + netattdata.Name
@@ -825,6 +829,26 @@ func (agent *HostAgent) networkAttDefUpdated(oldobj, newobj interface{}) {
 	agent.networkAttDefChanged(ntd)
 }
 
+func (agent *HostAgent) networkAttDefDeleteByKeyLocked(netAttDefKey string) {
+	if netattDef, ok := agent.netattdefmap[netAttDefKey]; ok {
+		if netattDef.Programmed {
+			err := agent.deleteNodeFabricNetworkAttachment(netattDef)
+			if err != nil {
+				agent.log.Errorf("node fabric network attachment delete failed:%v", err)
+			}
+		}
+		if netattDef.PrimaryCNI == PrimaryCNIMACVLAN {
+			delete(agent.netattdefifacemap, netattDef.ResourceName)
+		} else if netattDef.PrimaryCNI == PrimaryCNISRIOV {
+			for _, iface := range netattDef.Ifaces {
+				delete(agent.netattdefifacemap, iface)
+			}
+		}
+		agent.DeleteNetworkMetadata(netattDef)
+	}
+	delete(agent.netattdefmap, netAttDefKey)
+}
+
 func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
 	ntd, isNtd := obj.(*netpolicy.NetworkAttachmentDefinition)
 	if !isNtd {
@@ -847,23 +871,7 @@ func (agent *HostAgent) networkAttDefDeleted(obj interface{}) {
 		netAttDefKey = ntd.ObjectMeta.Name
 	}
 	agent.indexMutex.Lock()
-	if netattDef, ok := agent.netattdefmap[netAttDefKey]; ok {
-		if netattDef.Programmed {
-			err := agent.deleteNodeFabricNetworkAttachment(netattDef)
-			if err != nil {
-				agent.log.Errorf("node fabric network attachment delete failed:%v", err)
-			}
-		}
-		if netattDef.PrimaryCNI == PrimaryCNIMACVLAN {
-			delete(agent.netattdefifacemap, netattDef.ResourceName)
-		} else if netattDef.PrimaryCNI == PrimaryCNISRIOV {
-			for _, iface := range netattDef.Ifaces {
-				delete(agent.netattdefifacemap, iface)
-			}
-		}
-		agent.DeleteNetworkMetadata(netattDef)
-	}
-	delete(agent.netattdefmap, netAttDefKey)
+	agent.networkAttDefDeleteByKeyLocked(netAttDefKey)
 	agent.indexMutex.Unlock()
 }
 

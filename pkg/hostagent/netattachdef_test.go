@@ -117,14 +117,16 @@ func TestNetAttachmentDefDelete(t *testing.T) {
 
 func getChainedModeConfig(nodename string) *HostAgentConfig {
 	return &HostAgentConfig{
-		NodeName:              nodename,
-		LogLevel:              "debug",
-		AciPrefix:             "ocpbm1",
-		AciVrf:                "ocp-bm-1-vrf",
-		AciVrfTenant:          "common",
-		ChainedMode:           true,
-		PrimaryCniPath:        "/mnt/cni-conf/cni/net.d/10-ovn-kubernetes.conf",
-		AciUseGlobalScopeVlan: true,
+		NodeName:               nodename,
+		LogLevel:               "debug",
+		AciPrefix:              "ocpbm1",
+		AciVrf:                 "ocp-bm-1-vrf",
+		AciVrfTenant:           "common",
+		ChainedMode:            true,
+		PrimaryCniPath:         "/mnt/cni-conf/cni/net.d/10-ovn-kubernetes.conf",
+		AciUseGlobalScopeVlan:  true,
+		EnableChainedPrimary:   false,
+		EnableChainedSecondary: true,
 	}
 
 }
