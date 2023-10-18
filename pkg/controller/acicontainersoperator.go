@@ -54,6 +54,20 @@ import (
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
 )
 
+func init() {
+	lvl, ok := os.LookupEnv("OPERATOR_LOGGING_LEVEL")
+	// LOG_LEVEL not set, let's default to info
+	if !ok {
+		lvl = "info"
+	}
+	ll, err := log.ParseLevel(lvl)
+	if err != nil {
+		ll = log.InfoLevel
+	}
+	// set global log level
+	log.SetLevel(ll)
+}
+
 // AciResources is a struct for handeling the resources of aci fabric
 type AciResources struct {
 	Deployment    *appsv1.Deployment
