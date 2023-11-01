@@ -133,6 +133,7 @@ type ApicConnection struct {
 	CachedSubnetDns    map[string]string
 
 	deltaQueue workqueue.RateLimitingInterface
+	odevQueue  workqueue.RateLimitingInterface
 }
 
 func (s ApicSlice) Len() int {
