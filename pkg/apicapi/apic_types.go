@@ -619,6 +619,13 @@ func NewHostprotRemoteIp(parentDn, addr string) ApicObject {
 	return ret
 }
 
+func NewDeleteHostprotRemoteIp(addr string) ApicObject {
+	ret := newApicObject("hostprotRemoteIp")
+	ret["hostprotRemoteIp"].Attributes["addr"] = addr
+	ret["hostprotRemoteIp"].Attributes["status"] = "deleted"
+	return ret
+}
+
 func NewQosDppPol(tenantName, name string) ApicObject {
 	ret := newApicObject("qosDppPol")
 	ret["qosDppPol"].Attributes["name"] = name

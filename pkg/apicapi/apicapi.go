@@ -380,7 +380,7 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 			}
 		} else {
-			requeue = conn.DeleteDn(dn)
+			requeue = conn.Delete(dn)
 		}
 	}
 
@@ -1061,6 +1061,25 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 		conn.restart()
 	}
 	return false
+}
+
+func (conn *ApicConnection) Delete(dn string) bool {
+	if dn == "" {
+		conn.log.Debug("Skip delete for empty Dn: ")
+		return false
+	}
+	dnSlice := strings.Split(dn, "/")
+	identifier := dnSlice[len(dnSlice)-1]
+	iSlice := strings.SplitN(identifier, "-", 2)
+	if len(iSlice) == 2 {
+		if iSlice[0] == "ip" {
+			addr := strings.Trim(iSlice[1], "[]")
+			obj := NewDeleteHostprotRemoteIp(addr)
+			conn.log.Debug("Posting delete of dn ", dn)
+			return conn.postDn(dn, obj)
+		}
+	}
+	return conn.DeleteDn(dn)
 }
 
 func (conn *ApicConnection) DeleteDn(dn string) bool {
