@@ -255,7 +255,7 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 	}
 
 	for _, obj := range apicresp.Imdata {
-		for _, body := range obj {
+		for key, body := range obj {
 			if dn, ok := body.Attributes["dn"].(string); ok {
 				if status, isStr := body.Attributes["status"].(string); isStr {
 					var pendingKind int
@@ -277,8 +277,13 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						subIds:  subIds,
 						isDirty: false,
 					}
-					if conn.deltaQueue != nil {
-						conn.deltaQueue.Add(dn)
+					if key == "opflexODev" && conn.odevQueue != nil {
+						conn.log.Debug("Adding dn to odevQueue: ", dn)
+						conn.odevQueue.Add(dn)
+					} else {
+						if conn.deltaQueue != nil {
+							conn.deltaQueue.Add(dn)
+						}
 					}
 					conn.indexMutex.Unlock()
 				}
@@ -383,8 +388,9 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 }
 
 func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
-	queueStop <-chan struct{}) {
+	queueStop <-chan struct{}, name string) {
 	go wait.Until(func() {
+		conn.log.Debug("Running processQueue for queue ", name)
 		for {
 			dn, quit := queue.Get()
 			if quit {
@@ -418,6 +424,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	done := make(chan struct{})
 	restart := make(chan struct{})
 	queueStop := make(chan struct{})
+	odevQueueStop := make(chan struct{})
 	syncHook := make(chan fullSync, 1)
 	conn.restartCh = restart
 
@@ -456,7 +463,17 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			},
 		),
 		"delta")
-	go conn.processQueue(conn.deltaQueue, queueStop)
+	go conn.processQueue(conn.deltaQueue, queueStop, "delta")
+	conn.odevQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+			},
+		),
+		"odev")
+	go conn.processQueue(conn.odevQueue, odevQueueStop, "odev")
 	conn.indexMutex.Unlock()
 
 	refreshInterval := conn.RefreshInterval
@@ -502,9 +519,11 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	closeConn := func(stop bool) {
 		close(queueStop)
+		close(odevQueueStop)
 
 		conn.indexMutex.Lock()
 		conn.deltaQueue = nil
+		conn.odevQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
