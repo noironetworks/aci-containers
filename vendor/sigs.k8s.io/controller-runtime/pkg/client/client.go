@@ -110,6 +110,11 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 		return nil, fmt.Errorf("must provide non-nil rest.Config to client.New")
 	}
 
+	config = rest.CopyConfig(config)
+	if config.UserAgent == "" {
+		config.UserAgent = rest.DefaultKubernetesUserAgent()
+	}
+
 	if !options.WarningHandler.SuppressWarnings {
 		// surface warnings
 		logger := log.Log.WithName("KubeAPIWarningLogger")
@@ -117,7 +122,6 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 		// is log.KubeAPIWarningLogger with deduplication enabled.
 		// See log.KubeAPIWarningLoggerOptions for considerations
 		// regarding deduplication.
-		config = rest.CopyConfig(config)
 		config.WarningHandler = log.NewKubeAPIWarningLogger(
 			logger,
 			log.KubeAPIWarningLoggerOptions{
@@ -160,7 +164,7 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 		unstructuredResourceByType: make(map[schema.GroupVersionKind]*resourceMeta),
 	}
 
-	rawMetaClient, err := metadata.NewForConfigAndClient(config, options.HTTPClient)
+	rawMetaClient, err := metadata.NewForConfigAndClient(metadata.ConfigFor(config), options.HTTPClient)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct metadata-only client for use as part of client: %w", err)
 	}
@@ -191,13 +195,13 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 
 	// Load uncached GVKs.
 	c.cacheUnstructured = options.Cache.Unstructured
-	uncachedGVKs := map[schema.GroupVersionKind]struct{}{}
+	c.uncachedGVKs = map[schema.GroupVersionKind]struct{}{}
 	for _, obj := range options.Cache.DisableFor {
 		gvk, err := c.GroupVersionKindFor(obj)
 		if err != nil {
 			return nil, err
 		}
-		uncachedGVKs[gvk] = struct{}{}
+		c.uncachedGVKs[gvk] = struct{}{}
 	}
 	return c, nil
 }
