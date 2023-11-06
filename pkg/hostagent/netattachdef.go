@@ -731,6 +731,8 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 		agent.log.Debugf("Checking netattdef in chained mode: %s", netAttDefKey)
 		agent.log.Debugf("Primary CNI path: %s", primaryCniDir)
 		relevantChain := false
+		agent.indexMutex.Lock()
+		defer agent.indexMutex.Unlock()
 		if ntd.Spec.Config == "" {
 			// For a delegating plugin like Multus- it can use this method of
 			// referring to a file for additional network definition
@@ -773,7 +775,6 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 				return
 			}
 			agent.log.Infof("Valid netattdef in chained mode: %s", netAttDefKey)
-			agent.indexMutex.Lock()
 			nodeFabNetAttName := agent.config.NodeName + "-" + netattdata.Namespace + "-" + netattdata.Name
 			if netattdata.PrimaryCNI == PrimaryCNIMACVLAN {
 				agent.netattdefifacemap[netattdata.ResourceName] = &netattdata
@@ -798,7 +799,6 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 			if err := agent.updateNodeFabricNetworkAttachmentLocked(&netattdata); err != nil {
 				agent.log.Errorf("Failed to create/update nodefabricnetworkattachment %s :%v", nodeFabNetAttName, err)
 			}
-			agent.indexMutex.Unlock()
 		}
 		return
 	}
