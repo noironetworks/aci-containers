@@ -95,6 +95,7 @@ type ApicConnection struct {
 	user      string
 	password  string
 	prefix    string
+	vrfTenant string
 	version   string // APIC version
 
 	CachedVersion       string
