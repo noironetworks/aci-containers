@@ -716,6 +716,12 @@ func apicExtNet(name string, tenantName string, l3Out string,
 	return en
 }
 
+func apicDefaultEgCons(conName string, tenantName string,
+	appProfile string, epg string) apicapi.ApicObject {
+	enDn := fmt.Sprintf("uni/tn-%s/ap-%s/epg-%s", tenantName, appProfile, epg)
+	return apicapi.NewFvRsCons(enDn, conName)
+}
+
 func apicExtNetCons(conName string, tenantName string,
 	l3Out string, net string) apicapi.ApicObject {
 	enDn := fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, l3Out, net)
@@ -975,6 +981,21 @@ func (cont *AciController) updateServiceDeviceInstance(key string,
 			serviceObjs = append(serviceObjs,
 				apicExtNetCons(name, cont.config.AciVrfTenant,
 					cont.config.AciL3Out, net))
+		}
+
+		if cont.config.AddExternalContractToDefaultEPG && service.Spec.Type == v1.ServiceTypeLoadBalancer {
+			defaultEpgTenant := cont.config.DefaultEg.PolicySpace
+			defaultEpgStringSplit := strings.Split(cont.config.DefaultEg.Name, "|")
+			var defaultEpgName, appProfile string
+			if len(defaultEpgStringSplit) > 1 {
+				appProfile = defaultEpgStringSplit[0]
+				defaultEpgName = defaultEpgStringSplit[1]
+			} else {
+				appProfile = cont.config.AppProfile
+				defaultEpgName = defaultEpgStringSplit[0]
+			}
+			serviceObjs = append(serviceObjs,
+				apicDefaultEgCons(name, defaultEpgTenant, appProfile, defaultEpgName))
 		}
 
 		defaultPortRange := portRangeSnat{start: cont.config.SnatDefaultPortRangeStart,

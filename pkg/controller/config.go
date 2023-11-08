@@ -287,6 +287,12 @@ type ControllerConfig struct {
 
 	// Labels to filter nodes from SNAT redirect policy
 	NodeSnatRedirectExclude []NodeSnatRedirectExclude `json:"node-snat-redirect-exclude,omitempty"`
+
+	// Application Profile
+	AppProfile string `json:"app-profile,omitempty"`
+
+	// Add external contract to default epg (contract is created for LoadBalancer Service type), default is false
+	AddExternalContractToDefaultEPG bool `json:"add-external-contract-to-default-epg,omitempty"`
 }
 
 type netIps struct {
