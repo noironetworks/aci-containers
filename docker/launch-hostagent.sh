@@ -14,6 +14,7 @@ KUBECONFIG=/usr/local/etc/kubeconfig
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
     mkdir -p ${CNIBIN}
+    rm -f ${CNIBIN}/*
 if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ]; then
     cp ${ACIBIN}/netop-cni $CNIBIN
 fi
