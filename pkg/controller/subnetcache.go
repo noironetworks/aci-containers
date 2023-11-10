@@ -148,27 +148,21 @@ func (cont *AciController) BuildSubnetDnCache(dn, aciVrfDn string) {
 	bdRsDelimiter := "/rsctx"
 	epgRsDelimiter := "/rsbd"
 	subnetDelimiter := "/subnet"
-	bdFilter := fmt.Sprintf("query-target-filter=and(wcard(fvRsCtx.tDn,\"%s\"))", aciVrfDn)
-	bdArgs := []string{
+	fvRsFilter := fmt.Sprintf("query-target-filter=and(wcard(fvRsCtx.tDn,\"%s\"))", aciVrfDn)
+	fvRsArgs := []string{
 		"rsp-prop-include=config-only",
-		"query-target=subtree",
-		bdFilter,
-	}
-
-	epgArgs := []string{
-		"query-target=subtree",
-		"target-subtree-class=fvRsBd",
+		fvRsFilter,
 	}
 
 	subnetArgs := []string{
 		"rsp-prop-include=config-only",
 	}
 
-	bdUri := fmt.Sprintf("/api/node/class/fvBD.json?%s", strings.Join(bdArgs, "&"))
-	epgUri := fmt.Sprintf("/api/node/class/fvAEPg.json?%s", strings.Join(epgArgs, "&"))
+	fvRsUri := fmt.Sprintf("/api/node/class/fvRsCtx.json?%s", strings.Join(fvRsArgs, "&"))
+	epgUri := fmt.Sprintf("/api/node/class/fvRsBd.json")
 	SubnetUri := fmt.Sprintf("/api/node/class/fvSubnet.json?%s", strings.Join(subnetArgs, "&"))
 
-	apicresp, err := cont.apicConn.GetApicResponse(bdUri)
+	apicresp, err := cont.apicConn.GetApicResponse(fvRsUri)
 	if err != nil {
 		cont.log.Debugf("Failed to get APIC response, err: %v", err)
 		return
