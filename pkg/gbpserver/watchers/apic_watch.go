@@ -106,8 +106,10 @@ func NewApicWatcher(gs *gbpserver.Server) *ApicWatcher {
 func (aw *ApicWatcher) Init(apicUrl []string, stopCh <-chan struct{}) error {
 	// eventually, the url and credentials will come from the crd
 	ai := aw.apicInfo
+	// parameters passed here are just dummy values
+	// this will eventually updated with values from user
 	conn, err := apicapi.New(aw.logger, apicUrl, ai.user, ai.password,
-		ai.privKey, ai.cert, ai.prefix, refreshTime, 5, 5)
+		ai.privKey, ai.cert, ai.prefix, refreshTime, 5, 5, "common")
 
 	if err != nil {
 		return err

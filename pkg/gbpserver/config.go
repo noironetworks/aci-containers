@@ -58,6 +58,8 @@ type GBPServerConfig struct {
 	// The name of the ACI VMM domain
 	AciVmmDomain string `json:"aci-vmm-domain,omitempty"`
 
+	AciVrfTenant string `json:"aci-vrf-tenant,omitempty"`
+
 	// ACI VRF for this kubernetes instance
 	AciVrf     string `json:"aci-vrf,omitempty"`
 	VrfEncapID int    `json:"vrf-encap-id,omitempty"`

@@ -181,7 +181,7 @@ func configureTls(cert []byte) (*tls.Config, error) {
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
 	prefix string, refresh int, refreshTickerAdjust int,
-	subscriptionDelay int) (*ApicConnection, error) {
+	subscriptionDelay int, vrfTenant string) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -227,6 +227,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		password:            password,
 		prefix:              prefix,
 		client:              client,
+		vrfTenant:           vrfTenant,
 		subscriptions: subIndex{
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
@@ -254,10 +255,31 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 		}
 	}
 
+	nameAttrClass := map[string]bool{"vnsLDevVip": true, "vnsAbsGraph": true, "vzFilter": true, "vzBrCP": true, "l3extInstP": true, "vnsSvcRedirectPol": true, "vnsRedirectHealthGroup": true, "fvIPSLAMonitoringPol": true}
+
 	for _, obj := range apicresp.Imdata {
 		for key, body := range obj {
 			if dn, ok := body.Attributes["dn"].(string); ok {
 				if status, isStr := body.Attributes["status"].(string); isStr {
+					dnSlice := strings.Split(dn, "/")
+					if len(dnSlice) > 1 && strings.Contains(dnSlice[1], conn.vrfTenant) {
+						var attr string
+						if nameAttrClass[key] {
+							_, ok := body.Attributes["name"]
+							if ok {
+								attr = body.Attributes["name"].(string)
+							}
+						} else if key == "tagAnnotation" {
+							_, ok := body.Attributes["value"]
+							if ok {
+								attr = body.Attributes["value"].(string)
+							}
+						}
+						if attr != "" && !strings.Contains(attr, conn.prefix) {
+							conn.log.Debug("Skipping websocket notification for :", dn)
+							continue
+						}
+					}
 					var pendingKind int
 					if status == "deleted" {
 						pendingKind = pendingChangeDelete

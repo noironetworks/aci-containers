@@ -655,7 +655,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
-		refreshTimeout, refreshTickerAdjust, cont.config.ApicSubscriptionDelay)
+		refreshTimeout, refreshTickerAdjust, cont.config.ApicSubscriptionDelay,
+		cont.config.AciVrfTenant)
 	if err != nil {
 		panic(err)
 	}
@@ -781,6 +782,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"infraGeneric", "infraRsFuncToEpg"}, "")
 	}
 	if !cont.config.ChainedMode {
+		// When a new class is added for subscriptio, check if its name attribute
+		// is in the format aciPrefix-<some value>, if so add it in nameAttrClass
+		// in apicapi.go
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
 			[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
 				"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",

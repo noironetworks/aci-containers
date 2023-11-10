@@ -176,7 +176,7 @@ func TestBasic(t *testing.T) {
 	logger.Level = log.DebugLevel
 
 	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
-		"admin", "test0123", apicKey, apicCert, testTenant, 60, 5, 5)
+		"admin", "test0123", apicKey, apicCert, testTenant, 60, 5, 5, "common")
 	if err != nil {
 		t.Errorf("Starting apicapi : %v", err)
 		t.FailNow()
@@ -585,7 +585,7 @@ func TestAPIC(t *testing.T) {
 		DisableColors: true,
 	}
 
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "test!234", nil, nil, "test", 60, 5, 5)
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "test!234", nil, nil, "test", 60, 5, 5, "common")
 	if err != nil {
 		log.Errorf("New connection -- %v", err)
 		t.FailNow()
@@ -640,7 +640,7 @@ func AddEP(t *testing.T, tenant, region, vrf, epgDn string, add bool) {
 		DisableColors: true,
 	}
 
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60, 5, 5)
+	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60, 5, 5, "common")
 	if err != nil {
 		log.Errorf("New connection -- %v", err)
 		t.FailNow()
