@@ -14,10 +14,11 @@ KUBECONFIG=/usr/local/etc/kubeconfig
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
     mkdir -p ${CNIBIN}
-    rm -f ${CNIBIN}/*
 if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ]; then
+    rm -f ${CNIBIN}/netop-cni
     cp ${ACIBIN}/netop-cni $CNIBIN
 fi
+    rm -f ${CNIBIN}/opflex-agent-cni
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
 
