@@ -328,12 +328,13 @@ var metadata = map[string]*apicMeta{
 	},
 	"fvBD": {
 		attributes: map[string]interface{}{
-			"arpFlood":       "no",
-			"ipLearning":     "yes",
-			"name":           "",
-			"nameAlias":      "",
-			"unicastRoute":   "yes",
-			"unkMacUcastAct": "proxy",
+			"arpFlood":                "no",
+			"ipLearning":              "yes",
+			"name":                    "",
+			"nameAlias":               "",
+			"unicastRoute":            "yes",
+			"unkMacUcastAct":          "proxy",
+			"serviceBdRoutingDisable": "",
 		},
 		children: []string{
 			"fvSubnet",
