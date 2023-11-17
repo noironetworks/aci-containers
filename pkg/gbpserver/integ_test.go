@@ -118,7 +118,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	ts.tempDir = tempDir
 	cfg := embed.NewConfig()
 	cfg.Dir = tempDir
-	cfg.LCUrls = lcURLs
+	cfg.ListenClientUrls = lcURLs
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
 		t.Fatal(err)
