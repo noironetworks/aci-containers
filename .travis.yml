@@ -28,6 +28,10 @@ jobs:
         - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
     - stage: build-images
       if: tag IS present
+      before_install:
+        - mkdir -vp ~/.docker/cli-plugins/
+        - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.3.0/buildx-v0.3.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
+        - chmod a+x ~/.docker/cli-plugins/docker-buildx
       install:
         - pip install pytz
       go: 1.20.x
