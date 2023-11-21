@@ -14,7 +14,7 @@ KUBECONFIG=/usr/local/etc/kubeconfig
 if [ -w /mnt/cni-bin ]; then
     # Install CNI plugin binary
     mkdir -p ${CNIBIN}
-    rm -f ${CNIBIN}/*
+    rm -f ${CNIBIN}/opflex-agent-cni
     cp ${ACIBIN}/opflex-agent-cni $CNIBIN
 fi
 if [ -w /mnt/cni-conf ]; then
