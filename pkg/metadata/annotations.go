@@ -60,6 +60,7 @@ const ServiceContractScopeAnnotation = "opflex.cisco.com/ext_service_contract_sc
 const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 
 const AciPodAnnotation = "opflex.cisco.com/aci-pod"
+const NodeAciPodAnnotation = "opflex.cisco.com/node-aci-pod"
 
 // Annotation for endpoint group designation for pod, deployment, etc.
 const EgAnnotation = "opflex.cisco.com/endpoint-group"

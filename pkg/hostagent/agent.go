@@ -86,6 +86,7 @@ type HostAgent struct {
 	rcPods                 *index.PodSelectorIndex
 	podNetAnnotation       string
 	aciPodAnnotation       string
+	nodeAciPodAnnotation   string
 	podIps                 *ipam.IpCache
 	usedIPs                map[string]string
 	netAttDefInformer      cache.SharedIndexInformer

@@ -397,6 +397,21 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		}
 	}
 
+	nodeAciPodAnnotation, ok := cont.nodeACIPodAnnot[node.ObjectMeta.Name]
+	if ok {
+		nodeAciPod := nodeAciPodAnnotation.aciPod
+		aciPodAnn := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
+		if cont.nodeSyncEnabled {
+			if aciPodAnn != nodeAciPod && nodeAciPod != "" {
+				node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation] = nodeAciPod
+				nodeUpdated = true
+			}
+		}
+	} else {
+		var annot aciPodAnnot
+		cont.nodeACIPodAnnot[node.ObjectMeta.Name] = annot
+	}
+
 	if cont.config.AciMultipod {
 		nodeAciPodAnnot, ok := cont.nodeACIPod[node.ObjectMeta.Name]
 		if ok {
@@ -508,6 +523,7 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 		cont.log.Debug("Node deleted from nodePodNetCache: ", node.ObjectMeta.Name)
 	}
 
+	delete(cont.nodeACIPodAnnot, node.ObjectMeta.Name)
 	np, ok := obj.(*nodePodIf.NodePodIF)
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
