@@ -151,6 +151,7 @@ type AciController struct {
 
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodeACIPod           map[string]aciPodAnnot
+	nodeACIPodAnnot      map[string]aciPodAnnot
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
@@ -393,6 +394,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeServiceIps:          newNetIps(),
 
 		nodeACIPod:       make(map[string]aciPodAnnot),
+		nodeACIPodAnnot:  make(map[string]aciPodAnnot),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
 		nodeServiceMetaCache:    make(map[string]*nodeServiceMeta),
@@ -847,7 +849,10 @@ func (cont *AciController) syncNodeAciPods(stopCh <-chan struct{}, seconds time.
 	for {
 		select {
 		case <-ticker.C:
-			cont.checkChangeOfOdevAciPod()
+			cont.checkChangeOfOpflexOdevAciPod()
+			if cont.config.AciMultipod {
+				cont.checkChangeOfOdevAciPod()
+			}
 		case <-stopCh:
 			return
 		}

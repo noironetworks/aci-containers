@@ -115,6 +115,29 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 	return false
 }
 
+func appendDateToFile(filename string) error {
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	t := time.Now()
+	if _, err = f.WriteString(t.String() + "\n"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agent *HostAgent) informOpflexAgent(acipod string) {
+	resetFile := "/usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reset.conf"
+	err := appendDateToFile(resetFile)
+	if err != nil {
+		agent.log.Error("Failed to inform opflex-agent about opflexOdev disconnect ", err)
+		return
+	}
+	agent.log.Debug("Informed opflex-agent about opflexOdev disconnect")
+}
+
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	dhcpDelay := time.Duration(agent.config.DhcpDelay)

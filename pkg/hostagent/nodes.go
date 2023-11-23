@@ -110,6 +110,14 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 
 	agent.indexMutex.Lock()
 
+	nodeAciPod, acipodok := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
+	if acipodok {
+		if agent.nodeAciPodAnnotation != nodeAciPod && nodeAciPod == "none" {
+			agent.informOpflexAgent(nodeAciPod)
+		}
+		agent.nodeAciPodAnnotation = nodeAciPod
+	}
+
 	if agent.config.AciMultipod {
 		aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 		if acipodok {

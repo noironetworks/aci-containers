@@ -425,6 +425,82 @@ func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, err
 	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
 }
 
+func (cont *AciController) createNodeAciPodAnnotation(node string) (aciPodAnnot, error) {
+	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
+	nodeAciPodAnnot := cont.nodeACIPodAnnot[node]
+	isSingleOdev := nodeAciPodAnnot.isSingleOpflexOdev
+	if (odevCount == 0) ||
+		(odevCount == 1 && !isSingleOdev) {
+		if nodeAciPodAnnot.aciPod != "none" {
+			nodeAciPodAnnot.aciPod = "none"
+		}
+		if odevCount == 1 {
+			nodeAciPodAnnot.isSingleOpflexOdev = true
+		}
+		nodeAciPodAnnot.connectTime = time.Time{}
+		return nodeAciPodAnnot, nil
+	} else if (odevCount == 2) ||
+		(odevCount == 1 && isSingleOdev) {
+		nodeAciPod := nodeAciPodAnnot.aciPod
+		if odevCount == 2 {
+			nodeAciPodAnnot.isSingleOpflexOdev = false
+		}
+		if odevCount == 1 && nodeAciPod == "none" {
+			if nodeAciPodAnnot.connectTime.IsZero() {
+				nodeAciPodAnnot.connectTime = time.Now()
+				return nodeAciPodAnnot, nil
+			} else {
+				currentTime := time.Now()
+				diff := currentTime.Sub(nodeAciPodAnnot.connectTime)
+				if diff.Seconds() < float64(10) {
+					return nodeAciPodAnnot, nil
+				}
+			}
+		}
+		nodeAciPodAnnot.connectTime = time.Time{}
+		pathSlice := strings.Split(fabricPathDn, "/")
+		if len(pathSlice) > 1 {
+
+			nodeAciPodAnnot.aciPod = pathSlice[1]
+			return nodeAciPodAnnot, nil
+		} else {
+			cont.log.Error("Invalid fabricPathDn of opflexOdev of node ", node)
+			return nodeAciPodAnnot, fmt.Errorf("Invalid fabricPathDn of opflexOdev")
+		}
+	}
+	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
+}
+
+func (cont *AciController) checkChangeOfOpflexOdevAciPod() {
+	var nodeAnnotationUpdates []string
+	cont.apicConn.SyncMutex.Lock()
+	syncDone := cont.apicConn.SyncDone
+	cont.apicConn.SyncMutex.Unlock()
+
+	if !syncDone {
+		return
+	}
+
+	cont.indexMutex.Lock()
+	for node := range cont.nodeACIPodAnnot {
+		annot, err := cont.createNodeAciPodAnnotation(node)
+		if err != nil {
+			cont.log.Error(err.Error())
+		} else {
+			if annot != cont.nodeACIPodAnnot[node] {
+				cont.nodeACIPodAnnot[node] = annot
+				nodeAnnotationUpdates = append(nodeAnnotationUpdates, node)
+			}
+		}
+	}
+	cont.indexMutex.Unlock()
+	if len(nodeAnnotationUpdates) > 0 {
+		for _, updatednode := range nodeAnnotationUpdates {
+			go cont.env.NodeAnnotationChanged(updatednode)
+		}
+	}
+}
+
 func (cont *AciController) checkChangeOfOdevAciPod() {
 	var nodeAnnotationUpdates []string
 	cont.apicConn.SyncMutex.Lock()
