@@ -767,8 +767,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	if !cont.config.ChainedMode {
-		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
-			[]string{"hostprotPol"})
+		if cont.config.AciPolicyTenant != cont.config.AciVrfTenant {
+			cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
+				[]string{"hostprotPol"})
+		}
 	} else {
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
 			[]string{"fvBD", "fvAp"})
@@ -787,10 +789,14 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		// When a new class is added for subscriptio, check if its name attribute
 		// is in the format aciPrefix-<some value>, if so add it in nameAttrClass
 		// in apicapi.go
+		subscribeMo := []string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
+			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
+			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"}
+		if cont.config.AciPolicyTenant == cont.config.AciVrfTenant {
+			subscribeMo = append(subscribeMo, "hostprotPol")
+		}
 		cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciVrfTenant,
-			[]string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
-				"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
-				"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"})
+			subscribeMo)
 		cont.apicConn.AddSubscriptionDn(fmt.Sprintf("uni/tn-%s/out-%s",
 			cont.config.AciVrfTenant, cont.config.AciL3Out),
 			[]string{"fvRsCons"})
