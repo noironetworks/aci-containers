@@ -1020,6 +1020,11 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		if !ok {
 			continue
 		}
+		nodeLabels := node.ObjectMeta.Labels
+		excludeNode := cont.nodeLabelsInExcludeList(nodeLabels)
+		if excludeNode {
+			continue
+		}
 		nodeMap[nodeName] = &nodeMeta.serviceEp
 	}
 	cont.indexMutex.Unlock()
@@ -1107,6 +1112,27 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 	}
 	cont.apicConn.WriteApicObjects(name, serviceObjs)
 	return nil
+}
+
+func (cont *AciController) nodeLabelsInExcludeList(Labels map[string]string) bool {
+	nodeSnatRedirectExclude := cont.config.NodeSnatRedirectExclude
+
+	for _, nodeGroup := range nodeSnatRedirectExclude {
+		if len(nodeGroup.Labels) == 0 {
+			continue
+		}
+		matchFound := true
+		for _, label := range nodeGroup.Labels {
+			if _, ok := Labels["node-role.kubernetes.io/"+label]; !ok {
+				matchFound = false
+				break
+			}
+		}
+		if matchFound {
+			return true
+		}
+	}
+	return false
 }
 
 func (cont *AciController) queueServiceUpdateByKey(key string) {

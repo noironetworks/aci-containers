@@ -40,6 +40,11 @@ type serviceGraphEpAddDelay struct {
 	Services []delayService `json:"services,omitempty"`
 }
 
+type NodeSnatRedirectExclude struct {
+	Group  string   `json:"group"`
+	Labels []string `json:"labels"`
+}
+
 // Configuration for the controller
 type ControllerConfig struct {
 	// Log level
@@ -275,6 +280,9 @@ type ControllerConfig struct {
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
+
+	// Labels to filter nodes from SNAT redirect policy
+	NodeSnatRedirectExclude []NodeSnatRedirectExclude `json:"node-snat-redirect-exclude,omitempty"`
 }
 
 type netIps struct {
