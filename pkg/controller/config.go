@@ -235,6 +235,10 @@ type ControllerConfig struct {
 	// Default is false
 	AciMultipod bool `json:"aci-multipod,omitempty"`
 
+	// If true, enable opflex agent reconnect after vm migration
+	// Default is false
+	EnableOpflexAgentReconnect bool `json:"enable-opflex-agent-reconnect,omitempty"`
+
 	// Timeout in seconds to wait for reconnect when opflexOdev is diconnected for a node
 	// before triggering a dhcp release and renew of vlan interface
 	// Applicable only for multipod case
