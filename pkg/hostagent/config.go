@@ -234,6 +234,10 @@ type HostAgentConfig struct {
 	//default is false
 	HppOptimization bool `json:"hpp-optimization,omitempty"`
 
+	// If true, enable opflex agent reconnect after vm migration
+	// Default is false
+	EnableOpflexAgentReconnect bool `json:"enable-opflex-agent-reconnect,omitempty"`
+
 	// Default is false
 	AciMultipod bool `json:"aci-multipod,omitempty"`
 

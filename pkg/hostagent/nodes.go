@@ -110,12 +110,14 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 
 	agent.indexMutex.Lock()
 
-	nodeAciPod, acipodok := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
-	if acipodok {
-		if agent.nodeAciPodAnnotation != nodeAciPod && nodeAciPod == "none" {
-			agent.informOpflexAgent(nodeAciPod)
+	if agent.config.EnableOpflexAgentReconnect {
+		nodeAciPod, acipodok := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
+		if acipodok {
+			if agent.nodeAciPodAnnotation != nodeAciPod && nodeAciPod == "none" {
+				agent.informOpflexAgent(nodeAciPod)
+			}
+			agent.nodeAciPodAnnotation = nodeAciPod
 		}
-		agent.nodeAciPodAnnotation = nodeAciPod
 	}
 
 	if agent.config.AciMultipod {

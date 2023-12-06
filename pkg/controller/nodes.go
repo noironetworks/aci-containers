@@ -397,19 +397,21 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		}
 	}
 
-	nodeAciPodAnnotation, ok := cont.nodeACIPodAnnot[node.ObjectMeta.Name]
-	if ok {
-		nodeAciPod := nodeAciPodAnnotation.aciPod
-		aciPodAnn := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
-		if cont.nodeSyncEnabled {
-			if aciPodAnn != nodeAciPod && nodeAciPod != "" {
-				node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation] = nodeAciPod
-				nodeUpdated = true
+	if cont.config.EnableOpflexAgentReconnect {
+		nodeAciPodAnnotation, ok := cont.nodeACIPodAnnot[node.ObjectMeta.Name]
+		if ok {
+			nodeAciPod := nodeAciPodAnnotation.aciPod
+			aciPodAnn := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
+			if cont.nodeSyncEnabled {
+				if aciPodAnn != nodeAciPod && nodeAciPod != "" {
+					node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation] = nodeAciPod
+					nodeUpdated = true
+				}
 			}
+		} else {
+			var annot aciPodAnnot
+			cont.nodeACIPodAnnot[node.ObjectMeta.Name] = annot
 		}
-	} else {
-		var annot aciPodAnnot
-		cont.nodeACIPodAnnot[node.ObjectMeta.Name] = annot
 	}
 
 	if cont.config.AciMultipod {
@@ -523,7 +525,13 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 		cont.log.Debug("Node deleted from nodePodNetCache: ", node.ObjectMeta.Name)
 	}
 
-	delete(cont.nodeACIPodAnnot, node.ObjectMeta.Name)
+	if cont.config.EnableOpflexAgentReconnect {
+		delete(cont.nodeACIPodAnnot, node.ObjectMeta.Name)
+	}
+	if cont.config.AciMultipod {
+		delete(cont.nodeACIPod, node.ObjectMeta.Name)
+	}
+
 	np, ok := obj.(*nodePodIf.NodePodIF)
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -545,10 +553,6 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 			cont.log.Error("Could not delete the NodePodIF", np.ObjectMeta.Name)
 			return
 		}
-	}
-
-	if cont.config.AciMultipod {
-		delete(cont.nodeACIPod, node.ObjectMeta.Name)
 	}
 }
 

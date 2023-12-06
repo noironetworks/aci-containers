@@ -855,7 +855,9 @@ func (cont *AciController) syncNodeAciPods(stopCh <-chan struct{}, seconds time.
 	for {
 		select {
 		case <-ticker.C:
-			cont.checkChangeOfOpflexOdevAciPod()
+			if cont.config.EnableOpflexAgentReconnect {
+				cont.checkChangeOfOpflexOdevAciPod()
+			}
 			if cont.config.AciMultipod {
 				cont.checkChangeOfOdevAciPod()
 			}
