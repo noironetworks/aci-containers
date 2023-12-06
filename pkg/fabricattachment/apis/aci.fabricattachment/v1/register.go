@@ -40,7 +40,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&NadVlanMap{}, &NadVlanMapList{},
 	)
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&StaticFabricNetworkAttachment{}, &StaticFabricNetworkAttachmentList{},
+		&NetworkFabricConfiguration{}, &NetworkFabricConfigurationList{},
 	)
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&FabricVlanPool{}, &FabricVlanPoolList{},

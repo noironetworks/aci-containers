@@ -27,10 +27,10 @@ type Interface interface {
 	FabricVlanPools() FabricVlanPoolInformer
 	// NadVlanMaps returns a NadVlanMapInformer.
 	NadVlanMaps() NadVlanMapInformer
+	// NetworkFabricConfigurations returns a NetworkFabricConfigurationInformer.
+	NetworkFabricConfigurations() NetworkFabricConfigurationInformer
 	// NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 	NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer
-	// StaticFabricNetworkAttachments returns a StaticFabricNetworkAttachmentInformer.
-	StaticFabricNetworkAttachments() StaticFabricNetworkAttachmentInformer
 }
 
 type version struct {
@@ -54,12 +54,12 @@ func (v *version) NadVlanMaps() NadVlanMapInformer {
 	return &nadVlanMapInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
+// NetworkFabricConfigurations returns a NetworkFabricConfigurationInformer.
+func (v *version) NetworkFabricConfigurations() NetworkFabricConfigurationInformer {
+	return &networkFabricConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
 // NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 func (v *version) NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer {
 	return &nodeFabricNetworkAttachmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// StaticFabricNetworkAttachments returns a StaticFabricNetworkAttachmentInformer.
-func (v *version) StaticFabricNetworkAttachments() StaticFabricNetworkAttachmentInformer {
-	return &staticFabricNetworkAttachmentInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

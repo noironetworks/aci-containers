@@ -319,7 +319,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.registerCRDHook(erspanCRDName, erspanInit)
 	}
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
-	cont.registerCRDHook(staticFabNetAttCRDName, staticFabNetAttInit)
+	cont.registerCRDHook(netFabConfigCRDName, netFabConfigInit)
 	cont.registerCRDHook(nadVlanMapCRDName, nadVlanMapInit)
 	cont.registerCRDHook(fabricVlanPoolCRDName, fabricVlanPoolInit)
 	go cont.crdInformer.Run(stopCh)

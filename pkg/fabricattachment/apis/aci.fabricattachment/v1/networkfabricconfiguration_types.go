@@ -4,8 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// StaticFabricNetworkAttachmentStatus defines the observed state of StaticFabricNetworkAttachment
-type StaticFabricNetworkAttachmentStatus struct {
+// NetworkFabricConfigurationStatus defines the observed state of NetworkFabricConfiguration
+type NetworkFabricConfigurationStatus struct {
 	State string `json:"state,omitempty"`
 }
 
@@ -19,7 +19,7 @@ type VlanRef struct {
 	Aeps  []string `json:"aeps"`
 }
 
-type StaticFabricNetworkAttachmentSpec struct {
+type NetworkFabricConfigurationSpec struct {
 	// Refer to vlan/s directly
 	VlanRefs []VlanRef `json:"vlans,omitempty"`
 	// Refer to a NADVlanLabel defined in NadVlanMap CR
@@ -30,19 +30,19 @@ type StaticFabricNetworkAttachmentSpec struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
-// StaticFabricAttachment allows attaching aeps to NAD based and regular vlans created by aci controller
-type StaticFabricNetworkAttachment struct {
+// NetworkFabricConfiguration allows additional configuration on NAD based and regular vlans created by aci controller
+type NetworkFabricConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StaticFabricNetworkAttachmentSpec   `json:"spec,omitempty"`
-	Status StaticFabricNetworkAttachmentStatus `json:"status,omitempty"`
+	Spec   NetworkFabricConfigurationSpec   `json:"spec,omitempty"`
+	Status NetworkFabricConfigurationStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// StaticFabricNetworkAttachmentList contains a list of StaticFabricNetworkAttachment
-type StaticFabricNetworkAttachmentList struct {
+// NetworkFabricConfigurationList contains a list of NetworkFabricConfiguration
+type NetworkFabricConfigurationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []StaticFabricNetworkAttachment `json:"items"`
+	Items           []NetworkFabricConfiguration `json:"items"`
 }

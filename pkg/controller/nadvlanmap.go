@@ -130,7 +130,7 @@ func (cont *AciController) handleNadVlanMapUpdate(obj interface{}) bool {
 		}
 	}
 	cont.indexMutex.Unlock()
-	affectedVlans := cont.updateSfnaCombinedCache()
+	affectedVlans := cont.updateNfcCombinedCache()
 	cont.updateNodeFabNetAttStaticAttachments(affectedVlans, progMap)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
@@ -146,7 +146,7 @@ func (cont *AciController) handleNadVlanMapDelete(key string) bool {
 	cont.log.Info("nadvlanmap delete: ")
 	progMap := make(map[string]apicapi.ApicSlice)
 	cont.sharedEncapLabelMap = make(map[string][]int)
-	affectedVlans := cont.updateSfnaCombinedCache()
+	affectedVlans := cont.updateNfcCombinedCache()
 	cont.updateNodeFabNetAttStaticAttachments(affectedVlans, progMap)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
