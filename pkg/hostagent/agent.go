@@ -460,6 +460,13 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		agent.log.Error("Failed to populate opflexSnatLocalInfos ", err.Error())
 		panic(err.Error())
 	}
+	if agent.integ_test == nil {
+		err = agent.updateResetConfFile()
+		if err != nil {
+			agent.log.Error("Failed to create reset.conf ", err.Error())
+			panic(err.Error())
+		}
+	}
 	syncEnabled, err := agent.env.PrepareRun(stopCh)
 	if err != nil {
 		panic(err.Error())

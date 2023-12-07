@@ -114,7 +114,13 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 		nodeAciPod, acipodok := node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation]
 		if acipodok {
 			if agent.nodeAciPodAnnotation != nodeAciPod && nodeAciPod == "none" {
-				agent.informOpflexAgent(nodeAciPod)
+				// Inform opflex-agent that the vm is migrated by updating the reset.conf file
+				err := agent.updateResetConfFile()
+				if err != nil {
+					agent.log.Error("Failed to inform opflex-agent about opflexOdev disconnect ", err)
+				} else {
+					agent.log.Debug("Informed opflex-agent about opflexOdev disconnect")
+				}
 			}
 			agent.nodeAciPodAnnotation = nodeAciPod
 		}
