@@ -29,8 +29,8 @@ type AciV1Interface interface {
 	RESTClient() rest.Interface
 	FabricVlanPoolsGetter
 	NadVlanMapsGetter
+	NetworkFabricConfigurationsGetter
 	NodeFabricNetworkAttachmentsGetter
-	StaticFabricNetworkAttachmentsGetter
 }
 
 // AciV1Client is used to interact with features provided by the aci.fabricattachment group.
@@ -46,12 +46,12 @@ func (c *AciV1Client) NadVlanMaps(namespace string) NadVlanMapInterface {
 	return newNadVlanMaps(c, namespace)
 }
 
-func (c *AciV1Client) NodeFabricNetworkAttachments(namespace string) NodeFabricNetworkAttachmentInterface {
-	return newNodeFabricNetworkAttachments(c, namespace)
+func (c *AciV1Client) NetworkFabricConfigurations(namespace string) NetworkFabricConfigurationInterface {
+	return newNetworkFabricConfigurations(c, namespace)
 }
 
-func (c *AciV1Client) StaticFabricNetworkAttachments(namespace string) StaticFabricNetworkAttachmentInterface {
-	return newStaticFabricNetworkAttachments(c, namespace)
+func (c *AciV1Client) NodeFabricNetworkAttachments(namespace string) NodeFabricNetworkAttachmentInterface {
+	return newNodeFabricNetworkAttachments(c, namespace)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.

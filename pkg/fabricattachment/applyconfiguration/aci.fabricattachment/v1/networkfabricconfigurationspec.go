@@ -17,23 +17,23 @@ limitations under the License.
 
 package v1
 
-// StaticFabricNetworkAttachmentSpecApplyConfiguration represents an declarative configuration of the StaticFabricNetworkAttachmentSpec type for use
+// NetworkFabricConfigurationSpecApplyConfiguration represents an declarative configuration of the NetworkFabricConfigurationSpec type for use
 // with apply.
-type StaticFabricNetworkAttachmentSpecApplyConfiguration struct {
+type NetworkFabricConfigurationSpecApplyConfiguration struct {
 	VlanRefs    []VlanRefApplyConfiguration    `json:"vlans,omitempty"`
 	NADVlanRefs []NADVlanRefApplyConfiguration `json:"nadVlanRefs,omitempty"`
 }
 
-// StaticFabricNetworkAttachmentSpecApplyConfiguration constructs an declarative configuration of the StaticFabricNetworkAttachmentSpec type for use with
+// NetworkFabricConfigurationSpecApplyConfiguration constructs an declarative configuration of the NetworkFabricConfigurationSpec type for use with
 // apply.
-func StaticFabricNetworkAttachmentSpec() *StaticFabricNetworkAttachmentSpecApplyConfiguration {
-	return &StaticFabricNetworkAttachmentSpecApplyConfiguration{}
+func NetworkFabricConfigurationSpec() *NetworkFabricConfigurationSpecApplyConfiguration {
+	return &NetworkFabricConfigurationSpecApplyConfiguration{}
 }
 
 // WithVlanRefs adds the given value to the VlanRefs field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the VlanRefs field.
-func (b *StaticFabricNetworkAttachmentSpecApplyConfiguration) WithVlanRefs(values ...*VlanRefApplyConfiguration) *StaticFabricNetworkAttachmentSpecApplyConfiguration {
+func (b *NetworkFabricConfigurationSpecApplyConfiguration) WithVlanRefs(values ...*VlanRefApplyConfiguration) *NetworkFabricConfigurationSpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithVlanRefs")
@@ -46,7 +46,7 @@ func (b *StaticFabricNetworkAttachmentSpecApplyConfiguration) WithVlanRefs(value
 // WithNADVlanRefs adds the given value to the NADVlanRefs field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the NADVlanRefs field.
-func (b *StaticFabricNetworkAttachmentSpecApplyConfiguration) WithNADVlanRefs(values ...*NADVlanRefApplyConfiguration) *StaticFabricNetworkAttachmentSpecApplyConfiguration {
+func (b *NetworkFabricConfigurationSpecApplyConfiguration) WithNADVlanRefs(values ...*NADVlanRefApplyConfiguration) *NetworkFabricConfigurationSpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithNADVlanRefs")

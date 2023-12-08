@@ -17,22 +17,22 @@ limitations under the License.
 
 package v1
 
-// StaticFabricNetworkAttachmentStatusApplyConfiguration represents an declarative configuration of the StaticFabricNetworkAttachmentStatus type for use
+// NetworkFabricConfigurationStatusApplyConfiguration represents an declarative configuration of the NetworkFabricConfigurationStatus type for use
 // with apply.
-type StaticFabricNetworkAttachmentStatusApplyConfiguration struct {
+type NetworkFabricConfigurationStatusApplyConfiguration struct {
 	State *string `json:"state,omitempty"`
 }
 
-// StaticFabricNetworkAttachmentStatusApplyConfiguration constructs an declarative configuration of the StaticFabricNetworkAttachmentStatus type for use with
+// NetworkFabricConfigurationStatusApplyConfiguration constructs an declarative configuration of the NetworkFabricConfigurationStatus type for use with
 // apply.
-func StaticFabricNetworkAttachmentStatus() *StaticFabricNetworkAttachmentStatusApplyConfiguration {
-	return &StaticFabricNetworkAttachmentStatusApplyConfiguration{}
+func NetworkFabricConfigurationStatus() *NetworkFabricConfigurationStatusApplyConfiguration {
+	return &NetworkFabricConfigurationStatusApplyConfiguration{}
 }
 
 // WithState sets the State field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the State field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentStatusApplyConfiguration) WithState(value string) *StaticFabricNetworkAttachmentStatusApplyConfiguration {
+func (b *NetworkFabricConfigurationStatusApplyConfiguration) WithState(value string) *NetworkFabricConfigurationStatusApplyConfiguration {
 	b.State = &value
 	return b
 }

@@ -790,7 +790,9 @@ func (agent *HostAgent) unconfigureContainerSecondaryIfacesLocked(podId, network
 				if _, ok := agent.podNetworkMetadata[podId][networkName]; ok {
 					podAtt.LocalIface = ""
 					if contId != "" {
-						podAtt.LocalIface = agent.podNetworkMetadata[podId][networkName][contId].Network.VFName
+						if _, ok := agent.podNetworkMetadata[podId][networkName][contId]; ok {
+							podAtt.LocalIface = agent.podNetworkMetadata[podId][networkName][contId].Network.VFName
+						}
 					}
 				}
 			}

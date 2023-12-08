@@ -23,22 +23,22 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// StaticFabricNetworkAttachmentApplyConfiguration represents an declarative configuration of the StaticFabricNetworkAttachment type for use
+// NetworkFabricConfigurationApplyConfiguration represents an declarative configuration of the NetworkFabricConfiguration type for use
 // with apply.
-type StaticFabricNetworkAttachmentApplyConfiguration struct {
+type NetworkFabricConfigurationApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *StaticFabricNetworkAttachmentSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *StaticFabricNetworkAttachmentStatusApplyConfiguration `json:"status,omitempty"`
+	Spec                             *NetworkFabricConfigurationSpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                           *NetworkFabricConfigurationStatusApplyConfiguration `json:"status,omitempty"`
 }
 
-// StaticFabricNetworkAttachment constructs an declarative configuration of the StaticFabricNetworkAttachment type for use with
+// NetworkFabricConfiguration constructs an declarative configuration of the NetworkFabricConfiguration type for use with
 // apply.
-func StaticFabricNetworkAttachment(name, namespace string) *StaticFabricNetworkAttachmentApplyConfiguration {
-	b := &StaticFabricNetworkAttachmentApplyConfiguration{}
+func NetworkFabricConfiguration(name, namespace string) *NetworkFabricConfigurationApplyConfiguration {
+	b := &NetworkFabricConfigurationApplyConfiguration{}
 	b.WithName(name)
 	b.WithNamespace(namespace)
-	b.WithKind("StaticFabricNetworkAttachment")
+	b.WithKind("NetworkFabricConfiguration")
 	b.WithAPIVersion("aci.fabricattachment/v1")
 	return b
 }
@@ -46,7 +46,7 @@ func StaticFabricNetworkAttachment(name, namespace string) *StaticFabricNetworkA
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithKind(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithKind(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.Kind = &value
 	return b
 }
@@ -54,7 +54,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithKind(value string)
 // WithAPIVersion sets the APIVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithAPIVersion(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithAPIVersion(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.APIVersion = &value
 	return b
 }
@@ -62,7 +62,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithAPIVersion(value s
 // WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Name field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithName(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithName(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Name = &value
 	return b
@@ -71,7 +71,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithName(value string)
 // WithGenerateName sets the GenerateName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the GenerateName field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithGenerateName(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithGenerateName(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.GenerateName = &value
 	return b
@@ -80,7 +80,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithGenerateName(value
 // WithNamespace sets the Namespace field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Namespace field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithNamespace(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithNamespace(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Namespace = &value
 	return b
@@ -89,7 +89,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithNamespace(value st
 // WithUID sets the UID field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UID field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithUID(value types.UID) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithUID(value types.UID) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.UID = &value
 	return b
@@ -98,7 +98,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithUID(value types.UI
 // WithResourceVersion sets the ResourceVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithResourceVersion(value string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithResourceVersion(value string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ResourceVersion = &value
 	return b
@@ -107,7 +107,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithResourceVersion(va
 // WithGeneration sets the Generation field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Generation field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithGeneration(value int64) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithGeneration(value int64) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Generation = &value
 	return b
@@ -116,7 +116,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithGeneration(value i
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithCreationTimestamp(value metav1.Time) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithCreationTimestamp(value metav1.Time) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.CreationTimestamp = &value
 	return b
@@ -125,7 +125,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithCreationTimestamp(
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.DeletionTimestamp = &value
 	return b
@@ -134,7 +134,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithDeletionTimestamp(
 // WithDeletionGracePeriodSeconds sets the DeletionGracePeriodSeconds field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.DeletionGracePeriodSeconds = &value
 	return b
@@ -144,7 +144,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithDeletionGracePerio
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Labels field,
 // overwriting an existing map entries in Labels field with the same key.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithLabels(entries map[string]string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithLabels(entries map[string]string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.Labels == nil && len(entries) > 0 {
 		b.Labels = make(map[string]string, len(entries))
@@ -159,7 +159,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithLabels(entries map
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Annotations field,
 // overwriting an existing map entries in Annotations field with the same key.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithAnnotations(entries map[string]string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithAnnotations(entries map[string]string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.Annotations == nil && len(entries) > 0 {
 		b.Annotations = make(map[string]string, len(entries))
@@ -173,7 +173,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithAnnotations(entrie
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
@@ -187,7 +187,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithOwnerReferences(va
 // WithFinalizers adds the given value to the Finalizers field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Finalizers field.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithFinalizers(values ...string) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithFinalizers(values ...string) *NetworkFabricConfigurationApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		b.Finalizers = append(b.Finalizers, values[i])
@@ -195,7 +195,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithFinalizers(values 
 	return b
 }
 
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
+func (b *NetworkFabricConfigurationApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
 		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
 	}
@@ -204,7 +204,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) ensureObjectMetaApplyC
 // WithSpec sets the Spec field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Spec field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithSpec(value *StaticFabricNetworkAttachmentSpecApplyConfiguration) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithSpec(value *NetworkFabricConfigurationSpecApplyConfiguration) *NetworkFabricConfigurationApplyConfiguration {
 	b.Spec = value
 	return b
 }
@@ -212,7 +212,7 @@ func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithSpec(value *Static
 // WithStatus sets the Status field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Status field is set to the value of the last call.
-func (b *StaticFabricNetworkAttachmentApplyConfiguration) WithStatus(value *StaticFabricNetworkAttachmentStatusApplyConfiguration) *StaticFabricNetworkAttachmentApplyConfiguration {
+func (b *NetworkFabricConfigurationApplyConfiguration) WithStatus(value *NetworkFabricConfigurationStatusApplyConfiguration) *NetworkFabricConfigurationApplyConfiguration {
 	b.Status = value
 	return b
 }

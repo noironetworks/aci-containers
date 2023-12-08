@@ -417,7 +417,7 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 }
 
 func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, networkName string, epg apicapi.ApicObject, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
-	aepMap, ok := cont.sharedEncapSfnaCache[vlan]
+	aepMap, ok := cont.sharedEncapNfcCache[vlan]
 	if ok {
 		for aep := range aepMap {
 			apicSlice = append(apicSlice, cont.createNodeFabNetAttEpgStaticAttachments(vlan, aep, networkName, epg)...)

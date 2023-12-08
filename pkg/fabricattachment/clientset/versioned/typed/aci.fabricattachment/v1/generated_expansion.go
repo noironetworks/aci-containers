@@ -21,6 +21,6 @@ type FabricVlanPoolExpansion interface{}
 
 type NadVlanMapExpansion interface{}
 
-type NodeFabricNetworkAttachmentExpansion interface{}
+type NetworkFabricConfigurationExpansion interface{}
 
-type StaticFabricNetworkAttachmentExpansion interface{}
+type NodeFabricNetworkAttachmentExpansion interface{}

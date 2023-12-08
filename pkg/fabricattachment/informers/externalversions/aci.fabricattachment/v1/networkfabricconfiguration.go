@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// StaticFabricNetworkAttachmentInformer provides access to a shared informer and lister for
-// StaticFabricNetworkAttachments.
-type StaticFabricNetworkAttachmentInformer interface {
+// NetworkFabricConfigurationInformer provides access to a shared informer and lister for
+// NetworkFabricConfigurations.
+type NetworkFabricConfigurationInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.StaticFabricNetworkAttachmentLister
+	Lister() v1.NetworkFabricConfigurationLister
 }
 
-type staticFabricNetworkAttachmentInformer struct {
+type networkFabricConfigurationInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewStaticFabricNetworkAttachmentInformer constructs a new informer for StaticFabricNetworkAttachment type.
+// NewNetworkFabricConfigurationInformer constructs a new informer for NetworkFabricConfiguration type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewStaticFabricNetworkAttachmentInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredStaticFabricNetworkAttachmentInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNetworkFabricConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNetworkFabricConfigurationInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredStaticFabricNetworkAttachmentInformer constructs a new informer for StaticFabricNetworkAttachment type.
+// NewFilteredNetworkFabricConfigurationInformer constructs a new informer for NetworkFabricConfiguration type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredStaticFabricNetworkAttachmentInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNetworkFabricConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().StaticFabricNetworkAttachments(namespace).List(context.TODO(), options)
+				return client.AciV1().NetworkFabricConfigurations(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().StaticFabricNetworkAttachments(namespace).Watch(context.TODO(), options)
+				return client.AciV1().NetworkFabricConfigurations(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&acifabricattachmentv1.StaticFabricNetworkAttachment{},
+		&acifabricattachmentv1.NetworkFabricConfiguration{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *staticFabricNetworkAttachmentInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredStaticFabricNetworkAttachmentInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *networkFabricConfigurationInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNetworkFabricConfigurationInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *staticFabricNetworkAttachmentInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&acifabricattachmentv1.StaticFabricNetworkAttachment{}, f.defaultInformer)
+func (f *networkFabricConfigurationInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&acifabricattachmentv1.NetworkFabricConfiguration{}, f.defaultInformer)
 }
 
-func (f *staticFabricNetworkAttachmentInformer) Lister() v1.StaticFabricNetworkAttachmentLister {
-	return v1.NewStaticFabricNetworkAttachmentLister(f.Informer().GetIndexer())
+func (f *networkFabricConfigurationInformer) Lister() v1.NetworkFabricConfigurationLister {
+	return v1.NewNetworkFabricConfigurationLister(f.Informer().GetIndexer())
 }
