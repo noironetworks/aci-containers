@@ -918,8 +918,9 @@ func (agent *HostAgent) cleanupSetup() {
 				agent.log.Errorf("Could not lookup netattdef %s: %v", netAttDefKey, err)
 				continue
 			}
-			for _, podMap := range netAttData.Pods {
-				for podKey := range podMap {
+			for _, podIfaceMap := range netAttData.Pods {
+				for _, podAtt := range podIfaceMap {
+					podKey := podAtt.PodRef.Namespace + "/" + podAtt.PodRef.Name
 					logger := agent.log.WithFields(logrus.Fields{
 						"podkey": podKey,
 					})
