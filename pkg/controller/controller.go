@@ -288,6 +288,7 @@ type AdditionalNetworkMeta struct {
 	//node+localiface->fabricLinks
 	FabricLink map[string]map[string]LinkData
 	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
+	Mode       util.EncapMode
 }
 
 type ServiceEndPointType interface {

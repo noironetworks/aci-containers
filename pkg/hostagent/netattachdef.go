@@ -21,12 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"path/filepath"
 
 	netpolicy "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	netClient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
@@ -44,7 +45,6 @@ import (
 	podresourcesv1alpha1 "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
-	"path/filepath"
 )
 
 const (
@@ -58,13 +58,23 @@ const (
 	timeout                       = 10 * time.Second
 )
 
+var (
+	ErrLLDPAdjacency             = errors.New("LLDP adjacency with ACI fabric not found")
+	ErrNoAllocatableVlan         = errors.New("No encap specified/derivable for network-attachment-definition")
+	ErrNoAllocatableVlanUntagged = errors.New("Invalid Encap for untagged network-attachment-definition")
+	ErrMultipleEncapUntagged     = errors.New("Multiple encap specified/derivable for untagged network-attachment-definition")
+)
+
 type PrimaryCNIType string
 
 const (
-	PrimaryCNISRIOV   = "sriov"
-	PrimaryCNIMACVLAN = "macvlan"
-	PrimaryCNIBridge  = "bridge"
-	PrimaryCNIUnk     = "nothandled"
+	PrimaryCNISRIOV           = "sriov"
+	PrimaryCNIMACVLAN         = "macvlan"
+	PrimaryCNIBridge          = "bridge"
+	PrimaryCNIOpenShiftBridge = "cnv-bridge"
+	PrimaryCNIIPVLAN          = "ipvlan"
+	PrimaryCNIOVS             = "ovs"
+	PrimaryCNIUnk             = "nothandled"
 )
 
 type NetworkAttachmentData struct {
@@ -83,8 +93,10 @@ type NetworkAttachmentData struct {
 	KnownAnnots          map[string]string
 	EncapKey             string
 	PluginVlan           string
+	EncapMode            util.EncapMode
 	PluginTrunk          []TrunkConfig
 	Programmed           bool
+	PluginAllowUntagged  bool
 }
 
 type ClientInfo struct {
@@ -207,12 +219,13 @@ type TrunkConfig struct {
 }
 
 type Plugins struct {
-	Type   string        `json:"type,omitempty"`
-	IPAM   IPAM          `json:"ipam,omitempty"`
-	Vlan   int           `json:"vlan,omitempty"`
-	Trunk  []TrunkConfig `json:"vlanTrunk,omitempty"`
-	Master string        `json:"master,omitempty"`
-	Bridge string        `json:"bridge,omitempty"`
+	Type             string        `json:"type,omitempty"`
+	IPAM             IPAM          `json:"ipam,omitempty"`
+	Vlan             int           `json:"vlan,omitempty"`
+	IsDefaultGateway bool          `json:"isDefaultGateway,omitempty"`
+	Trunk            []TrunkConfig `json:"vlanTrunk,omitempty"`
+	Master           string        `json:"master,omitempty"`
+	Bridge           string        `json:"bridge,omitempty"`
 }
 
 type IPAM struct {
@@ -223,7 +236,7 @@ func (agent *HostAgent) LoadAdditionalNetworkMetadata() error {
 	for _, netAttData := range agent.netattdefmap {
 		fabNetAttName := netAttData.Namespace + "-" + netAttData.Name
 		dir := filepath.Join(agent.config.CniMetadataDir, fabNetAttName)
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		if err != nil {
 			agent.log.Infof("No local pods for %s: %v", fabNetAttName, err)
 			continue
@@ -266,7 +279,7 @@ func (agent *HostAgent) RecordNetworkMetadata(netAttData *NetworkAttachmentData)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(networkFile, netCont, 0644)
+	return os.WriteFile(networkFile, netCont, 0644)
 }
 
 func (agent *HostAgent) LoadCniNetworks() error {
@@ -390,18 +403,29 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 			}
 		}
 		if (netattData.EncapVlan == "" || netattData.EncapVlan == "[]") && !podDeleted {
-			err = fmt.Errorf("No encap specified/derivable for network-attachment-definition %s/%s. Specify fabricvlanpool at the least or specific vlan to use", netattData.Namespace, netattData.Name)
+			err = fmt.Errorf("%w %s/%s. Specify fabricvlanpool at the least or specific vlan to use", ErrNoAllocatableVlan, netattData.Namespace, netattData.Name)
+		} else if (netattData.PrimaryCNI == PrimaryCNIIPVLAN) && !podDeleted {
+			if netattData.EncapMode == util.EncapModeUntagged {
+				vlans, _, _, err2 := util.ParseVlanList([]string{netattData.EncapVlan})
+				if err2 != nil {
+					err = fmt.Errorf("%w %s/%s", ErrNoAllocatableVlanUntagged, netattData.Namespace, netattData.Name)
+				} else if len(vlans) > 1 {
+					err = fmt.Errorf("%w %s/%s. Ensure only one implicit uplink vlan for ipvlan network", ErrMultipleEncapUntagged, netattData.Namespace, netattData.Name)
+				}
+			}
 		}
 	}
 	if !adjFound && !podDeleted {
-		err = fmt.Errorf("LLDP adjacency with ACI fabric not found on interface %v", podIface)
+		err = fmt.Errorf("%w on interface %v", ErrLLDPAdjacency, podIface)
 	}
+	agent.log.Debug(err)
 	return err
 }
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentEncap(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
 	fabNetAtt.Spec.EncapVlan = fabattv1.EncapSource{
 		VlanList: netAttData.EncapVlan,
+		Mode:     netAttData.EncapMode.ToFabAttEncapMode(),
 	}
 	if netAttData.EncapKey != "" {
 		fabNetAtt.Spec.EncapVlan.EncapRef = fabattv1.EncapRef{
@@ -626,7 +650,10 @@ func (agent *HostAgent) getAllowedVlansLocked(encapStr string, namespace string)
 func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData) {
 	nadKey := netAttData.Namespace + "/" + netAttData.Name
 	if netAttData.PluginVlan == "0" {
-		if netAttData.PrimaryCNI == PrimaryCNIBridge {
+		netAttData.EncapMode = util.EncapModeTrunk
+		if (netAttData.PrimaryCNI == PrimaryCNIBridge) ||
+			(netAttData.PrimaryCNI == PrimaryCNIOpenShiftBridge) ||
+			(netAttData.PrimaryCNI == PrimaryCNIOVS) {
 			vlanStr := ""
 			for _, trunkElem := range netAttData.PluginTrunk {
 				vlan := ""
@@ -651,7 +678,13 @@ func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData) {
 			if vlanStr != "" {
 				agent.log.Debugf("Using trunk config: %s", vlanStr)
 				return
+			} else if (netAttData.PluginAllowUntagged) && ((netAttData.PrimaryCNI == PrimaryCNIBridge) ||
+				(netAttData.PrimaryCNI == PrimaryCNIOpenShiftBridge)) {
+				netAttData.EncapMode = util.EncapModeUntagged
+				agent.log.Debugf("Using untagged mode for bridge")
 			}
+		} else if netAttData.PrimaryCNI == PrimaryCNIIPVLAN {
+			netAttData.EncapMode = util.EncapModeUntagged
 		}
 		if val, ok := netAttData.KnownAnnots[vlanAnnot]; ok {
 			if vlanStr, err := validateVlanAnnotation(val); err == nil {
@@ -711,9 +744,12 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 					netattData.PluginVlan = fmt.Sprintf("%d", plugin.Vlan)
 					agent.handlePluginVlan(netattData)
 				}
-			case "macvlan":
+			case "macvlan", "ipvlan":
 				{
 					netattData.PrimaryCNI = PrimaryCNIMACVLAN
+					if plugin.Type == "ipvlan" {
+						netattData.PrimaryCNI = PrimaryCNIIPVLAN
+					}
 					parts := strings.Split(plugin.Master, ".")
 					netattData.ResourceName = parts[0]
 					if len(parts) != 2 {
@@ -732,11 +768,20 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 						agent.handlePluginVlan(netattData)
 					}
 				}
-			case "bridge":
+			case "bridge", "ovs", "cnv-bridge":
 				{
 					netattData.PrimaryCNI = PrimaryCNIBridge
+					if plugin.Type == "ovs" {
+						netattData.PrimaryCNI = PrimaryCNIOVS
+					}
+					if plugin.Type == "cnv-bridge" {
+						netattData.PrimaryCNI = PrimaryCNIOpenShiftBridge
+					}
 					netattData.PluginVlan = fmt.Sprintf("%d", plugin.Vlan)
 					netattData.PluginTrunk = plugin.Trunk
+					if plugin.IsDefaultGateway && ((plugin.Type == "bridge") || (plugin.Type == "cnv-bridge")) {
+						netattData.PluginAllowUntagged = true
+					}
 					agent.handlePluginVlan(netattData)
 					if (netattData.ResourceName != "") && (netattData.ResourceName != plugin.Bridge) {
 						agent.log.Errorf("resourcename annotation %s does not match bridgename %s", netattData.ResourceName, plugin.Bridge)
