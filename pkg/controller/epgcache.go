@@ -73,15 +73,16 @@ func (cont *AciController) vmmEpPDDeleted(dn string) {
 	epgDn := cont.getEpgFromEppd(dn)
 	cont.indexMutex.Lock()
 	if cont.contains(cont.cachedEpgDns, epgDn) {
-		cont.removeSlice(cont.cachedEpgDns, epgDn)
+		cont.removeSlice(&cont.cachedEpgDns, epgDn)
 	}
 	cont.indexMutex.Unlock()
 }
 
-func (cont *AciController) removeSlice(s []string, searchterm string) {
-	i := sort.SearchStrings(s, searchterm)
-	if i < len(s) && s[i] == searchterm {
-		s = append(s[:i], s[i+1:]...)
+func (cont *AciController) removeSlice(s *[]string, searchterm string) {
+	i := sort.SearchStrings(*s, searchterm)
+	t := *s
+	if i < len(*s) && t[i] == searchterm {
+		*s = append(t[:i], t[i+1:]...)
 	}
 }
 

@@ -112,13 +112,12 @@ func (cont *AciController) replicaSetDeleted(obj interface{}) {
 	if !isReplicaset {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			replicaSetLogger(cont.log, rs).
-				Error("Received unexpected object: ", obj)
+			cont.log.Error("Received unexpected object: ", obj)
 			return
 		}
 		rs, ok = deletedState.Obj.(*appsv1.ReplicaSet)
 		if !ok {
-			replicaSetLogger(cont.log, rs).
+			cont.log.
 				Error("DeletedFinalStateUnknown contained non-Replicaset object: ", deletedState.Obj)
 			return
 		}

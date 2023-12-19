@@ -30,6 +30,7 @@ import (
 const (
 	testCRDName1 = "testCRD1.tgroup.com"
 	testCRDName2 = "testCRD2.tgroup.com"
+	testCRDName3 = "testCRD3.tgroup.com"
 )
 
 type crdTst struct {
@@ -95,7 +96,9 @@ func TestCRDs(t *testing.T) {
 	for _, crd := range crdList {
 		cont.fakeCRDSource.Add(crd.obj)
 	}
-
+	for _, crd := range crdList {
+		cont.fakeCRDSource.Modify(crd.obj)
+	}
 	handled := make(map[string]bool)
 waitHandler:
 	for {
@@ -112,5 +115,83 @@ waitHandler:
 
 	for _, crd := range crdList {
 		assert.True(t, handled[crd.obj.ObjectMeta.Name], crd.obj.ObjectMeta.Name)
+	}
+}
+
+func TestCRDsDelete(t *testing.T) {
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant_crd"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns_qos",
+			map[string]string{"test": "testv"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns1_qos",
+			map[string]string{"nl_qos": "nv_qos"}))
+		cont.fakeNamespaceSource.Add(namespaceLabel("ns2_qos",
+			map[string]string{"nl_qos": "nv_qos"}))
+
+		return cont
+	}
+
+	outChan := make(chan string)
+	crdHandler1 := func(cont *AciController, stopCh <-chan struct{}) {
+		outChan <- testCRDName1
+	}
+	crdHandler2 := func(cont *AciController, stopCh <-chan struct{}) {
+		outChan <- testCRDName2
+	}
+
+	crdList := []crdTst{
+		{
+			h: crdHandler1,
+			obj: &v1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testCRDName1,
+				},
+			},
+		},
+		{
+			h: crdHandler2,
+			obj: &v1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testCRDName2,
+				},
+			},
+		},
+	}
+
+	cont := initCont()
+	cont.run()
+	for _, crd := range crdList {
+		cont.registerCRDHook(crd.obj.ObjectMeta.Name, crd.h)
+	}
+
+	for _, crd := range crdList {
+		cont.fakeCRDSource.Add(crd.obj)
+	}
+	for _, crd := range crdList {
+		cont.fakeCRDSource.Delete(crd.obj)
+	}
+	handled := make(map[string]bool)
+waitHandler:
+	for {
+		select {
+		case n := <-outChan:
+			handled[n] = true
+		case <-time.After(5 * time.Second):
+			if len(handled) == 0 {
+				assert.True(t, true, "No handlers called")
+			} else {
+				assert.True(t, false, "No handlers should be called")
+			}
+			break waitHandler
+		}
 	}
 }
