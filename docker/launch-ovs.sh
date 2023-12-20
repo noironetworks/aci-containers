@@ -24,6 +24,17 @@ for i in br-int br-access; do
     fi
 done
 
+# delete stale interfaces and associated patch ports and ep files
+for i in `$VSCTL show | grep "No such device" | awk '{print $7}'`; do
+  var=$($VSCTL iface-to-br $i)
+  if [[ $var == br-access ]]; then
+    rm -f /usr/local/var/lib/opflex-agent-ovs/endpoints/*_$i.ep
+    $VSCTL --if-exists del-port br-access $i
+    $VSCTL --if-exists del-port br-access pa-$i
+    $VSCTL --if-exists del-port br-int pi-$i
+  fi
+done
+
 # Signal the host agent to resync OVS port configuration
 ovsresync /usr/local/var/run/aci-containers-ep-rpc.sock
 
