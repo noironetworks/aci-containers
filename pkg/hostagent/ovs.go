@@ -107,6 +107,8 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	if agent.config.ChainedMode {
 		return nil
 	}
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	var connectString string
 	agent.log.Debug("Syncing OVS ports")
 
@@ -127,22 +129,17 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	brNames :=
 		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
 
-	agent.indexMutex.Lock()
 	bridges, err := loadBridges(ovs, brNames)
 	if err != nil {
-		agent.indexMutex.Unlock()
 		return err
 	}
 
 	for _, brName := range brNames {
 		if _, ok := bridges[brName]; !ok {
-			agent.indexMutex.Unlock()
 			return fmt.Errorf("bridge %s not found", brName)
 		}
 	}
-
 	ops := agent.diffPorts(bridges)
-	agent.indexMutex.Unlock()
 	return execTransaction(ovs, ops)
 }
 
