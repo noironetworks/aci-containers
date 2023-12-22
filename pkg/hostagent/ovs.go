@@ -108,6 +108,8 @@ func loadBridges(ovs *libovsdb.OvsdbClient,
 }
 
 func (agent *HostAgent) syncPorts(socket string) error {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
 	agent.log.Debug("Syncing OVS ports")
 
 	ovs, err := libovsdb.Connect("unix:"+socket, nil)
@@ -119,22 +121,17 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	brNames :=
 		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
 
-	agent.indexMutex.Lock()
 	bridges, err := loadBridges(ovs, brNames)
 	if err != nil {
-		agent.indexMutex.Unlock()
 		return err
 	}
 
 	for _, brName := range brNames {
 		if _, ok := bridges[brName]; !ok {
-			agent.indexMutex.Unlock()
 			return fmt.Errorf("bridge %s not found", brName)
 		}
 	}
-
 	ops := agent.diffPorts(bridges)
-	agent.indexMutex.Unlock()
 	return execTransaction(ovs, ops)
 }
 
