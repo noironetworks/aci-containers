@@ -17,6 +17,10 @@ package hostagent
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strings"
+
 	cnicur "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
@@ -25,9 +29,6 @@ import (
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"net"
-	"os"
-	"strings"
 
 	"github.com/Mellanox/sriovnet"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -975,10 +976,7 @@ func (agent *HostAgent) cleanupSetup() {
 		}
 	}
 
-	err := agent.syncPorts(agent.config.OvsDbSock)
-	if err != nil {
-		agent.log.Error("Could not sync OVS ports: ", err)
-	}
+	agent.scheduleSyncPorts()
 
 	agent.log.Debug("Done stale check")
 }

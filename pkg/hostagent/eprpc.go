@@ -91,10 +91,7 @@ func (r *EpRPC) Register(metadata *md.ContainerMetadata, result *cnitypes.Result
 		return err
 	}
 
-	err = r.agent.syncPorts(r.agent.config.OvsDbSock)
-	if err != nil {
-		r.agent.log.Error("Could not sync OVS ports: ", err)
-	}
+	r.agent.scheduleSyncPorts()
 
 	*result = *regresult
 	return nil
@@ -115,10 +112,7 @@ func (r *EpRPC) Unregister(metadata *md.ContainerMetadata, ack *bool) error {
 		return err
 	}
 
-	err = r.agent.syncPorts(r.agent.config.OvsDbSock)
-	if err != nil {
-		r.agent.log.Error("Could not sync OVS ports: ", err)
-	}
+	r.agent.scheduleSyncPorts()
 
 	*ack = true
 	return nil
@@ -128,7 +122,7 @@ type ResyncArgs struct{}
 
 func (r *EpRPC) Resync(args ResyncArgs, ack *bool) error {
 	r.agent.log.Debug("EpRPC resync invoked")
-	r.agent.syncPorts(r.agent.config.OvsDbSock)
+	r.agent.scheduleSyncPorts()
 	*ack = true
 	return nil
 }
