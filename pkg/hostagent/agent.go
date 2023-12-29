@@ -216,7 +216,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"snatnodeInfo":  ha.syncSnatNodeInfo,
 		"rdconfig":      ha.syncRdConfig,
 		"snatLocalInfo": ha.UpdateLocalInfoCr,
-		"nodepodifs":    ha.syncNodePodIfs}
+		"nodepodifs":    ha.syncNodePodIfs,
+		"ports":         ha.syncPortsQ}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -392,6 +393,9 @@ func (agent *HostAgent) scheduleSyncLocalInfo() {
 }
 func (agent *HostAgent) scheduleSyncNodePodIfs() {
 	agent.ScheduleSync("nodepodifs")
+}
+func (agent *HostAgent) scheduleSyncPorts() {
+	agent.ScheduleSync("ports")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {

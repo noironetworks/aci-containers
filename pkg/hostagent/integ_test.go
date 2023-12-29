@@ -579,6 +579,7 @@ func TestGroupAssign(t *testing.T) {
 	it.addPodObj(8, "annNS", "", "", rcLabels2)
 	it.addPodObj(9, "annNS", "", "", rcLabels3)
 
+	time.Sleep(1000 * time.Millisecond)
 	// verify ep file
 	it.checkEpGroups(0, "defaultEPG", emptyJSON)
 	it.checkEpGroups(1, "test-prof|test-eg", emptyJSON)
@@ -812,9 +813,9 @@ func TestSnatPolicyDep(t *testing.T) {
 	snatobj1 := snatpolicydata("policy1", "annNS", []string{"10.1.1.8"}, []string{"10.10.0.0/16", "172.192.153.0/26"}, map[string]string{"app": "sample-app"})
 	snatobj2 := snatpolicydata("policy2", "annNS", []string{"10.1.1.9"}, []string{"10.10.10.10/31", "10.10.0.0/24"}, map[string]string{"deer": "dear"})
 	it.ta.fakeSnatPolicySource.Add(snatobj1)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	it.ta.fakeSnatPolicySource.Add(snatobj2)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
 	var uids []string
 	uids = append(uids, "uid-policy2", "uid-policy1")
@@ -1036,11 +1037,11 @@ func TestSnatPolicylabelUpdate(t *testing.T) {
 	var uids []string
 	uids = append(uids, "uid-policy1")
 	it.checkEpSnatUids(6, uids, emptyJSON)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	it.ta.fakeServiceSource.Modify(mkservice("annNS", "testService", map[string]string{"app": "sample-app1"}))
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	var uids1 []string
 	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.cniDelParallel(6, 10)

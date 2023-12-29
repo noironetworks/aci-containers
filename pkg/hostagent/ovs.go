@@ -127,23 +127,27 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	brNames :=
 		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
 
-	agent.indexMutex.Lock()
 	bridges, err := loadBridges(ovs, brNames)
 	if err != nil {
-		agent.indexMutex.Unlock()
 		return err
 	}
 
 	for _, brName := range brNames {
 		if _, ok := bridges[brName]; !ok {
-			agent.indexMutex.Unlock()
 			return fmt.Errorf("bridge %s not found", brName)
 		}
 	}
 
 	ops := agent.diffPorts(bridges)
-	agent.indexMutex.Unlock()
 	return execTransaction(ovs, ops)
+}
+
+func (agent *HostAgent) syncPortsQ() bool {
+	err := agent.syncPorts(agent.config.OvsDbSock)
+	if err != nil {
+		agent.log.Error("Could not sync OVS ports: ", err)
+	}
+	return false
 }
 
 func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Operation {
@@ -159,6 +163,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 		}
 	}
 
+	agent.indexMutex.Lock()
 	opid := 0
 	for id, metas := range agent.epMetadata {
 		for _, meta := range metas {
@@ -343,6 +348,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 			ops = append(ops, delBrPortOp(br.uuid, delports))
 		}
 	}
+	agent.indexMutex.Unlock()
 	return ops
 }
 
