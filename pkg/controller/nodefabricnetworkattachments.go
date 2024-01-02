@@ -348,30 +348,60 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 	return apicSlice
 }
 
-func (cont *AciController) createNodeFabNetAttBd(vlan int, name string) apicapi.ApicObject {
-	bdName := fmt.Sprintf("%s-vlan-%d", name, vlan)
-	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, bdName)
+func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicitTenantName, explicitVrfName, explicitBdName string, subnets []string) apicapi.ApicObject {
+	bdName := explicitBdName
+	tenantName := explicitTenantName
+	vrfName := explicitVrfName
+	if bdName == "" {
+		bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+	}
+	if tenantName == "" {
+		tenantName = cont.config.AciPolicyTenant
+	}
+	bd := apicapi.NewFvBD(tenantName, bdName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
 	bd.SetAttr("unicastRoute", "no")
-	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), cont.config.AciVrf)
+	if vrfName == "" {
+		vrfName = cont.config.AciVrf
+	}
+	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), vrfName)
 	bd.AddChild(fvRsCtx)
+
+	// add subnets to BD
+	for _, subnet := range subnets {
+		fvSubnet := apicapi.NewFvSubnet(bd.GetDn(), subnet)
+		bd.AddChild(fvSubnet)
+	}
 	return bd
 }
 
-func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string) apicapi.ApicObject {
+func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string, explicitTenantName, explicitBdName, explicitEpgName string, consumers, providers []string) apicapi.ApicObject {
 	var fvRsDomAtt apicapi.ApicObject
-	apName := "netop-" + cont.config.AciPolicyTenant
-	var epgName, bdName string
-	if !cont.config.AciUseGlobalScopeVlan {
-		epgName = fmt.Sprintf("%s-vlan-%d", name, vlan)
-		bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
-	} else {
-		epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
-		bdName = fmt.Sprintf("%s-vlan-%d", globalScopeVlanBdPrefix, vlan)
+	tenantName := explicitTenantName
+	epgName := explicitEpgName
+	bdName := explicitBdName
+	if tenantName == "" {
+		tenantName = cont.config.AciPolicyTenant
 	}
-	epg := apicapi.NewFvAEPg(cont.config.AciPolicyTenant, apName, epgName)
+	apName := "netop-" + tenantName
+	if !cont.config.AciUseGlobalScopeVlan {
+		if epgName == "" {
+			epgName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+		}
+		if bdName == "" {
+			bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+		}
+	} else {
+		if epgName == "" {
+			epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
+		}
+		if bdName == "" {
+			bdName = fmt.Sprintf("%s-vlan-%d", globalScopeVlanBdPrefix, vlan)
+		}
+	}
+	epg := apicapi.NewFvAEPg(tenantName, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
 	if !cont.config.AciUseGlobalScopeVlan {
@@ -380,6 +410,15 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string) apicapi
 		fvRsDomAtt = apicapi.NewFvRsDomAttPhysDom(epg.GetDn(), cont.config.AciPolicyTenant+"-"+globalScopeVlanDomPrefix)
 	}
 	epg.AddChild(fvRsDomAtt)
+	for _, consumer := range consumers {
+		fvRsCons := apicapi.NewFvRsCons(epg.GetDn(), consumer)
+		epg.AddChild(fvRsCons)
+	}
+	for _, provider := range providers {
+		fvRsProv := apicapi.NewFvRsProv(epg.GetDn(), provider)
+		epg.AddChild(fvRsProv)
+	}
+
 	return epg
 }
 
@@ -418,9 +457,9 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 }
 
 func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, networkName string, epg apicapi.ApicObject, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
-	aepMap, ok := cont.sharedEncapNfcCache[vlan]
+	nfcData, ok := cont.sharedEncapNfcCache[vlan]
 	if ok {
-		for aep := range aepMap {
+		for aep := range nfcData.Aeps {
 			apicSlice = append(apicSlice, cont.createNodeFabNetAttEpgStaticAttachments(vlan, aep, networkName, epg)...)
 		}
 	}
@@ -453,8 +492,13 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 		return
 	}
 	var apicSlice2 apicapi.ApicSlice
-	apicSlice2 = append(apicSlice2, cont.createNodeFabNetAttBd(vlan, globalScopeVlanBdPrefix))
-	epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix)
+
+	nfcBdTenant, nfcVrf, nfcBd, nfcBdSubnets := cont.getSharedEncapNfcCacheBDLocked(vlan)
+	apicSlice2 = append(apicSlice2, cont.createNodeFabNetAttBd(vlan, globalScopeVlanBdPrefix, nfcBdTenant,
+		nfcVrf, nfcBd, nfcBdSubnets))
+
+	nfcEpgTenant, nfcBd, nfcEpg, nfcEpgConsumers, nfcEpgProviders := cont.getSharedEncapNfcCacheEpgLocked(vlan)
+	epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix, nfcEpgTenant, nfcBd, nfcEpg, nfcEpgConsumers, nfcEpgProviders)
 	if cont.isNodeFabNetAttVlanProgrammable(vlan, nil) {
 		apicSlice2 = append(apicSlice2, cont.depopulateFabricPaths(epg, vlan, nodeFabNetAttKey)...)
 		apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(vlan, "", epg, apicSlice2)
@@ -492,26 +536,32 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 		if !cont.config.AciUseGlobalScopeVlan {
 			if skipProgramming || !cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
 				skipProgramming = true
-				bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName)
+				bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", []string{})
 				apicSlice = append(apicSlice, bd)
-				epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName)
+				epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName, "", "", "",
+					[]string{}, []string{})
 				apicSlice = append(apicSlice, epg)
 				cont.log.Infof("Skipping static paths as NAD has no pods yet: %s", addNet.NetworkName)
 				continue
 			}
-			bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName)
+			bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", []string{})
 			apicSlice = append(apicSlice, bd)
-			epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName)
+			epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName, "", "", "",
+				[]string{}, []string{})
 			cont.populateFabricPaths(epg, encap, addNet)
 			apicSlice = append(apicSlice, epg)
 			continue
 		}
+		nfcEpgTenant, nfcBd, nfcEpg, nfcEpgConsumers, nfcEpgProviders := cont.getSharedEncapNfcCacheEpgLocked(encap)
+		nfcBdTenant, nfcVrf, nfcBd, nfcBdSubnets := cont.getSharedEncapNfcCacheBDLocked(encap)
 		var apicSlice2 apicapi.ApicSlice
 		epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, encap)
 		labelKey := cont.aciNameForKey("nfna", epgName)
-		bd := cont.createNodeFabNetAttBd(encap, globalScopeVlanBdPrefix)
+		bd := cont.createNodeFabNetAttBd(encap, globalScopeVlanBdPrefix, nfcBdTenant,
+			nfcVrf, nfcBd, nfcBdSubnets)
 		apicSlice2 = append(apicSlice2, bd)
-		epg := cont.createNodeFabNetAttEpg(encap, epgName)
+		epg := cont.createNodeFabNetAttEpg(encap, epgName, nfcEpgTenant, nfcBd, nfcEpg,
+			nfcEpgConsumers, nfcEpgProviders)
 		if _, ok := cont.sharedEncapCache[encap]; !ok {
 			apicSlice2 = nil
 			cont.log.Infof("Skip shared encap vlan-%d with no nad references", encap)
@@ -661,7 +711,6 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	} else {
 		apicSlice = append(apicSlice, cont.updateNodeFabNetAttDom(encapBlks, addNet.NetworkName)...)
 	}
-
 	cont.applyNodeFabNetAttObjLocked(vlans, addNet, apicSlice, progMap)
 	cont.indexMutex.Unlock()
 	return progMap

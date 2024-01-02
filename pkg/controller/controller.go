@@ -186,15 +186,20 @@ type AciController struct {
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	//Used in Shared mode
 	sharedEncapCache map[int]*sharedEncapData
-	// vlan to aepList
-	sharedEncapNfcCache    map[int]map[string]bool
-	sharedEncapNfcVlanMap  map[int]map[string]bool
-	sharedEncapNfcLabelMap map[string]map[string]bool
+	// vlan to propertiesList
+	sharedEncapNfcCache    map[int]*NfcData
+	sharedEncapNfcVlanMap  map[int]*NfcData
+	sharedEncapNfcLabelMap map[string]*NfcData
 	// nadVlanMap encapLabel to vlan
 	sharedEncapLabelMap map[string][]int
 	lldpIfCache         map[string]string
 	globalVlanConfig    globalVlanConfig
 	fabricVlanPoolMap   map[string]map[string]string
+}
+
+type NfcData struct {
+	Aeps map[string]bool
+	Epg  fabattv1.Epg
 }
 
 type sharedEncapData struct {
@@ -415,9 +420,9 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		hppRef:                 make(map[string]hppReference),
 		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
 		sharedEncapCache:       make(map[int]*sharedEncapData),
-		sharedEncapNfcCache:    make(map[int]map[string]bool),
-		sharedEncapNfcVlanMap:  make(map[int]map[string]bool),
-		sharedEncapNfcLabelMap: make(map[string]map[string]bool),
+		sharedEncapNfcCache:    make(map[int]*NfcData),
+		sharedEncapNfcVlanMap:  make(map[int]*NfcData),
+		sharedEncapNfcLabelMap: make(map[string]*NfcData),
 		sharedEncapLabelMap:    make(map[string][]int),
 		lldpIfCache:            make(map[string]string),
 		fabricVlanPoolMap:      make(map[string]map[string]string),
