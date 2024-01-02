@@ -150,7 +150,7 @@ func CreateNFNAEPG(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, cont *t
 	return epg
 }
 
-func CreateNFNA(nadName, nodeName, uplink, podName string, fabricLinks []string) *fabattv1.NodeFabricNetworkAttachment {
+func CreateNFNA(nadName, nodeName, uplink, podName, vlans string, fabricLinks []string) *fabattv1.NodeFabricNetworkAttachment {
 	return &fabattv1.NodeFabricNetworkAttachment{
 		ObjectMeta: metav1.ObjectMeta{},
 		Spec: fabattv1.NodeFabricNetworkAttachmentSpec{
@@ -158,7 +158,7 @@ func CreateNFNA(nadName, nodeName, uplink, podName string, fabricLinks []string)
 				Name:      nadName,
 				Namespace: "default",
 			},
-			EncapVlan: fabattv1.EncapSource{VlanList: "[5-6]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: vlans},
 			NodeName:  nodeName,
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				uplink: {
@@ -194,9 +194,9 @@ func CreateFabricVlanPool(namespace, name, vlanStr string) *fabattv1.FabricVlanP
 func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	cont := testChainedController(globalScopeVlan, additionalVlans)
 
-	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1",
+	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "[5-6]",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
-	nfna2 := CreateNFNA("macvlan-net1", "master2.cluster.local", "bond1", "pod2-macvlan-net1",
+	nfna2 := CreateNFNA("macvlan-net1", "master2.cluster.local", "bond1", "pod2-macvlan-net1", "[5-6]",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/31]", "/topology/pod-1/node-102/pathep-[eth1/31]"})
 	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
 	progMapPool := cont.updateFabricVlanPool(fvp)

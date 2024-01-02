@@ -14,9 +14,34 @@ type NADVlanRef struct {
 	Aeps         []string `json:"aeps"`
 }
 
+type VRF struct {
+	Name         string `json:"name,omitempty"`
+	CommonTenant bool   `json:"common-tenant,omitempty"`
+}
+
+type BridgeDomain struct {
+	Name         string   `json:"name,omitempty"`
+	CommonTenant bool     `json:"common-tenant,omitempty"`
+	Subnets      []string `json:"subnets,omitempty"`
+	Vrf          VRF      `json:"vrf,omitempty"` // TODO - required
+}
+
+type Contracts struct {
+	Consumer []string `json:"consumer,omitempty"`
+	Provider []string `json:"provider,omitempty"`
+}
+
+type Epg struct {
+	Name      string       `json:"name,omitempty"`
+	Tenant    string       `json:"tenant,omitempty"`
+	Contracts Contracts    `json:"contracts,omitempty"`
+	BD        BridgeDomain `json:"bd,omitempty"` // TODO - required
+}
+
 type VlanRef struct {
 	Vlans string   `json:"vlans"`
 	Aeps  []string `json:"aeps"`
+	Epg   Epg      `json:"epg,omitempty"`
 }
 
 type NetworkFabricConfigurationSpec struct {

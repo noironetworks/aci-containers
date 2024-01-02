@@ -43,6 +43,7 @@ func (cont *AciController) netFabConfigChanged(obj interface{}) {
 		cont.log.Error("netFabConfigChanged: Bad object type")
 		return
 	}
+	cont.log.Info("NetworkFabricConfigurationChanged")
 	key, err := cache.MetaNamespaceKeyFunc(netFabConfig)
 	if err != nil {
 		return
@@ -125,7 +126,7 @@ func netFabConfigInit(cont *AciController, stopCh <-chan struct{}) {
 }
 
 func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfiguration) {
-	cont.sharedEncapNfcVlanMap = make(map[int]map[string]bool)
+	cont.sharedEncapNfcVlanMap = make(map[int]*NfcData)
 	for _, vlanRef := range sfna.Spec.VlanRefs {
 		vlans, _, err := cont.parseNodeFabNetAttVlanList(vlanRef.Vlans)
 		if err != nil {
@@ -133,50 +134,51 @@ func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfigur
 		}
 		for _, vlan := range vlans {
 			if _, ok := cont.sharedEncapNfcVlanMap[vlan]; !ok {
-				cont.sharedEncapNfcVlanMap[vlan] = make(map[string]bool)
+				cont.sharedEncapNfcVlanMap[vlan] = &NfcData{
+					Epg:  vlanRef.Epg,
+					Aeps: make(map[string]bool),
+				}
 			}
 			for _, aep := range vlanRef.Aeps {
-				cont.sharedEncapNfcVlanMap[vlan][aep] = true
+				cont.sharedEncapNfcVlanMap[vlan].Aeps[aep] = true
 			}
 		}
 	}
 }
 
 func (cont *AciController) updateNfcLabelMap(sfna *fabattv1.NetworkFabricConfiguration) {
-	cont.sharedEncapNfcLabelMap = make(map[string]map[string]bool)
+	cont.sharedEncapNfcLabelMap = make(map[string]*NfcData)
 	for _, nadVlanRef := range sfna.Spec.NADVlanRefs {
 		if _, ok := cont.sharedEncapNfcLabelMap[nadVlanRef.NadVlanLabel]; !ok {
-			cont.sharedEncapNfcLabelMap[nadVlanRef.NadVlanLabel] = make(map[string]bool)
+			cont.sharedEncapNfcLabelMap[nadVlanRef.NadVlanLabel] = &NfcData{
+				Aeps: make(map[string]bool),
+			}
 		} else {
 			cont.log.Errorf("Label %s has more than 1 mapping", nadVlanRef.NadVlanLabel)
 		}
 		for _, aep := range nadVlanRef.Aeps {
-			cont.sharedEncapNfcLabelMap[nadVlanRef.NadVlanLabel][aep] = true
+			cont.sharedEncapNfcLabelMap[nadVlanRef.NadVlanLabel].Aeps[aep] = true
 		}
 	}
 }
 
 func (cont *AciController) updateNfcCombinedCache() (affectedVlans []int) {
-	var combinedAttVlanMap map[int]map[string]bool
+	var combinedAttVlanMap map[int]*NfcData
 	cont.indexMutex.Lock()
-	combinedAttVlanMap = make(map[int]map[string]bool)
-	for vlan, AepMap := range cont.sharedEncapNfcVlanMap {
-		combinedAttVlanMap[vlan] = make(map[string]bool)
-		for aep := range AepMap {
-			combinedAttVlanMap[vlan][aep] = true
-		}
+	combinedAttVlanMap = make(map[int]*NfcData)
+	for vlan, nfcData := range cont.sharedEncapNfcVlanMap {
+		combinedAttVlanMap[vlan] = nfcData
 	}
-	for label, AepMap := range cont.sharedEncapNfcLabelMap {
+	for label, nfcData := range cont.sharedEncapNfcLabelMap {
 		vlans, ok := cont.sharedEncapLabelMap[label]
 		if !ok {
 			continue
 		}
 		for _, vlan := range vlans {
+			// In case there is dual definition for the same vlan,
+			// direct vlan mapping will prevail
 			if _, ok := combinedAttVlanMap[vlan]; !ok {
-				combinedAttVlanMap[vlan] = make(map[string]bool)
-			}
-			for aep := range AepMap {
-				combinedAttVlanMap[vlan][aep] = true
+				combinedAttVlanMap[vlan] = nfcData
 			}
 		}
 	}
@@ -185,9 +187,11 @@ func (cont *AciController) updateNfcCombinedCache() (affectedVlans []int) {
 		if _, ok := cont.sharedEncapNfcCache[vlan]; !ok {
 			cont.sharedEncapNfcCache[vlan] = combinedAttVlanMap[vlan]
 			affectedVlans = append(affectedVlans, vlan)
+			cont.log.Infof("Added nfc data for vlan %d", vlan)
 		} else if !reflect.DeepEqual(cont.sharedEncapNfcCache[vlan], combinedAttVlanMap[vlan]) {
 			cont.sharedEncapNfcCache[vlan] = combinedAttVlanMap[vlan]
 			affectedVlans = append(affectedVlans, vlan)
+			cont.log.Infof("Updated nfc data for vlan %d", vlan)
 		}
 	}
 	// Delete old mapping
@@ -203,18 +207,23 @@ func (cont *AciController) updateNfcCombinedCache() (affectedVlans []int) {
 	return affectedVlans
 }
 
-func (cont *AciController) handleNetworkFabricConfigurationUpdate(obj interface{}) bool {
+func (cont *AciController) updateNetworkFabricConfigurationObj(obj interface{}) map[string]apicapi.ApicSlice {
 	progMap := make(map[string]apicapi.ApicSlice)
 	netFabConfig, ok := obj.(*fabattv1.NetworkFabricConfiguration)
 	if !ok {
 		cont.log.Error("handleNetworkFabricConfigUpdate: Bad object type")
-		return false
+		return progMap
 	}
 	cont.log.Info("networkFabricConfiguration update: ")
 	cont.updateNfcVlanMap(netFabConfig)
 	cont.updateNfcLabelMap(netFabConfig)
 	affectedVlans := cont.updateNfcCombinedCache()
 	cont.updateNodeFabNetAttStaticAttachments(affectedVlans, progMap)
+	return progMap
+}
+
+func (cont *AciController) handleNetworkFabricConfigurationUpdate(obj interface{}) bool {
+	progMap := cont.updateNetworkFabricConfigurationObj(obj)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
 			cont.apicConn.ClearApicObjects(labelKey)
@@ -225,7 +234,7 @@ func (cont *AciController) handleNetworkFabricConfigurationUpdate(obj interface{
 	return false
 }
 
-func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bool {
+func (cont *AciController) deleteNetworkFabricConfigurationObj(key string) map[string]apicapi.ApicSlice {
 	cont.log.Infof("networkFabricConfiguration delete: %s", key)
 	progMap := make(map[string]apicapi.ApicSlice)
 	var affectedVlans []int
@@ -236,9 +245,14 @@ func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bo
 	for vlan := range cont.sharedEncapNfcCache {
 		affectedVlans = append(affectedVlans, vlan)
 	}
-	cont.sharedEncapNfcCache = make(map[int]map[string]bool)
+	cont.sharedEncapNfcCache = make(map[int]*NfcData)
 	cont.indexMutex.Unlock()
 	cont.updateNodeFabNetAttStaticAttachments(affectedVlans, progMap)
+	return progMap
+}
+
+func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bool {
+	progMap := cont.deleteNetworkFabricConfigurationObj(key)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
 			cont.apicConn.ClearApicObjects(labelKey)
@@ -247,4 +261,29 @@ func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bo
 		cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 	}
 	return false
+}
+
+// Internal API - Only used in GlobalScopeVlan mode
+func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTenant, nfcBd, nfcEpg string, nfcEpgConsumers, nfcEpgProviders []string) {
+	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
+		nfcEpgTenant = nfcData.Epg.Tenant
+		nfcBd = nfcData.Epg.BD.Name
+		nfcEpg = nfcData.Epg.Name
+		nfcEpgConsumers = nfcData.Epg.Contracts.Consumer
+		nfcEpgProviders = nfcData.Epg.Contracts.Provider
+	}
+	return
+
+}
+func (cont *AciController) getSharedEncapNfcCacheBDLocked(encap int) (nfcBdTenant, nfcVrf, nfcBd string, nfcBdSubnets []string) {
+	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
+		nfcBdTenant = nfcData.Epg.Tenant
+		if nfcData.Epg.BD.CommonTenant {
+			nfcBdTenant = "common"
+		}
+		nfcBd = nfcData.Epg.BD.Name
+		nfcVrf = nfcData.Epg.BD.Vrf.Name
+		nfcBdSubnets = nfcData.Epg.BD.Subnets
+	}
+	return
 }
