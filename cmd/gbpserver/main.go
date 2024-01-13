@@ -184,8 +184,8 @@ func startEtcd(c *gbpserver.GBPServerConfig) []string {
 
 	cfg := embed.NewConfig()
 	cfg.Dir = c.EtcdDir
-	cfg.LCUrls = urlMaker(c.EtcdPort)
-	cfg.LPUrls = urlMaker(c.EtcdPort + 1)
+	cfg.ListenClientUrls = urlMaker(c.EtcdPort)
+	cfg.ListenPeerUrls = urlMaker(c.EtcdPort + 1)
 
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
