@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -99,7 +100,8 @@ func CreateNFNAObjs(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string,
 func PopulateFabricPaths(epg apicapi.ApicObject, vlan int, nfna *fabattv1.NodeFabricNetworkAttachment, fabricLinks []string, cont *testAciController, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
 	encapVlan := fmt.Sprintf("%d", vlan)
 	for _, fabricLink := range fabricLinks {
-		fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), fabricLink, encapVlan)
+		encapMode := util.EncapModeTrunk
+		fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), fabricLink, encapVlan, encapMode.String())
 		epg.AddChild(fvRsPathAtt)
 	}
 	apicSlice = append(apicSlice, epg)

@@ -504,11 +504,12 @@ func NewFvRsBD(parentDn, bdName string) ApicObject {
 	return ret
 }
 
-func NewFvRsPathAtt(parentDn, path, encap string) ApicObject {
+func NewFvRsPathAtt(parentDn, path, encap, mode string) ApicObject {
 	ret := newApicObject("fvRsPathAtt")
 	ret["fvRsPathAtt"].Attributes["tDn"] = path
 	ret["fvRsPathAtt"].Attributes["encap"] = "vlan-" + encap
 	ret["fvRsPathAtt"].HintDn = parentDn + "/" + "rspathAtt-[" + path + "]"
+	ret["fvRsPathAtt"].Attributes["mode"] = mode
 	return ret
 }
 

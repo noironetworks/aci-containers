@@ -17,11 +17,16 @@ limitations under the License.
 
 package v1
 
+import (
+	acifabricattachmentv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+)
+
 // EncapSourceApplyConfiguration represents an declarative configuration of the EncapSource type for use
 // with apply.
 type EncapSourceApplyConfiguration struct {
-	VlanList *string                     `json:"vlanList,omitempty"`
-	EncapRef *EncapRefApplyConfiguration `json:"encapRef,omitempty"`
+	VlanList *string                          `json:"vlanList,omitempty"`
+	EncapRef *EncapRefApplyConfiguration      `json:"encapRef,omitempty"`
+	Mode     *acifabricattachmentv1.EncapMode `json:"mode,omitempty"`
 }
 
 // EncapSourceApplyConfiguration constructs an declarative configuration of the EncapSource type for use with
@@ -43,5 +48,13 @@ func (b *EncapSourceApplyConfiguration) WithVlanList(value string) *EncapSourceA
 // If called multiple times, the EncapRef field is set to the value of the last call.
 func (b *EncapSourceApplyConfiguration) WithEncapRef(value *EncapRefApplyConfiguration) *EncapSourceApplyConfiguration {
 	b.EncapRef = value
+	return b
+}
+
+// WithMode sets the Mode field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Mode field is set to the value of the last call.
+func (b *EncapSourceApplyConfiguration) WithMode(value acifabricattachmentv1.EncapMode) *EncapSourceApplyConfiguration {
+	b.Mode = &value
 	return b
 }

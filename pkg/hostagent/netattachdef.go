@@ -21,12 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"path/filepath"
 
 	netpolicy "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	netClient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
@@ -44,7 +45,6 @@ import (
 	podresourcesv1alpha1 "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
-	"path/filepath"
 )
 
 const (
@@ -58,12 +58,23 @@ const (
 	timeout                       = 10 * time.Second
 )
 
+var (
+	ErrLLDPAdjacency             = errors.New("LLDP adjacency with ACI fabric not found")
+	ErrNoAllocatableVlan         = errors.New("No encap specified/derivable for network-attachment-definition")
+	ErrNoAllocatableVlanUntagged = errors.New("Invalid Encap for untagged network-attachment-definition")
+	ErrMultipleEncapUntagged     = errors.New("Multiple encap specified/derivable for untagged network-attachment-definition")
+)
+
 type PrimaryCNIType string
 
 const (
-	PrimaryCNISRIOV   = "sriov"
-	PrimaryCNIMACVLAN = "macvlan"
-	PrimaryCNIUnk     = "nothandled"
+	PrimaryCNISRIOV           = "sriov"
+	PrimaryCNIMACVLAN         = "macvlan"
+	PrimaryCNIBridge          = "bridge"
+	PrimaryCNIOpenShiftBridge = "cnv-bridge"
+	PrimaryCNIIPVLAN          = "ipvlan"
+	PrimaryCNIOVS             = "ovs"
+	PrimaryCNIUnk             = "nothandled"
 )
 
 type NetworkAttachmentData struct {
@@ -82,7 +93,10 @@ type NetworkAttachmentData struct {
 	KnownAnnots          map[string]string
 	EncapKey             string
 	PluginVlan           string
+	EncapMode            util.EncapMode
+	PluginTrunk          []TrunkConfig
 	Programmed           bool
+	PluginAllowUntagged  bool
 }
 
 type ClientInfo struct {
@@ -198,11 +212,20 @@ type Config struct {
 	CniVersion string    `json:"cniVersion"`
 }
 
+type TrunkConfig struct {
+	Id    int `json:"id,omitempty"`
+	MinID int `json:"minID,omitempty"`
+	MaxID int `json:"maxID,omitempty"`
+}
+
 type Plugins struct {
-	Type   string `json:"type,omitempty"`
-	IPAM   IPAM   `json:"ipam,omitempty"`
-	Vlan   int    `json:"vlan,omitempty"`
-	Master string `json:"master,omitempty"`
+	Type             string        `json:"type,omitempty"`
+	IPAM             IPAM          `json:"ipam,omitempty"`
+	Vlan             int           `json:"vlan,omitempty"`
+	IsDefaultGateway bool          `json:"isDefaultGateway,omitempty"`
+	Trunk            []TrunkConfig `json:"vlanTrunk,omitempty"`
+	Master           string        `json:"master,omitempty"`
+	Bridge           string        `json:"bridge,omitempty"`
 }
 
 type IPAM struct {
@@ -213,7 +236,7 @@ func (agent *HostAgent) LoadAdditionalNetworkMetadata() error {
 	for _, netAttData := range agent.netattdefmap {
 		fabNetAttName := netAttData.Namespace + "-" + netAttData.Name
 		dir := filepath.Join(agent.config.CniMetadataDir, fabNetAttName)
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		if err != nil {
 			agent.log.Infof("No local pods for %s: %v", fabNetAttName, err)
 			continue
@@ -256,7 +279,7 @@ func (agent *HostAgent) RecordNetworkMetadata(netAttData *NetworkAttachmentData)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(networkFile, netCont, 0644)
+	return os.WriteFile(networkFile, netCont, 0644)
 }
 
 func (agent *HostAgent) LoadCniNetworks() error {
@@ -352,7 +375,7 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 					break
 				}
 			}
-		} else if netattData.PrimaryCNI == "macvlan" {
+		} else {
 			podIface = netattData.ResourceName
 		}
 		if podIface != "" {
@@ -379,19 +402,30 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 				}
 			}
 		}
-		if netattData.EncapVlan == "" || netattData.EncapVlan == "[]" {
-			err = fmt.Errorf("No encap specified/derivable for network-attachment-definition %s/%s. Specify fabricvlanpool at the least or specific vlan to use", netattData.Namespace, netattData.Name)
+		if (netattData.EncapVlan == "" || netattData.EncapVlan == "[]") && !podDeleted {
+			err = fmt.Errorf("%w %s/%s. Specify fabricvlanpool at the least or specific vlan to use", ErrNoAllocatableVlan, netattData.Namespace, netattData.Name)
+		} else if (netattData.PrimaryCNI == PrimaryCNIIPVLAN) && !podDeleted {
+			if netattData.EncapMode == util.EncapModeUntagged {
+				vlans, _, _, err2 := util.ParseVlanList([]string{netattData.EncapVlan})
+				if err2 != nil {
+					err = fmt.Errorf("%w %s/%s", ErrNoAllocatableVlanUntagged, netattData.Namespace, netattData.Name)
+				} else if len(vlans) > 1 {
+					err = fmt.Errorf("%w %s/%s. Ensure only one implicit uplink vlan for ipvlan network", ErrMultipleEncapUntagged, netattData.Namespace, netattData.Name)
+				}
+			}
 		}
 	}
 	if !adjFound && !podDeleted {
-		err = fmt.Errorf("LLDP adjacency with ACI fabric not found on interface %v", podIface)
+		err = fmt.Errorf("%w on interface %v", ErrLLDPAdjacency, podIface)
 	}
+	agent.log.Debug(err)
 	return err
 }
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentEncap(fabNetAtt *fabattv1.NodeFabricNetworkAttachment, netAttData *NetworkAttachmentData) {
 	fabNetAtt.Spec.EncapVlan = fabattv1.EncapSource{
 		VlanList: netAttData.EncapVlan,
+		Mode:     netAttData.EncapMode.ToFabAttEncapMode(),
 	}
 	if netAttData.EncapKey != "" {
 		fabNetAtt.Spec.EncapVlan.EncapRef = fabattv1.EncapRef{
@@ -413,8 +447,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 		netAttData.EncapKey = encapKey
 		agent.log.Debugf("Using nadVlanMap allowed list : %s", vlanList)
 	} else {
-		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
-		agent.handlePluginVlan(netAttData, vlan)
+		agent.handlePluginVlan(netAttData)
 	}
 	fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 	fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
@@ -434,8 +467,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(na
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentForFabricVlanPoolLocked() {
 	for _, netAttData := range agent.netattdefmap {
-		vlan, _ := strconv.Atoi(netAttData.PluginVlan)
-		agent.handlePluginVlan(netAttData, vlan)
+		agent.handlePluginVlan(netAttData)
 		fabNetAttName := agent.config.NodeName + "-" + netAttData.Namespace + "-" + netAttData.Name
 		fabNetAtt, err := agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Get(context.TODO(), fabNetAttName, metav1.GetOptions{})
 		if err == nil {
@@ -615,10 +647,45 @@ func (agent *HostAgent) getAllowedVlansLocked(encapStr string, namespace string)
 	return allowedStr
 }
 
-func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData, vlan int) {
+func (agent *HostAgent) handlePluginVlan(netAttData *NetworkAttachmentData) {
 	nadKey := netAttData.Namespace + "/" + netAttData.Name
-	netAttData.PluginVlan = fmt.Sprintf("%d", vlan)
-	if vlan == 0 {
+	if netAttData.PluginVlan == "0" {
+		netAttData.EncapMode = util.EncapModeTrunk
+		if (netAttData.PrimaryCNI == PrimaryCNIBridge) ||
+			(netAttData.PrimaryCNI == PrimaryCNIOpenShiftBridge) ||
+			(netAttData.PrimaryCNI == PrimaryCNIOVS) {
+			vlanStr := ""
+			for _, trunkElem := range netAttData.PluginTrunk {
+				vlan := ""
+				if trunkElem.Id != 0 {
+					vlan = fmt.Sprintf("%d", trunkElem.Id)
+				} else if trunkElem.MaxID > trunkElem.MinID {
+					vlan = fmt.Sprintf("%d-%d", trunkElem.MinID, trunkElem.MaxID)
+				} else {
+					continue
+				}
+				if vlanStr == "" {
+					vlanStr += "[" + vlan
+					continue
+				}
+				vlanStr += "," + vlan
+			}
+			if vlanStr != "" {
+				vlanStr += "]"
+			}
+			netAttData.EncapVlan = vlanStr
+			netAttData.EncapKey = ""
+			if vlanStr != "" {
+				agent.log.Debugf("Using trunk config: %s", vlanStr)
+				return
+			} else if (netAttData.PluginAllowUntagged) && ((netAttData.PrimaryCNI == PrimaryCNIBridge) ||
+				(netAttData.PrimaryCNI == PrimaryCNIOpenShiftBridge)) {
+				netAttData.EncapMode = util.EncapModeUntagged
+				agent.log.Debugf("Using untagged mode for bridge")
+			}
+		} else if netAttData.PrimaryCNI == PrimaryCNIIPVLAN {
+			netAttData.EncapMode = util.EncapModeUntagged
+		}
 		if val, ok := netAttData.KnownAnnots[vlanAnnot]; ok {
 			if vlanStr, err := validateVlanAnnotation(val); err == nil {
 				vlanStr = agent.getAllowedVlansLocked(vlanStr, netAttData.Namespace)
@@ -655,8 +722,7 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 	relevantChain := false
 	for idx, plugin := range config.Plugins {
 		if idx == 0 {
-			if plugin.Type == "sriov" {
-				netattData.PrimaryCNI = PrimaryCNISRIOV
+			if netattData.Annot != "" {
 				parts := strings.Split(netattData.Annot, "/")
 				if len(parts) == 2 {
 					netattData.ResourcePlugin = parts[0]
@@ -668,27 +734,64 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 				if len(parts) > 2 {
 					agent.log.Errorf("resourcename %s unrecognized in  net-att-def %s/%s", netattData.Annot, netattData.Namespace, netattData.Name)
 				}
-				agent.log.Infof("Using resource %s", netattData.ResourceName)
-				agent.handlePluginVlan(netattData, plugin.Vlan)
-			} else if plugin.Type == "macvlan" {
-				netattData.PrimaryCNI = PrimaryCNIMACVLAN
-				parts := strings.Split(plugin.Master, ".")
-				netattData.ResourceName = parts[0]
-				if len(parts) != 2 {
-					agent.handlePluginVlan(netattData, 0)
-					if len(parts) != 1 {
-						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
-					}
-				} else {
-					vlan, err := strconv.Atoi(parts[1])
-					if err != nil {
-						agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
-						vlan = 0
-					}
-					agent.handlePluginVlan(netattData, vlan)
+
+			}
+			switch plugin.Type {
+			case "sriov":
+				{
+					netattData.PrimaryCNI = PrimaryCNISRIOV
+					agent.log.Infof("Using resource %s", netattData.ResourceName)
+					netattData.PluginVlan = fmt.Sprintf("%d", plugin.Vlan)
+					agent.handlePluginVlan(netattData)
 				}
-			} else {
-				netattData.PrimaryCNI = PrimaryCNIUnk
+			case "macvlan", "ipvlan":
+				{
+					netattData.PrimaryCNI = PrimaryCNIMACVLAN
+					if plugin.Type == "ipvlan" {
+						netattData.PrimaryCNI = PrimaryCNIIPVLAN
+					}
+					parts := strings.Split(plugin.Master, ".")
+					netattData.ResourceName = parts[0]
+					if len(parts) != 2 {
+						netattData.PluginVlan = "0"
+						agent.handlePluginVlan(netattData)
+						if len(parts) != 1 {
+							agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
+						}
+					} else {
+						netattData.PluginVlan = parts[1]
+						_, err := strconv.Atoi(parts[1])
+						if err != nil {
+							agent.log.Errorf("master interface encap not parseable %s in net-att-def %s/%s", plugin.Master, netattData.Namespace, netattData.Name)
+							netattData.PluginVlan = "0"
+						}
+						agent.handlePluginVlan(netattData)
+					}
+				}
+			case "bridge", "ovs", "cnv-bridge":
+				{
+					netattData.PrimaryCNI = PrimaryCNIBridge
+					if plugin.Type == "ovs" {
+						netattData.PrimaryCNI = PrimaryCNIOVS
+					}
+					if plugin.Type == "cnv-bridge" {
+						netattData.PrimaryCNI = PrimaryCNIOpenShiftBridge
+					}
+					netattData.PluginVlan = fmt.Sprintf("%d", plugin.Vlan)
+					netattData.PluginTrunk = plugin.Trunk
+					if plugin.IsDefaultGateway && ((plugin.Type == "bridge") || (plugin.Type == "cnv-bridge")) {
+						netattData.PluginAllowUntagged = true
+					}
+					agent.handlePluginVlan(netattData)
+					if (netattData.ResourceName != "") && (netattData.ResourceName != plugin.Bridge) {
+						agent.log.Errorf("resourcename annotation %s does not match bridgename %s", netattData.ResourceName, plugin.Bridge)
+					}
+					netattData.ResourceName = plugin.Bridge
+				}
+			default:
+				{
+					netattData.PrimaryCNI = PrimaryCNIUnk
+				}
 			}
 		} else {
 			if (plugin.Type == "opflex-agent-cni") || (plugin.Type == "netop-cni") {
@@ -776,11 +879,11 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 			}
 			agent.log.Infof("Valid netattdef in chained mode: %s", netAttDefKey)
 			nodeFabNetAttName := agent.config.NodeName + "-" + netattdata.Namespace + "-" + netattdata.Name
-			if netattdata.PrimaryCNI == PrimaryCNIMACVLAN {
+			if netattdata.PrimaryCNI == PrimaryCNISRIOV {
+				netattdata.Ifaces = append(netattdata.Ifaces, agent.getIfacesFromSriovResource(netattdata.ResourcePlugin, netattdata.ResourceName)...)
+			} else {
 				agent.netattdefifacemap[netattdata.ResourceName] = &netattdata
 				netattdata.Ifaces = append(netattdata.Ifaces, netattdata.ResourceName)
-			} else if netattdata.PrimaryCNI == PrimaryCNISRIOV {
-				netattdata.Ifaces = append(netattdata.Ifaces, agent.getIfacesFromSriovResource(netattdata.ResourcePlugin, netattdata.ResourceName)...)
 			}
 			agent.log.Infof("Physical ifaces for nodefabricnetworkattachment %s :%v", nodeFabNetAttName, netattdata.Ifaces)
 			if prevnetattdata, ok := agent.netattdefmap[netAttDefKey]; ok {

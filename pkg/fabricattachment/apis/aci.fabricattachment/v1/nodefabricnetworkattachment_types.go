@@ -33,9 +33,18 @@ type EncapRef struct {
 	Key           string `json:"key"`
 }
 
+type EncapMode string
+
+const (
+	EncapModeTrunk    EncapMode = "Trunk"
+	EncapModeNative   EncapMode = "Access(802.1P)"
+	EncapModeUntagged EncapMode = "Access(Untagged)"
+)
+
 type EncapSource struct {
-	VlanList string   `json:"vlanList,omitempty"`
-	EncapRef EncapRef `json:"encapRef,omitempty"`
+	VlanList string    `json:"vlanList,omitempty"`
+	EncapRef EncapRef  `json:"encapRef,omitempty"`
+	Mode     EncapMode `json:"mode,omitempty"`
 }
 
 // NodeFabricAttachmentSpec defines the desired state of network attachment to the fabric
@@ -49,7 +58,7 @@ type NodeFabricNetworkAttachmentSpec struct {
 	NodeName   string      `json:"nodeName,omitempty"`
 	// Map of iface to fabricLink
 	AciTopology map[string]AciNodeLinkAdjacency `json:"aciTopology,omitempty"`
-	// informational: primaryCNI sriov/macvlan
+	// informational: primaryCNI sriov/macvlan/ipvlan/bridge
 	PrimaryCNI string `json:"primaryCni,omitempty"`
 }
 

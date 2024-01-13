@@ -27,6 +27,7 @@ import (
 
 	"context"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -256,7 +257,7 @@ func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, en
 			// eliminate duplicates in case of VPC links
 			if _, ok := fabLinks[actualFabricLink]; !ok {
 				fabLinks[actualFabricLink] = true
-				fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan)
+				fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan, addNet.Mode.String())
 				if _, ok := resultingLinks[actualFabricLink]; !ok {
 					resultingLinks[actualFabricLink] = true
 					epg.AddChild(fvRsPathAtt)
@@ -639,7 +640,8 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 			NetworkName: nodeFabNetAtt.Spec.NetworkRef.Namespace + "-" + nodeFabNetAtt.Spec.NetworkRef.Name,
 			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan.VlanList,
 			FabricLink:  make(map[string]map[string]LinkData),
-			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment)}
+			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment),
+			Mode:        util.ToEncapMode(nodeFabNetAtt.Spec.EncapVlan.Mode)}
 		cont.additionalNetworkCache[addNetKey] = addNet
 	} else {
 		cont.updateNodeFabNetAttVlans(nodeFabNetAtt, vlans, addNet, progMap)

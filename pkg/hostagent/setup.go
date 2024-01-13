@@ -32,6 +32,7 @@ import (
 
 	"github.com/Mellanox/sriovnet"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
+	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
 const (
@@ -553,19 +554,47 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 					if err != nil {
 						errorMsg := fmt.Sprintf("Could not create Pod Fabric Attachment: %v", err)
 						agent.indexMutex.Unlock()
-
-						logger.Infof("Forcing refresh of LLDP data for iface %s", metadata.Network.PFName)
-						for i := 0; i < 3; i++ {
-							agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
-							if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
-								for _, nbr := range fabAttData {
-									if nbr.StaticPath != "" {
-										return result, nil
+						if errors.Is(err, ErrLLDPAdjacency) {
+							logger.Infof("Forcing refresh of LLDP data for iface %s", metadata.Network.PFName)
+							for i := 0; i < 3; i++ {
+								agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
+								if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
+									for _, nbr := range fabAttData {
+										if nbr.StaticPath != "" {
+											return result, nil
+										}
 									}
 								}
 							}
 						}
 						return result, errors.New(errorMsg)
+					}
+					if netAttDef.PrimaryCNI == PrimaryCNIBridge {
+						for _, iface := range metadata.Ifaces {
+							logger.Debugf("Checking iface %s hostveth %s", iface.Name, iface.HostVethName)
+							if iface.Name == netAttDef.ResourceName || iface.HostVethName == "" {
+								continue
+							}
+							vlans, _, _, err := util.ParseVlanList([]string{netAttDef.EncapVlan})
+							if err != nil {
+								logger.Errorf("Failed to parse vlanList %s: %v", netAttDef.EncapVlan, err)
+								return result, nil
+							}
+							logger.Debugf("Allowing vlans %s on %s", netAttDef.EncapVlan, iface.HostVethName)
+
+							hostVeth, err := netlink.LinkByName(iface.HostVethName)
+							if err != nil {
+								logger.Errorf("Failed to lookup %s: %v", iface.HostVethName, err)
+								return result, nil
+							}
+							for _, vlan := range vlans {
+								err = netlink.BridgeVlanAdd(hostVeth, uint16(vlan), false, false, false, true)
+								if err != nil {
+									logger.Errorf("failed to setup vlan tag on interface %s: %v", iface.HostVethName, err)
+									continue
+								}
+							}
+						}
 					}
 				} else {
 					errorMsg := fmt.Sprintf("Failed to find network-attachment-definition: %s", netAttDefKey)
