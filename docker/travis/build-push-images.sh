@@ -34,6 +34,10 @@ docker build -t ${QUAY_REGISTRY}/aci-containers-host:${IMAGE_TAG} --file=docker/
 docker images
 docker build -t ${QUAY_REGISTRY}/aci-containers-operator:${IMAGE_TAG} --file=docker/travis/Dockerfile-operator .
 docker images
+docker build -t ${QUAY_REGISTRY}/aci-containers-webhook:${IMAGE_TAG} --file=docker/travis/Dockerfile-webhook .
+docker images
+docker build -t ${QUAY_REGISTRY}/aci-containers-certmanager:${IMAGE_TAG} --file=docker/travis/Dockerfile-certmanager .
+docker images
 
 # Note: acc-provision-operator and opflex images come from their respective repos
 ALL_IMAGES="aci-containers-host aci-containers-controller cnideploy aci-containers-operator openvswitch"

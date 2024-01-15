@@ -199,6 +199,10 @@ dist/aci-containers-operator:
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
 dist-static/aci-containers-operator:
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
+dist-static/aci-containers-webhook:
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/webhook
+dist-static/aci-containers-certmanager:
+	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/certmanager
 
 dist/ovsresync: ${OVSRESYNC_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/ovsresync
@@ -229,6 +233,10 @@ container-simpleservice: dist-static/simpleservice
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/simpleservice${DOCKER_TAG} -f ./docker/Dockerfile-simpleservice .
 container-operator: dist-static/aci-containers-operator
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-operator${DOCKER_TAG} -f ./docker/Dockerfile-operator .
+container-webhook: dist-static/aci-containers-webhook
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-webhook${DOCKER_TAG} -f ./docker/Dockerfile-webhook .
+container-certmanager: dist-static/aci-containers-certmanager
+	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-certmanager${DOCKER_TAG} -f ./docker/Dockerfile-certmanager .
 
 check-gofmt:
 	@${GOFMT_CHK_CMD} pkg | grep ".go"; test $$? -ne 0 || exit 1
