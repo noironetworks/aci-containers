@@ -235,7 +235,7 @@ func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 	// Service bridge domain
 	bdName := cont.aciNameForKey("bd", cont.env.ServiceBd())
 	bd := apicapi.NewFvBD(cont.config.AciVrfTenant, bdName)
-	if apicapi.ApicVersion >= "6.0(3.84a)" {
+	if apicapi.ApicVersion >= "6.0(4c)" {
 		bd.SetAttr("serviceBdRoutingDisable", "yes")
 	}
 	bd.SetAttr("arpFlood", "yes")
