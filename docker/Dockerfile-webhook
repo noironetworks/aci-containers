@@ -1,15 +1,1 @@
-ARG basetag=latest
-ARG baserepo=quay.io/noirolabs
-FROM registry.access.redhat.com/ubi8/ubi:latest
-#FROM ${baserepo}/aci-containers-host-base:${basetag}
-# Required OpenShift Labels
-LABEL name="ACI Containers Webhook" \
-vendor="Cisco" \
-version="v1.0.0" \
-release="1" \
-summary="This is a webhook for ACI containers" \
-description="This will deploy a single instance of ACI containers Webhook."
-# Required Licenses
-COPY docker/licenses /licenses
-COPY dist-static/aci-containers-webhook docker/launch-webhook.sh /usr/local/bin/
-CMD ["/usr/local/bin/launch-webhook.sh"]
+./travis/Dockerfile-webhook

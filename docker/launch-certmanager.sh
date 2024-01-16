@@ -1,2 +1,1 @@
-#!/bin/bash
-/usr/local/bin/aci-containers-certmanager 
+./travis/launch-certmanager.sh
