@@ -40,7 +40,7 @@ docker build -t ${QUAY_REGISTRY}/aci-containers-certmanager:${IMAGE_TAG} --file=
 docker images
 
 # Note: acc-provision-operator and opflex images come from their respective repos
-ALL_IMAGES="aci-containers-host aci-containers-controller cnideploy aci-containers-operator openvswitch"
+ALL_IMAGES="aci-containers-host aci-containers-controller cnideploy aci-containers-operator openvswitch aci-containers-webhook aci-containers-certmanager"
 
 docker sbom --format spdx-json ${QUAY_REGISTRY}/opflex-build-base:${RELEASE_TAG_WITH_UPSTREAM_ID} | /tmp/grype
 for IMAGE in ${ALL_IMAGES}; do

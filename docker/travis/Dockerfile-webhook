@@ -1,7 +1,4 @@
-ARG basetag=latest
-ARG baserepo=quay.io/noirolabs
-FROM registry.access.redhat.com/ubi8/ubi:latest
-#FROM ${baserepo}/aci-containers-host-base:${basetag}
+FROM registry.access.redhat.com/ubi9/ubi:latest
 # Required OpenShift Labels
 LABEL name="ACI Containers Webhook" \
 vendor="Cisco" \

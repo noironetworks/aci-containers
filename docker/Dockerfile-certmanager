@@ -1,14 +1,1 @@
-ARG basetag=latest
-ARG baserepo=quay.io/noirolabs
-FROM registry.access.redhat.com/ubi8/ubi:latest
-# Required OpenShift Labels
-LABEL name="ACI Containers Certmanager" \
-vendor="Cisco" \
-version="v1.0.0" \
-release="1" \
-summary="This is a certmanager instance for ACI containers" \
-description="This will deploy a single instance of certmanager."
-# Required Licenses
-COPY docker/licenses /licenses
-COPY dist-static/aci-containers-certmanager docker/launch-certmanager.sh /usr/local/bin/
-CMD ["/usr/local/bin/launch-certmanager.sh"]
+./travis/Dockerfile-certmanager
