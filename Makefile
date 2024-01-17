@@ -77,11 +77,11 @@ STATIC_BUILD_RACE_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD_RACE} \
 
 all: dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/netop-cni dist/aci-containers-controller dist/acikubectl dist/ovsresync \
-    dist/gbpserver dist/aci-containers-operator
+    dist/gbpserver dist/aci-containers-operator dist/aci-containers-webhook dist/aci-containers-certmanager
 all-static: dist-static/aci-containers-host-agent \
 	dist-static/opflex-agent-cni dist-static/netop-cni \
 	dist-static/aci-containers-controller dist-static/ovsresync dist-static/gbpserver \
-    dist-static/aci-containers-operator
+    dist-static/aci-containers-operator dist-static/aci-containers-webhook dist-static/aci-containers-certmanager
 
 all-static-race: dist-static-race/aci-containers-host-agent \
 	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
@@ -199,8 +199,13 @@ dist/aci-containers-operator:
 	${BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
 dist-static/aci-containers-operator:
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/acicontainersoperator
+
+dist/aci-containers-webhook:
+	${BUILD_CMD} -o $@ ${BASE}/cmd/webhook
 dist-static/aci-containers-webhook:
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/webhook
+dist/aci-containers-certmanager:
+	${BUILD_CMD} -o $@ ${BASE}/cmd/certmanager
 dist-static/aci-containers-certmanager:
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/certmanager
 
