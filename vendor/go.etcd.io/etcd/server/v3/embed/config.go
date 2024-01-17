@@ -264,7 +264,7 @@ type Config struct {
 	GRPCKeepAliveTimeout time.Duration `json:"grpc-keepalive-timeout"`
 
 	// SocketOpts are socket options passed to listener config.
-	SocketOpts transport.SocketOpts
+	SocketOpts transport.SocketOpts `json:"socket-options"`
 
 	// PreVote is true to enable Raft Pre-Vote.
 	// If enabled, Raft runs an additional election phase
@@ -365,6 +365,9 @@ type Config struct {
 	// that exist at the same time.
 	// Can only be used if ExperimentalEnableDistributedTracing is true.
 	ExperimentalDistributedTracingServiceInstanceID string `json:"experimental-distributed-tracing-instance-id"`
+	// ExperimentalDistributedTracingSamplingRatePerMillion is the number of samples to collect per million spans.
+	// Defaults to 0.
+	ExperimentalDistributedTracingSamplingRatePerMillion int `json:"experimental-distributed-tracing-sampling-rate"`
 
 	// Logger is logger options: currently only supports "zap".
 	// "capnslog" is removed in v3.5.
@@ -470,7 +473,10 @@ func NewConfig() *Config {
 		GRPCKeepAliveInterval: DefaultGRPCKeepAliveInterval,
 		GRPCKeepAliveTimeout:  DefaultGRPCKeepAliveTimeout,
 
-		SocketOpts: transport.SocketOpts{},
+		SocketOpts: transport.SocketOpts{
+			ReusePort:    false,
+			ReuseAddress: false,
+		},
 
 		TickMs:                     100,
 		ElectionMs:                 1000,
@@ -753,6 +759,13 @@ func (cfg *Config) Validate() error {
 	// Check if user attempted to configure ciphers for TLS1.3 only: Go does not support that currently.
 	if minVersion == tls.VersionTLS13 && len(cfg.CipherSuites) > 0 {
 		return fmt.Errorf("cipher suites cannot be configured when only TLS1.3 is enabled")
+	}
+
+	// Validate distributed tracing configuration but only if enabled.
+	if cfg.ExperimentalEnableDistributedTracing {
+		if err := validateTracingConfig(cfg.ExperimentalDistributedTracingSamplingRatePerMillion); err != nil {
+			return fmt.Errorf("distributed tracing configurition is not valid: (%v)", err)
+		}
 	}
 
 	return nil
