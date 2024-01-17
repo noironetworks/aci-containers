@@ -16,17 +16,18 @@ package controller
 
 import (
 	"fmt"
+	"net"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net"
-	"sort"
-	"strings"
-	"testing"
-	"time"
 )
 
 func testsnatpolicy(name string, namespace string, deploy string,
@@ -223,6 +224,16 @@ func snatPolicyCount(t *testing.T, desc string, cont *testAciController, count i
 	assert.Equal(t, count, len(cont.snatPolicyCache))
 }
 
+func snatStatusCheck(t *testing.T, desc string, cont *testAciController, policy *snatpolicy.SnatPolicy, state snatpolicy.PolicyState) {
+	tu.WaitFor(t, desc, 100*time.Millisecond, func(last bool) (bool, error) {
+		if policy.Status.State != state {
+			return false, nil
+		}
+		return true, nil
+	})
+	assert.Equal(t, state, policy.Status.State)
+}
+
 func TestSnatPolicyVerify(t *testing.T) {
 	snatIp := []string{"10.4.2.2", "10.20.30.40/20"}
 	labels := map[string]string{}
@@ -255,5 +266,86 @@ func TestSnatPolicyVerify(t *testing.T) {
 	// Check invalid destIP is rejected
 	cont.fakeSnatPolicySource.Add(policy3)
 	snatPolicyCount(t, "snat test", cont, 1)
+	cont.stop()
+}
+
+func TestServiceSnatPolicyVerify(t *testing.T) {
+	snatIp := []string{}
+	labels := map[string]string{}
+	policy := testsnatpolicy("testpolicy", "common", "deployment",
+		snatIp, labels)
+	cont := sgCont()
+	cont.run()
+	// Add service snat policy
+	cont.fakeSnatPolicySource.Add(policy)
+	snatPolicyCount(t, "snat test", cont, 1)
+	// Delete service snat policy
+	cont.fakeSnatPolicySource.Delete(policy)
+	snatPolicyCount(t, "snat test", cont, 0)
+	cont.stop()
+}
+
+func TestSnatPolicyValidateCr(t *testing.T) {
+	snatIp := []string{"10.4.2.3"}
+	labels := map[string]string{}
+	policy := testsnatpolicy("testpolicy", "common", "deployment",
+		snatIp, labels)
+
+	policy.Status.State = ""
+
+	snatIp2 := []string{"10.4.2.2"}
+	labels2 := map[string]string{}
+	policy2 := testsnatpolicy("testpolicy2", "common", "deployment2",
+		snatIp2, labels2)
+
+	policy2.Status.State = ""
+
+	cont := sgCont()
+	cont.run()
+
+	// With invalid SNAT IP
+	policy.Spec.SnatIp = []string{"10.4.2.256"}
+	cont.fakeSnatPolicySource.Add(policy)
+	snatStatusCheck(t, "snat test", cont, policy, snatpolicy.Failed)
+
+	// Add service invalid destIP
+	policy.Spec.DestIp = []string{"10.3.4.256"}
+	policy.Spec.SnatIp = []string{"10.4.2.3"}
+	policy.Status.State = ""
+	cont.fakeSnatPolicySource.Add(policy)
+	snatStatusCheck(t, "snat test", cont, policy, snatpolicy.Failed)
+
+	// Add service snat policy with valid IP
+	policy.Spec.SnatIp = []string{"10.4.2.3"}
+	policy.Spec.DestIp = []string{}
+	policy.Status.State = ""
+	cont.fakeSnatPolicySource.Add(policy)
+	snatStatusCheck(t, "snat test", cont, policy, snatpolicy.Ready)
+
+	// Add service snat policy with the Updated status
+	cont.fakeSnatPolicySource.Modify(policy)
+	snatPolicyCount(t, "snat test", cont, 1)
+
+	// Conflicting Namespace, state should not be updated
+	cont.fakeSnatPolicySource.Add(policy2)
+	snatStatusCheck(t, "snat test", cont, policy2, snatpolicy.Failed)
+	snatPolicyCount(t, "snat test", cont, 1)
+
+	// With invalid IP
+	policy2.Spec.Selector.Namespace = "common2"
+	policy2.Spec.SnatIp = []string{"10.4.2.256"}
+	policy2.Status.State = ""
+	cont.fakeSnatPolicySource.Add(policy2)
+	time.Sleep(1 * time.Second)
+	snatStatusCheck(t, "snat test", cont, policy2, snatpolicy.Failed)
+	snatPolicyCount(t, "snat test", cont, 1)
+
+	// With conflcting IP
+	policy2.Spec.SnatIp = []string{"10.4.2.3"}
+	policy2.Status.State = ""
+	cont.fakeSnatPolicySource.Add(policy2)
+	snatStatusCheck(t, "snat test", cont, policy2, snatpolicy.Failed)
+	snatPolicyCount(t, "snat test", cont, 1)
+
 	cont.stop()
 }

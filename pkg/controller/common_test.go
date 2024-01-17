@@ -34,28 +34,29 @@ type testAciController struct {
 	AciController
 	stopCh chan struct{}
 
-	fakeNamespaceSource     *framework.FakeControllerSource
-	fakePodSource           *framework.FakeControllerSource
-	fakeEndpointsSource     *framework.FakeControllerSource
-	fakeEndpointSliceSource *framework.FakeControllerSource
-	fakeServiceSource       *framework.FakeControllerSource
-	fakeNodeSource          *framework.FakeControllerSource
-	fakeReplicaSetSource    *framework.FakeControllerSource
-	fakeDeploymentSource    *framework.FakeControllerSource
-	fakeNetworkPolicySource *framework.FakeControllerSource
-	fakeSnatPolicySource    *framework.FakeControllerSource
-	fakeRdConfigSource      *framework.FakeControllerSource
-	fakeQosPolicySource     *framework.FakeControllerSource
-	fakeNetflowPolicySource *framework.FakeControllerSource
-	fakeErspanPolicySource  *framework.FakeControllerSource
-	fakeNodePodIFSource     *framework.FakeControllerSource
-	fakeNodeInfoSource      *framework.FakeControllerSource
-	fakeIstioSource         *framework.FakeControllerSource
-	fakeSnatCfgSource       *framework.FakeControllerSource
-	fakeCRDSource           *framework.FakeControllerSource
-	podUpdates              []*v1.Pod
-	nodeUpdates             []*v1.Node
-	serviceUpdates          []*v1.Service
+	fakeNamespaceSource       *framework.FakeControllerSource
+	fakePodSource             *framework.FakeControllerSource
+	fakeEndpointsSource       *framework.FakeControllerSource
+	fakeEndpointSliceSource   *framework.FakeControllerSource
+	fakeServiceSource         *framework.FakeControllerSource
+	fakeNodeSource            *framework.FakeControllerSource
+	fakeReplicaSetSource      *framework.FakeControllerSource
+	fakeDeploymentSource      *framework.FakeControllerSource
+	fakeNetworkPolicySource   *framework.FakeControllerSource
+	fakeSnatPolicySource      *framework.FakeControllerSource
+	fakeRdConfigSource        *framework.FakeControllerSource
+	fakeQosPolicySource       *framework.FakeControllerSource
+	fakeNetflowPolicySource   *framework.FakeControllerSource
+	fakeErspanPolicySource    *framework.FakeControllerSource
+	fakeNodePodIFSource       *framework.FakeControllerSource
+	fakeNodeInfoSource        *framework.FakeControllerSource
+	fakeIstioSource           *framework.FakeControllerSource
+	fakeSnatCfgSource         *framework.FakeControllerSource
+	fakeCRDSource             *framework.FakeControllerSource
+	fakeFabricVlanPoolsSource *framework.FakeControllerSource
+	podUpdates                []*v1.Pod
+	nodeUpdates               []*v1.Node
+	serviceUpdates            []*v1.Service
 }
 
 func (cont *testAciController) InitController() {
@@ -191,6 +192,13 @@ func (cont *testAciController) InitController() {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeCRDSource.List,
 			WatchFunc: cont.fakeCRDSource.Watch,
+		})
+
+	cont.fakeFabricVlanPoolsSource = framework.NewFakeControllerSource()
+	cont.initFabricVlanPoolInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeFabricVlanPoolsSource.List,
+			WatchFunc: cont.fakeFabricVlanPoolsSource.Watch,
 		})
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {

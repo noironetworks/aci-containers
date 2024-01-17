@@ -116,14 +116,12 @@ func (cont *AciController) erspanPolicyDeleted(obj interface{}) {
 	if !isSpan {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			ErspanPolicyLogger(cont.log, span).
-				Error("Received unexpected object: ", obj)
+			cont.log.Error("Received unexpected object: ", obj)
 			return
 		}
 		span, ok = deletedState.Obj.(*erspanpolicy.ErspanPolicy)
 		if !ok {
-			ErspanPolicyLogger(cont.log, span).
-				Error("DeletedFinalStateUnknown contained non-erspan object: ", deletedState.Obj)
+			cont.log.Error("DeletedFinalStateUnknown contained non-erspan object: ", deletedState.Obj)
 			return
 		}
 	}

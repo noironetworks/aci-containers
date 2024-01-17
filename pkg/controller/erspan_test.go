@@ -18,6 +18,7 @@ package controller
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -25,15 +26,16 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	erspanpolicy "github.com/noironetworks/aci-containers/pkg/erspanpolicy/apis/aci.erspan/v1alpha"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
+	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type erspanTest struct {
-	erspanPol   *erspanpolicy.ErspanPolicy
-	writeToApic bool
-	desc        string
+	erspanPol *erspanpolicy.ErspanPolicy
+	desc      string
 }
 
 func erspanpol(name string, namespace string, dest erspanpolicy.ErspanDestType,
@@ -58,7 +60,7 @@ func erspanpol(name string, namespace string, dest erspanpolicy.ErspanDestType,
 }
 
 func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
-	dir string, macs []string, vpcs []string) bool {
+	dir string, macs []string, vpcs []string) apicapi.ApicSlice {
 	srcGrp := apicapi.NewSpanVSrcGrp(name)
 	srcGrp.SetAttr("adminSt", adminSt)
 	apicSlice := apicapi.ApicSlice{srcGrp}
@@ -93,16 +95,16 @@ func buildSpanObjs(name string, dstIP string, flowID int, adminSt string,
 		accBndlGrp.AddChild(infraRsSpanVDstGrp)
 		apicSlice = append(apicSlice, infraRsSpanVDstGrp)
 	}
-	return false
+	return apicSlice
 }
 
 func checkDeleteErspan(t *testing.T, spanTest erspanTest, cont *testAciController) {
 	tu.WaitFor(t, "delete", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			key := cont.aciNameForKey("span",
-				spanTest.erspanPol.Namespace+"_"+spanTest.erspanPol.Name)
+			key, _ := cache.MetaNamespaceKeyFunc(spanTest.erspanPol)
+			labelKey := cont.aciNameForKey("span", key)
 			if !tu.WaitEqual(t, last, 0,
-				len(cont.apicConn.GetDesiredState(key)), "delete") {
+				len(cont.apicConn.GetDesiredState(labelKey)), "delete") {
 				return false, nil
 			}
 			return true, nil
@@ -110,10 +112,7 @@ func checkDeleteErspan(t *testing.T, spanTest erspanTest, cont *testAciControlle
 }
 
 func TestErspanPolicy(t *testing.T) {
-	name := "kube_span_test"
 	labels := map[string]string{"lab_key1": "lab_value1"}
-	macs := []string{"C2-85-53-A1-85-60", "E4-81-80-40-26-CD"}
-	vpcs := []string{"test-vpc1", "test-vpc2"}
 
 	var dest0 erspanpolicy.ErspanDestType
 	dest0.DestIP = "172.51.1.2"
@@ -131,12 +130,9 @@ func TestErspanPolicy(t *testing.T) {
 	src1.Direction = ""
 
 	var spanTests = []erspanTest{
-		{erspanpol("test", "testns", dest0, src0, labels),
-			buildSpanObjs(name, "172.51.1.2", 10, "start", "out", macs, vpcs), "test1"},
-		{erspanpol("test", "testns", dest0, src1, labels),
-			buildSpanObjs(name, "172.51.1.2", 10, "start", "both", macs, vpcs), "test2"},
-		{erspanpol("test", "testns", dest1, src1, labels),
-			buildSpanObjs(name, "172.51.1.2", 1, "start", "both", macs, vpcs), "test3"},
+		{erspanpol("test", "testns", dest0, src0, labels), "test1"},
+		{erspanpol("test", "testns", dest0, src1, labels), "test2"},
+		{erspanpol("test", "testns", dest1, src1, labels), "test3"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
@@ -155,12 +151,37 @@ func TestErspanPolicy(t *testing.T) {
 		cont.fakeNamespaceSource.Add(namespaceLabel("ns2",
 			map[string]string{"nl": "nv"}))
 
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{
+								Name:          "serve-80",
+								ContainerPort: int32(80),
+							},
+						},
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				Name:      "pod-1",
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+
+		cont.config.AciVmmDomain = "kube"
+		cont.config.AciVmmController = "kube"
+
 		return cont
 	}
 
-	//Function to check if erspan object is present in the apic connection at a specific key
+	// Function to check if erspan object is present in the apic connection at a specific key
 	erspanObject := func(t *testing.T, desc string, cont *testAciController,
-		key string, expected string, present bool) {
+		key string, isexpected string, present bool) {
 		tu.WaitFor(t, desc, 500*time.Millisecond,
 			func(last bool) (bool, error) {
 				cont.indexMutex.Lock()
@@ -168,7 +189,7 @@ func TestErspanPolicy(t *testing.T) {
 				var ok bool
 				ds := cont.apicConn.GetDesiredState(key)
 				for _, v := range ds {
-					if _, ok = v[expected]; ok {
+					if _, ok = v[isexpected]; ok {
 						break
 					}
 				}
@@ -182,18 +203,169 @@ func TestErspanPolicy(t *testing.T) {
 
 	for _, spanTest := range spanTests {
 		cont := initCont()
-		cont.log.Info("Testing erspan post to APIC ", spanTest.desc)
 		cont.run()
-		cont.fakeErspanPolicySource.Modify(spanTest.erspanPol)
-		erspanObject(t, "object absent check", cont, name, "spanVSrcGrp", false)
-		erspanObject(t, "object absent check", cont, name, "spanVDestGrp", false)
-		actualPost := spanTest.writeToApic
-		expectedPost := cont.handleErspanUpdate(spanTest.erspanPol)
-		assert.Equal(t, actualPost, expectedPost)
+		go cont.erspanInformer.Run(cont.stopCh)
+		go cont.nodePodIfInformer.Run(cont.stopCh)
+
+		nodepodifinfo := &nodePodIf.NodePodIF{
+			Spec: nodePodIf.NodePodIFSpec{
+				PodIFs: []nodePodIf.PodIF{
+					{
+						MacAddr: "C2-85-53-A1-85-61",
+						EPG:     "test-epg1",
+						PodNS:   "testns",
+						PodName: "pod-1",
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "testns",
+			},
+		}
+
+		cont.fakeNodePodIFSource.Add(nodepodifinfo)
+
+		time.Sleep(100 * time.Millisecond)
+
+		go cont.processQueue(cont.erspanQueue, cont.erspanIndexer,
+			func(obj interface{}) bool {
+				return cont.handleErspanUpdate(obj.(*erspanpolicy.ErspanPolicy))
+			}, nil, nil, cont.stopCh)
+		key, _ := cache.MetaNamespaceKeyFunc(spanTest.erspanPol)
+		labelKey := cont.aciNameForKey("span", key)
+
+		opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+		opflexDevice1.SetAttr("hostName", "node1")
+		opflexDevice1.SetAttr("fabricPathDn",
+			"topology/pod-1/protpaths-301/pathep-[eth1/33]")
+		opflexDevice1.SetAttr("devType", "k8s")
+		opflexDevice1.SetAttr("domName", "kube")
+		opflexDevice1.SetAttr("ctrlrName", "kube")
+		opflexDevice1.SetAttr("state", "connected")
+
+		cont.opflexDeviceChanged(opflexDevice1)
+		time.Sleep(500 * time.Millisecond)
+
+		cont.log.Info("Testing erspan Add ", spanTest.desc)
+		cont.fakeErspanPolicySource.Add(spanTest.erspanPol)
+		erspanObject(t, "object absent check", cont, labelKey, "spanVSrcGrp", true)
+		erspanObject(t, "object absent check", cont, labelKey, "spanVDestGrp", true)
 
 		cont.log.Info("Testing erspan delete", spanTest.desc)
 		cont.fakeErspanPolicySource.Delete(spanTest.erspanPol)
-		checkDeleteErspan(t, spanTests[0], cont)
+		checkDeleteErspan(t, spanTest, cont)
+
+		opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev1")
+		opflexDevice2.SetAttr("hostName", "node1")
+		opflexDevice2.SetAttr("fabricPathDn",
+			"topology/pod-1/paths-301/pathep-[eth1/34]")
+		opflexDevice2.SetAttr("devType", "k8s")
+		opflexDevice2.SetAttr("domName", "kube")
+		opflexDevice2.SetAttr("ctrlrName", "kube")
+		opflexDevice2.SetAttr("state", "connected")
+
+		cont.opflexDeviceChanged(opflexDevice2)
+		time.Sleep(500 * time.Millisecond)
+
+		cont.log.Info("Testing erspan update", spanTest.desc)
+		cont.fakeErspanPolicySource.Modify(spanTest.erspanPol)
+		erspanObject(t, "object absent check", cont, labelKey, "spanVSrcGrp", true)
+		erspanObject(t, "object absent check", cont, labelKey, "spanVDestGrp", true)
+
+		cont.log.Info("Testing erspan delete", spanTest.desc)
+		cont.fakeErspanPolicySource.Delete(spanTest.erspanPol)
+		checkDeleteErspan(t, spanTest, cont)
+
+		erspanPol := erspanpol("test-erspanpol", "test-namespace", dest0, src0, labels)
+		key, _ = cache.MetaNamespaceKeyFunc(erspanPol)
+		labelKey = cont.aciNameForKey("span", key)
+		cont.fakeErspanPolicySource.Add(erspanPol)
+		time.Sleep(500 * time.Millisecond)
+		type test struct {
+			metav1.ObjectMeta
+		}
+
+		fakeErspanPol := &test{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test-namespace",
+				Name:      "test-erspanpol",
+			},
+		}
+		cont.erspanPolicyDeleted(fakeErspanPol)
+		time.Sleep(500 * time.Millisecond)
+		if len(cont.apicConn.GetDesiredState(labelKey)) == 0 {
+			t.Error("erspan policy should not be deleted")
+		}
+
+		fakeErspanPol2 := cache.DeletedFinalStateUnknown{
+			Key: key,
+			Obj: labelKey,
+		}
+
+		cont.erspanPolicyDeleted(fakeErspanPol2)
+		time.Sleep(500 * time.Millisecond)
+		if len(cont.apicConn.GetDesiredState(labelKey)) == 0 {
+			t.Error("erspan policy should not be deleted")
+		}
+
+		cont.fakeErspanPolicySource.Delete(erspanPol)
+
 		cont.stop()
 	}
+}
+
+func TestMisc(t *testing.T) {
+	cont := testController()
+	opflexDevice1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice1.SetAttr("hostName", "node1")
+	opflexDevice1.SetAttr("fabricPathDn",
+		"topology/pod-1/protpaths-301/pathep-[eth1/33]")
+	opflexDevice1.SetAttr("devType", "k8s")
+	opflexDevice1.SetAttr("domName", "kube")
+	opflexDevice1.SetAttr("ctrlrName", "kube")
+	opflexDevice1.SetAttr("state", "connected")
+
+	opflexDevice2 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	opflexDevice2.SetAttr("hostName", "node1")
+	opflexDevice2.SetAttr("fabricPathDn",
+		"topology/pod-1/paths-301/pathep-[eth1/34]")
+	opflexDevice2.SetAttr("devType", "k8s")
+	opflexDevice2.SetAttr("domName", "kube")
+	opflexDevice2.SetAttr("ctrlrName", "kube")
+	opflexDevice2.SetAttr("state", "connected")
+
+	cont.config.AciVmmDomain = "kube"
+	cont.config.AciVmmController = "kube"
+	cont.run()
+	defer cont.stop()
+	cont.opflexDeviceChanged(opflexDevice1)
+	time.Sleep(500 * time.Millisecond)
+	// Test getFabricPaths
+	expected := []string{"topology/pod-1/protpaths-301/pathep-[eth1/33]"}
+	if !reflect.DeepEqual(expected, cont.getFabricPaths()) {
+		t.Error("Expected ", expected, " got ", cont.getFabricPaths())
+	}
+
+	// Test getVpcs
+	expected = []string{"eth1/33"}
+	if !reflect.DeepEqual(expected, cont.getVpcs()) {
+		t.Error("Expected ", expected, " got ", cont.getVpcs())
+	}
+
+	cont.opflexDeviceChanged(opflexDevice2)
+
+	// Test getAccLeafPorts
+	expected = []string{"eth1/34"}
+	if !reflect.DeepEqual(expected, cont.getAccLeafPorts()) {
+		t.Error("Expected ", expected, " got ", cont.getAccLeafPorts())
+	}
+
+	// Test transformMac
+	mac := "00:50:56:8c:5a:aa"
+	expectedMac := "00-50-56-8c-5a-aa"
+	if expectedMac != transformMac(mac) {
+		t.Error("Expected ", expected, " got ", transformMac(mac))
+	}
+
 }

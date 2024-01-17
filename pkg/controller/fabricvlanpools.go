@@ -2,9 +2,12 @@ package controller
 
 import (
 	"context"
+
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"k8s.io/client-go/tools/cache"
+
+	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -12,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/controller"
-	"strings"
 )
 
 const (

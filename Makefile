@@ -253,13 +253,13 @@ check-ipam:
 check-index:
 	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
-	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS} && ./exclude-covprof.sh covprof-apicapi exclude-covprof.conf
 check-hostagent: test-tools
-	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS}
+	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS} && ./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
 check-controller:
-	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:
-	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS} && ./exclude-covprof.sh covprof-gbpserver exclude-covprof.conf
 check-keyvalueservice:
 	${TEST_CMD} -coverprofile=covprof-keyvalueservice ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 
