@@ -181,7 +181,7 @@ type ControllerConfig struct {
 
 	// Pod subnet CIDRs in the form <gateway-address>/<prefix-length> that
 	// cover all pod-ip-pools
-	PodSubnets []string `json:"pod-subnets,omitempty"`
+	PodSubnet []string `json:"pod-subnet,omitempty"`
 
 	// Whether to allocate service IPs or to assume they will be
 	// allocated by another controller
