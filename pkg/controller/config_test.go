@@ -59,7 +59,7 @@ func TestInitFlags(t *testing.T) {
 		AciExtNetworks:                    nil,
 		PodIpPool:                         nil,
 		PodIpPoolChunkSize:                0,
-		PodSubnets:                        nil,
+		PodSubnet:                         nil,
 		AllocateServiceIps:                nil,
 		ServiceIpPool:                     nil,
 		StaticServiceIpPool:               nil,

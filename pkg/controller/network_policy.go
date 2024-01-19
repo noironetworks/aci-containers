@@ -637,14 +637,38 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 	return remoteSubnets, subnetMap
 }
 
-func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName,
-	direction, ethertype, proto, port string, remoteSubnets []string) {
+func (cont *AciController) ipInPodSubnet(ip net.IP) bool {
+	for _, podsubnet := range cont.config.PodSubnet {
+		_, subnet, err := net.ParseCIDR(podsubnet)
+		if err == nil && subnet != nil {
+			if subnet.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (cont *AciController) buildNetPolSubjRule(subj apicapi.ApicObject, ruleName,
+	direction, ethertype, proto, port string, remoteSubnets []string,
+	addPodSubnetAsRemIp bool) {
 	ruleNameWithEtherType := fmt.Sprintf("%s-%s", ruleName, ethertype)
 	rule := apicapi.NewHostprotRule(subj.GetDn(), ruleNameWithEtherType)
 	rule.SetAttr("direction", direction)
 	rule.SetAttr("ethertype", ethertype)
 	if proto != "" {
 		rule.SetAttr("protocol", proto)
+	}
+
+	if addPodSubnetAsRemIp {
+		for _, podsubnet := range cont.config.PodSubnet {
+			_, subnet, err := net.ParseCIDR(podsubnet)
+			if err == nil && subnet != nil {
+				if (ethertype == "ipv4" && subnet.IP.To4() != nil) || (ethertype == "ipv6" && subnet.IP.To4() == nil) {
+					rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), podsubnet))
+				}
+			}
+		}
 	}
 	for _, subnetStr := range remoteSubnets {
 		_, subnet, err := net.ParseCIDR(subnetStr)
@@ -654,6 +678,9 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName,
 				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), subnetStr))
 			}
 		} else if ip := net.ParseIP(subnetStr); ip != nil {
+			if addPodSubnetAsRemIp && cont.ipInPodSubnet(ip) {
+				continue
+			}
 			if ethertype == "ipv6" && (ip.To16() != nil && ip.To4() == nil) || ethertype == "ipv4" && ip.To4() != nil {
 				rule.AddChild(apicapi.NewHostprotRemoteIp(rule.GetDn(), subnetStr))
 			}
@@ -669,7 +696,8 @@ func buildNetPolSubjRule(subj apicapi.ApicObject, ruleName,
 func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	subj apicapi.ApicObject, direction string, peers []v1net.NetworkPolicyPeer,
 	remoteSubnets []string, ports []v1net.NetworkPolicyPort,
-	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy) {
+	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy,
+	addPodSubnetAsRemIp bool) {
 	if len(peers) > 0 && len(remoteSubnets) == 0 {
 		// nonempty From matches no pods or IPBlocks; don't
 		// create the rule
@@ -677,12 +705,12 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	}
 	if len(ports) == 0 {
 		if !cont.configuredPodNetworkIps.V4.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
-				"ipv4", "", "", remoteSubnets)
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv4", "", "", remoteSubnets, addPodSubnetAsRemIp)
 		}
 		if !cont.configuredPodNetworkIps.V6.Empty() {
-			buildNetPolSubjRule(subj, ruleName, direction,
-				"ipv6", "", "", remoteSubnets)
+			cont.buildNetPolSubjRule(subj, ruleName, direction,
+				"ipv6", "", "", remoteSubnets, addPodSubnetAsRemIp)
 		}
 	} else {
 		for j := range ports {
@@ -718,12 +746,12 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 			}
 			for i, port := range portList {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
-						"ipv4", proto, port, remoteSubnets)
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+						"ipv4", proto, port, remoteSubnets, addPodSubnetAsRemIp)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
-						"ipv6", proto, port, remoteSubnets)
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(i+j), direction,
+						"ipv6", proto, port, remoteSubnets, addPodSubnetAsRemIp)
 				}
 			}
 		}
@@ -1041,16 +1069,38 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 		}
 		cont.log.Debug("Service Augment: ", augment)
 		if len(remoteIpsv4) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
-				"egress", "ipv4", augment.proto, augment.port, remoteIpsv4)
+				"egress", "ipv4", augment.proto, augment.port, remoteIpsv4, false)
 		}
 		if len(remoteIpsv6) > 0 {
-			buildNetPolSubjRule(subj,
+			cont.buildNetPolSubjRule(subj,
 				"service_"+augment.proto+"_"+augment.port,
-				"egress", "ipv6", augment.proto, augment.port, remoteIpsv6)
+				"egress", "ipv6", augment.proto, augment.port, remoteIpsv6, false)
 		}
 	}
+}
+
+func isAllowAllForAllNamespaces(peers []v1net.NetworkPolicyPeer) bool {
+	addPodSubnetAsRemIp := false
+	if peers != nil && len(peers) > 0 {
+		var emptyPodSel, emptyNsSel bool
+		emptyPodSel = true
+		for _, peer := range peers {
+			// namespaceSelector: {}
+			if peer.NamespaceSelector != nil && peer.NamespaceSelector.MatchLabels == nil && peer.NamespaceSelector.MatchExpressions == nil {
+				emptyNsSel = true
+			}
+			// podSelector has some fields
+			if peer.PodSelector != nil && (peer.PodSelector.MatchLabels != nil || peer.PodSelector.MatchExpressions != nil) {
+				emptyPodSel = false
+			}
+		}
+		if emptyNsSel && emptyPodSel {
+			addPodSubnetAsRemIp = true
+		}
+	}
+	return addPodSubnetAsRemIp
 }
 
 func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
@@ -1107,10 +1157,11 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			apicapi.NewHostprotSubj(hpp.GetDn(), "networkpolicy-ingress")
 
 		for i, ingress := range np.Spec.Ingress {
+			addPodSubnetAsRemIp := isAllowAllForAllNamespaces(ingress.From)
 			remoteSubnets, _ := cont.getPeerRemoteSubnets(ingress.From,
 				np.Namespace, peerPods, peerNs, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress,
-				"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np)
+				"ingress", ingress.From, remoteSubnets, ingress.Ports, logger, key, np, addPodSubnetAsRemIp)
 		}
 		hpp.AddChild(subjIngress)
 	}
@@ -1122,10 +1173,11 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		portRemoteSubs := make(map[string]*portRemoteSubnet)
 
 		for i, egress := range np.Spec.Egress {
+			addPodSubnetAsRemIp := isAllowAllForAllNamespaces(egress.To)
 			remoteSubnets, subnetMap := cont.getPeerRemoteSubnets(egress.To,
 				np.Namespace, peerPods, peerNs, logger)
 			cont.buildNetPolSubjRules(strconv.Itoa(i), subjEgress,
-				"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np)
+				"egress", egress.To, remoteSubnets, egress.Ports, logger, key, np, addPodSubnetAsRemIp)
 
 			// creating a rule to egress to all on a given port needs
 			// to enable access to any service IPs/ports that have
