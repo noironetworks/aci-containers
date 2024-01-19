@@ -278,6 +278,9 @@ type HostAgentConfig struct {
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
+
+	// Disable hpp rendering if set to true
+	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {

@@ -272,17 +272,21 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.createGlobalInfoCache(cont.unitTestMode)
 		cont.snatFullSync()
 		cont.log.Info("Snat cache sync successful")
-		go cont.networkPolicyInformer.Run(stopCh)
+		if !cont.config.DisableHppRendering {
+			go cont.networkPolicyInformer.Run(stopCh)
+		}
 	}
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, nil, nil, stopCh)
 	if !cont.config.ChainedMode {
-		go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
-			func(obj interface{}) bool {
-				return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
-			}, nil, nil, stopCh)
+		if !cont.config.DisableHppRendering {
+			go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
+				func(obj interface{}) bool {
+					return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
+				}, nil, nil, stopCh)
+		}
 		go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 			func(obj interface{}) bool {
 				return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
@@ -323,20 +327,17 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.registerCRDHook(nadVlanMapCRDName, nadVlanMapInit)
 	cont.registerCRDHook(fabricVlanPoolCRDName, fabricVlanPoolInit)
 	go cont.crdInformer.Run(stopCh)
-	if !cont.config.ChainedMode {
-		cache.WaitForCacheSync(stopCh,
-			cont.namespaceInformer.HasSynced,
-			cont.replicaSetInformer.HasSynced,
-			cont.deploymentInformer.HasSynced,
-			cont.podInformer.HasSynced,
-			cont.networkPolicyInformer.HasSynced)
-	} else {
-		cache.WaitForCacheSync(stopCh,
-			cont.namespaceInformer.HasSynced,
-			cont.replicaSetInformer.HasSynced,
-			cont.deploymentInformer.HasSynced,
-			cont.podInformer.HasSynced)
+
+	cache.WaitForCacheSync(stopCh,
+		cont.namespaceInformer.HasSynced,
+		cont.replicaSetInformer.HasSynced,
+		cont.deploymentInformer.HasSynced,
+		cont.podInformer.HasSynced)
+
+	if !cont.config.ChainedMode && !cont.config.DisableHppRendering {
+		cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)
 	}
+
 	cont.log.Info("Cache sync successful")
 	if !cont.config.ChainedMode {
 		if !cont.config.DisablePeriodicSnatGlobalInfoSync {

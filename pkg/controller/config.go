@@ -296,6 +296,9 @@ type ControllerConfig struct {
 
 	// Number of times the connection to APIC should be retried before switching to another APIC
 	ApicConnectionRetryLimit int `json:"apic-connection-retry-limit,omitempty"`
+
+	// Disable hpp rendering if set to true
+	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
 }
 
 type netIps struct {
