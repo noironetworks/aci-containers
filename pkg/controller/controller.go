@@ -710,7 +710,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		//Subscribe for vmmEpPD for a given domain
 		var tnTargetFilterEpg string
 		tnTargetFilterEpg += fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
-		subnetTargetFilterEpg := fmt.Sprintf("and(wcard(vmmEpPD.dn,\"%s\"))", tnTargetFilterEpg)
+		subnetTargetFilterEpg := fmt.Sprintf("and(eq(vmmEpPD.dn,\"%s\"))", tnTargetFilterEpg)
 		cont.apicConn.AddSubscriptionClass("vmmEpPD",
 			[]string{"vmmEpPD"}, subnetTargetFilterEpg)
 		cont.apicConn.SetSubscriptionHooks("vmmEpPD",
@@ -819,7 +819,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
 				cont.config.AciPolicyTenant, cont.config.AciVrfTenant)
 		}
-		subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
+		subnetTargetFilter := fmt.Sprintf("and(eq(fvSubnet.dn,\"%s\"))",
 			tnTargetFilter)
 		cont.apicConn.AddSubscriptionClass("fvSubnet",
 			[]string{"fvSubnet"}, subnetTargetFilter)
