@@ -53,7 +53,11 @@ func (cont *AciController) clearFaultInstances() {
 
 func (cont *AciController) getEpgFromEppd(dn string) string {
 	delimiterStringEpg := fmt.Sprintf("uni/vmmp-%s/dom-%s/eppd-[", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
-	epgDn := strings.Split(dn, delimiterStringEpg)[1]
+	dnParts := strings.Split(dn, delimiterStringEpg)
+	if len(dnParts) < 2 {
+		return ""
+	}
+	epgDn := dnParts[1]
 	epgDn = strings.Replace(epgDn, "]", "", -1)
 	return epgDn
 }
@@ -61,21 +65,25 @@ func (cont *AciController) getEpgFromEppd(dn string) string {
 func (cont *AciController) vmmEpPDChanged(obj apicapi.ApicObject) {
 	dn := obj.GetAttrStr("dn")
 	epgDn := cont.getEpgFromEppd(dn)
-	cont.indexMutex.Lock()
-	if ok := !cont.contains(cont.cachedEpgDns, epgDn); ok {
-		cont.cachedEpgDns = append(cont.cachedEpgDns, epgDn)
+	if epgDn != "" {
+		cont.indexMutex.Lock()
+		if ok := !cont.contains(cont.cachedEpgDns, epgDn); ok {
+			cont.cachedEpgDns = append(cont.cachedEpgDns, epgDn)
+		}
+		sort.Strings(cont.cachedEpgDns)
+		cont.indexMutex.Unlock()
 	}
-	sort.Strings(cont.cachedEpgDns)
-	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) vmmEpPDDeleted(dn string) {
 	epgDn := cont.getEpgFromEppd(dn)
-	cont.indexMutex.Lock()
-	if cont.contains(cont.cachedEpgDns, epgDn) {
-		cont.removeSlice(&cont.cachedEpgDns, epgDn)
+	if epgDn != "" {
+		cont.indexMutex.Lock()
+		if cont.contains(cont.cachedEpgDns, epgDn) {
+			cont.removeSlice(&cont.cachedEpgDns, epgDn)
+		}
+		cont.indexMutex.Unlock()
 	}
-	cont.indexMutex.Unlock()
 }
 
 func (cont *AciController) removeSlice(s *[]string, searchterm string) {
