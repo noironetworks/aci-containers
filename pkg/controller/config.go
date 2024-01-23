@@ -293,6 +293,9 @@ type ControllerConfig struct {
 
 	// Add external contract to default epg (contract is created for LoadBalancer Service type), default is false
 	AddExternalContractToDefaultEPG bool `json:"add-external-contract-to-default-epg,omitempty"`
+
+	// Number of times the connection to APIC should be retried before switching to another APIC
+	ApicConnectionRetryLimit int `json:"apic-connection-retry-limit,omitempty"`
 }
 
 type netIps struct {

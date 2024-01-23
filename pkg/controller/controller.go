@@ -617,6 +617,13 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if !cont.config.ChainedMode {
 		cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
 	}
+
+	// If ApicConnectionRetryLimit is not defined, default to 5
+	if cont.config.ApicConnectionRetryLimit == 0 {
+		cont.config.ApicConnectionRetryLimit = 5
+	}
+	cont.log.Debug("ApicConnectionRetryLimit set to: ", cont.config.ApicConnectionRetryLimit)
+
 	// If not valid, default to 5000-65000
 	// other permissible values 1-65000
 	defStart := 5000
@@ -664,7 +671,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	cont.apicConn.ReconnectRetryLimit = cont.config.ApicConnectionRetryLimit
+
 	if len(cont.config.ApicHosts) != 0 {
+	APIC_SWITCH:
 		cont.log.WithFields(logrus.Fields{
 			"mod":  "APICAPI",
 			"host": cont.apicConn.Apic[cont.apicConn.ApicIndex],
@@ -672,8 +682,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 		version, err := cont.apicConn.GetVersion()
 		if err != nil {
-			cont.log.Error("Could not get APIC version")
-			panic(err)
+			cont.log.Error("Could not get APIC version, switching to next APIC")
+			cont.apicConn.ApicIndex = (cont.apicConn.ApicIndex + 1) % len(cont.apicConn.Apic)
+			time.Sleep(cont.apicConn.ReconnectInterval)
+			goto APIC_SWITCH
 		}
 		cont.apicConn.CachedVersion = version
 		apicapi.ApicVersion = version

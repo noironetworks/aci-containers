@@ -214,6 +214,7 @@ func New(log *logrus.Logger, apic []string, user string,
 
 	conn := &ApicConnection{
 		ReconnectInterval:   time.Duration(5) * time.Second,
+		ReconnectRetryLimit: 5,
 		RefreshInterval:     time.Duration(refresh) * time.Second,
 		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
 		SubscriptionDelay:   time.Duration(subscriptionDelay) * time.Millisecond,
@@ -531,10 +532,12 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		go func() {
 			version, err := conn.GetVersion()
 			if err != nil {
-				conn.log.Error("Error while getting APIC version: ", err)
+				conn.log.Error("Error while getting APIC version: ", err, " Restarting connection...")
+				conn.restart()
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
 				ApicVersion = version
+				conn.CachedVersion = version
 			}
 		}()
 	}
@@ -606,9 +609,15 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 
+	retries := 0
 	for conn.version == "" {
-		// Wait before Retry.
-		time.Sleep(conn.ReconnectInterval)
+		if retries <= conn.ReconnectRetryLimit {
+			// Wait before Retry.
+			time.Sleep(conn.ReconnectInterval)
+			retries++
+		} else {
+			return "", fmt.Errorf("Failed to get APIC version after %d retries", retries)
+		}
 
 		token, err := conn.login()
 		if err != nil {
