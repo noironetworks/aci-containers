@@ -721,7 +721,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.clearFaultInstances()
 		//Subscribe for vmmEpPD for a given domain
 		var tnTargetFilterEpg string
-		tnTargetFilterEpg += fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
+		tnTargetFilterEpg += fmt.Sprintf("uni/vmmp-%s/dom-%s/", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
 		subnetTargetFilterEpg := fmt.Sprintf("and(wcard(vmmEpPD.dn,\"%s\"))", tnTargetFilterEpg)
 		cont.apicConn.AddSubscriptionClass("vmmEpPD",
 			[]string{"vmmEpPD"}, subnetTargetFilterEpg)
@@ -825,10 +825,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		var tnTargetFilter string
 		if len(cont.config.AciVrfRelatedTenants) > 0 {
 			for _, tn := range cont.config.AciVrfRelatedTenants {
-				tnTargetFilter += fmt.Sprintf("tn-%s|", tn)
+				tnTargetFilter += fmt.Sprintf("tn-%s/|", tn)
 			}
 		} else {
-			tnTargetFilter += fmt.Sprintf("tn-%s|tn-%s",
+			tnTargetFilter += fmt.Sprintf("tn-%s/|tn-%s/",
 				cont.config.AciPolicyTenant, cont.config.AciVrfTenant)
 		}
 		subnetTargetFilter := fmt.Sprintf("and(wcard(fvSubnet.dn,\"%s\"))",
