@@ -12,6 +12,15 @@ ${OVSCTL} start --system-id=${SYS_ID}
 ${VSCTL} set Open_vSwitch . other_config:hw-offload=true
 ${OVSCTL} restart --system-id=${SYS_ID}
 
+# Cleanup
+if ovs-vsctl show | grep "No such device"; then
+    echo "Found Stale devices, cleaning up"
+    ${OVSCTL} stop
+    rm $PREFIX/etc/openvswitch/conf.db
+    rm $PREFIX/var/lib/opflex-agent-ovs/endpoints/*.ep
+    ${OVSCTL} start --system-id=${SYS_ID}
+fi
+
 # Create OVS bridges if needed
 dpid=0
 for i in br-int br-access; do
