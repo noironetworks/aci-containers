@@ -148,7 +148,7 @@ func (cont *AciController) BuildSubnetDnCache(dn, aciVrfDn string) {
 	bdRsDelimiter := "/rsctx"
 	epgRsDelimiter := "/rsbd"
 	subnetDelimiter := "/subnet"
-	fvRsFilter := fmt.Sprintf("query-target-filter=and(wcard(fvRsCtx.tDn,\"%s\"))", aciVrfDn)
+	fvRsFilter := fmt.Sprintf("query-target-filter=and(eq(fvRsCtx.tDn,\"%s\"))", aciVrfDn)
 	fvRsArgs := []string{
 		"rsp-prop-include=config-only",
 		fvRsFilter,
