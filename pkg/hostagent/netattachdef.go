@@ -97,10 +97,37 @@ type NetworkAttachmentData struct {
 	PluginTrunk          []TrunkConfig
 	Programmed           bool
 	PluginAllowUntagged  bool
+	Status               string
 }
 
 type ClientInfo struct {
 	NetClient netattclient.K8sCniCncfIoV1Interface
+}
+
+func (agent *HostAgent) setNodeFabNetAttStatusLocked(netAttData *NetworkAttachmentData) {
+	if netAttData.PrimaryCNI == PrimaryCNIUnk {
+		netAttData.Status = fmt.Sprintf("Primary CNI on this network is not supported")
+		return
+	}
+	if netAttData.EncapVlan == "" {
+		if netAttData.EncapKey != "" {
+			netAttData.Status = "NadVlanMap is a match but vlan is not present in Fabricvlanpool"
+			return
+		}
+		netAttData.Status = "No allocatable vlan: specify using fabricvlanpool and annotation/nad/nadvlanmap"
+		return
+	}
+	if netAttData.EncapMode == util.EncapModeUntagged {
+		vlans, _, _, err2 := util.ParseVlanList([]string{netAttData.EncapVlan})
+		if err2 != nil {
+			netAttData.Status = "vlan format incorrect"
+			return
+		} else if len(vlans) > 1 {
+			netAttData.Status = "Ensure only one implicit uplink vlan for ipvlan network"
+			return
+		}
+	}
+	netAttData.Status = "Complete"
 }
 
 func (agent *HostAgent) getNetDevFromVFPCI(pci, pfName string) string {
@@ -433,6 +460,8 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentEncap(fabNetAtt *fabatt
 			Key:           netAttData.EncapKey,
 		}
 	}
+	agent.setNodeFabNetAttStatusLocked(netAttData)
+	fabNetAtt.Status.State = fabattv1.FabricAttachmentState(netAttData.Status)
 }
 
 func (agent *HostAgent) updateNodeFabricNetworkAttachmentForEncapChangeLocked(nadKey, encapKey, vlanList string, isDelete bool) {
@@ -479,7 +508,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentForFabricVlanPoolLocked
 			_, err = agent.fabAttClient.NodeFabricNetworkAttachments(fabNetAttDefNamespace).Update(context.TODO(), fabNetAtt, metav1.UpdateOptions{})
 			agent.RecordNetworkMetadata(netAttData)
 			if err != nil {
-				agent.log.Errorf("Failed to update nfna %s for encap change: %v", fabNetAttName, err)
+				agent.log.Errorf("Failed to update nfna %s for pool change: %v", fabNetAttName, err)
 			}
 		}
 	}
