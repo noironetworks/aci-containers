@@ -16,10 +16,12 @@ package hostagent
 
 import (
 	"net"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/time/rate"
@@ -396,6 +398,32 @@ func (agent *HostAgent) scheduleSyncNodePodIfs() {
 }
 func (agent *HostAgent) scheduleSyncPorts() {
 	agent.ScheduleSync("ports")
+}
+
+func (agent *HostAgent) watchRebootConf(stopCh <-chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(err)
+	}
+	defer watcher.Close()
+	if err := watcher.Add("/usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf"); err != nil {
+		panic(err)
+	}
+	for {
+		select {
+		// watch for events
+		case event := <-watcher.Events:
+			agent.log.Info("Reloading aci-containers-host because of an event in /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf : ", event)
+			os.Exit(0)
+
+			// watch for errors
+		case err := <-watcher.Errors:
+			agent.log.Error("ERROR: ", err)
+
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
