@@ -162,6 +162,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.updateOpflexConfig()
 	go env.agent.runTickers(stopCh)
 
+	if env.agent.integ_test == nil {
+		go env.agent.watchRebootConf(stopCh)
+	}
+
 	env.agent.log.Debug("Starting node informer")
 	go env.agent.nodeInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for node cache sync")
