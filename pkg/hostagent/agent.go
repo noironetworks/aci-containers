@@ -87,6 +87,7 @@ type HostAgent struct {
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
+	epSyncQueue         workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
@@ -174,6 +175,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
+		epSyncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
+			}, "epsync"),
 		ocServices: []opflexOcService{
 			{
 				RouterInternalDefault,
@@ -307,7 +312,11 @@ func (agent *HostAgent) Init() {
 }
 
 func (agent *HostAgent) ScheduleSync(syncType string) {
-	agent.syncQueue.AddRateLimited(syncType)
+	if syncType == "eps" {
+		agent.epSyncQueue.AddRateLimited(syncType)
+	} else {
+		agent.syncQueue.AddRateLimited(syncType)
+	}
 }
 
 func (agent *HostAgent) scheduleSyncEps() {
@@ -448,6 +457,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 			agent.EnableSync()
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
+		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 	}
 
 	agent.log.Info("Starting endpoint RPC")
