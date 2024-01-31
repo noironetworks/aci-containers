@@ -16,10 +16,12 @@ package hostagent
 
 import (
 	"net"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/fsnotify/fsnotify"
 	crdclientset "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned"
 	aciv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/typed/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
@@ -85,6 +87,7 @@ type HostAgent struct {
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
+	epSyncQueue         workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
@@ -172,6 +175,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "sync"),
+		epSyncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
+			}, "epsync"),
 		ocServices: []opflexOcService{
 			{
 				RouterInternalDefault,
@@ -305,7 +312,11 @@ func (agent *HostAgent) Init() {
 }
 
 func (agent *HostAgent) ScheduleSync(syncType string) {
-	agent.syncQueue.AddRateLimited(syncType)
+	if syncType == "eps" {
+		agent.epSyncQueue.AddRateLimited(syncType)
+	} else {
+		agent.syncQueue.AddRateLimited(syncType)
+	}
 }
 
 func (agent *HostAgent) scheduleSyncEps() {
@@ -335,6 +346,32 @@ func (agent *HostAgent) scheduleSyncLocalInfo() {
 }
 func (agent *HostAgent) scheduleSyncNodePodIfs() {
 	agent.ScheduleSync("nodepodifs")
+}
+
+func (agent *HostAgent) watchRebootConf(stopCh <-chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(err)
+	}
+	defer watcher.Close()
+	if err := watcher.Add("/usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf"); err != nil {
+		panic(err)
+	}
+	for {
+		select {
+		// watch for events
+		case event := <-watcher.Events:
+			agent.log.Info("Reloading aci-containers-host because of an event in /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf : ", event)
+			os.Exit(0)
+
+			// watch for errors
+		case err := <-watcher.Errors:
+			agent.log.Error("ERROR: ", err)
+
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
@@ -420,6 +457,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 			agent.EnableSync()
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
+		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 	}
 
 	agent.log.Info("Starting endpoint RPC")
