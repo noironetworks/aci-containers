@@ -181,7 +181,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.updateOpflexConfig()
 	go env.agent.runTickers(stopCh)
 
-	if env.agent.integ_test == nil {
+	if env.agent.integ_test == nil && !env.agent.config.ChainedMode {
 		go env.agent.watchRebootConf(stopCh)
 	}
 
