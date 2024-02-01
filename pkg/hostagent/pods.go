@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -48,6 +49,18 @@ import (
 )
 
 const NullMac = "null-mac"
+
+type epTimeStamps struct {
+	podCreatationNoticationTimestamp   time.Time
+	podUpdateNotificationsTimestamps   []time.Time
+	epFileUpdateTimestamps             map[time.Time]string
+	epFileCreateTimestamp              time.Time
+	createNotifyToLastEpFileUpdateDiff time.Duration
+	lastNotifyToLastEpFileUpdateDiff   time.Duration
+	podCreationToLastEpFileUpdateDiff  time.Duration
+	podCreationTimestamp               time.Time
+	podStartTimestamp                  time.Time
+}
 
 type opflexEndpoint struct {
 	Uuid string `json:"uuid"`
@@ -250,9 +263,11 @@ func (agent *HostAgent) initPodInformerBase(listWatch *cache.ListWatch) {
 	)
 	agent.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			agent.initPodNotifyTimeStamp(obj.(*v1.Pod))
 			agent.podUpdated(obj)
 		},
 		UpdateFunc: func(_ interface{}, obj interface{}) {
+			agent.updatePodNotifyTimeStamp(obj.(*v1.Pod))
 			agent.podUpdated(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -432,6 +447,27 @@ func (agent *HostAgent) syncEps() bool {
 					continue
 				}
 				ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
+
+				existingEp, err := readEp(epfile)
+				if err != nil {
+					agent.log.Error("Error while reading epfile: ", epidstr)
+					continue
+				}
+				changed_fields := compareOpflexEndpoints(existingEp, ep)
+				if changed_fields != "" {
+					update_ts := time.Now().UTC()
+					agent.indexMutex.Lock()
+					agent.podNameToTimeStamps[poduuid].epFileUpdateTimestamps[update_ts] = changed_fields
+					agent.podNameToTimeStamps[poduuid].createNotifyToLastEpFileUpdateDiff = update_ts.Sub(agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp)
+					agent.podNameToTimeStamps[poduuid].podCreationToLastEpFileUpdateDiff = update_ts.Sub(agent.podNameToTimeStamps[poduuid].podCreationTimestamp)
+					if len(agent.podNameToTimeStamps[poduuid].podUpdateNotificationsTimestamps) > 0 {
+						agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff = update_ts.Sub(agent.podNameToTimeStamps[poduuid].podUpdateNotificationsTimestamps[len(agent.podNameToTimeStamps[poduuid].podUpdateNotificationsTimestamps)-1])
+					} else {
+						agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff = update_ts.Sub(agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp)
+					}
+					agent.indexMutex.Unlock()
+				}
+
 				wrote, err := writeEp(epfile, ep)
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -439,6 +475,26 @@ func (agent *HostAgent) syncEps() bool {
 				} else if wrote || !ep.registered {
 					needRetry = agent.EPRegAdd(ep)
 				}
+
+				if wrote && err == nil {
+					agent.indexMutex.Lock()
+					agent.log.Debugf("ep file updated for pod: %s, Timestamps: {podCreatationNoticationTimestamp=%s, "+
+						"podUpdateNotificationsTimestamps=[%s], epFileUpdateTimestamps=[%s], epFileCreateTimestamp=%s, "+
+						"createNotifyToLastEpFileUpdateDiff=%s, lastNotifyToLastEpFileUpdateDiff=%s, "+
+						"podCreationToLastEpFileUpdateDiff=%s, podCreationTimestamp=%s, "+
+						"podStartTimestamp=%s}", ep.Attributes["vm-name"],
+						agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp.Format("2006-01-02T15:04:05Z"),
+						formatTimestamps(agent.podNameToTimeStamps[poduuid].podUpdateNotificationsTimestamps),
+						formatMapTimestamps(agent.podNameToTimeStamps[poduuid].epFileUpdateTimestamps),
+						agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Format("2006-01-02T15:04:05Z"),
+						normalizeToMinutes(agent.podNameToTimeStamps[poduuid].createNotifyToLastEpFileUpdateDiff),
+						normalizeToMinutes(agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff),
+						normalizeToMinutes(agent.podNameToTimeStamps[poduuid].podCreationToLastEpFileUpdateDiff),
+						agent.podNameToTimeStamps[poduuid].podCreationTimestamp.Format("2006-01-02T15:04:05Z"),
+						agent.podNameToTimeStamps[poduuid].podStartTimestamp.Format("2006-01-02T15:04:05Z"))
+					agent.indexMutex.Unlock()
+				}
+
 				if _, ok := agent.nodePodIfEPs[ep.Uuid]; !ok {
 					agent.nodePodIfEPs[ep.Uuid] = ep
 				}
@@ -473,6 +529,12 @@ func (agent *HostAgent) syncEps() bool {
 			}
 			ep.ServiceClusterIps = agent.getServiceIPs(poduuid)
 			opflexEpLogger(agent.log, ep).Info("Adding endpoint")
+			agent.indexMutex.Lock()
+			agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp = time.Now().UTC()
+			agent.podNameToTimeStamps[poduuid].createNotifyToLastEpFileUpdateDiff = agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Sub(agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp)
+			agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff = agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Sub(agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp)
+			agent.podNameToTimeStamps[poduuid].podCreationToLastEpFileUpdateDiff = agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Sub(agent.podNameToTimeStamps[poduuid].podCreationTimestamp)
+			agent.indexMutex.Unlock()
 			_, err = writeEp(epfile, ep)
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
@@ -482,6 +544,22 @@ func (agent *HostAgent) syncEps() bool {
 				needRetry = agent.EPRegAdd(ep)
 				agent.nodePodIfEPs[ep.Uuid] = ep
 			}
+			agent.indexMutex.Lock()
+			agent.log.Debugf("ep file Created for pod: %s, Timestamps: {podCreatationNoticationTimestamp=%s, "+
+				"podUpdateNotificationsTimestamps=[%s],  epFileUpdateTimestamps=[%s],  epFileCreateTimestamp=%s, "+
+				"createNotifyToLastEpFileUpdateDiff=%s, lastNotifyToLastEpFileUpdateDiff=%s, "+
+				"podCreationToLastEpFileUpdateDiff=%s, podCreationTimestamp=%s, "+
+				"podStartTimestamp=%s}", ep.Attributes["vm-name"],
+				agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp.Format("2006-01-02T15:04:05Z"),
+				formatTimestamps(agent.podNameToTimeStamps[poduuid].podUpdateNotificationsTimestamps),
+				formatMapTimestamps(agent.podNameToTimeStamps[poduuid].epFileUpdateTimestamps),
+				agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Format("2006-01-02T15:04:05Z"),
+				normalizeToMinutes(agent.podNameToTimeStamps[poduuid].createNotifyToLastEpFileUpdateDiff),
+				normalizeToMinutes(agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff),
+				normalizeToMinutes(agent.podNameToTimeStamps[poduuid].podCreationToLastEpFileUpdateDiff),
+				agent.podNameToTimeStamps[poduuid].podCreationTimestamp.Format("2006-01-02T15:04:05Z"),
+				agent.podNameToTimeStamps[poduuid].podStartTimestamp.Format("2006-01-02T15:04:05Z"))
+			agent.indexMutex.Unlock()
 		}
 	}
 
@@ -550,8 +628,43 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.qosPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	agent.updatePodStausTimeStamps(obj.(*v1.Pod))
 	agent.handleObjectUpdateForSnat(obj)
 	agent.podChangedLocked(obj)
+}
+
+func (agent *HostAgent) initPodNotifyTimeStamp(pod *v1.Pod) {
+	tsMap := &epTimeStamps{
+		podCreatationNoticationTimestamp:   time.Time{},
+		podUpdateNotificationsTimestamps:   make([]time.Time, 0),
+		epFileUpdateTimestamps:             make(map[time.Time]string),
+		epFileCreateTimestamp:              time.Time{},
+		createNotifyToLastEpFileUpdateDiff: 0,
+		lastNotifyToLastEpFileUpdateDiff:   0,
+		podCreationToLastEpFileUpdateDiff:  0,
+		podCreationTimestamp:               time.Time{},
+		podStartTimestamp:                  time.Time{},
+	}
+	tsMap.podCreatationNoticationTimestamp = time.Now().UTC()
+	tsKey := string(pod.ObjectMeta.UID)
+	agent.indexMutex.Lock()
+	agent.podNameToTimeStamps[tsKey] = tsMap
+	agent.indexMutex.Unlock()
+}
+
+func (agent *HostAgent) updatePodStausTimeStamps(pod *v1.Pod) {
+	tsKey := string(pod.ObjectMeta.UID)
+	agent.podNameToTimeStamps[tsKey].podCreationTimestamp = pod.GetCreationTimestamp().UTC()
+	if pod.Status.StartTime != nil {
+		agent.podNameToTimeStamps[tsKey].podStartTimestamp = pod.Status.StartTime.UTC()
+	}
+}
+
+func (agent *HostAgent) updatePodNotifyTimeStamp(pod *v1.Pod) {
+	tsKey := string(pod.ObjectMeta.UID)
+	agent.indexMutex.Lock()
+	agent.podNameToTimeStamps[tsKey].podUpdateNotificationsTimestamps = append(agent.podNameToTimeStamps[tsKey].podUpdateNotificationsTimestamps, time.Now().UTC())
+	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) podChanged(podkey *string) {
@@ -649,6 +762,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 	if !ok {
 		logger.Debug("No metadata found for ep: ")
 		delete(agent.opflexEps, *epUuid)
+		agent.log.Debug("syncEP scheduled")
 		agent.scheduleSyncEps()
 		return
 	}
@@ -716,6 +830,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 			"ep": neweps,
 		}).Debug("Updated endpoints for pod")
 		logger.Infof("EP updated: %+v", neweps[0])
+		agent.log.Debug("syncEP scheduled")
 
 		agent.opflexEps[*epUuid] = neweps
 		agent.scheduleSyncEps()
@@ -725,6 +840,7 @@ func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *me
 func (agent *HostAgent) epDeleted(epUuid *string) {
 	if _, ok := agent.opflexEps[*epUuid]; ok {
 		delete(agent.opflexEps, *epUuid)
+		agent.log.Debug("syncEP scheduled")
 		agent.scheduleSyncEps()
 	}
 }
@@ -782,6 +898,7 @@ func (agent *HostAgent) podDeletedLocked(obj interface{}) {
 	if _, ok := agent.opflexEps[u]; ok {
 		agent.log.Infof("podDeletedLocked: delete %s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		delete(agent.opflexEps, u)
+		agent.log.Debug("syncEP scheduled")
 		agent.scheduleSyncEps()
 	}
 	if pod.Status.PodIP != "" {
@@ -805,6 +922,7 @@ func (agent *HostAgent) cniEpDelete(cniKey string) {
 	if _, ok := agent.opflexEps[epUuid]; ok {
 		agent.log.Infof("cniEpDelete: delete %s", cniKey)
 		delete(agent.opflexEps, epUuid)
+		agent.log.Debug("syncEP scheduled")
 		agent.scheduleSyncEps()
 	}
 }
@@ -823,4 +941,57 @@ func (agent *HostAgent) updateGbpServerInfo(pod *v1.Pod) {
 		}
 	}
 	agent.indexMutex.Unlock()
+}
+
+func formatTimestamps(timestamps []time.Time) string {
+	var formattedTimestamps string
+	for i, timestamp := range timestamps {
+		if i > 0 {
+			formattedTimestamps += ", "
+		}
+		formattedTimestamps += timestamp.Format("2006-01-02T15:04:05Z")
+	}
+	return formattedTimestamps
+}
+
+func formatMapTimestamps(timestamps map[time.Time]string) string {
+	var formattedTimestamps string
+	for key, value := range timestamps {
+		formattedTimestamps += key.Format("2006-01-02T15:04:05Z") + ": " + value + ", "
+	}
+
+	if len(formattedTimestamps) > 2 {
+		formattedTimestamps = formattedTimestamps[:len(formattedTimestamps)-2]
+	}
+	return formattedTimestamps
+}
+
+func compareOpflexEndpoints(oldEndpoint, newEndpoint *opflexEndpoint) string {
+	var changedFields []string
+
+	oldEndpointJSON, _ := json.Marshal(oldEndpoint)
+	newEndpointJSON, _ := json.Marshal(newEndpoint)
+
+	var oldMap, newMap map[string]interface{}
+	json.Unmarshal(oldEndpointJSON, &oldMap)
+	json.Unmarshal(newEndpointJSON, &newMap)
+
+	for key, oldValue := range oldMap {
+		newValue, exists := newMap[key]
+		if !exists || !reflect.DeepEqual(oldValue, newValue) {
+			changedFields = append(changedFields, key)
+		}
+	}
+
+	for key := range newMap {
+		if _, exists := oldMap[key]; !exists {
+			changedFields = append(changedFields, key)
+		}
+	}
+
+	return strings.Join(changedFields, ", ")
+}
+
+func normalizeToMinutes(duration time.Duration) string {
+	return fmt.Sprintf("%.2f min", duration.Minutes())
 }

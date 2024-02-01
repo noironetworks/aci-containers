@@ -49,6 +49,9 @@ func pod(uuid string, namespace string, name string,
 			},
 			Labels: map[string]string{},
 		},
+		Status: v1.PodStatus{
+			StartTime: &metav1.Time{},
+		},
 	}
 }
 

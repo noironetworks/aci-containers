@@ -132,6 +132,8 @@ type HostAgent struct {
 	// Namespace and poolname to vlanList
 	fabricVlanPoolMap map[string]map[string]string
 	orphanNadMap      map[string]*NetworkAttachmentData
+	// Pod info
+	podNameToTimeStamps map[string]*epTimeStamps
 }
 
 type ServiceEndPointType interface {
@@ -178,6 +180,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		cniToPodID:     make(map[string]string),
 		podUidToName:   make(map[string]string),
 		nodePodIfEPs:   make(map[string]*opflexEndpoint),
+
+		podNameToTimeStamps: make(map[string]*epTimeStamps),
 
 		podIps: ipam.NewIpCache(),
 

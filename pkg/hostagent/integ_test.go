@@ -336,6 +336,9 @@ func mkPod(uuid string, namespace string, name string,
 			},
 			Labels: labels,
 		},
+		Status: v1.PodStatus{
+			StartTime: &metav1.Time{},
+		},
 	}
 }
 
