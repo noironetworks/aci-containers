@@ -888,10 +888,15 @@ func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMeta
 	}
 	agent.indexMutex.Unlock()
 
+	networkName := metadata.Network.NetworkName
+	if networkName == "" && !agent.config.ChainedMode {
+		networkName = agent.config.CniNetwork
+	}
 	err := md.ClearMetadata(agent.config.CniMetadataDir,
-		metadata.Network.NetworkName, metadataArg.Id.ContId)
+		networkName, metadataArg.Id.ContId)
 	if isRelevantConfig {
 		if err != nil {
+			logger.Error("Failed to ClearMetadata ")
 			return err
 		}
 	}
