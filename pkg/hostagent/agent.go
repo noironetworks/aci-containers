@@ -51,6 +51,7 @@ type HostAgent struct {
 	env    Environment
 
 	indexMutex           sync.Mutex
+	vethMutex            sync.Mutex
 	ipamMutex            sync.Mutex
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex

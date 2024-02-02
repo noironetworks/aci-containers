@@ -923,7 +923,9 @@ func (agent *HostAgent) unconfigureContainerIfaces(metadataArg *md.ContainerMeta
 				return err
 			}
 		} else {
+			agent.vethMutex.Lock()
 			err = runClearVeth(iface.Sandbox, iface.Name)
+			agent.vethMutex.Unlock()
 			if err != nil {
 				logger.Error("Could not clear Veth ports: ", err)
 			}
