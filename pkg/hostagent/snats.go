@@ -1184,14 +1184,14 @@ func (agent *HostAgent) isPresentInOpflexSnatLocalInfos(poduids []string, res Re
 }
 
 func (agent *HostAgent) handleObjectUpdateForSnat(obj interface{}) {
-	agent.snatPolicyCacheMutex.RLock()
-	defer agent.snatPolicyCacheMutex.RUnlock()
 	if getResourceType(obj) == POD {
 		if obj.(*v1.Pod).Status.Phase == v1.PodSucceeded {
 			agent.handleObjectDeleteForSnat(obj)
 			return
 		}
 	}
+	agent.snatPolicyCacheMutex.RLock()
+	defer agent.snatPolicyCacheMutex.RUnlock()
 	objKey, err := agent.MetaNamespaceUIDFunc(obj)
 	if err != nil {
 		agent.log.Error("Could not create snatUpdate object key:" + err.Error())
