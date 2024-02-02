@@ -78,7 +78,9 @@ func (agent *HostAgent) namespaceAdded(obj interface{}) {
 	agent.log.Infof("Namespace %+v added", ns)
 	agent.netPolPods.UpdateNamespace(ns)
 	agent.updatePodsForNamespace(ns.ObjectMeta.Name)
+	agent.indexMutex.Lock()
 	agent.handleObjectUpdateForSnat(obj)
+	agent.indexMutex.Unlock()
 }
 
 func (agent *HostAgent) namespaceChanged(oldobj interface{},
@@ -89,7 +91,9 @@ func (agent *HostAgent) namespaceChanged(oldobj interface{},
 
 	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
 		agent.netPolPods.UpdateNamespace(newns)
+		agent.indexMutex.Lock()
 		agent.handleObjectUpdateForSnat(newobj)
+		agent.indexMutex.Unlock()
 	}
 	if !reflect.DeepEqual(oldns.ObjectMeta.Annotations,
 		newns.ObjectMeta.Annotations) {
@@ -111,7 +115,9 @@ func (agent *HostAgent) namespaceDeleted(obj interface{}) {
 			return
 		}
 	}
+	agent.indexMutex.Lock()
 	agent.handleObjectDeleteForSnat(obj)
+	agent.indexMutex.Unlock()
 	agent.netPolPods.DeleteNamespace(ns)
 	agent.log.Infof("Namespace %+v deleted", ns)
 }
@@ -406,7 +412,9 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 	}
 	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
 		newdep.ObjectMeta.Labels) {
+		agent.indexMutex.Lock()
 		agent.handleObjectUpdateForSnat(newdep)
+		agent.indexMutex.Unlock()
 	}
 }
 
@@ -424,8 +432,8 @@ func (agent *HostAgent) deploymentDeleted(obj interface{}) {
 			return
 		}
 	}
-	agent.handleObjectDeleteForSnat(obj)
 	agent.indexMutex.Lock()
+	agent.handleObjectDeleteForSnat(obj)
 	agent.depPods.DeleteSelectorObj(obj)
 	agent.indexMutex.Unlock()
 	deploymentLogger(agent.log, depObj).Info("Deployment deleted:")
