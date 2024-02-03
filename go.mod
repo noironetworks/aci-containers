@@ -32,7 +32,7 @@ require (
 	go.etcd.io/etcd/server/v3 v3.5.7
 	go.opentelemetry.io/otel/exporters/prometheus v0.39.0
 	golang.org/x/time v0.3.0
-	google.golang.org/grpc v1.58.2
+	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
 	istio.io/istio v0.0.0-20230607011503-697f4ff0fe6e
 	k8s.io/api v0.27.0
