@@ -132,7 +132,10 @@ func (agent *HostAgent) syncRdConfig() bool {
 		return false
 	}
 	rdfile := agent.FormRdFilePath()
-	if !reflect.DeepEqual(*agent.rdConfig, opflexRdConfig{}) {
+	agent.indexMutex.Lock()
+	isEmpty := reflect.DeepEqual(*agent.rdConfig, opflexRdConfig{})
+	agent.indexMutex.Unlock()
+	if !isEmpty {
 		err := writeRdFile(rdfile, agent.rdConfig)
 		if err != nil {
 			agent.log.Error("Error writing Rd file:", err)
