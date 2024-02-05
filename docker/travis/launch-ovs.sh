@@ -8,18 +8,20 @@ VSCTL=$PREFIX/bin/ovs-vsctl
 SYS_ID=c243acb9-0b18-4c63-a8c4-35a7e4fde79a
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 
+echo "$(date) Starting OVS"
 # Start OVS
 ${OVSCTL} start --system-id=${SYS_ID}
 
 # Cleanup
 if ovs-vsctl show | grep "No such device"; then
-    echo "Found Stale devices, cleaning up"
+    echo "$(date) Found Stale devices, cleaning up"
     ${OVSCTL} stop
     rm $PREFIX/etc/openvswitch/conf.db
     rm $PREFIX/var/lib/opflex-agent-ovs/endpoints/*.ep
     ${OVSCTL} start --system-id=${SYS_ID}
 fi
 
+echo "$(date) Creating bridges"
 # Create OVS bridges if needed
 dpid=0
 for i in br-int br-access; do
@@ -43,9 +45,11 @@ for i in `$VSCTL show | grep "No such device" | awk '{print $7}'`; do
   fi
 done
 
+echo "$(date) Resync host agent"
 # Signal the host agent to resync OVS port configuration
 ovsresync $PREFIX/var/run/aci-containers-ep-rpc.sock
 
+echo "$(date) Restart opflex agent"
 # create this dir if opflex agent has not started yet
 mkdir -p $PREFIX/var/lib/opflex-agent-ovs/reboot-conf.d
 # Signal the opflex-agent to reload
