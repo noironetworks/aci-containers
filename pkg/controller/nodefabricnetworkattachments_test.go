@@ -22,27 +22,28 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 	"testing"
 )
 
 type nfnaVlanTest struct {
-	EncapString   string
-	ExpectedVlans []int
-	ExpectError   bool
+	EncapString        string
+	ExpectedVlans      []int
+	ExpectedVlanBlocks []string
+	ExpectError        bool
 }
 
 func TestNFNAVlanParse(t *testing.T) {
 	vlanTests := []nfnaVlanTest{
-		{"", []int{}, true},
-		{"[1,5-10,15]", []int{1, 5, 6, 7, 8, 9, 10, 15}, false},
-		{"1,5-8,10", []int{1, 5, 6, 7, 8, 10}, false},
-		{"[5-6]", []int{5, 6}, false},
-		{"[100, 102, 103, 104]", []int{100, 102, 103, 104}, false},
+		{"", []int{}, []string{}, true},
+		{"[1,5-10,15]", []int{1, 5, 6, 7, 8, 9, 10, 15}, []string{"1-1", "5-10", "15-15"}, false},
+		{"1,5-8,10", []int{1, 5, 6, 7, 8, 10}, []string{"1-1", "5-8", "10-10"}, false},
+		{"[5-6]", []int{5, 6}, []string{"5-6"}, false},
+		{"[100, 102, 103, 104]", []int{100, 102, 103, 104}, []string{"100-100", "102-104"}, false},
+		{"[101, 5, 6, 7,6-8]", []int{5, 6, 7, 8, 101}, []string{"5-8", "101-101"}, false},
+		{"[101, 11-9, 6-9,6-8]", []int{6, 7, 8, 9, 101}, []string{"6-9", "101-101"}, true},
 	}
-	cont := testController()
 	for _, tc := range vlanTests {
-		vlanList, _, err := cont.parseNodeFabNetAttVlanList(tc.EncapString)
+		vlanList, vlanBlks, _, err := util.ParseVlanList([]string{tc.EncapString})
 		if err != nil {
 			if tc.ExpectError {
 				assert.True(t, true, "")
@@ -53,6 +54,9 @@ func TestNFNAVlanParse(t *testing.T) {
 		}
 		for idx := range tc.ExpectedVlans {
 			assert.Equal(t, tc.ExpectedVlans[idx], vlanList[idx])
+		}
+		for idx := range tc.ExpectedVlanBlocks {
+			assert.Equal(t, tc.ExpectedVlanBlocks[idx], vlanBlks[idx])
 		}
 	}
 }
@@ -66,13 +70,7 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string, 
 	fvnsVlanInstP := apicapi.NewFvnsVlanInstP("kubernetes", networkName)
 	var fvnsEncapBlk apicapi.ApicObject
 	if cont.config.AciUseGlobalScopeVlan {
-		if !strings.Contains(encapStr, "-") {
-			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "100")
-			fvnsVlanInstP.AddChild(fvnsEncapBlk)
-			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "101", "101")
-		} else {
-			fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
-		}
+		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
 	} else {
 		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "5", "6")
 	}

@@ -7,6 +7,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -121,7 +122,7 @@ func (cont *AciController) handleNadVlanMapUpdate(obj interface{}) bool {
 	cont.sharedEncapLabelMap = make(map[string][]int)
 	for _, vlanMappingList := range nadVlanMapObj.Spec.NadVlanMapping {
 		for _, vlanLabel := range vlanMappingList {
-			vlans, _, err := cont.parseNodeFabNetAttVlanList(vlanLabel.Vlans)
+			vlans, _, _, err := util.ParseVlanList([]string{vlanLabel.Vlans})
 			if err != nil {
 				cont.log.Errorf("vlan list for %s incorrect: %s", vlanLabel.Label, vlanLabel.Vlans)
 				continue

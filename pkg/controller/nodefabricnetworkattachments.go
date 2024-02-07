@@ -22,7 +22,6 @@ import (
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
-	"strconv"
 	"strings"
 
 	"context"
@@ -47,7 +46,7 @@ func (cont *AciController) updateGlobalConfig(encapStr string, progMap map[strin
 		cont.log.Errorf("Cannot set globalscope objects in per-port vlan mode")
 		return
 	}
-	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(encapStr)
+	_, encapBlks, _, err := util.ParseVlanList([]string{encapStr})
 	if err != nil {
 		cont.log.Errorf("Error updating GlobalScopeVlanConfig: %v", err)
 		return
@@ -160,7 +159,7 @@ func (cont *AciController) setGlobalScopeVlanConfig(encapStr string, progMap map
 	if cont.globalVlanConfig.SharedPhysDom != nil {
 		return
 	}
-	_, encapBlks, err := cont.parseNodeFabNetAttVlanList(encapStr)
+	_, encapBlks, _, err := util.ParseVlanList([]string{encapStr})
 	if err != nil {
 		cont.log.Errorf("Error setting GlobalScopeVlanConfig: %v", err)
 		return
@@ -278,52 +277,6 @@ func (cont *AciController) populateFabricPaths(epg apicapi.ApicObject, encap int
 	} else {
 		cont.populateNodeFabNetAttPaths(epg, encap, addNet, fabLinks)
 	}
-}
-
-func (cont *AciController) parseNodeFabNetAttVlanList(vlan string) (vlans []int, vlanBlks []string, err error) {
-	if vlan == "" {
-		return vlans, vlanBlks, err
-	}
-	listContents := vlan
-	_, after, found := strings.Cut(vlan, "[")
-	if found {
-		listContents, _, found = strings.Cut(after, "]")
-		if !found {
-			err := fmt.Errorf("Failed to parse vlan list: Mismatched brackets: %s", vlan)
-			return vlans, vlanBlks, err
-		}
-	}
-	vlanElems := strings.Split(listContents, ",")
-	for idx := range vlanElems {
-		vlanStr := strings.TrimSpace(vlanElems[idx])
-		if strings.Contains(vlanStr, "-") {
-			rangeErr := fmt.Errorf("Failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanStr)
-			vlanRange := strings.Split(vlanStr, "-")
-			if len(vlanRange) != 2 {
-				return vlans, vlanBlks, rangeErr
-			}
-			vlanFrom, errFrom := strconv.Atoi(vlanRange[0])
-			vlanTo, errTo := strconv.Atoi(vlanRange[1])
-			if errFrom != nil || errTo != nil {
-				return vlans, vlanBlks, rangeErr
-			}
-			if vlanFrom > vlanTo || vlanTo > 4095 {
-				return vlans, vlanBlks, rangeErr
-			}
-			for i := vlanFrom; i <= vlanTo; i++ {
-				vlans = append(vlans, i)
-			}
-		} else {
-			vlan, err := strconv.Atoi(vlanStr)
-			if err != nil || vlan > 4095 {
-				err := fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
-				return vlans, vlanBlks, err
-			}
-			vlans = append(vlans, vlan)
-		}
-		vlanBlks = append(vlanBlks, vlanStr)
-	}
-	return vlans, vlanBlks, err
 }
 
 func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep, networkName string, epg apicapi.ApicObject) (apicSlice apicapi.ApicSlice) {
@@ -631,7 +584,7 @@ func (cont *AciController) updateNodeFabNetAttVlans(nodeFabNetAtt *fabattv1.Node
 			cont.log.Debugf("%s:Change in encap: %s=>%s", addNetKey, addNet.EncapVlan, nodeFabNetAtt.Spec.EncapVlan.VlanList)
 			changeSet := make(map[int]bool)
 			// manage the diff in encapvlan set
-			old_vlans, _, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
+			old_vlans, _, _, _ := util.ParseVlanList([]string{addNet.EncapVlan})
 			addNet.EncapVlan = nodeFabNetAtt.Spec.EncapVlan.VlanList
 			for _, vlan := range vlans {
 				changeSet[vlan] = true
@@ -675,7 +628,7 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 	var apicSlice apicapi.ApicSlice
 	var addNet *AdditionalNetworkMeta
 	progMap = make(map[string]apicapi.ApicSlice)
-	vlans, encapBlks, err := cont.parseNodeFabNetAttVlanList(nodeFabNetAtt.Spec.EncapVlan.VlanList)
+	vlans, encapBlks, _, err := util.ParseVlanList([]string{nodeFabNetAtt.Spec.EncapVlan.VlanList})
 	if err != nil {
 		cont.log.Errorf("%v", err)
 		return progMap
@@ -769,7 +722,7 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 		return progMap
 	}
 	// already admitted.No error handling needed
-	vlans, encapBlks, _ := cont.parseNodeFabNetAttVlanList(addNet.EncapVlan)
+	vlans, encapBlks, _, _ := util.ParseVlanList([]string{addNet.EncapVlan})
 	delete(addNet.NodeCache, nodeName)
 
 	if len(addNet.NodeCache) == 0 {

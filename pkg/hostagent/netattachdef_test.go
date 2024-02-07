@@ -181,7 +181,8 @@ func TestNADSRIOVCRUD(t *testing.T) {
 				Name:      "sriov-net-1",
 				Namespace: "default",
 			},
-			EncapVlan: fabattv1.EncapSource{VlanList: "[102]"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "[102]",
+				Mode: "Trunk"},
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				"enp216s0f0": {
 					FabricLink: []string{
@@ -243,7 +244,8 @@ func TestNADMacVlanCRUD(t *testing.T) {
 				Name:      "macvlan-net2",
 				Namespace: "default",
 			},
-			EncapVlan: fabattv1.EncapSource{VlanList: "102-105"},
+			EncapVlan: fabattv1.EncapSource{VlanList: "102-105",
+				Mode: "Trunk"},
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				"bond1": {
 					FabricLink: []string{
@@ -280,7 +282,8 @@ func TestNADMacVlanCRUD(t *testing.T) {
 			types.NamespacedName{Name: nodename + "-default-macvlan-net2", Namespace: "aci-containers-system"},
 			actual,
 		)
-		return actual.Spec.EncapVlan == fabattv1.EncapSource{}
+		return actual.Spec.EncapVlan == fabattv1.EncapSource{
+			Mode: "Trunk"}
 	}, 5*time.Second, 1*time.Second, "nfna update")
 	agent.fakeNetAttachDefSource.Delete(testnetattach("macvlan-net2", "default", configJsondata, resourceAnnot))
 	assert.Eventually(t, func() bool {
@@ -341,7 +344,8 @@ func TestNADVlanMatch(t *testing.T) {
 					NadVlanMapRef: "aci-containers-system/nad-vlan-map",
 					Key:           "pccmm/pc-mm",
 				},
-				VlanList: "[103]"},
+				VlanList: "[103]",
+				Mode:     "Trunk"},
 			AciTopology: map[string]fabattv1.AciNodeLinkAdjacency{
 				"bond1": {
 					FabricLink: []string{
@@ -376,6 +380,7 @@ func TestNADVlanMatch(t *testing.T) {
 			Key:           "pccmm/pc-mm",
 		},
 		VlanList: "[104]",
+		Mode:     "Trunk",
 	}
 	assert.Eventually(t, func() bool {
 		fabAttClient.Get(context.TODO(),
@@ -387,6 +392,7 @@ func TestNADVlanMatch(t *testing.T) {
 	agent.fakeNadVlanMapSource.Delete(nadVlanMap)
 	expected.Spec.EncapVlan = fabattv1.EncapSource{
 		VlanList: "102-105",
+		Mode:     "Trunk",
 	}
 	assert.Eventually(t, func() bool {
 		fabAttClient.Get(context.TODO(),
