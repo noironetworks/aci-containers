@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
@@ -230,6 +232,130 @@ func TestPodSync(t *testing.T) {
 			})
 		agent.log.Info("Deleted ##### ", pt.uuid)
 	}
+
+	agent.stop()
+}
+
+func TestAdditional(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.run()
+
+	for i, pt := range podTests {
+		if i%2 == 0 {
+			os.WriteFile(filepath.Join(tempdir,
+				pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep"),
+				[]byte("random gibberish"), 0644)
+		}
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
+		cnimd := cnimd(pt.namespace, pt.name, pt.ip, pt.cont, pt.veth)
+		agent.epMetadata[pt.namespace+"/"+pt.name] =
+			map[string]*metadata.ContainerMetadata{
+				cnimd.Id.ContId: cnimd,
+			}
+		agent.fakePodSource.Add(pod)
+		agent.doTestPod(t, tempdir, &podTests[i], "create")
+		ep := &opflexEndpoint{
+			Uuid: pt.uuid + "_" + pt.cont + "_" + pt.veth,
+		}
+		expected_ep := &opflexEndpoint{
+			Uuid:          ep.Uuid,
+			EgPolicySpace: "testps",
+			EndpointGroup: "test|test-eg",
+			SecurityGroup: []metadata.OpflexGroup{
+				{
+					Tenant: "testps",
+					Name:   "test-sg",
+				},
+			},
+			QosPolicy: metadata.OpflexGroup{
+				Tenant:     "testps",
+				AppProfile: "test",
+				Name:       "test-qp",
+			},
+			IpAddress:         nil,
+			MacAddress:        "",
+			AccessIface:       "",
+			AccessUplinkIface: "",
+			Attributes: map[string]string{
+				"namespace": pt.namespace,
+				"vm-name":   pt.name,
+			},
+			SnatUuid:          nil,
+			ServiceClusterIps: nil,
+			registered:        false,
+		}
+		if agent.fillEpFields(ep, pt.namespace+"/"+pt.name) == nil {
+			assert.Equal(t, expected_ep, ep, "fillEpFields")
+		}
+		agent.log.Info("Created ##### ", i, pt.uuid)
+	}
+	for _, pt := range podTests {
+		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)
+		agent.fakePodSource.Delete(pod)
+
+		tu.WaitFor(t, pt.name, 500*time.Millisecond,
+			func(last bool) (bool, error) {
+				epfile := filepath.Join(tempdir,
+					pt.uuid+"_"+pt.cont+"_"+pt.veth+".ep")
+				_, err := os.ReadFile(epfile)
+				return tu.WaitNotNil(t, last, err, "pod deleted"), nil
+			})
+		agent.log.Info("Deleted ##### ", pt.uuid)
+	}
+
+	ep := &opflexEndpoint{
+		Uuid: "6a281ef1-0fcb-4140-a38c-62977ef25d72_cont2_veth2",
+	}
+	assert.NotEqual(t, agent.fillEpFields(ep, "testns"+"/"+"pod2"), nil)
+
+	type test struct {
+		metav1.ObjectMeta
+	}
+
+	fakePod := &test{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-pod",
+		},
+	}
+	agent.podDeleted(fakePod)
+	time.Sleep(500 * time.Millisecond)
+
+	fakePod2 := cache.DeletedFinalStateUnknown{
+		Key: "test-namespace/test-pod",
+		Obj: &test{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test-namespace",
+				Name:      "test-pod",
+			},
+		},
+	}
+
+	agent.podDeleted(fakePod2)
+	time.Sleep(500 * time.Millisecond)
+
+	epMetaKey := "test-namespace/test-pod"
+	epUuid := "test"
+	agent.epChanged(&epUuid, &epMetaKey, nil, nil, metadata.OpflexGroup{}, nil, nil)
+	logger := &logrus.Entry{
+		Logger: logrus.New(),
+	}
+	agent.epChanged(&epUuid, &epMetaKey, nil, nil, metadata.OpflexGroup{}, nil, logger)
+
+	podKey := "test-namespace/test-pod"
+	agent.podChangedPostLock(&podKey)
+
+	ret := agent.syncOpflexServer()
+	assert.Equal(t, ret, false)
 
 	agent.stop()
 }

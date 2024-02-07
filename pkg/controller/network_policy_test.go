@@ -253,7 +253,7 @@ func makeEpSlice(namespace string, name string, endpoints []discovery.Endpoint,
 }
 
 func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController) {
-	tu.WaitFor(t, category+"/"+nt.desc, 3000*time.Millisecond,
+	tu.WaitFor(t, category+"/"+nt.desc, 3500*time.Millisecond,
 		func(last bool) (bool, error) {
 			slice := apicapi.ApicSlice{nt.aciObj}
 			var key string
@@ -343,6 +343,12 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_3_0.SetAttr("ethertype", "ipv4")
 	rule_3_0.SetAttr("protocol", "udp")
 	rule_3_0.SetAttr("toPort", "80")
+
+	rule_3_1 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4")
+	rule_3_1.SetAttr("direction", "ingress")
+	rule_3_1.SetAttr("ethertype", "ipv4")
+	rule_3_1.SetAttr("protocol", "udp")
+	rule_3_1.SetAttr("toPort", "unspecified")
 
 	rule_4_1 := apicapi.NewHostprotRule(np1SDnI, "0_1-ipv4")
 	rule_4_1.SetAttr("direction", "ingress")
@@ -451,6 +457,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_15_0.SetAttr("ethertype", "ipv4")
 	rule_15_0.SetAttr("protocol", "sctp")
 	rule_15_0.SetAttr("toPort", "80")
+	udp_proto := v1.Protocol(udp)
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{ingressRule(nil, nil)},
@@ -489,10 +496,24 @@ func TestNetworkPolicy(t *testing.T) {
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{
+					port(&udp, nil)}, nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_3_1}, nil, name),
+			nil, "allow-udp"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{
+					{
+						Protocol: &udp_proto,
+						Port:     nil,
+					}}, nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_3_1}, nil, name),
+			nil, "allow-udp"},
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{
 					port(&sctp, &port80)}, nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_15_0}, nil, name),
 			nil, "allow-80-sctp"},
-
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{

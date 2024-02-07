@@ -16,9 +16,16 @@ limitations under the License.
 package kafkac
 
 import (
+	cryptorand "crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"math/rand"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -27,10 +34,11 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	v1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 )
 
@@ -489,4 +497,170 @@ func epMsgToProdMsg(em *CapicEPMsg) *sarama.ProducerMessage {
 	}
 
 	return &sarama.ProducerMessage{Topic: "clusterA", Key: k, Value: v}
+}
+
+func createTempFileWithContent(content string) (string, func(), error) {
+	file, err := os.CreateTemp("", "testfile")
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := file.WriteString(content); err != nil {
+		return "", nil, err
+	}
+	return file.Name(), func() { os.Remove(file.Name()) }, nil
+}
+
+func generateCertAndKey(commonName string) (string, string, error) {
+	priv, err := rsa.GenerateKey(cryptorand.Reader, 2048)
+	if err != nil {
+		return "", "", err
+	}
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 24 * time.Hour)
+
+	serialNumber, err := cryptorand.Int(cryptorand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return "", "", err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName: commonName,
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	certDER, err := x509.CreateCertificate(cryptorand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return "", "", err
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	return string(certPEM), string(keyPEM), nil
+}
+
+func generateCACertAndKey() (string, string, error) {
+	return generateCertAndKey("Test CA")
+}
+
+func TestNewTLSConfig(t *testing.T) {
+	clientCertContent, clientKeyContent, err := generateCertAndKey("Test Client")
+	if err != nil {
+		t.Fatalf("Error generating client certificate and key: %v", err)
+	}
+
+	caCertContent, _, err := generateCACertAndKey()
+	if err != nil {
+		t.Fatalf("Error generating CA certificate and key: %v", err)
+	}
+
+	clientCertFile, cleanupClientCert, _ := createTempFileWithContent(clientCertContent)
+	defer cleanupClientCert()
+
+	clientKeyFile, cleanupClientKey, _ := createTempFileWithContent(clientKeyContent)
+	defer cleanupClientKey()
+
+	caCertFile, cleanupCACert, _ := createTempFileWithContent(caCertContent)
+	defer cleanupCACert()
+
+	t.Run("Valid file paths", func(t *testing.T) {
+		tlsConfig, err := newTLSConfig(clientCertFile, clientKeyFile, caCertFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		assert.NotNil(t, tlsConfig.Certificates)
+	})
+}
+func TestGetClientConfig(t *testing.T) {
+
+	clientCertContent, clientKeyContent, err := generateCertAndKey("Test Client")
+	if err != nil {
+		t.Fatalf("Error generating client certificate and key: %v", err)
+	}
+
+	caCertContent, _, err := generateCACertAndKey()
+	if err != nil {
+		t.Fatalf("Error generating CA certificate and key: %v", err)
+	}
+
+	clientCertFile, cleanupClientCert, _ := createTempFileWithContent(clientCertContent)
+	defer cleanupClientCert()
+
+	clientKeyFile, cleanupClientKey, _ := createTempFileWithContent(clientKeyContent)
+	defer cleanupClientKey()
+
+	caCertFile, cleanupCACert, _ := createTempFileWithContent(caCertContent)
+	defer cleanupCACert()
+
+	cfg := &KafkaCfg{
+		ClientKeyPath:  clientKeyFile,
+		ClientCertPath: clientCertFile,
+		CACertPath:     caCertFile,
+		Username:       "testuser",
+		Password:       "testpassword",
+		BatchSize:      100,
+	}
+
+	config, err := GetClientConfig(cfg)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if !config.Net.TLS.Enable {
+		t.Error("TLS should be enabled")
+	}
+
+	if config.Net.TLS.Config == nil {
+		t.Error("TLS config should not be nil")
+	}
+
+	if !config.Net.TLS.Config.InsecureSkipVerify {
+		t.Error("InsecureSkipVerify should be true")
+	}
+
+	if !config.Net.SASL.Enable {
+		t.Error("SASL should be enabled")
+	}
+
+	if config.Net.SASL.User != "testuser" {
+		t.Errorf("Unexpected SASL user: %s", config.Net.SASL.User)
+	}
+
+	if config.Net.SASL.Password != "testpassword" {
+		t.Errorf("Unexpected SASL password: %s", config.Net.SASL.Password)
+	}
+
+	if config.Producer.Flush.Messages != 100 {
+		t.Errorf("Unexpected batch size: %d", config.Producer.Flush.Messages)
+	}
+
+	if !config.Producer.Return.Successes {
+		t.Error("Return.Successes should be true")
+	}
+}
+func TestKafkaSetup(t *testing.T) {
+	kc := &KafkaClient{
+		log: logrus.New().WithFields(logrus.Fields{
+			"mod": "test",
+		}),
+		cfg: &KafkaCfg{
+			Brokers: []string{"localhost:9092"},
+			Topic:   "test-topic",
+		},
+	}
+
+	err := kc.kafkaSetup()
+	if err != nil {
+		assert.Nil(t, kc.producer)
+		assert.Nil(t, kc.consumer)
+	}
 }

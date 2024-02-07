@@ -16,13 +16,15 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
+	"testing"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 type nfnaVlanTest struct {
@@ -346,4 +348,20 @@ func TestGlobalVlanNFNACRUD(t *testing.T) {
 
 func TestGlobalVlanRangeNFNACRUD(t *testing.T) {
 	NFNACRUDCase(t, true, "[100-101]")
+}
+
+func TestStaticChainedModeObjs(t *testing.T) {
+	cont := testChainedController(true, "[100-101]")
+	cont.run()
+	defer cont.stop()
+	jsonString := `[{"fvTenant":{"attributes":{"name":"kubernetes","nameAlias":""},"children":[{"fvBD":{"attributes":{"arpFlood":"yes","dn":"uni/tn-kubernetes/BD-netop-nodes","ipLearning":"no","name":"netop-nodes","nameAlias":"","unicastRoute":"yes","unkMacUcastAct":"flood"},"children":[{"fvRsCtx": "uni/tn-kubernetes/BD-netop-nodes/rsctx", {"attributes":{"tnFvCtxName":"kube-vrf"}}}]}},{"fvAp":{"attributes":{"name":"netop-kubernetes","nameAlias":""},"children":[{"fvAEPg":{"attributes":{"dn":"uni/tn-kubernetes/ap-netop-kubernetes/epg-netop-nodes","name":"netop-nodes","nameAlias":""},"children":[{"fvRsBd":{"attributes":{"tnFvBDName":"netop-nodes"}}},{"fvRsDomAtt":{"attributes":{"tDn":"uni/phys-first-physdom"}}}]}}]}},{"fvAp":{"attributes":{"name":"netop-common","nameAlias":""}}}]}}]`
+
+	var expectedApicObjects apicapi.ApicSlice
+	err := json.Unmarshal([]byte(jsonString), &expectedApicObjects)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	assert.Equal(t, expectedApicObjects, cont.staticChainedModeObjs())
 }

@@ -24,6 +24,7 @@ import (
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 const globalInfoSyncWaitTime = 5 // seconds
@@ -88,6 +89,12 @@ var snatTests = []policy{
 		"policy2",
 		[]string{"10.1.1.9"},
 		map[string]string{"key": "value"},
+	},
+	{
+		"testns",
+		"policy3",
+		[]string{},
+		map[string]string{},
 	},
 }
 var snatTestsupdated = []policy{
@@ -209,11 +216,76 @@ func TestSnatnodeInfo(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond * 100)
 	snatWaitForIpUpdated(t, "snat test", "10.1.1.20", cont.AciController.snatGlobalInfoCache)
+
+	type test struct {
+		metav1.ObjectMeta
+	}
+
+	nodeInfo := &test{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-nodeinfo",
+		},
+	}
+	cont.snatNodeInfoDeleted(nodeInfo)
+	time.Sleep(time.Millisecond * 100)
+
+	expected = map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.20", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+	}
+
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.20"], true)
+
+	nodeInfo1 := cache.DeletedFinalStateUnknown{}
+
+	cont.snatNodeInfoDeleted(nodeInfo1)
+	time.Sleep(time.Millisecond * 100)
+
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.20"], true)
+
+	for _, pt := range nodeTests {
+		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
+		cont.fakeNodeInfoSource.Delete(nodeobj)
+	}
+	time.Sleep(time.Millisecond * 100)
+	expected = map[string]snatglobalinfo.GlobalInfo{}
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.20"], true)
+
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Delete(snatObj)
 	}
 	snatdeleted(t, "snat test", cont.AciController.snatGlobalInfoCache)
+	time.Sleep(time.Millisecond * 200)
+	for _, pt := range snatTests {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Add(snatObj)
+	}
+	// Add service
+	cont.fakeServiceSource.Add(service("testns", "service1", "10.4.2.1"))
+	time.Sleep(time.Millisecond * 100)
+	for _, pt := range nodeTests {
+		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
+		if _, ok := nodinfo[pt.name]; !ok {
+			cont.fakeNodeInfoSource.Add(nodeobj)
+			cont.log.Debug("NodeInfo Added: ", nodeobj)
+			nodinfo[pt.name] = true
+		} else {
+			cont.log.Debug("NodeInfo Modified: ", nodeobj)
+			cont.fakeNodeInfoSource.Modify(nodeobj)
+		}
+	}
+	time.Sleep(time.Millisecond * 100)
+	cont.log.Debug("snatGlobalInfoCache: ", cont.AciController.snatGlobalInfoCache)
+	expected = map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+		"node-2": {SnatIp: "10.1.1.8", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 8000, End: 10999}}},
+	}
+	expected1 = map[string]snatglobalinfo.GlobalInfo{
+		"node-1": {SnatIp: "10.1.1.9", SnatPolicyName: "policy2", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
+	}
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
+	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"], true)
 	cont.stop()
 }
 

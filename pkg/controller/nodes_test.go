@@ -22,9 +22,12 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -322,6 +325,87 @@ func TestNodeNetPol(t *testing.T) {
 			}
 			return true, nil
 		})
+	cont.stop()
+}
+
+func TestNodeNetPol2(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.LBType = "loadbalancer"
+	cont.config.EnableOpflexAgentReconnect = true
+	cont.config.AciMultipod = true
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node1",
+		},
+	}
+	node.Status.Addresses = []v1.NodeAddress{
+		{Type: "Hostname", Address: "test-node"},
+		{Type: "InternalIP", Address: "1.1.1.1"},
+	}
+	cont.fakeNodeSource.Add(node)
+	cont.run()
+
+	key := cont.aciNameForKey("node", "node1")
+	sg := apicNodeNetPol(key, "test-tenant", map[string]bool{"1.1.1.1": true})
+
+	tu.WaitFor(t, "node-net-pol", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			cont.indexMutex.Lock()
+			defer cont.indexMutex.Unlock()
+
+			slice := apicapi.ApicSlice{sg}
+			apicapi.PrepareApicSlice(slice, "kube", key)
+
+			if !tu.WaitEqual(t, last, slice,
+				cont.apicConn.GetDesiredState(key), "node-net-pol", key) {
+				return false, nil
+			}
+			return true, nil
+		})
+	cont.stop()
+	cont.nodeSyncEnabled = true
+	cont.nodeACIPodAnnot["node1"] = aciPodAnnot{
+		aciPod:             "test",
+		isSingleOpflexOdev: false,
+		disconnectTime:     time.Now(),
+		connectTime:        time.Now(),
+	}
+	cont.snatNodeInfoCache["node1"] = &nodeinfo.NodeInfo{}
+	cont.run()
+	tu.WaitFor(t, "node-net-pol", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			cont.indexMutex.Lock()
+			defer cont.indexMutex.Unlock()
+
+			slice := apicapi.ApicSlice{sg}
+			apicapi.PrepareApicSlice(slice, "kube", key)
+
+			if !tu.WaitEqual(t, last, slice,
+				cont.apicConn.GetDesiredState(key), "node-net-pol", key) {
+				return false, nil
+			}
+			return true, nil
+		})
+	cont.fakeNodeSource.Delete(node)
+	type test struct {
+		metav1.ObjectMeta
+	}
+	fakeNode := &test{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-node",
+		},
+	}
+	cont.nodeDeleted(fakeNode)
+
+	labelKey := cont.aciNameForKey("span", key)
+	fakeNode2 := cache.DeletedFinalStateUnknown{
+		Key: key,
+		Obj: labelKey,
+	}
+	cont.nodeDeleted(fakeNode2)
+
 	cont.stop()
 }
 
