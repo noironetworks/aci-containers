@@ -4,21 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: staticfabricnetworkattachments.aci.fabricattachment
+  name: networkfabricconfigurations.aci.fabricattachment
 spec:
   group: aci.fabricattachment
   names:
-    kind: StaticFabricNetworkAttachment
-    listKind: StaticFabricNetworkAttachmentList
-    plural: staticfabricnetworkattachments
-    singular: staticfabricnetworkattachment
+    kind: NetworkFabricConfiguration
+    listKind: NetworkFabricConfigurationList
+    plural: networkfabricconfigurations
+    singular: networkfabricconfiguration
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StaticFabricAttachment allows attaching aeps to NAD based and
-          regular vlans created by aci controller
+        description: NetworkFabricConfiguration allows additional configuration on
+          NAD based and regular vlans created by aci controller
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -57,6 +57,42 @@ spec:
                       items:
                         type: string
                       type: array
+                    epg:
+                      properties:
+                        bd:
+                          properties:
+                            common-tenant:
+                              type: boolean
+                            name:
+                              type: string
+                            subnets:
+                              items:
+                                type: string
+                              type: array
+                            vrf:
+                              properties:
+                                common-tenant:
+                                  type: boolean
+                                name:
+                                  type: string
+                              type: object
+                          type: object
+                        contracts:
+                          properties:
+                            consumer:
+                              items:
+                                type: string
+                              type: array
+                            provider:
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        name:
+                          type: string
+                        tenant:
+                          type: string
+                      type: object
                     vlans:
                       type: string
                   required:
@@ -66,16 +102,16 @@ spec:
                 type: array
             type: object
           status:
-            description: StaticFabricNetworkAttachmentStatus defines the observed
-              state of StaticFabricNetworkAttachment
+            description: NetworkFabricConfigurationStatus defines the observed state
+              of NetworkFabricConfiguration
             properties:
               state:
                 type: string
             type: object
         type: object
         x-kubernetes-validations:
-        - rule: "self.metadata.name == 'staticfabricnetworkattachment'"
-          message: "Only one instance with name staticfabricnetworkattachment allowed"
+        - rule: "self.metadata.name == 'networkfabricconfiguration'"
+          message: "Only one instance with name networkfabricconfiguration allowed"
     served: true
     storage: true
     subresources:

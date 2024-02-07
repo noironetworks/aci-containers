@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -14,59 +15,90 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 		if found {
 			listContents, _, found = strings.Cut(after, "]")
 			if !found {
-				err := fmt.Errorf("Failed to parse vlan list: Mismatched brackets: %s", vlan)
-				return vlans, vlanBlks, combinedStr, err
+				if err == nil {
+					err = fmt.Errorf("Failed to parse vlan list: Mismatched brackets: %s", vlan)
+				}
+				continue
 			}
 		}
 		vlanElems := strings.Split(listContents, ",")
 		for idx := range vlanElems {
-			vlanAdded := false
 			vlanStr := strings.TrimSpace(vlanElems[idx])
 			if strings.Contains(vlanStr, "-") {
 				rangeErr := fmt.Errorf("Failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanStr)
 				vlanRange := strings.Split(vlanStr, "-")
 				if len(vlanRange) != 2 {
-					return vlans, vlanBlks, combinedStr, rangeErr
+					if err == nil {
+						err = rangeErr
+					}
+					continue
 				}
 				vlanFrom, errFrom := strconv.Atoi(vlanRange[0])
 				vlanTo, errTo := strconv.Atoi(vlanRange[1])
 				if errFrom != nil || errTo != nil {
-					return vlans, vlanBlks, combinedStr, rangeErr
+					if err == nil {
+						err = rangeErr
+					}
+					continue
 				}
-				if vlanFrom > vlanTo || vlanTo > 4095 {
-					return vlans, vlanBlks, combinedStr, rangeErr
+				if (vlanFrom > vlanTo) || (vlanTo > 4095) || (vlanFrom == 0) || (vlanTo == 0) {
+					if err == nil {
+						err = rangeErr
+					}
+					continue
 				}
-				overlap := false
 				for i := vlanFrom; i <= vlanTo; i++ {
 					if _, ok := vlanMap[i]; !ok {
 						vlans = append(vlans, i)
 						vlanMap[i] = true
-					} else {
-						overlap = true
 					}
 				}
-				vlanAdded = !overlap
 			} else {
-				vlan, err := strconv.Atoi(vlanStr)
-				if err != nil || vlan > 4095 {
-					err := fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
-					return vlans, vlanBlks, combinedStr, err
+				vlan, err2 := strconv.Atoi(vlanStr)
+				if (err2 != nil) || (vlan > 4095) {
+					if err == nil && (vlanStr != "") {
+						err = fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
+					}
+					continue
+				}
+				if vlan == 0 {
+					continue
 				}
 				if _, ok := vlanMap[vlan]; !ok {
 					vlans = append(vlans, vlan)
 					vlanMap[vlan] = true
-					vlanAdded = true
 				}
-			}
-			if vlanAdded {
-				vlanBlks = append(vlanBlks, vlanStr)
-				if len(combinedStr) == 0 {
-					combinedStr = "[" + vlanStr
-					continue
-				}
-				combinedStr += "," + vlanStr
 			}
 		}
+	}
+	sort.Ints(vlans)
+	prev := -2
+	rngStart := -1
+	rngEnd := -2
+	appendToCombinedStr := func() {
+		if combinedStr == "" {
+			combinedStr += "["
+		} else {
+			combinedStr += ","
+		}
+		rngStr := fmt.Sprintf("%d-%d", rngStart, rngEnd)
+		combinedStr += rngStr
+		vlanBlks = append(vlanBlks, rngStr)
+	}
+	for _, i := range vlans {
+		if prev != i-1 {
+			if rngStart <= rngEnd {
+				appendToCombinedStr()
+			}
+			rngEnd = i
+			rngStart = i
+		} else {
+			rngEnd = i
+		}
+		prev = i
+	}
+	if rngStart <= rngEnd {
+		appendToCombinedStr()
 	}
 	if len(combinedStr) != 0 {
 		combinedStr += "]"

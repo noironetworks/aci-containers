@@ -23,6 +23,7 @@ import (
 
 	"context"
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/controller"
@@ -128,7 +129,7 @@ func netFabConfigInit(cont *AciController, stopCh <-chan struct{}) {
 func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfiguration) {
 	cont.sharedEncapNfcVlanMap = make(map[int]*NfcData)
 	for _, vlanRef := range sfna.Spec.VlanRefs {
-		vlans, _, err := cont.parseNodeFabNetAttVlanList(vlanRef.Vlans)
+		vlans, _, _, err := util.ParseVlanList([]string{vlanRef.Vlans})
 		if err != nil {
 			continue
 		}

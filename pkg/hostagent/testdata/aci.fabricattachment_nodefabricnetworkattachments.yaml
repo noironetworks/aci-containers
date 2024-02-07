@@ -77,6 +77,8 @@ spec:
                     - key
                     - nadVlanMap
                     type: object
+                  mode:
+                    type: string
                   vlanList:
                     type: string
                 type: object
@@ -98,7 +100,7 @@ spec:
               nodeName:
                 type: string
               primaryCni:
-                description: 'informational: primaryCNI sriov/macvlan'
+                description: 'informational: primaryCNI sriov/macvlan/ipvlan/bridge'
                 type: string
             required:
             - networkRef
