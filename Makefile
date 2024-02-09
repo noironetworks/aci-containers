@@ -48,6 +48,17 @@ PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
 PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
 PKG_NAME_ACI_CONTAINERS_OPERATOR=github.com/noironetworks/aci-containers/pkg/acicontainersoperator
+STATIC_BUILD_CMD_CGO ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD} \
+        -ldflags="\
+        -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_GBPSERVER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_GBPSERVER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
+         -s -w" -a -installsuffix cgo
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
@@ -157,7 +168,7 @@ dist-static/netop-cni: ${AGENTCNI_DEPS}
 dist/aci-containers-host-agent: ${HOSTAGENT_DEPS} 
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
 dist-static/aci-containers-host-agent: ${HOSTAGENT_DEPS}
-	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
+	${STATIC_BUILD_CMD_CGO} -o $@ ${BASE}/cmd/hostagent
 
 dist-static-race/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/hostagent

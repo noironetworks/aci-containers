@@ -1,6 +1,6 @@
-ARG basetag=latest
-ARG baserepo=docker.io/noirolabs
-FROM ${baserepo}/containers-base-lldp:${basetag}
+ARG basetag=vtest0.2
+ARG baserepo=quay.io/noirolabs
+FROM ${baserepo}/aci-containers-base:${basetag}
 # Required OpenShift Labels
 LABEL name="ACI CNI Host-Agent" \
 vendor="Cisco" \

@@ -125,11 +125,11 @@ type HostAgent struct {
 	// integration test checker
 	integ_test *string `json:",omitempty"`
 	//network attachment definition map
-	netattdefmap         map[string]*NetworkAttachmentData
-	netattdefifacemap    map[string]*NetworkAttachmentData
-	deviceIdMap          map[string][]string
-	nadVlanMap           map[string]*nadVlanMatchData
-	fabricDiscoveryAgent FabricDiscoveryAgent
+	netattdefmap            map[string]*NetworkAttachmentData
+	netattdefifacemap       map[string]*NetworkAttachmentData
+	deviceIdMap             map[string][]string
+	nadVlanMap              map[string]*nadVlanMatchData
+	fabricDiscoveryRegistry map[int]FabricDiscoveryAgent
 	// Namespace and poolname to vlanList
 	fabricVlanPoolMap map[string]map[string]string
 	orphanNadMap      map[string]*NetworkAttachmentData
@@ -262,7 +262,6 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		log.Errorf("ERROR getting cluster config: %v", err)
 		return ha
 	}
-	ha.fabricDiscoveryAgent = GetFabricDiscoveryAgent(FabricDiscoveryLLDPNMState)
 	fabAttClient, err := fabattclset.NewForConfig(cfg)
 	if err != nil {
 		log.Errorf("ERROR getting fabric attachment client: %v", err)
@@ -367,7 +366,7 @@ func (agent *HostAgent) Init() {
 		panic(err.Error())
 	}
 	if agent.config.ChainedMode {
-		err = agent.fabricDiscoveryAgent.Init(agent)
+		err = agent.FabricDiscoveryRegistryInit()
 		if err != nil {
 			panic(err.Error())
 		}
@@ -529,7 +528,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 	}
 	if agent.config.ChainedMode {
-		agent.fabricDiscoveryAgent.CollectDiscoveryData(stopCh)
+		agent.FabricDiscoveryCollectDiscoveryData(stopCh)
 	}
 	agent.log.Info("Starting endpoint RPC")
 	err = agent.runEpRPC(stopCh)

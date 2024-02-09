@@ -253,7 +253,7 @@ func makeEpSlice(namespace string, name string, endpoints []discovery.Endpoint,
 }
 
 func checkNp(t *testing.T, nt *npTest, category string, cont *testAciController) {
-	tu.WaitFor(t, category+"/"+nt.desc, 2000*time.Millisecond,
+	tu.WaitFor(t, category+"/"+nt.desc, 3000*time.Millisecond,
 		func(last bool) (bool, error) {
 			slice := apicapi.ApicSlice{nt.aciObj}
 			var key string

@@ -557,8 +557,8 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 						if errors.Is(err, ErrLLDPAdjacency) {
 							logger.Infof("Forcing refresh of LLDP data for iface %s", metadata.Network.PFName)
 							for i := 0; i < 3; i++ {
-								agent.fabricDiscoveryAgent.TriggerCollectionDiscoveryData()
-								if fabAttData, err2 := agent.fabricDiscoveryAgent.GetNeighborData(metadata.Network.PFName); err2 == nil {
+								agent.FabricDiscoveryTriggerCollectionDiscoveryData()
+								if fabAttData, err2 := agent.GetFabricDiscoveryNeighborDataLocked(metadata.Network.PFName); err2 == nil {
 									for _, nbr := range fabAttData {
 										if nbr.StaticPath != "" {
 											return result, nil
