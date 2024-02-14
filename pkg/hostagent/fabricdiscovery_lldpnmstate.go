@@ -11,9 +11,10 @@ import (
 )
 
 type LLDPInterfaceState struct {
-	Enabled       bool
-	InterfaceType string
-	AdminState    string
+	Enabled        bool
+	InterfaceType  string
+	AdminState     string
+	IsOvsInterface bool
 }
 
 type FabricDiscoveryAgentLLDPNMState struct {
@@ -44,12 +45,11 @@ func (agent *FabricDiscoveryAgentLLDPNMState) Init(ha *HostAgent) error {
 	agent.bridge2PortsMap = make(map[string]map[string]bool)
 	agent.port2BondMap = make(map[string]string)
 	agent.bond2PortsMap = make(map[string]map[string]bool)
-	if ha.integ_test == nil {
-		_, err := agent.RunCommand("nmstatectl", "show")
-		return err
-	} else {
+	if ha.integ_test != nil {
 		return nil
 	}
+	_, err := agent.RunCommand("nmstatectl", "show")
+	return err
 }
 
 func (agent *FabricDiscoveryAgentLLDPNMState) PopulateAdjacencies(adjs map[string][]FabricAttachmentData) {
@@ -95,7 +95,7 @@ func (agent *FabricDiscoveryAgentLLDPNMState) notifyBridge(bridge string) {
 		}
 	}
 	agent.indexMutex.Unlock()
-	agent.hostAgent.log.Infof("Collecting for bridge: %s", bridge)
+	agent.hostAgent.log.Infof("lldpnmstate: Collecting for bridge: %s", bridge)
 	agent.hostAgent.NotifyFabricAdjacency(bridge, adj)
 }
 
@@ -109,7 +109,7 @@ func (agent *FabricDiscoveryAgentLLDPNMState) notifyBond(bond string) {
 	}
 	adj = agent.getBondAdjacencyLocked(bond, adj)
 	agent.indexMutex.Unlock()
-	agent.hostAgent.log.Infof("Collecting for bond: %s", bond)
+	agent.hostAgent.log.Infof("lldpnmstate: Collecting for bond: %s", bond)
 	agent.hostAgent.NotifyFabricAdjacency(bond, adj)
 }
 
@@ -133,12 +133,12 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 				}
 				out, err := agent.RunCommand("nmstatectl", "show", "--json")
 				if err != nil {
-					agent.hostAgent.log.Errorf("nmstatectl failed:%v", err)
+					agent.hostAgent.log.Errorf("lldpnmstate: nmstatectl failed:%v", err)
 					continue
 				}
 				var base interface{}
 				if err := json.Unmarshal(out, &base); err != nil {
-					agent.hostAgent.log.Errorf("unmarshaling  %v", err)
+					agent.hostAgent.log.Errorf("lldpnmstate: unmarshaling  %v", err)
 					continue
 				}
 				visited := map[string]bool{}
@@ -153,16 +153,54 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 					}
 					iface := intfData["name"].(string)
 					visited[iface] = true
+					// Ignore interfaces managed by external bridge like ovs
+					if intfData["type"].(string) == "ovs-bridge" {
+						continue
+					}
+					ctrlrStr, cok := intfData["controller"]
+					if cok {
+						ctrlr := ctrlrStr.(string)
+						if ctrlr == "ovs-system" {
+							ifaceType := intfData["type"].(string)
+							if ifaceType == "bond" {
+								agent.indexMutex.Lock()
+								agent.LLDPIntfMap[iface] = &LLDPInterfaceState{
+									Enabled:        lldpEnabled,
+									InterfaceType:  intfData["type"].(string),
+									AdminState:     intfData["state"].(string),
+									IsOvsInterface: true,
+								}
+								agent.indexMutex.Unlock()
+							}
+							continue
+						}
+						agent.indexMutex.Lock()
+						if bond, ok := agent.port2BondMap[iface]; ok {
+							if ifaceData, ok := agent.LLDPIntfMap[bond]; ok {
+								if ifaceData.IsOvsInterface {
+									agent.indexMutex.Unlock()
+									continue
+								}
+							}
+						}
+						if ifaceData, ok := agent.LLDPIntfMap[iface]; ok {
+							ifaceData.IsOvsInterface = false
+							agent.LLDPIntfMap[iface] = ifaceData
+						}
+						agent.indexMutex.Unlock()
+					}
 					agent.indexMutex.Lock()
 					agent.LLDPIntfMap[iface] = &LLDPInterfaceState{
-						Enabled:       lldpEnabled,
-						InterfaceType: intfData["type"].(string),
-						AdminState:    intfData["state"].(string),
+						Enabled:        lldpEnabled,
+						InterfaceType:  intfData["type"].(string),
+						AdminState:     intfData["state"].(string),
+						IsOvsInterface: false,
 					}
 					bridgeNotify := false
 					bondNotify := false
 					isCompositeIf := false
 					var bridge, ifaceStr, bond string
+
 					if agent.LLDPIntfMap[iface].InterfaceType == "linux-bridge" {
 						if bridgeData, ok := intfData["bridge"].(map[string]interface{}); ok {
 							if bridgePorts, ok := bridgeData["port"].([]interface{}); ok {
@@ -222,7 +260,7 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 							bridge = "default"
 						}
 						if bridge != "default" {
-							ifaceStr = "bridge " + bridge + "iface " + iface
+							ifaceStr = "bridge " + bridge + " iface " + iface
 						} else {
 							ifaceStr = "iface " + iface
 						}
@@ -257,7 +295,7 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 								}
 							}
 							if !strings.Contains(fabricAtt.StaticPath, "topology") || !strings.Contains(fabricAtt.StaticPath, "pod") || !strings.Contains(fabricAtt.StaticPath, "node") {
-								agent.hostAgent.log.Debugf("Skipping invalid staticpath from non-ACI neighbor:%s", fabricAtt.StaticPath)
+								agent.hostAgent.log.Debugf("lldpnmstate: Skipping invalid staticpath from non-ACI neighbor:%s", fabricAtt.StaticPath)
 								continue
 							}
 							agent.indexMutex.Lock()
@@ -273,19 +311,19 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 									}
 									if !existingLink {
 										agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
-										agent.hostAgent.log.Infof("LLDP Adjacency updated for %s: %s", ifaceStr, fabricAtt.StaticPath)
+										agent.hostAgent.log.Infof("lldpnmstate: LLDP Adjacency updated for %s: %s", ifaceStr, fabricAtt.StaticPath)
 										needNotify = true
 									}
 								} else {
 
 									agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
-									agent.hostAgent.log.Infof("LLDP Adjacency discovered for %s: %s", ifaceStr, fabricAtt.StaticPath)
+									agent.hostAgent.log.Infof("lldpnmstate: LLDP Adjacency discovered for %s: %s", ifaceStr, fabricAtt.StaticPath)
 									needNotify = true
 								}
 							} else {
 								agent.LLDPNeighborMap[iface] = make(map[string][]FabricAttachmentData)
 								agent.LLDPNeighborMap[iface][fabricAtt.SystemName] = append(agent.LLDPNeighborMap[iface][fabricAtt.SystemName], fabricAtt)
-								agent.hostAgent.log.Infof("LLDP Adjacency discovered for %s: %s", ifaceStr, fabricAtt.StaticPath)
+								agent.hostAgent.log.Infof("lldpnmstate: LLDP Adjacency discovered for %s: %s", ifaceStr, fabricAtt.StaticPath)
 								needNotify = true
 							}
 							agent.indexMutex.Unlock()

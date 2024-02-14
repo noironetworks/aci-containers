@@ -48,6 +48,17 @@ PKG_NAME_CONTROLLER=github.com/noironetworks/aci-containers/pkg/controller
 PKG_NAME_GBPSERVER=github.com/noironetworks/aci-containers/pkg/gbpserver
 PKG_NAME_HOSTAGENT=github.com/noironetworks/aci-containers/pkg/hostagent
 PKG_NAME_ACI_CONTAINERS_OPERATOR=github.com/noironetworks/aci-containers/pkg/acicontainersoperator
+STATIC_BUILD_CMD_CGO ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD} \
+        -ldflags="\
+        -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_GBPSERVER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_GBPSERVER}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_HOSTAGENT}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_HOSTAGENT}.gitCommit=${GIT_COMMIT} \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+        -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
+         -s -w" -a -installsuffix cgo
 STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
@@ -78,12 +89,16 @@ STATIC_BUILD_RACE_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD_RACE} \
 all: dist/aci-containers-host-agent dist/opflex-agent-cni \
 	dist/netop-cni dist/aci-containers-controller dist/acikubectl dist/ovsresync \
     dist/gbpserver dist/aci-containers-operator dist/aci-containers-webhook dist/aci-containers-certmanager
+
 all-static: dist-static/aci-containers-host-agent \
+	dist-static/aci-containers-host-agent-ovscni \
 	dist-static/opflex-agent-cni dist-static/netop-cni \
 	dist-static/aci-containers-controller dist-static/ovsresync dist-static/gbpserver \
-    dist-static/aci-containers-operator dist-static/aci-containers-webhook dist-static/aci-containers-certmanager
+	dist-static/aci-containers-operator dist-static/aci-containers-webhook \
+	dist-static/aci-containers-certmanager
 
 all-static-race: dist-static-race/aci-containers-host-agent \
+	dist-static-race/aci-containers-host-agent-ovscni \
 	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
 	dist-static-race/ovsresync dist-static-race/gbpserver \
 	dist-static-race/aci-containers-operator
@@ -154,13 +169,17 @@ dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 dist-static/netop-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
-dist/aci-containers-host-agent: ${HOSTAGENT_DEPS} 
+dist/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
 dist-static/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
+dist-static/aci-containers-host-agent-ovscni: ${HOSTAGENT_DEPS}
+	${STATIC_BUILD_CMD_CGO} -tags ovscni -o $@ ${BASE}/cmd/hostagent
 
 dist-static-race/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/hostagent
+dist-static-race/aci-containers-host-agent-ovscni: ${HOSTAGENT_DEPS}
+	${STATIC_BUILD_RACE_CMD} -tags ovscni -o $@ ${BASE}/cmd/hostagent
 dist-static-race/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_RACE_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 dist-static-race/aci-containers-controller: ${CONTROLLER_DEPS}
@@ -224,7 +243,7 @@ container-gbpserver: dist-static/gbpserver
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbp-server-batch${DOCKER_TAG} -f ./docker/Dockerfile-gbpserver-batch .
 container-host: dist-static/aci-containers-host-agent dist-static/netop-cni dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host${DOCKER_EXT} .
-container-host-chained: dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni
+container-host-ovscni: dist-static/aci-containers-host-agent-ovscni dist-static/opflex-agent-cni dist-static/netop-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host-chained${DOCKER_TAG} -f ./docker/Dockerfile-host-chained${DOCKER_EXT} .
 container-controller: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller${DOCKER_TAG} -f ./docker/Dockerfile-controller${DOCKER_EXT} .
