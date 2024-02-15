@@ -233,6 +233,7 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 		}
 		agent.FabricDiscoveryPopulateAdjacencies(FabricDiscoveryMethodLLDPNMState, adjs)
 	}
+	agent.taintRemoved.Store(true)
 	return agent
 }
 

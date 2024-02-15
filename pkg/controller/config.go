@@ -299,6 +299,9 @@ type ControllerConfig struct {
 
 	// Disable hpp rendering if set to true
 	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
+
+	// Enable/disable making node unschedulable when it's not ready
+	TaintNotReadyNode bool `json:"taint-not-ready-node,omitempty"`
 }
 
 type netIps struct {

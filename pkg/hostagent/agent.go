@@ -15,9 +15,11 @@
 package hostagent
 
 import (
+	"context"
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
@@ -26,6 +28,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -135,6 +138,8 @@ type HostAgent struct {
 	orphanNadMap      map[string]*NetworkAttachmentData
 	// Pod info
 	podNameToTimeStamps map[string]*epTimeStamps
+	completedSyncTypes  map[string]struct{}
+	taintRemoved        atomic.Value
 }
 
 type ServiceEndPointType interface {
@@ -204,6 +209,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		orphanNadMap:          make(map[string]*NetworkAttachmentData),
 		podToNetAttachDef:     make(map[string][]string),
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
+		completedSyncTypes:    make(map[string]struct{}),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -371,6 +377,43 @@ func (agent *HostAgent) Init() {
 			panic(err.Error())
 		}
 	}
+
+	if agent.config.TaintNotReadyNode {
+		agent.taintRemoved.Store(false)
+		go agent.checkSyncProcessorsCompletionStatus(kubeClient)
+	} else {
+		agent.taintRemoved.Store(true)
+	}
+}
+
+func (agent *HostAgent) removeTaint(nodeName, taintKey string, clientset *kubernetes.Clientset) error {
+	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	taintFound := false
+	updatedTaints := []v1.Taint{}
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == taintKey {
+			taintFound = true
+		} else {
+			updatedTaints = append(updatedTaints, taint)
+		}
+	}
+
+	if !taintFound {
+		return nil
+	}
+
+	node.Spec.Taints = updatedTaints
+	_, err = clientset.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	agent.log.Debugf("Removed taint %s from node %s", taintKey, nodeName)
+	return nil
 }
 
 func (agent *HostAgent) ScheduleSync(syncType string) {
@@ -453,6 +496,27 @@ func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 	}
 }
 
+func (agent *HostAgent) checkSyncProcessorsCompletionStatus(kubeClient *kubernetes.Clientset) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		agent.indexMutex.Lock()
+		count := len(agent.completedSyncTypes)
+		agent.indexMutex.Unlock()
+
+		if count == 5 {
+			err := agent.removeTaint(os.Getenv("KUBERNETES_NODE_NAME"), "aci-containers-host/unavailable", kubeClient)
+			if err != nil {
+				agent.log.Errorf("Failed to remove taint: %v", err)
+				continue
+			}
+			agent.taintRemoved.Store(true)
+			return
+		}
+	}
+}
+
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
 	go wait.Until(func() {
@@ -466,6 +530,16 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 			if sType, ok := syncType.(string); ok {
 				if f, ok := agent.syncProcessors[sType]; ok {
 					requeue = f()
+
+					switch sType {
+					case "services", "eps", "snat", "snatnodeInfo", "nodepodifs":
+						if agent.taintRemoved.Load().(bool) {
+							break
+						}
+						agent.indexMutex.Lock()
+						agent.completedSyncTypes[sType] = struct{}{}
+						agent.indexMutex.Unlock()
+					}
 				}
 			}
 			if requeue {
