@@ -684,7 +684,7 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 	}
 
 	if conn.version >= "6.0(4c)" {
-		metadata["fvBD"].attributes["serviceBdRoutingDisable"] = ""
+		metadata["fvBD"].attributes["serviceBdRoutingDisable"] = "no"
 	}
 
 	for !conn.stopped {
