@@ -922,7 +922,7 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 			agent.netattdefmap[netAttDefKey] = &netattdata
 			for _, iface := range netattdata.Ifaces {
 				agent.netattdefifacemap[iface] = &netattdata
-				if fabAttData, err := agent.fabricDiscoveryAgent.GetNeighborData(iface); err == nil {
+				if fabAttData, err := agent.GetFabricDiscoveryNeighborDataLocked(iface); err == nil {
 					if fabAttData != nil {
 						netattdata.FabricAttachmentData[iface] = fabAttData
 					}

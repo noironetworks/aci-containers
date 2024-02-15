@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi:latest as base
 # Required OpenShift Labels
 LABEL name="ACI CNI Host-Agent" \
 vendor="Cisco" \
@@ -47,8 +47,15 @@ RUN alternatives --install /usr/sbin/iptables iptables /usr/sbin/iptables-legacy
 RUN /tmp/iptables-wrapper-installer.sh
 # Required Licenses
 COPY docker/licenses /licenses
-COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 RUN echo "send dhcp-client-identifier = hardware;" > /usr/local/etc/dhclient.conf
 ENV TENANT=kube
 ENV NODE_EPG='kubernetes|kube-nodes'
+
+FROM base as with-ovscni
+COPY dist-static/aci-containers-host-agent-ovscni dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+RUN mv /usr/local/bin/aci-containers-host-agent-ovscni /usr/local/bin/aci-containers-host-agent
+CMD ["/usr/local/bin/launch-hostagent.sh"]
+
+FROM base as without-ovscni
+COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-hostagent.sh"]
