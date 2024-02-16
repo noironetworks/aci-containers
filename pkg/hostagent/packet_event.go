@@ -37,6 +37,10 @@ type PacketEvent struct {
 
 func (agent *HostAgent) RunPacketEventListener(stopCh <-chan struct{}) {
 	os.Remove(agent.config.PacketEventNotificationSock)
+	if agent.config.PacketEventNotificationSock == "" {
+		agent.log.Info("Packet event recording is disabled")
+		return
+	}
 	pc, err := net.Listen("unix", agent.config.PacketEventNotificationSock)
 	if err != nil {
 		agent.log.Errorf("Failed to listen on unix socket %s: %s ",
