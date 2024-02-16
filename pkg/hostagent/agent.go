@@ -53,6 +53,7 @@ type HostAgent struct {
 	indexMutex           sync.Mutex
 	vethMutex            sync.Mutex
 	ipamMutex            sync.Mutex
+	epfileMutex          sync.Mutex
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
 

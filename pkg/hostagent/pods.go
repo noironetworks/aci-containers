@@ -314,6 +314,20 @@ func readEp(epfile string) (*opflexEndpoint, error) {
 	return ep, err
 }
 
+func touchFileIfExists(epfile string) (bool, error) {
+	var touch bool
+	_, err := os.Stat(epfile)
+	if err == nil {
+		currentTime := time.Now().Local()
+		er := os.Chtimes(epfile, currentTime, currentTime)
+		if er != nil {
+			return touch, er
+		}
+		touch = true
+	}
+	return touch, nil
+}
+
 func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	newdata, err := json.MarshalIndent(ep, "", "  ")
 	if err != nil {
@@ -468,7 +482,9 @@ func (agent *HostAgent) syncEps() bool {
 					agent.indexMutex.Unlock()
 				}
 
+				agent.epfileMutex.Lock()
 				wrote, err := writeEp(epfile, ep)
+				agent.epfileMutex.Unlock()
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
 						Error("Error writing EP file: ", err)
@@ -535,7 +551,10 @@ func (agent *HostAgent) syncEps() bool {
 			agent.podNameToTimeStamps[poduuid].lastNotifyToLastEpFileUpdateDiff = agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Sub(agent.podNameToTimeStamps[poduuid].podCreatationNoticationTimestamp)
 			agent.podNameToTimeStamps[poduuid].podCreationToLastEpFileUpdateDiff = agent.podNameToTimeStamps[poduuid].epFileCreateTimestamp.Sub(agent.podNameToTimeStamps[poduuid].podCreationTimestamp)
 			agent.indexMutex.Unlock()
+
+			agent.epfileMutex.Lock()
 			_, err = writeEp(epfile, ep)
+			agent.epfileMutex.Unlock()
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
