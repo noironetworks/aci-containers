@@ -223,6 +223,19 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 						agent.log.Error(err)
 					}
 					ops = append(ops, adds...)
+					epUuid, ok := agent.cniToPodID[id]
+					if ok {
+						epfilename := epUuid + "_" + meta.Id.ContId + "_" + iface.HostVethName
+						epfile := agent.FormEPFilePath(epfilename)
+						agent.epfileMutex.Lock()
+						touch, err := touchFileIfExists(epfile)
+						agent.epfileMutex.Unlock()
+						if err != nil {
+							agent.log.Error("Failed to touch file ", epfile, " : ", err)
+						} else if touch {
+							agent.log.Debug("Touched endpoint file for pod ", id, " : ", epfilename)
+						}
+					}
 				}
 			}
 		}
