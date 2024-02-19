@@ -339,6 +339,14 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	})
 
 	nodeUpdated := false
+
+	if cont.config.TaintNotReadyNode {
+		if !isNodeReady(node) {
+			logger.Debug("Node is NotReady, adding taint")
+			nodeUpdated = addTaintIfNotPresent(node)
+		}
+	}
+
 	if node.ObjectMeta.Annotations == nil {
 		node.ObjectMeta.Annotations = make(map[string]string)
 	}
@@ -689,4 +697,28 @@ func (cont *AciController) checkNodePodNet(nodename string) {
 	if v4changed || v6changed {
 		go cont.env.NodePodNetworkChanged(nodename)
 	}
+}
+
+func isNodeReady(node *v1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady {
+			return condition.Status == v1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func addTaintIfNotPresent(node *v1.Node) bool {
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == "aci-containers-host/unavailable" && taint.Effect == v1.TaintEffectNoSchedule {
+			return false
+		}
+	}
+
+	node.Spec.Taints = append(node.Spec.Taints, v1.Taint{
+		Key:    "aci-containers-host/unavailable",
+		Effect: v1.TaintEffectNoSchedule,
+	})
+
+	return true
 }
