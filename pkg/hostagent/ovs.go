@@ -229,12 +229,42 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 						epfile := agent.FormEPFilePath(epfilename)
 						agent.epfileMutex.Lock()
 						touch, err := touchFileIfExists(epfile)
-						agent.epfileMutex.Unlock()
 						if err != nil {
-							agent.log.Error("Failed to touch file ", epfile, " : ", err)
-						} else if touch {
-							agent.log.Debug("Touched endpoint file for pod ", id, " : ", epfilename)
+							agent.log.Error("Failed to touch endpoint file ", epfile, " : ", err)
+						} else {
+							if touch {
+								agent.log.Debug("Touched endpoint file for pod ", id, " : ", epfilename)
+							} else {
+								ips := make([]string, 0)
+								for _, ip := range iface.IPs {
+									if ip.Address.IP == nil {
+										continue
+									}
+									ips = append(ips, ip.Address.IP.String())
+								}
+								ep := &opflexEndpoint{
+									Uuid:              epfilename,
+									MacAddress:        iface.Mac,
+									IpAddress:         ips,
+									AccessIface:       iface.HostVethName,
+									AccessUplinkIface: patchAccessName,
+									IfaceName:         patchIntName,
+								}
+								err = agent.fillEpFields(ep, id)
+								if err != nil {
+									agent.log.Error("Failed to fill fields of endpoint file ", epfile, " : ", err)
+								} else {
+									ep.Attributes["interface-name"] = iface.HostVethName
+									wrote, err := writeEp(epfile, ep)
+									if err != nil {
+										agent.log.Error("Failed to write endpoint file ", epfile, " : ", err)
+									} else if wrote {
+										agent.log.Debug("Wrote endpoint file after port addition ", id, " : ", epfilename)
+									}
+								}
+							}
 						}
+						agent.epfileMutex.Unlock()
 					}
 				}
 			}
