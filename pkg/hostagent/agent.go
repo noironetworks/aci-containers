@@ -48,6 +48,11 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
+// Name of the taint set by Controller
+const (
+	ACIContainersTaintName string = "aci-containers-host/unavailable"
+)
+
 type HostAgent struct {
 	log    *logrus.Logger
 	config *HostAgentConfig
@@ -378,42 +383,26 @@ func (agent *HostAgent) Init() {
 			panic(err.Error())
 		}
 	}
-
-	if agent.config.TaintNotReadyNode {
-		agent.taintRemoved.Store(false)
-		go agent.checkSyncProcessorsCompletionStatus(kubeClient)
-	} else {
-		agent.taintRemoved.Store(true)
-	}
 }
 
-func (agent *HostAgent) removeTaint(nodeName, taintKey string, clientset *kubernetes.Clientset) error {
-	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
+func (agent *HostAgent) removeTaintIfNodeReady(node *v1.Node, taintKey string, clientset *kubernetes.Clientset) error {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			updatedTaints := []v1.Taint{}
+			for _, taint := range node.Spec.Taints {
+				if taint.Key != taintKey {
+					updatedTaints = append(updatedTaints, taint)
+				}
+			}
 
-	taintFound := false
-	updatedTaints := []v1.Taint{}
-	for _, taint := range node.Spec.Taints {
-		if taint.Key == taintKey {
-			taintFound = true
-		} else {
-			updatedTaints = append(updatedTaints, taint)
+			node.Spec.Taints = updatedTaints
+			_, err := clientset.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+			agent.log.Debugf("Removed taint %s from node %s", taintKey, node.Name)
 		}
 	}
-
-	if !taintFound {
-		return nil
-	}
-
-	node.Spec.Taints = updatedTaints
-	_, err = clientset.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-
-	agent.log.Debugf("Removed taint %s from node %s", taintKey, nodeName)
 	return nil
 }
 
@@ -497,22 +486,43 @@ func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 	}
 }
 
-func (agent *HostAgent) checkSyncProcessorsCompletionStatus(kubeClient *kubernetes.Clientset) {
+func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		agent.indexMutex.Lock()
-		count := len(agent.completedSyncTypes)
-		agent.indexMutex.Unlock()
-
-		if count == 5 {
-			err := agent.removeTaint(os.Getenv("KUBERNETES_NODE_NAME"), "aci-containers-host/unavailable", kubeClient)
+	kubeClient := agent.env.(*K8sEnvironment).kubeClient
+	for {
+		select {
+		case <-ticker.C:
+			node, err := kubeClient.CoreV1().Nodes().Get(context.TODO(), os.Getenv("KUBERNETES_NODE_NAME"), metav1.GetOptions{})
 			if err != nil {
-				agent.log.Errorf("Failed to remove taint: %v", err)
 				continue
 			}
-			agent.taintRemoved.Store(true)
+			for _, taint := range node.Spec.Taints {
+				if taint.Key == ACIContainersTaintName && taint.Effect == v1.TaintEffectNoSchedule {
+					removeTaint := false
+					if agent.taintRemoved.Load().(bool) {
+						removeTaint = true
+					} else {
+						agent.indexMutex.Lock()
+						count := len(agent.completedSyncTypes)
+						agent.indexMutex.Unlock()
+						if count == 5 {
+							removeTaint = true
+						}
+					}
+
+					if removeTaint {
+						err := agent.removeTaintIfNodeReady(node, ACIContainersTaintName, kubeClient)
+						if err != nil {
+							agent.log.Errorf("Failed to remove taint: %v", err)
+							continue
+						}
+						agent.taintRemoved.Store(true)
+					}
+				}
+			}
+		case <-stopCh:
 			return
 		}
 	}
@@ -586,6 +596,12 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 			agent.log.Error("Failed to create reset.conf ", err.Error())
 			panic(err.Error())
 		}
+	}
+	if agent.config.TaintNotReadyNode {
+		agent.taintRemoved.Store(false)
+		go agent.checkSyncProcessorsCompletionStatus(stopCh)
+	} else {
+		agent.taintRemoved.Store(true)
 	}
 	syncEnabled, err := agent.env.PrepareRun(stopCh)
 	if err != nil {

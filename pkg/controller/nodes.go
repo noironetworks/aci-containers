@@ -47,6 +47,11 @@ const (
 	tunnelIDIncr = 2
 )
 
+// Name of the taint to add to nodes that are not ready
+const (
+	ACIContainersTaintName string = "aci-containers-host/unavailable"
+)
+
 type tunnelState struct {
 	stateDriver  *watchers.K8sStateDriver
 	nodeToTunnel map[string]int64
@@ -710,13 +715,13 @@ func isNodeReady(node *v1.Node) bool {
 
 func addTaintIfNotPresent(node *v1.Node) bool {
 	for _, taint := range node.Spec.Taints {
-		if taint.Key == "aci-containers-host/unavailable" && taint.Effect == v1.TaintEffectNoSchedule {
+		if taint.Key == ACIContainersTaintName && taint.Effect == v1.TaintEffectNoSchedule {
 			return false
 		}
 	}
 
 	node.Spec.Taints = append(node.Spec.Taints, v1.Taint{
-		Key:    "aci-containers-host/unavailable",
+		Key:    ACIContainersTaintName,
 		Effect: v1.TaintEffectNoSchedule,
 	})
 
