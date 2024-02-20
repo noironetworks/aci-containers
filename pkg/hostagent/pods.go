@@ -324,6 +324,8 @@ func touchFileIfExists(epfile string) (bool, error) {
 			return touch, er
 		}
 		touch = true
+	} else if !os.IsNotExist(err) {
+		return touch, err
 	}
 	return touch, nil
 }
@@ -765,6 +767,41 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 		podKey := pod.ObjectMeta.Name + "-" + pod.ObjectMeta.Namespace
 		agent.podToNetAttachDef[podKey] = netAttachDef
 	}
+}
+
+func (agent *HostAgent) fillEpFields(ep *opflexEndpoint, podkey string) error {
+	podobj, exists, err := agent.podInformer.GetStore().GetByKey(podkey)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("Failed to get pod object of %s ", podkey)
+	}
+	pod := podobj.(*v1.Pod)
+	epAttributes := pod.ObjectMeta.Labels
+	if epAttributes == nil {
+		epAttributes = make(map[string]string)
+	}
+	epAttributes["vm-name"] = pod.ObjectMeta.Name
+	epAttributes["namespace"] = pod.ObjectMeta.Namespace
+	epGroup, epSecGroups, epQosPolicy, _ := agent.assignGroups(pod)
+	ep.Attributes = make(map[string]string)
+	for k, v := range epAttributes {
+		ep.Attributes[k] = v
+	}
+	if epGroup.Tenant != "" {
+		ep.EgPolicySpace = epGroup.Tenant
+	} else {
+		ep.EgPolicySpace = epGroup.PolicySpace
+	}
+	if epGroup.AppProfile != "" {
+		ep.EndpointGroup = epGroup.AppProfile + "|" + epGroup.Name
+	} else {
+		ep.EndpointGroup = epGroup.Name
+	}
+	ep.SecurityGroup = epSecGroups
+	ep.QosPolicy = epQosPolicy
+	return nil
 }
 
 func (agent *HostAgent) epChanged(epUuid *string, epMetaKey *string, epGroup *metadata.OpflexGroup,
