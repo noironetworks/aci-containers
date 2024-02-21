@@ -87,6 +87,7 @@ func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 	var apicSlice apicapi.ApicSlice
 	tenant := apicapi.NewFvTenant(cont.config.AciPolicyTenant)
 	ap := apicapi.NewFvAP("netop-" + cont.config.AciPolicyTenant)
+	apCommon := apicapi.NewFvAP("netop-common")
 	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, "netop-nodes")
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
@@ -101,6 +102,7 @@ func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 	ap.AddChild(epg)
 	tenant.AddChild(bd)
 	tenant.AddChild(ap)
+	tenant.AddChild(apCommon)
 	apicSlice = append(apicSlice, tenant)
 	return apicSlice
 }
