@@ -109,6 +109,7 @@ type HostAgent struct {
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 	epSyncQueue         workqueue.RateLimitingInterface
+	portSyncQueue       workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
@@ -224,6 +225,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "epsync"),
+		portSyncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
+			}, "portsync"),
 		ocServices: []opflexOcService{
 			{
 				RouterInternalDefault,
@@ -409,6 +414,8 @@ func (agent *HostAgent) removeTaintIfNodeReady(node *v1.Node, taintKey string, c
 func (agent *HostAgent) ScheduleSync(syncType string) {
 	if syncType == "eps" {
 		agent.epSyncQueue.AddRateLimited(syncType)
+	} else if syncType == "ports" {
+		agent.portSyncQueue.AddRateLimited(syncType)
 	} else {
 		agent.syncQueue.AddRateLimited(syncType)
 	}
@@ -617,6 +624,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		}
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
+		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)
