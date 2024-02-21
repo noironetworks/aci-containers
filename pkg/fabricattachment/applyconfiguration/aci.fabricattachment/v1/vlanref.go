@@ -20,8 +20,9 @@ package v1
 // VlanRefApplyConfiguration represents an declarative configuration of the VlanRef type for use
 // with apply.
 type VlanRefApplyConfiguration struct {
-	Vlans *string  `json:"vlans,omitempty"`
-	Aeps  []string `json:"aeps,omitempty"`
+	Vlans *string                `json:"vlans,omitempty"`
+	Aeps  []string               `json:"aeps,omitempty"`
+	Epg   *EpgApplyConfiguration `json:"epg,omitempty"`
 }
 
 // VlanRefApplyConfiguration constructs an declarative configuration of the VlanRef type for use with
@@ -45,5 +46,13 @@ func (b *VlanRefApplyConfiguration) WithAeps(values ...string) *VlanRefApplyConf
 	for i := range values {
 		b.Aeps = append(b.Aeps, values[i])
 	}
+	return b
+}
+
+// WithEpg sets the Epg field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Epg field is set to the value of the last call.
+func (b *VlanRefApplyConfiguration) WithEpg(value *EpgApplyConfiguration) *VlanRefApplyConfiguration {
+	b.Epg = value
 	return b
 }

@@ -23,7 +23,7 @@ type BridgeDomain struct {
 	Name         string   `json:"name,omitempty"`
 	CommonTenant bool     `json:"common-tenant,omitempty"`
 	Subnets      []string `json:"subnets,omitempty"`
-	Vrf          VRF      `json:"vrf,omitempty"` // TODO - required
+	Vrf          VRF      `json:"vrf,omitempty"`
 }
 
 type Contracts struct {
@@ -35,12 +35,12 @@ type Epg struct {
 	Name      string       `json:"name,omitempty"`
 	Tenant    string       `json:"tenant,omitempty"`
 	Contracts Contracts    `json:"contracts,omitempty"`
-	BD        BridgeDomain `json:"bd,omitempty"` // TODO - required
+	BD        BridgeDomain `json:"bd,omitempty"`
 }
 
 type VlanRef struct {
 	Vlans string   `json:"vlans"`
-	Aeps  []string `json:"aeps"`
+	Aeps  []string `json:"aeps,omitempty"`
 	Epg   Epg      `json:"epg,omitempty"`
 }
 

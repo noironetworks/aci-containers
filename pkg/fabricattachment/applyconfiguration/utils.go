@@ -30,10 +30,16 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 	// Group=aci.fabricattachment, Version=v1
 	case v1.SchemeGroupVersion.WithKind("AciNodeLinkAdjacency"):
 		return &acifabricattachmentv1.AciNodeLinkAdjacencyApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("BridgeDomain"):
+		return &acifabricattachmentv1.BridgeDomainApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Contracts"):
+		return &acifabricattachmentv1.ContractsApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("EncapRef"):
 		return &acifabricattachmentv1.EncapRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("EncapSource"):
 		return &acifabricattachmentv1.EncapSourceApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Epg"):
+		return &acifabricattachmentv1.EpgApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricVlanPool"):
 		return &acifabricattachmentv1.FabricVlanPoolApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricVlanPoolSpec"):
@@ -68,6 +74,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.VlanRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("VlanSpec"):
 		return &acifabricattachmentv1.VlanSpecApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("VRF"):
+		return &acifabricattachmentv1.VRFApplyConfiguration{}
 
 	}
 	return nil
