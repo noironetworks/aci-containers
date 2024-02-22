@@ -593,7 +593,7 @@ func (agent *HostAgent) syncEps() bool {
 
 // syncNodePodIfs syncs the NodePodIfs with Eps
 func (agent *HostAgent) syncNodePodIfs() bool {
-	if !agent.syncEnabled {
+	if !agent.syncEnabled || agent.config.ChainedMode {
 		return false
 	}
 	agent.log.Debug("Syncing NodePodIfs")
@@ -647,10 +647,14 @@ func (agent *HostAgent) podUpdated(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 	agent.depPods.UpdatePodNoCallback(obj.(*v1.Pod))
 	agent.rcPods.UpdatePodNoCallback(obj.(*v1.Pod))
-	agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
-	agent.qosPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	if !agent.config.ChainedMode {
+		agent.netPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+		agent.qosPolPods.UpdatePodNoCallback(obj.(*v1.Pod))
+	}
 	agent.updatePodStausTimeStamps(obj.(*v1.Pod))
-	agent.handleObjectUpdateForSnat(obj)
+	if !agent.config.ChainedMode {
+		agent.handleObjectUpdateForSnat(obj)
+	}
 	agent.podChangedLocked(obj)
 }
 
@@ -943,9 +947,13 @@ func (agent *HostAgent) podDeleted(obj interface{}) {
 	agent.podDeletedLocked(obj)
 	agent.depPods.DeletePod(obj.(*v1.Pod))
 	agent.rcPods.DeletePod(obj.(*v1.Pod))
-	agent.qosPolPods.DeletePod(obj.(*v1.Pod))
+	if !agent.config.ChainedMode {
+		agent.qosPolPods.DeletePod(obj.(*v1.Pod))
+	}
 	agent.netPolPods.DeletePod(obj.(*v1.Pod))
-	agent.handleObjectDeleteForSnat(obj)
+	if !agent.config.ChainedMode {
+		agent.handleObjectDeleteForSnat(obj)
+	}
 }
 
 func (agent *HostAgent) podDeletedLocked(obj interface{}) {

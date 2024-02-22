@@ -254,25 +254,29 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			log.Errorf("ERROR getting cluster config: %v", err)
 			return ha
 		}
-		aciawClient, err := crdclientset.NewForConfig(cfg)
-		if err != nil {
-			log.Errorf("ERROR getting crd client for registry: %v", err)
-			return ha
+		if !ha.config.ChainedMode {
+			aciawClient, err := crdclientset.NewForConfig(cfg)
+			if err != nil {
+				log.Errorf("ERROR getting crd client for registry: %v", err)
+				return ha
+			}
+			ha.crdClient = aciawClient.AciV1()
 		}
-		ha.crdClient = aciawClient.AciV1()
 	}
-	if ha.config.EnableNodePodIF {
-		cfg, err := rest.InClusterConfig()
-		if err != nil {
-			log.Errorf("ERROR getting cluster config: %v", err)
-			return ha
+	if !ha.config.ChainedMode {
+		if ha.config.EnableNodePodIF {
+			cfg, err := rest.InClusterConfig()
+			if err != nil {
+				log.Errorf("ERROR getting cluster config: %v", err)
+				return ha
+			}
+			nodepodifClient, err := nodepodifclset.NewForConfig(cfg)
+			if err != nil {
+				log.Errorf("ERROR getting nodepodif client for enabling NodePodIF: %v", err)
+				return ha
+			}
+			ha.nodePodIFClient = nodepodifClient.AciV1()
 		}
-		nodepodifClient, err := nodepodifclset.NewForConfig(cfg)
-		if err != nil {
-			log.Errorf("ERROR getting nodepodif client for enabling NodePodIF: %v", err)
-			return ha
-		}
-		ha.nodePodIFClient = nodepodifClient.AciV1()
 	}
 	cfg, err := rest.InClusterConfig()
 	if err != nil {

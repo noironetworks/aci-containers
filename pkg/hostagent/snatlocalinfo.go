@@ -64,6 +64,9 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		agent.log.Debug("snatLocalInfo or Kube clients are not intialized")
 		return false
 	}
+	if agent.config.ChainedMode {
+		return false
+	}
 	agent.indexMutex.Lock()
 	ginfos, ok := agent.opflexSnatGlobalInfos[agent.config.NodeName]
 	if !ok {

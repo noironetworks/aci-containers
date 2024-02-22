@@ -161,11 +161,13 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNetworkPolicyInformerFromClient(env.kubeClient)
 	env.agent.initDeploymentInformerFromClient(env.kubeClient)
 	env.agent.initRCInformerFromClient(env.kubeClient)
-	env.agent.initSnatGlobalInformerFromClient(env.snatGlobalClient)
-	env.agent.initSnatPolicyInformerFromClient(env.snatPolicyClient)
-	env.agent.initQoSPolicyInformerFromClient(env.qosPolicyClient)
-	env.agent.initRdConfigInformerFromClient(env.rdConfig)
-	env.agent.initQoSPolPodIndex()
+	if !agent.config.ChainedMode {
+		env.agent.initSnatGlobalInformerFromClient(env.snatGlobalClient)
+		env.agent.initSnatPolicyInformerFromClient(env.snatPolicyClient)
+		env.agent.initQoSPolicyInformerFromClient(env.qosPolicyClient)
+		env.agent.initRdConfigInformerFromClient(env.rdConfig)
+		env.agent.initQoSPolPodIndex()
+	}
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
 	env.agent.initRCPodIndex()
@@ -197,24 +199,25 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.serviceInformer.HasSynced)
 	env.agent.log.Info("Service cache sync successful")
 
-	env.agent.log.Debug("Starting snat global informer")
-	go env.agent.snatGlobalInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for snat global cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.snatGlobalInformer.HasSynced)
-	env.agent.log.Info("Snat global cache sync successful")
+	if !env.agent.config.ChainedMode {
+		env.agent.log.Debug("Starting snat global informer")
+		go env.agent.snatGlobalInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for snat global cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.snatGlobalInformer.HasSynced)
+		env.agent.log.Info("Snat global cache sync successful")
 
-	env.agent.log.Debug("Starting snat policy informer")
-	go env.agent.snatPolicyInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for snat policy sync")
-	cache.WaitForCacheSync(stopCh, env.agent.snatPolicyInformer.HasSynced)
-	env.agent.log.Info("Snat policy sync successful")
+		env.agent.log.Debug("Starting snat policy informer")
+		go env.agent.snatPolicyInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for snat policy sync")
+		cache.WaitForCacheSync(stopCh, env.agent.snatPolicyInformer.HasSynced)
+		env.agent.log.Info("Snat policy sync successful")
 
-	env.agent.log.Debug("Starting rdConfig informer")
-	go env.agent.rdConfigInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for rdConfig cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.rdConfigInformer.HasSynced)
-	env.agent.log.Info("RdConfig cache sync successful")
-
+		env.agent.log.Debug("Starting rdConfig informer")
+		go env.agent.rdConfigInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for rdConfig cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.rdConfigInformer.HasSynced)
+		env.agent.log.Info("RdConfig cache sync successful")
+	}
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
@@ -253,11 +256,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.rcInformer.HasSynced)
 	env.agent.log.Info("ReplicationController cache sync successful")
 
-	env.agent.log.Debug("Starting qosPolicy informers")
-	go env.agent.qosPolicyInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for qosPolicy cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.qosPolicyInformer.HasSynced)
-	env.agent.log.Info("qosPolicy cache sync successful")
+	if !env.agent.config.ChainedMode {
+		env.agent.log.Debug("Starting qosPolicy informers")
+		go env.agent.qosPolicyInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for qosPolicy cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.qosPolicyInformer.HasSynced)
+		env.agent.log.Info("qosPolicy cache sync successful")
+	}
 
 	if env.agent.config.OvsHardwareOffload || env.agent.config.ChainedMode {
 		env.agent.log.Debug("Starting netAttDef informers")
