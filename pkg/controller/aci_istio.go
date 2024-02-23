@@ -20,8 +20,8 @@ import (
 	"os/exec"
 	"reflect"
 
+	iopv1alpha1 "github.com/noironetworks/aci-containers/pkg/istiooperator"
 	log "github.com/sirupsen/logrus"
-	iopv1alpha1 "istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

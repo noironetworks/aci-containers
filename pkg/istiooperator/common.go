@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v1alpha1
+package istiooperator
 
 import (
-	"istio.io/api/operator/v1alpha1"
+	v1alpha1 "github.com/noironetworks/aci-containers/pkg/istioapi"
 )
 
 const (

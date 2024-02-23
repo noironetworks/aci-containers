@@ -17,7 +17,7 @@
 
 // Configuration affecting Istio control plane installation version and shape.
 
-package v1alpha1
+package istiooperator
 
 import (
 	"encoding/json"

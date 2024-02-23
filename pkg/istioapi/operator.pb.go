@@ -30,7 +30,7 @@
 // This leads to Kubernetes merge libraries, which rely on this tag, to fail.
 // All other usages use jsonpb which does not use the `json` tag.
 
-package v1alpha1
+package istioapi
 
 import (
 	any1 "github.com/golang/protobuf/ptypes/any"

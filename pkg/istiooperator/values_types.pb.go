@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: pkg/apis/istio/v1alpha1/values_types.proto
 
-package v1alpha1
+package istiooperator
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
