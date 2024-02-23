@@ -155,26 +155,66 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 					visited[iface] = true
 					// Ignore interfaces managed by external bridge like ovs
 					if intfData["type"].(string) == "ovs-bridge" {
+						if bridgeData, ok := intfData["bridge"].(map[string]interface{}); ok {
+							if bridgePorts, ok := bridgeData["port"].([]interface{}); ok {
+								bridgeMbrs := make(map[string]bool)
+								agent.indexMutex.Lock()
+								for _, bridgePortData := range bridgePorts {
+									bridgePort := bridgePortData.(map[string]interface{})
+									if port, ok := bridgePort["name"].(string); ok {
+										agent.port2BridgeMap[port] = iface
+										bridgeMbrs[port] = true
+									}
+								}
+								for currPort := range agent.bridge2PortsMap[iface] {
+									if _, ok := bridgeMbrs[currPort]; !ok {
+										delete(agent.port2BridgeMap, currPort)
+									}
+								}
+								agent.bridge2PortsMap[iface] = bridgeMbrs
+								agent.indexMutex.Unlock()
+							}
+						}
+						agent.indexMutex.Lock()
+						agent.LLDPIntfMap[iface] = &LLDPInterfaceState{
+							Enabled:        lldpEnabled,
+							InterfaceType:  intfData["type"].(string),
+							AdminState:     intfData["state"].(string),
+							IsOvsInterface: true,
+						}
+						agent.indexMutex.Unlock()
 						continue
 					}
 					ctrlrStr, cok := intfData["controller"]
 					if cok {
 						ctrlr := ctrlrStr.(string)
 						if ctrlr == "ovs-system" {
-							ifaceType := intfData["type"].(string)
-							if ifaceType == "bond" {
-								agent.indexMutex.Lock()
-								agent.LLDPIntfMap[iface] = &LLDPInterfaceState{
-									Enabled:        lldpEnabled,
-									InterfaceType:  intfData["type"].(string),
-									AdminState:     intfData["state"].(string),
-									IsOvsInterface: true,
-								}
-								agent.indexMutex.Unlock()
+							agent.indexMutex.Lock()
+							agent.LLDPIntfMap[iface] = &LLDPInterfaceState{
+								Enabled:        lldpEnabled,
+								InterfaceType:  intfData["type"].(string),
+								AdminState:     intfData["state"].(string),
+								IsOvsInterface: true,
 							}
+							agent.indexMutex.Unlock()
 							continue
 						}
 						agent.indexMutex.Lock()
+						// Ensure bridge/bond is read before reading the port
+						if _, ok := agent.bridge2PortsMap[ctrlr]; !ok {
+							if _, ok := agent.bond2PortsMap[ctrlr]; !ok {
+								agent.indexMutex.Unlock()
+								continue
+							}
+						}
+						if bridge, ok := agent.port2BridgeMap[iface]; ok {
+							if ifaceData, ok := agent.LLDPIntfMap[bridge]; ok {
+								if ifaceData.IsOvsInterface {
+									agent.indexMutex.Unlock()
+									continue
+								}
+							}
+						}
 						if bond, ok := agent.port2BondMap[iface]; ok {
 							if ifaceData, ok := agent.LLDPIntfMap[bond]; ok {
 								if ifaceData.IsOvsInterface {
@@ -182,10 +222,6 @@ func (agent *FabricDiscoveryAgentLLDPNMState) CollectDiscoveryData(stopCh <-chan
 									continue
 								}
 							}
-						}
-						if ifaceData, ok := agent.LLDPIntfMap[iface]; ok {
-							ifaceData.IsOvsInterface = false
-							agent.LLDPIntfMap[iface] = ifaceData
 						}
 						agent.indexMutex.Unlock()
 					}

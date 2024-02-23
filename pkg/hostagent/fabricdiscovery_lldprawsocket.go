@@ -8,16 +8,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os/exec"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/bpf"
+	"io"
+	"net"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
 )
 
 type LLDPInterfaceStateRawSocket struct {
@@ -185,7 +185,22 @@ func (agent *FabricDiscoveryAgentLLDPRawSocket) CollectDiscoveryData(stopCh <-ch
 						ctrlr := ctrlrStr.(string)
 						if ctrlr != "ovs-system" {
 							agent.indexMutex.Lock()
-							if bond, ok := agent.port2BondMap[iface]; !ok {
+							// Ensure bridge/bond is read before reading the port
+							if _, ok := agent.bridge2PortsMap[ctrlr]; !ok {
+								if _, ok := agent.bond2PortsMap[ctrlr]; !ok {
+									agent.indexMutex.Unlock()
+									continue
+								}
+							}
+							if bridge, ok := agent.port2BridgeMap[iface]; ok {
+								if ifaceData, ok := agent.LLDPIntfMap[bridge]; !ok {
+									agent.indexMutex.Unlock()
+									continue
+								} else if !ifaceData.State.IsOvsInterface {
+									agent.indexMutex.Unlock()
+									continue
+								}
+							} else if bond, ok := agent.port2BondMap[iface]; !ok {
 								agent.indexMutex.Unlock()
 								continue
 							} else if ifaceData, ok := agent.LLDPIntfMap[bond]; !ok {
@@ -212,7 +227,15 @@ func (agent *FabricDiscoveryAgentLLDPRawSocket) CollectDiscoveryData(stopCh <-ch
 								IsOvsInterface: true,
 							},
 						}
-						if ifaceData.State.InterfaceType == "ethernet" {
+						ifaceMacIsLocal := false
+						if intfData["mac-address"] != nil {
+							ifaceMacStr := intfData["mac-address"].(string)
+							macAddr, err := net.ParseMAC(ifaceMacStr)
+							if err == nil {
+								ifaceMacIsLocal = (macAddr[0] & 0x02) > 0
+							}
+						}
+						if ifaceData.State.InterfaceType == "ethernet" && !ifaceMacIsLocal {
 							agent.hostAgent.log.Infof("lldprawsocket: Capturing LLDP for %v", iface)
 							ifaceData.PacketSource, err = agent.NewIfRawSocket(iface)
 						}
