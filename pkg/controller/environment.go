@@ -18,7 +18,7 @@ import (
 	"context"
 	"strings"
 
-	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
+	// istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
@@ -180,7 +180,12 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		cont.initRdConfigInformerFromClient(env.rdConfigClient)
 		cont.initSnatCfgFromClient(kubeClient)
 		if cont.config.InstallIstio {
+			/* Commenting code to remove dependency from istio.io/istio package.
+			   Vulnerabilties were detected by quay.io security scan of aci-containers-controller
+			   and aci-containers-operator images for istio.io/istio package
+
 			cont.initIstioInformerFromClient(env.istioClient)
+			*/
 		}
 	} else {
 		cont.initCRDInformer()
@@ -296,10 +301,15 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	if !cont.config.ChainedMode {
 		if cont.config.InstallIstio {
 			go cont.istioInformer.Run(stopCh)
+			/* Commenting code to remove dependency from istio.io/istio package.
+			   Vulnerabilties were detected by quay.io security scan of aci-containers-controller
+			   and aci-containers-operator images for istio.io/istio package
+
 			go cont.processQueue(cont.istioQueue, cont.istioIndexer,
 				func(obj interface{}) bool {
 					return cont.handleIstioUpdate(obj.(*istiov1.AciIstioOperator))
 				}, nil, nil, stopCh)
+			*/
 			cont.log.Debug("Waiting for AciIstio cache sync")
 			cache.WaitForCacheSync(stopCh,
 				cont.istioInformer.HasSynced)
