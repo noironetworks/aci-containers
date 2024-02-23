@@ -430,7 +430,12 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
 		"rdConfig":       cont.syncRdConfig,
+		/* Commenting code to remove dependency from istio.io/istio package.
+		   Vulnerabilties were detected by quay.io security scan of aci-containers-controller
+		   and aci-containers-operator images for istio.io/istio package
+
 		"istioCR":        cont.createIstioCR,
+		*/
 	}
 	return cont
 }

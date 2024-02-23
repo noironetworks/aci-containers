@@ -174,11 +174,16 @@ func (cont *testAciController) InitController() {
 		})
 
 	cont.fakeIstioSource = framework.NewFakeControllerSource()
-	cont.initIstioInformerBase(
-		&cache.ListWatch{
-			ListFunc:  cont.fakeIstioSource.List,
-			WatchFunc: cont.fakeIstioSource.Watch,
-		})
+	/* Commenting code to remove dependency from istio.io/istio package.
+	           Vulnerabilties were detected by quay.io security scan of aci-containers-controller
+	           and aci-containers-operator images for istio.io/istio package
+
+		cont.initIstioInformerBase(
+			&cache.ListWatch{
+				ListFunc:  cont.fakeIstioSource.List,
+				WatchFunc: cont.fakeIstioSource.Watch,
+			})
+	*/
 
 	cont.fakeSnatCfgSource = framework.NewFakeControllerSource()
 	cont.initSnatCfgInformerBase(
