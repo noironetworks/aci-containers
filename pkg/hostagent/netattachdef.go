@@ -969,12 +969,12 @@ func (agent *HostAgent) networkAttDefDeleteByKeyLocked(netAttDefKey string) {
 				agent.log.Errorf("node fabric network attachment delete failed:%v", err)
 			}
 		}
-		if netattDef.PrimaryCNI == PrimaryCNIMACVLAN {
-			delete(agent.netattdefifacemap, netattDef.ResourceName)
-		} else if netattDef.PrimaryCNI == PrimaryCNISRIOV {
+		if netattDef.PrimaryCNI == PrimaryCNISRIOV {
 			for _, iface := range netattDef.Ifaces {
 				delete(agent.netattdefifacemap, iface)
 			}
+		} else {
+			delete(agent.netattdefifacemap, netattDef.ResourceName)
 		}
 		agent.DeleteNetworkMetadata(netattDef)
 	}
