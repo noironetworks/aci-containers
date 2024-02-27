@@ -29,6 +29,9 @@ func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unicastRoute", "no")
+	if len(subnets) != 0 {
+		bd.SetAttr("unicastRoute", "yes")
+	}
 	bd.SetAttr("unkMacUcastAct", "flood")
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), vrf)
 	bd.AddChild(fvRsCtx)

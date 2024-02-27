@@ -318,6 +318,9 @@ func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicit
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unkMacUcastAct", "flood")
 	bd.SetAttr("unicastRoute", "no")
+	if len(subnets) != 0 {
+		bd.SetAttr("unicastRoute", "yes")
+	}
 	if vrfName == "" {
 		vrfName = cont.config.AciVrf
 	}
