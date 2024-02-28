@@ -770,6 +770,7 @@ func (agent *HostAgent) syncSnat() bool {
 			if _, ok := localportrange[ginfo.SnatIp]; ok {
 				snatinfo.PortRange = localportrange[ginfo.SnatIp]
 				// need to sort the order
+				agent.snatPolicyCacheMutex.RLock()
 				if _, ok := agent.snatPolicyCache[ginfo.SnatPolicyName]; ok {
 					if len(agent.snatPolicyCache[ginfo.SnatPolicyName].Spec.DestIp) == 0 {
 						snatinfo.DestIpAddress = []string{"0.0.0.0/0"}
@@ -778,6 +779,7 @@ func (agent *HostAgent) syncSnat() bool {
 							agent.snatPolicyCache[ginfo.SnatPolicyName].Spec.DestIp
 					}
 				}
+				agent.snatPolicyCacheMutex.RUnlock()
 				snatinfo.Local = true
 			}
 			snatinfo.SnatIp = ginfo.SnatIp
@@ -1270,7 +1272,9 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 	sync := false
 	for name, resources := range plcynames {
 		agent.log.Infof("Handle snatpolicy as object deleted: %s, ObjectKey: %s", name, objKey)
+		agent.snatPolicyCacheMutex.RLock()
 		poduids, _ := agent.getPodsMatchingObject(obj, name)
+		agent.snatPolicyCacheMutex.RUnlock()
 		for _, uid := range poduids {
 			if getResourceType(obj) == SERVICE {
 				agent.log.Debug("Service deleted update the localInfo: ", name)
