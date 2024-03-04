@@ -754,6 +754,16 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 						"ipv6", proto, port, remoteSubnets, addPodSubnetAsRemIp)
 				}
 			}
+			if len(portList) == 0 && proto != "" {
+				if !cont.configuredPodNetworkIps.V4.Empty() {
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+						"ipv4", proto, "", remoteSubnets, addPodSubnetAsRemIp)
+				}
+				if !cont.configuredPodNetworkIps.V6.Empty() {
+					cont.buildNetPolSubjRule(subj, ruleName+"_"+strconv.Itoa(j), direction,
+						"ipv6", proto, "", remoteSubnets, addPodSubnetAsRemIp)
+				}
+			}
 		}
 	}
 }
