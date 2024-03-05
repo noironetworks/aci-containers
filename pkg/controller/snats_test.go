@@ -26,6 +26,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -272,15 +273,21 @@ func TestSnatPolicyVerify(t *testing.T) {
 func TestServiceSnatPolicyVerify(t *testing.T) {
 	snatIp := []string{}
 	labels := map[string]string{}
-	policy := testsnatpolicy("testpolicy", "common", "deployment",
+	policy := testsnatpolicy("testpolicy", "testns", "deployment",
 		snatIp, labels)
 	cont := sgCont()
 	cont.run()
+	// Add service
+	cont.fakeServiceSource.Add(service("testns", "service1", "10.4.2.1"))
+	time.Sleep(time.Millisecond * 100)
 	// Add service snat policy
 	cont.fakeSnatPolicySource.Add(policy)
 	snatPolicyCount(t, "snat test", cont, 1)
 	// Delete service snat policy
 	cont.fakeSnatPolicySource.Delete(policy)
+	snatPolicyCount(t, "snat test", cont, 0)
+	policy.Status.State = snatpolicy.IpPortsExhausted
+	cont.fakeSnatPolicySource.Add(policy)
 	snatPolicyCount(t, "snat test", cont, 0)
 	cont.stop()
 }
@@ -348,4 +355,12 @@ func TestSnatPolicyValidateCr(t *testing.T) {
 	snatPolicyCount(t, "snat test", cont, 1)
 
 	cont.stop()
+}
+
+func TestSnatPolicyLogger(t *testing.T) {
+	logger := SnatPolicyLogger(&logrus.Logger{}, &snatpolicy.SnatPolicy{ObjectMeta: metav1.ObjectMeta{Name: "testpolicy", Namespace: "testns"}, Spec: snatpolicy.SnatPolicySpec{SnatIp: []string{"10.10.1.114"}}})
+	assert.Equal(t, "testpolicy", logger.Data["name"])
+	assert.Equal(t, "testns", logger.Data["namespace"])
+	snatPolSpec := logger.Data["spec"]
+	assert.Equal(t, []string{"10.10.1.114"}, snatPolSpec.(snatpolicy.SnatPolicySpec).SnatIp)
 }

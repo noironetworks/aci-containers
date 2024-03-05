@@ -24,7 +24,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	v1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 )
 
@@ -260,4 +260,40 @@ func TestApicEPG(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
+func TestApicWatcherEpgDeleted(t *testing.T) {
+	ts := &suite{}
+	ts.setup()
+
+	dn := "uni/tn-test-kube/cloudapp-test-kubeApp1/cloudepg-epg-a"
+	ts.aw.EpgDeleted(dn)
+	//TODO: add the return to the function and assert
+}
+func TestApicWatcher_ContractDeleted(t *testing.T) {
+	ts := &suite{}
+	ts.setup()
+
+	dn := "uni/tn-test-tenant/contract-contract1"
+	ts.aw.ContractDeleted(dn)
+	invalidDN := "invalid-dn"
+	ts.aw.ContractDeleted(invalidDN)
+}
+func TestApicWatcherNetPolChangedAndDeleted(t *testing.T) {
+	ts := &suite{}
+	ts.setup()
+
+	obj := apicapi.ApicObject{
+		"vzBrCP": &apicapi.ApicObjectBody{
+			Attributes: map[string]interface{}{
+				"dn": "uni/tn-test-kube/pol-test-kubeApp1",
+			},
+		},
+	}
+
+	ts.aw.NetPolChanged(obj)
+	// TODO: For now check log if the netpol is added,
+	// need to add the return to the function and assert
+	ts.aw.NetPolDeleted(obj.GetDn())
+	// TODO: For now check log if the netpol is deleted,
+	// need to add the return to the function and assert
 }

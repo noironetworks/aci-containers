@@ -21,6 +21,7 @@ import (
 
 	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type nodepodif struct {
@@ -138,5 +139,28 @@ func TestNodePodIF(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond * 100)
 	cont.log.Debug("podIftoEp after delete: ", cont.AciController.podIftoEp)
+
+	type test struct {
+		metav1.ObjectMeta
+	}
+	fakeNodepodifObj := &test{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-nodepodif",
+		},
+	}
+	cont.nodePodIFDeleted(fakeNodepodifObj)
+
+	key, _ := cache.MetaNamespaceKeyFunc(fakeNodepodifObj)
+	labelKey := cont.aciNameForKey("span", key)
+
+	fakeNodepodifObj2 := cache.DeletedFinalStateUnknown{
+		Key: key,
+		Obj: labelKey,
+	}
+	cont.nodePodIFDeleted(fakeNodepodifObj2)
+
+	cont.log.Debug("podIftoEp after delete: ", cont.AciController.podIftoEp)
+
 	cont.stop()
 }

@@ -29,9 +29,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1012,4 +1014,132 @@ func TestSplitSubscribe(t *testing.T) {
 				"split subscription requests"), nil
 		})
 	close(stopCh)
+}
+func TestGetRootDn(t *testing.T) {
+	tests := []struct {
+		dn         string
+		rootClass  string
+		expectedDn string
+	}{
+		{
+			dn:         "uni/tn-common/cloudepg/ap-testbd/teststr",
+			rootClass:  "cloudEPg",
+			expectedDn: "uni/tn-common/cloudepg/ap-testbd",
+		},
+		{
+			dn:         "uni/tn-common/ap-testepg/teststr1/teststr2",
+			rootClass:  "vzBrCP",
+			expectedDn: "uni/tn-common/ap-testepg",
+		},
+	}
+
+	for _, test := range tests {
+		actualDn := getRootDn(test.dn, test.rootClass)
+		if actualDn != test.expectedDn {
+			t.Errorf("getRootDn(%s, %s) = %s, expected %s", test.dn, test.rootClass, actualDn, test.expectedDn)
+		}
+	}
+}
+func TestGetApicResponse(t *testing.T) {
+	server := newTestServer()
+	defer server.server.Close()
+	server.mux.HandleFunc("/api/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(ApicResponse{
+			Imdata: []ApicObject{
+				{
+					"class": &ApicObjectBody{
+						Attributes: map[string]interface{}{
+							"attr2": "value2",
+							"dn":    "dn2",
+						},
+					},
+				},
+			},
+		})
+	})
+
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+
+	uri := "/api/test"
+	resp, err := conn.GetApicResponse(uri)
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+	expectedRespData := ApicObject{
+		"class": &ApicObjectBody{
+			Attributes: map[string]interface{}{
+				"attr2": "value2",
+				"dn":    "dn2",
+			},
+		},
+	}
+	assert.Equal(t, expectedRespData, resp.Imdata[0])
+}
+
+func TestAddSubscriptionTree(t *testing.T) {
+	server := newTestServer()
+	defer server.server.Close()
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+
+	conn.subscriptions.subs = make(map[string]*subscription)
+	conn.indexMutex = sync.Mutex{}
+
+	class := "hostprotPol"
+	targetClasses := []string{"cloudEPg", "vzBrCP"}
+	targetFilter := "vzFilter"
+
+	conn.AddSubscriptionTree(class, targetClasses, targetFilter)
+
+	sub, ok := conn.subscriptions.subs[class]
+	if !ok {
+		t.Errorf("Expected subscription for class %s, but not found", class)
+	}
+
+	if sub.kind != apicSubTree {
+		t.Errorf("Expected subscription kind to be apicSubTree, got %d", sub.kind)
+	}
+
+	if len(sub.childSubs) != 0 {
+		t.Errorf("Expected childSubs to be empty, got %d", len(sub.childSubs))
+	}
+
+	if !reflect.DeepEqual(sub.targetClasses, targetClasses) {
+		t.Errorf("Expected targetClasses to be %v, got %v", targetClasses, sub.targetClasses)
+	}
+
+	if sub.targetFilter != targetFilter {
+		t.Errorf("Expected targetFilter to be %s, got %s", targetFilter, sub.targetFilter)
+	}
+}
+
+func TestDeleteDnInline(t *testing.T) {
+	server := newTestServer()
+	defer server.server.Close()
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+
+	conn.Apic = []string{"apic1", "apic2"}
+
+	dn := "uni/tn-common"
+
+	err = conn.DeleteDnInline(dn)
+	// No HTTPS server running, so we expect an error
+	assert.Error(t, err, "Could not delete dn")
+}
+
+func TestGetVersion(t *testing.T) {
+
+	server := newTestServer()
+	defer server.server.Close()
+	conn, err := server.testConn(nil)
+	assert.Nil(t, err)
+
+	conn.Apic = []string{"127.0.0.1"}
+	conn.log = logrus.New().WithField("test", "test")
+
+	version, err := conn.GetVersion()
+	assert.Nil(t, err)
+	assert.Equal(t, "4.2(4i)", version)
 }
