@@ -57,5 +57,6 @@ RUN mv /usr/local/bin/aci-containers-host-agent-ovscni /usr/local/bin/aci-contai
 CMD ["/usr/local/bin/launch-hostagent.sh"]
 
 FROM base as without-ovscni
-COPY dist-static/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
+ARG binarypath=dist-static
+COPY ${binarypath}/aci-containers-host-agent dist-static/opflex-agent-cni dist-static/netop-cni docker/launch-hostagent.sh docker/enable-hostacc.sh docker/enable-droplog.sh /usr/local/bin/
 CMD ["/usr/local/bin/launch-hostagent.sh"]

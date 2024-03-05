@@ -1,6 +1,7 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
 FROM ${baserepo}/aci-containers-operator-base:${basetag}
+ARG binarypath=dist-static
 # Required OpenShift Labels
 LABEL name="ACI CNI Operator" \
 vendor="Cisco" \
@@ -10,5 +11,5 @@ summary="This is an ACI CNI Operator." \
 description="This operator will deploy a single instance of ACI CNI Operator."
 # Required Licenses
 COPY docker/licenses /licenses
-COPY dist-static/aci-containers-operator /usr/local/bin/
+COPY ${binarypath}/aci-containers-operator /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/aci-containers-operator"]
