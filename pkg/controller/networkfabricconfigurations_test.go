@@ -42,10 +42,10 @@ func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.
 	return bd
 }
 
-func CreateNFNAExplicitEPG(tenant, bdName, epgName string, consumers, providers []string) apicapi.ApicObject {
+func CreateNFNAExplicitEPG(systemid, tenant, bdName, epgName string, consumers, providers []string) apicapi.ApicObject {
 	var fvRsDomAtt apicapi.ApicObject
 	var epg apicapi.ApicObject
-	apName := "netop-" + tenant
+	apName := "netop-" + systemid
 	epg = apicapi.NewFvAEPg(tenant, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
@@ -109,8 +109,8 @@ func CreateNFCVlanRef(vlans string) *fabattv1.NetworkFabricConfiguration {
 	}
 }
 
-func NFCCRUDCase(t *testing.T, additionalVlans string) {
-	cont := testChainedController(true, additionalVlans)
+func NFCCRUDCase(t *testing.T, additionalVlans string, aciPrefix string) {
+	cont := testChainedController(aciPrefix, true, additionalVlans)
 
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "101",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
@@ -130,7 +130,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string) {
 	var expectedApicSlice2 apicapi.ApicSlice
 	bd := CreateNFNAExplicitBD("common", "testVrf", "testBd", []string{"10.30.40.1/24"})
 	expectedApicSlice2 = append(expectedApicSlice2, bd)
-	epg := CreateNFNAExplicitEPG("testTenant", "testBd", "testEpg", []string{"ctrct1"}, []string{"ctrct2"})
+	epg := CreateNFNAExplicitEPG(aciPrefix, "testTenant", "testBd", "testEpg", []string{"ctrct1"}, []string{"ctrct2"})
 	expectedApicSlice2 = PopulateFabricPaths(epg, 101, nfna1,
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 		cont, expectedApicSlice2)
@@ -139,9 +139,9 @@ func NFCCRUDCase(t *testing.T, additionalVlans string) {
 	assert.Equal(t, expectedApicSlice2, progMap[labelKey], "nfna create global epg vlan 101")
 
 	var expectedApicSlice3 apicapi.ApicSlice
-	bd = CreateNFNABD(nfna1, 101, cont)
+	bd = CreateNFNABD(nfna1, 101, aciPrefix, cont)
 	expectedApicSlice3 = append(expectedApicSlice3, bd)
-	epg = CreateNFNAEPG(nfna1, 101, cont)
+	epg = CreateNFNAEPG(nfna1, 101, aciPrefix, cont)
 	expectedApicSlice3 = PopulateFabricPaths(epg, 101, nfna1,
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 		cont, expectedApicSlice3)
@@ -153,5 +153,5 @@ func NFCCRUDCase(t *testing.T, additionalVlans string) {
 }
 
 func TestNFCCRUD(t *testing.T) {
-	NFCCRUDCase(t, "[100-101]")
+	NFCCRUDCase(t, "[100-101]", "suite1")
 }

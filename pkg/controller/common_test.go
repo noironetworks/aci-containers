@@ -241,7 +241,7 @@ func testController() *testAciController {
 	return cont
 }
 
-func testChainedController(aciUseGlobalScopeVlan bool, additionalVlans string) *testAciController {
+func testChainedController(aciPrefix string, aciUseGlobalScopeVlan bool, additionalVlans string) *testAciController {
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.TextFormatter{
@@ -251,7 +251,7 @@ func testChainedController(aciUseGlobalScopeVlan bool, additionalVlans string) *
 	cont := &testAciController{
 		AciController: *NewController(&ControllerConfig{
 			AciPolicyTenant:       "kubernetes",
-			AciPrefix:             "kube",
+			AciPrefix:             aciPrefix,
 			AciVrf:                "kube-vrf",
 			AciVrfTenant:          "common",
 			ChainedMode:           true,
