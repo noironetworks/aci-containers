@@ -86,7 +86,7 @@ func nodeFabNetAttInit(cont *AciController, stopCh <-chan struct{}) {
 func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 	var apicSlice apicapi.ApicSlice
 	tenant := apicapi.NewFvTenant(cont.config.AciPolicyTenant)
-	ap := apicapi.NewFvAP("netop-" + cont.config.AciPolicyTenant)
+	ap := apicapi.NewFvAP("netop-" + cont.config.AciPrefix)
 	apCommon := apicapi.NewFvAP("netop-common")
 	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, "netop-nodes")
 	bd.SetAttr("arpFlood", "yes")
@@ -308,7 +308,7 @@ func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicit
 	tenantName := explicitTenantName
 	vrfName := explicitVrfName
 	if bdName == "" {
-		bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+		bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
 	}
 	if tenantName == "" {
 		tenantName = cont.config.AciPolicyTenant
@@ -344,19 +344,22 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string, explici
 		tenantName = cont.config.AciPolicyTenant
 	}
 	apName := "netop-" + tenantName
+	if tenantName != cont.config.AciPrefix {
+		apName = "netop-" + cont.config.AciPrefix
+	}
 	if !cont.config.AciUseGlobalScopeVlan {
 		if epgName == "" {
 			epgName = fmt.Sprintf("%s-vlan-%d", name, vlan)
 		}
 		if bdName == "" {
-			bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
 		}
 	} else {
 		if epgName == "" {
 			epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
 		}
 		if bdName == "" {
-			bdName = fmt.Sprintf("%s-vlan-%d", globalScopeVlanBdPrefix, vlan)
+			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, globalScopeVlanBdPrefix, vlan)
 		}
 	}
 	epg := apicapi.NewFvAEPg(tenantName, apName, epgName)

@@ -108,13 +108,13 @@ func PopulateFabricPaths(epg apicapi.ApicObject, vlan int, nfna *fabattv1.NodeFa
 	return apicSlice
 }
 
-func CreateNFNABD(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, cont *testAciController) apicapi.ApicObject {
+func CreateNFNABD(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, aciPrefix string, cont *testAciController) apicapi.ApicObject {
 	networkName := nfna.Spec.NetworkRef.Namespace + "-" + nfna.Spec.NetworkRef.Name
 	if cont.config.AciUseGlobalScopeVlan {
 		networkName = "secondary-bd"
 	}
 	encap := fmt.Sprintf("%d", vlan)
-	bd := apicapi.NewFvBD("kubernetes", networkName+"-vlan-"+encap)
+	bd := apicapi.NewFvBD("kubernetes", aciPrefix+"-"+networkName+"-vlan-"+encap)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
 	bd.SetAttr("unicastRoute", "no")
@@ -125,19 +125,19 @@ func CreateNFNABD(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, cont *te
 
 }
 
-func CreateNFNAEPG(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, cont *testAciController) apicapi.ApicObject {
+func CreateNFNAEPG(nfna *fabattv1.NodeFabricNetworkAttachment, vlan int, aciPrefix string, cont *testAciController) apicapi.ApicObject {
 	var fvRsDomAtt apicapi.ApicObject
-	apName := "netop-" + "kubernetes"
+	apName := "netop-" + aciPrefix
 	encap := fmt.Sprintf("%d", vlan)
 	networkName := nfna.Spec.NetworkRef.Namespace + "-" + nfna.Spec.NetworkRef.Name
 	var epg apicapi.ApicObject
 	var bdName string
 	if !cont.config.AciUseGlobalScopeVlan {
 		epg = apicapi.NewFvAEPg("kubernetes", apName, networkName+"-vlan-"+encap)
-		bdName = networkName + "-vlan-" + encap
+		bdName = aciPrefix + "-" + networkName + "-vlan-" + encap
 	} else {
 		epg = apicapi.NewFvAEPg("kubernetes", apName, "secondary-vlan-"+encap)
-		bdName = "secondary-bd-vlan-" + encap
+		bdName = aciPrefix + "-secondary-bd-vlan-" + encap
 	}
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
@@ -191,8 +191,8 @@ func CreateFabricVlanPool(namespace, name, vlanStr string) *fabattv1.FabricVlanP
 	}
 }
 
-func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
-	cont := testChainedController(globalScopeVlan, additionalVlans)
+func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string, aciPrefix string) {
+	cont := testChainedController(aciPrefix, globalScopeVlan, additionalVlans)
 
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "[5-6]",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
@@ -211,18 +211,18 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 		labelKey = cont.aciNameForKey("nfna", "secondary")
 		assert.Equal(t, expectedApicSlice1, progMapPool[labelKey], "nfna create global dom")
 		var expectedApicSlice2 apicapi.ApicSlice
-		bd := CreateNFNABD(nfna1, 5, cont)
+		bd := CreateNFNABD(nfna1, 5, aciPrefix, cont)
 		expectedApicSlice2 = append(expectedApicSlice2, bd)
-		epg := CreateNFNAEPG(nfna1, 5, cont)
+		epg := CreateNFNAEPG(nfna1, 5, aciPrefix, cont)
 		expectedApicSlice2 = PopulateFabricPaths(epg, 5, nfna1,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 			cont, expectedApicSlice2)
 		labelKey = cont.aciNameForKey("nfna", "secondary-vlan-5")
 		assert.Equal(t, expectedApicSlice2, progMap[labelKey], "nfna create global epg vlan 5")
 		var expectedApicSlice3 apicapi.ApicSlice
-		bd = CreateNFNABD(nfna1, 6, cont)
+		bd = CreateNFNABD(nfna1, 6, aciPrefix, cont)
 		expectedApicSlice3 = append(expectedApicSlice3, bd)
-		epg = CreateNFNAEPG(nfna1, 6, cont)
+		epg = CreateNFNAEPG(nfna1, 6, aciPrefix, cont)
 		expectedApicSlice3 = PopulateFabricPaths(epg, 6, nfna1,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 			cont, expectedApicSlice3)
@@ -230,9 +230,9 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 		assert.Equal(t, expectedApicSlice3, progMap[labelKey], "nfna create global epg vlan 6")
 	} else {
 		for _, encap := range []int{5, 6} {
-			bd := CreateNFNABD(nfna1, encap, cont)
+			bd := CreateNFNABD(nfna1, encap, aciPrefix, cont)
 			expectedApicSlice1 = append(expectedApicSlice1, bd)
-			epg := CreateNFNAEPG(nfna1, encap, cont)
+			epg := CreateNFNAEPG(nfna1, encap, aciPrefix, cont)
 			expectedApicSlice1 = PopulateFabricPaths(epg, encap, nfna1,
 				[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 				cont,
@@ -249,9 +249,9 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	if globalScopeVlan {
 		assert.Equal(t, 2, len(progMap), "nfna create apicKey count")
 		var expectedApicSlice2 apicapi.ApicSlice
-		bd := CreateNFNABD(nfna2, 5, cont)
+		bd := CreateNFNABD(nfna2, 5, aciPrefix, cont)
 		expectedApicSlice2 = append(expectedApicSlice2, bd)
-		epg := CreateNFNAEPG(nfna2, 5, cont)
+		epg := CreateNFNAEPG(nfna2, 5, aciPrefix, cont)
 		expectedApicSlice2 = PopulateFabricPaths(epg, 5, nfna2,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]",
 				"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
@@ -259,9 +259,9 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 		labelKey = cont.aciNameForKey("nfna", "secondary-vlan-5")
 		assert.Equal(t, len(expectedApicSlice2), len(progMap[labelKey]), "nfna create global epg vlan 5")
 		var expectedApicSlice3 apicapi.ApicSlice
-		bd = CreateNFNABD(nfna2, 6, cont)
+		bd = CreateNFNABD(nfna2, 6, aciPrefix, cont)
 		expectedApicSlice3 = append(expectedApicSlice3, bd)
-		epg = CreateNFNAEPG(nfna2, 6, cont)
+		epg = CreateNFNAEPG(nfna2, 6, aciPrefix, cont)
 		expectedApicSlice3 = PopulateFabricPaths(epg, 6, nfna2,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]",
 				"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
@@ -270,9 +270,9 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 		assert.Equal(t, len(expectedApicSlice3), len(progMap[labelKey]), "nfna create global epg vlan 6")
 	} else {
 		for _, encap := range []int{5, 6} {
-			bd := CreateNFNABD(nfna1, encap, cont)
+			bd := CreateNFNABD(nfna1, encap, aciPrefix, cont)
 			expectedApicSlice2 = append(expectedApicSlice2, bd)
-			epg := CreateNFNAEPG(nfna1, encap, cont)
+			epg := CreateNFNAEPG(nfna1, encap, aciPrefix, cont)
 			expectedApicSlice2 = PopulateFabricPaths(epg, encap, nfna1,
 				[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]",
 					"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]",
@@ -293,18 +293,18 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 	if globalScopeVlan {
 		assert.Equal(t, 2, len(progMap), "nfna create apicKey count")
 		var expectedApicSlice2 apicapi.ApicSlice
-		bd := CreateNFNABD(nfna1, 5, cont)
+		bd := CreateNFNABD(nfna1, 5, aciPrefix, cont)
 		expectedApicSlice2 = append(expectedApicSlice2, bd)
-		epg := CreateNFNAEPG(nfna2, 5, cont)
+		epg := CreateNFNAEPG(nfna2, 5, aciPrefix, cont)
 		expectedApicSlice2 = PopulateFabricPaths(epg, 5, nfna2,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
 			cont, expectedApicSlice2)
 		labelKey = cont.aciNameForKey("nfna", "secondary-vlan-5")
 		assert.Equal(t, expectedApicSlice2, progMap[labelKey], "nfna create global epg vlan 5")
 		var expectedApicSlice3 apicapi.ApicSlice
-		bd = CreateNFNABD(nfna1, 6, cont)
+		bd = CreateNFNABD(nfna1, 6, aciPrefix, cont)
 		expectedApicSlice3 = append(expectedApicSlice3, bd)
-		epg = CreateNFNAEPG(nfna2, 6, cont)
+		epg = CreateNFNAEPG(nfna2, 6, aciPrefix, cont)
 		expectedApicSlice3 = PopulateFabricPaths(epg, 6, nfna2,
 			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
 			cont, expectedApicSlice3)
@@ -315,9 +315,9 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 		var expectedApicSlice3 apicapi.ApicSlice
 		expectedApicSlice3 = CreateNFNAObjs(nfna2, additionalVlans, cont)
 		for _, encap := range []int{5, 6} {
-			bd := CreateNFNABD(nfna2, encap, cont)
+			bd := CreateNFNABD(nfna2, encap, aciPrefix, cont)
 			expectedApicSlice3 = append(expectedApicSlice3, bd)
-			epg := CreateNFNAEPG(nfna2, encap, cont)
+			epg := CreateNFNAEPG(nfna2, encap, aciPrefix, cont)
 			expectedApicSlice3 = PopulateFabricPaths(epg, encap, nfna2,
 				[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"},
 				cont,
@@ -339,19 +339,19 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string) {
 }
 
 func TestPerPortVlanNFNACRUD(t *testing.T) {
-	NFNACRUDCase(t, false, "[100-101]")
+	NFNACRUDCase(t, false, "[100-101]", "kube")
 }
 
 func TestGlobalVlanNFNACRUD(t *testing.T) {
-	NFNACRUDCase(t, true, "[100,101]")
+	NFNACRUDCase(t, true, "[100,101]", "kube1")
 }
 
 func TestGlobalVlanRangeNFNACRUD(t *testing.T) {
-	NFNACRUDCase(t, true, "[100-101]")
+	NFNACRUDCase(t, true, "[100-101]", "kubernetes")
 }
 
 func TestStaticChainedModeObjs(t *testing.T) {
-	cont := testChainedController(true, "[100-101]")
+	cont := testChainedController("kubernetes", true, "[100-101]")
 	cont.run()
 	defer cont.stop()
 	jsonString := `[{"fvTenant":{"attributes":{"name":"kubernetes","nameAlias":""},"children":[{"fvBD":{"attributes":{"arpFlood":"yes","dn":"uni/tn-kubernetes/BD-netop-nodes","ipLearning":"no","name":"netop-nodes","nameAlias":"","unicastRoute":"yes","unkMacUcastAct":"flood"},"children":[{"fvRsCtx": "uni/tn-kubernetes/BD-netop-nodes/rsctx", {"attributes":{"tnFvCtxName":"kube-vrf"}}}]}},{"fvAp":{"attributes":{"name":"netop-kubernetes","nameAlias":""},"children":[{"fvAEPg":{"attributes":{"dn":"uni/tn-kubernetes/ap-netop-kubernetes/epg-netop-nodes","name":"netop-nodes","nameAlias":""},"children":[{"fvRsBd":{"attributes":{"tnFvBDName":"netop-nodes"}}},{"fvRsDomAtt":{"attributes":{"tDn":"uni/phys-first-physdom"}}}]}}]}},{"fvAp":{"attributes":{"name":"netop-common","nameAlias":""}}}]}}]`
