@@ -134,8 +134,9 @@ type ApicConnection struct {
 	pendingSubDnUpdate map[string]pendingChange
 	CachedSubnetDns    map[string]string
 
-	deltaQueue workqueue.RateLimitingInterface
-	odevQueue  workqueue.RateLimitingInterface
+	deltaQueue    workqueue.RateLimitingInterface
+	odevQueue     workqueue.RateLimitingInterface
+	priorityQueue workqueue.RateLimitingInterface
 }
 
 func (s ApicSlice) Len() int {

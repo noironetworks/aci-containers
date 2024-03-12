@@ -259,6 +259,16 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	return
 }
 
+func isPriorityObject(dn string) bool {
+	priorityObjects := [2]string{"lDevVip", "svcRedirectPol"}
+	for _, obj := range priorityObjects {
+		if strings.Contains(dn, obj) {
+			return true
+		}
+	}
+	return false
+}
+
 func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	context string) {
 	sort.Sort(updates)
@@ -267,13 +277,21 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	for _, delete := range deletes {
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
-		conn.queueDn(delete)
+		if isPriorityObject(delete) {
+			conn.queuePriorityDn(delete)
+		} else {
+			conn.queueDn(delete)
+		}
 	}
 	for _, update := range updates {
 		dn := update.GetDn()
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn, "context": context}).
 			Debug("Applying APIC object update")
-		conn.queueDn(dn)
+		if isPriorityObject(dn) {
+			conn.queuePriorityDn(dn)
+		} else {
+			conn.queueDn(dn)
+		}
 	}
 }
 

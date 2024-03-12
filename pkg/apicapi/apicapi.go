@@ -303,6 +303,9 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					if key == "opflexODev" && conn.odevQueue != nil {
 						conn.log.Debug("Adding dn to odevQueue: ", dn)
 						conn.odevQueue.Add(dn)
+					} else if isPriorityObject(dn) {
+						conn.log.Debug("Adding dn to priorityQueue: ", dn)
+						conn.priorityQueue.Add(dn)
 					} else {
 						if conn.deltaQueue != nil {
 							conn.deltaQueue.Add(dn)
@@ -448,6 +451,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	restart := make(chan struct{})
 	queueStop := make(chan struct{})
 	odevQueueStop := make(chan struct{})
+	priorityQueueStop := make(chan struct{})
 	syncHook := make(chan fullSync, 1)
 	conn.restartCh = restart
 
@@ -497,6 +501,16 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		),
 		"odev")
 	go conn.processQueue(conn.odevQueue, odevQueueStop, "odev")
+	conn.priorityQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+			},
+		),
+		"priority")
+	go conn.processQueue(conn.priorityQueue, priorityQueueStop, "priority")
 	conn.indexMutex.Unlock()
 
 	refreshInterval := conn.RefreshInterval
@@ -549,6 +563,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.indexMutex.Lock()
 		conn.deltaQueue = nil
 		conn.odevQueue = nil
+		conn.priorityQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
@@ -945,6 +960,14 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		}
 		conn.reconcileApicObject(obj)
 	}
+}
+
+func (conn *ApicConnection) queuePriorityDn(dn string) {
+	conn.indexMutex.Lock()
+	if conn.priorityQueue != nil {
+		conn.priorityQueue.Add(dn)
+	}
+	conn.indexMutex.Unlock()
 }
 
 func (conn *ApicConnection) queueDn(dn string) {
