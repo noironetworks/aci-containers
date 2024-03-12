@@ -1027,6 +1027,11 @@ func (cont *AciController) updateServiceDeviceInstanceSnat(key string) error {
 		return nil
 	}
 	nodeMap := make(map[string]*metadata.ServiceEndpoint)
+	sort.Slice(nodeList, func(i, j int) bool {
+		nodeA := nodeList[i].(*v1.Node)
+		nodeB := nodeList[j].(*v1.Node)
+		return nodeA.ObjectMeta.Name < nodeB.ObjectMeta.Name
+	})
 	for itr, nodeItem := range nodeList {
 		if itr == cont.config.MaxSvcGraphNodes {
 			break
