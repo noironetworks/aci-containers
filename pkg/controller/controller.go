@@ -191,10 +191,11 @@ type AciController struct {
 	sharedEncapNfcVlanMap  map[int]*NfcData
 	sharedEncapNfcLabelMap map[string]*NfcData
 	// nadVlanMap encapLabel to vlan
-	sharedEncapLabelMap map[string][]int
-	lldpIfCache         map[string]string
-	globalVlanConfig    globalVlanConfig
-	fabricVlanPoolMap   map[string]map[string]string
+	sharedEncapLabelMap      map[string][]int
+	lldpIfCache              map[string]string
+	globalVlanConfig         globalVlanConfig
+	fabricVlanPoolMap        map[string]map[string]string
+	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 }
 
 type NfcData struct {
@@ -230,6 +231,12 @@ type aciPodAnnot struct {
 	isSingleOpflexOdev bool
 	disconnectTime     time.Time
 	connectTime        time.Time
+}
+
+type openstackOpflexOdevInfo struct {
+	count        int
+	dn           string
+	fabricPathDn string
 }
 
 type nodeServiceMeta struct {
@@ -403,29 +410,30 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeACIPodAnnot:  make(map[string]aciPodAnnot),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache:   make(map[string]*nodeServiceMeta),
-		nodePodNetCache:        make(map[string]*nodePodNetMeta),
-		serviceMetaCache:       make(map[string]*serviceMeta),
-		snatPolicyCache:        make(map[string]*ContSnatPolicy),
-		snatServices:           make(map[string]bool),
-		snatNodeInfoCache:      make(map[string]*nodeinfo.NodeInfo),
-		rdConfigCache:          make(map[string]*rdConfig.RdConfig),
-		rdConfigSubnetCache:    make(map[string]*rdConfig.RdConfigSpec),
-		podIftoEp:              make(map[string]*EndPointData),
-		snatGlobalInfoCache:    make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:             make(map[string]*istiov1.AciIstioOperator),
-		crdHandlers:            make(map[string]func(*AciController, <-chan struct{})),
-		ctrPortNameCache:       make(map[string]*ctrPortNameEntry),
-		nmPortNp:               make(map[string]bool),
-		hppRef:                 make(map[string]hppReference),
-		additionalNetworkCache: make(map[string]*AdditionalNetworkMeta),
-		sharedEncapCache:       make(map[int]*sharedEncapData),
-		sharedEncapNfcCache:    make(map[int]*NfcData),
-		sharedEncapNfcVlanMap:  make(map[int]*NfcData),
-		sharedEncapNfcLabelMap: make(map[string]*NfcData),
-		sharedEncapLabelMap:    make(map[string][]int),
-		lldpIfCache:            make(map[string]string),
-		fabricVlanPoolMap:      make(map[string]map[string]string),
+		nodeServiceMetaCache:     make(map[string]*nodeServiceMeta),
+		nodePodNetCache:          make(map[string]*nodePodNetMeta),
+		serviceMetaCache:         make(map[string]*serviceMeta),
+		snatPolicyCache:          make(map[string]*ContSnatPolicy),
+		snatServices:             make(map[string]bool),
+		snatNodeInfoCache:        make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:            make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:      make(map[string]*rdConfig.RdConfigSpec),
+		podIftoEp:                make(map[string]*EndPointData),
+		snatGlobalInfoCache:      make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:               make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:              make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:         make(map[string]*ctrPortNameEntry),
+		nmPortNp:                 make(map[string]bool),
+		hppRef:                   make(map[string]hppReference),
+		additionalNetworkCache:   make(map[string]*AdditionalNetworkMeta),
+		sharedEncapCache:         make(map[int]*sharedEncapData),
+		sharedEncapNfcCache:      make(map[int]*NfcData),
+		sharedEncapNfcVlanMap:    make(map[int]*NfcData),
+		sharedEncapNfcLabelMap:   make(map[string]*NfcData),
+		sharedEncapLabelMap:      make(map[string][]int),
+		lldpIfCache:              make(map[string]string),
+		fabricVlanPoolMap:        make(map[string]map[string]string),
+		openStackFabricPathDnMap: make(map[string]openstackOpflexOdevInfo),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,

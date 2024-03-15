@@ -1269,13 +1269,21 @@ func apicServiceGraph(name string, tenantName string,
 func (cont *AciController) updateDeviceCluster() {
 	nodeMap := make(map[string]string)
 	cont.indexMutex.Lock()
-	for node := range cont.nodeOpflexDevice {
-		cont.log.Debug("Processing node in nodeOpflexDevice cache : ", node)
-		fabricPath, ok := cont.fabricPathForNode(node)
-		if !ok {
-			continue
+	// For OpenShift on OpenStack cluster, interface is created per
+	// OpenStack compute hosts
+	if strings.Contains(cont.config.Flavor, "openstack") {
+		for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
+			nodeMap[host] = opflexOdevInfo.fabricPathDn
 		}
-		nodeMap[node] = fabricPath
+	} else {
+		for node := range cont.nodeOpflexDevice {
+			cont.log.Debug("Processing node in nodeOpflexDevice cache : ", node)
+			fabricPath, ok := cont.fabricPathForNode(node)
+			if !ok {
+				continue
+			}
+			nodeMap[node] = fabricPath
+		}
 	}
 	cont.indexMutex.Unlock()
 
@@ -1320,8 +1328,24 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	devType := obj.GetAttrStr("devType")
 	domName := obj.GetAttrStr("domName")
 	ctrlrName := obj.GetAttrStr("ctrlrName")
+	compHvDn := obj.GetAttrStr("compHvDn")
 
-	if (devType == cont.env.OpFlexDeviceType()) && (domName == cont.config.AciVmmDomain) && (ctrlrName == cont.config.AciVmmController) {
+	// For OpenShift on OpenStack cluster
+	if strings.Contains(compHvDn, "prov-OpenStack") {
+		opflexOdevInfo, ok := cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")]
+		if ok {
+			opflexOdevInfo.count++
+			cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = opflexOdevInfo
+		} else {
+			var openstackopflexodevinfo openstackOpflexOdevInfo
+			openstackopflexodevinfo.count++
+			openstackopflexodevinfo.fabricPathDn = obj.GetAttrStr("fabricPathDn")
+			openstackopflexodevinfo.dn = obj.GetAttrStr("dn")
+			cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = openstackopflexodevinfo
+		}
+		cont.updateDeviceCluster()
+
+	} else if (devType == cont.env.OpFlexDeviceType()) && (domName == cont.config.AciVmmDomain) && (ctrlrName == cont.config.AciVmmController) {
 		cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Processing opflex device update")
 		if obj.GetAttrStr("state") == "disconnected" {
 			cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Opflex device disconnected")
@@ -1339,8 +1363,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 				}
 			}
 			cont.indexMutex.Unlock()
-			cont.updateDeviceCluster()
-			return
+			goto DEVICE_CLUSTER
 		}
 		var nodeUpdates []string
 
@@ -1401,6 +1424,11 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			cont.env.NodeServiceChanged(node)
 			cont.erspanSyncOpflexDev()
 		}
+		goto DEVICE_CLUSTER
+	}
+
+DEVICE_CLUSTER:
+	if !strings.Contains(cont.config.Flavor, "openstack") {
 		cont.updateDeviceCluster()
 	}
 }
@@ -1432,6 +1460,17 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 		}
 		if len(devices) == 0 {
 			delete(cont.nodeOpflexDevice, node)
+		}
+	}
+
+	// Applicable only for OpenShift on OpenStack cluster
+	// openStackFabricPathDnMap will be empty if cluster is not OpenShift on OpenStack
+	for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
+		if opflexOdevInfo.dn == dn {
+			opflexOdevInfo.count--
+			if opflexOdevInfo.count < 1 {
+				delete(cont.openStackFabricPathDnMap, host)
+			}
 		}
 	}
 	cont.indexMutex.Unlock()
