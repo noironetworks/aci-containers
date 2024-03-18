@@ -200,6 +200,20 @@ func TestServiceIp(t *testing.T) {
 	}
 	{
 		cont.serviceUpdates = nil
+		service1 := service("testns", "service1", "10.4.2.5")
+		service1.Status.Conditions = []metav1.Condition{
+			{
+				Status:  metav1.ConditionTrue,
+				Type:    "LbIpamAllocation",
+				Reason:  "Success",
+				Message: "",
+			},
+		}
+		cont.fakeServiceSource.Add(service1)
+		waitForSStatus(t, cont, []string{"10.4.2.5"}, "Success", "Update request")
+	}
+	{
+		cont.serviceUpdates = nil
 		cont.fakeServiceSource.Add(service("testns", "service4", ""))
 		waitForSStatus(t, cont, []string{"10.4.1.2"}, "Success", "next ip from pool")
 	}
