@@ -84,7 +84,18 @@ if [ -w /mnt/cni-conf ]; then
     # Install CNI configuration
     mkdir -p /mnt/cni-conf/cni/net.d
     if [  -z !=  $DISABLE_WAIT_FOR_NETWORK ] && [ $DISABLE_WAIT_FOR_NETWORK = "True" ]; then
-        cat <<EOF > /mnt/cni-conf/cni/net.d/01-opflex-cni.conf
+        if [  -z !=  $GENERIC_VETH_MODE ] && [ $GENERIC_VETH_MODE = "True" ]; then
+            cat <<EOF > /mnt/cni-conf/cni/net.d/10-opflex-cni.conf
+{
+   "cniVersion": "0.3.1",
+   "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],
+   "name": "generic-veth",
+   "type": "opflex-agent-cni",
+   "ipam": {"type": "opflex-agent-cni-ipam"}
+}
+EOF
+        else
+            cat <<EOF > /mnt/cni-conf/cni/net.d/01-opflex-cni.conf
 {
    "cniVersion": "0.3.1",
    "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],
@@ -93,18 +104,34 @@ if [ -w /mnt/cni-conf ]; then
    "ipam": {"type": "opflex-agent-cni-ipam"}
 }
 EOF
+       fi
+
     else
-        cat <<EOF > /mnt/cni-conf/cni/net.d/01-opflex-cni.conf
+        if [  -z !=  $GENERIC_VETH_MODE ] && [ $GENERIC_VETH_MODE = "True" ]; then
+            cat <<EOF > /mnt/cni-conf/cni/net.d/10-opflex-cni.conf
 {
    "cniVersion": "0.3.1",
    "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],
-   "name": "k8s-pod-network",
+   "name": "generic-veth",
    "type": "opflex-agent-cni",
    "wait-for-network": true,
    "wait-for-network-duration": $((INT_DURATION_WAIT_FOR_NETWORK)),
    "ipam": {"type": "opflex-agent-cni-ipam"}
 }
 EOF
+        else
+            cat <<EOF > /mnt/cni-conf/cni/net.d/01-opflex-cni.conf
+            {
+               "cniVersion": "0.3.1",
+               "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ],
+               "name": "k8s-pod-network",
+               "type": "opflex-agent-cni",
+               "wait-for-network": true,
+               "wait-for-network-duration": $((INT_DURATION_WAIT_FOR_NETWORK)),
+               "ipam": {"type": "opflex-agent-cni-ipam"}
+            }
+EOF
+        fi
     fi
 fi
 fi
@@ -119,7 +146,11 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/endpoints
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/services
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/snats
-    mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
+    if [  -z !=  $GENERIC_VETH_MODE ] && [ $GENERIC_VETH_MODE = "True" ]; then
+        mkdir -p ${VARDIR}/lib/aci-containers/generic-veth
+    else
+        mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
+    fi
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog
