@@ -1772,7 +1772,9 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		cont.removeIpFromIngressIPList(&ingressIps, ipv6)
 	}
 
-	meta.ingressIps = ingressIps
+	if len(requestedIps) < 1 {
+		meta.ingressIps = ingressIps
+	}
 	if ipv4 == nil && ipv6 == nil {
 		logger.Error("No IP addresses available for service")
 		cont.indexMutex.Unlock()
@@ -1781,6 +1783,9 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	cont.indexMutex.Unlock()
 	var newIngress []v1.LoadBalancerIngress
 	for _, ip := range meta.ingressIps {
+		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
+	}
+	for _, ip := range meta.staticIngressIps {
 		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
 	}
 
@@ -1801,7 +1806,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 	success := true
 	reason := "Success"
 	message := ""
-	if len(requestedIps) > 0 && len(requestedIps) != len(meta.ingressIps) {
+	if len(requestedIps) > 0 && len(requestedIps) != len(meta.staticIngressIps) {
 		success = false
 		reason = "OneIpNotAllocatable"
 		message = "One of the requested Ips is not allocatable"
