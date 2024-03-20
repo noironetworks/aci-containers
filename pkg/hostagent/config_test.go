@@ -16,6 +16,7 @@ package hostagent
 
 import (
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -34,7 +35,6 @@ func TestInitFlags(t *testing.T) {
 		StatusPort:                  8090,
 		GRPCPort:                    19999,
 		CniMetadataDir:              "/usr/local/var/lib/aci-containers/",
-		CniNetwork:                  "k8s-pod-network",
 		OpFlexConfigPath:            "/usr/local/etc/opflex-agent-ovs/base-conf.d",
 		OpFlexEndpointDir:           "/usr/local/var/lib/opflex-agent-ovs/endpoints/",
 		OpFlexServiceDir:            "/usr/local/var/lib/opflex-agent-ovs/services/",
@@ -81,6 +81,15 @@ func TestInitFlags(t *testing.T) {
 		EnableMetrics:               false,
 		MetricsPort:                 8190,
 	}
+
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		expConfig.CniNetwork = "k8s-pod-network"
+	} else {
+		expConfig.CniNetwork = "generic-veth"
+	}
+
 	config := &HostAgentConfig{}
 	config.InitFlags()
 	assert.Equal(t, expConfig, config)
