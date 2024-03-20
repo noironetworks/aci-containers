@@ -17,6 +17,7 @@ package hostagent
 import (
 	"flag"
 	"net"
+	"os"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 
@@ -298,7 +299,15 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port for opflex server to connect")
 
 	flag.StringVar(&config.CniMetadataDir, "cni-metadata-dir", "/usr/local/var/lib/aci-containers/", "Directory for writing OpFlex endpoint metadata")
-	flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
+
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		flag.StringVar(&config.CniNetwork, "cni-network", "k8s-pod-network", "Name of the CNI network")
+	} else {
+		flag.StringVar(&config.CniNetwork, "cni-network", "generic-veth", "Name of the CNI network")
+	}
 
 	flag.StringVar(&config.OpFlexConfigPath, "opflex-config-path", "/usr/local/etc/opflex-agent-ovs/base-conf.d", "Directory for writing Opflex configuration")
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")

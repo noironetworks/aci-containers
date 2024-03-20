@@ -936,9 +936,16 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 	}
 
 	json.Unmarshal([]byte(ntd.Spec.Config), &config)
-
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+	config_name := ""
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		config_name = "k8s-pod-network"
+	} else {
+		config_name = "generic-veth"
+	}
 	for i := 0; i < len(config.Plugins); i++ {
-		if config.Name == "k8s-pod-network" {
+		if config.Name == config_name {
 			if config.Plugins[i].Type == "opflex-agent-cni" && config.Plugins[i].IPAM.Type == "opflex-agent-cni-ipam" {
 				if ntd.ObjectMeta.Annotations[resourceNameAnnot] != "" {
 					if ntd.ObjectMeta.Name != "" {

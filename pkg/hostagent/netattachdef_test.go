@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	"os"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -47,12 +48,24 @@ func testFabricVlanPool(namespace, name, vlanStr string) *fabattv1.FabricVlanPoo
 }
 
 func TestNetAttachmentDef(t *testing.T) {
-	configJsondata := `
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+	configJsondata := ""
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		configJsondata = `
 		{ 
 			"cniVersion": "0.3.1", 
 			"name": "k8s-pod-network",
 			"plugins": [ { "type": "opflex-agent-cni","log_level": "debug", "ipam": { "type": "opflex-agent-cni-ipam" }}]
 		}`
+	} else {
+		configJsondata = `
+		{ 
+			"cniVersion": "0.3.1", 
+			"name": "generic-veth",
+			"plugins": [ { "type": "opflex-agent-cni","log_level": "debug", "ipam": { "type": "opflex-agent-cni-ipam" }}]
+		}`
+	}
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
@@ -74,12 +87,24 @@ func TestNetAttachmentDef(t *testing.T) {
 }
 
 func TestNetAttachmentDefWithoutAcii(t *testing.T) {
-	configJsondata := `
-                {
-                        "cniVersion": "0.3.1",
-                        "name": "k8s-pod-network",
-                        "plugins": [ { "type": "other-cni","log_level": "debug", "ipam": { "type": "other-cni-ipam" }}]
-                }`
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+	configJsondata := ""
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		configJsondata = `
+		{
+			"cniVersion": "0.3.1",
+			"name": "k8s-pod-network",
+			"plugins": [ { "type": "other-cni","log_level": "debug", "ipam": { "type": "other-cni-ipam" }}]
+		}`
+	} else {
+		configJsondata = `
+		{
+			"cniVersion": "0.3.1",
+			"name": "generic-veth",
+			"plugins": [ { "type": "other-cni","log_level": "debug", "ipam": { "type": "other-cni-ipam" }}]
+		}`
+	}
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
@@ -95,12 +120,24 @@ func TestNetAttachmentDefWithoutAcii(t *testing.T) {
 }
 
 func TestNetAttachmentDefDelete(t *testing.T) {
-	configJsondata := `
-                {
-                        "cniVersion": "0.3.1",
-                        "name": "k8s-pod-network",
-                        "plugins": [ { "type": "opflex-agent-cni","log_level": "debug", "ipam": { "type": "opflex-agent-cni-ipam" }}]
-                }`
+	veth_mode := os.Getenv("GENERIC_VETH_MODE")
+	configJsondata := ""
+	// Check if the environment variable is set
+	if veth_mode != "True" {
+		configJsondata = `
+		{ 
+			"cniVersion": "0.3.1", 
+			"name": "k8s-pod-network",
+			"plugins": [ { "type": "opflex-agent-cni","log_level": "debug", "ipam": { "type": "opflex-agent-cni-ipam" }}]
+		}`
+	} else {
+		configJsondata = `
+		{ 
+			"cniVersion": "0.3.1", 
+			"name": "generic-veth",
+			"plugins": [ { "type": "opflex-agent-cni","log_level": "debug", "ipam": { "type": "opflex-agent-cni-ipam" }}]
+		}`
+	}
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "mellanox.com/cx5_sriov_switchdev"
