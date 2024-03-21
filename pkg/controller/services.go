@@ -1547,10 +1547,9 @@ func removeAllConditions(conditions []metav1.Condition, conditionType string) []
 	return conditions[:i]
 }
 
-func (cont *AciController) updateServiceCondition(service *v1.Service, success bool, reason string, message string) error {
+func (cont *AciController) updateServiceCondition(service *v1.Service, success bool, reason string, message string) bool {
 	conditionType := "LbIpamAllocation"
 
-	var err error
 	var condition metav1.Condition
 	if success {
 		condition.Status = metav1.ConditionTrue
@@ -1566,14 +1565,13 @@ func (cont *AciController) updateServiceCondition(service *v1.Service, success b
 			cond.Status == condition.Status &&
 			cond.Message == condition.Message &&
 			cond.Reason == condition.Reason {
-			return nil
+			return false
 		}
 	}
 
 	service.Status.Conditions = removeAllConditions(service.Status.Conditions, conditionType)
 	service.Status.Conditions = append(service.Status.Conditions, condition)
-	_, err = cont.updateServiceStatus(service)
-	return err
+	return true
 }
 
 func (cont *AciController) validateRequestedIps(lbIpList []string) (net.IP, net.IP, bool) {
@@ -1667,11 +1665,14 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		} else {
 			cont.returnServiceIps(meta.ingressIps)
 			cont.log.Error("Invalid LB IP annotation for service ", servicekey)
-			err := cont.updateServiceCondition(service, false, "InvalidAnnotation", "Invalid Loadbalancer IP annotation")
-			if err != nil {
-				logger.Error("Failed to update service status : ", err)
-				cont.indexMutex.Unlock()
-				return true
+			condUpdated := cont.updateServiceCondition(service, false, "InvalidAnnotation", "Invalid Loadbalancer IP annotation")
+			if condUpdated {
+				_, err := cont.updateServiceStatus(service)
+				if err != nil {
+					logger.Error("Failed to update service status : ", err)
+					cont.indexMutex.Unlock()
+					return true
+				}
 			}
 			cont.indexMutex.Unlock()
 			return false
@@ -1711,11 +1712,14 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		// If no requested ips are allocatable
 		if len(meta.requestedIps) < 1 {
 			logger.Error("No Requested Ip addresses available for service ", servicekey)
-			err := cont.updateServiceCondition(service, false, "RequestedIpsNotAllocatable", "The requested ips for loadbalancer service are not available or not in extern static range")
-			if err != nil {
-				cont.indexMutex.Unlock()
-				logger.Error("Failed to update service status: ", err)
-				return true
+			condUpdated := cont.updateServiceCondition(service, false, "RequestedIpsNotAllocatable", "The requested ips for loadbalancer service are not available or not in extern static range")
+			if condUpdated {
+				_, err := cont.updateServiceStatus(service)
+				if err != nil {
+					cont.indexMutex.Unlock()
+					logger.Error("Failed to update service status: ", err)
+					return true
+				}
 			}
 			cont.indexMutex.Unlock()
 			return false
@@ -1789,18 +1793,15 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		newIngress = append(newIngress, v1.LoadBalancerIngress{IP: ip.String()})
 	}
 
+	ipUpdated := false
 	if !reflect.DeepEqual(newIngress, service.Status.LoadBalancer.Ingress) {
 		service.Status.LoadBalancer.Ingress = newIngress
 
-		_, err := cont.updateServiceStatus(service)
-		if err != nil {
-			logger.Error("Failed to update service: ", err)
-			return true
-		} else {
-			logger.WithFields(logrus.Fields{
-				"status": service.Status.LoadBalancer.Ingress,
-			}).Info("Updated service load balancer status")
-		}
+		logger.WithFields(logrus.Fields{
+			"status": service.Status.LoadBalancer.Ingress,
+		}).Info("Updating service load balancer status")
+
+		ipUpdated = true
 	}
 
 	success := true
@@ -1811,10 +1812,13 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 		reason = "OneIpNotAllocatable"
 		message = "One of the requested Ips is not allocatable"
 	}
-	err := cont.updateServiceCondition(service, success, reason, message)
-	if err != nil {
-		logger.Error("Failed to update service status: ", err)
-		return true
+	condUpdated := cont.updateServiceCondition(service, success, reason, message)
+	if ipUpdated || condUpdated {
+		_, err := cont.updateServiceStatus(service)
+		if err != nil {
+			logger.Error("Failed to update service status: ", err)
+			return true
+		}
 	}
 	return false
 }
