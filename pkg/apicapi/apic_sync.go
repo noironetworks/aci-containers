@@ -177,7 +177,7 @@ func (conn *ApicConnection) checkNonDeletable(class string) bool {
 }
 
 func (conn *ApicConnection) diffApicState(currentState ApicSlice,
-	desiredState ApicSlice) (updates ApicSlice, deletes []string) {
+	desiredState ApicSlice) (updates ApicSlice, deletes, localDeletes []string) {
 	i := 0
 	j := 0
 
@@ -195,6 +195,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 				}
 			}
 			if !deletable {
+				localDeletes = append(localDeletes, currentState[i].GetDn())
 				i++
 				continue
 			}
@@ -217,10 +218,23 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 					updates = append(updates, desiredState[j])
 					update = true
 				}
+				deletable := true
+				for class := range currentState[i] {
+					deletable = conn.checkNonDeletable(class)
+					if !deletable {
+						break
+					}
+				}
+				if !deletable {
+					localDeletes = append(localDeletes, currentState[i].GetDn())
+					i++
+					j++
+					continue
+				}
+
 				deletes = append(deletes, cd...)
 				delete = true
 			}
-
 			i++
 			j++
 		}
@@ -236,6 +250,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 		}
 		if !deletable {
 			i++
+			localDeletes = append(localDeletes, currentState[i].GetDn())
 			continue
 		}
 		deletes = append(deletes, currentState[i].GetDn())
@@ -354,7 +369,7 @@ func (conn *ApicConnection) fullSync() {
 	for tag, current := range conn.cachedState {
 		sort.Sort(current)
 		key := conn.keyHashes[tag]
-		u, d := conn.diffApicState(current, conn.desiredState[key])
+		u, d, _ := conn.diffApicState(current, conn.desiredState[key])
 		updates = append(updates, u...)
 		deletes = append(deletes, d...)
 	}
@@ -363,7 +378,7 @@ func (conn *ApicConnection) fullSync() {
 		tag := getTagFromKey(conn.prefix, key)
 		if _, ok := conn.cachedState[tag]; !ok {
 			// entire key not present in current state
-			a, _ := conn.diffApicState(nil, desired)
+			a, _, _ := conn.diffApicState(nil, desired)
 			updates = append(updates, a...)
 		}
 	}
@@ -440,7 +455,7 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	prepareApicSliceTag(objects, tag)
 
 	conn.indexMutex.Lock()
-	updates, deletes := conn.diffApicState(conn.desiredState[key], objects)
+	updates, deletes, localDeletes := conn.diffApicState(conn.desiredState[key], objects)
 	// temp cache to store all the "uni/tn-common/svcCont/svcRedirectPol-kube_svc_default_test-master"
 	// found in deletes
 	var temp_deletes []string
@@ -473,6 +488,12 @@ func (conn *ApicConnection) doWriteApicObjects(key string, objects ApicSlice,
 	}
 
 	conn.updateDnIndex(objects)
+	for _, localDel := range localDeletes {
+		conn.removeFromDnIndex(localDel)
+		if container {
+			delete(conn.containerDns, localDel)
+		}
+	}
 	for _, del := range deletes {
 		conn.removeFromDnIndex(del)
 		if container {
