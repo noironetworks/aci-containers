@@ -1277,6 +1277,12 @@ func (cont *AciController) updateDeviceCluster() {
 		}
 		nodeMap[node] = fabricPath
 	}
+
+	// For clusters other than OpenShift On OpenStack,
+	// openStackFabricPathDnMap will be empty
+	for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
+		nodeMap[host] = opflexOdevInfo.fabricPathDn
+	}
 	cont.indexMutex.Unlock()
 
 	var nodes []string
@@ -1316,11 +1322,100 @@ func (cont *AciController) fabricPathLogger(node string,
 	})
 }
 
+func (cont *AciController) setOpenStackSystemId() string {
+
+	// 1) get opflexIDEp with containerName == <node name of any one of the openshift nodes>
+	// 2) extract OpenStack system id from compHvDn attribute
+	//    comp/prov-OpenStack/ctrlr-[k8s-scale]-k8s-scale/hv-overcloud-novacompute-0 - sample compHvDn,
+	//    where k8s-scale is the system id
+
+	var systemId string
+	nodeList := cont.nodeIndexer.List()
+	if len(nodeList) < 1 {
+		return systemId
+	}
+	node := nodeList[0].(*v1.Node)
+	nodeName := node.ObjectMeta.Name
+	opflexIDEpFilter := fmt.Sprintf("query-target-filter=and(eq(opflexIDEp.containerName,\"%s\"))", nodeName)
+	opflexIDEpArgs := []string{
+		opflexIDEpFilter,
+	}
+	url := fmt.Sprintf("/api/node/class/opflexIDEp.json?%s", strings.Join(opflexIDEpArgs, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to get APIC response, err: ", err.Error())
+		return systemId
+	}
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			compHvDn, ok := body.Attributes["compHvDn"].(string)
+			if ok {
+				systemId = compHvDn[strings.IndexByte(compHvDn, '[')+1 : strings.IndexByte(compHvDn, ']')]
+				break
+			}
+		}
+	}
+	cont.indexMutex.Lock()
+	cont.openStackSystemId = systemId
+	cont.log.Info("Setting OpenStack system id : ", cont.openStackSystemId)
+	cont.indexMutex.Unlock()
+	return systemId
+}
+
+// Returns true when a new OpenStack opflexODev is added
+func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) bool {
+
+	// If opflexOdev compHvDn contains comp/prov-OpenShift/ctrlr-[<systemid>]-<systemid>,
+	// it means that it is an OpenStack OpflexOdev which belongs to OpenStack with system id <systemid>
+
+	var deviceClusterUpdate bool
+	compHvDn := obj.GetAttrStr("compHvDn")
+	if strings.Contains(compHvDn, "prov-OpenStack") {
+		cont.indexMutex.Lock()
+		systemId := cont.openStackSystemId
+		cont.indexMutex.Unlock()
+		if systemId == "" {
+			systemId = cont.setOpenStackSystemId()
+		}
+		if systemId == "" {
+			cont.log.Error("Failed  to get OpenStack system id")
+			return deviceClusterUpdate
+		}
+		prefix := fmt.Sprintf("comp/prov-OpenStack/ctrlr-[%s]-%s", systemId, systemId)
+		if strings.Contains(compHvDn, prefix) {
+			cont.log.Info("Received notification for OpenStack opflexODev update, hostName: ",
+				obj.GetAttrStr("hostName"), " dn: ", obj.GetAttrStr("dn"))
+			cont.indexMutex.Lock()
+			opflexOdevInfo, ok := cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")]
+			if ok {
+				opflexOdevInfo.opflexODevDn[obj.GetAttrStr("dn")] = struct{}{}
+				cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = opflexOdevInfo
+			} else {
+				var openstackopflexodevinfo openstackOpflexOdevInfo
+				opflexODevDn := make(map[string]struct{})
+				opflexODevDn[obj.GetAttrStr("dn")] = struct{}{}
+				openstackopflexodevinfo.fabricPathDn = obj.GetAttrStr("fabricPathDn")
+				openstackopflexodevinfo.opflexODevDn = opflexODevDn
+				cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = openstackopflexodevinfo
+				deviceClusterUpdate = true
+			}
+			cont.indexMutex.Unlock()
+		}
+	}
+	return deviceClusterUpdate
+}
+
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	devType := obj.GetAttrStr("devType")
 	domName := obj.GetAttrStr("domName")
 	ctrlrName := obj.GetAttrStr("ctrlrName")
 
+	if strings.Contains(cont.config.Flavor, "openstack") {
+		if cont.openStackOpflexOdevUpdate(obj) {
+			cont.log.Info("OpenStack opflexODev for ", obj.GetAttrStr("hostName"), " is added")
+			cont.updateDeviceCluster()
+		}
+	}
 	if (devType == cont.env.OpFlexDeviceType()) && (domName == cont.config.AciVmmDomain) && (ctrlrName == cont.config.AciVmmController) {
 		cont.fabricPathLogger(obj.GetAttrStr("hostName"), obj).Debug("Processing opflex device update")
 		if obj.GetAttrStr("state") == "disconnected" {
@@ -1432,6 +1527,23 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 		}
 		if len(devices) == 0 {
 			delete(cont.nodeOpflexDevice, node)
+		}
+	}
+
+	// For clusters other than OpenShift On OpenStack,
+	// openStackFabricPathDnMap will be empty
+	for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
+		if _, ok := opflexOdevInfo.opflexODevDn[dn]; ok {
+			cont.log.Info("Received OpenStack opflexODev delete notification for ", dn)
+			delete(opflexOdevInfo.opflexODevDn, dn)
+			if len(opflexOdevInfo.opflexODevDn) < 1 {
+				delete(cont.openStackFabricPathDnMap, host)
+				cont.log.Info("OpenStack opflexODev of host ", host, " is deleted from cache")
+				dnFound = true
+			} else {
+				cont.openStackFabricPathDnMap[host] = opflexOdevInfo
+			}
+			break
 		}
 	}
 	cont.indexMutex.Unlock()
