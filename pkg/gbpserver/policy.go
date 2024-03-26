@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
@@ -546,18 +545,18 @@ func postEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (in
 
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "io.ReadAll")
+		return nil, err
 	}
 
 	epg := &EPG{}
 	err = json.Unmarshal(content, epg)
 	if err != nil {
-		return nil, errors.Wrap(err, "json.Unmarshal")
+		return nil, err
 	}
 
 	err = epg.Make()
 	if err != nil {
-		return nil, errors.Wrap(err, "epg.Make")
+		return nil, err
 	}
 
 	return &PostResp{URI: epg.getURI()}, nil
@@ -609,18 +608,18 @@ func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string
 
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "io.ReadAll")
+		return nil, err
 	}
 
 	c := &Contract{}
 	err = json.Unmarshal(content, c)
 	if err != nil {
-		return nil, errors.Wrap(err, "json.Unmarshal")
+		return nil, err
 	}
 
 	err = c.Make()
 	if err != nil {
-		return nil, errors.Wrap(err, "c.Make")
+		return nil, err
 	}
 
 	return &PostResp{URI: c.getURI()}, nil
@@ -947,13 +946,13 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "io.ReadAll")
+		return nil, err
 	}
 
 	c := &NetworkPolicy{}
 	err = json.Unmarshal(content, c)
 	if err != nil {
-		return nil, errors.Wrap(err, "json.Unmarshal")
+		return nil, err
 	}
 	modb := getMoDB()
 	_, isUpdate := modb[c.getURI()]
@@ -961,7 +960,7 @@ func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (int
 	err = c.Make()
 	if err != nil {
 		log.Errorf("Network policy -- %v", err)
-		return nil, errors.Wrap(err, "c.Make")
+		return nil, err
 	}
 
 	name := c.HostprotPol.Attributes[propName]

@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	restclient "k8s.io/client-go/rest"
@@ -57,12 +56,12 @@ func (eps *EPSyncer) Init() error {
 	eps.epgQuery = fmt.Sprintf("/api/mo/uni/tn-%s/ctx-%s.json?query-target=children&target-subtree-class=fvRtCloudEPgCtx", tenant, vrf)
 	k8sCfg, err := restclient.InClusterConfig()
 	if err != nil {
-		return errors.Wrap(err, "InClusterConfig()")
+		return err
 	}
 
 	aciawClient, err := crdclientset.NewForConfig(k8sCfg)
 	if err != nil {
-		return errors.Wrap(err, "crdclientset.NewForConfig()")
+		return err
 	}
 
 	eps.crdClient = aciawClient.AciV1()

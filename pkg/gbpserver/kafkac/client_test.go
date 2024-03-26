@@ -33,7 +33,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -131,7 +130,7 @@ func (ts *suite) SendMessage(msg *sarama.ProducerMessage) (partition int32, offs
 	// compact, and preserve order
 	key, err := msg.Key.Encode()
 	if err != nil {
-		return 0, 0, errors.Wrap(err, "Key Encode")
+		return 0, 0, err
 	}
 
 	var v []byte
@@ -142,7 +141,7 @@ func (ts *suite) SendMessage(msg *sarama.ProducerMessage) (partition int32, offs
 	} else {
 		v, err = msg.Value.Encode()
 		if err != nil {
-			return 0, 0, errors.Wrap(err, "Value Encode")
+			return 0, 0, err
 		}
 	}
 
