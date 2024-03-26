@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/noironetworks/aci-containers/pkg/controller"
-	"github.com/noironetworks/aci-containers/pkg/loadbalancer"
 )
 
 func main() {
@@ -42,8 +41,6 @@ func main() {
 	configPath := flag.String("config-path", "",
 		"Absolute path to a host agent configuration file")
 	version := flag.Bool("version", false, "prints github commit ID and build time")
-	awsSubnets := flag.String("aws-subnets", "", "comma separated list of subnets")
-	vpcID := flag.String("vpc-id", "", "aws vpc id")
 	flag.Parse()
 
 	if *version {
@@ -105,26 +102,6 @@ func main() {
 		log.Info("Running controller built from git commit ID " +
 			versionInfo.GitCommit + " at build time " +
 			versionInfo.BuildTime)
-	}
-
-	if awsSubnets != nil && *awsSubnets != "None" {
-		nList := strings.Split(*awsSubnets, ",")
-		awslb, err := loadbalancer.NewAwsLB()
-		if err != nil {
-			log.Errorf("NewAwsLB: %v", err)
-		}
-
-		err = awslb.Init(*vpcID, nList)
-		if err != nil {
-			log.Errorf("lb init: %v", err)
-		}
-
-		nslb, err := loadbalancer.NewNSLB(awslb)
-
-		if err != nil {
-			log.Errorf("nslb init: %v", err)
-		}
-		defer nslb.Stop()
 	}
 
 	if config.EnableMetrics {
