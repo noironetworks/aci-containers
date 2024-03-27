@@ -42,10 +42,12 @@ func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.
 	return bd
 }
 
-func CreateNFNAExplicitEPG(systemid, tenant, bdName, epgName string, consumers, providers []string) apicapi.ApicObject {
+func CreateNFNAExplicitEPG(systemid, tenant, apName, bdName, epgName string, consumers, providers []string) apicapi.ApicObject {
 	var fvRsDomAtt apicapi.ApicObject
 	var epg apicapi.ApicObject
-	apName := "netop-" + systemid
+	if apName == "" {
+		apName = "netop-" + systemid
+	}
 	epg = apicapi.NewFvAEPg(tenant, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
@@ -62,7 +64,7 @@ func CreateNFNAExplicitEPG(systemid, tenant, bdName, epgName string, consumers, 
 	return epg
 }
 
-func CreateAepEpgAttachment(vlan int, aep string, epg apicapi.ApicObject) (apicSlice apicapi.ApicSlice) {
+func CreateAepEpgAttachment(vlan int, aep string, lldpDiscovery bool, epg apicapi.ApicObject) (apicSlice apicapi.ApicSlice) {
 	aepDn := "uni/infra/attentp-" + aep
 	var physDom string
 	physDom = "kubernetes" + "-" + globalScopeVlanDomPrefix
@@ -72,17 +74,20 @@ func CreateAepEpgAttachment(vlan int, aep string, epg apicapi.ApicObject) (apicS
 	// Workaround alert: Due to the fact that infraGeneric cannot take
 	// any other name than default, we have to follow this hack of not adding
 	// infraRsFuncToEpg as a child and making infraGeneric not deletable.
-	infraGeneric := apicapi.NewInfraGeneric(aep)
-	encap := fmt.Sprintf("%d", vlan)
-	infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
-	apicSlice = append(apicSlice, infraGeneric)
-	apicSlice = append(apicSlice, infraRsFuncToEpg)
+	if !lldpDiscovery {
+		infraGeneric := apicapi.NewInfraGeneric(aep)
+		encap := fmt.Sprintf("%d", vlan)
+		infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
+		apicSlice = append(apicSlice, infraGeneric)
+		apicSlice = append(apicSlice, infraRsFuncToEpg)
+	}
 	return apicSlice
 
 }
 
-func CreateNFCVlanRef(vlans string) *fabattv1.NetworkFabricConfiguration {
-	return &fabattv1.NetworkFabricConfiguration{
+func CreateNFCVlanRef(vlans string, explicitAp, lldpDiscovery bool) *fabattv1.NetworkFabricConfiguration {
+
+	nfc := &fabattv1.NetworkFabricConfiguration{
 		Spec: fabattv1.NetworkFabricConfigurationSpec{
 			VlanRefs: []fabattv1.VlanRef{
 				{
@@ -102,26 +107,35 @@ func CreateNFCVlanRef(vlans string) *fabattv1.NetworkFabricConfiguration {
 								Name:         "testVrf",
 								CommonTenant: true},
 						},
+						LLDPDiscovery: lldpDiscovery,
 					},
 				},
 			},
 		},
 	}
+	if explicitAp {
+		nfc.Spec.VlanRefs[0].Epg.ApplicationProfile = "testAp"
+	}
+	return nfc
 }
 
-func NFCCRUDCase(t *testing.T, additionalVlans string, aciPrefix string) {
+func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp, lldpDiscovery bool, aciPrefix string) {
 	cont := testChainedController(aciPrefix, true, additionalVlans)
 
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "101",
 		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
 	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
 	progMapPool := cont.updateFabricVlanPool(fvp)
-	progMapNFC := cont.updateNetworkFabricConfigurationObj(CreateNFCVlanRef("101"))
+	progMapNFC := cont.updateNetworkFabricConfigurationObj(CreateNFCVlanRef("101", explicitAp, lldpDiscovery))
 	progMap := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
 	expectedApicSlice1 = CreateNFNAObjs(nfna1, additionalVlans, cont)
 	var labelKey string
-	assert.Equal(t, 1, len(progMapNFC), "nfc obj count")
+	nfcObjCount := 1
+	if explicitAp {
+		nfcObjCount = 2
+	}
+	assert.Equal(t, nfcObjCount, len(progMapNFC), "nfc obj count")
 	assert.Equal(t, 1, len(progMapPool), "dom count")
 	assert.Equal(t, 1, len(progMap), "nfna epg count")
 	expectedApicSlice1 = CreateNFNADom(nfna1, additionalVlans, cont)
@@ -130,14 +144,28 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, aciPrefix string) {
 	var expectedApicSlice2 apicapi.ApicSlice
 	bd := CreateNFNAExplicitBD("common", "testVrf", "testBd", []string{"10.30.40.1/24"})
 	expectedApicSlice2 = append(expectedApicSlice2, bd)
-	epg := CreateNFNAExplicitEPG(aciPrefix, "testTenant", "testBd", "testEpg", []string{"ctrct1"}, []string{"ctrct2"})
-	expectedApicSlice2 = PopulateFabricPaths(epg, 101, nfna1,
-		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
-		cont, expectedApicSlice2)
-	expectedApicSlice2 = append(expectedApicSlice2, CreateAepEpgAttachment(101, "testAep", epg)...)
+	apName := ""
+	if explicitAp {
+		apName = "testAp"
+	}
+	epg := CreateNFNAExplicitEPG(aciPrefix, "testTenant", apName, "testBd", "testEpg", []string{"ctrct1"}, []string{"ctrct2"})
+	if lldpDiscovery {
+		expectedApicSlice2 = PopulateFabricPaths(epg, 101, nfna1,
+			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
+			cont, expectedApicSlice2)
+	} else {
+		expectedApicSlice2 = append(expectedApicSlice2, epg)
+	}
+	expectedApicSlice2 = append(expectedApicSlice2, CreateAepEpgAttachment(101, "testAep", lldpDiscovery, epg)...)
 	labelKey = cont.aciNameForKey("nfna", "secondary-vlan-101")
 	assert.Equal(t, expectedApicSlice2, progMap[labelKey], "nfna create global epg vlan 101")
-
+	if explicitAp {
+		var expectedApicSlice apicapi.ApicSlice
+		ap := apicapi.NewFvAP("testTenant", "testAp")
+		expectedApicSlice = append(expectedApicSlice, ap)
+		apKey := cont.aciNameForKey("ap", "tenant_testTenant_testAp")
+		assert.Equal(t, expectedApicSlice, progMapNFC[apKey], "nfna create ap")
+	}
 	var expectedApicSlice3 apicapi.ApicSlice
 	bd = CreateNFNABD(nfna1, 101, aciPrefix, cont)
 	expectedApicSlice3 = append(expectedApicSlice3, bd)
@@ -146,12 +174,18 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, aciPrefix string) {
 		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 		cont, expectedApicSlice3)
 	delProgMap := cont.deleteNetworkFabricConfigurationObj("NetworkFabricConfiguration")
-	assert.Equal(t, 1, len(delProgMap), "nfna update epg count")
+	nfcObjCount = 1
+	if explicitAp {
+		nfcObjCount = 2
+	}
+	assert.Equal(t, nfcObjCount, len(delProgMap), "nfna update epg count")
 	assert.Equal(t, expectedApicSlice3, delProgMap[labelKey], "nfna update global epg vlan 101")
 	delProgMap = cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
 	assert.Equal(t, 2, len(delProgMap), "nfna delete epg count")
 }
 
 func TestNFCCRUD(t *testing.T) {
-	NFCCRUDCase(t, "[100-101]", "suite1")
+	NFCCRUDCase(t, "[100-101]", false, true, "suite1")
+	NFCCRUDCase(t, "[100-101]", true, true, "suite1")
+	NFCCRUDCase(t, "[100-101]", false, false, "suite1")
 }

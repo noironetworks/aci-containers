@@ -32,10 +32,13 @@ type Contracts struct {
 }
 
 type Epg struct {
-	Name      string       `json:"name,omitempty"`
-	Tenant    string       `json:"tenant,omitempty"`
-	Contracts Contracts    `json:"contracts,omitempty"`
-	BD        BridgeDomain `json:"bd,omitempty"`
+	ApplicationProfile string       `json:"applicationProfile,omitempty"`
+	Name               string       `json:"name,omitempty"`
+	Tenant             string       `json:"tenant,omitempty"`
+	Contracts          Contracts    `json:"contracts,omitempty"`
+	BD                 BridgeDomain `json:"bd,omitempty"`
+	// +kubebuilder:default=true
+	LLDPDiscovery bool `json:"lldpDiscovery,omitempty"`
 }
 
 type VlanRef struct {

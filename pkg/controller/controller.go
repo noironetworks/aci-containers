@@ -187,9 +187,10 @@ type AciController struct {
 	//Used in Shared mode
 	sharedEncapCache map[int]*sharedEncapData
 	// vlan to propertiesList
-	sharedEncapNfcCache    map[int]*NfcData
-	sharedEncapNfcVlanMap  map[int]*NfcData
-	sharedEncapNfcLabelMap map[string]*NfcData
+	sharedEncapNfcCache         map[int]*NfcData
+	sharedEncapNfcVlanMap       map[int]*NfcData
+	sharedEncapNfcLabelMap      map[string]*NfcData
+	sharedEncapNfcAppProfileMap map[string]map[int]bool
 	// nadVlanMap encapLabel to vlan
 	sharedEncapLabelMap      map[string][]int
 	lldpIfCache              map[string]string
@@ -410,30 +411,31 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nodeACIPodAnnot:  make(map[string]aciPodAnnot),
 		nodeOpflexDevice: make(map[string]apicapi.ApicSlice),
 
-		nodeServiceMetaCache:     make(map[string]*nodeServiceMeta),
-		nodePodNetCache:          make(map[string]*nodePodNetMeta),
-		serviceMetaCache:         make(map[string]*serviceMeta),
-		snatPolicyCache:          make(map[string]*ContSnatPolicy),
-		snatServices:             make(map[string]bool),
-		snatNodeInfoCache:        make(map[string]*nodeinfo.NodeInfo),
-		rdConfigCache:            make(map[string]*rdConfig.RdConfig),
-		rdConfigSubnetCache:      make(map[string]*rdConfig.RdConfigSpec),
-		podIftoEp:                make(map[string]*EndPointData),
-		snatGlobalInfoCache:      make(map[string]map[string]*snatglobalinfo.GlobalInfo),
-		istioCache:               make(map[string]*istiov1.AciIstioOperator),
-		crdHandlers:              make(map[string]func(*AciController, <-chan struct{})),
-		ctrPortNameCache:         make(map[string]*ctrPortNameEntry),
-		nmPortNp:                 make(map[string]bool),
-		hppRef:                   make(map[string]hppReference),
-		additionalNetworkCache:   make(map[string]*AdditionalNetworkMeta),
-		sharedEncapCache:         make(map[int]*sharedEncapData),
-		sharedEncapNfcCache:      make(map[int]*NfcData),
-		sharedEncapNfcVlanMap:    make(map[int]*NfcData),
-		sharedEncapNfcLabelMap:   make(map[string]*NfcData),
-		sharedEncapLabelMap:      make(map[string][]int),
-		lldpIfCache:              make(map[string]string),
-		fabricVlanPoolMap:        make(map[string]map[string]string),
-		openStackFabricPathDnMap: make(map[string]openstackOpflexOdevInfo),
+		nodeServiceMetaCache:        make(map[string]*nodeServiceMeta),
+		nodePodNetCache:             make(map[string]*nodePodNetMeta),
+		serviceMetaCache:            make(map[string]*serviceMeta),
+		snatPolicyCache:             make(map[string]*ContSnatPolicy),
+		snatServices:                make(map[string]bool),
+		snatNodeInfoCache:           make(map[string]*nodeinfo.NodeInfo),
+		rdConfigCache:               make(map[string]*rdConfig.RdConfig),
+		rdConfigSubnetCache:         make(map[string]*rdConfig.RdConfigSpec),
+		podIftoEp:                   make(map[string]*EndPointData),
+		snatGlobalInfoCache:         make(map[string]map[string]*snatglobalinfo.GlobalInfo),
+		istioCache:                  make(map[string]*istiov1.AciIstioOperator),
+		crdHandlers:                 make(map[string]func(*AciController, <-chan struct{})),
+		ctrPortNameCache:            make(map[string]*ctrPortNameEntry),
+		nmPortNp:                    make(map[string]bool),
+		hppRef:                      make(map[string]hppReference),
+		additionalNetworkCache:      make(map[string]*AdditionalNetworkMeta),
+		sharedEncapCache:            make(map[int]*sharedEncapData),
+		sharedEncapNfcCache:         make(map[int]*NfcData),
+		sharedEncapNfcVlanMap:       make(map[int]*NfcData),
+		sharedEncapNfcLabelMap:      make(map[string]*NfcData),
+		sharedEncapNfcAppProfileMap: make(map[string]map[int]bool),
+		sharedEncapLabelMap:         make(map[string][]int),
+		lldpIfCache:                 make(map[string]string),
+		fabricVlanPoolMap:           make(map[string]map[string]string),
+		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,

@@ -470,9 +470,10 @@ func NewFvRsDomAttPhysDom(parentDn, physDom string) ApicObject {
 	return ret
 }
 
-func NewFvAP(ap string) ApicObject {
+func NewFvAP(tenant, ap string) ApicObject {
 	ret := newApicObject("fvAp")
 	ret["fvAp"].Attributes["name"] = ap
+	ret["fvAp"].HintDn = fmt.Sprintf("uni/tn-%s/ap-%s", tenant, ap)
 	return ret
 }
 

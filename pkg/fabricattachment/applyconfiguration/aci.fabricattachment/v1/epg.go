@@ -20,16 +20,26 @@ package v1
 // EpgApplyConfiguration represents an declarative configuration of the Epg type for use
 // with apply.
 type EpgApplyConfiguration struct {
-	Name      *string                         `json:"name,omitempty"`
-	Tenant    *string                         `json:"tenant,omitempty"`
-	Contracts *ContractsApplyConfiguration    `json:"contracts,omitempty"`
-	BD        *BridgeDomainApplyConfiguration `json:"bd,omitempty"`
+	ApplicationProfile *string                         `json:"applicationProfile,omitempty"`
+	Name               *string                         `json:"name,omitempty"`
+	Tenant             *string                         `json:"tenant,omitempty"`
+	Contracts          *ContractsApplyConfiguration    `json:"contracts,omitempty"`
+	BD                 *BridgeDomainApplyConfiguration `json:"bd,omitempty"`
+	LLDPDiscovery      *bool                           `json:"lldpDiscovery,omitempty"`
 }
 
 // EpgApplyConfiguration constructs an declarative configuration of the Epg type for use with
 // apply.
 func Epg() *EpgApplyConfiguration {
 	return &EpgApplyConfiguration{}
+}
+
+// WithApplicationProfile sets the ApplicationProfile field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ApplicationProfile field is set to the value of the last call.
+func (b *EpgApplyConfiguration) WithApplicationProfile(value string) *EpgApplyConfiguration {
+	b.ApplicationProfile = &value
+	return b
 }
 
 // WithName sets the Name field in the declarative configuration to the given value
@@ -61,5 +71,13 @@ func (b *EpgApplyConfiguration) WithContracts(value *ContractsApplyConfiguration
 // If called multiple times, the BD field is set to the value of the last call.
 func (b *EpgApplyConfiguration) WithBD(value *BridgeDomainApplyConfiguration) *EpgApplyConfiguration {
 	b.BD = value
+	return b
+}
+
+// WithLLDPDiscovery sets the LLDPDiscovery field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LLDPDiscovery field is set to the value of the last call.
+func (b *EpgApplyConfiguration) WithLLDPDiscovery(value bool) *EpgApplyConfiguration {
+	b.LLDPDiscovery = &value
 	return b
 }
