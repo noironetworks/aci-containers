@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
@@ -111,7 +110,7 @@ func InitKafkaClient(cfg *KafkaCfg, ci *CloudInfo) (*KafkaClient, error) {
 
 	err = c.cniCache.Init()
 	if err != nil {
-		return nil, errors.Wrap(err, "cniCache.Init()")
+		return nil, err
 	}
 
 	go func() {
@@ -262,19 +261,19 @@ func (kc *KafkaClient) kafkaSetup() error {
 
 	p, err := sarama.NewSyncProducer(kc.cfg.Brokers, producerConfig)
 	if err != nil {
-		return errors.Wrap(err, "NewSyncProducer")
+		return err
 	}
 
 	kc.producer = p
 
 	c, err := sarama.NewConsumer(kc.cfg.Brokers, producerConfig)
 	if err != nil {
-		return errors.Wrap(err, "NewConsumer")
+		return err
 	}
 
 	pc, err := c.ConsumePartition(kc.cfg.Topic, 0, sarama.OffsetOldest)
 	if err != nil {
-		return errors.Wrap(err, "ConsumePartition")
+		return err
 	}
 	kc.consumer = pc
 	return nil

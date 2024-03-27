@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
@@ -473,13 +472,13 @@ func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string
 
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "io.ReadAll")
+		return nil, err
 	}
 
 	ep := &Endpoint{}
 	err = json.Unmarshal(content, ep)
 	if err != nil {
-		return nil, errors.Wrap(err, "json.Unmarshal")
+		return nil, err
 	}
 
 	uri, err := ep.Add()

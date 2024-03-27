@@ -22,7 +22,6 @@ require (
 	github.com/openshift/api v0.0.0-20240125191952-1e2afa0f76cf
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
 	github.com/ovn-org/libovsdb v0.0.0-20210422150337-f29ae9b43ea5
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.18.0
 	github.com/qinqon/kube-admission-webhook v0.21.0
 	github.com/sirupsen/logrus v1.9.3
@@ -129,6 +128,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.46.0 // indirect
