@@ -15,13 +15,15 @@
 package controller
 
 import (
+	"reflect"
+
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
 
 	"context"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -126,8 +128,9 @@ func netFabConfigInit(cont *AciController, stopCh <-chan struct{}) {
 	cache.WaitForCacheSync(stopCh, cont.netFabConfigInformer.HasSynced)
 }
 
-func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfiguration) {
+func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfiguration, progMap map[string]apicapi.ApicSlice) {
 	cont.sharedEncapNfcVlanMap = make(map[int]*NfcData)
+	currAppProfs := make(map[string]bool)
 	for _, vlanRef := range sfna.Spec.VlanRefs {
 		vlans, _, _, err := util.ParseVlanList([]string{vlanRef.Vlans})
 		if err != nil {
@@ -140,9 +143,23 @@ func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfigur
 					Aeps: make(map[string]bool),
 				}
 			}
+			if vlanRef.Epg.ApplicationProfile != "" {
+				appProfile := vlanRef.Epg.ApplicationProfile
+				tenantName := cont.getNodeFabNetAttTenant(vlanRef.Epg.Tenant)
+				appProfKey := "tenant_" + tenantName + "_" + appProfile
+				currAppProfs[appProfKey] = true
+			}
 			for _, aep := range vlanRef.Aeps {
 				cont.sharedEncapNfcVlanMap[vlan].Aeps[aep] = true
 			}
+		}
+	}
+	for appProfile := range cont.sharedEncapNfcAppProfileMap {
+		if _, ok := currAppProfs[appProfile]; !ok {
+			delete(cont.sharedEncapNfcAppProfileMap, appProfile)
+			labelKey := cont.aciNameForKey("ap", appProfile)
+			cont.log.Errorf("Deleting AP %s", appProfile)
+			progMap[labelKey] = nil
 		}
 	}
 }
@@ -216,7 +233,7 @@ func (cont *AciController) updateNetworkFabricConfigurationObj(obj interface{}) 
 		return progMap
 	}
 	cont.log.Info("networkFabricConfiguration update: ")
-	cont.updateNfcVlanMap(netFabConfig)
+	cont.updateNfcVlanMap(netFabConfig, progMap)
 	cont.updateNfcLabelMap(netFabConfig)
 	affectedVlans := cont.updateNfcCombinedCache()
 	cont.updateNodeFabNetAttStaticAttachments(affectedVlans, progMap)
@@ -240,6 +257,12 @@ func (cont *AciController) deleteNetworkFabricConfigurationObj(key string) map[s
 	progMap := make(map[string]apicapi.ApicSlice)
 	var affectedVlans []int
 	cont.indexMutex.Lock()
+	for appProfile := range cont.sharedEncapNfcAppProfileMap {
+		delete(cont.sharedEncapNfcAppProfileMap, appProfile)
+		labelKey := cont.aciNameForKey("ap", appProfile)
+		cont.log.Errorf("Deleting AP %s", appProfile)
+		progMap[labelKey] = nil
+	}
 	cont.sharedEncapNfcVlanMap = nil
 	cont.sharedEncapNfcLabelMap = nil
 	// Delete old mapping
@@ -265,13 +288,20 @@ func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bo
 }
 
 // Internal API - Only used in GlobalScopeVlan mode
-func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTenant, nfcBd, nfcEpg string, nfcEpgConsumers, nfcEpgProviders []string) {
+func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg string, nfcEpgConsumers, nfcEpgProviders []string, lldpDiscovery bool) {
 	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
 		nfcEpgTenant = nfcData.Epg.Tenant
+		nfcEpgAp = ""
+		if !(((nfcEpgTenant == "") || (nfcEpgTenant == cont.config.AciPolicyTenant)) && (nfcData.Epg.ApplicationProfile == "netop-"+cont.config.AciPrefix)) && !((nfcEpgTenant == "common") && (nfcData.Epg.ApplicationProfile == "netop-common")) {
+			nfcEpgAp = nfcData.Epg.ApplicationProfile
+		}
 		nfcBd = nfcData.Epg.BD.Name
 		nfcEpg = nfcData.Epg.Name
 		nfcEpgConsumers = nfcData.Epg.Contracts.Consumer
 		nfcEpgProviders = nfcData.Epg.Contracts.Provider
+		lldpDiscovery = nfcData.Epg.LLDPDiscovery
+	} else {
+		lldpDiscovery = true
 	}
 	return
 

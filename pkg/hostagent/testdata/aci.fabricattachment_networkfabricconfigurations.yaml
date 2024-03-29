@@ -59,6 +59,8 @@ spec:
                       type: array
                     epg:
                       properties:
+                        applicationProfile:
+                          type: string
                         bd:
                           properties:
                             common-tenant:
@@ -88,6 +90,9 @@ spec:
                                 type: string
                               type: array
                           type: object
+                        lldpDiscovery:
+                          default: true
+                          type: boolean
                         name:
                           type: string
                         tenant:

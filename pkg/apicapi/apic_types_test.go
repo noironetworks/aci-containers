@@ -597,7 +597,7 @@ func TestNewFvRsDomAttPhysDom(t *testing.T) {
 
 func TestNewFvAP(t *testing.T) {
 	ap := "testAp"
-	obj := NewFvAP(ap)
+	obj := NewFvAP("testTenant", ap)
 	assert.NotNil(t, obj)
 
 	assert.Equal(t, ap, obj.GetAttr("name"))
