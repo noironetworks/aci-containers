@@ -30,7 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 
-	"github.com/Mellanox/sriovnet"
+	"github.com/k8snetworkplumbingwg/sriovnet"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	"github.com/noironetworks/aci-containers/pkg/util"
 )

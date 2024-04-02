@@ -1,7 +1,3 @@
-# github.com/Mellanox/sriovnet v1.0.2
-## explicit; go 1.13
-github.com/Mellanox/sriovnet
-github.com/Mellanox/sriovnet/pkg/utils/filesystem
 # github.com/Microsoft/go-winio v0.6.1
 ## explicit; go 1.17
 github.com/Microsoft/go-winio
