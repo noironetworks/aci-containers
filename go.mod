@@ -1,7 +1,6 @@
 go 1.21
 
 require (
-	github.com/Mellanox/sriovnet v1.0.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/aws/aws-sdk-go v1.44.298
 	github.com/containernetworking/cni v1.1.2
