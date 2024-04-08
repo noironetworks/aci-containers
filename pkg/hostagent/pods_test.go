@@ -297,6 +297,10 @@ func TestAdditional(t *testing.T) {
 			assert.Equal(t, expected_ep, ep, "fillEpFields")
 		}
 		agent.log.Info("Created ##### ", i, pt.uuid)
+		metadataKey := pt.namespace + "/" + pt.name
+		exists, err := agent.env.CheckPodExists(&metadataKey)
+		assert.Nil(t, err)
+		assert.True(t, exists)
 	}
 	for _, pt := range podTests {
 		pod := pod(pt.uuid, pt.namespace, pt.name, pt.eg, pt.sg, pt.qp)

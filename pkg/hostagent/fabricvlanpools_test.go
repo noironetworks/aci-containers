@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -68,4 +69,33 @@ func TestFabricVlanPoolDeleted(t *testing.T) {
 	expectedGlobalPool := "100"
 	result := agent.getGlobalFabricVlanPool()
 	assert.Equal(t, expectedGlobalPool, result, "global fabric vlan pool")
+}
+func TestGetFabricVlanPool(t *testing.T) {
+	agent := &HostAgent{
+		fabricVlanPoolMap: map[string]map[string]string{
+			"aci-containers-system": {
+				"default": "[3023]",
+			},
+		},
+	}
+
+	expected1 := "3023"
+	result1 := agent.getFabricVlanPool("aci-containers-system", false)
+	assert.Equal(t, expected1, result1, "fabric vlan pool for existing namespace")
+
+	expected2 := "3023"
+	result2 := agent.getFabricVlanPool("non-existent-namespace", false)
+	assert.Equal(t, expected2, result2, "fabric vlan pool for non-existent namespace")
+
+	expected3 := "3023"
+	result3 := agent.getFabricVlanPool("aci-containers-system", true)
+	assert.Equal(t, expected3, result3, "fabric vlan pool for existing namespace with locked indexMutex")
+}
+func TestInitFabricVlanPoolsInformerFromClient(t *testing.T) {
+	client := &fabattclientset.Clientset{}
+
+	agent := testAgent()
+	agent.initFabricVlanPoolsInformerFromClient(client)
+
+	assert.NotNil(t, agent.fabricVlanPoolInformer, "fabricVlanPoolInformer")
 }

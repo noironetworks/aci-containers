@@ -2,6 +2,11 @@ package hostagent
 
 import (
 	"context"
+	"reflect"
+	"sort"
+	"testing"
+	"time"
+
 	netpolicy "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"github.com/stretchr/testify/assert"
@@ -9,12 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sort"
-	"testing"
-	"time"
 )
 
 func testnetattach(name, namespace, config string, annot map[string]string) *netpolicy.NetworkAttachmentDefinition {
@@ -71,6 +72,9 @@ func TestNetAttachmentDef(t *testing.T) {
 
 	expected := agent.netattdefmap["default"]
 	assert.Equal(t, actual, expected)
+	exists, err := agent.env.CheckNetAttDefExists(expected.Namespace + "/" + expected.Name)
+	assert.Nil(t, err)
+	assert.True(t, exists)
 }
 
 func TestNetAttachmentDefWithoutAcii(t *testing.T) {

@@ -16,13 +16,15 @@ package hostagent
 
 import (
 	"encoding/json"
-	rdconfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
-	tu "github.com/noironetworks/aci-containers/pkg/testutil"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"testing"
 	"time"
+
+	rdconfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
+	rdConClSet "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
+	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func rdConfigdata(usersubnets, discoveredsubnets []string) *rdconfig.RdConfig {
@@ -77,5 +79,22 @@ func TestRdConfig(t *testing.T) {
 	os.WriteFile(agent.FormRdFilePath(), []byte("random gibberish"), 0644)
 	agent.fakeRdConfigSource.Add(rdconfig)
 	agent.doTestRdConfig(t, "rdconfig", []string{"10.10.10.0/24", "20.20.20.0/24"}, "create")
+	rdconfig = rdConfigdata([]string{"10.10.11.0/24"}, []string{"20.20.21.0/24"})
+	agent.fakeRdConfigSource.Modify(rdconfig)
+	time.Sleep(100 * time.Millisecond)
+	agent.doTestRdConfig(t, "rdconfig", []string{"10.10.11.0/24", "20.20.21.0/24"}, "modify")
+	agent.fakeRdConfigSource.Delete(rdconfig)
+	time.Sleep(100 * time.Millisecond)
+	_, err = os.ReadFile(agent.FormRdFilePath())
+	assert.NotNil(t, err, "rdconfig file should be removed")
 	agent.stop()
+}
+func TestInitRdConfigInformerFromClient(t *testing.T) {
+	rdConClient := &rdConClSet.Clientset{}
+
+	agent := testAgent()
+
+	agent.initRdConfigInformerFromClient(rdConClient)
+
+	assert.NotNil(t, agent.rdConfigInformer, "rdConfigInformer should not be nil")
 }
