@@ -4,9 +4,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type NetworkFabricConfigurationState string
+
+const (
+	Ready  NetworkFabricConfigurationState = "Ready"
+	Failed NetworkFabricConfigurationState = "Failed"
+)
+
 // NetworkFabricConfigurationStatus defines the observed state of NetworkFabricConfiguration
 type NetworkFabricConfigurationStatus struct {
-	State string `json:"state,omitempty"`
+	State NetworkFabricConfigurationState `json:"state"`
 }
 
 type NADVlanRef struct {

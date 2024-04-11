@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"fmt"
 	"reflect"
 
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
@@ -100,11 +101,11 @@ func (cont *AciController) initFabNetConfigInformerFromClient(fabAttClient *faba
 	cont.initFabNetConfigInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NetworkFabricConfigurations(metav1.NamespaceAll).List(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricConfigurations().List(context.TODO(), options)
 			},
 
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NetworkFabricConfigurations(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricConfigurations().Watch(context.TODO(), options)
 			},
 		})
 }
@@ -121,7 +122,7 @@ func netFabConfigInit(cont *AciController, stopCh <-chan struct{}) {
 	go cont.netFabConfigInformer.Run(stopCh)
 	go cont.processQueue(cont.netFabConfigQueue, cont.netFabConfigInformer.GetIndexer(),
 		func(obj interface{}) bool {
-			return cont.handleNetworkFabricConfigurationUpdate(obj)
+			return cont.handleNetworkFabricConfigurationUpdate(obj, fabNetAttClient)
 		}, func(key string) bool {
 			return cont.handleNetworkFabricConfigurationDelete(key)
 		}, nil, stopCh)
@@ -225,13 +226,8 @@ func (cont *AciController) updateNfcCombinedCache() (affectedVlans []int) {
 	return affectedVlans
 }
 
-func (cont *AciController) updateNetworkFabricConfigurationObj(obj interface{}) map[string]apicapi.ApicSlice {
+func (cont *AciController) updateNetworkFabricConfigurationObj(netFabConfig *fabattv1.NetworkFabricConfiguration) map[string]apicapi.ApicSlice {
 	progMap := make(map[string]apicapi.ApicSlice)
-	netFabConfig, ok := obj.(*fabattv1.NetworkFabricConfiguration)
-	if !ok {
-		cont.log.Error("handleNetworkFabricConfigUpdate: Bad object type")
-		return progMap
-	}
 	cont.log.Info("networkFabricConfiguration update: ")
 	cont.updateNfcVlanMap(netFabConfig, progMap)
 	cont.updateNfcLabelMap(netFabConfig)
@@ -240,8 +236,24 @@ func (cont *AciController) updateNetworkFabricConfigurationObj(obj interface{}) 
 	return progMap
 }
 
-func (cont *AciController) handleNetworkFabricConfigurationUpdate(obj interface{}) bool {
-	progMap := cont.updateNetworkFabricConfigurationObj(obj)
+func (cont *AciController) handleNetworkFabricConfigurationUpdate(obj interface{}, fabNetAttClient *fabattclset.Clientset) bool {
+	netFabConfig, ok := obj.(*fabattv1.NetworkFabricConfiguration)
+	if !ok {
+		cont.log.Error("handleNetworkFabricConfigUpdate: Bad object type")
+		return false
+	}
+	nfcName := netFabConfig.ObjectMeta.Name
+	if netFabConfig.Status.State == "" {
+		if status, validateErr := cont.validateNfcCr(netFabConfig); !status {
+			cont.log.Error("NetworkFabricConfiguration Failed: ", validateErr)
+			return cont.setNfcStatus(nfcName, fabNetAttClient, fabattv1.Failed)
+		}
+	}
+	if netFabConfig.Status.State != fabattv1.Ready {
+		cont.log.Debug("Network Fabric Configuration not in Ready state: ", netFabConfig.ObjectMeta.Name)
+		return false
+	}
+	progMap := cont.updateNetworkFabricConfigurationObj(netFabConfig)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
 			cont.apicConn.ClearApicObjects(labelKey)
@@ -317,4 +329,35 @@ func (cont *AciController) getSharedEncapNfcCacheBDLocked(encap int) (nfcBdTenan
 		nfcBdSubnets = nfcData.Epg.BD.Subnets
 	}
 	return
+}
+
+func (cont *AciController) setNfcStatus(nfcName string, fabNetAttClient *fabattclset.Clientset, status fabattv1.NetworkFabricConfigurationState) bool {
+	nfcIndexer := cont.netFabConfigInformer.GetIndexer()
+	obj, exists, err := nfcIndexer.GetByKey(nfcName)
+	if err == nil && exists && obj != nil {
+		nfc := obj.(*fabattv1.NetworkFabricConfiguration)
+		if nfc.Status.State != status {
+			nfc.Status.State = status
+			if fabNetAttClient != nil {
+				err = util.UpdateNfcCR(*fabNetAttClient, nfc)
+				if err != nil {
+					cont.log.Info("NetworkFabricConfiguration status update failed queue the request again: ", err)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (cont *AciController) validateNfcCr(cr *fabattv1.NetworkFabricConfiguration) (bool, string) {
+	epgVlans := make(map[string]bool)
+	for _, vlan_detail := range cr.Spec.VlanRefs {
+		if ok := epgVlans[vlan_detail.Vlans]; !ok {
+			epgVlans[vlan_detail.Vlans] = true
+		} else {
+			return false, fmt.Sprintf("Vlans %s of multiple EPGs are conflicting", vlan_detail.Vlans)
+		}
+	}
+	return true, ""
 }
