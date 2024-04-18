@@ -117,7 +117,9 @@ func endpointslice(namespace string, name string,
 
 	for i, ip := range nextHopIps {
 		var endpoint discovery.Endpoint
+		var condition bool = true
 		endpoint.Addresses = append(endpoint.Addresses, ip)
+		endpoint.Conditions.Ready = &condition
 		e.Endpoints = append(e.Endpoints, endpoint)
 		e.Endpoints[i].NodeName = &nodename
 	}

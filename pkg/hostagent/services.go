@@ -856,13 +856,15 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							nodeZone = zone
 							if !external && zoneOk && hintsEnabled && e.Hints != nil {
 								for _, hintZone := range e.Hints.ForZones {
-									if nodeZone == hintZone.Name {
+									if nodeZone == hintZone.Name && *e.Conditions.Ready == true {
 										nexthops["topologyawarehints"] =
 											append(nexthops["topologyawarehints"], a)
 									}
 								}
 							} else {
-								nexthops["any"] = append(nexthops["any"], a)
+								if *e.Conditions.Ready == true {
+									nexthops["any"] = append(nexthops["any"], a)
+								}
 							}
 						}
 					}
@@ -870,9 +872,11 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				// Select the high priority keys as datapath doesn't have support for fallback
 				if _, ok := nexthops["topologyawarehints"]; ok {
 					sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
+					agent.log.Info("NextHopIps are", sm.NextHopIps)
 					agent.log.Debugf("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
 				} else {
 					sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
+					agent.log.Info("NextHopIps are", sm.NextHopIps)
 				}
 				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 					hasValidMapping = true
