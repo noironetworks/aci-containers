@@ -21,6 +21,13 @@ type FabricDiscoveryAgent interface {
 	PopulateAdjacencies(adjs map[string][]FabricAttachmentData)
 }
 
+type LLDPInterfaceState struct {
+	Enabled        bool
+	InterfaceType  string
+	AdminState     string
+	IsOvsInterface bool
+}
+
 func (ha *HostAgent) getFabricDiscoveryAgent(method int) FabricDiscoveryAgent {
 	switch method {
 	case FabricDiscoveryMethodLLDPNMState:

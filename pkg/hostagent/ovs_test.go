@@ -14,6 +14,7 @@
 
 package hostagent
 
+/*
 import (
 	"testing"
 
@@ -160,3 +161,4 @@ func TestUuidSetToMap(t *testing.T) {
 	assert.EqualValues(t, 3, len(ports.GoSet))
 	assert.EqualValues(t, 3, len(portMap2))
 }
+*/

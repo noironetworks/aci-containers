@@ -275,6 +275,9 @@ type HostAgentConfig struct {
 	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
 	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 
+	// ChainedModeOvsDBSocket when operating in chainedmode with ovscni
+	ChainedModeOvsDBSocket string `json:"chained-mode-ovsdb-socket,omitempty"`
+
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
@@ -362,4 +365,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")
 	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
 	flag.IntVar(&config.MetricsPort, "metrics-port", 8190, "Port to expose metrics on")
+	flag.StringVar(&config.ChainedModeOvsDBSocket, "chained-mode-ovsdb-socket", "/var/run/openvswitch/db.sock", "in chained mode - host ovs unix socket being used for ovscni")
 }

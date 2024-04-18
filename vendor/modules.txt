@@ -80,7 +80,7 @@ github.com/cenkalti/backoff/v4
 # github.com/cenkalti/hub v1.0.1
 ## explicit
 github.com/cenkalti/hub
-# github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd
+# github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1
 ## explicit
 github.com/cenkalti/rpc2
 github.com/cenkalti/rpc2/jsonrpc
@@ -470,9 +470,13 @@ github.com/openshift/api/route/v1
 github.com/openshift/client-go/route/clientset/versioned
 github.com/openshift/client-go/route/clientset/versioned/scheme
 github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
-# github.com/ovn-org/libovsdb v0.0.0-20210422150337-f29ae9b43ea5
+# github.com/ovn-org/libovsdb v0.6.0
 ## explicit; go 1.16
-github.com/ovn-org/libovsdb
+github.com/ovn-org/libovsdb/cache
+github.com/ovn-org/libovsdb/client
+github.com/ovn-org/libovsdb/mapper
+github.com/ovn-org/libovsdb/model
+github.com/ovn-org/libovsdb/ovsdb
 # github.com/pelletier/go-toml/v2 v2.1.1
 ## explicit; go 1.16
 github.com/pelletier/go-toml/v2

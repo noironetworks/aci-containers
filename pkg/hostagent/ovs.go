@@ -15,90 +15,107 @@
 package hostagent
 
 import (
-	"encoding/json"
-	"errors"
+	"context"
+	//"encoding/json"
+	//"errors"
 	"fmt"
-	"strconv"
+	//"strconv"
+	"time"
 
-	"github.com/noironetworks/aci-containers/pkg/metadata"
-	"github.com/ovn-org/libovsdb"
+	"github.com/cenkalti/backoff/v4"
+	//"github.com/noironetworks/aci-containers/pkg/metadata"
+	libovsdbclient "github.com/ovn-org/libovsdb/client"
+	libovsdbmodel "github.com/ovn-org/libovsdb/model"
+	libovsdbdb "github.com/ovn-org/libovsdb/ovsdb"
 )
 
 type ovsBridge struct {
-	uuid  string
-	ports map[string]string
+	//uuid  string
+	//ports map[string]string
+	UUID  string   `ovsdb:"_uuid"`
+	Name  string   `ovsdb:"name"`
+	Ports []string `ovsdb:"ports"`
+}
+
+type ovsPort struct {
+	UUID       string   `ovsdb:"_uuid"`
+	Name       string   `ovsdb:"name"`
+	Interfaces []string `ovsdb:"interfaces"`
 }
 
 func uuidSetToMap(set interface{}) map[string]bool {
 	ports := map[string]bool{}
 
 	switch t := set.(type) {
-	case libovsdb.OvsSet:
+	case libovsdbdb.OvsSet:
 		for _, p := range t.GoSet {
-			if pt, ok := p.(libovsdb.UUID); ok {
+			if pt, ok := p.(libovsdbdb.UUID); ok {
 				ports[pt.GoUUID] = true
 			}
 		}
-	case libovsdb.UUID:
+	case libovsdbdb.UUID:
 		ports[t.GoUUID] = true
 	}
 
 	return ports
 }
 
-func loadBridges(ovs *libovsdb.OvsdbClient,
+func loadBridges(ovs *libovsdbclient.Client,
 	brNames []string) (map[string]ovsBridge, error) {
 	bridges := map[string]ovsBridge{}
+	/*
 
-	requests := make(map[string]libovsdb.MonitorRequest)
-	requests["Bridge"] = libovsdb.MonitorRequest{
-		Columns: []string{"name", "ports"},
-		Select:  libovsdb.MonitorSelect{Initial: true},
-	}
-	requests["Port"] = libovsdb.MonitorRequest{
-		Columns: []string{"interfaces", "name"},
-		Select:  libovsdb.MonitorSelect{Initial: true},
-	}
+		requests := make(map[string]libovsdbdb.MonitorRequest)
+		requests["Bridge"] = libovsdbdb.MonitorRequest{
+			Columns: []string{"name", "ports"},
+			Select:  libovsdbdb.MonitorSelect{Initial: true},
+		}
+		requests["Port"] = libovsdbdb.MonitorRequest{
+			Columns: []string{"interfaces", "name"},
+			Select:  libovsdbdb.MonitorSelect{Initial: true},
+		}
+		monitor := ovs.MonitorAll()
 
-	initial, _ := ovs.Monitor("Open_vSwitch", "", requests)
+		initial, _ := ovs.Monitor("Open_vSwitch", "", requests)
 
-	var pcache = map[string]libovsdb.Row{}
-	tableUpdate, ok := initial.Updates["Port"]
-	if !ok {
-		return nil, fmt.Errorf("Port table not found")
-	}
-	for uuid, row := range tableUpdate.Rows {
-		pcache[uuid] = row.New
-	}
+		var pcache = map[string]libovsdbdb.Row{}
+		tableUpdate, ok := initial.Updates["Port"]
+		if !ok {
+			return nil, fmt.Errorf("Port table not found")
+		}
+		for uuid, row := range tableUpdate.Rows {
+			pcache[uuid] = row.New
+		}
 
-	tableUpdate, ok = initial.Updates["Bridge"]
-	if !ok {
-		return nil, fmt.Errorf("Bridges table not found")
-	}
-	for uuid, row := range tableUpdate.Rows {
-		if n, ok := row.New.Fields["name"].(string); ok {
-			for _, brName := range brNames {
-				if brName == n {
-					br := ovsBridge{
-						uuid:  uuid,
-						ports: map[string]string{},
-					}
-					for uuid := range uuidSetToMap(row.New.Fields["ports"]) {
-						if pn, ok := pcache[uuid].Fields["name"].(string); ok {
-							br.ports[pn] = uuid
+		tableUpdate, ok = initial.Updates["Bridge"]
+		if !ok {
+			return nil, fmt.Errorf("Bridges table not found")
+		}
+		for uuid, row := range tableUpdate.Rows {
+			if n, ok := row.New.Fields["name"].(string); ok {
+				for _, brName := range brNames {
+					if brName == n {
+						br := ovsBridge{
+							uuid:  uuid,
+							ports: map[string]string{},
 						}
+						for uuid := range uuidSetToMap(row.New.Fields["ports"]) {
+							if pn, ok := pcache[uuid].Fields["name"].(string); ok {
+								br.ports[pn] = uuid
+							}
+						}
+						bridges[brName] = br
 					}
-					bridges[brName] = br
 				}
 			}
 		}
-	}
 
-	for _, name := range brNames {
-		if _, ok := bridges[name]; !ok {
-			return nil, fmt.Errorf("Bridge %s not found", name)
+		for _, name := range brNames {
+			if _, ok := bridges[name]; !ok {
+				return nil, fmt.Errorf("Bridge %s not found", name)
+			}
 		}
-	}
+	*/
 
 	return bridges, nil
 }
@@ -115,19 +132,34 @@ func (agent *HostAgent) syncPorts(socket string) error {
 	} else {
 		connectString = "unix:" + socket
 	}
-	ovs, err := libovsdb.Connect(connectString, nil)
+	dbModelReq, err := libovsdbmodel.NewDBModel("Open_vSwitch", map[string]libovsdbmodel.Model{"Bridge": &ovsBridge{}, "Port": &ovsPort{}})
 	if err != nil {
-		agent.log.Errorf("Connect %s failed %v", connectString, err)
+		agent.log.Errorf("Failed to create OVS client DBModel:%s", err)
 		return err
-	} else {
-		agent.log.Debugf("Connect %s successful", connectString)
 	}
-	defer ovs.Disconnect()
+	ovsdbClient, err := libovsdbclient.NewOVSDBClient(dbModelReq,
+		libovsdbclient.WithEndpoint(connectString),
+		libovsdbclient.WithReconnect(time.Minute, &backoff.ConstantBackOff{Interval: 5 * time.Second}))
+	if err != nil {
+		agent.log.Errorf("Failed to create OVSDB client:%s", err)
+		return err
+	}
+	err = ovsdbClient.Connect(context.Background())
+	if err != nil {
+		time.Sleep(time.Minute)
+		if ovsdbClient.Connected() {
+			return nil
+		}
+		agent.log.Errorf("OVSDB client connection failed:%s", err)
+		return err
+	}
+
+	defer ovsdbClient.Disconnect()
 
 	brNames :=
 		[]string{agent.config.AccessBridgeName, agent.config.IntBridgeName}
 
-	bridges, err := loadBridges(ovs, brNames)
+	bridges, err := loadBridges(&ovsdbClient, brNames)
 	if err != nil {
 		return err
 	}
@@ -138,8 +170,9 @@ func (agent *HostAgent) syncPorts(socket string) error {
 		}
 	}
 
-	ops := agent.diffPorts(bridges)
-	return execTransaction(ovs, ops)
+	//ops := agent.diffPorts(bridges)
+	//return execTransaction(ovs, ops)
+	return nil
 }
 
 func (agent *HostAgent) syncPortsQ() bool {
@@ -150,8 +183,9 @@ func (agent *HostAgent) syncPortsQ() bool {
 	return false
 }
 
-func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Operation {
-	var ops []libovsdb.Operation
+/*
+func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdbdb.Operation {
+	var ops []libovsdbdb.Operation
 
 	found := make(map[string]map[string]bool)
 
@@ -694,3 +728,4 @@ func execTransaction(ovs *libovsdb.OvsdbClient, ops []libovsdb.Operation) error 
 	}
 	return nil
 }
+*/

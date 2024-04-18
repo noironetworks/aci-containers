@@ -380,6 +380,7 @@ func (agent *HostAgent) NotifyFabricAdjacency(iface string, fabAttData []*Fabric
 		for nbr := range fabAttData {
 			if fabAttData[nbr].StaticPath != "" {
 				nbrList = append(nbrList, fabAttData[nbr])
+				agent.log.Debugf("Adjacency: %s", fabAttData[nbr].StaticPath)
 			}
 			netAttData.FabricAttachmentData[iface] = nbrList
 		}
@@ -548,7 +549,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		if !netAttData.isProgrammable() {
 			agent.deleteNodeFabricNetworkAttachment(netAttData)
 			netAttData.Programmed = false
-			agent.log.Debugf("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
+			agent.log.Infof("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
 			return nil
 		}
 		fabNetAtt.TypeMeta = metav1.TypeMeta{
@@ -562,7 +563,7 @@ func (agent *HostAgent) updateNodeFabricNetworkAttachmentLocked(netAttData *Netw
 		netAttData.Programmed = true
 	} else if apierrors.IsNotFound(err) {
 		if !netAttData.isProgrammable() {
-			agent.log.Debugf("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
+			agent.log.Infof("Skip programming for %s", netAttData.Namespace+"/"+netAttData.Name)
 			return nil
 		}
 		fabNetAtt = &fabattv1.NodeFabricNetworkAttachment{

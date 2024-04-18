@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 )
 
 // OvsSet is an OVSDB style set
-// RFC 7047 has a wierd (but understandable) notation for set as described as :
+// RFC 7047 has a weird (but understandable) notation for set as described as :
 // Either an <atom>, representing a set with exactly one element, or
 // a 2-element JSON array that represents a database set value.  The
 // first element of the array must be the string "set", and the
@@ -18,9 +18,9 @@ type OvsSet struct {
 }
 
 // NewOvsSet creates a new OVSDB style set from a Go interface (object)
-func NewOvsSet(obj interface{}) (*OvsSet, error) {
+func NewOvsSet(obj interface{}) (OvsSet, error) {
 	v := reflect.ValueOf(obj)
-	var ovsSet []interface{}
+	ovsSet := make([]interface{}, 0)
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < v.Len(); i++ {
@@ -34,9 +34,9 @@ func NewOvsSet(obj interface{}) (*OvsSet, error) {
 	case reflect.ValueOf(UUID{}).Kind():
 		ovsSet = append(ovsSet, v.Interface())
 	default:
-		return nil, fmt.Errorf("OvsSet supports only Go Slice/string/numbers/uuid types")
+		return OvsSet{}, fmt.Errorf("ovsset supports only go slice/string/numbers/uuid types")
 	}
-	return &OvsSet{ovsSet}, nil
+	return OvsSet{ovsSet}, nil
 }
 
 // MarshalJSON wil marshal an OVSDB style Set in to a JSON byte array
@@ -55,6 +55,7 @@ func (o OvsSet) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON will unmarshal a JSON byte array to an OVSDB style Set
 func (o *OvsSet) UnmarshalJSON(b []byte) (err error) {
+	o.GoSet = make([]interface{}, 0)
 	addToSet := func(o *OvsSet, v interface{}) error {
 		goVal, err := ovsSliceToGoNotation(v)
 		if err == nil {
