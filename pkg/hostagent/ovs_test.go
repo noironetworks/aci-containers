@@ -160,3 +160,9 @@ func TestUuidSetToMap(t *testing.T) {
 	assert.EqualValues(t, 3, len(ports.GoSet))
 	assert.EqualValues(t, 3, len(portMap2))
 }
+
+func TestAddDropLogIfaceOps(t *testing.T) {
+	_, err := addDropLogIfaceOps("int_", "aba85930-00f9-4665-9917-40beff731d87",
+		"1", "testIface")
+	assert.Nil(t, err)
+}

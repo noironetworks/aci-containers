@@ -87,7 +87,6 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 		agent.log.Error("Could not enumerate interfaces: ", err)
 		return false
 	}
-	_, ipnet, _ := net.ParseCIDR(subnet)
 	for _, link := range links {
 		if nlLink, ok := link.(*netlink.Vlan); ok {
 			if nlLink.Name == iface {
@@ -96,20 +95,23 @@ func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
 					agent.log.Error("Could not enumerate addresses: ", err)
 					return false
 				}
-				for _, addr := range addrs {
-					agent.log.Debug("Interface ip address: ", addr.String())
-					addressSlice := strings.Split(addr.String(), " ")
-					if len(addressSlice) > 0 {
-						ipslice := strings.Split(addressSlice[0], "/")
-						if len(ipslice) > 0 {
-							ip := net.ParseIP(ipslice[0])
-							if ipnet.Contains(ip) {
-								return true
-							}
-						}
-					}
-				}
+				return agent.checkIfAnyIpsInSubnet(subnet, addrs)
 			}
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) checkIfAnyIpsInSubnet(subnet string, addrs []netlink.Addr) bool {
+	_, ipnet, _ := net.ParseCIDR(subnet)
+	for _, addr := range addrs {
+		agent.log.Debug("Interface ip address: ", addr.String())
+		ipAddr := addr.IP.To4()
+		if ipAddr == nil {
+			ipAddr = addr.IP.To16()
+		}
+		if ipAddr != nil && ipnet.Contains(ipAddr) {
+			return true
 		}
 	}
 	return false
@@ -471,7 +473,6 @@ func (agent *HostAgent) updateOpflexConfig() {
 	if newNodeConfig == nil {
 		panic(errors.New("Node configuration autodiscovery failed"))
 	}
-	var update bool
 
 	agent.indexMutex.Lock()
 	if !reflect.DeepEqual(*newNodeConfig, agent.config.HostAgentNodeConfig) ||
@@ -494,10 +495,6 @@ func (agent *HostAgent) updateOpflexConfig() {
 		}
 	}
 	agent.indexMutex.Unlock()
-
-	if update {
-		agent.updateAllServices()
-	}
 }
 
 func (agent *HostAgent) writeOpflexConfig() error {

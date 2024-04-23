@@ -301,7 +301,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 				found[agent.config.IntBridgeName][agent.config.DropLogIntInterface] = true
 			} else {
 				agent.log.Debugf("Adding drop log integration port: %s", agent.config.DropLogIntInterface)
-				adds, err := addDropLogIfaceOps(agent,
+				adds, err := addDropLogIfaceOps(
 					"int_",
 					bridges[agent.config.IntBridgeName].uuid,
 					"1",
@@ -318,7 +318,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 					found[agent.config.AccessBridgeName][agent.config.DropLogAccessInterface] = true
 				} else {
 					agent.log.Debugf("Adding drop log access port: %s", agent.config.DropLogAccessInterface)
-					adds, err := addDropLogIfaceOps(agent,
+					adds, err := addDropLogIfaceOps(
 						"access_",
 						bridges[agent.config.AccessBridgeName].uuid,
 						"2",
@@ -465,8 +465,7 @@ func addVxlanIfaceOps(config *HostAgentConfig,
 	return ops, nil
 }
 
-func addDropLogIfaceOps(agent *HostAgent, bridgeType string, intBrUuid string, encapKey string,
-	ifaceName string) ([]libovsdb.Operation, error) {
+func addDropLogIfaceOps(bridgeType, intBrUuid, encapKey, ifaceName string) ([]libovsdb.Operation, error) {
 	const dropLogIngressPolicingRate = 1000
 	const dropLogIngressPolicingBurst = 100
 	uuidDropLogI := bridgeType + "genv_iface"
