@@ -29,6 +29,8 @@ type Interface interface {
 	NadVlanMaps() NadVlanMapInformer
 	// NetworkFabricConfigurations returns a NetworkFabricConfigurationInformer.
 	NetworkFabricConfigurations() NetworkFabricConfigurationInformer
+	// NetworkFabricL3Configurations returns a NetworkFabricL3ConfigurationInformer.
+	NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInformer
 	// NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 	NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer
 }
@@ -57,6 +59,11 @@ func (v *version) NadVlanMaps() NadVlanMapInformer {
 // NetworkFabricConfigurations returns a NetworkFabricConfigurationInformer.
 func (v *version) NetworkFabricConfigurations() NetworkFabricConfigurationInformer {
 	return &networkFabricConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// NetworkFabricL3Configurations returns a NetworkFabricL3ConfigurationInformer.
+func (v *version) NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInformer {
+	return &networkFabricL3ConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.

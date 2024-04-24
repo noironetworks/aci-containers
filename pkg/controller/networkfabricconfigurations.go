@@ -303,8 +303,8 @@ func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTen
 		discoveryType = fabattv1.StaticPathMgmtTypeAll
 	}
 	return
-
 }
+
 func (cont *AciController) getSharedEncapNfcCacheBDLocked(encap int) (nfcBdTenant, nfcVrf, nfcBd string, nfcBdSubnets []string) {
 	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
 		nfcBdTenant = nfcData.Epg.Tenant

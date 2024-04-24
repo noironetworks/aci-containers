@@ -23,4 +23,6 @@ type NadVlanMapExpansion interface{}
 
 type NetworkFabricConfigurationExpansion interface{}
 
+type NetworkFabricL3ConfigurationExpansion interface{}
+
 type NodeFabricNetworkAttachmentExpansion interface{}

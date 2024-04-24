@@ -1011,12 +1011,151 @@ func NewL3extInstP(tenantName, outName, name string) ApicObject {
 		fmt.Sprintf("uni/tn-%s/out-%s/instP-%s", tenantName, outName, name)
 	return ret
 }
+func NewL3ExtLNodeP(tenantName, outName, name string) ApicObject {
+	ret := newApicObject("l3extLNodeP")
+	ret["l3extLNodeP"].Attributes["name"] = name
+	ret["l3extLNodeP"].Attributes["dn"] =
+		fmt.Sprintf("uni/tn-%s/out-%s/lnodep-%s", tenantName, outName, name)
+	return ret
+}
 
-func NewL3extSubnet(parentDn, ip string) ApicObject {
+func NewL3ExtVirtualLifP(parentDn, ifInstT, nodeDn, encap, addr string) ApicObject {
+	//ifInstT: ext-svi, l3-port, sub-interface, unspecified
+	ret := newApicObject("l3extVirtualLIfP")
+	ret["l3extVirtualLIfP"].Attributes["nodeDn"] = nodeDn
+	ret["l3extVirtualLIfP"].Attributes["encap"] = encap
+	ret["l3extVirtualLIfP"].Attributes["ifInstT"] = ifInstT
+	ret["l3extVirtualLIfP"].Attributes["encapScope"] = "local"
+	ret["l3extVirtualLIfP"].Attributes["addr"] = addr
+	ret["l3extVirtualLIfP"].Attributes["autostate"] = "enabled"
+	ret["l3extVirtualLIfP"].HintDn =
+		fmt.Sprintf("%s/vlifp-[%s]-[%s]", parentDn, nodeDn, encap)
+	return ret
+}
+
+func NewL3ExtRsDynPathAtt(parentDn, physDom, floatingAddr, encap string) ApicObject {
+	ret := newApicObject("l3extRsDynPathAtt")
+	ret["l3extRsDynPathAtt"].Attributes["tDn"] = physDom
+	ret["l3extRsDynPathAtt"].Attributes["floatingAddr"] = floatingAddr
+	//ret["l3extRsDynPathAtt"].Attributes["encap"] = encap
+	ret["l3extRsDynPathAtt"].HintDn =
+		fmt.Sprintf("%s/rsdynPathAtt-[%s]", parentDn, physDom)
+	return ret
+}
+
+func NewL3ExtRsPathL3OutAtt(parentDn, pathDn, ifInstT, encap string) ApicObject {
+	//ifInstT: ext-svi, l3-port, sub-interface, unspecified
+	ret := newApicObject("l3extRsPathL3OutAtt")
+	ret["l3extRsPathL3OutAtt"].Attributes["tDn"] = pathDn
+	ret["l3extRsPathL3OutAtt"].Attributes["ifInstT"] = ifInstT
+	ret["l3extRsPathL3OutAtt"].Attributes["encap"] = encap
+	ret["l3extRsPathL3OutAtt"].Attributes["encapScope"] = "ctx"
+	ret["l3extRsPathL3OutAtt"].HintDn =
+		fmt.Sprintf("%s/rspathL3OutAtt-[%s]", parentDn, pathDn)
+	return ret
+}
+
+func NewL3ExtIp(parentDn, addr string) ApicObject {
+	ret := newApicObject("l3extIp")
+	ret["l3extIp"].Attributes["addr"] = addr
+	ret["l3extIp"].HintDn =
+		fmt.Sprintf("%s/addr-[%s]", parentDn, addr)
+	return ret
+}
+
+func NewL3ExtMember(parentDn, side, addr string) ApicObject {
+	ret := newApicObject("l3extMember")
+	ret["l3extMember"].Attributes["addr"] = addr
+	ret["l3extMember"].Attributes["side"] = side
+	ret["l3extMember"].HintDn =
+		fmt.Sprintf("%s/mem-[%s]", parentDn, side)
+	return ret
+}
+
+func NewL3ExtRsNodeL3OutAtt(parentDn, nodeDn, rtrId string) ApicObject {
+	ret := newApicObject("l3extRsNodeL3OutAtt")
+	ret["l3extRsNodeL3OutAtt"].Attributes["tDn"] = nodeDn
+	ret["l3extRsNodeL3OutAtt"].Attributes["rtrId"] = rtrId
+	ret["l3extRsNodeL3OutAtt"].Attributes["rtrIdLoopBack"] = "false"
+	ret["l3extRsNodeL3OutAtt"].HintDn =
+		fmt.Sprintf("%s/rsnodeL3OutAtt-[%s]", parentDn, nodeDn)
+	return ret
+}
+
+func NewL3extSubnet(parentDn, ip, scope, aggregate string) ApicObject {
 	ret := newApicObject("l3extSubnet")
 	ret["l3extSubnet"].Attributes["ip"] = ip
+	if scope != "" {
+		ret["l3extSubnet"].Attributes["scope"] = scope
+	}
+	if aggregate != "" {
+		ret["l3extSubnet"].Attributes["aggregate"] = aggregate
+	}
 	ret["l3extSubnet"].Attributes["dn"] =
 		fmt.Sprintf("%s/extsubnet-[%s]", parentDn, ip)
+	return ret
+}
+
+func NewIpRouteP(parentDn, prefix, ctrl string) ApicObject {
+	ret := newApicObject("ipRouteP")
+	ret["ipRouteP"].Attributes["ip"] = prefix
+	if ctrl != "" {
+		ret["ipRouteP"].Attributes["rtCtrl"] = ctrl
+	}
+	ret["ipRouteP"].HintDn =
+		fmt.Sprintf("%s/rt-[%s]", parentDn, prefix)
+	return ret
+}
+
+func NewIpNexthopP(parentDn, nexthop string, pref int) ApicObject {
+	ret := newApicObject("ipNexthopP")
+	ret["ipNexthopP"].Attributes["nhAddr"] = nexthop
+	if pref != 0 {
+		ret["ipNexthopP"].Attributes["pref"] = pref
+	}
+	ret["ipNexthopP"].HintDn =
+		fmt.Sprintf("%s/nh-[%s]", parentDn, nexthop)
+	return ret
+}
+
+func NewBGPPeerP(parentDn, addr, ctrl, peerCtl string) ApicObject {
+	ret := newApicObject("bgpPeerP")
+	ret["bgpPeerP"].Attributes["addr"] = addr
+	if ctrl != "" {
+		ret["bgpPeerP"].Attributes["ctrl"] = ctrl
+	}
+	if peerCtl != "" {
+		ret["bgpPeerP"].Attributes["peerCtrl"] = peerCtl
+	}
+	ret["bgpPeerP"].HintDn =
+		fmt.Sprintf("%s/bgpPeerP-%s", parentDn, addr)
+	return ret
+}
+
+func NewBGPAsP(parentDn, peer string) ApicObject {
+	ret := newApicObject("bgpAsP")
+	ret["bgpAsP"].Attributes["asn"] = peer
+	ret["bgpAsP"].HintDn =
+		fmt.Sprintf("%s/as", parentDn)
+	return ret
+}
+
+func NewBGPPeerPfxPol(tenant, name string, maxPrefixes int, action string, threshold int) ApicObject {
+	ret := newApicObject("bgpPeerPfxPol")
+	ret["bgpPeerPfxPol"].Attributes["name"] = name
+	ret["bgpPeerPfxPol"].Attributes["maxPfx"] = fmt.Sprintf("%d", maxPrefixes)
+	ret["bgpPeerPfxPol"].Attributes["action"] = action
+	ret["bgpPeerPfxPol"].Attributes["thresh"] = fmt.Sprintf("%d", threshold)
+	ret["bgpPeerPfxPol"].HintDn =
+		fmt.Sprintf("uni/tn-%s/bgpPfxP-%s", tenant, name)
+	return ret
+}
+
+func NewBGPRsPeerPfxPol(parentDn, tenant, bgpPeerPfxPol string) ApicObject {
+	ret := newApicObject("bgpRsPeerPfxPol")
+	ret["bgpRsPeerPfxPol"].Attributes["tnBgpPeerPfxPolName"] = bgpPeerPfxPol
+	ret["bgpRsPeerPfxPol"].HintDn =
+		fmt.Sprintf("%s/rspeerPfxPol", parentDn)
 	return ret
 }
 
@@ -1305,6 +1444,38 @@ func NewInfraRsSpanVDestGrpAP(accPortGrpName, tnSpanVDestGrpName string) ApicObj
 			accPortGrpName, tnSpanVDestGrpName)
 	return ret
 }
+
+func NewL3ExtOut(tenant, name string, rtctrl string) ApicObject {
+	ret := newApicObject("l3extOut")
+	ret["l3extOut"].Attributes["name"] = name
+	if rtctrl != "" {
+		ret["l3extOut"].Attributes["enforceRtctrl"] = rtctrl
+	}
+	ret["l3extOut"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s", tenant, name)
+	return ret
+}
+
+func NewL3ExtRsEctx(tenant, out, name string) ApicObject {
+	ret := newApicObject("l3extRsEctx")
+	ret["l3extRsEctx"].Attributes["tnFvCtxName"] = name
+	ret["l3extRsEctx"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s/rsectx", tenant, out)
+	return ret
+}
+
+func NewL3ExtRsL3DomAtt(tenant, outName, l3Dom string) ApicObject {
+	ret := newApicObject("l3extL3DomAtt")
+	ret["l3extL3DomAtt"].Attributes["tDn"] = fmt.Sprintf("uni/l3dom-%s", l3Dom)
+	ret["l3extL3DomAtt"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s/rsl3DomAtt", tenant, outName)
+	return ret
+}
+
+func NewL3ExtLifP(tenant, outName, nodePName, name string) ApicObject {
+	ret := newApicObject("l3extLIfP")
+	ret["l3extLIfP"].Attributes["name"] = name
+	ret["l3extLIfP"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s/lnodep-%s/lifp-%s", tenant, outName, nodePName, name)
+	return ret
+}
+
 func NewVmmInjectedClusterInfo(vendor, domain, controller string) ApicObject {
 	ret := newApicObject("vmmInjectedClusterInfo")
 	ret["vmmInjectedClusterInfo"].Attributes["dn"] =
