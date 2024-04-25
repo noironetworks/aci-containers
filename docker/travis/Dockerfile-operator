@@ -1,4 +1,5 @@
 FROM registry.access.redhat.com/ubi9/ubi:latest
+ARG binarypath=dist-static
 # Required OpenShift Labels
 LABEL name="ACI CNI Operator" \
 vendor="Cisco" \
@@ -12,5 +13,5 @@ RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=u
 RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.21.3/bin/linux/amd64/kubectl \
   && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl
 COPY docker/licenses /licenses
-COPY dist-static/aci-containers-operator /usr/local/bin/
+COPY ${binarypath}/aci-containers-operator /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/aci-containers-operator"]

@@ -1,4 +1,5 @@
 FROM registry.access.redhat.com/ubi9/ubi:latest
+ARG binarypath=dist-static
 # Required OpenShift Labels
 LABEL name="ACI CNI Containers Controller" \
 vendor="Cisco" \
@@ -16,7 +17,7 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s 
   && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
   && mkdir -p /usr/local/var/lib/aci-cni
 COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
-COPY dist-static/aci-containers-controller /usr/local/bin/
+COPY ${binarypath}/aci-containers-controller /usr/local/bin/
 ENV AWS_SUBNETS="None"
 ENV AWS_VPCID="None"
 ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf -aws-subnets $AWS_SUBNETS -vpc-id $AWS_VPCID
