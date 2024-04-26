@@ -550,7 +550,15 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 				conn.restart()
 			} else {
 				conn.log.Debug("Cached version:", conn.CachedVersion, " New version:", version)
-				ApicVersion = version
+				if ApicVersion != version {
+					ApicVersion = version
+					if ApicVersion >= "6.0(4c)" {
+						metadata["fvBD"].attributes["serviceBdRoutingDisable"] = "no"
+					} else {
+						delete(metadata["fvBD"].attributes, "serviceBdRoutingDisable")
+					}
+					conn.VersionUpdateHook()
+				}
 				conn.CachedVersion = version
 			}
 		}()
