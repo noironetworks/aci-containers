@@ -340,6 +340,9 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     "snat-sources": {
         "filesystem": ["{{.OpFlexSnatDir | js}}"]
     },
+	"netpol-sources": {
+		"filesystem": ["{{.OpFlexNetPolDir | js}}"]
+	},
     "drop-log-config-sources": {
         "filesystem": ["{{.OpFlexDropLogConfigDir | js}}"]
     },

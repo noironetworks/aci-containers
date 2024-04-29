@@ -19,6 +19,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 
+	"github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned/fake"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	discovery "k8s.io/api/discovery/v1"
 )
@@ -61,6 +63,7 @@ type testAciController struct {
 
 func (cont *testAciController) InitController() {
 	cont.env.(*K8sEnvironment).cont = &cont.AciController
+	cont.env.(*K8sEnvironment).hppClient = fake.NewSimpleClientset()
 	cont.serviceEndPoints = &serviceEndpoint{}
 	cont.serviceEndPoints.(*serviceEndpoint).cont = &cont.AciController
 	cont.fakeNamespaceSource = framework.NewFakeControllerSource()
@@ -217,6 +220,12 @@ func (cont *testAciController) InitController() {
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		cont.serviceUpdates = append(cont.serviceUpdates, service)
 		return service, nil
+	}
+	cont.listNetworkPolicies = func(ns string) (*v1net.NetworkPolicyList, error) {
+		return &v1net.NetworkPolicyList{}, nil
+	}
+	cont.listNamespaces = func() (*v1.NamespaceList, error) {
+		return &v1.NamespaceList{}, nil
 	}
 
 	cont.initDepPodIndex()

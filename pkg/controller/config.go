@@ -305,6 +305,9 @@ type ControllerConfig struct {
 
 	// Enable/disable making node unschedulable when it's not ready
 	TaintNotReadyNode bool `json:"taint-not-ready-node,omitempty"`
+
+	// Enable/disable local hpp distribution
+	EnableLocalNetpol bool `json:"enable-local-netpol,omitempty"`
 }
 
 type netIps struct {
