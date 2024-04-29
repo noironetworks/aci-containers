@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	// istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
+	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
@@ -66,6 +67,7 @@ type K8sEnvironment struct {
 	restConfig       *restclient.Config
 	cont             *AciController
 	nodePodifClient  *nodepodifclientset.Clientset
+	hppClient        hppclset.Interface
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -121,10 +123,15 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize AciIstio client")
 		return nil, err
 	}
+	hppClient, err := hppclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize hpp client")
+		return nil, err
+	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
 		nodeInfoClient: nodeInfoClient, rdConfigClient: rdConfigClient,
-		istioClient: istioClient}, nil
+		istioClient: istioClient, hppClient: hppClient}, nil
 }
 
 func (env *K8sEnvironment) RESTConfig() *restclient.Config {
@@ -161,6 +168,14 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.updateServiceStatus = func(service *v1.Service) (*v1.Service, error) {
 		return kubeClient.CoreV1().
 			Services(service.ObjectMeta.Namespace).UpdateStatus(context.TODO(), service, metav1.UpdateOptions{})
+	}
+
+	cont.listNetworkPolicies = func(ns string) (*v1net.NetworkPolicyList, error) {
+		return kubeClient.NetworkingV1().NetworkPolicies(ns).List(context.TODO(), metav1.ListOptions{})
+	}
+
+	cont.listNamespaces = func() (*v1.NamespaceList, error) {
+		return kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	}
 
 	cont.log.Debug("Initializing informers")
@@ -291,6 +306,12 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 				func(obj interface{}) bool {
 					return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 				}, nil, nil, stopCh)
+		}
+		if cont.config.EnableHppDirect {
+			go cont.processRemIpContQueue(cont.remIpContQueue,
+				func(obj interface{}) bool {
+					return cont.handleRemIpContUpdate(obj.(string))
+				}, nil, stopCh)
 		}
 		go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 			func(obj interface{}) bool {

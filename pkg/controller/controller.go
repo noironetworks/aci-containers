@@ -31,6 +31,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
+	v1net "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -40,6 +41,7 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
+	hppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -53,6 +55,8 @@ import (
 type podUpdateFunc func(*v1.Pod) (*v1.Pod, error)
 type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
 type serviceUpdateFunc func(*v1.Service) (*v1.Service, error)
+type listNetworkPoliciesFunc func(string) (*v1net.NetworkPolicyList, error)
+type listNamespacesFunc func() (*v1.NamespaceList, error)
 
 type AciController struct {
 	log    *logrus.Logger
@@ -79,6 +83,7 @@ type AciController struct {
 	nadVlanMapQueue     workqueue.RateLimitingInterface
 	fabricVlanPoolQueue workqueue.RateLimitingInterface
 	netFabL3ConfigQueue workqueue.RateLimitingInterface
+	remIpContQueue      workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -119,6 +124,8 @@ type AciController struct {
 	updatePod                            podUpdateFunc
 	updateNode                           nodeUpdateFunc
 	updateServiceStatus                  serviceUpdateFunc
+	listNetworkPolicies                  listNetworkPoliciesFunc
+	listNamespaces                       listNamespacesFunc
 	nodeFabNetAttInformer                cache.SharedIndexInformer
 	netFabConfigInformer                 cache.SharedIndexInformer
 	nadVlanMapInformer                   cache.SharedIndexInformer
@@ -183,6 +190,8 @@ type AciController struct {
 	nmPortNp map[string]bool
 	//maps network policy hash to hpp
 	hppRef map[string]hppReference
+	//map for ns to remoteIpCont
+	nsRemoteIpCont map[string]remoteIpCont
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
@@ -239,6 +248,9 @@ type NfL3Data struct {
 	Nodes       map[int]fabattv1.FabricL3OutNode
 }
 
+// remoteIpCont maps ip to pod labels
+type remoteIpCont map[string]map[string]string
+
 type NfcData struct {
 	Aeps map[string]bool
 	Epg  fabattv1.Epg
@@ -260,6 +272,7 @@ type hppReference struct {
 	RefCount uint              `json:"ref-count,omitempty"`
 	Npkeys   []string          `json:"npkeys,omitempty"`
 	HppObj   apicapi.ApicSlice `json:"hpp-obj,omitempty"`
+	HppCr    hppv1.HostprotPol `json:"hpp-cr,omitempty"`
 }
 
 type DelayedEpSlice struct {
@@ -454,6 +467,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		nadVlanMapQueue:     createQueue("nadvlanmap"),
 		fabricVlanPoolQueue: createQueue("fabricvlanpool"),
 		netFabL3ConfigQueue: createQueue("networkfabricl3configuration"),
+		remIpContQueue:      createQueue("remoteIpContainer"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -498,6 +512,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		lldpIfCache:                 make(map[string]string),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
+		nsRemoteIpCont:              make(map[string]remoteIpCont),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -592,6 +607,41 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				queue.Forget(key)
 			}
 			queue.Done(key)
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
+				if handler != nil {
+					requeue = handler(key)
+				}
+				if postDelHandler != nil {
+					requeue = postDelHandler()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
 		}
 	}, time.Second, stopCh)
 	<-stopCh
@@ -831,6 +881,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			if !cont.config.ChainedMode {
 				if !cont.config.DisableHppRendering {
 					qs = append(qs, cont.netPolQueue)
+				}
+				if cont.config.EnableHppDirect {
+					qs = append(qs, cont.remIpContQueue)
 				}
 				qs = append(qs, cont.qosQueue, cont.serviceQueue,
 					cont.snatQueue, cont.netflowQueue, cont.snatNodeInfoQueue,

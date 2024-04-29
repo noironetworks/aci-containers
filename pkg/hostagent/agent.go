@@ -53,6 +53,8 @@ const (
 	ACIContainersTaintName string = "aci-containers-host/unavailable"
 )
 
+var GbpConfig *GBPConfig
+
 type HostAgent struct {
 	log    *logrus.Logger
 	config *HostAgentConfig
@@ -104,6 +106,8 @@ type HostAgent struct {
 	netAttDefInformer      cache.SharedIndexInformer
 	nadVlanMapInformer     cache.SharedIndexInformer
 	fabricVlanPoolInformer cache.SharedIndexInformer
+	hppInformer            cache.SharedIndexInformer
+	hppRemoteIpInformer    cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -621,7 +625,11 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
 		agent.config.OpFlexSnatDir == "" {
-		agent.log.Warn("OpFlex endpoint,service or snat directories not set")
+		if agent.config.EnableHppDirect && agent.config.OpFlexNetPolDir == "" {
+			agent.log.Warn("OpFlex endpoint, service, snat or netpol directories not set")
+		} else {
+			agent.log.Warn("OpFlex endpoint, service, snat directories not set")
+		}
 	} else {
 		if syncEnabled {
 			agent.EnableSync()

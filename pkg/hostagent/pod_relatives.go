@@ -172,7 +172,7 @@ func (agent *HostAgent) networkPolicyChanged(oldobj, newobj interface{}) {
 	}
 
 	var sameSpec bool
-	if agent.config.HppOptimization {
+	if agent.config.HppOptimization || agent.config.EnableHppDirect {
 		sameSpec = reflect.DeepEqual(oldnp.Spec, newnp.Spec)
 	} else {
 		sameSpec = reflect.DeepEqual(oldnp.Spec.PolicyTypes, newnp.Spec.PolicyTypes)

@@ -128,6 +128,9 @@ type HostAgentConfig struct {
 	// Directory for writing OpFlex snat metadata
 	OpFlexSnatDir string `json:"opflex-snat-dir,omitempty"`
 
+	// Directory for writing Opflex netpol metadata
+	OpFlexNetPolDir string `json:"opflex-netpol-dir,omitempty"`
+
 	// Directory for writing OpFlex fault metadata
 	OpFlexFaultDir string `json:"opflex-fault-dir,omitempty"`
 
@@ -217,6 +220,9 @@ type HostAgentConfig struct {
 	//Namespace for SNAT CRDs
 	AciSnatNamespace string `json:"aci-snat-namespace,omitempty"`
 
+	//Namespace for HPP CRDs
+	AciHppObjsNamespace string `json:"aci-hpp-objs-namespace,omitempty"`
+
 	//DropLogging enabled
 	EnableDropLogging bool `json:"enable-drop-log,omitempty"`
 
@@ -285,6 +291,9 @@ type HostAgentConfig struct {
 
 	// Enable/disable making node unschedulable when it's not ready
 	TaintNotReadyNode bool `json:"taint-not-ready-node,omitempty"`
+
+	// Enable/disable local hpp distribution
+	EnableHppDirect bool `json:"enable-hpp-direct,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -313,6 +322,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 	flag.StringVar(&config.OpFlexSnatDir, "opflex-snat-dir", "/usr/local/var/lib/opflex-agent-ovs/snats/", "Directory for writing OpFlex snat metadata")
+	flag.StringVar(&config.OpFlexNetPolDir, "opflex-netpol-dir", "/usr/local/var/lib/opflex-agent-ovs/netpols/", "Directory for writing OpFlex network policy metadata")
 	flag.StringVar(&config.OpFlexFaultDir, "opflex-fault-dir", "/usr/local/var/lib/opflex-agent-ovs/faults/", "Directory for writing OpFlex fault metadata")
 	flag.StringVar(&config.OpFlexFlowIdCacheDir, "opflex-flowid-cache-dir",
 		"/usr/local/var/lib/opflex-agent-ovs/ids/",
@@ -354,6 +364,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.AciVrfTenant, "aci-vrf-tenant", "common", "ACI Tenant containing the ACI VRF for this kubernetes instance")
 	flag.UintVar(&config.Zone, "zone", 8191, "Zone Id for snat flows")
 	flag.StringVar(&config.AciSnatNamespace, "aci-snat-namespace", "aci-containers-system", "Namespace for SNAT CRDs")
+	flag.StringVar(&config.AciHppObjsNamespace, "aci-hpp-objs-namespace", "aci-containers-system", "Namespace for HPP CRs")
 	flag.BoolVar(&config.EnableDropLogging, "enable-drop-log", false, "Allow dropped packets to be logged")
 	flag.StringVar(&config.DropLogAccessInterface, "drop-log-access-iface", "gen2", "Interface in Access bridge to send dropped packets")
 	flag.StringVar(&config.DropLogIntInterface, "drop-log-int-iface", "gen1", "Interface in Integration bridge to send dropped packets")
@@ -371,4 +382,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.CniNetworksDir, "cni-networks-dir", "/usr/local/var/lib/netop-cni/networks", "Cni Networks Directory")
 	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
 	flag.IntVar(&config.MetricsPort, "metrics-port", 8190, "Port to expose metrics on")
+	flag.BoolVar(&config.EnableHppDirect, "enable-hpp-direct", false, "Enable local hpp distribution")
 }

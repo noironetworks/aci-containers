@@ -112,10 +112,15 @@ func (cont *AciController) createNetPolForNode(node *v1.Node) {
 	}
 
 	sgName := cont.aciNameForKey("node", node.Name)
-	cont.apicConn.WriteApicObjects(sgName,
-		apicapi.ApicSlice{
-			apicNodeNetPol(sgName, cont.config.AciPolicyTenant, nodeIps),
-		})
+
+	if !cont.config.EnableHppDirect {
+		cont.apicConn.WriteApicObjects(sgName,
+			apicapi.ApicSlice{
+				apicNodeNetPol(sgName, cont.config.AciPolicyTenant, nodeIps),
+			})
+	} else {
+		cont.createNodeHostProtPol(sgName, node.Name, nodeIps)
+	}
 }
 
 func (cont *AciController) createServiceEndpoint(existing, ep *metadata.ServiceEndpoint, deviceMac, nodeName string) error {
