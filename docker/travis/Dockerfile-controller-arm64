@@ -1,0 +1,22 @@
+FROM registry.access.redhat.com/ubi9/ubi:latest
+# Required OpenShift Labels
+LABEL name="ACI CNI Containers Controller" \
+vendor="Cisco" \
+version="v1.1.0" \
+release="1" \
+summary="This is an ACI CNI Containers Controller." \
+description="This will deploy a single instance of ACI CNI Containers Controller."
+RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
+# Required Licenses
+COPY docker/licenses /licenses
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/arm64/kubectl \
+  && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl \
+  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-arm64.tar.gz" | tar xz \
+  && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
+  && mkdir -p /usr/local/var/lib/aci-cni
+COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
+COPY dist-static/aci-containers-controller /usr/local/bin/
+ENV AWS_SUBNETS="None"
+ENV AWS_VPCID="None"
+ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf -aws-subnets $AWS_SUBNETS -vpc-id $AWS_VPCID
