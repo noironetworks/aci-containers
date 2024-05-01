@@ -97,6 +97,14 @@ all-static: dist-static/aci-containers-host-agent \
 	dist-static/aci-containers-operator dist-static/aci-containers-webhook \
 	dist-static/aci-containers-certmanager
 
+all-static-arm64: export-goarch export-gcc \
+	dist-static/aci-containers-host-agent \
+	dist-static/aci-containers-host-agent-ovscni \
+	dist-static/opflex-agent-cni dist-static/netop-cni \
+	dist-static/aci-containers-controller dist-static/ovsresync dist-static/gbpserver \
+	dist-static/aci-containers-operator dist-static/aci-containers-webhook \
+	dist-static/aci-containers-certmanager
+
 all-static-race: dist-static-race/aci-containers-host-agent \
 	dist-static-race/aci-containers-host-agent-ovscni \
 	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
@@ -118,6 +126,11 @@ clean-dist-static-race:
 clean-dist:
 	rm -rf dist
 clean: clean-dist
+
+export-goarch:
+	export GOARCH=arm64
+export-gcc:
+	export CC=/opt/musl-cross
 
 PACKAGE = aci-containers
 VERSION_BASE ?= 1.9.0
