@@ -2585,7 +2585,7 @@ func (seps *serviceEndpointSlice) GetnodesMetadata(key string,
 	cont := seps.cont
 	// 1. Get all the Endpoint slices matching the label service-name
 	// 2. update the node map matching with endpoints nodes name
-	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
+	label := map[string]string{discovery.LabelServiceName: service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(label)
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
@@ -2634,7 +2634,7 @@ func (sep *serviceEndpoint) SetServiceApicObject(aobj apicapi.ApicObject, servic
 
 func (seps *serviceEndpointSlice) SetServiceApicObject(aobj apicapi.ApicObject, service *v1.Service) bool {
 	cont := seps.cont
-	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
+	label := map[string]string{discovery.LabelServiceName: service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(label)
 	epcount := 0
 	childs := make(map[string]struct{})
