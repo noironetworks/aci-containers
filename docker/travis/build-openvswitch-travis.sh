@@ -4,7 +4,7 @@ set -x
 
 DOCKER_HUB_ID=$1
 DOCKER_TAG=$2
-BUILDARG=$3
+BUILDARG="--no-cache $3"
 [ -z "$DOCKER_HUB_ID" ] && DOCKER_HUB_ID=
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
 [ -z "$BUILDARG" ] && BUILDARG=
@@ -31,7 +31,7 @@ while [ ! -f  /tmp/openvswitch-base.log ]; do sleep 10; done
 tail -f /tmp/openvswitch-base.log | awk 'NR%100-1==0' &
 while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
 
-tail -25 /tmp/openvswitch-base.log
+cat /tmp/openvswitch-base.log
 
 echo "copying intermediate binaries and libs"
 rm -Rf build/openvswitch/dist

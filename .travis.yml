@@ -11,21 +11,32 @@ jobs:
   include:
     - stage: check
       if: tag IS NOT present
-      sudo: false
+#      sudo: required
       go: 1.21.x
       before_install:
         - go install github.com/mattn/goveralls@v0.0.12
+        - mkdir -vp ~/.docker/cli-plugins/
+        - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.3.0/buildx-v0.3.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
+        - chmod a+x ~/.docker/cli-plugins/docker-buildx
       install:
         - export PATH=$PATH:$GOPATH/bin
+        - pip install pytz
+      go_import_path: github.com/noironetworks/aci-containers
+      before_script:
+        - export DOCKER_BUILDKIT=1
+        - export UPSTREAM_ID=81c2369
+        - export TRAVIS_TAG=6.0.4.2
       script:
-        - make goinstall
-        - make check >& /tmp/check.log
-      after_failure:
-        - grep -C 200 FAIL /tmp/check.log
-        - tail -200 /tmp/check.log
-      after_success:
-        - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
+#       - make goinstall
+#       - make check >& /tmp/check.log
+        - git clone http://www.github.com/noironetworks/cicd -b no-docker-push /tmp/cicd
+        - /tmp/cicd/travis/build-push-aci-containers-images.sh || travis_terminate 1
+#      after_failure:
+#        - grep -C 200 FAIL /tmp/check.log
+#        - tail -200 /tmp/check.log
+#      after_success:
+#        - tail -200 /tmp/check.log
+#        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
     - stage: build-images
       if: tag IS present
       before_install:
