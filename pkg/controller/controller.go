@@ -877,6 +877,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			func(dn string) {
 				cont.opflexDeviceDeleted(dn)
 			})
+
+		cont.apicConn.VersionUpdateHook =
+			func() {
+				cont.initStaticServiceObjs()
+			}
 	}
 	go cont.apicConn.Run(stopCh)
 }
