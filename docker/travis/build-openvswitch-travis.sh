@@ -4,7 +4,7 @@ set -x
 
 DOCKER_HUB_ID=$1
 DOCKER_TAG=$2
-BUILDARG=$3
+BUILDARG="--no-cache $3"
 [ -z "$DOCKER_HUB_ID" ] && DOCKER_HUB_ID=
 [ -z "$DOCKER_TAG" ] && DOCKER_TAG=
 [ -z "$BUILDARG" ] && BUILDARG=
