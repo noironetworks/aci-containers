@@ -210,12 +210,6 @@ func TestSnatnodeInfo(t *testing.T) {
 	}
 	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
 	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"], true)
-	for _, pt := range snatTestsupdated {
-		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
-		cont.fakeSnatPolicySource.Modify(snatObj)
-	}
-	time.Sleep(time.Millisecond * 100)
-	snatWaitForIpUpdated(t, "snat test", "10.1.1.20", cont.AciController.snatGlobalInfoCache)
 
 	type test struct {
 		metav1.ObjectMeta
@@ -230,18 +224,23 @@ func TestSnatnodeInfo(t *testing.T) {
 	cont.snatNodeInfoDeleted(nodeInfo)
 	time.Sleep(time.Millisecond * 100)
 
-	expected = map[string]snatglobalinfo.GlobalInfo{
-		"node-1": {SnatIp: "10.1.1.20", SnatPolicyName: "policy1", PortRanges: []snatglobalinfo.PortRange{{Start: 5000, End: 7999}}},
-	}
-
-	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.20"], true)
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
+	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"], true)
 
 	nodeInfo1 := cache.DeletedFinalStateUnknown{}
 
 	cont.snatNodeInfoDeleted(nodeInfo1)
 	time.Sleep(time.Millisecond * 100)
 
-	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.20"], true)
+	snatWait(t, "snat test", expected, cont.AciController.snatGlobalInfoCache["10.1.1.8"], true)
+	snatWait(t, "snat test", expected1, cont.AciController.snatGlobalInfoCache["10.1.1.9"], true)
+
+	for _, pt := range snatTestsupdated {
+		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
+		cont.fakeSnatPolicySource.Modify(snatObj)
+	}
+	time.Sleep(time.Millisecond * 100)
+	snatWaitForIpUpdated(t, "snat test", "10.1.1.20", cont.AciController.snatGlobalInfoCache)
 
 	for _, pt := range nodeTests {
 		nodeobj := Nodeinfodata(pt.name, pt.namespace, pt.macaddr, pt.snatpolicynames)
