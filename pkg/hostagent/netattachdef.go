@@ -409,6 +409,9 @@ func (agent *HostAgent) updateFabricPodNetworkAttachmentLocked(pod *fabattv1.Pod
 			if podDeleted {
 				if _, ok := netattData.Pods[podIface][podKey]; ok {
 					delete(netattData.Pods[podIface], podKey)
+					if len(netattData.Pods[podIface]) == 0 {
+						delete(netattData.Pods, podIface)
+					}
 					agent.updateNodeFabricNetworkAttachmentLocked(netattData)
 				}
 				return nil
@@ -1017,15 +1020,15 @@ type DeviceInfo struct {
 	ResourceName string
 }
 
-func (agent *HostAgent) getAlloccatedDeviceId(metadata *md.ContainerMetadata, smartnicmode string) error {
+func (agent *HostAgent) getAlloccatedDeviceId(metadata *md.ContainerMetadata, smartnicmode, resourceName string) error {
 	var err error
 	var acicni bool
 	if smartnicmode == "dpu" || smartnicmode == "chained" {
-		err = agent.getPodResource(metadata)
+		err = agent.getPodResource(metadata, resourceName)
 	} else {
 		acicni, err = agent.isAcicniNetwork(metadata)
 		if acicni {
-			err = agent.getPodResource(metadata)
+			err = agent.getPodResource(metadata, "")
 		}
 	}
 	return err
@@ -1047,7 +1050,7 @@ func (agent *HostAgent) isAcicniNetwork(metadata *md.ContainerMetadata) (bool, e
 	return isAcicniNetwork, fmt.Errorf("No Network Attachment Definition CR found")
 }
 
-func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
+func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata, resourceName string) error {
 	podResourceSock := path.Join(kubeletPodResourceDefaultPath, podresources.Socket+".sock")
 	if _, err := os.Stat(podResourceSock); os.IsNotExist(err) {
 		return fmt.Errorf("Could not retreive the kubelet sock %w", err)
@@ -1071,6 +1074,7 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 		return errors.New("Not able to process PodResourcesResponse")
 	}
 
+	podid := metadata.Id.Namespace + "/" + metadata.Id.Pod
 	podResource := &kubeletPodResources{}
 	podResource.resp = resp.PodResources
 	podName := metadata.Id.Pod
@@ -1080,12 +1084,36 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata) error {
 			for _, container := range podResource.Containers {
 				for _, devices := range container.Devices {
 					DeviceList := devices.DeviceIds
+
 					if len(DeviceList) != 1 {
 						return errors.New("Virtual function allocation failed : Multiple device id found")
 					} else {
+						agent.log.Debugf("devices.ResourceName:%s", devices.ResourceName)
+						if resourceName != "" && resourceName != devices.ResourceName {
+							continue
+						}
 						deviceInfo := &DeviceInfo{
 							DeviceId:     strings.Join(DeviceList, " "),
 							ResourceName: devices.ResourceName,
+						}
+						/*In case 2 SRIOV NADs share the same resource and this pod is on both,
+						  SRIOV CNI will allocate a new VF per network . To handle this case,
+						  check if this pod is on another network using the same resource*/
+						skipDev := false
+						if pNwData, ok := agent.podNetworkMetadata[podid]; ok {
+							for nw, cntMap := range pNwData {
+								if nw != metadata.Network.NetworkName {
+									if mdata, ok := cntMap[metadata.Id.ContId]; ok {
+										if mdata.Id.DeviceId == deviceInfo.DeviceId {
+											skipDev = true
+											break
+										}
+									}
+								}
+							}
+							if skipDev {
+								continue
+							}
 						}
 						metadata.Id.DeviceId = deviceInfo.DeviceId
 						return nil
