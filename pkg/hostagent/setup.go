@@ -526,7 +526,12 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 							Name: metadata.Id.Pod},
 					}
 					if netAttDef.PrimaryCNI == "sriov" {
-						err := agent.getAlloccatedDeviceId(metadata, "chained")
+						resourceName := netAttDef.ResourceName
+						if netAttDef.ResourcePlugin != "" {
+							resourceName = netAttDef.ResourcePlugin + "/" + netAttDef.ResourceName
+
+						}
+						err := agent.getAlloccatedDeviceId(metadata, "chained", resourceName)
 						if err != nil {
 							logger.Error("VF allocation failed ", err)
 						}
@@ -542,6 +547,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 						metadata.Network.VFName = metadata.Ifaces[len(metadata.Ifaces)-1].Name
 						metadata.Network.PFName = netAttDef.ResourceName
 					}
+					logger.Debug("Pod iface on Network: ", metadata.Network.NetworkName)
 					podAtt.LocalIface = metadata.Network.VFName
 					if _, ok := agent.podNetworkMetadata[podid][metadata.Network.NetworkName]; !ok {
 						agent.podNetworkMetadata[podid][metadata.Network.NetworkName] =
@@ -623,7 +629,7 @@ func (agent *HostAgent) configureContainerIfaces(metadata *md.ContainerMetadata)
 	}
 
 	if agent.config.OvsHardwareOffload {
-		err := agent.getAlloccatedDeviceId(metadata, agent.config.OpflexMode)
+		err := agent.getAlloccatedDeviceId(metadata, agent.config.OpflexMode, "")
 		if err != nil {
 			logger.Error("VF allocation failed ", err)
 		}
@@ -808,8 +814,8 @@ func (agent *HostAgent) unconfigureContainerSecondaryIfacesLocked(podId, network
 		"Pod":       podIdParts[1],
 		"Namespace": podIdParts[0],
 	})
-	if nwMetaMap, ok := agent.podNetworkMetadata[podId]; ok {
-		if _, ok := nwMetaMap[networkName]; ok {
+	if _, ok := agent.podNetworkMetadata[podId]; ok {
+		if _, ok := agent.podNetworkMetadata[podId][networkName]; ok {
 			podAtt := &fabattv1.PodAttachment{
 				PodRef: fabattv1.ObjRef{
 					Name:      podIdParts[1],
@@ -828,9 +834,10 @@ func (agent *HostAgent) unconfigureContainerSecondaryIfacesLocked(podId, network
 			}
 
 			err := agent.updateFabricPodNetworkAttachmentLocked(podAtt, networkName, true)
-			logger.Errorf("Deleting fabricpodnetworkattachment failed: %s", err)
-			delete(nwMetaMap, networkName)
-			agent.podNetworkMetadata[podId] = nwMetaMap
+			if err != nil {
+				logger.Errorf("Deleting fabricpodnetworkattachment failed: %s", err)
+			}
+			delete(agent.podNetworkMetadata[podId], networkName)
 			return true
 		}
 	}
