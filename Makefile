@@ -273,7 +273,7 @@ lint:
 
 check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver
 check-ipam:
-	${TEST_CMD} -coverprofile=covprof-ipam ${BASE}/pkg/ipam ${TEST_ARGS}
+	cd pkg/ipam; ${TEST_CMD} -coverprofile=../../covprof-ipam ${TEST_ARGS}
 check-index:
 	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
@@ -284,8 +284,6 @@ check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:
 	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS} && ./exclude-covprof.sh covprof-gbpserver exclude-covprof.conf
-check-keyvalueservice:
-	${TEST_CMD} -coverprofile=covprof-keyvalueservice ${BASE}/pkg/keyvalueservice ${TEST_ARGS}
 
 .PHONY: test-tools
 test-tools:
