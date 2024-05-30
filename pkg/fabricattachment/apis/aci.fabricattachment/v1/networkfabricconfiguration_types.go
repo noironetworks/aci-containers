@@ -4,6 +4,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type StaticPathMgmtType string
+
+const (
+	StaticPathMgmtTypeAll  StaticPathMgmtType = ""
+	StaticPathMgmtTypeLLDP StaticPathMgmtType = "LLDP"
+	StaticPathMgmtTypeAEP  StaticPathMgmtType = "AEP"
+)
+
 // NetworkFabricConfigurationStatus defines the observed state of NetworkFabricConfiguration
 type NetworkFabricConfigurationStatus struct {
 	State string `json:"state,omitempty"`
@@ -32,13 +40,12 @@ type Contracts struct {
 }
 
 type Epg struct {
-	ApplicationProfile string       `json:"applicationProfile,omitempty"`
-	Name               string       `json:"name,omitempty"`
-	Tenant             string       `json:"tenant,omitempty"`
-	Contracts          Contracts    `json:"contracts,omitempty"`
-	BD                 BridgeDomain `json:"bd,omitempty"`
-	// +kubebuilder:default=true
-	LLDPDiscovery bool `json:"lldpDiscovery,omitempty"`
+	ApplicationProfile string             `json:"applicationProfile,omitempty"`
+	Name               string             `json:"name,omitempty"`
+	Tenant             string             `json:"tenant,omitempty"`
+	Contracts          Contracts          `json:"contracts,omitempty"`
+	BD                 BridgeDomain       `json:"bd,omitempty"`
+	DiscoveryType      StaticPathMgmtType `json:"discoveryType,omitempty"`
 }
 
 type VlanRef struct {

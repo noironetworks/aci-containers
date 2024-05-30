@@ -185,7 +185,8 @@ type AciController struct {
 	vmmClusterFaultSupported bool
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	//Used in Shared mode
-	sharedEncapCache map[int]*sharedEncapData
+	sharedEncapCache    map[int]*sharedEncapData
+	sharedEncapAepCache map[string]map[int]bool
 	// vlan to propertiesList
 	sharedEncapNfcCache         map[int]*NfcData
 	sharedEncapNfcVlanMap       map[int]*NfcData
@@ -209,6 +210,7 @@ type sharedEncapData struct {
 	//node to NAD to pods
 	Pods   map[string]map[string][]string
 	NetRef map[string]*AdditionalNetworkMeta
+	Aeps   map[string]bool
 }
 
 type globalVlanConfig struct {
@@ -428,6 +430,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		hppRef:                      make(map[string]hppReference),
 		additionalNetworkCache:      make(map[string]*AdditionalNetworkMeta),
 		sharedEncapCache:            make(map[int]*sharedEncapData),
+		sharedEncapAepCache:         make(map[string]map[int]bool),
 		sharedEncapNfcCache:         make(map[int]*NfcData),
 		sharedEncapNfcVlanMap:       make(map[int]*NfcData),
 		sharedEncapNfcLabelMap:      make(map[string]*NfcData),

@@ -285,7 +285,7 @@ func (cont *AciController) populateFabricPaths(epg apicapi.ApicObject, encap int
 	}
 }
 
-func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep, networkName string, lldpDiscovery bool, epg apicapi.ApicObject) (apicSlice apicapi.ApicSlice) {
+func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep, networkName string, discoveryType fabattv1.StaticPathMgmtType, epg apicapi.ApicObject, progMap map[string]apicapi.ApicSlice) (apicSlice apicapi.ApicSlice) {
 	aepDn := "uni/infra/attentp-" + aep
 	var physDom string
 	if cont.config.AciUseGlobalScopeVlan {
@@ -293,13 +293,35 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 	} else {
 		physDom = cont.config.AciPolicyTenant + "-" + networkName
 	}
-	secondaryPhysDomDn := "uni/phys-" + physDom
-	infraRsDomP := apicapi.NewInfraRsDomP(aepDn, secondaryPhysDomDn)
-	apicSlice = append(apicSlice, infraRsDomP)
-	// Workaround alert: Due to the fact that infraGeneric cannot take
-	// any other name than default, we have to follow this hack of not adding
-	// infraRsFuncToEpg as a child and making infraGeneric not deletable.
-	if !lldpDiscovery {
+
+	labelKey := cont.aciNameForKey("aepPhysDom", aep)
+	if discoveryType != fabattv1.StaticPathMgmtTypeLLDP {
+		var apicSlice2 apicapi.ApicSlice
+		secondaryPhysDomDn := "uni/phys-" + physDom
+		infraRsDomP := apicapi.NewInfraRsDomP(aepDn, secondaryPhysDomDn)
+		apicSlice2 = append(apicSlice2, infraRsDomP)
+		cont.sharedEncapCache[vlan].Aeps[aep] = true
+		progMap[labelKey] = apicSlice2
+		if _, ok := cont.sharedEncapAepCache[aep]; !ok {
+			cont.sharedEncapAepCache[aep] = make(map[int]bool)
+		}
+		cont.sharedEncapAepCache[aep][vlan] = true
+	} else {
+		delete(cont.sharedEncapCache[vlan].Aeps, aep)
+		if _, ok := cont.sharedEncapAepCache[aep]; ok {
+			delete(cont.sharedEncapAepCache[aep], vlan)
+			if len(cont.sharedEncapAepCache[aep]) == 0 {
+				delete(cont.sharedEncapAepCache, aep)
+				progMap[labelKey] = nil
+				cont.log.Infof("Remove physdom association for AEP %s", aep)
+			}
+		}
+	}
+
+	if discoveryType != fabattv1.StaticPathMgmtTypeLLDP {
+		// Workaround alert: Due to the fact that infraGeneric cannot take
+		// any other name than default, we have to follow this hack of not adding
+		// infraRsFuncToEpg as a child and making infraGeneric not deletable.
 		infraGeneric := apicapi.NewInfraGeneric(aep)
 		encap := fmt.Sprintf("%d", vlan)
 		infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
@@ -450,18 +472,18 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 
 }
 
-func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, networkName string, epg apicapi.ApicObject, apicSlice apicapi.ApicSlice) apicapi.ApicSlice {
+func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, networkName string, epg apicapi.ApicObject, apicSlice apicapi.ApicSlice, progMap map[string]apicapi.ApicSlice) apicapi.ApicSlice {
 	nfcData, ok := cont.sharedEncapNfcCache[vlan]
 	if ok {
 		for aep := range nfcData.Aeps {
-			apicSlice = append(apicSlice, cont.createNodeFabNetAttEpgStaticAttachments(vlan, aep, networkName, nfcData.Epg.LLDPDiscovery, epg)...)
+			apicSlice = append(apicSlice, cont.createNodeFabNetAttEpgStaticAttachments(vlan, aep, networkName, nfcData.Epg.DiscoveryType, epg, progMap)...)
 		}
 	}
 	return apicSlice
 }
 
 func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, nodeName string, nodeFabNetAttKey string, progMap map[string]apicapi.ApicSlice) {
-	nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcLLDP := cont.getSharedEncapNfcCacheEpgLocked(vlan)
+	nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(vlan)
 	epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
 	labelKey := cont.aciNameForKey("nfna", epgName)
 	nfnaMap := cont.sharedEncapCache[vlan].NetRef
@@ -480,10 +502,21 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 	}
 	cont.sharedEncapCache[vlan] = &sharedEncapData{
 		Pods:   cont.sharedEncapCache[vlan].Pods,
-		NetRef: nfnaMap}
+		NetRef: nfnaMap,
+		Aeps:   cont.sharedEncapCache[vlan].Aeps,
+	}
 	if len(cont.sharedEncapCache[vlan].NetRef) == 0 {
 		cont.log.Infof("clear shared encap epg: %d", vlan)
 		progMap[labelKey] = nil
+		for aep := range cont.sharedEncapCache[vlan].Aeps {
+			delete(cont.sharedEncapAepCache[aep], vlan)
+			if len(cont.sharedEncapAepCache[aep]) == 0 {
+				lblKey := cont.aciNameForKey("aepPhysDom", aep)
+				progMap[lblKey] = nil
+				delete(cont.sharedEncapAepCache, aep)
+				cont.log.Infof("Delete physdom association for AEP %s", aep)
+			}
+		}
 		delete(cont.sharedEncapCache, vlan)
 		if nfcEpgAp != "" {
 			tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
@@ -515,12 +548,23 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 	}
 	epg := cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix, nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders)
 	if cont.isNodeFabNetAttVlanProgrammable(vlan, nil) {
-		if nfcLLDP {
+		if nfcDiscovery != fabattv1.StaticPathMgmtTypeAEP {
 			apicSlice2 = append(apicSlice2, cont.depopulateFabricPaths(epg, vlan, nodeName, nodeFabNetAttKey)...)
 		}
-		apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(vlan, "", epg, apicSlice2)
+		apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(vlan, "", epg, apicSlice2, progMap)
 	} else {
 		apicSlice2 = append(apicSlice2, epg)
+		for aep := range cont.sharedEncapCache[vlan].Aeps {
+			delete(cont.sharedEncapAepCache[aep], vlan)
+			if len(cont.sharedEncapAepCache[aep]) == 0 {
+				lblKey := cont.aciNameForKey("aepPhysDom", aep)
+				progMap[lblKey] = nil
+				delete(cont.sharedEncapAepCache, aep)
+				cont.log.Infof("Deleting physdom association for AEP %s", aep)
+			}
+			delete(cont.sharedEncapCache[vlan].Aeps, aep)
+		}
+
 	}
 	progMap[labelKey] = apicSlice2
 }
@@ -569,7 +613,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 			apicSlice = append(apicSlice, epg)
 			continue
 		}
-		nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcLLDP := cont.getSharedEncapNfcCacheEpgLocked(encap)
+		nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(encap)
 		nfcBdTenant, nfcVrf, nfcBd, nfcBdSubnets := cont.getSharedEncapNfcCacheBDLocked(encap)
 		if nfcEpgAp != "" {
 			tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
@@ -596,14 +640,23 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 			cont.log.Infof("Skip shared encap vlan-%d with no nad references", encap)
 		} else {
 			if cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
-				if nfcLLDP {
+				if nfcDiscovery != fabattv1.StaticPathMgmtTypeAEP {
 					cont.populateFabricPaths(epg, encap, addNet)
 				}
 				apicSlice2 = append(apicSlice2, epg)
-				apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(encap, "", epg, apicSlice2)
-
+				apicSlice2 = cont.addNodeFabNetAttStaticAttachmentsLocked(encap, "", epg, apicSlice2, progMap)
 			} else {
 				apicSlice2 = append(apicSlice2, epg)
+				for aep := range cont.sharedEncapCache[encap].Aeps {
+					delete(cont.sharedEncapAepCache[aep], encap)
+					if len(cont.sharedEncapAepCache[aep]) == 0 {
+						lblKey := cont.aciNameForKey("aepPhysDom", aep)
+						progMap[lblKey] = nil
+						delete(cont.sharedEncapAepCache, aep)
+						cont.log.Infof("Clearing physdom association for AEP %s", aep)
+					}
+					delete(cont.sharedEncapCache[encap].Aeps, aep)
+				}
 				cont.log.Infof("Skipping staticpaths of shared encap vlan-%d with no pods", encap)
 			}
 			if nfcEpgAp != "" {
@@ -646,6 +699,7 @@ func (cont *AciController) updateNodeFabNetAttPods(nodeFabNetAtt *fabattv1.NodeF
 			shrdEncapData = &sharedEncapData{
 				NetRef: make(map[string]*AdditionalNetworkMeta),
 				Pods:   make(map[string]map[string][]string),
+				Aeps:   make(map[string]bool),
 			}
 			cont.sharedEncapCache[vlan] = shrdEncapData
 		}
