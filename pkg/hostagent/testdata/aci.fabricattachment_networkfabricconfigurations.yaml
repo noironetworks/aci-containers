@@ -90,9 +90,8 @@ spec:
                                 type: string
                               type: array
                           type: object
-                        lldpDiscovery:
-                          default: true
-                          type: boolean
+                        discoveryType:
+                          type: string
                         name:
                           type: string
                         tenant:

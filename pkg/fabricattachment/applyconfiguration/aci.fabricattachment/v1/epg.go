@@ -17,15 +17,19 @@ limitations under the License.
 
 package v1
 
+import (
+	acifabricattachmentv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+)
+
 // EpgApplyConfiguration represents an declarative configuration of the Epg type for use
 // with apply.
 type EpgApplyConfiguration struct {
-	ApplicationProfile *string                         `json:"applicationProfile,omitempty"`
-	Name               *string                         `json:"name,omitempty"`
-	Tenant             *string                         `json:"tenant,omitempty"`
-	Contracts          *ContractsApplyConfiguration    `json:"contracts,omitempty"`
-	BD                 *BridgeDomainApplyConfiguration `json:"bd,omitempty"`
-	LLDPDiscovery      *bool                           `json:"lldpDiscovery,omitempty"`
+	ApplicationProfile *string                                   `json:"applicationProfile,omitempty"`
+	Name               *string                                   `json:"name,omitempty"`
+	Tenant             *string                                   `json:"tenant,omitempty"`
+	Contracts          *ContractsApplyConfiguration              `json:"contracts,omitempty"`
+	BD                 *BridgeDomainApplyConfiguration           `json:"bd,omitempty"`
+	DiscoveryType      *acifabricattachmentv1.StaticPathMgmtType `json:"discoveryType,omitempty"`
 }
 
 // EpgApplyConfiguration constructs an declarative configuration of the Epg type for use with
@@ -74,10 +78,10 @@ func (b *EpgApplyConfiguration) WithBD(value *BridgeDomainApplyConfiguration) *E
 	return b
 }
 
-// WithLLDPDiscovery sets the LLDPDiscovery field in the declarative configuration to the given value
+// WithDiscoveryType sets the DiscoveryType field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the LLDPDiscovery field is set to the value of the last call.
-func (b *EpgApplyConfiguration) WithLLDPDiscovery(value bool) *EpgApplyConfiguration {
-	b.LLDPDiscovery = &value
+// If called multiple times, the DiscoveryType field is set to the value of the last call.
+func (b *EpgApplyConfiguration) WithDiscoveryType(value acifabricattachmentv1.StaticPathMgmtType) *EpgApplyConfiguration {
+	b.DiscoveryType = &value
 	return b
 }

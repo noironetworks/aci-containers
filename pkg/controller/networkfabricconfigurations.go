@@ -219,7 +219,6 @@ func (cont *AciController) updateNfcCombinedCache() (affectedVlans []int) {
 			affectedVlans = append(affectedVlans, vlan)
 		}
 	}
-
 	cont.indexMutex.Unlock()
 
 	return affectedVlans
@@ -288,7 +287,7 @@ func (cont *AciController) handleNetworkFabricConfigurationDelete(key string) bo
 }
 
 // Internal API - Only used in GlobalScopeVlan mode
-func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg string, nfcEpgConsumers, nfcEpgProviders []string, lldpDiscovery bool) {
+func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg string, nfcEpgConsumers, nfcEpgProviders []string, discoveryType fabattv1.StaticPathMgmtType) {
 	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
 		nfcEpgTenant = nfcData.Epg.Tenant
 		nfcEpgAp = ""
@@ -299,9 +298,9 @@ func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTen
 		nfcEpg = nfcData.Epg.Name
 		nfcEpgConsumers = nfcData.Epg.Contracts.Consumer
 		nfcEpgProviders = nfcData.Epg.Contracts.Provider
-		lldpDiscovery = nfcData.Epg.LLDPDiscovery
+		discoveryType = nfcData.Epg.DiscoveryType
 	} else {
-		lldpDiscovery = true
+		discoveryType = fabattv1.StaticPathMgmtTypeAll
 	}
 	return
 
