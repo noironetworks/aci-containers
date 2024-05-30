@@ -121,22 +121,6 @@ waitHandler:
 func TestCRDsDelete(t *testing.T) {
 	initCont := func() *testAciController {
 		cont := testController()
-		cont.config.AciPolicyTenant = "test-tenant_crd"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
-			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
-		}
-		cont.config.PodIpPool = []ipam.IpRange{
-			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
-		}
-		cont.AciController.initIpam()
-
-		cont.fakeNamespaceSource.Add(namespaceLabel("testns_qos",
-			map[string]string{"test": "testv"}))
-		cont.fakeNamespaceSource.Add(namespaceLabel("ns1_qos",
-			map[string]string{"nl_qos": "nv_qos"}))
-		cont.fakeNamespaceSource.Add(namespaceLabel("ns2_qos",
-			map[string]string{"nl_qos": "nv_qos"}))
-
 		return cont
 	}
 
@@ -173,9 +157,6 @@ func TestCRDsDelete(t *testing.T) {
 		cont.registerCRDHook(crd.obj.ObjectMeta.Name, crd.h)
 	}
 
-	for _, crd := range crdList {
-		cont.fakeCRDSource.Add(crd.obj)
-	}
 	for _, crd := range crdList {
 		cont.fakeCRDSource.Delete(crd.obj)
 	}
