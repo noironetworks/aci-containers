@@ -758,7 +758,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	agent := seps.agent
 	hasValidMapping := false
 	var endpointSlices []*discovery.EndpointSlice
-	label := map[string]string{"kubernetes.io/service-name": as.ObjectMeta.Name}
+	label := map[string]string{discovery.LabelServiceName: as.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(labels.Set(label))
 	cache.ListAllByNamespace(agent.endpointSliceInformer.GetIndexer(), as.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {
@@ -846,25 +846,28 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							// Currently-1.22 only zones are used as hints.
 							// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/2433-topology-aware-hints
 							var hintsEnabled = false
-							if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (val1 == "auto") {
+							if val1, ok1 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-routing"]; ok1 && (strings.ToLower(val1) == "auto") {
 								hintsEnabled = true
 							}
-							if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (val2 == "auto") {
+							// annotation deprecated in 1.27 but still supported
+							if val2, ok2 := as.ObjectMeta.Annotations["service.kubernetes.io/topology-aware-hints"]; ok2 && (strings.ToLower(val2) == "auto") {
 								hintsEnabled = true
 							}
-							zone, zoneOk := node.ObjectMeta.Labels["kubernetes.io/zone"]
+							// annotation as of 1.27
+							if val3, ok3 := as.ObjectMeta.Annotations[v1.AnnotationTopologyMode]; ok3 && (strings.ToLower(val3) == "auto") {
+								hintsEnabled = true
+							}
+							zone, zoneOk := node.ObjectMeta.Labels[v1.LabelTopologyZone]
 							nodeZone = zone
 							if !external && zoneOk && hintsEnabled && e.Hints != nil {
 								for _, hintZone := range e.Hints.ForZones {
-									if nodeZone == hintZone.Name && *e.Conditions.Ready == true {
+									if nodeZone == hintZone.Name && *e.Conditions.Ready {
 										nexthops["topologyawarehints"] =
 											append(nexthops["topologyawarehints"], a)
 									}
 								}
-							} else {
-								if *e.Conditions.Ready == true {
-									nexthops["any"] = append(nexthops["any"], a)
-								}
+							} else if *e.Conditions.Ready {
+								nexthops["any"] = append(nexthops["any"], a)
 							}
 						}
 					}

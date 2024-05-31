@@ -1576,7 +1576,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 	for _, port := range ports {
 		portstrings[strconv.Itoa(port)] = true
 	}
-	label := map[string]string{"kubernetes.io/service-name": service.ObjectMeta.Name}
+	label := map[string]string{discovery.LabelServiceName: service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(label)
 	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
 		func(endpointSliceobj interface{}) {

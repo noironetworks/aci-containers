@@ -117,7 +117,7 @@ func endpointslice(namespace string, name string,
 
 	for i, ip := range nextHopIps {
 		var endpoint discovery.Endpoint
-		var condition bool = true
+		var condition = true
 		endpoint.Addresses = append(endpoint.Addresses, ip)
 		endpoint.Conditions.Ready = &condition
 		e.Endpoints = append(e.Endpoints, endpoint)
@@ -444,7 +444,11 @@ func TestServiceWithTopoKeys(t *testing.T) {
 			Annotations: map[string]string{
 				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
 			},
-			Labels: map[string]string{"kubernetes.io/hostname": "test-node"},
+			Labels: map[string]string{
+				v1.LabelHostname:       "test-node",
+				v1.LabelTopologyZone:   "fabric1-pod-1",
+				v1.LabelTopologyRegion: "fabric1",
+			},
 		},
 	}
 	agent.fakeNodeSource.Add(node)
@@ -459,7 +463,13 @@ func TestServiceWithTopoKeys(t *testing.T) {
 		}
 		service := service(st.uuid, st.namespace, st.name,
 			st.clusterIp, st.externalIp, st.ports)
+		service.ObjectMeta.Annotations[v1.AnnotationTopologyMode] = "Auto"
 		endpoints := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, agent.config.NodeName)
+		for i := range endpoints.Endpoints {
+			hintForZone := discovery.ForZone{Name: "fabric1-pod-1"}
+			hints := discovery.EndpointHints{ForZones: []discovery.ForZone{hintForZone}}
+			endpoints.Endpoints[i].Hints = &hints
+		}
 		agent.fakeServiceSource.Add(service)
 		agent.fakeEndpointSliceSource.Add(endpoints)
 		agent.doTestService(t, tempdir, &serviceTests[i], "create")
