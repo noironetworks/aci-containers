@@ -561,11 +561,21 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			})
 
 			//Prepare kubectl cp command for aci-conatiners-host
-			tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/k8s-pod-network/", nodes.Items[ix].Name)
+			veth_mode := os.Getenv("GENERIC_VETH_MODE")
+			metadata_path := ""
+			// Check if the environment variable is set
+			if veth_mode != "True" {
+				tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/k8s-pod-network/", nodes.Items[ix].Name)
+				metadata_path = "/usr/local/var/lib/aci-containers/k8s-pod-network"
+			} else {
+				tempName = fmt.Sprintf("hostfiles/node-%s/aci-containers/generic-veth/", nodes.Items[ix].Name)
+				metadata_path = "/usr/local/var/lib/aci-containers/generic-veth"
+			}
+
 			cmds = append(cmds, reportCmdElem{
 				name: tempName,
 				args: []string{"cp", systemNamespace + "/" + podName + ":" +
-					"/usr/local/var/lib/aci-containers/k8s-pod-network", tempName},
+					metadata_path, tempName},
 				skipOutputFile: true,
 			})
 		}
