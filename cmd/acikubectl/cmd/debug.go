@@ -792,6 +792,52 @@ func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
 	return "kube-system", nil
 }
 
+func validNamespace(kubeClient kubernetes.Interface, namespace string) bool {
+	namespaces, err :=
+		kubeClient.CoreV1().Namespaces().List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return false
+	}
+	for ix := range namespaces.Items {
+		if namespaces.Items[ix].Name == namespace {
+			return true
+		}
+
+	}
+	return false
+}
+
+func getPod(kubeClient kubernetes.Interface,
+	Namespace string, podname string) (*v1.Pod, error) {
+
+	pod, err := kubeClient.CoreV1().Pods(Namespace).Get(kubecontext.TODO(), podname, metav1.GetOptions{})
+
+	return pod, err
+}
+
+func getSvc(kubeClient kubernetes.Interface,
+	Namespace string, svcname string) (*v1.Service, error) {
+
+	svc, err := kubeClient.CoreV1().Services(Namespace).Get(kubecontext.TODO(), svcname, metav1.GetOptions{})
+
+	return svc, err
+}
+
+func findPodByIP(kubeClient kubernetes.Interface, namespace, podIP string) (*v1.Pod, error) {
+	pods, err := kubeClient.CoreV1().Pods(namespace).List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("pod with IP %s not found in namespace %s", podIP, namespace)
+	}
+
+	for _, pod := range pods.Items {
+		if pod.Status.PodIP == podIP {
+			return &pod, nil
+		}
+	}
+
+	return nil, fmt.Errorf("pod with IP %s not found in namespace %s", podIP, namespace)
+}
+
 func podForNode(kubeClient kubernetes.Interface,
 	systemNamespace string, node string, selector string) (string, error) {
 	opts := metav1.ListOptions{
