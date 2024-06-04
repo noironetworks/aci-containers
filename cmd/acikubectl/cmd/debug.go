@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"os/exec"
 	"strconv"
@@ -792,6 +793,119 @@ func findSystemNamespace(kubeClient kubernetes.Interface) (string, error) {
 	return "kube-system", nil
 }
 
+func validNamespace(kubeClient kubernetes.Interface, namespace string) bool {
+	namespaces, err :=
+		kubeClient.CoreV1().Namespaces().List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return false
+	}
+	for ix := range namespaces.Items {
+		if namespaces.Items[ix].Name == namespace {
+			return true
+		}
+
+	}
+	return false
+}
+
+func getPod(kubeClient kubernetes.Interface,
+	Namespace string, podname string) (*v1.Pod, error) {
+
+	pod, err := kubeClient.CoreV1().Pods(Namespace).Get(kubecontext.TODO(), podname, metav1.GetOptions{})
+
+	return pod, err
+}
+
+func getSvc(kubeClient kubernetes.Interface,
+	Namespace string, svcname string) (*v1.Service, error) {
+
+	svc, err := kubeClient.CoreV1().Services(Namespace).Get(kubecontext.TODO(), svcname, metav1.GetOptions{})
+
+	return svc, err
+}
+
+func findNodeByIP(kubeClient kubernetes.Interface, ip string) (string, error) {
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	for _, node := range nodes.Items {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == "InternalIP" && addr.Address == ip {
+				return node.Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("Could not find node with IP:", ip)
+}
+
+func findEndpoint(kubeClient kubernetes.Interface, ip string, tcp_port int, svc *v1.Service) (*v1.Pod, error) {
+	var pod *v1.Pod
+	endpoints, err := kubeClient.CoreV1().Endpoints(svc.Namespace).Get(kubecontext.TODO(), svc.Name, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Error getting endpoints: %s\n", err.Error())
+		return nil, err
+	}
+	for _, subset := range endpoints.Subsets {
+		for _, address := range subset.Addresses {
+			if address.TargetRef != nil {
+				if address.IP == ip {
+					pod, err = kubeClient.CoreV1().Pods(address.TargetRef.Namespace).Get(kubecontext.TODO(), address.TargetRef.Name, metav1.GetOptions{})
+					if err != nil {
+						//fmt.Printf("Error getting pod details: %s\n", err.Error())
+						return nil, err
+					}
+					return pod, nil
+				}
+			}
+		}
+	}
+	pod, err = findPodByIPAndTargetPort(kubeClient, ip, tcp_port, svc)
+	if err != nil {
+		return nil, err
+	}
+
+	return pod, nil
+
+}
+
+func findPodByIPAndTargetPort(kubeClient kubernetes.Interface, ip string, tcp_port int, svc *v1.Service) (*v1.Pod, error) {
+	var targetPort int32
+
+	for _, port := range svc.Spec.Ports {
+		if port.Port == int32(tcp_port) {
+			if port.TargetPort.Type == intstr.Int {
+				targetPort = port.TargetPort.IntVal
+			} else {
+				return nil, fmt.Errorf("unsupported targetPort type")
+			}
+		}
+	}
+
+	pods, err := kubeClient.CoreV1().Pods("").List(kubecontext.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error listing pods: %s", err.Error())
+	}
+
+	for _, pod := range pods.Items {
+		for _, status := range pod.Status.PodIPs {
+			if status.IP == ip {
+				for _, container := range pod.Spec.Containers {
+					for _, port := range container.Ports {
+						if port.ContainerPort == targetPort {
+							return &pod, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("No Pod with ip:%s and targetPort:%d found", ip, targetPort)
+}
 func podForNode(kubeClient kubernetes.Interface,
 	systemNamespace string, node string, selector string) (string, error) {
 	opts := metav1.ListOptions{
