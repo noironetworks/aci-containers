@@ -673,7 +673,7 @@ func apicExtNetCreate(enDn string, ingress string, ipv4 bool,
 			ingress += "/128"
 		}
 	}
-	subnet := apicapi.NewL3extSubnet(enDn, ingress)
+	subnet := apicapi.NewL3extSubnet(enDn, ingress, "", "")
 	if sharedSec {
 		subnet.SetAttr("scope", "import-security,shared-security")
 	}

@@ -153,7 +153,7 @@ func TestTypes(t *testing.T) {
 	assert.Equal(t, "uni/tn-common/out-out1/instP-name1",
 		NewL3extInstP("common", "out1", "name1").GetDn())
 	assert.Equal(t, "fake/dn/extsubnet-[1.1.1.1/10]",
-		NewL3extSubnet("fake/dn", "1.1.1.1/10").GetDn())
+		NewL3extSubnet("fake/dn", "1.1.1.1/10", "", "").GetDn())
 	assert.Equal(t, "fake/dn/rsprov-prov",
 		NewFvRsProv("fake/dn", "prov").GetDn())
 	assert.Equal(t, "fake/dn/rscons-con",

@@ -797,6 +797,52 @@ var metadata = map[string]*apicMeta{
 		},
 		normalizer: filterEntryNormalizer,
 	},
+	"l3extLIfP": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"l3extVirtualLIfP",
+		},
+	},
+	"l3extRsDynPathAtt": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+		children: []string{},
+	},
+	"l3extVirtualLIfP": {
+		attributes: map[string]interface{}{
+			"nodeDn": "",
+			"encap":  "",
+		},
+		children: []string{
+			"bgpPeerP",
+			"l3extIp",
+			"l3extRsDynPathAtt",
+		},
+	},
+	"l3extIp": {
+		attributes: map[string]interface{}{
+			"addr": "",
+		},
+		children: []string{},
+	},
+	"l3extRsNodeL3OutAtt": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+		children: []string{},
+	},
+	"l3extLNodeP": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"l3extLIfP",
+			"l3extRsNodeL3OutAtt",
+		},
+	},
 	"l3extInstP": {
 		attributes: map[string]interface{}{
 			"name": "",
@@ -812,6 +858,62 @@ var metadata = map[string]*apicMeta{
 			"ip":    "",
 			"scope": "import-security",
 		},
+	},
+	"l3extRsPathL3OutAtt": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+		children: []string{
+			"l3extMember",
+			"bgpPeerP",
+		},
+	},
+	"l3extMember": {
+		attributes: map[string]interface{}{
+			"addr": "",
+			"side": "",
+		},
+		children: []string{
+			"l3extIp",
+		},
+	},
+	"l3extOut": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{
+			"l3extLNodeP",
+			"l3extLIfP",
+			"l3extInstP",
+		},
+	},
+
+	"bgpPeerP": {
+		attributes: map[string]interface{}{
+			"addr": "",
+		},
+		children: []string{
+			"bgpAsP",
+			"bgpRsPeerPfxPol",
+		},
+	},
+	"bgpAsP": {
+		attributes: map[string]interface{}{
+			"asn": "",
+		},
+		children: []string{},
+	},
+	"bgpPeerPfxPol": {
+		attributes: map[string]interface{}{
+			"name": "",
+		},
+		children: []string{},
+	},
+	"bgpRsPeerPfxPol": {
+		attributes: map[string]interface{}{
+			"tnBgpPeerPfxPolName": "",
+		},
+		children: []string{},
 	},
 	"fvRsProv": {
 		attributes: map[string]interface{}{

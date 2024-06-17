@@ -39,6 +39,7 @@ import (
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/index"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
@@ -77,50 +78,53 @@ type AciController struct {
 	netFabConfigQueue   workqueue.RateLimitingInterface
 	nadVlanMapQueue     workqueue.RateLimitingInterface
 	fabricVlanPoolQueue workqueue.RateLimitingInterface
+	netFabL3ConfigQueue workqueue.RateLimitingInterface
 
-	namespaceIndexer       cache.Indexer
-	namespaceInformer      cache.Controller
-	podIndexer             cache.Indexer
-	podInformer            cache.Controller
-	endpointsIndexer       cache.Indexer
-	endpointsInformer      cache.Controller
-	serviceIndexer         cache.Indexer
-	serviceInformer        cache.Controller
-	replicaSetIndexer      cache.Indexer
-	replicaSetInformer     cache.Controller
-	deploymentIndexer      cache.Indexer
-	deploymentInformer     cache.Controller
-	nodeIndexer            cache.Indexer
-	nodeInformer           cache.Controller
-	networkPolicyIndexer   cache.Indexer
-	networkPolicyInformer  cache.Controller
-	snatIndexer            cache.Indexer
-	snatInformer           cache.Controller
-	snatNodeInfoIndexer    cache.Indexer
-	snatNodeInformer       cache.Controller
-	crdInformer            cache.Controller
-	rdConfigInformer       cache.Controller
-	rdConfigIndexer        cache.Indexer
-	qosIndexer             cache.Indexer
-	qosInformer            cache.Controller
-	netflowIndexer         cache.Indexer
-	netflowInformer        cache.Controller
-	erspanIndexer          cache.Indexer
-	erspanInformer         cache.Controller
-	nodePodIfIndexer       cache.Indexer
-	nodePodIfInformer      cache.Controller
-	istioIndexer           cache.Indexer
-	istioInformer          cache.Controller
-	endpointSliceIndexer   cache.Indexer
-	endpointSliceInformer  cache.Controller
-	snatCfgInformer        cache.Controller
-	updatePod              podUpdateFunc
-	updateNode             nodeUpdateFunc
-	updateServiceStatus    serviceUpdateFunc
-	nodeFabNetAttInformer  cache.SharedIndexInformer
-	netFabConfigInformer   cache.SharedIndexInformer
-	nadVlanMapInformer     cache.SharedIndexInformer
-	fabricVlanPoolInformer cache.SharedIndexInformer
+	namespaceIndexer                     cache.Indexer
+	namespaceInformer                    cache.Controller
+	podIndexer                           cache.Indexer
+	podInformer                          cache.Controller
+	endpointsIndexer                     cache.Indexer
+	endpointsInformer                    cache.Controller
+	serviceIndexer                       cache.Indexer
+	serviceInformer                      cache.Controller
+	replicaSetIndexer                    cache.Indexer
+	replicaSetInformer                   cache.Controller
+	deploymentIndexer                    cache.Indexer
+	deploymentInformer                   cache.Controller
+	nodeIndexer                          cache.Indexer
+	nodeInformer                         cache.Controller
+	networkPolicyIndexer                 cache.Indexer
+	networkPolicyInformer                cache.Controller
+	snatIndexer                          cache.Indexer
+	snatInformer                         cache.Controller
+	snatNodeInfoIndexer                  cache.Indexer
+	snatNodeInformer                     cache.Controller
+	crdInformer                          cache.Controller
+	rdConfigInformer                     cache.Controller
+	rdConfigIndexer                      cache.Indexer
+	qosIndexer                           cache.Indexer
+	qosInformer                          cache.Controller
+	netflowIndexer                       cache.Indexer
+	netflowInformer                      cache.Controller
+	erspanIndexer                        cache.Indexer
+	erspanInformer                       cache.Controller
+	nodePodIfIndexer                     cache.Indexer
+	nodePodIfInformer                    cache.Controller
+	istioIndexer                         cache.Indexer
+	istioInformer                        cache.Controller
+	endpointSliceIndexer                 cache.Indexer
+	endpointSliceInformer                cache.Controller
+	snatCfgInformer                      cache.Controller
+	updatePod                            podUpdateFunc
+	updateNode                           nodeUpdateFunc
+	updateServiceStatus                  serviceUpdateFunc
+	nodeFabNetAttInformer                cache.SharedIndexInformer
+	netFabConfigInformer                 cache.SharedIndexInformer
+	nadVlanMapInformer                   cache.SharedIndexInformer
+	fabricVlanPoolInformer               cache.SharedIndexInformer
+	networkFabricL3ConfigurationInformer cache.SharedIndexInformer
+	fabNetAttClient                      *fabattclset.Clientset
 
 	indexMutex sync.Mutex
 
@@ -185,8 +189,11 @@ type AciController struct {
 	vmmClusterFaultSupported bool
 	additionalNetworkCache   map[string]*AdditionalNetworkMeta
 	//Used in Shared mode
-	sharedEncapCache    map[int]*sharedEncapData
-	sharedEncapAepCache map[string]map[int]bool
+	sharedEncapCache       map[int]*sharedEncapData
+	sharedEncapAepCache    map[string]map[int]bool
+	sharedEncapSviCache    map[int]*NfL3Data
+	sharedEncapVrfCache    map[string]*NfVrfData
+	sharedEncapTenantCache map[string]*NfTenantData
 	// vlan to propertiesList
 	sharedEncapNfcCache         map[int]*NfcData
 	sharedEncapNfcVlanMap       map[int]*NfcData
@@ -199,6 +206,38 @@ type AciController struct {
 	fabricVlanPoolMap        map[string]map[string]string
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	openStackSystemId        string
+}
+
+type NfL3OutData struct {
+	RtCtrl     string
+	PodId      int
+	RtrNodeMap map[int]*fabattv1.FabricL3OutRtrNode
+	ExtEpgMap  map[string]*fabattv1.PolicyPrefixGroup
+	SviMap     map[int]bool
+}
+
+type NfTenantData struct {
+	CommonTenant     bool
+	L3OutConfig      map[string]*NfL3OutData
+	BGPPeerPfxConfig map[string]*fabattv1.BGPPeerPrefixPolicy
+}
+
+type NfVrfData struct {
+	TenantConfig map[string]*NfTenantData
+}
+
+type NfL3Networks struct {
+	fabattv1.PrimaryNetwork
+	Subnets map[string]*fabattv1.FabricL3Subnet
+}
+
+type NfL3Data struct {
+	Tenant      string
+	Vrf         fabattv1.VRF
+	PodId       int
+	ConnectedNw *NfL3Networks
+	NetAddr     map[string]*RoutedNetworkData
+	Nodes       map[int]fabattv1.FabricL3OutNode
 }
 
 type NfcData struct {
@@ -297,12 +336,29 @@ type LinkData struct {
 	Pods []string
 }
 
+type RoutedNodeData struct {
+	addr string
+	idx  int
+}
+
+type RoutedNetworkData struct {
+	subnet       string
+	netAddress   string
+	maskLen      int
+	numAllocated int
+	maxAddresses int
+	baseAddress  net.IP
+	nodeMap      map[string]RoutedNodeData
+	availableMap map[int]bool
+}
+
 type AdditionalNetworkMeta struct {
 	NetworkName string
 	EncapVlan   string
 	//node+localiface->fabricLinks
 	FabricLink map[string]map[string]LinkData
 	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
+	NetAddr    map[string]*RoutedNetworkData
 	Mode       util.EncapMode
 }
 
@@ -398,6 +454,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netFabConfigQueue:   createQueue("networkfabricconfiguration"),
 		nadVlanMapQueue:     createQueue("nadvlanmap"),
 		fabricVlanPoolQueue: createQueue("fabricvlanpool"),
+		netFabL3ConfigQueue: createQueue("networkfabricl3configuration"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -431,6 +488,9 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		additionalNetworkCache:      make(map[string]*AdditionalNetworkMeta),
 		sharedEncapCache:            make(map[int]*sharedEncapData),
 		sharedEncapAepCache:         make(map[string]map[int]bool),
+		sharedEncapSviCache:         make(map[int]*NfL3Data),
+		sharedEncapVrfCache:         make(map[string]*NfVrfData),
+		sharedEncapTenantCache:      make(map[string]*NfTenantData),
 		sharedEncapNfcCache:         make(map[int]*NfcData),
 		sharedEncapNfcVlanMap:       make(map[int]*NfcData),
 		sharedEncapNfcLabelMap:      make(map[string]*NfcData),

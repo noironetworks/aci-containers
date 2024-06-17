@@ -269,6 +269,9 @@ type ControllerConfig struct {
 	// PhysDom for additional networks in chained mode
 	AciPhysDom string `json:"aci-phys-dom,omitempty"`
 
+	// L3Dom for additional networks in chained mode
+	AciL3Dom string `json:"aci-l3-dom,omitempty"`
+
 	// CNI is in chained mode
 	ChainedMode bool `json:"chained-mode,omitempty"`
 

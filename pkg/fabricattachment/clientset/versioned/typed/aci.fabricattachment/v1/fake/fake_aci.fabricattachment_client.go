@@ -39,6 +39,10 @@ func (c *FakeAciV1) NetworkFabricConfigurations(namespace string) v1.NetworkFabr
 	return &FakeNetworkFabricConfigurations{c, namespace}
 }
 
+func (c *FakeAciV1) NetworkFabricL3Configurations(namespace string) v1.NetworkFabricL3ConfigurationInterface {
+	return &FakeNetworkFabricL3Configurations{c, namespace}
+}
+
 func (c *FakeAciV1) NodeFabricNetworkAttachments(namespace string) v1.NodeFabricNetworkAttachmentInterface {
 	return &FakeNodeFabricNetworkAttachments{c, namespace}
 }
