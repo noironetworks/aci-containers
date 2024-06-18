@@ -306,10 +306,8 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					} else if isPriorityObject(dn) {
 						conn.log.Debug("Adding dn to priorityQueue: ", dn)
 						conn.priorityQueue.Add(dn)
-					} else {
-						if conn.deltaQueue != nil {
-							conn.deltaQueue.Add(dn)
-						}
+					} else if conn.deltaQueue != nil {
+						conn.deltaQueue.Add(dn)
 					}
 					conn.indexMutex.Unlock()
 				}
@@ -988,43 +986,6 @@ func (conn *ApicConnection) queueDn(dn string) {
 
 func (conn *ApicConnection) ForceRelogin() {
 	conn.token = ""
-}
-
-func (conn *ApicConnection) PostTestAPI(data interface{}) error {
-	if conn.token == "" {
-		token, err := conn.login()
-		if err != nil {
-			conn.log.Errorf("Login: %v", err)
-			return err
-		}
-		conn.token = token
-	}
-	uri := "/testapi/cloudpe/mo/.json"
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	raw, err := json.Marshal(data)
-	if err != nil {
-		conn.log.Errorf("Could not serialize object for testapi %v", err)
-		return err
-	}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return err
-	}
-	conn.sign(req, uri, raw)
-	req.Header.Set("Content-Type", "application/json")
-	conn.log.Infof("Post: %+v", req)
-	resp, err := conn.client.Do(req)
-	if err != nil {
-		conn.log.Errorf("Could not update dn %v", err)
-		return err
-	}
-
-	complete(resp)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Status: %v", resp.StatusCode)
-	}
-	return nil
 }
 
 func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {

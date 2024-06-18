@@ -17,16 +17,11 @@ limitations under the License.
 package gbpserver
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 )
 
 type gbpInvMo struct {
@@ -342,54 +337,11 @@ func (ep *Endpoint) Add() (string, error) {
 
 	epgRefMo.AddProperty("target", ref)
 
-	return epMo.Uri, ep.pushTocAPIC(true)
+	return epMo.Uri, nil
 }
 
 func (ep *Endpoint) getURI() string {
 	return fmt.Sprintf("%sInvRemoteInventoryEp/%s/", epInvURI, ep.Uuid)
-}
-
-func (ep *Endpoint) pushTocAPIC(add bool) error {
-	if apicCon == nil {
-		return nil
-	}
-
-	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
-	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn(cApicName(ep.EPG))
-	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
-	epName := ep.Uuid[len(ep.Uuid)-12:]
-	epName = fmt.Sprintf("%s.%s", epName, ep.VTEP)
-	cEP["hcloudEndPoint"].Attributes["name"] = epName
-	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = ep.IPAddr[0]
-	if !add {
-		cEP["hcloudEndPoint"].Attributes["status"] = "deleted"
-	}
-	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
-
-	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
-	cSN["hcloudSubnet"].Attributes["addr"] = defCAPICSubnet
-	cSN["hcloudSubnet"].Children = append(cSN["hcloudSubnet"].Children, cEP)
-
-	cCidr := apicapi.EmptyApicObject("hcloudCidr", "")
-	cCidr["hcloudCidr"].Attributes["addr"] = defCAPICCidr
-	cCidr["hcloudCidr"].Children = append(cCidr["hcloudCidr"].Children, cSN)
-
-	cCtx := apicapi.EmptyApicObject("hcloudCtx", "")
-	cCtx["hcloudCtx"].Attributes["name"] = defVrfName
-	cCtx["hcloudCtx"].Attributes["primaryCidr"] = defCAPICCidr
-	cCtx["hcloudCtx"].Children = append(cCtx["hcloudCtx"].Children, cCidr)
-
-	cRegion := apicapi.EmptyApicObject("hcloudRegion", "")
-	cRegion["hcloudRegion"].Attributes["regionName"] = defRegion
-	cRegion["hcloudRegion"].Children = append(cRegion["hcloudRegion"].Children, cCtx)
-
-	cAcc := apicapi.EmptyApicObject("hcloudAccount", "")
-	cAcc["hcloudAccount"].Attributes["name"] = getTenantName()
-	cAcc["hcloudAccount"].Children = append(cAcc["hcloudAccount"].Children, cRegion)
-
-	err := apicCon.PostTestAPI(cAcc)
-	log.Errorf("pushTocAPIC: %v", err)
-	return err
 }
 
 func (ep *Endpoint) FromMo(mo *gbpInvMo) error {
@@ -454,100 +406,7 @@ func (ep *Endpoint) Delete() error {
 		return fmt.Errorf("epInventory not found")
 	}
 	invMo.DelChild(epURI)
-
-	return ep.pushTocAPIC(false)
-}
-
-func getSgDn(epgName string) string {
-	cepg := apicapi.NewCloudEpg(getTenantName(), defCloudApp, epgName)
-	n := fmt.Sprintf("acct-[%s]/region-[%s]/context-[%s]/sgroup-[%s]",
-		getTenantName(), defRegion, defVrfName, cepg.GetDn())
-	return n
-}
-
-// postEndpoint rest handler to create an endpoint
-func postEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	ep := &Endpoint{}
-	err = json.Unmarshal(content, ep)
-	if err != nil {
-		return nil, err
-	}
-
-	uri, err := ep.Add()
-	return &PostResp{URI: uri}, err
-}
-
-func getAllEPs() map[string]*gbpInvMo {
-	allEPs := make(map[string]*gbpInvMo)
-
-	for _, m := range theServer.invDB {
-		for _, mo := range m {
-			if mo.Subject == subjRemoteEP {
-				allEPs[mo.Uri] = mo
-			}
-		}
-	}
-
-	return allEPs
-}
-
-func listEndpoints(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	var resp ListResp
-
-	allEPs := getAllEPs()
-	for u := range allEPs {
-		resp.URIs = append(resp.URIs, u)
-	}
-
-	return &resp, nil
-}
-
-func fetchEP(r *http.Request) (*Endpoint, error) {
-	params := r.URL.Query()
-	key, ok := params["key"]
-	if !ok {
-		return nil, fmt.Errorf("key is missing")
-	}
-
-	allEPs := getAllEPs()
-	epMo, ok := allEPs[key[0]]
-	if !ok {
-		return nil, fmt.Errorf("Not found - %s", key)
-	}
-
-	ep := &Endpoint{}
-	err := ep.FromMo(epMo)
-	return ep, err
-}
-func getEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	return fetchEP(r)
-}
-func deleteEndpoint(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	ep, err := fetchEP(r)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("deleteEndpoint - VTEP: %s", ep.VTEP)
-	err = ep.Delete()
-	return nil, err
+	return nil
 }
 
 func checkBounce(reqVtep string) bool {

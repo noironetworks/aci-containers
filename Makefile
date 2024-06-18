@@ -240,7 +240,6 @@ dist-static/simpleservice: ${SIMPLESERVICE_DEPS}
 
 container-gbpserver: dist-static/gbpserver 
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbp-server${DOCKER_TAG} -f ./docker/Dockerfile-gbpserver .
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/gbp-server-batch${DOCKER_TAG} -f ./docker/Dockerfile-gbpserver-batch .
 container-host: dist-static/aci-containers-host-agent dist-static/netop-cni dist-static/opflex-agent-cni
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host${DOCKER_TAG} -f ./docker/Dockerfile-host${DOCKER_EXT} .
 container-host-ovscni: dist-static/aci-containers-host-agent-ovscni dist-static/opflex-agent-cni dist-static/netop-cni

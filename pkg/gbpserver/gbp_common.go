@@ -73,7 +73,6 @@ const (
 	propSFromPort     = "sFromPort"
 	defSubnets        = "allsubnets"
 	nodeSubnets       = "nodesubnets"
-	defVrfName        = "defaultVrf"
 	defBDName         = "defaultBD"
 	defFDName         = "defaultFD"
 	nodeBDName        = "nodeBD"
@@ -88,13 +87,6 @@ const (
 	propConnTrack   = "connectionTracking"
 	propOrder       = "order"
 	anyConName      = "all-all"
-	defCAPICSubnet  = "10.2.50.0/21"
-	defCAPICCidr    = "10.2.0.0/16"
-	defCloudApp     = "kubeApp1"
-)
-
-var (
-	defRegion = "us-east-2"
 )
 
 type BDSubnet struct {
@@ -148,9 +140,6 @@ func getVrfUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpRoutingDomain/%s/", getTenantName(), getVrfName())
 }
 
-func cctxProfName() string {
-	return defVrfName + "_" + defRegion
-}
 func (bds *BDSubnet) SubnetsUri() string {
 	return fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpSubnets/%s/", getTenantName(), bds.subnetsName)
 }

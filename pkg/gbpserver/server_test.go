@@ -16,20 +16,17 @@ limitations under the License.
 package gbpserver
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	reflect "reflect"
 	"testing"
 	"time"
-
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 
 func TestLoginHandlerServeHTTP(t *testing.T) {
 	handler := &loginHandler{}
 
-	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create HTTP request: %v", err)
 	}
@@ -40,50 +37,12 @@ func TestLoginHandlerServeHTTP(t *testing.T) {
 
 	if recorder.Code != http.StatusOK {
 		t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
-	}
-}
-func TestVersionRespServeHTTP(t *testing.T) {
-	handler := &versionResp{}
-
-	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	if err != nil {
-		t.Fatalf("Failed to create HTTP request: %v", err)
-	}
-
-	recorder := httptest.NewRecorder()
-
-	handler.ServeHTTP(recorder, req)
-
-	if recorder.Code != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
-	}
-
-	expectedResult := map[string]interface{}{
-		"imdata": []interface{}{
-			map[string]interface{}{
-				"firmwareCtrlrRunning": map[string]interface{}{
-					"attributes": map[string]interface{}{
-						"version": versionStr,
-					},
-				},
-			},
-		},
-	}
-
-	var actualResult map[string]interface{}
-	err = json.NewDecoder(recorder.Body).Decode(&actualResult)
-	if err != nil {
-		t.Fatalf("Failed to decode response body: %v", err)
-	}
-
-	if !reflect.DeepEqual(actualResult, expectedResult) {
-		t.Errorf("Expected response body %v, got %v", expectedResult, actualResult)
 	}
 }
 func TestNfhServeHTTP(t *testing.T) {
 	n := &nfh{}
 
-	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create HTTP request: %v", err)
 	}
@@ -186,43 +145,4 @@ func TestUpdateTunnels(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Errorf("Timeout waiting for message")
 	}
-}
-func TestUuidToCid(t *testing.T) {
-	tests := []struct {
-		name     string
-		uuid     string
-		expected string
-	}{
-		{
-			name:     "Test case 1",
-			uuid:     "abc.def.ghi",
-			expected: "ghi",
-		},
-		{
-			name:     "Test case 2",
-			uuid:     "123.456.789",
-			expected: "789",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := UuidToCid(tt.uuid)
-			if actual != tt.expected {
-				t.Errorf("Expected result: %s, got: %s", tt.expected, actual)
-			}
-		})
-	}
-}
-
-func TestKafkaEPDel(t *testing.T) {
-	s := &Server{
-		kc: nil,
-	}
-
-	s.kafkaEPDel(&Endpoint{})
-
-	s.kc = &kafkac.KafkaClient{}
-
-	s.kafkaEPDel(&Endpoint{})
 }

@@ -19,14 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
-	"time"
 
-	"github.com/Shopify/sarama"
 	"google.golang.org/grpc"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 
 func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
@@ -48,15 +44,8 @@ func handleInspect(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
 	case "vteps":
 		inspectGRPC(opts, cfg)
 
-	case "kafka":
-		if cfg.Apic == nil {
-			fmt.Printf("Need cfg.Apic for kafka\n")
-			return
-		}
-		inspectKafka(opts, cfg)
-
 	default:
-		fmt.Printf("Unknown inspect type (need grpc, vteps or kafka)")
+		fmt.Printf("Unknown inspect type (need grpc or vteps)")
 	}
 }
 
@@ -102,67 +91,4 @@ func inspectGRPC(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
 		fmt.Printf("ERROR: %v", err)
 	}
 	fmt.Printf("%s", policyJson)
-}
-
-func inspectKafka(opts *cliOpts, cfg *gbpserver.GBPServerConfig) {
-	cc, err := kafkac.GetClientConfig(cfg.Apic.Kafka)
-	if err != nil {
-		fmt.Printf("GetClientConfig returned %v", err)
-		return
-	}
-
-	cons, err := sarama.NewConsumer(cfg.Apic.Kafka.Brokers, cc)
-	if err != nil {
-		fmt.Printf("sarama.NewConsumer returned %v", err)
-		return
-	}
-
-	pc, err := cons.ConsumePartition(cfg.Apic.Kafka.Topic,
-		0, sarama.OffsetOldest)
-	if err != nil {
-		fmt.Printf("sarama.ConsumePartition returned %v", err)
-		return
-	}
-
-	consChan := pc.Messages()
-	epMap := make(map[string]*kafkac.CapicEPMsg)
-
-	func() {
-		fmt.Printf("Getting ep's from Kafka...\n")
-		for {
-			select {
-			case <-time.After(10 * time.Second):
-				return
-			case m, ok := <-consChan:
-				if !ok {
-					return
-				}
-
-				if m.Value == nil {
-					delete(epMap, string(m.Key))
-					continue
-				}
-
-				epMsg := new(kafkac.CapicEPMsg)
-				err := json.Unmarshal(m.Value, epMsg)
-				if err != nil {
-					fmt.Printf("Error %v, %s", err, m.Value)
-					continue
-				}
-
-				epMap[string(m.Key)] = epMsg
-			}
-		}
-	}()
-
-	fmt.Printf("Received %d total endpoints\n", len(epMap))
-	if opts.epg != "all" {
-		fmt.Printf("Showing ep's that match epg %s", opts.epg)
-	}
-	for _, ep := range epMap {
-		if opts.epg == "all" || strings.Contains(ep.EpgDN, opts.epg) {
-			epJson, _ := json.MarshalIndent(ep, "", "    ")
-			fmt.Printf("%s", epJson)
-		}
-	}
 }

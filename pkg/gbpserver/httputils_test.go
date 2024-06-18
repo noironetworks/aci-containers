@@ -27,7 +27,7 @@ func TestMakeHTTPHandler(t *testing.T) {
 		return map[string]string{"message": "Hello, World!"}, nil
 	}
 
-	req, err := http.NewRequest("GET", "/test", nil)
+	req, err := http.NewRequest("GET", "/test", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create test request: %v", err)
 	}
