@@ -16,31 +16,20 @@ limitations under the License.
 package gbpserver
 
 import (
-	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
-	"github.com/noironetworks/aci-containers/pkg/objdb"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
 	NoContainer = "NC"
-	root        = "/aci/objdb"
 	defToken    = "api-server-token"
-	versionPath = "/api/node/class/firmwareCtrlrRunning.json"
-	versionStr  = "3.2(5d)"
 	maxAttempts = 4096
 	noOp        = iota
 	OpaddEPG
@@ -65,11 +54,9 @@ type ListResp struct {
 }
 
 type Server struct {
-	config   *GBPServerConfig
-	driver   StateDriver
-	rxCh     chan *inputMsg
-	objapi   objdb.API
-	upgrader websocket.Upgrader
+	config *GBPServerConfig
+	driver StateDriver
+	rxCh   chan *inputMsg
 	// policy Mos
 	policyDB map[string]*gbpBaseMo
 	// inventory -- ep's organized per vtep
@@ -81,9 +68,7 @@ type Server struct {
 	// tls rest server
 	tlsSrv *http.Server
 	// insecure rest server
-	insSrv *http.Server
-	// kafka client
-	kc            *kafkac.KafkaClient
+	insSrv        *http.Server
 	usedClassIDs  map[uint]bool
 	instToClassID map[string]uint
 	tunnels       map[string]int64
@@ -125,100 +110,6 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-type versionResp struct {
-}
-
-func (v *versionResp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	result := map[string]interface{}{
-		"imdata": []interface{}{
-			map[string]interface{}{
-				"firmwareCtrlrRunning": map[string]interface{}{
-					"attributes": map[string]interface{}{
-						"version": versionStr,
-					},
-				},
-			},
-		},
-	}
-	json.NewEncoder(w).Encode(result)
-}
-
-type refreshSucc struct{}
-
-func (h *refreshSucc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	result := map[string]interface{}{}
-	json.NewEncoder(w).Encode(result)
-}
-
-type socketHandler struct {
-	srv *Server
-}
-
-func (h *socketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := h.srv.upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		return
-	}
-
-	go func() {
-		defer c.Close()
-
-		for {
-			_, _, err := c.ReadMessage()
-			var closeErr *websocket.CloseError
-			if errors.As(err, &closeErr) {
-				break
-			}
-		}
-	}()
-}
-
-var LocalhostCert = []byte(`-----BEGIN CERTIFICATE-----
-MIICEzCCAXygAwIBAgIQMIMChMLGrR+QvmQvpwAU6zANBgkqhkiG9w0BAQsFADAS
-MRAwDgYDVQQKEwdBY21lIENvMCAXDTcwMDEwMTAwMDAwMFoYDzIwODQwMTI5MTYw
-MDAwWjASMRAwDgYDVQQKEwdBY21lIENvMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCB
-iQKBgQDuLnQAI3mDgey3VBzWnB2L39JUU4txjeVE6myuDqkM/uGlfjb9SjY1bIw4
-iA5sBBZzHi3z0h1YV8QPuxEbi4nW91IJm2gsvvZhIrCHS3l6afab4pZBl2+XsDul
-rKBxKKtD1rGxlG4LjncdabFn9gvLZad2bSysqz/qTAUStTvqJQIDAQABo2gwZjAO
-BgNVHQ8BAf8EBAMCAqQwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDwYDVR0TAQH/BAUw
-AwEB/zAuBgNVHREEJzAlggtleGFtcGxlLmNvbYcEfwAAAYcQAAAAAAAAAAAAAAAA
-AAAAATANBgkqhkiG9w0BAQsFAAOBgQCEcetwO59EWk7WiJsG4x8SY+UIAA+flUI9
-tyC4lNhbcF2Idq9greZwbYCqTTTr2XiRNSMLCOjKyI7ukPoPjo16ocHj+P3vZGfs
-h1fIw3cSS2OolhloGw/XM6RWPWtPAlGykKLciQrBru5NAPvCMsb/I1DAceTiotQM
-fblo6RBxUQ==
------END CERTIFICATE-----`)
-
-var LocalhostKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIICXgIBAAKBgQDuLnQAI3mDgey3VBzWnB2L39JUU4txjeVE6myuDqkM/uGlfjb9
-SjY1bIw4iA5sBBZzHi3z0h1YV8QPuxEbi4nW91IJm2gsvvZhIrCHS3l6afab4pZB
-l2+XsDulrKBxKKtD1rGxlG4LjncdabFn9gvLZad2bSysqz/qTAUStTvqJQIDAQAB
-AoGAGRzwwir7XvBOAy5tM/uV6e+Zf6anZzus1s1Y1ClbjbE6HXbnWWF/wbZGOpet
-3Zm4vD6MXc7jpTLryzTQIvVdfQbRc6+MUVeLKwZatTXtdZrhu+Jk7hx0nTPy8Jcb
-uJqFk541aEw+mMogY/xEcfbWd6IOkp+4xqjlFLBEDytgbIECQQDvH/E6nk+hgN4H
-qzzVtxxr397vWrjrIgPbJpQvBsafG7b0dA4AFjwVbFLmQcj2PprIMmPcQrooz8vp
-jy4SHEg1AkEA/v13/5M47K9vCxmb8QeD/asydfsgS5TeuNi8DoUBEmiSJwma7FXY
-fFUtxuvL7XvjwjN5B30pNEbc6Iuyt7y4MQJBAIt21su4b3sjXNueLKH85Q+phy2U
-fQtuUE9txblTu14q3N7gHRZB4ZMhFYyDy8CKrN2cPg/Fvyt0Xlp/DoCzjA0CQQDU
-y2ptGsuSmgUtWj3NM9xuwYPm+Z/F84K6+ARYiZ6PYj013sovGKUFfYAqVXVlxtIX
-qyUBnu3X9ps8ZfjLZO7BAkEAlT4R5Yl6cGhaJQYZHOde3JEMhNRcVFMO8dJDaFeo
-f9Oeos0UUothgiDktdQHxdNEwLjQf7lJJBzV+5OtwswCWA==
------END RSA PRIVATE KEY-----`)
-
-func getTLSCfg() (*tls.Config, error) {
-	cfg := new(tls.Config)
-	cert, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.NextProtos == nil {
-		cfg.NextProtos = []string{"http/1.1"}
-	}
-	cfg.Certificates = []tls.Certificate{cert}
-	return cfg, nil
-}
-
 type nfh struct {
 }
 
@@ -226,81 +117,11 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
 
-func StartNewServer(config *GBPServerConfig, sd StateDriver, etcdURLs []string) (*Server, error) {
+func StartNewServer(config *GBPServerConfig, sd StateDriver) (*Server, error) {
 	s := NewServer(config)
 	s.InitState(sd)
 	s.InitDB()
-	// init etcd client if we're not in pure overlay
-	if config.Apic != nil {
-		// create an etcd client
-		log.Debugf("=> Creating new client ..")
-		ec, err := objdb.NewClient(etcdURLs, root)
-		if err != nil {
-			return nil, err
-		}
-		log.Debugf("=> New client created..")
-		s.objapi = ec
-		wHandler := func(w http.ResponseWriter, r *http.Request) {
-			s.handleWrite(w, r)
-		}
-		rHandler := func(w http.ResponseWriter, r *http.Request) {
-			s.handleRead(w, r)
-		}
-
-		r := mux.NewRouter()
-
-		// add websocket handlers
-		r.Handle("/api/webtokenSession.json", &loginHandler{})
-		r.Handle("/api/aaaLogin.json", &loginHandler{})
-		r.Handle("/api/aaaRefresh.json", &refreshSucc{})
-		r.Handle(fmt.Sprintf("/socket%s", defToken), &socketHandler{srv: s})
-
-		t := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
-		// gbp rest handlers
-		addGBPPost(t)
-
-		npPath := fmt.Sprintf("/api/mo/uni/tn-%s/pol-", config.AciPolicyTenant)
-		t.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(postNP))
-		t.PathPrefix("/api/mo").HandlerFunc(wHandler)
-		// api/mo handlers (apic stub)
-		t.PathPrefix("/api/mo").HandlerFunc(wHandler)
-		// Routes consist of a path and a handler function.
-		delR := r.Methods("DELETE").Subrouter()
-		addGBPDelete(delR)
-		delR.PathPrefix(npPath).HandlerFunc(MakeHTTPHandler(deleteNP))
-		getR := r.Methods("GET").Subrouter()
-		addGBPGet(getR)
-		getR.PathPrefix("/api/mo").HandlerFunc(rHandler)
-		getR.PathPrefix("/api/node").HandlerFunc(rHandler)
-		getR.PathPrefix("/api/class").HandlerFunc(rHandler)
-		r.Methods("POST").Subrouter().PathPrefix("/api/node").HandlerFunc(wHandler)
-		r.NotFoundHandler = &nfh{}
-		tlsCfg, err := getTLSCfg()
-		if err != nil {
-			return nil, err
-		}
-
-		listenPort := fmt.Sprintf(":%d", config.ProxyListenPort)
-		go func() {
-			log.Infof("=> Listening at %s", listenPort)
-			tlsSrv := http.Server{Addr: listenPort, Handler: r, TLSConfig: tlsCfg}
-			s.tlsSrv = &tlsSrv
-			// Bind to a port and pass our router in
-			err := tlsSrv.ListenAndServeTLS("", "")
-			if !s.stopped {
-				log.Fatal(err)
-			}
-		}()
-	}
 	go s.handleMsgs()
-	if config.Apic != nil && config.Apic.Kafka != nil {
-		kc, err := kafkac.InitKafkaClient(config.Apic.Kafka, config.Apic.Cloud)
-		if err != nil {
-			return nil, err
-		}
-
-		s.kc = kc
-	}
 
 	grpcPort := fmt.Sprintf(":%d", config.GRPCPort)
 	gw, err := StartGRPC(grpcPort, s)
@@ -538,8 +359,6 @@ func (s *Server) handleMsgs() {
 				}
 			}
 
-			s.kafkaEPAdd(ep)
-
 		case OpdelEP:
 			ep, ok := m.data.(*Endpoint)
 			if !ok {
@@ -551,7 +370,6 @@ func (s *Server) handleMsgs() {
 				fn(GBPOperation_DELETE, []string{ep.getURI()})
 			}
 
-			s.kafkaEPDel(ep)
 			ep.Delete()
 		case OpaddEPG:
 			epg, ok := m.data.(*EPG)
@@ -564,9 +382,6 @@ func (s *Server) handleMsgs() {
 			epg.Make()
 			for _, fn := range s.listeners {
 				fn(GBPOperation_REPLACE, []string{epg.getURI()})
-			}
-			if s.kc != nil {
-				s.kc.UpdateEpgDN(epg.Name, epg.ApicDN)
 			}
 		case OpdelEPG:
 			epg, ok := m.data.(*EPG)
@@ -653,116 +468,4 @@ func (s *Server) handleMsgs() {
 			continue
 		}
 	}
-}
-
-func (s *Server) kafkaEPAdd(ep *Endpoint) {
-	if s.kc == nil {
-		return
-	}
-
-	cid := UuidToCid(ep.Uuid)
-	if cid == NoContainer { // not a real pod, don't report to kafka
-		return
-	}
-
-	ps := &crdv1.PodIFStatus{
-		PodName:     ep.PodName,
-		PodNS:       ep.Namespace,
-		IFName:      ep.IFName,
-		EPG:         ep.EPG,
-		IPAddr:      ep.IPAddr[0],
-		ContainerID: UuidToCid(ep.Uuid),
-	}
-
-	err := s.kc.AddEP(ps)
-	if err != nil {
-		log.Errorf("Error: %v adding EP: %+v", err, ps)
-	}
-}
-
-func UuidToCid(uuid string) string {
-	s := strings.Split(uuid, ".")
-	return s[len(s)-1]
-}
-
-func (s *Server) kafkaEPDel(ep *Endpoint) {
-	if s.kc == nil {
-		return
-	}
-
-	if ep.PodName == "" { // not a real pod, don't report to kafka
-		return
-	}
-
-	ps := &crdv1.PodIFStatus{
-		PodName: ep.PodName,
-		PodNS:   ep.Namespace,
-		IFName:  ep.IFName,
-		EPG:     ep.EPG,
-		IPAddr:  ep.IPAddr[0],
-	}
-	s.kc.DeleteEP(ps)
-}
-
-func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
-	uri := r.URL.RequestURI()
-	log.Debugf("handleWrite: %s", uri)
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	err = s.objapi.SetRaw(uri, content)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
-func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
-	uri := r.URL.RequestURI()
-
-	log.Debugf("handleRead: %s", uri)
-	if strings.Contains(uri, versionPath) {
-		vR := &versionResp{}
-		vR.ServeHTTP(w, r)
-		return
-	}
-	content, err := s.objapi.GetRaw(uri)
-	if err != nil {
-		nullResp := &apicapi.ApicResponse{
-			SubscriptionId: "4-3-3",
-		}
-		content, _ = json.Marshal(nullResp)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	// write the HTTP status code
-	w.WriteHeader(http.StatusOK)
-	w.Write(content)
-}
-
-func addGBPPost(mr *mux.Router) {
-	mr.PathPrefix("/gbp/contracts").HandlerFunc(MakeHTTPHandler(postContract))
-	mr.PathPrefix("/gbp/epgs").HandlerFunc(MakeHTTPHandler(postEpg))
-	mr.PathPrefix("/gbp/endpoints").HandlerFunc(MakeHTTPHandler(postEndpoint))
-}
-
-func addGBPGet(mr *mux.Router) {
-	mr.Path("/gbp/contracts/").HandlerFunc(MakeHTTPHandler(listContracts))
-	mr.Path("/gbp/contract/").HandlerFunc(MakeHTTPHandler(getContract))
-	mr.Path("/gbp/epgs/").HandlerFunc(MakeHTTPHandler(listEpgs))
-	mr.Path("/gbp/epg/").HandlerFunc(MakeHTTPHandler(getEpg))
-	mr.Path("/gbp/endpoints/").HandlerFunc(MakeHTTPHandler(listEndpoints))
-	mr.Path("/gbp/endpoint/").HandlerFunc(MakeHTTPHandler(getEndpoint))
-}
-
-func addGBPDelete(mr *mux.Router) {
-	mr.Path("/gbp/contract/").HandlerFunc(MakeHTTPHandler(deleteObject))
-	mr.Path("/gbp/epg/").HandlerFunc(MakeHTTPHandler(deleteObject))
-	mr.Path("/gbp/endpoint/").HandlerFunc(MakeHTTPHandler(deleteEndpoint))
 }

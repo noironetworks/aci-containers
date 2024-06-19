@@ -99,39 +99,6 @@ func (idb *intentDB) deleteEPG(e *gbpserver.EPG) {
 	curr.trickle(idb, false)
 }
 
-func (idb *intentDB) saveApicContract(c *apicContract) {
-	idb.Lock()
-	defer idb.Unlock()
-	cn := newContractNode()
-	cn.a = c
-	//add filter refs
-	for _, f := range idb.filters {
-		f.delRef(cn.name())
-	}
-
-	for _, f := range c.Filters {
-		fn := idb.filters[f]
-		if fn == nil {
-			fn = &filterNode{fName: f, refs: make(map[string]*contractNode)}
-			idb.filters[f] = fn
-		}
-
-		fn.addRef(cn)
-	}
-	idb.saveContract(cn)
-}
-
-func (idb *intentDB) deleteApicContract(c *apicContract) {
-	idb.Lock()
-	defer idb.Unlock()
-	cn := newContractNode()
-	cn.a = c
-	for _, f := range idb.filters {
-		f.delRef(cn.name())
-	}
-	idb.deleteContract(cn)
-}
-
 func (idb *intentDB) saveGbpContract(c *gbpserver.Contract) {
 	idb.Lock()
 	defer idb.Unlock()
@@ -170,40 +137,6 @@ func (idb *intentDB) deleteContract(cn *contractNode) {
 		delete(idb.contracts, cn.name())
 		curr.trickle(idb, false)
 	}
-}
-
-func (idb *intentDB) saveFilter(name string, rules []v1.WLRule) {
-	idb.Lock()
-	defer idb.Unlock()
-	fn := &filterNode{fName: name, rules: rules}
-
-	curr := idb.filters[fn.name()]
-	if curr != nil {
-		fn.refs = curr.refs
-	}
-
-	if reflect.DeepEqual(curr, fn) {
-		idb.log.Debugf("Filter %s unchanged", name)
-		return
-	}
-
-	// filters stay at the intent layer and get merged with contracts downstream
-	idb.filters[fn.name()] = fn
-	fn.trickle(idb, true)
-}
-
-func (idb *intentDB) deleteFilter(name string) {
-	idb.Lock()
-	defer idb.Unlock()
-	curr := idb.filters[name]
-	if curr == nil {
-		idb.log.Debugf("Filter %s not found", name)
-		return
-	}
-
-	// filters stay at the intent layer and get merged with contracts downstream
-	delete(idb.filters, name)
-	curr.trickle(idb, false)
 }
 
 // a db node has references to direct dependents, knows to trickle down an update

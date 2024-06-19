@@ -17,14 +17,8 @@ package gbpserver
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -33,20 +27,14 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/server/v3/embed"
 	"google.golang.org/grpc"
 
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 )
 
 const (
 	testTenant = "gbpKubeTenant"
-	testVrf    = "gbpKubeVrf1"
-	testRegion = "us-west-1"
 )
-
-var etcdClientURLs = []string{"http://localhost:12379"}
 
 // implements StateDriver
 type testSD struct {
@@ -86,54 +74,15 @@ func (sd *testSD) Update(s *v1.GBPSState) error {
 }
 
 type testSuite struct {
-	e       *embed.Etcd
-	tempDir string
 	dataDir string
 	sd      *testSD
 }
 
 func (ts *testSuite) tearDown() {
-	ts.e.Close()
-	os.RemoveAll(ts.tempDir)
 	os.RemoveAll(ts.dataDir)
 }
 
 func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
-	var lcURLs []url.URL
-
-	for _, u := range etcdClientURLs {
-		uu, err := url.Parse(u)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		lcURLs = append(lcURLs, *uu)
-	}
-	// start an etcd server
-	tempDir, err := os.MkdirTemp("", "api_etcd_")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ts.tempDir = tempDir
-	cfg := embed.NewConfig()
-	cfg.Dir = tempDir
-	cfg.ListenClientUrls = lcURLs
-	e, err := embed.StartEtcd(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-e.Server.ReadyNotify():
-		log.Infof("Server is ready!")
-	case <-time.After(60 * time.Second):
-		e.Server.Stop() // trigger a shutdown
-		log.Infof("Server took too long to start!")
-		t.Fatal("Etcd Server took too long to start!")
-	}
-
-	ts.e = e
-
 	dataDir, err := os.MkdirTemp("", "_gbpdata")
 	assert.Equal(t, err, nil)
 
@@ -153,113 +102,13 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	gCfg.AciPolicyTenant = testTenant
 	gCfg.AciVmmDomain = "testDom"
 	gCfg.AciVrf = "defaultVrf"
-	apicCfg := &ApicInfo{}
-	gCfg.Apic = apicCfg
 
-	s, err := StartNewServer(gCfg, ts.sd, etcdClientURLs)
+	s, err := StartNewServer(gCfg, ts.sd)
 	if err != nil {
 		t.Fatalf("Starting api server: %v", err)
 	}
 
 	return s
-}
-
-func TestBasic(t *testing.T) {
-	var apicCert []byte
-	var apicKey []byte
-
-	suite := &testSuite{}
-	s := suite.setupGBPServer(t)
-	defer s.Stop()
-	defer suite.tearDown()
-	logger := log.New()
-	logger.Level = log.DebugLevel
-
-	conn, err := apicapi.New(logger, []string{"127.0.0.1:8899"},
-		"admin", "test0123", apicKey, apicCert, testTenant, 60, 5, 5, "common")
-	if err != nil {
-		t.Errorf("Starting apicapi : %v", err)
-		t.FailNow()
-	}
-	stopCh := make(chan struct{})
-	go conn.Run(stopCh)
-	time.Sleep(2 * time.Second)
-
-	// Inject some Apic Writes
-	var as apicapi.ApicSlice
-	as = append(as, apicapi.NewFvBD("common", "test"))
-	dn1 := as[0].GetDn()
-	conn.WriteApicObjects("serverKey1", as)
-	time.Sleep(1 * time.Second)
-
-	cli, err := getClient(apicCert)
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	url1 := fmt.Sprintf("https://127.0.0.1:8899/api/mo/%s.json", dn1)
-	url2 := "https://127.0.0.1:8899/api/node/mo/uni/userext/user-demo.json"
-
-	urlList := []string{url1, url2}
-
-	for _, u := range urlList {
-		log.Infof("Verify gets")
-		verifyGets(t, u, cli)
-	}
-
-	time.Sleep(2 * time.Second)
-	addContract(t, nil)
-	addEPGs(t, nil)
-	addEPs(t, nil)
-	verifyRest(t, cli)
-	close(stopCh)
-}
-
-// extracted into a separate function to avoid defer calls from waiting
-// until after loop has completed
-func verifyGets(t *testing.T, url string, cli *http.Client) {
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	resp, err := cli.Do(req)
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	res, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		log.Info(err)
-		t.Fail()
-	}
-
-	log.Infof("==>> Response: %s", res)
-}
-
-func getClient(cert []byte) (*http.Client, error) {
-	var tlsCfg tls.Config
-
-	if cert == nil {
-		tlsCfg.InsecureSkipVerify = true //nolint:gosec
-	} else {
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(cert) {
-			return nil, errors.New("Could not load CA certificates")
-		}
-
-		tlsCfg.RootCAs = pool
-	}
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsCfg,
-		},
-	}, nil
 }
 
 func addContract(t *testing.T, srv *Server) {
@@ -401,292 +250,6 @@ func addEPs(t *testing.T, srv *Server) {
 				t.FailNow()
 			}
 		}
-	}
-}
-
-func verifyRest(t *testing.T, c *http.Client) {
-	// Contract
-	emptyRule := v1.WLRule{}
-	testContract := &Contract{
-		Name:      "all-ALL",
-		Tenant:    testTenant,
-		AllowList: []v1.WLRule{emptyRule},
-	}
-	testEpg := &EPG{
-		Tenant:        testTenant,
-		Name:          "Roses",
-		ConsContracts: []string{"all-ALL"},
-		ProvContracts: []string{"all-ALL"},
-	}
-	testEP := &Endpoint{
-		Uuid:    "testEP-xxx-yyy-zzz",
-		MacAddr: "58:ef:68:e2:71:0d",
-		IPAddr:  []string{"10.2.50.55"},
-		EPG:     "Roses",
-		VTEP:    "8.8.8.8",
-	}
-
-	testNPjson := []byte("{\"hostprotPol\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1\",\"name\":\"vk8s_1_node_vk8s-node1\"},\"children\":[{\"hostprotSubj\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node\",\"name\":\"local-node\"},\"children\":[{\"hostprotRule\":{\"attributes\":{\"connTrack\":\"normal\",\"direction\":\"egress\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress\",\"ethertype\":\"ipv4\",\"fromPort\":\"unspecified\",\"name\":\"allow-all-egress\",\"protocol\":\"unspecified\",\"toPort\":\"unspecified\"},\"children\":[{\"hostprotRemoteIp\":{\"attributes\":{\"addr\":\"1.100.201.12\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/ip-[1.100.201.12]\"},\"children\":[{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/ip-[1.100.201.12]/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-egress/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"hostprotRule\":{\"attributes\":{\"connTrack\":\"normal\",\"direction\":\"ingress\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress\",\"ethertype\":\"ipv4\",\"fromPort\":\"unspecified\",\"name\":\"allow-all-ingress\",\"protocol\":\"unspecified\",\"toPort\":\"unspecified\"},\"children\":[{\"hostprotRemoteIp\":{\"attributes\":{\"addr\":\"1.100.201.12\",\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/ip-[1.100.201.12]\"},\"children\":[{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/ip-[1.100.201.12]/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/rule-allow-all-ingress/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/subj-local-node/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}},{\"tagInst\":{\"attributes\":{\"dn\":\"uni/tn-vk8s_1/pol-vk8s_1_node_vk8s-node1/tag-vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\",\"name\":\"vk8s_1-523d2f252a0f4b0aeb22f43c11c7a1c2\"}}}]}}")
-
-	postList := []struct {
-		url string
-		obj interface{}
-	}{
-		{"https://127.0.0.1:8899/gbp/contracts", testContract},
-		{"https://127.0.0.1:8899/gbp/epgs", testEpg},
-		{"https://127.0.0.1:8899/gbp/endpoints", testEP},
-		{fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), testNPjson},
-	}
-
-	for _, p := range postList {
-		verifyPosts(t, c, p.url, p.obj)
-	}
-
-	getter := func(uri string) []byte {
-		request, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, uri, http.NoBody)
-		if err != nil {
-			log.Errorf("Error creating request :%v", err)
-			t.FailNow()
-		}
-		getResp, err := c.Do(request)
-		if err != nil {
-			log.Errorf("Get :%v", err)
-			t.FailNow()
-		}
-
-		defer getResp.Body.Close()
-		gBody, err := io.ReadAll(getResp.Body)
-		if err != nil {
-			log.Errorf("ReadAll :%v", err)
-			t.FailNow()
-		}
-
-		return gBody
-	}
-
-	l := getter("https://127.0.0.1:8899/gbp/epgs/")
-	var getList ListResp
-
-	err := json.Unmarshal(l, &getList)
-	if err != nil {
-		log.Errorf("Marshal get list :%v", err)
-		t.FailNow()
-	}
-	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/epg/?key=%s", reqUri))
-		log.Infof("EPG Get Resp: %s", gb)
-	}
-
-	l = getter("https://127.0.0.1:8899/gbp/contracts/")
-
-	err = json.Unmarshal(l, &getList)
-	if err != nil {
-		log.Errorf("Marshal get list :%v", err)
-		t.FailNow()
-	}
-
-	log.Infof("contractlist: %+v", getList)
-	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/contract/?key=%s", reqUri))
-		log.Infof("Contract Get Resp: %s", gb)
-	}
-
-	l = getter("https://127.0.0.1:8899/gbp/endpoints/")
-
-	err = json.Unmarshal(l, &getList)
-	if err != nil {
-		log.Errorf("Marshal get list :%v", err)
-		t.FailNow()
-	}
-
-	log.Infof("eplist: %+v", getList)
-	for _, reqUri := range getList.URIs {
-		gb := getter(fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri))
-		log.Infof("Endpoint Get Resp: %s", gb)
-	}
-
-	for _, reqUri := range getList.URIs {
-		req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/gbp/endpoint/?key=%s", reqUri), http.NoBody)
-		resp, err := c.Do(req)
-		resp.Body.Close()
-		if err != nil {
-			log.Errorf("Delete %s :%v", reqUri, err)
-			t.FailNow()
-		}
-	}
-
-	l = getter("https://127.0.0.1:8899/gbp/endpoints/")
-
-	err = json.Unmarshal(l, &getList)
-	if err != nil {
-		log.Errorf("Marshal get list :%v", err)
-		t.FailNow()
-	}
-
-	if len(getList.URIs) != 0 {
-		log.Errorf("EPs present: %q", getList.URIs)
-		t.FailNow()
-	}
-	req, _ := http.NewRequest("DELETE", fmt.Sprintf("https://127.0.0.1:8899/api/mo/uni/tn-%s/pol-vk8s_1_node_vk8s-node1", testTenant), http.NoBody)
-	resp, err := c.Do(req)
-	resp.Body.Close()
-	if err != nil {
-		log.Errorf("Delete :%v", err)
-		t.FailNow()
-	}
-}
-
-func verifyPosts(t *testing.T, c *http.Client, url string, obj interface{}) {
-	var err error
-	content, ok := obj.([]byte)
-	if !ok {
-		content, err = json.Marshal(obj)
-		if err != nil {
-			log.Errorf("json.Marshal :%v", err)
-			t.FailNow()
-		}
-	}
-	request, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, url, strings.NewReader(string(content)))
-	if err != nil {
-		log.Errorf("Error creating request :%v", err)
-		t.FailNow()
-	}
-	request.Header.Set("Content-Type", "application/json")
-	resp, err := c.Do(request)
-	if err != nil {
-		log.Errorf("Post :%v", err)
-		t.FailNow()
-	}
-
-	defer resp.Body.Close()
-
-	rBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Errorf("ReadAll :%v", err)
-		t.FailNow()
-	}
-
-	var reply PostResp
-
-	err = json.Unmarshal(rBody, &reply)
-	if err != nil {
-		log.Errorf("Unmarshal :%v", err)
-		t.FailNow()
-	}
-
-	log.Infof("reply: %+v", reply)
-}
-
-func TestAPIC(t *testing.T) {
-	t.Skip()
-	log1 := log.New()
-	log1.Level = log.DebugLevel
-	log1.Formatter = &log.TextFormatter{
-		DisableColors: true,
-	}
-
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "test!234", nil, nil, "test", 60, 5, 5, "common")
-	if err != nil {
-		log.Errorf("New connection -- %v", err)
-		t.FailNow()
-	}
-
-	log.Infof("Posting tenant...")
-	vrfMo := apicapi.NewFvCtx(testTenant, testVrf)
-	cCtxMo := apicapi.NewCloudCtxProfile(testTenant, "gbpKubeVrf1-west-1")
-	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), "102.176.0.0/16")
-	cCtxMoBody := cCtxMo["cloudCtxProfile"]
-	ctxChildren := []apicapi.ApicObject{
-		cidrMo,
-		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), testVrf),
-		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
-	}
-
-	for _, child := range ctxChildren {
-		cCtxMoBody.Children = append(cCtxMoBody.Children, child)
-	}
-
-	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
-	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = testVrf
-	cepgA := apicapi.NewCloudEpg(testTenant, "gbpApp1", "cEPG-A")
-	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
-	var cfgMos = []apicapi.ApicObject{
-		apicapi.NewFvTenant(testTenant),
-		vrfMo,
-		apicapi.NewCloudAwsProvider(testTenant, testRegion, "gmeouw1"),
-		cCtxMo,
-		apicapi.NewCloudSubnet(cidrMo.GetDn(), "102.176.1.0/24"),
-		apicapi.NewCloudApp(testTenant, "gbpApp1"),
-		cepgA,
-	}
-	for _, cmo := range cfgMos {
-		err = conn.PostDnInline(cmo.GetDn(), cmo)
-		if err != nil {
-			log.Errorf("Post %s -- %v", cmo.GetDn(), err)
-			t.FailNow()
-		}
-	}
-
-	time.Sleep(5 * time.Second)
-	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn(), true)
-	time.Sleep(5 * time.Second)
-	AddEP(t, testTenant, testRegion, testVrf, cepgA.GetDn(), false)
-}
-
-func AddEP(t *testing.T, tenant, region, vrf, epgDn string, add bool) {
-	log1 := log.New()
-	log1.Level = log.DebugLevel
-	log1.Formatter = &log.TextFormatter{
-		DisableColors: true,
-	}
-
-	conn, err := apicapi.New(log1, []string{"18.217.5.107:443"}, "admin", "noir0!234", nil, nil, "test", 60, 5, 5, "common")
-	if err != nil {
-		log.Errorf("New connection -- %v", err)
-		t.FailNow()
-	}
-
-	getSgDn := func() string {
-		n := fmt.Sprintf("acct-[%s]/region-[%s]/context-[%s]/sgroup-[%s]",
-			tenant, region, vrf, epgDn)
-		return n
-	}
-
-	log.Infof("Posting EP...")
-	epToSg := apicapi.EmptyApicObject("hcloudRsEpToSecurityGroup", "")
-	epToSg["hcloudRsEpToSecurityGroup"].Attributes["tDn"] = getSgDn()
-	cEP := apicapi.EmptyApicObject("hcloudEndPoint", "")
-	cEP["hcloudEndPoint"].Attributes["name"] = "eni-testGbpEP"
-	cEP["hcloudEndPoint"].Attributes["primaryIpV4Addr"] = "102.176.1.2"
-	cEP["hcloudEndPoint"].Children = append(cEP["hcloudEndPoint"].Children, epToSg)
-	if !add {
-		cEP["hcloudEndPoint"].Attributes["status"] = "deleted"
-	}
-
-	cSN := apicapi.EmptyApicObject("hcloudSubnet", "")
-	cSN["hcloudSubnet"].Attributes["addr"] = "102.176.1.0/24"
-	cSN["hcloudSubnet"].Children = append(cSN["hcloudSubnet"].Children, cEP)
-
-	cCidr := apicapi.EmptyApicObject("hcloudCidr", "")
-	cCidr["hcloudCidr"].Attributes["addr"] = "102.176.0.0/16"
-	cCidr["hcloudCidr"].Children = append(cCidr["hcloudCidr"].Children, cSN)
-
-	cCtx := apicapi.EmptyApicObject("hcloudCtx", "")
-	cCtx["hcloudCtx"].Attributes["name"] = vrf
-	cCtx["hcloudCtx"].Children = append(cCtx["hcloudCtx"].Children, cCidr)
-
-	cRegion := apicapi.EmptyApicObject("hcloudRegion", "")
-	cRegion["hcloudRegion"].Attributes["regionName"] = region
-	cRegion["hcloudRegion"].Children = append(cRegion["hcloudRegion"].Children, cCtx)
-
-	cAcc := apicapi.EmptyApicObject("hcloudAccount", "")
-	cAcc["hcloudAccount"].Attributes["name"] = tenant
-	cAcc["hcloudAccount"].Children = append(cAcc["hcloudAccount"].Children, cRegion)
-
-	err = conn.PostTestAPI(cAcc)
-	if err != nil {
-		log.Errorf("Post %+v -- %v", cAcc, err)
-		t.FailNow()
 	}
 }
 

@@ -16,8 +16,6 @@ package gbpserver
 
 import (
 	"flag"
-
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/kafkac"
 )
 
 // Configuration for the gbpserver
@@ -48,10 +46,6 @@ type GBPServerConfig struct {
 	PodSubnet  string `json:"pod-subnet,omitempty"`
 	NodeSubnet string `json:"node-subnet,omitempty"`
 
-	// Used by internal kv store
-	EtcdDir  string `json:"etcd-dir,omitempty"`
-	EtcdPort int    `json:"etcd-port,omitempty"`
-
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
 
@@ -64,44 +58,9 @@ type GBPServerConfig struct {
 	AciVrf     string `json:"aci-vrf,omitempty"`
 	VrfEncapID int    `json:"vrf-encap-id,omitempty"`
 
-	// APIC info
-	Apic       *ApicInfo `json:"apic,omitempty"`
-	SyncRemEps bool      `json:"sync-rem-eps,omitempty"`
-	CSRList    string    `json:"csr-list,omitempty"`
-
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
-}
-
-type ApicInfo struct {
-	// The hostnames or IPs for connecting to apic
-	Hosts []string `json:"apic-hosts,omitempty"`
-
-	// The username for connecting to APIC
-	Username string `json:"apic-username,omitempty"`
-
-	// The password for connecting to APIC
-	Password string `json:"apic-password,omitempty"`
-
-	RefreshTimer string `json:"apic-refreshtime,omitempty"`
-
-	// How early (seconds) the subscriptions to be refreshed than
-	// actual subscription refresh-timeout. Will be defaulted to 5Seconds.
-	RefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
-	// A path for a PEM-encoded private key for client certificate
-	// authentication for APIC API
-	PrivateKeyPath string `json:"apic-private-key-path,omitempty"`
-
-	// A path for a PEM-encoded public certificate for APIC server to
-	// enable secure TLS server verifification
-	CertPath string `json:"apic-cert-path,omitempty"`
-
-	// Cloud Info
-	Cloud *kafkac.CloudInfo `json:"cloud-info,omitempty"`
-
-	// kafka config
-	Kafka *kafkac.KafkaCfg `json:"kafka,omitempty"`
 }
 
 func InitConfig(config *GBPServerConfig) {
@@ -115,12 +74,8 @@ func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "kube", "Tenant")
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubedom", "VmmDomain")
 	flag.StringVar(&config.AciVrf, "aci-vrf", "defaultVrf", "Vrf")
-	flag.StringVar(&config.EtcdDir, "etcd-dir", "/var/gbpserver/etcd", "Etcd dir")
-	flag.IntVar(&config.EtcdPort, "etcd-port", 12379, "port for internal kv store")
 	flag.StringVar(&config.PodSubnet, "pod-subnet", "10.2.56.1/21", "pod subnet")
 	flag.StringVar(&config.NodeSubnet, "node-subnet", "1.100.201.0/24", "node subnet")
-	flag.BoolVar(&config.SyncRemEps, "sync-rem-eps", true, "sync remote eps")
-	flag.StringVar(&config.CSRList, "csr-list", "", "comma separated list of csr vteps")
 	flag.IntVar(&config.VrfEncapID, "vrf-encap-id", RdEncapID, "encap-id for vrf")
 	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
 	flag.IntVar(&config.MetricsPort, "metrics-port", 8192, "Port to expose metrics on")

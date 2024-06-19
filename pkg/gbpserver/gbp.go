@@ -24,16 +24,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 )
 
 const (
-	tokenTime    = 20 * time.Second
 	numClassIDs  = 32000
 	firstClassID = 32000
 	RdClassID    = 31999
@@ -42,7 +39,6 @@ const (
 )
 
 var gMutex sync.Mutex
-var apicCon *apicapi.ApicConnection
 var theServer *Server
 
 func encapFromClass(class uint) uint {
@@ -681,8 +677,6 @@ func (s *Server) InitDB() {
 			log.Errorf("%v making %+v", err, e)
 		}
 	}
-
-	SendDefaultsToAPIC()
 }
 
 func addToMap(sum, addend map[string]*gbpCommonMo) {
@@ -720,62 +714,4 @@ func getSnapShot(vtep string) []*GBPObject {
 	}
 
 	return moList
-}
-
-func SendDefaultsToAPIC() {
-	if apicCon == nil {
-		return
-	}
-
-	log.Infof("Posting tenant to cAPIC")
-	vrfMo := apicapi.NewFvCtx(getTenantName(), defVrfName)
-	cCtxMo := apicapi.NewCloudCtxProfile(getTenantName(), cctxProfName())
-	cidrMo := apicapi.NewCloudCidr(cCtxMo.GetDn(), defCAPICCidr)
-	cCtxMoBody := cCtxMo["cloudCtxProfile"]
-	ctxChildren := []apicapi.ApicObject{
-		cidrMo,
-		apicapi.NewCloudRsToCtx(cCtxMo.GetDn(), defVrfName),
-		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-"+defRegion),
-		//		apicapi.NewCloudRsCtxProfileToRegion(cCtxMo.GetDn(), "uni/clouddomp/provp-aws/region-us-west-1"),
-	}
-
-	for _, child := range ctxChildren {
-		cCtxMoBody.Children = append(cCtxMoBody.Children, child)
-	}
-
-	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
-	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
-	cepgA := apicapi.NewCloudEpg(getTenantName(), defCloudApp, cApicName(defEPGName))
-	cepgA["cloudEPg"].Children = append(cepgA["cloudEPg"].Children, epgToVrf)
-
-	awsProvider := apicapi.NewCloudAwsProvider(getTenantName(), defRegion, "gmeouw1")
-	awsProvider["cloudAwsProvider"].Attributes["accountId"] = "878180092573"
-	var cfgMos = []apicapi.ApicObject{
-		apicapi.NewFvTenant(getTenantName()),
-		vrfMo,
-		awsProvider,
-		cCtxMo,
-		apicapi.NewCloudSubnet(cidrMo.GetDn(), defCAPICSubnet),
-		apicapi.NewCloudApp(getTenantName(), defCloudApp),
-		cepgA,
-	}
-	for _, cmo := range cfgMos {
-		err := apicCon.PostDnInline(cmo.GetDn(), cmo)
-		if err != nil {
-			log.Errorf("Post %s -- %v", cmo.GetDn(), err)
-			return
-		}
-	}
-
-	log.Infof("Done posting...")
-
-	go func() {
-		ticker := time.NewTicker(tokenTime)
-		for range ticker.C {
-			gMutex.Lock()
-			apicCon.ForceRelogin()
-			gMutex.Unlock()
-		}
-	}()
-	time.Sleep(3 * time.Second) // delay before any EP can be attached
 }

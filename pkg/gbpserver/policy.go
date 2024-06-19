@@ -17,16 +17,12 @@ limitations under the License.
 package gbpserver
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 )
 
@@ -140,7 +136,7 @@ func (c *Contract) makeClassifiers() error {
 	}
 
 	// TODO remove stale classifiers.
-	return c.pushTocAPIC()
+	return nil
 }
 
 func (c *Contract) addRule(r v1.WLRule, dir string) error {
@@ -230,48 +226,6 @@ func (c *Contract) getFilterURI() string {
 
 func (c *Contract) getToCfURI(name string) string {
 	return fmt.Sprintf("%sGbpRuleToClassifierRSrc/178/%s/", c.getFilterURI(), name)
-}
-func (c *Contract) pushTocAPIC() error {
-	if apicCon == nil {
-		return nil
-	}
-
-	// create contract
-	ac := apicapi.NewVzBrCP(c.Tenant, c.Name)
-	acs := apicapi.NewVzSubj(ac.GetDn(), "subj-"+c.Name)
-	acs.AddChild(apicapi.NewVzRsSubjFiltAtt(acs.GetDn(), c.Name))
-	ac.AddChild(acs)
-
-	// create filter
-	filter := apicapi.NewVzFilter(c.Tenant, c.Name)
-	filterDn := filter.GetDn()
-	for ix, r := range c.AllowList {
-		fe := apicapi.NewVzEntry(filterDn, strconv.Itoa(ix))
-		fe.SetAttr("etherT", "ip")
-		if r.Protocol != "" {
-			fe.SetAttr("prot", r.Protocol)
-		}
-		if r.Ports.Start != 0 {
-			fe.SetAttr("dFromPort", fmt.Sprintf("%d", r.Ports.Start))
-		}
-		if r.Ports.End != 0 {
-			fe.SetAttr("dToPort", fmt.Sprintf("%d", r.Ports.End))
-		}
-		filter.AddChild(fe)
-	}
-
-	moList := []apicapi.ApicObject{
-		filter,
-		ac,
-	}
-	for _, mo := range moList {
-		err := apicCon.PostDnInline(mo.GetDn(), mo)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (c *Contract) getClassifierURI(dir string, wr *v1.WLRule) (string, string) {
@@ -381,7 +335,7 @@ func (e *EPG) Make() error {
 		log.Infof("epg %s provided contracts: %v", e.Name, err)
 	}
 
-	return e.pushTocAPIC()
+	return nil
 }
 
 func (e *EPG) Delete() {
@@ -405,33 +359,6 @@ func (e *EPG) Delete() {
 	}
 
 	delete(moDB, eUri)
-}
-
-func cApicName(name string) string {
-	return strings.Replace(name, "|", "-", -1)
-}
-
-func (e *EPG) pushTocAPIC() error {
-	if apicCon == nil {
-		return nil
-	}
-
-	log.Infof("Name: %s cApicName: %s", e.Name, cApicName(e.Name))
-	cepg := apicapi.NewCloudEpg(e.Tenant, defCloudApp, cApicName(e.Name))
-	for _, cc := range e.ConsContracts {
-		ccMo := apicapi.NewFvRsCons(cepg.GetDn(), cc)
-		cepg.AddChild(ccMo)
-	}
-	for _, pc := range e.ProvContracts {
-		pcMo := apicapi.NewFvRsProv(cepg.GetDn(), pc)
-		cepg.AddChild(pcMo)
-	}
-
-	epgToVrf := apicapi.EmptyApicObject("cloudRsCloudEPgCtx", "")
-	epgToVrf["cloudRsCloudEPgCtx"].Attributes["tnFvCtxName"] = defVrfName
-	cepg.AddChild(epgToVrf)
-
-	return apicCon.PostDnInline(cepg.GetDn(), cepg)
 }
 
 func (e *EPG) getURI() string {
@@ -536,148 +463,6 @@ func (e *EPG) FromMo(mo *gbpBaseMo) error {
 	e.ConsContracts = readContracts(subjEPGToCC)
 
 	return nil
-}
-
-// postEpg rest handler to create an epg
-func postEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	epg := &EPG{}
-	err = json.Unmarshal(content, epg)
-	if err != nil {
-		return nil, err
-	}
-
-	err = epg.Make()
-	if err != nil {
-		return nil, err
-	}
-
-	return &PostResp{URI: epg.getURI()}, nil
-}
-
-func listEpgs(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	var resp ListResp
-
-	for _, mo := range getMoDB() {
-		if mo.Subject == subjEPG {
-			resp.URIs = append(resp.URIs, mo.Uri)
-		}
-	}
-
-	return &resp, nil
-}
-
-func getEpg(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	moDB := getMoDB()
-	params := r.URL.Query()
-	uri, ok := params["key"]
-	if !ok {
-		return nil, fmt.Errorf("key is missing")
-	}
-
-	k := strings.Replace(uri[0], "|", "%7c", -1)
-	eMo, ok := moDB[k]
-	if !ok {
-		return nil, fmt.Errorf("%s - Not found", k)
-	}
-
-	e := &EPG{}
-	e.FromMo(eMo)
-
-	log.Debugf("Key: %s", uri)
-	return e, nil
-}
-
-// postContract rest handler to create an epg
-func postContract(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &Contract{}
-	err = json.Unmarshal(content, c)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.Make()
-	if err != nil {
-		return nil, err
-	}
-
-	return &PostResp{URI: c.getURI()}, nil
-}
-
-func listContracts(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	var resp ListResp
-
-	for _, mo := range getMoDB() {
-		if mo.Subject == subjContract {
-			resp.URIs = append(resp.URIs, mo.Uri)
-		}
-	}
-
-	return &resp, nil
-}
-
-func getContract(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	moDB := getMoDB()
-	params := r.URL.Query()
-	uri, ok := params["key"]
-	if !ok {
-		return nil, fmt.Errorf("key is missing")
-	}
-
-	k := strings.Replace(uri[0], "|", "%7c", -1)
-	cMo, ok := moDB[k]
-	if !ok {
-		return nil, fmt.Errorf("%s - Not found", k)
-	}
-
-	c := &Contract{}
-	c.FromMo(cMo)
-
-	log.Debugf("Key: %s", uri)
-	return c, nil
-}
-
-func deleteObject(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	params := r.URL.Query()
-	uri, ok := params["key"]
-	if !ok {
-		return nil, fmt.Errorf("key is missing")
-	}
-
-	k := strings.Replace(uri[0], "|", "%7c", -1)
-	delete(getMoDB(), k)
-	log.Debugf("%s deleted", k)
-	return nil, nil
 }
 
 type NetworkPolicy struct {
@@ -939,66 +724,11 @@ func (hsc *HpSubjChild) addSubnets(p *gbpCommonMo, name string) {
 	linkParentChild(p, &ssRef.gbpCommonMo)
 }
 
-// postNP rest handler to create a network policy
-func postNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &NetworkPolicy{}
-	err = json.Unmarshal(content, c)
-	if err != nil {
-		return nil, err
-	}
-	modb := getMoDB()
-	_, isUpdate := modb[c.getURI()]
-
-	err = c.Make()
-	if err != nil {
-		log.Errorf("Network policy -- %v", err)
-		return nil, err
-	}
-
-	name := c.HostprotPol.Attributes[propName]
-	if strings.Contains(name, "np_static") && isUpdate {
-		return &PostResp{URI: c.getURI()}, nil
-	}
-	for _, fn := range theServer.listeners {
-		fn(GBPOperation_REPLACE, c.getAllURIs())
-	}
-	log.Infof("Created %+v", c)
-	return &PostResp{URI: c.getURI()}, nil
-}
-
 func npNameFromDn(dn string) string {
 	trimDn := strings.TrimPrefix(dn, fmt.Sprintf("/api/mo/uni/tn-%s/pol-", getTenantName()))
 	trimDn = strings.TrimSuffix(trimDn, ".json")
 	npName := strings.Split(trimDn, "/")[0]
 	return npName
-}
-
-func deleteNP(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	gMutex.Lock()
-	defer gMutex.Unlock()
-	moDB := getMoDB()
-
-	npName := npNameFromDn(r.RequestURI)
-	key := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/%s/%s/", getTenantName(), subjSecGroup, npName)
-	npMo := moDB[key]
-	if npMo == nil {
-		return nil, fmt.Errorf("%s not found", key)
-	}
-	for _, fn := range theServer.listeners {
-		fn(GBPOperation_DELETE, []string{key})
-	}
-	npMo.delRecursive()
-	log.Infof("Deleted %s", key)
-
-	return nil, nil
 }
 
 func convNameToPort(prot, port string) int {
