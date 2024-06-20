@@ -37,17 +37,9 @@ type NadVlanMapNamespaceListerExpansion interface{}
 // NetworkFabricConfigurationLister.
 type NetworkFabricConfigurationListerExpansion interface{}
 
-// NetworkFabricConfigurationNamespaceListerExpansion allows custom methods to be added to
-// NetworkFabricConfigurationNamespaceLister.
-type NetworkFabricConfigurationNamespaceListerExpansion interface{}
-
 // NetworkFabricL3ConfigurationListerExpansion allows custom methods to be added to
 // NetworkFabricL3ConfigurationLister.
 type NetworkFabricL3ConfigurationListerExpansion interface{}
-
-// NetworkFabricL3ConfigurationNamespaceListerExpansion allows custom methods to be added to
-// NetworkFabricL3ConfigurationNamespaceLister.
-type NetworkFabricL3ConfigurationNamespaceListerExpansion interface{}
 
 // NodeFabricNetworkAttachmentListerExpansion allows custom methods to be added to
 // NodeFabricNetworkAttachmentLister.

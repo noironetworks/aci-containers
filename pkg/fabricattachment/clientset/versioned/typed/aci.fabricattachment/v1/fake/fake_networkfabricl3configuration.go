@@ -34,7 +34,6 @@ import (
 // FakeNetworkFabricL3Configurations implements NetworkFabricL3ConfigurationInterface
 type FakeNetworkFabricL3Configurations struct {
 	Fake *FakeAciV1
-	ns   string
 }
 
 var networkfabricl3configurationsResource = v1.SchemeGroupVersion.WithResource("networkfabricl3configurations")
@@ -44,8 +43,7 @@ var networkfabricl3configurationsKind = v1.SchemeGroupVersion.WithKind("NetworkF
 // Get takes name of the networkFabricL3Configuration, and returns the corresponding networkFabricL3Configuration object, and an error if there is any.
 func (c *FakeNetworkFabricL3Configurations) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(networkfabricl3configurationsResource, c.ns, name), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootGetAction(networkfabricl3configurationsResource, name), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -55,8 +53,7 @@ func (c *FakeNetworkFabricL3Configurations) Get(ctx context.Context, name string
 // List takes label and field selectors, and returns the list of NetworkFabricL3Configurations that match those selectors.
 func (c *FakeNetworkFabricL3Configurations) List(ctx context.Context, opts metav1.ListOptions) (result *v1.NetworkFabricL3ConfigurationList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(networkfabricl3configurationsResource, networkfabricl3configurationsKind, c.ns, opts), &v1.NetworkFabricL3ConfigurationList{})
-
+		Invokes(testing.NewRootListAction(networkfabricl3configurationsResource, networkfabricl3configurationsKind, opts), &v1.NetworkFabricL3ConfigurationList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -77,15 +74,13 @@ func (c *FakeNetworkFabricL3Configurations) List(ctx context.Context, opts metav
 // Watch returns a watch.Interface that watches the requested networkFabricL3Configurations.
 func (c *FakeNetworkFabricL3Configurations) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(networkfabricl3configurationsResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(networkfabricl3configurationsResource, opts))
 }
 
 // Create takes the representation of a networkFabricL3Configuration and creates it.  Returns the server's representation of the networkFabricL3Configuration, and an error, if there is any.
 func (c *FakeNetworkFabricL3Configurations) Create(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.CreateOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(networkfabricl3configurationsResource, c.ns, networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootCreateAction(networkfabricl3configurationsResource, networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -95,8 +90,7 @@ func (c *FakeNetworkFabricL3Configurations) Create(ctx context.Context, networkF
 // Update takes the representation of a networkFabricL3Configuration and updates it. Returns the server's representation of the networkFabricL3Configuration, and an error, if there is any.
 func (c *FakeNetworkFabricL3Configurations) Update(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.UpdateOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(networkfabricl3configurationsResource, c.ns, networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootUpdateAction(networkfabricl3configurationsResource, networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -107,8 +101,7 @@ func (c *FakeNetworkFabricL3Configurations) Update(ctx context.Context, networkF
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeNetworkFabricL3Configurations) UpdateStatus(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.UpdateOptions) (*v1.NetworkFabricL3Configuration, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(networkfabricl3configurationsResource, "status", c.ns, networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootUpdateSubresourceAction(networkfabricl3configurationsResource, "status", networkFabricL3Configuration), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -118,14 +111,13 @@ func (c *FakeNetworkFabricL3Configurations) UpdateStatus(ctx context.Context, ne
 // Delete takes name of the networkFabricL3Configuration and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkFabricL3Configurations) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(networkfabricl3configurationsResource, c.ns, name, opts), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootDeleteActionWithOptions(networkfabricl3configurationsResource, name, opts), &v1.NetworkFabricL3Configuration{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeNetworkFabricL3Configurations) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(networkfabricl3configurationsResource, c.ns, listOpts)
+	action := testing.NewRootDeleteCollectionAction(networkfabricl3configurationsResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.NetworkFabricL3ConfigurationList{})
 	return err
@@ -134,8 +126,7 @@ func (c *FakeNetworkFabricL3Configurations) DeleteCollection(ctx context.Context
 // Patch applies the patch and returns the patched networkFabricL3Configuration.
 func (c *FakeNetworkFabricL3Configurations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NetworkFabricL3Configuration, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(networkfabricl3configurationsResource, c.ns, name, pt, data, subresources...), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(networkfabricl3configurationsResource, name, pt, data, subresources...), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -156,8 +147,7 @@ func (c *FakeNetworkFabricL3Configurations) Apply(ctx context.Context, networkFa
 		return nil, fmt.Errorf("networkFabricL3Configuration.Name must be provided to Apply")
 	}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(networkfabricl3configurationsResource, c.ns, *name, types.ApplyPatchType, data), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(networkfabricl3configurationsResource, *name, types.ApplyPatchType, data), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}
@@ -179,8 +169,7 @@ func (c *FakeNetworkFabricL3Configurations) ApplyStatus(ctx context.Context, net
 		return nil, fmt.Errorf("networkFabricL3Configuration.Name must be provided to Apply")
 	}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(networkfabricl3configurationsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1.NetworkFabricL3Configuration{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(networkfabricl3configurationsResource, *name, types.ApplyPatchType, data, "status"), &v1.NetworkFabricL3Configuration{})
 	if obj == nil {
 		return nil, err
 	}

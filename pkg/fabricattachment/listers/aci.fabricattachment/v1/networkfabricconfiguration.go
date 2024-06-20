@@ -30,8 +30,9 @@ type NetworkFabricConfigurationLister interface {
 	// List lists all NetworkFabricConfigurations in the indexer.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.NetworkFabricConfiguration, err error)
-	// NetworkFabricConfigurations returns an object that can list and get NetworkFabricConfigurations.
-	NetworkFabricConfigurations(namespace string) NetworkFabricConfigurationNamespaceLister
+	// Get retrieves the NetworkFabricConfiguration from the index for a given name.
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*v1.NetworkFabricConfiguration, error)
 	NetworkFabricConfigurationListerExpansion
 }
 
@@ -53,41 +54,9 @@ func (s *networkFabricConfigurationLister) List(selector labels.Selector) (ret [
 	return ret, err
 }
 
-// NetworkFabricConfigurations returns an object that can list and get NetworkFabricConfigurations.
-func (s *networkFabricConfigurationLister) NetworkFabricConfigurations(namespace string) NetworkFabricConfigurationNamespaceLister {
-	return networkFabricConfigurationNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// NetworkFabricConfigurationNamespaceLister helps list and get NetworkFabricConfigurations.
-// All objects returned here must be treated as read-only.
-type NetworkFabricConfigurationNamespaceLister interface {
-	// List lists all NetworkFabricConfigurations in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.NetworkFabricConfiguration, err error)
-	// Get retrieves the NetworkFabricConfiguration from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.NetworkFabricConfiguration, error)
-	NetworkFabricConfigurationNamespaceListerExpansion
-}
-
-// networkFabricConfigurationNamespaceLister implements the NetworkFabricConfigurationNamespaceLister
-// interface.
-type networkFabricConfigurationNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all NetworkFabricConfigurations in the indexer for a given namespace.
-func (s networkFabricConfigurationNamespaceLister) List(selector labels.Selector) (ret []*v1.NetworkFabricConfiguration, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.NetworkFabricConfiguration))
-	})
-	return ret, err
-}
-
-// Get retrieves the NetworkFabricConfiguration from the indexer for a given namespace and name.
-func (s networkFabricConfigurationNamespaceLister) Get(name string) (*v1.NetworkFabricConfiguration, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the NetworkFabricConfiguration from the index for a given name.
+func (s *networkFabricConfigurationLister) Get(name string) (*v1.NetworkFabricConfiguration, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

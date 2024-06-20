@@ -35,7 +35,7 @@ import (
 // NetworkFabricConfigurationsGetter has a method to return a NetworkFabricConfigurationInterface.
 // A group's client should implement this interface.
 type NetworkFabricConfigurationsGetter interface {
-	NetworkFabricConfigurations(namespace string) NetworkFabricConfigurationInterface
+	NetworkFabricConfigurations() NetworkFabricConfigurationInterface
 }
 
 // NetworkFabricConfigurationInterface has methods to work with NetworkFabricConfiguration resources.
@@ -57,14 +57,12 @@ type NetworkFabricConfigurationInterface interface {
 // networkFabricConfigurations implements NetworkFabricConfigurationInterface
 type networkFabricConfigurations struct {
 	client rest.Interface
-	ns     string
 }
 
 // newNetworkFabricConfigurations returns a NetworkFabricConfigurations
-func newNetworkFabricConfigurations(c *AciV1Client, namespace string) *networkFabricConfigurations {
+func newNetworkFabricConfigurations(c *AciV1Client) *networkFabricConfigurations {
 	return &networkFabricConfigurations{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -72,7 +70,6 @@ func newNetworkFabricConfigurations(c *AciV1Client, namespace string) *networkFa
 func (c *networkFabricConfigurations) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NetworkFabricConfiguration, err error) {
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -89,7 +86,6 @@ func (c *networkFabricConfigurations) List(ctx context.Context, opts metav1.List
 	}
 	result = &v1.NetworkFabricConfigurationList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -106,7 +102,6 @@ func (c *networkFabricConfigurations) Watch(ctx context.Context, opts metav1.Lis
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -117,7 +112,6 @@ func (c *networkFabricConfigurations) Watch(ctx context.Context, opts metav1.Lis
 func (c *networkFabricConfigurations) Create(ctx context.Context, networkFabricConfiguration *v1.NetworkFabricConfiguration, opts metav1.CreateOptions) (result *v1.NetworkFabricConfiguration, err error) {
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(networkFabricConfiguration).
@@ -130,7 +124,6 @@ func (c *networkFabricConfigurations) Create(ctx context.Context, networkFabricC
 func (c *networkFabricConfigurations) Update(ctx context.Context, networkFabricConfiguration *v1.NetworkFabricConfiguration, opts metav1.UpdateOptions) (result *v1.NetworkFabricConfiguration, err error) {
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(networkFabricConfiguration.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -145,7 +138,6 @@ func (c *networkFabricConfigurations) Update(ctx context.Context, networkFabricC
 func (c *networkFabricConfigurations) UpdateStatus(ctx context.Context, networkFabricConfiguration *v1.NetworkFabricConfiguration, opts metav1.UpdateOptions) (result *v1.NetworkFabricConfiguration, err error) {
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(networkFabricConfiguration.Name).
 		SubResource("status").
@@ -159,7 +151,6 @@ func (c *networkFabricConfigurations) UpdateStatus(ctx context.Context, networkF
 // Delete takes name of the networkFabricConfiguration and deletes it. Returns an error if one occurs.
 func (c *networkFabricConfigurations) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(name).
 		Body(&opts).
@@ -174,7 +165,6 @@ func (c *networkFabricConfigurations) DeleteCollection(ctx context.Context, opts
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -187,7 +177,6 @@ func (c *networkFabricConfigurations) DeleteCollection(ctx context.Context, opts
 func (c *networkFabricConfigurations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NetworkFabricConfiguration, err error) {
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(name).
 		SubResource(subresources...).
@@ -214,7 +203,6 @@ func (c *networkFabricConfigurations) Apply(ctx context.Context, networkFabricCo
 	}
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(*name).
 		VersionedParams(&patchOpts, scheme.ParameterCodec).
@@ -243,7 +231,6 @@ func (c *networkFabricConfigurations) ApplyStatus(ctx context.Context, networkFa
 
 	result = &v1.NetworkFabricConfiguration{}
 	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
 		Resource("networkfabricconfigurations").
 		Name(*name).
 		SubResource("status").

@@ -81,11 +81,11 @@ func (cont *AciController) initNetworkFabricL3ConfigurationInformerFromClient(fa
 	cont.initNetworkFabricL3ConfigurationInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NetworkFabricL3Configurations(metav1.NamespaceAll).List(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricL3Configurations().List(context.TODO(), options)
 			},
 
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NetworkFabricL3Configurations(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricL3Configurations().Watch(context.TODO(), options)
 			},
 		})
 }
@@ -1081,10 +1081,10 @@ func (cont *AciController) updateNetworkFabricL3ConfigurationStatus() {
 	if cont.unitTestMode {
 		return
 	}
-	fabl3Config, err := cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations(metav1.NamespaceAll).Get(context.TODO(), "networkfabricl3configuration", metav1.GetOptions{})
+	fabl3Config, err := cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations().Get(context.TODO(), "networkfabricl3configuration", metav1.GetOptions{})
 	if err == nil {
 		fabl3Config.Status = *cont.computeNetworkFabricL3ConfigurationStatus()
-		_, err = cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations(metav1.NamespaceAll).UpdateStatus(context.TODO(), fabl3Config, metav1.UpdateOptions{})
+		_, err = cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations().UpdateStatus(context.TODO(), fabl3Config, metav1.UpdateOptions{})
 		if err != nil {
 			cont.log.Errorf("Failed to update NetworkFabricL3ConfigurationStatus: %v", err)
 		}

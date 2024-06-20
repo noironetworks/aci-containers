@@ -100,11 +100,11 @@ func (cont *AciController) initFabNetConfigInformerFromClient(fabAttClient *faba
 	cont.initFabNetConfigInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NetworkFabricConfigurations(metav1.NamespaceAll).List(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricConfigurations().List(context.TODO(), options)
 			},
 
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NetworkFabricConfigurations(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return fabAttClient.AciV1().NetworkFabricConfigurations().Watch(context.TODO(), options)
 			},
 		})
 }

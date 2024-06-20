@@ -34,10 +34,9 @@ type NetworkFabricConfigurationApplyConfiguration struct {
 
 // NetworkFabricConfiguration constructs an declarative configuration of the NetworkFabricConfiguration type for use with
 // apply.
-func NetworkFabricConfiguration(name, namespace string) *NetworkFabricConfigurationApplyConfiguration {
+func NetworkFabricConfiguration(name string) *NetworkFabricConfigurationApplyConfiguration {
 	b := &NetworkFabricConfigurationApplyConfiguration{}
 	b.WithName(name)
-	b.WithNamespace(namespace)
 	b.WithKind("NetworkFabricConfiguration")
 	b.WithAPIVersion("aci.fabricattachment/v1")
 	return b
