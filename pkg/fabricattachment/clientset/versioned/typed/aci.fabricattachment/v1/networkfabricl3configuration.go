@@ -35,7 +35,7 @@ import (
 // NetworkFabricL3ConfigurationsGetter has a method to return a NetworkFabricL3ConfigurationInterface.
 // A group's client should implement this interface.
 type NetworkFabricL3ConfigurationsGetter interface {
-	NetworkFabricL3Configurations(namespace string) NetworkFabricL3ConfigurationInterface
+	NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInterface
 }
 
 // NetworkFabricL3ConfigurationInterface has methods to work with NetworkFabricL3Configuration resources.
@@ -57,14 +57,12 @@ type NetworkFabricL3ConfigurationInterface interface {
 // networkFabricL3Configurations implements NetworkFabricL3ConfigurationInterface
 type networkFabricL3Configurations struct {
 	client rest.Interface
-	ns     string
 }
 
 // newNetworkFabricL3Configurations returns a NetworkFabricL3Configurations
-func newNetworkFabricL3Configurations(c *AciV1Client, namespace string) *networkFabricL3Configurations {
+func newNetworkFabricL3Configurations(c *AciV1Client) *networkFabricL3Configurations {
 	return &networkFabricL3Configurations{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -72,7 +70,6 @@ func newNetworkFabricL3Configurations(c *AciV1Client, namespace string) *network
 func (c *networkFabricL3Configurations) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -89,7 +86,6 @@ func (c *networkFabricL3Configurations) List(ctx context.Context, opts metav1.Li
 	}
 	result = &v1.NetworkFabricL3ConfigurationList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -106,7 +102,6 @@ func (c *networkFabricL3Configurations) Watch(ctx context.Context, opts metav1.L
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -117,7 +112,6 @@ func (c *networkFabricL3Configurations) Watch(ctx context.Context, opts metav1.L
 func (c *networkFabricL3Configurations) Create(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.CreateOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(networkFabricL3Configuration).
@@ -130,7 +124,6 @@ func (c *networkFabricL3Configurations) Create(ctx context.Context, networkFabri
 func (c *networkFabricL3Configurations) Update(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.UpdateOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(networkFabricL3Configuration.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -145,7 +138,6 @@ func (c *networkFabricL3Configurations) Update(ctx context.Context, networkFabri
 func (c *networkFabricL3Configurations) UpdateStatus(ctx context.Context, networkFabricL3Configuration *v1.NetworkFabricL3Configuration, opts metav1.UpdateOptions) (result *v1.NetworkFabricL3Configuration, err error) {
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(networkFabricL3Configuration.Name).
 		SubResource("status").
@@ -159,7 +151,6 @@ func (c *networkFabricL3Configurations) UpdateStatus(ctx context.Context, networ
 // Delete takes name of the networkFabricL3Configuration and deletes it. Returns an error if one occurs.
 func (c *networkFabricL3Configurations) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(name).
 		Body(&opts).
@@ -174,7 +165,6 @@ func (c *networkFabricL3Configurations) DeleteCollection(ctx context.Context, op
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -187,7 +177,6 @@ func (c *networkFabricL3Configurations) DeleteCollection(ctx context.Context, op
 func (c *networkFabricL3Configurations) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NetworkFabricL3Configuration, err error) {
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(name).
 		SubResource(subresources...).
@@ -214,7 +203,6 @@ func (c *networkFabricL3Configurations) Apply(ctx context.Context, networkFabric
 	}
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(*name).
 		VersionedParams(&patchOpts, scheme.ParameterCodec).
@@ -243,7 +231,6 @@ func (c *networkFabricL3Configurations) ApplyStatus(ctx context.Context, network
 
 	result = &v1.NetworkFabricL3Configuration{}
 	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
 		Resource("networkfabricl3configurations").
 		Name(*name).
 		SubResource("status").

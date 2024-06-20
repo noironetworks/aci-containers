@@ -35,12 +35,12 @@ func (c *FakeAciV1) NadVlanMaps(namespace string) v1.NadVlanMapInterface {
 	return &FakeNadVlanMaps{c, namespace}
 }
 
-func (c *FakeAciV1) NetworkFabricConfigurations(namespace string) v1.NetworkFabricConfigurationInterface {
-	return &FakeNetworkFabricConfigurations{c, namespace}
+func (c *FakeAciV1) NetworkFabricConfigurations() v1.NetworkFabricConfigurationInterface {
+	return &FakeNetworkFabricConfigurations{c}
 }
 
-func (c *FakeAciV1) NetworkFabricL3Configurations(namespace string) v1.NetworkFabricL3ConfigurationInterface {
-	return &FakeNetworkFabricL3Configurations{c, namespace}
+func (c *FakeAciV1) NetworkFabricL3Configurations() v1.NetworkFabricL3ConfigurationInterface {
+	return &FakeNetworkFabricL3Configurations{c}
 }
 
 func (c *FakeAciV1) NodeFabricNetworkAttachments(namespace string) v1.NodeFabricNetworkAttachmentInterface {

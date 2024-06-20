@@ -58,12 +58,12 @@ func (v *version) NadVlanMaps() NadVlanMapInformer {
 
 // NetworkFabricConfigurations returns a NetworkFabricConfigurationInformer.
 func (v *version) NetworkFabricConfigurations() NetworkFabricConfigurationInformer {
-	return &networkFabricConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &networkFabricConfigurationInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // NetworkFabricL3Configurations returns a NetworkFabricL3ConfigurationInformer.
 func (v *version) NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInformer {
-	return &networkFabricL3ConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &networkFabricL3ConfigurationInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.

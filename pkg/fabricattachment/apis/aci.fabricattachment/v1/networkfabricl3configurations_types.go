@@ -59,7 +59,7 @@ type FabricL3OutRtrNode struct {
 type FabricL3OutNode struct {
 	NodeRef            FabricNodeRef `json:"nodeRef"`
 	PrimaryAddress     string        `json:"primaryAddress"`
-	SecondaryAddresses []string      `json:"secondaryAddresses"`
+	SecondaryAddresses []string      `json:"secondaryAddresses,omitempty"`
 }
 
 type FabricL3Subnet struct {
@@ -135,6 +135,7 @@ type NetworkFabricL3ConfigStatus struct {
 }
 
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status

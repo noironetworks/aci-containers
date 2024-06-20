@@ -30,8 +30,9 @@ type NetworkFabricL3ConfigurationLister interface {
 	// List lists all NetworkFabricL3Configurations in the indexer.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.NetworkFabricL3Configuration, err error)
-	// NetworkFabricL3Configurations returns an object that can list and get NetworkFabricL3Configurations.
-	NetworkFabricL3Configurations(namespace string) NetworkFabricL3ConfigurationNamespaceLister
+	// Get retrieves the NetworkFabricL3Configuration from the index for a given name.
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*v1.NetworkFabricL3Configuration, error)
 	NetworkFabricL3ConfigurationListerExpansion
 }
 
@@ -53,41 +54,9 @@ func (s *networkFabricL3ConfigurationLister) List(selector labels.Selector) (ret
 	return ret, err
 }
 
-// NetworkFabricL3Configurations returns an object that can list and get NetworkFabricL3Configurations.
-func (s *networkFabricL3ConfigurationLister) NetworkFabricL3Configurations(namespace string) NetworkFabricL3ConfigurationNamespaceLister {
-	return networkFabricL3ConfigurationNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// NetworkFabricL3ConfigurationNamespaceLister helps list and get NetworkFabricL3Configurations.
-// All objects returned here must be treated as read-only.
-type NetworkFabricL3ConfigurationNamespaceLister interface {
-	// List lists all NetworkFabricL3Configurations in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.NetworkFabricL3Configuration, err error)
-	// Get retrieves the NetworkFabricL3Configuration from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.NetworkFabricL3Configuration, error)
-	NetworkFabricL3ConfigurationNamespaceListerExpansion
-}
-
-// networkFabricL3ConfigurationNamespaceLister implements the NetworkFabricL3ConfigurationNamespaceLister
-// interface.
-type networkFabricL3ConfigurationNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all NetworkFabricL3Configurations in the indexer for a given namespace.
-func (s networkFabricL3ConfigurationNamespaceLister) List(selector labels.Selector) (ret []*v1.NetworkFabricL3Configuration, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.NetworkFabricL3Configuration))
-	})
-	return ret, err
-}
-
-// Get retrieves the NetworkFabricL3Configuration from the indexer for a given namespace and name.
-func (s networkFabricL3ConfigurationNamespaceLister) Get(name string) (*v1.NetworkFabricL3Configuration, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the NetworkFabricL3Configuration from the index for a given name.
+func (s *networkFabricL3ConfigurationLister) Get(name string) (*v1.NetworkFabricL3Configuration, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
