@@ -34,10 +34,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.BGPPeerPolicyApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("BGPPeerPrefixPolicy"):
 		return &acifabricattachmentv1.BGPPeerPrefixPolicyApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("BGPPeerPrefixPolicyStatus"):
+		return &acifabricattachmentv1.BGPPeerPrefixPolicyStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("BridgeDomain"):
 		return &acifabricattachmentv1.BridgeDomainApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ConnectedL3Network"):
 		return &acifabricattachmentv1.ConnectedL3NetworkApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("ConnectedL3NetworkStatus"):
+		return &acifabricattachmentv1.ConnectedL3NetworkStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Contracts"):
 		return &acifabricattachmentv1.ContractsApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("EncapRef"):
@@ -58,6 +62,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.FabricL3OutRtrNodeApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricL3OutStaticRoute"):
 		return &acifabricattachmentv1.FabricL3OutStaticRouteApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricL3OutStatus"):
+		return &acifabricattachmentv1.FabricL3OutStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricL3Peers"):
+		return &acifabricattachmentv1.FabricL3PeersApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricL3Subnet"):
 		return &acifabricattachmentv1.FabricL3SubnetApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricNodeRef"):
@@ -66,6 +74,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.FabricPodRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricTenantConfiguration"):
 		return &acifabricattachmentv1.FabricTenantConfigurationApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("FabricTenantConfigurationStatus"):
+		return &acifabricattachmentv1.FabricTenantConfigurationStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricVlanPool"):
 		return &acifabricattachmentv1.FabricVlanPoolApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricVlanPoolSpec"):
@@ -76,6 +86,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.FabricVrfConfigurationApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("FabricVrfConfigurationStatus"):
 		return &acifabricattachmentv1.FabricVrfConfigurationStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NADFabricL3Peer"):
+		return &acifabricattachmentv1.NADFabricL3PeerApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NadVlanMap"):
 		return &acifabricattachmentv1.NadVlanMapApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NadVlanMapSpec"):
@@ -96,6 +108,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.NetworkFabricL3ConfigStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NetworkFabricL3Configuration"):
 		return &acifabricattachmentv1.NetworkFabricL3ConfigurationApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NetworkFabricL3PeeringInfo"):
+		return &acifabricattachmentv1.NetworkFabricL3PeeringInfoApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NodeFabricL3Peer"):
+		return &acifabricattachmentv1.NodeFabricL3PeerApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NodeFabricL3Peers"):
+		return &acifabricattachmentv1.NodeFabricL3PeersApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NodeFabricL3PeersStatus"):
+		return &acifabricattachmentv1.NodeFabricL3PeersStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachment"):
 		return &acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachmentSpec"):

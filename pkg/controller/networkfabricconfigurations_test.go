@@ -19,9 +19,10 @@ import (
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 
 	"fmt"
+	"testing"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.ApicObject {
@@ -125,7 +126,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	cont := testChainedController(aciPrefix, true, additionalVlans)
 
 	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "101",
-		[]string{"/topology/pod-1/node-101/pathep-[eth1/34]", "/topology/pod-1/node-102/pathep-[eth1/34]"})
+		[]string{"topology/pod-1/node-101/pathep-[eth1/34]", "topology/pod-1/node-102/pathep-[eth1/34]"})
 	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
 	progMapPool := cont.updateFabricVlanPool(fvp)
 	progMapNFC := cont.updateNetworkFabricConfigurationObj(CreateNFCVlanRef("101", explicitAp, discoveryType))
@@ -157,7 +158,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	epg := CreateNFNAExplicitEPG(aciPrefix, "testTenant", apName, "testBd", "testEpg", []string{"ctrct1"}, []string{"ctrct2"})
 	if discoveryType != fabattv1.StaticPathMgmtTypeAEP {
 		expectedApicSlice2 = PopulateFabricPaths(epg, 101, nfna1,
-			[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
+			[]string{"topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 			cont, expectedApicSlice2)
 	} else {
 		expectedApicSlice2 = append(expectedApicSlice2, epg)
@@ -180,7 +181,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	expectedApicSlice3 = append(expectedApicSlice3, bd)
 	epg = CreateNFNAEPG(nfna1, 101, aciPrefix, cont)
 	expectedApicSlice3 = PopulateFabricPaths(epg, 101, nfna1,
-		[]string{"/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
+		[]string{"topology/pod-1/protpaths-101-102/pathep-[test-bond1]"},
 		cont, expectedApicSlice3)
 	delProgMap := cont.deleteNetworkFabricConfigurationObj("NetworkFabricConfiguration")
 	nfcObjCount = 1

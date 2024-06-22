@@ -31,6 +31,8 @@ type Interface interface {
 	NetworkFabricConfigurations() NetworkFabricConfigurationInformer
 	// NetworkFabricL3Configurations returns a NetworkFabricL3ConfigurationInformer.
 	NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInformer
+	// NodeFabricL3Peerses returns a NodeFabricL3PeersInformer.
+	NodeFabricL3Peerses() NodeFabricL3PeersInformer
 	// NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.
 	NodeFabricNetworkAttachments() NodeFabricNetworkAttachmentInformer
 }
@@ -64,6 +66,11 @@ func (v *version) NetworkFabricConfigurations() NetworkFabricConfigurationInform
 // NetworkFabricL3Configurations returns a NetworkFabricL3ConfigurationInformer.
 func (v *version) NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInformer {
 	return &networkFabricL3ConfigurationInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// NodeFabricL3Peerses returns a NodeFabricL3PeersInformer.
+func (v *version) NodeFabricL3Peerses() NodeFabricL3PeersInformer {
+	return &nodeFabricL3PeersInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // NodeFabricNetworkAttachments returns a NodeFabricNetworkAttachmentInformer.

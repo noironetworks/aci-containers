@@ -60,6 +60,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NetworkFabricConfigurations().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("networkfabricl3configurations"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NetworkFabricL3Configurations().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("nodefabricl3peerses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NodeFabricL3Peerses().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("nodefabricnetworkattachments"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().NodeFabricNetworkAttachments().Informer()}, nil
 

@@ -333,6 +333,8 @@ spec:
                             type: array
                           primarySubnet:
                             type: string
+                          status:
+                            type: string
                           subnets:
                             items:
                               properties:
@@ -369,6 +371,8 @@ spec:
                                 maxPrefixes:
                                   type: integer
                                 name:
+                                  type: string
+                                status:
                                   type: string
                               required:
                               - maxPrefixes
@@ -467,11 +471,15 @@ spec:
                                     - nodeRef
                                     type: object
                                   type: array
+                                status:
+                                  type: string
                               required:
                               - name
                               - podRef
                               type: object
                             type: array
+                          status:
+                            type: string
                         type: object
                       type: array
                     vrf:

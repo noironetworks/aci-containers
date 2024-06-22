@@ -15,11 +15,31 @@
 package types
 
 import (
+	"sync"
+
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+type FabricPeeringInfo struct {
+	Encap  int
+	ASN    int
+	Peers  map[int]string
+	Secret fabattv1.ObjRef
+}
+
+type RunTimeData struct {
+	// NAD -> k8sNode -> encaps-> FabricNode
+	FabricAdjs map[string]map[string]map[int][]int
+	// encap -> FabricNode -> PeerInfo
+	FabricPeerInfo map[int]*FabricPeeringInfo
+	CommonMutex    sync.Mutex
+}
+
 type Config struct {
 	RequireNADAnnotation bool
+	ContainerName        string
+	RunTimeData
 }
 
 type Manager struct {

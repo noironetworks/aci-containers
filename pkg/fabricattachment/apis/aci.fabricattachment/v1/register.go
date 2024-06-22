@@ -48,6 +48,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&NetworkFabricL3Configuration{}, &NetworkFabricL3ConfigurationList{},
 	)
+	scheme.AddKnownTypes(SchemeGroupVersion,
+		&NodeFabricL3Peers{}, &NodeFabricL3PeersList{},
+	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }
