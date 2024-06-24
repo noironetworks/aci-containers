@@ -20,8 +20,10 @@ package v1
 // FabricVrfConfigurationStatusApplyConfiguration represents an declarative configuration of the FabricVrfConfigurationStatus type for use
 // with apply.
 type FabricVrfConfigurationStatusApplyConfiguration struct {
-	FabricVrfConfigurationApplyConfiguration `json:",inline"`
-	Status                                   *string `json:"status,omitempty"`
+	Vrf                       *VRFApplyConfiguration                              `json:"vrf,omitempty"`
+	DirectlyConnectedNetworks []ConnectedL3NetworkStatusApplyConfiguration        `json:"directlyConnectedNetworks,omitempty"`
+	Tenants                   []FabricTenantConfigurationStatusApplyConfiguration `json:"tenants,omitempty"`
+	Status                    *string                                             `json:"status,omitempty"`
 }
 
 // FabricVrfConfigurationStatusApplyConfiguration constructs an declarative configuration of the FabricVrfConfigurationStatus type for use with
@@ -41,7 +43,7 @@ func (b *FabricVrfConfigurationStatusApplyConfiguration) WithVrf(value *VRFApply
 // WithDirectlyConnectedNetworks adds the given value to the DirectlyConnectedNetworks field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the DirectlyConnectedNetworks field.
-func (b *FabricVrfConfigurationStatusApplyConfiguration) WithDirectlyConnectedNetworks(values ...*ConnectedL3NetworkApplyConfiguration) *FabricVrfConfigurationStatusApplyConfiguration {
+func (b *FabricVrfConfigurationStatusApplyConfiguration) WithDirectlyConnectedNetworks(values ...*ConnectedL3NetworkStatusApplyConfiguration) *FabricVrfConfigurationStatusApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithDirectlyConnectedNetworks")
@@ -54,7 +56,7 @@ func (b *FabricVrfConfigurationStatusApplyConfiguration) WithDirectlyConnectedNe
 // WithTenants adds the given value to the Tenants field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Tenants field.
-func (b *FabricVrfConfigurationStatusApplyConfiguration) WithTenants(values ...*FabricTenantConfigurationApplyConfiguration) *FabricVrfConfigurationStatusApplyConfiguration {
+func (b *FabricVrfConfigurationStatusApplyConfiguration) WithTenants(values ...*FabricTenantConfigurationStatusApplyConfiguration) *FabricVrfConfigurationStatusApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithTenants")

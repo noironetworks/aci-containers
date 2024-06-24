@@ -31,6 +31,7 @@ type AciV1Interface interface {
 	NadVlanMapsGetter
 	NetworkFabricConfigurationsGetter
 	NetworkFabricL3ConfigurationsGetter
+	NodeFabricL3PeersesGetter
 	NodeFabricNetworkAttachmentsGetter
 }
 
@@ -53,6 +54,10 @@ func (c *AciV1Client) NetworkFabricConfigurations() NetworkFabricConfigurationIn
 
 func (c *AciV1Client) NetworkFabricL3Configurations() NetworkFabricL3ConfigurationInterface {
 	return newNetworkFabricL3Configurations(c)
+}
+
+func (c *AciV1Client) NodeFabricL3Peerses() NodeFabricL3PeersInterface {
+	return newNodeFabricL3Peerses(c)
 }
 
 func (c *AciV1Client) NodeFabricNetworkAttachments(namespace string) NodeFabricNetworkAttachmentInterface {

@@ -1,0 +1,135 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  name: nodefabricl3peers.aci.fabricattachment
+spec:
+  group: aci.fabricattachment
+  names:
+    kind: NodeFabricL3Peers
+    listKind: NodeFabricL3PeersList
+    plural: nodefabricl3peers
+    singular: nodefabricl3peers
+  scope: Cluster
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: NodeFabricL3Peers displays the status of L3 peers on svis created
+          by aci controller
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          status:
+            properties:
+              nadRefs:
+                items:
+                  properties:
+                    nad:
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    nodes:
+                      items:
+                        properties:
+                          fabricL3Peers:
+                            items:
+                              properties:
+                                encap:
+                                  type: integer
+                                fabricNodeIds:
+                                  items:
+                                    type: integer
+                                  type: array
+                                podId:
+                                  type: integer
+                              required:
+                              - encap
+                              - fabricNodeIds
+                              - podId
+                              type: object
+                            type: array
+                          nodeName:
+                            type: string
+                        required:
+                        - nodeName
+                        type: object
+                      type: array
+                  required:
+                  - nad
+                  type: object
+                type: array
+              peeringInfo:
+                items:
+                  properties:
+                    asn:
+                      type: integer
+                    encap:
+                      type: integer
+                    fabricNodes:
+                      items:
+                        properties:
+                          nodeRef:
+                            properties:
+                              nodeId:
+                                type: integer
+                              podId:
+                                type: integer
+                            required:
+                            - nodeId
+                            - podId
+                            type: object
+                          primaryAddress:
+                            type: string
+                          secondaryAddresses:
+                            items:
+                              type: string
+                            type: array
+                        required:
+                        - nodeRef
+                        - primaryAddress
+                        type: object
+                      type: array
+                    secret:
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                  required:
+                  - asn
+                  - encap
+                  type: object
+                type: array
+            required:
+            - nadRefs
+            - peeringInfo
+            type: object
+        type: object
+        x-kubernetes-validations:
+        - rule: "self.metadata.name == 'nodefabricl3peers'"
+          message: "Only one instance with name nodefabricl3peers allowed"
+    served: true
+    storage: true

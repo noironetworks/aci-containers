@@ -246,7 +246,9 @@ func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, en
 			// eliminate duplicates in case of VPC links
 			if _, ok := fabLinks[actualFabricLink]; !ok {
 				fabLinks[actualFabricLink] = true
-				cont.log.Info("context present ", ctxt.present)
+				if ctxt != nil {
+					cont.log.Info("context present ", ctxt.present)
+				}
 				if ctxt == nil || !ctxt.present {
 					fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan, addNet.Mode.String())
 					if _, ok := resultingLinks[actualFabricLink]; !ok {

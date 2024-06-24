@@ -15,6 +15,7 @@ package webhook
 
 import (
 	nadhdlr "github.com/noironetworks/aci-containers/pkg/webhook/networkattachmentdefinition"
+	podhdlr "github.com/noironetworks/aci-containers/pkg/webhook/pods"
 	aciwebhooktypes "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -33,6 +34,8 @@ func AddWebHookHandlerToManager(mgr *aciwebhooktypes.Manager) {
 		WebHookConfig = &mgr.Config
 		//Register NAD webhooks
 		nadhdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
+		//Register Pod webhooks
+		podhdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
 	}
 	for path, hdlr := range registeredWebHooks {
 		mgr.Mgr.GetWebhookServer().Register(path, hdlr)

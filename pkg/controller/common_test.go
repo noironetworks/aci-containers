@@ -264,10 +264,10 @@ func testChainedController(aciPrefix string, aciUseGlobalScopeVlan bool, additio
 	}
 	cont.InitController()
 	// Hardcode lldpIfMOs
-	cont.lldpIfCache["/topology/pod-1/node-101/pathep-[eth1/34]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
-	cont.lldpIfCache["/topology/pod-1/node-102/pathep-[eth1/34]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
-	cont.lldpIfCache["/topology/pod-1/node-101/pathep-[eth1/31]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
-	cont.lldpIfCache["/topology/pod-1/node-102/pathep-[eth1/31]"] = "/topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
+	cont.lldpIfCache["topology/pod-1/node-101/pathep-[eth1/34]"] = "topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
+	cont.lldpIfCache["topology/pod-1/node-102/pathep-[eth1/34]"] = "topology/pod-1/protpaths-101-102/pathep-[test-bond1]"
+	cont.lldpIfCache["topology/pod-1/node-101/pathep-[eth1/31]"] = "topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
+	cont.lldpIfCache["topology/pod-1/node-102/pathep-[eth1/31]"] = "topology/pod-1/protpaths-101-102/pathep-[test-bond2]"
 	return cont
 }
 

@@ -43,6 +43,10 @@ func (c *FakeAciV1) NetworkFabricL3Configurations() v1.NetworkFabricL3Configurat
 	return &FakeNetworkFabricL3Configurations{c}
 }
 
+func (c *FakeAciV1) NodeFabricL3Peerses() v1.NodeFabricL3PeersInterface {
+	return &FakeNodeFabricL3Peerses{c}
+}
+
 func (c *FakeAciV1) NodeFabricNetworkAttachments(namespace string) v1.NodeFabricNetworkAttachmentInterface {
 	return &FakeNodeFabricNetworkAttachments{c, namespace}
 }

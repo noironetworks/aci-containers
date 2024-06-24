@@ -41,6 +41,10 @@ type NetworkFabricConfigurationListerExpansion interface{}
 // NetworkFabricL3ConfigurationLister.
 type NetworkFabricL3ConfigurationListerExpansion interface{}
 
+// NodeFabricL3PeersListerExpansion allows custom methods to be added to
+// NodeFabricL3PeersLister.
+type NodeFabricL3PeersListerExpansion interface{}
+
 // NodeFabricNetworkAttachmentListerExpansion allows custom methods to be added to
 // NodeFabricNetworkAttachmentLister.
 type NodeFabricNetworkAttachmentListerExpansion interface{}

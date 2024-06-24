@@ -25,4 +25,6 @@ type NetworkFabricConfigurationExpansion interface{}
 
 type NetworkFabricL3ConfigurationExpansion interface{}
 
+type NodeFabricL3PeersExpansion interface{}
+
 type NodeFabricNetworkAttachmentExpansion interface{}

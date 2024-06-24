@@ -89,10 +89,32 @@ type ConnectedL3Network struct {
 	Nodes           []FabricL3OutNode `json:"nodes,omitempty"`
 }
 
+type ConnectedL3NetworkStatus struct {
+	ConnectedL3Network `json:",inline"`
+	Status             string `json:"status,omitempty"`
+}
+
 type FabricTenantConfiguration struct {
 	CommonTenant          bool                  `json:"commonTenant,omitempty"`
 	L3OutInstances        []FabricL3Out         `json:"l3OutInstances,omitempty"`
 	BGPPeerPrefixPolicies []BGPPeerPrefixPolicy `json:"bgpInstances,omitempty"`
+}
+
+type FabricL3OutStatus struct {
+	FabricL3Out `json:",inline"`
+	Status      string `json:"status,omitempty"`
+}
+
+type BGPPeerPrefixPolicyStatus struct {
+	BGPPeerPrefixPolicy `json:",inline"`
+	Status              string `json:"status,omitempty"`
+}
+
+type FabricTenantConfigurationStatus struct {
+	CommonTenant          bool                        `json:"commonTenant,omitempty"`
+	L3OutInstances        []FabricL3OutStatus         `json:"l3OutInstances,omitempty"`
+	BGPPeerPrefixPolicies []BGPPeerPrefixPolicyStatus `json:"bgpInstances,omitempty"`
+	Status                string                      `json:"status,omitempty"`
 }
 
 type FabricVrfConfiguration struct {
@@ -102,8 +124,10 @@ type FabricVrfConfiguration struct {
 }
 
 type FabricVrfConfigurationStatus struct {
-	FabricVrfConfiguration `json:",inline"`
-	Status                 string `json:"status,omitempty"`
+	Vrf                       VRF                               `json:"vrf"`
+	DirectlyConnectedNetworks []ConnectedL3NetworkStatus        `json:"directlyConnectedNetworks,omitempty"`
+	Tenants                   []FabricTenantConfigurationStatus `json:"tenants,omitempty"`
+	Status                    string                            `json:"status,omitempty"`
 }
 
 type PolicyPrefix struct {

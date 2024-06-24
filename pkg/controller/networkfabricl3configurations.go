@@ -130,7 +130,7 @@ func (cont *AciController) networkFabricL3ConfigurationDeleted(obj interface{}) 
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			cont.log.Errorf("Received unexpected object: %s/%s", netFabL3Config.TypeMeta.Kind, netFabL3Config.ObjectMeta.Name)
+			cont.log.Errorf("Received unexpected object: %s/%s", netFabL3Config.TypeMeta.Kind, netFabL3Config.Name)
 			return
 		}
 		netFabL3Config, ok = deletedState.Obj.(*fabattv1.NetworkFabricL3Configuration)
@@ -604,11 +604,11 @@ func (cont *AciController) populateL3OutData(l3OutData *fabattv1.FabricL3Out, sv
 		ExtEpgMap:  make(map[string]*fabattv1.PolicyPrefixGroup),
 		SviMap:     make(map[int]bool),
 	}
-	if sviMap != nil {
-		for key := range sviMap {
-			nfL3OutData.SviMap[key] = true
-		}
+
+	for key := range sviMap {
+		nfL3OutData.SviMap[key] = true
 	}
+
 	for _, rtrNode := range l3OutData.RtrNodes {
 		rtrNode2 := rtrNode
 		nfL3OutData.RtrNodeMap[rtrNode.NodeRef.NodeId] = &rtrNode2
@@ -779,14 +779,14 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 					nfVrfData.TenantConfig[l3outTenant] = nfTenantData
 				} else {
 					for _, l3out := range tenantData.L3OutInstances {
-						if l3outData, ok := nfTenantData.L3OutConfig[l3out.Name]; !ok {
+						if _, ok := nfTenantData.L3OutConfig[l3out.Name]; !ok {
 							var sviMap map[int]bool
 							if _, ok := currL3OutMap[l3outTenant]; ok {
 								if _, ok := currL3OutMap[l3outTenant][l3out.Name]; ok {
 									sviMap = currL3OutMap[l3outTenant][l3out.Name]
 								}
 							}
-							l3outData = cont.populateL3OutData(&l3out, sviMap)
+							l3outData := cont.populateL3OutData(&l3out, sviMap)
 							nfTenantData.L3OutConfig[l3out.Name] = l3outData
 						}
 						// L3Out cannot be pre-existing since VRF is new here
@@ -939,6 +939,7 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationUpdate(obj interfac
 }
 
 func (cont *AciController) handleNetworkFabricL3ConfigurationDelete(key string) bool {
+	_ = key
 	progMap := cont.deleteNetworkFabricL3ConfigObj()
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
@@ -947,6 +948,7 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationDelete(key string) 
 		}
 		cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 	}
+	cont.deleteNodeFabricL3Peers()
 	return false
 }
 
@@ -966,7 +968,7 @@ func (cont *AciController) restoreNetworkFabricL3ConfigurationStatus() {
 
 func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1.NetworkFabricL3ConfigStatus {
 	fabVrfs := make(map[string]*fabattv1.FabricVrfConfigurationStatus)
-	fabTenants := make(map[string]*fabattv1.FabricTenantConfiguration)
+	fabTenants := make(map[string]*fabattv1.FabricTenantConfigurationStatus)
 
 	fabL3ConfigStatus := &fabattv1.NetworkFabricL3ConfigStatus{}
 	for _, sviData := range cont.sharedEncapSviCache {
@@ -976,14 +978,14 @@ func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1
 			fabVrf, ok := fabVrfs[vrfKey]
 			if !ok {
 				fabVrf = &fabattv1.FabricVrfConfigurationStatus{
-					FabricVrfConfiguration: fabattv1.FabricVrfConfiguration{
-						Vrf: sviData.Vrf,
-					},
+					Vrf: sviData.Vrf,
 				}
 			}
-			connectedL3Network := fabattv1.ConnectedL3Network{
-				FabricL3Network: fabattv1.FabricL3Network{
-					PrimaryNetwork: sviData.ConnectedNw.PrimaryNetwork,
+			connectedL3Network := fabattv1.ConnectedL3NetworkStatus{
+				ConnectedL3Network: fabattv1.ConnectedL3Network{
+					FabricL3Network: fabattv1.FabricL3Network{
+						PrimaryNetwork: sviData.ConnectedNw.PrimaryNetwork,
+					},
 				},
 			}
 			subnets := []fabattv1.FabricL3Subnet{}
@@ -1000,15 +1002,17 @@ func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1
 				if sviData.Tenant == "common" {
 					commonTenant = true
 				}
-				tenantData = &fabattv1.FabricTenantConfiguration{
+				tenantData = &fabattv1.FabricTenantConfigurationStatus{
 					CommonTenant: commonTenant,
 				}
 			}
 			nfTenantData, ok := cont.sharedEncapTenantCache[sviData.Tenant]
 			if !ok {
-				l3OutData := fabattv1.FabricL3Out{
-					Name:   connectedL3Network.L3OutName,
-					PodRef: fabattv1.FabricPodRef{PodId: sviData.PodId},
+				l3OutData := fabattv1.FabricL3OutStatus{
+					FabricL3Out: fabattv1.FabricL3Out{
+						Name:   connectedL3Network.L3OutName,
+						PodRef: fabattv1.FabricPodRef{PodId: sviData.PodId},
+					},
 				}
 				for _, node := range connectedL3Network.Nodes {
 					nodeId := node.NodeRef.NodeId
@@ -1032,10 +1036,12 @@ func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1
 				continue
 			}
 			for l3OutName, nfL3OutData := range nfTenantData.L3OutConfig {
-				l3OutData := fabattv1.FabricL3Out{
-					Name:   l3OutName,
-					RtCtrl: nfL3OutData.RtCtrl,
-					PodRef: fabattv1.FabricPodRef{PodId: nfL3OutData.PodId},
+				l3OutData := fabattv1.FabricL3OutStatus{
+					FabricL3Out: fabattv1.FabricL3Out{
+						Name:   l3OutName,
+						RtCtrl: nfL3OutData.RtCtrl,
+						PodRef: fabattv1.FabricPodRef{PodId: nfL3OutData.PodId},
+					},
 				}
 				for _, node := range connectedL3Network.Nodes {
 					if rtrNode, ok := nfL3OutData.RtrNodeMap[node.NodeRef.NodeId]; ok {
@@ -1059,7 +1065,10 @@ func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1
 				tenantData.L3OutInstances = append(tenantData.L3OutInstances, l3OutData)
 			}
 			for _, bgpPeerPrefixPolicy := range nfTenantData.BGPPeerPfxConfig {
-				tenantData.BGPPeerPrefixPolicies = append(tenantData.BGPPeerPrefixPolicies, *bgpPeerPrefixPolicy)
+				bgpPeerPrefixPolicyStatus := fabattv1.BGPPeerPrefixPolicyStatus{
+					BGPPeerPrefixPolicy: *bgpPeerPrefixPolicy,
+				}
+				tenantData.BGPPeerPrefixPolicies = append(tenantData.BGPPeerPrefixPolicies, bgpPeerPrefixPolicyStatus)
 			}
 			fabVrf.Tenants = append(fabVrf.Tenants, *tenantData)
 			if vrfErrStr != "" {
@@ -1088,6 +1097,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigurationStatus() {
 		if err != nil {
 			cont.log.Errorf("Failed to update NetworkFabricL3ConfigurationStatus: %v", err)
 		}
+		cont.updateNodeFabricL3Peers()
 	} else {
 		cont.log.Errorf("%v. Skip updating status", err)
 	}

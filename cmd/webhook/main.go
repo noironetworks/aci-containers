@@ -17,21 +17,26 @@ package main
 import (
 	"flag"
 	"os"
+	"sync"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	cnicncfv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	aciwebhooks "github.com/noironetworks/aci-containers/pkg/webhook"
 	aciwebhooktypes "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
@@ -44,6 +49,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(cnicncfv1.AddToScheme(scheme))
+	utilruntime.Must(fabattv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -52,6 +58,7 @@ func main() {
 	var enableLeaderElection, requireNadAnnotation bool
 	var probeAddr string
 	var certDir string
+	var containerName string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -59,6 +66,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certDir, "certs-directory", "/tmp/k8s-webhook-server/serving-certs", "The path where tls crt/key pair is located.")
 	flag.BoolVar(&requireNadAnnotation, "require-nad-annotation", false, "Whether NADs need to be annotated to enable insertion of netop-cni in chain")
+	flag.StringVar(&containerName, "container-name-for-envvars", "fabric-peer", "name of the container that needs peering environment variables inserted")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -100,7 +108,31 @@ func main() {
 		Mgr: mgr,
 		Config: aciwebhooktypes.Config{
 			RequireNADAnnotation: requireNadAnnotation,
+			ContainerName:        containerName,
+			RunTimeData: aciwebhooktypes.RunTimeData{
+				CommonMutex:    sync.Mutex{},
+				FabricAdjs:     make(map[string]map[string]map[int][]int),
+				FabricPeerInfo: make(map[int]*aciwebhooktypes.FabricPeeringInfo),
+			},
 		},
+	}
+
+	// Setup a new controller to reconcile NodeFabricL3Peers
+	setupLog.Info("Setting up controller")
+	c, err := controller.New("nodefabricl3peers-controller", mgr, controller.Options{
+		Reconciler: &aciwebhooks.ReconcileNFL3Peers{
+			Client: mgr.GetClient(),
+			Config: &webhookMgr.Config.RunTimeData,
+		}})
+	if err != nil {
+		setupLog.Error(err, "unable to set up individual controller")
+		os.Exit(1)
+	}
+
+	// Watch NodeFabricL3Peers and enqueue NodeFabricL3Peers object key
+	if err := c.Watch(source.Kind(mgr.GetCache(), &fabattv1.NodeFabricL3Peers{}), &handler.EnqueueRequestForObject{}); err != nil {
+		setupLog.Error(err, "unable to watch NodeFabricL3Peers")
+		os.Exit(1)
 	}
 
 	// Register the webhooks in the server.

@@ -18,10 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	cncfv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	aciwebhooktypes "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	admv1 "k8s.io/api/admission/v1"
-	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
 	. "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -80,13 +81,14 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 	if (req.Operation != admv1.Create) && (req.Operation != admv1.Update) {
 		return Allowed("no op")
 	}
-	webhookHdlrLog := ctrl.Log.WithName("NADHandler")
 	raw := req.Object.Raw
 	nad := &cncfv1.NetworkAttachmentDefinition{}
 	err := json.Unmarshal(raw, &nad)
 	if err != nil {
 		return Errored(http.StatusBadRequest, err)
 	}
+	prefixStr := fmt.Sprintf("NADHandler: %s/%s: ", nad.Namespace, nad.Name)
+	webhookHdlrLog := ctrl.Log.WithName(prefixStr)
 	var config map[string]interface{}
 	nadBytes := bytes.NewBufferString(nad.Spec.Config)
 	err = json.Unmarshal(nadBytes.Bytes(), &config)
@@ -130,7 +132,7 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 		if err != nil {
 			return Errored(http.StatusBadRequest, err)
 		}
-		webhookHdlrLog.Info("Appending netop-cni")
+		webhookHdlrLog.Info("Appending netop-cni to")
 		return Patched("Append Netop-CNI",
 			JSONPatchOp{Operation: "replace", Path: "/spec/config", Value: bytes.NewBuffer(newConfig).String()})
 	} else {
@@ -158,7 +160,7 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 		if err != nil {
 			return Errored(http.StatusBadRequest, err)
 		}
-		webhookHdlrLog.Info("Inserting netop-cni")
+		webhookHdlrLog.Info("Inserting netop-cni to")
 		return Patched("Insert Netop-CNI",
 			JSONPatchOp{Operation: "replace", Path: "/spec/config", Value: bytes.NewBuffer(newConfig).String()})
 
