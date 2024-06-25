@@ -31,58 +31,58 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// NodeFabricL3PeersInformer provides access to a shared informer and lister for
-// NodeFabricL3Peerses.
-type NodeFabricL3PeersInformer interface {
+// NodeFabricNetworkL3PeerInformer provides access to a shared informer and lister for
+// NodeFabricNetworkL3Peers.
+type NodeFabricNetworkL3PeerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.NodeFabricL3PeersLister
+	Lister() v1.NodeFabricNetworkL3PeerLister
 }
 
-type nodeFabricL3PeersInformer struct {
+type nodeFabricNetworkL3PeerInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewNodeFabricL3PeersInformer constructs a new informer for NodeFabricL3Peers type.
+// NewNodeFabricNetworkL3PeerInformer constructs a new informer for NodeFabricNetworkL3Peer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewNodeFabricL3PeersInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredNodeFabricL3PeersInformer(client, resyncPeriod, indexers, nil)
+func NewNodeFabricNetworkL3PeerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNodeFabricNetworkL3PeerInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredNodeFabricL3PeersInformer constructs a new informer for NodeFabricL3Peers type.
+// NewFilteredNodeFabricNetworkL3PeerInformer constructs a new informer for NodeFabricNetworkL3Peer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredNodeFabricL3PeersInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNodeFabricNetworkL3PeerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().NodeFabricL3Peerses().List(context.TODO(), options)
+				return client.AciV1().NodeFabricNetworkL3Peers().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().NodeFabricL3Peerses().Watch(context.TODO(), options)
+				return client.AciV1().NodeFabricNetworkL3Peers().Watch(context.TODO(), options)
 			},
 		},
-		&acifabricattachmentv1.NodeFabricL3Peers{},
+		&acifabricattachmentv1.NodeFabricNetworkL3Peer{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *nodeFabricL3PeersInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredNodeFabricL3PeersInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *nodeFabricNetworkL3PeerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNodeFabricNetworkL3PeerInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *nodeFabricL3PeersInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&acifabricattachmentv1.NodeFabricL3Peers{}, f.defaultInformer)
+func (f *nodeFabricNetworkL3PeerInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&acifabricattachmentv1.NodeFabricNetworkL3Peer{}, f.defaultInformer)
 }
 
-func (f *nodeFabricL3PeersInformer) Lister() v1.NodeFabricL3PeersLister {
-	return v1.NewNodeFabricL3PeersLister(f.Informer().GetIndexer())
+func (f *nodeFabricNetworkL3PeerInformer) Lister() v1.NodeFabricNetworkL3PeerLister {
+	return v1.NewNodeFabricNetworkL3PeerLister(f.Informer().GetIndexer())
 }

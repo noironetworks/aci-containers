@@ -130,8 +130,8 @@ func main() {
 	}
 
 	// Watch NodeFabricL3Peers and enqueue NodeFabricL3Peers object key
-	if err := c.Watch(source.Kind(mgr.GetCache(), &fabattv1.NodeFabricL3Peers{}), &handler.EnqueueRequestForObject{}); err != nil {
-		setupLog.Error(err, "unable to watch NodeFabricL3Peers")
+	if err := c.Watch(source.Kind(mgr.GetCache(), &fabattv1.NodeFabricNetworkL3Peer{}), &handler.EnqueueRequestForObject{}); err != nil {
+		setupLog.Error(err, "unable to watch NodeFabricNetworkL3Peer")
 		os.Exit(1)
 	}
 

@@ -31,8 +31,8 @@ type AciV1Interface interface {
 	NadVlanMapsGetter
 	NetworkFabricConfigurationsGetter
 	NetworkFabricL3ConfigurationsGetter
-	NodeFabricL3PeersesGetter
 	NodeFabricNetworkAttachmentsGetter
+	NodeFabricNetworkL3PeersGetter
 }
 
 // AciV1Client is used to interact with features provided by the aci.fabricattachment group.
@@ -56,12 +56,12 @@ func (c *AciV1Client) NetworkFabricL3Configurations() NetworkFabricL3Configurati
 	return newNetworkFabricL3Configurations(c)
 }
 
-func (c *AciV1Client) NodeFabricL3Peerses() NodeFabricL3PeersInterface {
-	return newNodeFabricL3Peerses(c)
-}
-
 func (c *AciV1Client) NodeFabricNetworkAttachments(namespace string) NodeFabricNetworkAttachmentInterface {
 	return newNodeFabricNetworkAttachments(c, namespace)
+}
+
+func (c *AciV1Client) NodeFabricNetworkL3Peers() NodeFabricNetworkL3PeerInterface {
+	return newNodeFabricNetworkL3Peers(c)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.

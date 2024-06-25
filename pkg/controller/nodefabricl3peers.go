@@ -27,8 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (cont *AciController) computeNodeFabricL3PeersStatus() *fabattv1.NodeFabricL3PeersStatus {
-	nodeFabl3PeersStatus := &fabattv1.NodeFabricL3PeersStatus{}
+func (cont *AciController) computeNodeFabricNetworkL3PeerStatus() *fabattv1.NodeFabricNetworkL3PeerStatus {
+	nodeFabl3PeersStatus := &fabattv1.NodeFabricNetworkL3PeerStatus{}
 	nadAdjs := make(map[string]map[string]map[int][]int)
 	for _, sviData := range cont.sharedEncapSviCache {
 		if len(sviData.NetAddr) > 0 {
@@ -97,40 +97,40 @@ func (cont *AciController) computeNodeFabricL3PeersStatus() *fabattv1.NodeFabric
 	return nodeFabl3PeersStatus
 }
 
-func (cont *AciController) updateNodeFabricL3Peers() {
+func (cont *AciController) updateNodeFabricNetworkL3Peer() {
 	if cont.unitTestMode {
 		return
 	}
-	nodeFabricL3Peers, err := cont.fabNetAttClient.AciV1().NodeFabricL3Peerses().Get(context.TODO(), "nodefabricl3peers", metav1.GetOptions{})
+	nodeFabricL3Peers, err := cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Get(context.TODO(), "nodefabricnetworkl3peer", metav1.GetOptions{})
 	if err == nil {
-		nodeFabricL3Peers.Status = *cont.computeNodeFabricL3PeersStatus()
-		_, err = cont.fabNetAttClient.AciV1().NodeFabricL3Peerses().Update(context.TODO(), nodeFabricL3Peers, metav1.UpdateOptions{})
+		nodeFabricL3Peers.Status = *cont.computeNodeFabricNetworkL3PeerStatus()
+		_, err = cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Update(context.TODO(), nodeFabricL3Peers, metav1.UpdateOptions{})
 		if err != nil {
 			cont.log.Errorf("Failed to update NodeFabricL3Peers: %v", err)
 		}
 	} else if apierrors.IsNotFound(err) {
-		nodeFabricL3Peers = &fabattv1.NodeFabricL3Peers{
-			ObjectMeta: metav1.ObjectMeta{Name: "nodefabricl3peers",
+		nodeFabricL3Peers = &fabattv1.NodeFabricNetworkL3Peer{
+			ObjectMeta: metav1.ObjectMeta{Name: "nodefabricnetworkl3peer",
 				OwnerReferences: []metav1.OwnerReference{}},
-			Status: *cont.computeNodeFabricL3PeersStatus(),
+			Status: *cont.computeNodeFabricNetworkL3PeerStatus(),
 		}
-		_, err = cont.fabNetAttClient.AciV1().NodeFabricL3Peerses().Create(context.TODO(), nodeFabricL3Peers, metav1.CreateOptions{})
+		_, err = cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Create(context.TODO(), nodeFabricL3Peers, metav1.CreateOptions{})
 		if err != nil {
-			cont.log.Errorf("Failed to update NodeFabricL3Peers: %v", err)
+			cont.log.Errorf("Failed to update NodeFabricNetworkL3Peer: %v", err)
 		}
 	} else {
-		cont.log.Errorf("%v. Skip updating NodeFabricL3Peers", err)
+		cont.log.Errorf("%v. Skip updating NodeFabricNetworkL3Peer", err)
 	}
 }
 
-func (cont *AciController) deleteNodeFabricL3Peers() {
-	_, err := cont.fabNetAttClient.AciV1().NodeFabricL3Peerses().Get(context.TODO(), "nodefabricl3peers", metav1.GetOptions{})
+func (cont *AciController) deleteNodeFabricNetworkL3Peer() {
+	_, err := cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Get(context.TODO(), "nodefabricnetworkl3peer", metav1.GetOptions{})
 	if err == nil {
-		err = cont.fabNetAttClient.AciV1().NodeFabricL3Peerses().Delete(context.TODO(), "nodefabricl3peers", metav1.DeleteOptions{})
+		err = cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Delete(context.TODO(), "nodefabricnetworkl3peer", metav1.DeleteOptions{})
 		if err != nil {
-			cont.log.Errorf("Failed to update NodeFabricL3Peers: %v", err)
+			cont.log.Errorf("Failed to update NodeFabricNetworkL3Peer: %v", err)
 		}
 	} else if !apierrors.IsNotFound(err) {
-		cont.log.Errorf("%v. Failed to delete NodeFabricL3Peers", err)
+		cont.log.Errorf("%v. Failed to delete NodeFabricNetworkL3Peer", err)
 	}
 }

@@ -27,7 +27,7 @@ type NADFabricL3Peer struct {
 	Nodes []NodeFabricL3Peer `json:"nodes,omitempty"`
 }
 
-type NodeFabricL3PeersStatus struct {
+type NodeFabricNetworkL3PeerStatus struct {
 	NADRefs     []NADFabricL3Peer            `json:"nadRefs"`
 	PeeringInfo []NetworkFabricL3PeeringInfo `json:"peeringInfo"`
 }
@@ -37,17 +37,17 @@ type NodeFabricL3PeersStatus struct {
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
-// NodeFabricL3Peers displays the status of L3 peers on svis created by aci controller
-type NodeFabricL3Peers struct {
+// NodeFabricNetworkL3Peers displays the status of L3 peers on svis created by aci controller
+type NodeFabricNetworkL3Peer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Status            NodeFabricL3PeersStatus `json:"status,omitempty"`
+	Status            NodeFabricNetworkL3PeerStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// NodeFabricL3PeerList contains a list of NetworkFabricL3Configuration
-type NodeFabricL3PeersList struct {
+// NodeFabricNetworkL3PeerList contains a list of NetworkFabricL3Configuration
+type NodeFabricNetworkL3PeerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []NodeFabricL3Peers `json:"items"`
+	Items           []NodeFabricNetworkL3Peer `json:"items"`
 }
