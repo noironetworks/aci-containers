@@ -17,23 +17,23 @@ limitations under the License.
 
 package v1
 
-// NodeFabricL3PeersStatusApplyConfiguration represents an declarative configuration of the NodeFabricL3PeersStatus type for use
+// NodeFabricNetworkL3PeerStatusApplyConfiguration represents an declarative configuration of the NodeFabricNetworkL3PeerStatus type for use
 // with apply.
-type NodeFabricL3PeersStatusApplyConfiguration struct {
+type NodeFabricNetworkL3PeerStatusApplyConfiguration struct {
 	NADRefs     []NADFabricL3PeerApplyConfiguration            `json:"nadRefs,omitempty"`
 	PeeringInfo []NetworkFabricL3PeeringInfoApplyConfiguration `json:"peeringInfo,omitempty"`
 }
 
-// NodeFabricL3PeersStatusApplyConfiguration constructs an declarative configuration of the NodeFabricL3PeersStatus type for use with
+// NodeFabricNetworkL3PeerStatusApplyConfiguration constructs an declarative configuration of the NodeFabricNetworkL3PeerStatus type for use with
 // apply.
-func NodeFabricL3PeersStatus() *NodeFabricL3PeersStatusApplyConfiguration {
-	return &NodeFabricL3PeersStatusApplyConfiguration{}
+func NodeFabricNetworkL3PeerStatus() *NodeFabricNetworkL3PeerStatusApplyConfiguration {
+	return &NodeFabricNetworkL3PeerStatusApplyConfiguration{}
 }
 
 // WithNADRefs adds the given value to the NADRefs field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the NADRefs field.
-func (b *NodeFabricL3PeersStatusApplyConfiguration) WithNADRefs(values ...*NADFabricL3PeerApplyConfiguration) *NodeFabricL3PeersStatusApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerStatusApplyConfiguration) WithNADRefs(values ...*NADFabricL3PeerApplyConfiguration) *NodeFabricNetworkL3PeerStatusApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithNADRefs")
@@ -46,7 +46,7 @@ func (b *NodeFabricL3PeersStatusApplyConfiguration) WithNADRefs(values ...*NADFa
 // WithPeeringInfo adds the given value to the PeeringInfo field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the PeeringInfo field.
-func (b *NodeFabricL3PeersStatusApplyConfiguration) WithPeeringInfo(values ...*NetworkFabricL3PeeringInfoApplyConfiguration) *NodeFabricL3PeersStatusApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerStatusApplyConfiguration) WithPeeringInfo(values ...*NetworkFabricL3PeeringInfoApplyConfiguration) *NodeFabricNetworkL3PeerStatusApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithPeeringInfo")

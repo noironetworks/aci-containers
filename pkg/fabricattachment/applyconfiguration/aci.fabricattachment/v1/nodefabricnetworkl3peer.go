@@ -23,20 +23,20 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// NodeFabricL3PeersApplyConfiguration represents an declarative configuration of the NodeFabricL3Peers type for use
+// NodeFabricNetworkL3PeerApplyConfiguration represents an declarative configuration of the NodeFabricNetworkL3Peer type for use
 // with apply.
-type NodeFabricL3PeersApplyConfiguration struct {
+type NodeFabricNetworkL3PeerApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Status                           *NodeFabricL3PeersStatusApplyConfiguration `json:"status,omitempty"`
+	Status                           *NodeFabricNetworkL3PeerStatusApplyConfiguration `json:"status,omitempty"`
 }
 
-// NodeFabricL3Peers constructs an declarative configuration of the NodeFabricL3Peers type for use with
+// NodeFabricNetworkL3Peer constructs an declarative configuration of the NodeFabricNetworkL3Peer type for use with
 // apply.
-func NodeFabricL3Peers(name string) *NodeFabricL3PeersApplyConfiguration {
-	b := &NodeFabricL3PeersApplyConfiguration{}
+func NodeFabricNetworkL3Peer(name string) *NodeFabricNetworkL3PeerApplyConfiguration {
+	b := &NodeFabricNetworkL3PeerApplyConfiguration{}
 	b.WithName(name)
-	b.WithKind("NodeFabricL3Peers")
+	b.WithKind("NodeFabricNetworkL3Peer")
 	b.WithAPIVersion("aci.fabricattachment/v1")
 	return b
 }
@@ -44,7 +44,7 @@ func NodeFabricL3Peers(name string) *NodeFabricL3PeersApplyConfiguration {
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithKind(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithKind(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.Kind = &value
 	return b
 }
@@ -52,7 +52,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithKind(value string) *NodeFabric
 // WithAPIVersion sets the APIVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithAPIVersion(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithAPIVersion(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.APIVersion = &value
 	return b
 }
@@ -60,7 +60,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithAPIVersion(value string) *Node
 // WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Name field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithName(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithName(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Name = &value
 	return b
@@ -69,7 +69,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithName(value string) *NodeFabric
 // WithGenerateName sets the GenerateName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the GenerateName field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithGenerateName(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithGenerateName(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.GenerateName = &value
 	return b
@@ -78,7 +78,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithGenerateName(value string) *No
 // WithNamespace sets the Namespace field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Namespace field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithNamespace(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithNamespace(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Namespace = &value
 	return b
@@ -87,7 +87,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithNamespace(value string) *NodeF
 // WithUID sets the UID field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UID field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithUID(value types.UID) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithUID(value types.UID) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.UID = &value
 	return b
@@ -96,7 +96,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithUID(value types.UID) *NodeFabr
 // WithResourceVersion sets the ResourceVersion field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithResourceVersion(value string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithResourceVersion(value string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.ResourceVersion = &value
 	return b
@@ -105,7 +105,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithResourceVersion(value string) 
 // WithGeneration sets the Generation field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Generation field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithGeneration(value int64) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithGeneration(value int64) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.Generation = &value
 	return b
@@ -114,7 +114,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithGeneration(value int64) *NodeF
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithCreationTimestamp(value metav1.Time) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithCreationTimestamp(value metav1.Time) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.CreationTimestamp = &value
 	return b
@@ -123,7 +123,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithCreationTimestamp(value metav1
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.DeletionTimestamp = &value
 	return b
@@ -132,7 +132,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithDeletionTimestamp(value metav1
 // WithDeletionGracePeriodSeconds sets the DeletionGracePeriodSeconds field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	b.DeletionGracePeriodSeconds = &value
 	return b
@@ -142,7 +142,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithDeletionGracePeriodSeconds(val
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Labels field,
 // overwriting an existing map entries in Labels field with the same key.
-func (b *NodeFabricL3PeersApplyConfiguration) WithLabels(entries map[string]string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithLabels(entries map[string]string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.Labels == nil && len(entries) > 0 {
 		b.Labels = make(map[string]string, len(entries))
@@ -157,7 +157,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithLabels(entries map[string]stri
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the Annotations field,
 // overwriting an existing map entries in Annotations field with the same key.
-func (b *NodeFabricL3PeersApplyConfiguration) WithAnnotations(entries map[string]string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithAnnotations(entries map[string]string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	if b.Annotations == nil && len(entries) > 0 {
 		b.Annotations = make(map[string]string, len(entries))
@@ -171,7 +171,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithAnnotations(entries map[string
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *NodeFabricL3PeersApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
@@ -185,7 +185,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithOwnerReferences(values ...*v1.
 // WithFinalizers adds the given value to the Finalizers field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Finalizers field.
-func (b *NodeFabricL3PeersApplyConfiguration) WithFinalizers(values ...string) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithFinalizers(values ...string) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		b.Finalizers = append(b.Finalizers, values[i])
@@ -193,7 +193,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) WithFinalizers(values ...string) *
 	return b
 }
 
-func (b *NodeFabricL3PeersApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
 		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
 	}
@@ -202,7 +202,7 @@ func (b *NodeFabricL3PeersApplyConfiguration) ensureObjectMetaApplyConfiguration
 // WithStatus sets the Status field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Status field is set to the value of the last call.
-func (b *NodeFabricL3PeersApplyConfiguration) WithStatus(value *NodeFabricL3PeersStatusApplyConfiguration) *NodeFabricL3PeersApplyConfiguration {
+func (b *NodeFabricNetworkL3PeerApplyConfiguration) WithStatus(value *NodeFabricNetworkL3PeerStatusApplyConfiguration) *NodeFabricNetworkL3PeerApplyConfiguration {
 	b.Status = value
 	return b
 }

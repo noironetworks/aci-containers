@@ -112,16 +112,16 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.NetworkFabricL3PeeringInfoApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricL3Peer"):
 		return &acifabricattachmentv1.NodeFabricL3PeerApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("NodeFabricL3Peers"):
-		return &acifabricattachmentv1.NodeFabricL3PeersApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("NodeFabricL3PeersStatus"):
-		return &acifabricattachmentv1.NodeFabricL3PeersStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachment"):
 		return &acifabricattachmentv1.NodeFabricNetworkAttachmentApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachmentSpec"):
 		return &acifabricattachmentv1.NodeFabricNetworkAttachmentSpecApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkAttachmentStatus"):
 		return &acifabricattachmentv1.NodeFabricNetworkAttachmentStatusApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkL3Peer"):
+		return &acifabricattachmentv1.NodeFabricNetworkL3PeerApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("NodeFabricNetworkL3PeerStatus"):
+		return &acifabricattachmentv1.NodeFabricNetworkL3PeerStatusApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("ObjRef"):
 		return &acifabricattachmentv1.ObjRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("PodAttachment"):

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Handlers for network fabric l3 configuration updates.
+// Handlers for node fabric network l3 peer updates.
 
 package webhook
 
@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// ReconcileNFL3Peers reconciles NodeFabricL3Peers
+// ReconcileNFL3Peers reconciles NodeFabricNetworkL3Peer
 type ReconcileNFL3Peers struct {
 	// client can be used to retrieve objects from the APIServer.
 	Client client.Client
@@ -40,7 +40,7 @@ func (r *ReconcileNFL3Peers) Reconcile(ctx context.Context, request reconcile.Re
 	log := log.FromContext(ctx)
 	r.Config.CommonMutex.Lock()
 	defer r.Config.CommonMutex.Unlock()
-	nfL3Peers := &fabattv1.NodeFabricL3Peers{}
+	nfL3Peers := &fabattv1.NodeFabricNetworkL3Peer{}
 	err := r.Client.Get(ctx, request.NamespacedName, nfL3Peers)
 	if errors.IsNotFound(err) {
 		log.Error(nil, "Could not find NodeFabricL3Peers")

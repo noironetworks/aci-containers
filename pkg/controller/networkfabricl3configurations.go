@@ -130,12 +130,12 @@ func (cont *AciController) networkFabricL3ConfigurationDeleted(obj interface{}) 
 	if !ok {
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			cont.log.Errorf("Received unexpected object: %s/%s", netFabL3Config.TypeMeta.Kind, netFabL3Config.Name)
+			cont.log.Error("Received unexpected object: ", netFabL3Config)
 			return
 		}
 		netFabL3Config, ok = deletedState.Obj.(*fabattv1.NetworkFabricL3Configuration)
 		if !ok {
-			cont.log.Errorf("DeletedFinalStateUnknown contained non-nodefabricnetworkattachment object: %s/%s", netFabL3Config.TypeMeta.Kind, netFabL3Config.ObjectMeta.Name)
+			cont.log.Error("DeletedFinalStateUnknown contained non-nodefabricnetworkattachment object: ", deletedState.Obj)
 			return
 		}
 	}
@@ -282,6 +282,7 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 		sviCacheData.NetAddr[rtdNetKey] = rtdNetData
 		cont.log.Debugf("baseAddress: %s", rtdNetData.baseAddress.String())
 	}
+	copy(rtdNetData.baseAddress, nw.IP)
 	if fabL3Subnet, ok := ctxt.connectedNw.Subnets[subnet]; !ok {
 		cont.generateSviAddress(nw, FloatingAddressIdx, &floatingAddrStr)
 		cont.generateSviAddress(nw, SecondaryAddressIdx, &secondaryAddrStr)
@@ -682,7 +683,7 @@ func (cont *AciController) compareSvi(vrf *fabattv1.VRF, sviData *fabattv1.Conne
 	return subnetUpdated || sviTenant != nfSvi.Tenant || *vrf != cont.sharedEncapSviCache[sviData.Encap].Vrf
 }
 
-func (cont *AciController) compareL3Out(vrf *fabattv1.VRF, l3Out *fabattv1.FabricL3Out, nfL3Out *NfL3OutData) bool {
+func (cont *AciController) compareL3Out(l3Out *fabattv1.FabricL3Out, nfL3Out *NfL3OutData) bool {
 	if l3Out.RtCtrl != nfL3Out.RtCtrl || l3Out.PodRef.PodId != nfL3Out.PodId ||
 		(len(l3Out.RtrNodes) != len(nfL3Out.RtrNodeMap)) || (len(l3Out.ExternalEpgs) != len(nfL3Out.ExtEpgMap)) {
 		return true
@@ -852,7 +853,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 							nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
 						} else {
 							nfL3OutData.SviMap = sviMap
-							if cont.compareL3Out(&vrf.Vrf, &l3OutData, nfL3OutData) {
+							if cont.compareL3Out(&l3OutData, nfL3OutData) {
 								nfL3OutData.RtCtrl = l3OutData.RtCtrl
 								nfL3OutData.PodId = l3OutData.PodRef.PodId
 								nfL3OutData.RtrNodeMap = make(map[int]*fabattv1.FabricL3OutRtrNode)
@@ -948,7 +949,7 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationDelete(key string) 
 		}
 		cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 	}
-	cont.deleteNodeFabricL3Peers()
+	cont.deleteNodeFabricNetworkL3Peer()
 	return false
 }
 
@@ -1097,7 +1098,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigurationStatus() {
 		if err != nil {
 			cont.log.Errorf("Failed to update NetworkFabricL3ConfigurationStatus: %v", err)
 		}
-		cont.updateNodeFabricL3Peers()
+		cont.updateNodeFabricNetworkL3Peer()
 	} else {
 		cont.log.Errorf("%v. Skip updating status", err)
 	}
