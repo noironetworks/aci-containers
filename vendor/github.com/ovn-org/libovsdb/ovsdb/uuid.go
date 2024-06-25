@@ -1,10 +1,12 @@
-package libovsdb
+package ovsdb
 
 import (
 	"encoding/json"
 	"fmt"
 	"regexp"
 )
+
+var validUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // UUID is a UUID according to RFC7047
 type UUID struct {
@@ -38,11 +40,13 @@ func (u UUID) validateUUID() error {
 		return fmt.Errorf("uuid exceeds 36 characters")
 	}
 
-	var validUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-
 	if !validUUID.MatchString(u.GoUUID) {
 		return fmt.Errorf("uuid does not match regexp")
 	}
 
 	return nil
+}
+
+func isNamed(uuid string) bool {
+	return len(uuid) > 0 && !validUUID.MatchString(uuid)
 }

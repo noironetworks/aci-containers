@@ -14,7 +14,7 @@
  * limitations under the License.
  **/
 
-package libovsdb
+package client
 
 import (
 	"crypto/tls"

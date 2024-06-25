@@ -1,3 +1,5 @@
+// +build !ovscni
+
 package hostagent
 
 import (
@@ -9,13 +11,6 @@ import (
 	"sync"
 	"time"
 )
-
-type LLDPInterfaceState struct {
-	Enabled        bool
-	InterfaceType  string
-	AdminState     string
-	IsOvsInterface bool
-}
 
 type FabricDiscoveryAgentLLDPNMState struct {
 	hostAgent       *HostAgent

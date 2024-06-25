@@ -1,6 +1,7 @@
 go 1.22.5
 
 require (
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.4.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -16,7 +17,7 @@ require (
 	github.com/noironetworks/aci-containers/pkg/ipam v0.0.0-20230208093016-430739d884ff
 	github.com/openshift/api v0.0.0-20240125191952-1e2afa0f76cf
 	github.com/openshift/client-go v0.0.0-20220525160904-9e1acff93e4a
-	github.com/ovn-org/libovsdb v0.0.0-20210422150337-f29ae9b43ea5
+	github.com/ovn-org/libovsdb v0.6.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/qinqon/kube-admission-webhook v0.21.0
 	github.com/sirupsen/logrus v1.9.3
@@ -52,9 +53,8 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
-	github.com/cenkalti/rpc2 v0.0.0-20200203073230-5ce2854ce0fd // indirect
+	github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
 	github.com/coreos/go-iptables v0.7.0 // indirect
