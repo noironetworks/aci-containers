@@ -11,4 +11,10 @@ else
    REQUIRE_NAD_ANNOTATION="-require-nad-annotation"
 fi
 
-/usr/local/bin/aci-containers-webhook $REQUIRE_NAD_ANNOTATION
+if [ -z $CONTAINER_FOR_ENVVARS ]; then
+   CONTAINER_NAME_FOR_ENVVARS=$false
+else
+   CONTAINER_NAME_FOR_ENVVARS="-container-name-for-envvars "$CONTAINER_FOR_ENVVARS
+fi
+
+/usr/local/bin/aci-containers-webhook $REQUIRE_NAD_ANNOTATION $CONTAINER_NAME_FOR_ENVVARS

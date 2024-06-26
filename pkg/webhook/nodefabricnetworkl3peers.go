@@ -23,8 +23,8 @@ import (
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	types "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	"k8s.io/apimachinery/pkg/api/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -36,21 +36,22 @@ type ReconcileNFL3Peers struct {
 }
 
 func (r *ReconcileNFL3Peers) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	// set up a convenient log object so we don't have to type request over and over again
-	log := log.FromContext(ctx)
+	prefixStr := fmt.Sprintf("NFNL3Peers Reconciler: ")
+	log := ctrl.Log.WithName(prefixStr)
+	log.Info(fmt.Sprintf("Handling %v", request.NamespacedName))
 	r.Config.CommonMutex.Lock()
 	defer r.Config.CommonMutex.Unlock()
 	nfL3Peers := &fabattv1.NodeFabricNetworkL3Peer{}
 	err := r.Client.Get(ctx, request.NamespacedName, nfL3Peers)
 	if errors.IsNotFound(err) {
-		log.Error(nil, "Could not find NodeFabricL3Peers")
+		log.Error(nil, "Could not find NodeFabricNetworkL3Peers")
 		r.Config.FabricAdjs = make(map[string]map[string]map[int][]int)
 		r.Config.FabricPeerInfo = make(map[int]*types.FabricPeeringInfo)
 		return reconcile.Result{}, nil
 	}
 
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("could not fetch NetworkFabricL3Configuration: %+v", err)
+		return reconcile.Result{}, fmt.Errorf("could not fetch NodeFabricNetworkL3Peers: %+v", err)
 	}
 	encapVisited := map[int]bool{}
 	for _, peerInfo := range nfL3Peers.Status.PeeringInfo {
@@ -89,11 +90,14 @@ func (r *ReconcileNFL3Peers) Reconcile(ctx context.Context, request reconcile.Re
 		}
 	}
 	// Delete old refs
+	encapStr := ""
 	for encap := range r.Config.FabricPeerInfo {
 		if _, ok := encapVisited[encap]; !ok {
 			delete(r.Config.FabricPeerInfo, encap)
 		}
+		encapStr += fmt.Sprintf("%d,", encap)
 	}
+	nadKeyStr := ""
 	for nadKey, nadData := range r.Config.FabricAdjs {
 		if _, ok := currMap[nadKey]; !ok {
 			delete(r.Config.FabricAdjs, nadKey)
@@ -113,7 +117,9 @@ func (r *ReconcileNFL3Peers) Reconcile(ctx context.Context, request reconcile.Re
 			nadData[node] = nodeData
 		}
 		r.Config.FabricAdjs[nadKey] = nadData
+		nadKeyStr += nadKey + ","
 	}
-
+	statusStr := fmt.Sprintf("Encaps:%d(%s), NADs:%d(%s)", len(r.Config.FabricPeerInfo), encapStr, len(r.Config.FabricAdjs), nadKeyStr)
+	log.Info(statusStr)
 	return reconcile.Result{}, nil
 }

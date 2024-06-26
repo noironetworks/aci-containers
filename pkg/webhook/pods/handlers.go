@@ -14,7 +14,6 @@
 package pods
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -72,6 +71,7 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 	pod := &corev1.Pod{}
 	err := json.Unmarshal(raw, &pod)
 	if err != nil {
+		ctrl.Log.Info("Bad request while servicing pods")
 		return Errored(http.StatusBadRequest, err)
 	}
 	prefixStr := fmt.Sprintf("PodHandler: %s/%s: ", pod.Namespace, pod.Name)
@@ -96,6 +96,7 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 
 	secondaryNetworkStr, hasSecondaryNetworks := pod.ObjectMeta.Annotations[cncfNetworkAnnotation]
 	if !hasSecondaryNetworks {
+		webhookHdlrLog.Info("Pod is not part of any secondary networks: no op")
 		return Allowed("Pod is not part of any secondary networks: no op")
 	}
 	secondaryNetworks := strings.Split(secondaryNetworkStr, ",")
@@ -109,7 +110,12 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 	envVars := []corev1.EnvVar{}
 	Config.CommonMutex.Lock()
 	for nw := range finalInjectMap {
-		nwData, adjOk := Config.FabricAdjs[nw]
+		namespace := pod.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+		nadKey := namespace + "/" + nw
+		nwData, adjOk := Config.FabricAdjs[nadKey]
 		if !adjOk {
 			webhookHdlrLog.Error(err, "No peering info yet for ", "NAD", nw)
 			continue
@@ -119,7 +125,7 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 			// If at all, a NAD needs to include more than one vlan,
 			// there needs to be some annotation on the pod that indicates
 			// what vlan the container is intending to use.
-			minEncap := 0
+			minEncap := 4096
 			for encap := range nodeData {
 				if encap < minEncap {
 					minEncap = encap
@@ -145,7 +151,7 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 					}
 				case "BGP_PEERING_ENDPOINTS":
 					{
-						envVal = fmt.Sprintf("%v", fabricPeers)
+						envVal = fmt.Sprintf("%v", strings.Join(fabricPeers, ","))
 
 					}
 				case "BGP_SECRET_PATH":
@@ -155,13 +161,14 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 						}
 					}
 				}
-				envVarKey := fmt.Sprintf("CNO_%s_%s", nw, envKey)
+				envVarKey := fmt.Sprintf("CNO_%s_%s", envKey, nw)
 				envVars = append(envVars, corev1.EnvVar{Name: envVarKey, Value: envVal})
 			}
 		}
 	}
 	Config.CommonMutex.Unlock()
 	if len(envVars) == 0 {
+		webhookHdlrLog.Info("No resolved adjacencies yet")
 		return Allowed("No resolved adjacencies yet")
 	}
 	targetContainerIndices := []int{}
@@ -170,12 +177,15 @@ func addPeeringInfotoPod(ctx context.Context, req AdmissionRequest) AdmissionRes
 			targetContainerIndices = append(targetContainerIndices, idx)
 		}
 	}
+	if len(targetContainerIndices) == 0 {
+		webhookHdlrLog.Info("Named container not present: no op")
+		return Allowed("Named container not present: no op")
+	}
 
 	jsonOps := []jsonpatch.Operation{}
 	for idx := range targetContainerIndices {
-		path := fmt.Sprintf("/spec/containers/%d/Env", idx)
-		b, _ := json.Marshal(envVars)
-		jsonOps = append(jsonOps, JSONPatchOp{Operation: "add", Path: path, Value: bytes.NewBuffer(b).String()})
+		path := fmt.Sprintf("/spec/containers/%d/env", idx)
+		jsonOps = append(jsonOps, JSONPatchOp{Operation: "add", Path: path, Value: envVars})
 	}
 	webhookHdlrLog.Info("Inserting fabric peering environment variables")
 	return Patched("Insert Fabric peers", jsonOps...)
