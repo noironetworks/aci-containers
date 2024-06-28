@@ -1143,6 +1143,9 @@ func (conn *ApicConnection) Delete(dn string) bool {
 			obj := NewDeleteHostprotRemoteIp(addr)
 			conn.log.Debug("Posting delete of dn ", dn)
 			return conn.postDn(dn, obj)
+		} else if iSlice[0] == "odev" {
+			conn.log.Debug("Skipping delete of opflexODev : ", dn)
+			return false
 		}
 	}
 	return conn.DeleteDn(dn)
