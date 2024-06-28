@@ -517,12 +517,6 @@ func (cont *AciController) Init() {
 	if cont.config.ChainedMode {
 		cont.log.Info("In chained mode")
 	}
-	if cont.config.LBType != lbTypeAci && !cont.config.ChainedMode {
-		err := apicapi.AddMetaDataChild("vmmInjectedNs", "vmmInjectedNwPol")
-		if err != nil {
-			panic(err.Error())
-		}
-	}
 
 	egdata, err := json.Marshal(cont.config.DefaultEg)
 	if err != nil {

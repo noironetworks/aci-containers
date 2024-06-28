@@ -20,10 +20,6 @@ import (
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 )
 
-const (
-	lbTypeAci = "aci-nlb"
-)
-
 type OpflexGroup struct {
 	PolicySpace string `json:"policy-space,omitempty"`
 	Name        string `json:"name,omitempty"`
@@ -126,9 +122,6 @@ type ControllerConfig struct {
 
 	// Tenant to use when creating policy objects in APIC
 	AciPolicyTenant string `json:"aci-policy-tenant,omitempty"`
-
-	// Load Balancer Type
-	LBType string `json:"lb-type,omitempty"`
 
 	// Physical domain used for service device clusters
 	AciServicePhysDom string `json:"aci-service-phys-dom,omitempty"`
@@ -248,9 +241,6 @@ type ControllerConfig struct {
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 
-	// Maximum CSR tunnels
-	MaxCSRTunnels   int `json:"max-csr-tunnels,omitempty"`
-	CSRTunnelIDBase int `json:"csr-tunnel-id-base,omitempty"`
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 
@@ -329,7 +319,6 @@ func NewConfig() *ControllerConfig {
 		AciPolicyTenant:    "kubernetes",
 		AciPrefix:          "kube",
 		AllocateServiceIps: &t,
-		LBType:             lbTypeAci,
 	}
 }
 
@@ -339,9 +328,6 @@ func InitFlags(config *ControllerConfig) {
 	flag.StringVar(&config.KubeConfig, "kube-config", "", "Absolute path to a kubeconfig file")
 
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
-	flag.StringVar(&config.LBType, "loadbalancer", lbTypeAci, "Loadbalancer")
-	flag.IntVar(&config.MaxCSRTunnels, "max-csr-tunnels", 16, "Number of CSR tunnels")
-	flag.IntVar(&config.CSRTunnelIDBase, "csr-tunnel-id-base", 4001, "CSR starting tunnel ID")
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")

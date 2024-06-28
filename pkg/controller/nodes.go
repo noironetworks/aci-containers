@@ -35,16 +35,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
-)
-
-const (
-	tunnelIDIncr = 2
 )
 
 // Name of the taint to add to nodes that are not ready
@@ -224,80 +219,11 @@ func (cont *AciController) syncPodNet(obj interface{}) {
 	cont.nodePodNetCache[node.ObjectMeta.Name] = nodePodNet
 }
 
-func maxof(x1, x2 int64) int64 {
-	if x1 > x2 {
-		return x1
-	}
-
-	return x2
-}
-
-func (cont *AciController) getTunnelID(node *v1.Node) int64 {
-	if cont.config.LBType == lbTypeAci {
-		return 0
-	}
-
-	nodeIP := getNodeIP(node, v1.NodeInternalIP)
-	if nodeIP == "" {
-		cont.log.Errorf("Can't get IP for node %s", node.Name)
-		return 0
-	}
-
-	if cont.tunnelGetter == nil {
-		tunnelGetter := &tunnelState{}
-		tunnelGetter.stateDriver = &watchers.K8sStateDriver{}
-		err := tunnelGetter.stateDriver.Init(watchers.FieldTunnelID)
-		if err != nil {
-			cont.log.Warnf("Can't get tunnelID for %s", node.Name)
-			return 0
-		}
-
-		gbps, err := tunnelGetter.stateDriver.Get()
-		if err != nil {
-			cont.log.Warnf("Can't get tunnelID for %s", node.Name)
-			return 0
-		}
-
-		cont.tunnelGetter = tunnelGetter
-		if gbps.Status.TunnelIDs == nil {
-			cont.log.Infof("Initializing tunnelIDs")
-			tunnelGetter.nodeToTunnel = make(map[string]int64)
-			cont.tunnelGetter.nextID = 0
-		} else {
-			tunnelGetter.nodeToTunnel = gbps.Status.TunnelIDs
-			for _, val := range tunnelGetter.nodeToTunnel {
-				cont.tunnelGetter.nextID = maxof(cont.tunnelGetter.nextID, val)
-			}
-
-			cont.tunnelGetter.nextID += tunnelIDIncr
-		}
-	}
-
-	id, found := cont.tunnelGetter.nodeToTunnel[nodeIP]
-	if found {
-		return id + int64(cont.config.CSRTunnelIDBase)
-	}
-
-	id = cont.tunnelGetter.nextID
-	if id >= int64(cont.config.MaxCSRTunnels*tunnelIDIncr) {
-		cont.log.Infof("Max tunnels %d reached", cont.config.MaxCSRTunnels)
-		return 0
-	}
-
-	// each allocated id packs two tunnels.
-	cont.tunnelGetter.nodeToTunnel[nodeIP] = id
-	cont.tunnelGetter.nextID = id + tunnelIDIncr
-	state := &crdv1.GBPSState{}
-	state.Status.TunnelIDs = cont.tunnelGetter.nodeToTunnel
-	cont.tunnelGetter.stateDriver.Update(state)
-	return id + int64(cont.config.CSRTunnelIDBase)
-}
-
 func (cont *AciController) writeApicNode(node *v1.Node) {
 	if cont.config.ChainedMode {
 		return
 	}
-	tunnelID := cont.getTunnelID(node)
+	tunnelID := 0
 	key := cont.aciNameForKey("node-vmm", node.Name)
 	aobj := apicapi.NewVmmInjectedHost(cont.vmmDomainProvider(),
 		cont.config.AciVmmDomain, cont.config.AciVmmController,
