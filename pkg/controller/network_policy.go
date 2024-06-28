@@ -1296,7 +1296,6 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	cont.writeApicNP(npkey, np)
 	if cont.config.ChainedMode {
 		return
 	}
@@ -1316,90 +1315,6 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 	cont.queueNetPolUpdateByKey(npkey)
 }
 
-func (cont *AciController) writeApicNP(npKey string, np *v1net.NetworkPolicy) {
-	if cont.config.LBType == lbTypeAci {
-		return
-	}
-	if cont.config.ChainedMode {
-		return
-	}
-
-	npObj := apicapi.NewVmmInjectedNwPol(cont.vmmDomainProvider(),
-		cont.config.AciVmmDomain, cont.config.AciVmmController,
-		np.ObjectMeta.Namespace, np.ObjectMeta.Name)
-	setAttr := func(name, attr string) {
-		if attr != "" {
-			npObj.SetAttr(name, attr)
-		}
-	}
-	setAttr("ingress", ingressStr(np))
-	setAttr("egress", egressStr(np))
-	key := cont.aciNameForKey("NwPol", npKey)
-	cont.log.Debugf("Writing %s %+v", key, npObj)
-	cont.apicConn.WriteApicObjects(key, apicapi.ApicSlice{npObj})
-}
-
-func peersToStr(peers []v1net.NetworkPolicyPeer) string {
-	pStr := "["
-	for _, p := range peers {
-		if p.IPBlock != nil {
-			pStr += p.IPBlock.CIDR
-			if len(p.IPBlock.Except) != 0 {
-				pStr += "[except"
-				for _, e := range p.IPBlock.Except {
-					pStr += fmt.Sprintf("-%s", e)
-				}
-				pStr += "]"
-			}
-			pStr += "+"
-		}
-	}
-
-	pStr = strings.TrimSuffix(pStr, "+")
-	pStr += "]"
-	return pStr
-}
-
-func portsToStr(ports []v1net.NetworkPolicyPort) string {
-	pStr := "["
-
-	for _, p := range ports {
-		if p.Protocol != nil {
-			pStr += string(*p.Protocol)
-		}
-		if p.Port != nil {
-			pStr += ":" + p.Port.String()
-		}
-		pStr += "+"
-	}
-
-	pStr = strings.TrimSuffix(pStr, "+")
-	pStr += "]"
-	return pStr
-}
-
-func ingressStr(np *v1net.NetworkPolicy) string {
-	iStr := ""
-	for _, rule := range np.Spec.Ingress {
-		iStr += peersToStr(rule.From)
-		iStr += ":" + portsToStr(rule.Ports)
-		iStr += "+"
-	}
-	iStr = strings.TrimSuffix(iStr, "+")
-	return iStr
-}
-
-func egressStr(np *v1net.NetworkPolicy) string {
-	eStr := ""
-	for _, rule := range np.Spec.Egress {
-		eStr += peersToStr(rule.To)
-		eStr += ":" + portsToStr(rule.Ports)
-		eStr += "+"
-	}
-	eStr = strings.TrimSuffix(eStr, "+")
-	return eStr
-}
-
 func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	newobj interface{}) {
 	oldnp := oldobj.(*v1net.NetworkPolicy)
@@ -1415,7 +1330,6 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		cont.removeFromHppCache(oldnp, npkey)
 	}
 
-	cont.writeApicNP(npkey, newnp)
 	cont.indexMutex.Lock()
 	oldSubnets := getNetworkPolicyEgressIpBlocks(oldnp)
 	newSubnets := getNetworkPolicyEgressIpBlocks(newnp)
@@ -1470,10 +1384,6 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 		networkPolicyLogger(cont.log, np).
 			Error("Could not create network policy key: ", err)
 		return
-	}
-
-	if cont.config.LBType != lbTypeAci {
-		cont.apicConn.ClearApicObjects(cont.aciNameForKey("NwPol", npkey))
 	}
 
 	var labelKey string

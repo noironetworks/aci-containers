@@ -1957,8 +1957,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 	}
 	var requeue bool
 	isLoadBalancer := service.Spec.Type == v1.ServiceTypeLoadBalancer
-	aciLB := cont.config.LBType == lbTypeAci
-	if isLoadBalancer && aciLB {
+	if isLoadBalancer {
 		if *cont.config.AllocateServiceIps {
 			requeue = cont.allocateServiceIps(servicekey, service)
 		}
@@ -1974,7 +1973,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		} else {
 			cont.indexMutex.Unlock()
 		}
-	} else if aciLB {
+	} else {
 		cont.clearLbService(servicekey)
 	}
 	cont.writeApicSvc(servicekey, service)
