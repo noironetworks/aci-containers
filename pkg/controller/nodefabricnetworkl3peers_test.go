@@ -122,6 +122,11 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	for _, peerInfo := range l3peers.PeeringInfo {
 		sort.Sort(TestFabL3OutNodes(peerInfo.FabricNodes))
 	}
+	for _, NADRefs := range l3peers.NADRefs {
+		for _, nodes := range NADRefs.Nodes {
+			sort.Ints(nodes.FabricL3Peers[0].FabricNodeIds)
+		}
+	}
 	assert.Equal(t, expectedL3Peers, l3peers, "nfna nodefabricl3peers status")
 	delProgMap := cont.deleteNetworkFabricL3ConfigObj()
 	nfcObjCount = 1

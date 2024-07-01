@@ -275,6 +275,7 @@ func TestServiceSync(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OpFlexNetPolDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
