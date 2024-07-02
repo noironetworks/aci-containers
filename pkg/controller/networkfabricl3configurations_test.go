@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CreateNFCL3(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkFabricL3Configuration {
+func CreateNFCL3(vlan int, sviType fabattv1.FabricSviType, useExistingL3Out bool) *fabattv1.NetworkFabricL3Configuration {
 	nfc := &fabattv1.NetworkFabricL3Configuration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "networkfabricl3configuration",
@@ -46,7 +46,7 @@ func CreateNFCL3(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkFabr
 								PrimaryNetwork: fabattv1.PrimaryNetwork{
 									L3OutName:           "l3out1",
 									L3OutOnCommonTenant: true,
-									UseExistingL3Out:    true,
+									UseExistingL3Out:    useExistingL3Out,
 									Encap:               vlan,
 									SviType:             sviType,
 									PrimarySubnet:       "192.168.100.0/24",
@@ -63,10 +63,36 @@ func CreateNFCL3(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkFabr
 			},
 		},
 	}
+	if !useExistingL3Out {
+		nfc.Spec.Vrfs[0].Tenants = []fabattv1.FabricTenantConfiguration{
+			{
+				CommonTenant: true,
+				L3OutInstances: []fabattv1.FabricL3Out{
+					{
+						Name: "l3out1",
+						ExternalEpgs: []fabattv1.PolicyPrefixGroup{
+							{
+								Name: "default",
+								PolicyPrefixes: []fabattv1.PolicyPrefix{
+									{
+										Subnet: "0.0.0.0/0",
+									},
+								},
+								Contracts: fabattv1.Contracts{
+									Consumer: []string{"internal_bd_allow_all"},
+									Provider: []string{"l3out1_allow_all"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
 	return nfc
 }
 
-func GetNFCL3Status(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkFabricL3ConfigStatus {
+func GetNFCL3Status(vlan int, sviType fabattv1.FabricSviType, useExistingL3Out bool) *fabattv1.NetworkFabricL3ConfigStatus {
 	nfcL3Status := &fabattv1.NetworkFabricL3ConfigStatus{
 		Vrfs: []fabattv1.FabricVrfConfigurationStatus{
 			{
@@ -80,7 +106,7 @@ func GetNFCL3Status(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkF
 							PrimaryNetwork: fabattv1.PrimaryNetwork{
 								L3OutName:           "l3out1",
 								L3OutOnCommonTenant: true,
-								UseExistingL3Out:    true,
+								UseExistingL3Out:    useExistingL3Out,
 								Encap:               vlan,
 								SviType:             sviType,
 								PrimarySubnet:       "192.168.100.0/24",
@@ -153,6 +179,33 @@ func GetNFCL3Status(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkF
 			},
 		},
 	}
+	subnet := fabattv1.FabricL3Subnet{
+		ConnectedSubnet:  "192.168.100.0/24",
+		SecondaryAddress: "192.168.100.253/24",
+	}
+	if sviType == fabattv1.FloatingSviType {
+		subnet.FloatingAddress = "192.168.100.254/24"
+	} else {
+		nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].PrimaryAddress = "192.168.100.243/24"
+		nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1].PrimaryAddress = "192.168.100.244/24"
+	}
+	nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Subnets = append(nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Subnets, subnet)
+	if !useExistingL3Out {
+		nfcL3Status.Vrfs[0].Tenants[0].L3OutInstances[0].ExternalEpgs = []fabattv1.PolicyPrefixGroup{
+			{
+				Name: "default",
+				PolicyPrefixes: []fabattv1.PolicyPrefix{
+					{
+						Subnet: "0.0.0.0/0",
+					},
+				},
+				Contracts: fabattv1.Contracts{
+					Consumer: []string{"internal_bd_allow_all"},
+					Provider: []string{"l3out1_allow_all"},
+				},
+			},
+		}
+	}
 	return nfcL3Status
 }
 
@@ -164,6 +217,9 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 	_, nw, _ := net.ParseCIDR("192.168.100.0/24")
 	mskLen, _ := nw.Mask.Size()
 	nw.IP[3] = 247
+	if is_regular_svi {
+		nw.IP[3] = 243
+	}
 	primaryAddr := make(net.IP, 4)
 	floatingAddr := make(net.IP, 4)
 	secondaryAddr := make(net.IP, 4)
@@ -189,8 +245,8 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 			l3extVirtualLifP := apicapi.NewL3ExtVirtualLifP(l3outLifP.GetDn(), "ext-svi", nodeDn, encapVlan, primaryAddrStr)
 			l3extRsDynPathAtt := apicapi.NewL3ExtRsDynPathAtt(l3extVirtualLifP.GetDn(), cont.globalVlanConfig.SharedPhysDom.GetDn(), floatingAddrStr, encapVlan)
 			l3extIp := apicapi.NewL3ExtIp(l3extVirtualLifP.GetDn(), secondaryAddrStr)
-			l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
 			l3extVirtualLifP.AddChild(l3extIp)
+			l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
 			bgpPeerP := apicapi.NewBGPPeerP(l3extVirtualLifP.GetDn(), "192.168.100.0/24", "", "")
 			bgpAsP := apicapi.NewBGPAsP(bgpPeerP.GetDn(), peerASN)
 			bgpPeerP.AddChild(bgpAsP)
@@ -222,6 +278,23 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 	var apicSlice apicapi.ApicSlice
 	if use_preexisting_l3out {
 		apicSlice = append(apicSlice, l3outNodeP)
+	} else {
+		l3out := apicapi.NewL3ExtOut("common", "l3out1", "")
+		rsEctx := apicapi.NewL3ExtRsEctx("common", "l3out1", "vrf1")
+		l3out.AddChild(rsEctx)
+		l3Dom := cont.config.AciPolicyTenant + "-" + globalScopeVlanDomPrefix
+		rsl3DomAtt := apicapi.NewL3ExtRsL3DomAtt("common", "l3out1", l3Dom)
+		l3out.AddChild(rsl3DomAtt)
+		l3ExtInstP := apicapi.NewL3extInstP("common", "l3out1", "default")
+		l3ExtSubnet := apicapi.NewL3extSubnet(l3ExtInstP.GetDn(), "0.0.0.0/0", "", "")
+		l3ExtInstP.AddChild(l3ExtSubnet)
+		fvRsCons := apicapi.NewFvRsCons(l3ExtInstP.GetDn(), "internal_bd_allow_all")
+		l3ExtInstP.AddChild(fvRsCons)
+		fvRsProv := apicapi.NewFvRsProv(l3ExtInstP.GetDn(), "l3out1_allow_all")
+		l3ExtInstP.AddChild(fvRsProv)
+		l3out.AddChild(l3ExtInstP)
+		l3out.AddChild(l3outNodeP)
+		apicSlice = append(apicSlice, l3out)
 	}
 	return apicSlice
 }
@@ -238,7 +311,7 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	if use_regular_svi {
 		sviType = fabattv1.ConventionalSviType
 	}
-	nfcL3Obj = CreateNFCL3(101, sviType)
+	nfcL3Obj = CreateNFCL3(101, sviType, preexisting_l3out)
 	progMapNFC := cont.updateNetworkFabricL3ConfigObj(nfcL3Obj)
 	progMap := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
@@ -256,7 +329,7 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	expectedApicSlice1 = CreateNFNASVIObjs(cont, 101, preexisting_l3out, use_regular_svi)
 	assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create floating svi")
 	status := cont.computeNetworkFabricL3ConfigurationStatus()
-	expectedStatus := GetNFCL3Status(101, sviType)
+	expectedStatus := GetNFCL3Status(101, sviType, preexisting_l3out)
 	assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, status.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, "nfcl3status svi")
 	if expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef != status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef {
 		assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0], status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1], "nfcl3status svi ipam")
@@ -270,6 +343,9 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	} else {
 		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes, status.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes, "nfcl3status rtrNodes")
 	}
+	if !preexisting_l3out {
+		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].ExternalEpgs, status.Vrfs[0].Tenants[0].L3OutInstances[0].ExternalEpgs, "nfcl3status external epgs")
+	}
 	delProgMap := cont.deleteNetworkFabricL3ConfigObj()
 	nfcObjCount = 1
 	assert.Equal(t, nfcObjCount, len(delProgMap), "nfna update epg count")
@@ -280,5 +356,50 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 func TestNFCL3CRUD(t *testing.T) {
 	NFCL3CRUDCase(t, "[100-101]", "suite1", true, false)
 	NFCL3CRUDCase(t, "[100-101]", "suite1", true, true)
-	// TODO: CreateL3out, Subnets,contracts, extepg
+	NFCL3CRUDCase(t, "[100-101]", "suite1", false, true)
+	NFCL3CRUDCase(t, "[100-101]", "suite1", false, false)
+}
+
+func NFCL3RestoreCase(t *testing.T, additionalVlans string, aciPrefix string, preexisting_l3out, use_regular_svi bool) {
+	cont := testChainedController(aciPrefix, true, additionalVlans)
+	nfna1 := CreateNFNA("macvlan-net1", "master1.cluster.local", "bond1", "pod1-macvlan-net1", "101",
+		[]string{"topology/pod-1/node-101/pathep-[eth1/34]", "topology/pod-1/node-102/pathep-[eth1/34]"})
+	fvp := CreateFabricVlanPool("aci-containers-system", "default", additionalVlans)
+	cont.updateFabricVlanPool(fvp)
+	sviType := fabattv1.FloatingSviType
+	if use_regular_svi {
+		sviType = fabattv1.ConventionalSviType
+	}
+	expectedStatus := GetNFCL3Status(101, sviType, preexisting_l3out)
+	nfcL3Obj := &fabattv1.NetworkFabricL3Configuration{
+		Status: *expectedStatus,
+	}
+	cont.restoreNetworkFabricL3ConfigurationStatus(nfcL3Obj)
+	cont.updateNodeFabNetAttObj(nfna1)
+	nfcL3Obj = CreateNFCL3(101, sviType, preexisting_l3out)
+	cont.updateNetworkFabricL3ConfigObj(nfcL3Obj)
+	status := cont.computeNetworkFabricL3ConfigurationStatus()
+	assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, status.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, "nfcl3status svi")
+	if expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef != status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef {
+		assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0], status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1], "nfcl3status svi ipam")
+		assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1], status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0], "nfcl3status svi ipam")
+	} else {
+		assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes, status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes, "nfcl3status svi ipam")
+	}
+	if expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[0].RtrId != status.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[0].RtrId {
+		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[0], status.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[1], "nfcl3status rtrNode0")
+		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[1], status.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes[0], "nfcl3status rtrNode1")
+	} else {
+		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes, status.Vrfs[0].Tenants[0].L3OutInstances[0].RtrNodes, "nfcl3status rtrNodes")
+	}
+	if !preexisting_l3out {
+		assert.Equal(t, expectedStatus.Vrfs[0].Tenants[0].L3OutInstances[0].ExternalEpgs, status.Vrfs[0].Tenants[0].L3OutInstances[0].ExternalEpgs, "nfcl3status external epgs")
+	}
+}
+
+func TestNFCRestore(t *testing.T) {
+	NFCL3RestoreCase(t, "[100-101]", "suite1", true, false)
+	NFCL3RestoreCase(t, "[100-101]", "suite1", true, true)
+	NFCL3RestoreCase(t, "[100-101]", "suite1", false, true)
+	NFCL3RestoreCase(t, "[100-101]", "suite1", false, false)
 }

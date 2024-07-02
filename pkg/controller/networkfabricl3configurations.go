@@ -39,6 +39,13 @@ const (
 	defaultMaxBGPPrefixes     = 200000
 	defaultBGPPrefixAction    = "reject"
 	defaultBGPPrefixThreshold = 75
+
+	// ACI Scalability Guide 6.01
+	DefaultMaxL3OutNodesPerPod = 400
+	// ACI Scalability Guide 6.01
+	DefaultMaxFloatingL3OutAnchorNodes = 6
+	// This value is for practical considerations
+	DefaultMaxConventionalSviNodes = 10
 )
 
 type SviContext struct {
@@ -74,7 +81,7 @@ func networkFabricL3ConfigurationInit(cont *AciController, stopCh <-chan struct{
 			return cont.handleNetworkFabricL3ConfigurationDelete(key)
 		}, nil, stopCh)
 	cache.WaitForCacheSync(stopCh, cont.networkFabricL3ConfigurationInformer.HasSynced)
-	//cont.restoreNetworkFabricL3ConfigurationStatus()
+	cont.restoreNetworkFabricL3ConfigurationStatus(nil)
 }
 
 func (cont *AciController) initNetworkFabricL3ConfigurationInformerFromClient(fabAttClient *fabattclset.Clientset) {
@@ -152,7 +159,8 @@ func (cont *AciController) getNodeRtrId(ctxt *SviContext, node int) string {
 		if rtrNode, ok := tenantData.L3OutConfig[ctxt.connectedNw.L3OutName].RtrNodeMap[node]; ok {
 			rtrId = rtrNode.RtrId
 		}
-	} else {
+	}
+	if rtrId == "" {
 		remL := node % 256
 		remH := (node / 256) % 256
 		rtrId = fmt.Sprintf("%d.%d.%d.%d", remL, remL, remH, remL)
@@ -160,6 +168,7 @@ func (cont *AciController) getNodeRtrId(ctxt *SviContext, node int) string {
 	return rtrId
 }
 
+// Basic IPAM for SVI
 func (cont *AciController) applyInverseMask(addr net.IP, msk net.IPMask) {
 	if len(addr) != len(msk) {
 		return
@@ -169,30 +178,43 @@ func (cont *AciController) applyInverseMask(addr net.IP, msk net.IPMask) {
 	}
 }
 
-// Basic IPAM for SVI
-const (
-	DefaultMaxL3OutNodes = 6
-	FloatingAddressIdx   = 7
-	SecondaryAddressIdx  = 6
-)
-
 func (cont *AciController) allocateSviAddress(vlan int, ctxt *SviContext, rtdNetData *RoutedNetworkData, node string) (nodeAddrStr string, err error) {
 	nodeId, _ := strconv.Atoi(node)
-	if fabL3OutNode, ok := cont.sharedEncapSviCache[vlan].Nodes[nodeId]; ok {
-		if ctxt.connectedNw.PrimarySubnet == rtdNetData.subnet {
-			_, nw, err := net.ParseCIDR(fabL3OutNode.PrimaryAddress)
-			mskLen, _ := nw.Mask.Size()
-			if (err == nil) && (nw.IP.String() == rtdNetData.netAddress) && (mskLen == rtdNetData.maskLen) {
-				nodeAddrStr = fabL3OutNode.PrimaryAddress
+	adjustAlloc := func(intendedAddr net.IP, intendedAddrStr string) {
+		allocatedAddress := ""
+		if rtdNodeData, ok := rtdNetData.nodeMap[node]; ok {
+			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNodeData.idx, &allocatedAddress)
+		}
+		if allocatedAddress != intendedAddrStr {
+			idx, inRange := cont.isAddressinAllocRange(intendedAddr, rtdNetData)
+			if !inRange {
+				nodeAddrStr = intendedAddrStr
 				cont.deallocateSviAddress(rtdNetData, node)
+			} else if rtdNetData.availableMap[idx] {
+				rtdNetData.availableMap[idx] = false
+				rtdNetData.nodeMap[node] = RoutedNodeData{
+					addr: nodeAddrStr,
+					idx:  idx,
+				}
+				nodeAddrStr = intendedAddrStr
+			} else {
+				cont.log.Errorf("Unable to allocate %s to node %s on svi encap %d", intendedAddrStr, node, vlan)
+			}
+		} else {
+			nodeAddrStr = intendedAddrStr
+		}
+	}
+	if fabL3OutNode, ok := cont.sharedEncapSviCache[vlan].Nodes[nodeId]; ok {
+		intendedAddr, nw, err := net.ParseCIDR(fabL3OutNode.PrimaryAddress)
+		mskLen, _ := nw.Mask.Size()
+		if ctxt.connectedNw.PrimarySubnet == rtdNetData.subnet {
+			if (err == nil) && (nw.IP.String() == rtdNetData.netAddress) && (mskLen == rtdNetData.maskLen) {
+				adjustAlloc(intendedAddr, fabL3OutNode.PrimaryAddress)
 			}
 		} else {
 			for _, secAddr := range fabL3OutNode.SecondaryAddresses {
-				_, nw, err := net.ParseCIDR(secAddr)
-				mskLen, _ := nw.Mask.Size()
 				if (err == nil) && (nw.IP.String() == rtdNetData.netAddress) && (mskLen == rtdNetData.maskLen) {
-					nodeAddrStr = secAddr
-					cont.deallocateSviAddress(rtdNetData, node)
+					adjustAlloc(intendedAddr, secAddr)
 					break
 				}
 			}
@@ -207,11 +229,7 @@ func (cont *AciController) allocateSviAddress(vlan int, ctxt *SviContext, rtdNet
 	}
 	for i := 0; i < rtdNetData.maxAddresses; i++ {
 		if rtdNetData.availableMap[i] {
-			addrlen := len(rtdNetData.baseAddress)
-			nodeAddr := make(net.IP, addrlen)
-			copy(nodeAddr, rtdNetData.baseAddress)
-			nodeAddr[addrlen-1] += byte(i)
-			nodeAddrStr = fmt.Sprintf("%s/%d", nodeAddr.String(), rtdNetData.maskLen)
+			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, i, &nodeAddrStr)
 			rtdNetData.availableMap[i] = false
 			rtdNetData.nodeMap[node] = RoutedNodeData{
 				addr: nodeAddrStr,
@@ -221,7 +239,7 @@ func (cont *AciController) allocateSviAddress(vlan int, ctxt *SviContext, rtdNet
 			return
 		}
 	}
-	err = fmt.Errorf("svi address pool exhausted")
+	err = fmt.Errorf("max addresses reached")
 	return
 }
 
@@ -234,12 +252,49 @@ func (cont *AciController) deallocateSviAddress(rtdNetData *RoutedNetworkData, n
 	}
 }
 
-func (cont *AciController) generateSviAddress(nw *net.IPNet, idx int, addrStr *string) {
-	addrlen := len(nw.IP)
-	mskLen, _ := nw.Mask.Size()
+func (cont *AciController) isAddressinAllocRange(addr net.IP, rtdNetData *RoutedNetworkData) (int, bool) {
+	addrLen := len(addr)
+	if addrLen != len(rtdNetData.baseAddress) {
+		return 0, false
+	}
+	idx := 0
+	for i := 0; i < addrLen; i++ {
+		if addr[i] < rtdNetData.baseAddress[i] {
+			return 0, false
+		}
+		if i*8 >= rtdNetData.maskLen {
+			idx = idx*8 + int(addr[i])
+			continue
+		}
+		if addr[i] > rtdNetData.baseAddress[i] {
+			remBits := (rtdNetData.maskLen - i*8)
+			mskBits := 8
+			if remBits < 8 {
+				mskBits = remBits
+			}
+			mask := 0xff << (8 - mskBits)
+			mskedValAddr := addr[i] & byte(mask)
+			mskedValBase := rtdNetData.baseAddress[i] & byte(mask)
+			if mskedValAddr != mskedValBase {
+				return 0, false
+			}
+			idx = idx + int(addr[i]-mskedValAddr)
+		}
+	}
+	return idx, true
+}
+
+func (cont *AciController) generateSviAddress(nw net.IP, mskLen int, idx int, addrStr *string) {
+	addrlen := len(nw)
 	addr := make(net.IP, addrlen)
-	copy(addr, nw.IP)
-	addr[addrlen-1] += byte(idx)
+	copy(addr, nw)
+	if int(addr[addrlen-1]+byte(idx)) > 256 {
+		lsb := int(addr[addrlen-1] + byte(idx))
+		addr[addrlen-1] = byte(lsb % 256)
+		addr[addrlen-2] += byte(lsb / 256)
+	} else {
+		addr[addrlen-1] += byte(idx)
+	}
 	*addrStr = fmt.Sprintf("%s/%d", addr.String(), mskLen)
 }
 
@@ -260,11 +315,29 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 		cont.applyInverseMask(nw.IP, nw.Mask)
 		addrlen := len(nw.IP)
 		mskLen, _ := nw.Mask.Size()
-		maxAddresses := DefaultMaxL3OutNodes
-		if ctxt.connectedNw.PrimaryNetwork.MaxNodes != 0 {
-			maxAddresses = ctxt.connectedNw.PrimaryNetwork.MaxNodes
+		maxNetAddresses := (1 << (addrlen*8 - mskLen)) - 1
+		if maxNetAddresses < 3 {
+			return
 		}
-		nw.IP[addrlen-1] -= byte(2 + maxAddresses)
+		maxAddresses := DefaultMaxConventionalSviNodes
+		if (ctxt.connectedNw.SviType == "") || (ctxt.connectedNw.SviType == fabattv1.FloatingSviType) {
+			maxAddresses = DefaultMaxFloatingL3OutAnchorNodes
+		}
+		if ctxt.connectedNw.PrimaryNetwork.MaxNodes != 0 {
+			if ctxt.connectedNw.PrimaryNetwork.MaxNodes <= DefaultMaxL3OutNodesPerPod {
+				maxAddresses = ctxt.connectedNw.PrimaryNetwork.MaxNodes
+			} else {
+				maxAddresses = DefaultMaxL3OutNodesPerPod
+			}
+		}
+		if maxNetAddresses < (maxAddresses + 2) {
+			maxAddresses = maxNetAddresses - 2
+		}
+		// Maximum possible is 400, so can't exceed two bytes
+		if (maxAddresses+2)/256 > 0 {
+			nw.IP[addrlen-2] -= byte((maxAddresses + 2) / 256)
+		}
+		nw.IP[addrlen-1] -= byte((maxAddresses + 2) % 256)
 		rtdNetData = &RoutedNetworkData{
 			subnet:       subnet,
 			netAddress:   nw.IP.String(),
@@ -280,22 +353,22 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 		}
 		copy(rtdNetData.baseAddress, nw.IP)
 		sviCacheData.NetAddr[rtdNetKey] = rtdNetData
+		cont.log.Debugf("maxAddresses: %d", rtdNetData.maxAddresses)
 		cont.log.Debugf("baseAddress: %s", rtdNetData.baseAddress.String())
 	}
-	copy(rtdNetData.baseAddress, nw.IP)
 	if fabL3Subnet, ok := ctxt.connectedNw.Subnets[subnet]; !ok {
-		cont.generateSviAddress(nw, FloatingAddressIdx, &floatingAddrStr)
-		cont.generateSviAddress(nw, SecondaryAddressIdx, &secondaryAddrStr)
+		cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, (rtdNetData.maxAddresses + 1), &floatingAddrStr)
+		cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNetData.maxAddresses, &secondaryAddrStr)
 	} else {
 		if fabL3Subnet.FloatingAddress != "" {
 			floatingAddrStr = fabL3Subnet.FloatingAddress
 		} else {
-			cont.generateSviAddress(nw, FloatingAddressIdx, &floatingAddrStr)
+			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, (rtdNetData.maxAddresses + 1), &floatingAddrStr)
 		}
 		if fabL3Subnet.FloatingAddress != "" {
 			secondaryAddrStr = fabL3Subnet.SecondaryAddress
 		} else {
-			cont.generateSviAddress(nw, SecondaryAddressIdx, &secondaryAddrStr)
+			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNetData.maxAddresses, &secondaryAddrStr)
 		}
 	}
 	return
@@ -442,16 +515,18 @@ func (cont *AciController) createNodeFabNetAttSviPaths(vlan int, ctxt *SviContex
 				ctxt.l3extVirtualLifP = apicapi.NewL3ExtVirtualLifP(ctxt.l3outLifP.GetDn(), "ext-svi", nodeDn, encapVlan, primaryAddr)
 				l3extRsDynPathAtt := apicapi.NewL3ExtRsDynPathAtt(ctxt.l3extVirtualLifP.GetDn(), cont.globalVlanConfig.SharedPhysDom.GetDn(), floatingAddr, encapVlan)
 				l3extIp := apicapi.NewL3ExtIp(ctxt.l3extVirtualLifP.GetDn(), secondaryAddr)
-				ctxt.l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
+
 				ctxt.l3extVirtualLifP.AddChild(l3extIp)
 				for _, fabL3Subnet := range ctxt.connectedNw.Subnets {
 					if ctxt.connectedNw.PrimarySubnet == fabL3Subnet.ConnectedSubnet {
 						continue
 					}
-					_, secondaryAddr2, rtdNetData2, err := cont.getSviNetworkPool(ctxt, fabL3Subnet.ConnectedSubnet)
+					floatingAddr2, secondaryAddr2, rtdNetData2, err := cont.getSviNetworkPool(ctxt, fabL3Subnet.ConnectedSubnet)
 					if err != nil {
 						continue
 					}
+					l3extIp = apicapi.NewL3ExtIp(l3extRsDynPathAtt.GetDn(), floatingAddr2)
+					l3extRsDynPathAtt.AddChild(l3extIp)
 					l3extIp = apicapi.NewL3ExtIp(ctxt.l3extVirtualLifP.GetDn(), secondaryAddr2)
 					ctxt.l3extVirtualLifP.AddChild(l3extIp)
 					primaryAddr, err = cont.allocateSviAddress(vlan, ctxt, rtdNetData2, node)
@@ -460,6 +535,7 @@ func (cont *AciController) createNodeFabNetAttSviPaths(vlan int, ctxt *SviContex
 						ctxt.l3extVirtualLifP.AddChild(l3extIp)
 					}
 				}
+				ctxt.l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
 				cont.createNodeFabNetAttSviProtocolPolicies(ctxt)
 				ctxt.l3outLifP.AddChild(ctxt.l3extVirtualLifP)
 			}
@@ -480,7 +556,7 @@ func (cont *AciController) createNodeFabNetAttSvi(vlan int, sviContext *SviConte
 		l3OutConfigured := false
 		rtCtrl := ""
 		if tenantConfigured {
-			nfL3Out, l3OutConfigured := nfTenantData.L3OutConfig[sviContext.connectedNw.L3OutName]
+			nfL3Out, l3OutConfigured = nfTenantData.L3OutConfig[sviContext.connectedNw.L3OutName]
 			if l3OutConfigured {
 				rtCtrl = nfL3Out.RtCtrl
 			}
@@ -488,7 +564,8 @@ func (cont *AciController) createNodeFabNetAttSvi(vlan int, sviContext *SviConte
 		sviContext.l3out = apicapi.NewL3ExtOut(sviContext.tenant, sviContext.connectedNw.L3OutName, rtCtrl)
 		rsEctx := apicapi.NewL3ExtRsEctx(sviContext.tenant, sviContext.connectedNw.L3OutName, sviContext.vrf.Name)
 		sviContext.l3out.AddChild(rsEctx)
-		rsl3DomAtt := apicapi.NewL3ExtRsL3DomAtt(sviContext.tenant, sviContext.connectedNw.L3OutName, cont.config.AciL3Dom)
+		l3Dom := cont.config.AciPolicyTenant + "-" + globalScopeVlanDomPrefix
+		rsl3DomAtt := apicapi.NewL3ExtRsL3DomAtt(sviContext.tenant, sviContext.connectedNw.L3OutName, l3Dom)
 		sviContext.l3out.AddChild(rsl3DomAtt)
 		// With pre-existing l3out, an expectation is that atleast one external epg is configured. Otherwise
 		// forwarding will not work. For a managed l3out, it is required that user configure one external epg.
@@ -546,61 +623,117 @@ func (cont *AciController) getSharedEncapNfCacheSviLocked(encap int) *SviContext
 	return sviContext
 }
 
-func (cont *AciController) populateSviData(sviData *fabattv1.ConnectedL3Network, vrf *fabattv1.VRF) {
+func (cont *AciController) populateSviData(sviData *fabattv1.ConnectedL3Network, sviData2 *fabattv1.ConnectedL3NetworkStatus, vrf *fabattv1.VRF) {
 	sviTenant := cont.config.AciPolicyTenant
-	if sviData.L3OutOnCommonTenant {
-		sviTenant = "common"
+	primaryNetwork := fabattv1.PrimaryNetwork{}
+	subnets := []fabattv1.FabricL3Subnet{}
+	nodes := []fabattv1.FabricL3OutNode{}
+	var encap int
+	if sviData != nil {
+		primaryNetwork = sviData.PrimaryNetwork
+		subnets = sviData.Subnets
+		nodes = sviData.Nodes
+		encap = sviData.Encap
+		if sviData.L3OutOnCommonTenant {
+			sviTenant = "common"
+		}
+	} else if sviData2 != nil {
+		primaryNetwork = sviData2.PrimaryNetwork
+		subnets = sviData2.Subnets
+		nodes = sviData2.Nodes
+		encap = sviData2.Encap
+		if sviData2.L3OutOnCommonTenant {
+			sviTenant = "common"
+		}
 	}
 	nfL3Data := &NfL3Data{
 		Tenant: sviTenant,
 		Vrf:    *vrf,
 		ConnectedNw: &NfL3Networks{
-			PrimaryNetwork: sviData.PrimaryNetwork,
+			PrimaryNetwork: primaryNetwork,
 			Subnets:        make(map[string]*fabattv1.FabricL3Subnet),
 		},
 		NetAddr: make(map[string]*RoutedNetworkData),
 		Nodes:   make(map[int]fabattv1.FabricL3OutNode),
 	}
-	for _, subnet := range sviData.Subnets {
+	for _, subnet := range subnets {
 		subnetCopy := subnet
 		nfL3Data.ConnectedNw.Subnets[subnet.ConnectedSubnet] = &subnetCopy
 	}
-	for _, fabricNode := range sviData.Nodes {
+	for _, fabricNode := range nodes {
 		fabNode := fabricNode
 		nfL3Data.Nodes[fabNode.NodeRef.NodeId] = fabNode
 	}
-	cont.sharedEncapSviCache[sviData.Encap] = nfL3Data
+	cont.sharedEncapSviCache[encap] = nfL3Data
 }
 
-func (cont *AciController) populateTenantData(tenantData *fabattv1.FabricTenantConfiguration, currSviMap map[string]map[string]map[int]bool) (*NfTenantData, string) {
+func (cont *AciController) populateTenantData(tenantData *fabattv1.FabricTenantConfiguration, tenantData2 *fabattv1.FabricTenantConfigurationStatus,
+	currSviMap map[string]map[string]map[int]bool) (*NfTenantData, string) {
 	l3outTenant := cont.config.AciPolicyTenant
 	commonTenant := false
-	if tenantData.CommonTenant {
-		l3outTenant = "common"
-		commonTenant = true
+	if tenantData != nil {
+		if tenantData.CommonTenant {
+			l3outTenant = "common"
+			commonTenant = true
+		}
+	} else if tenantData2 != nil {
+		if tenantData2.CommonTenant {
+			l3outTenant = "common"
+			commonTenant = true
+		}
 	}
 	nfTenantData := &NfTenantData{
 		CommonTenant:     commonTenant,
 		L3OutConfig:      make(map[string]*NfL3OutData),
 		BGPPeerPfxConfig: make(map[string]*fabattv1.BGPPeerPrefixPolicy),
 	}
-	for _, l3OutData := range tenantData.L3OutInstances {
-		var sviMap map[int]bool
-		if _, ok := currSviMap[l3outTenant]; ok {
-			if _, ok := currSviMap[l3outTenant][l3OutData.Name]; ok {
-				sviMap = currSviMap[l3outTenant][l3OutData.Name]
+	if tenantData != nil {
+		for _, l3OutData := range tenantData.L3OutInstances {
+			var sviMap map[int]bool
+			if _, ok := currSviMap[l3outTenant]; ok {
+				if _, ok := currSviMap[l3outTenant][l3OutData.Name]; ok {
+					sviMap = currSviMap[l3outTenant][l3OutData.Name]
+				}
 			}
+			nfL3OutData := cont.populateL3OutData(&l3OutData, nil, sviMap)
+			nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
 		}
-		nfL3OutData := cont.populateL3OutData(&l3OutData, sviMap)
-		nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
+	} else if tenantData2 != nil {
+		for _, l3OutData := range tenantData2.L3OutInstances {
+			var sviMap map[int]bool
+			if _, ok := currSviMap[l3outTenant]; ok {
+				if _, ok := currSviMap[l3outTenant][l3OutData.Name]; ok {
+					sviMap = currSviMap[l3outTenant][l3OutData.Name]
+				}
+			}
+			nfL3OutData := cont.populateL3OutData(nil, &l3OutData, sviMap)
+			nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
+		}
+
 	}
 	return nfTenantData, l3outTenant
 }
 
-func (cont *AciController) populateL3OutData(l3OutData *fabattv1.FabricL3Out, sviMap map[int]bool) *NfL3OutData {
+func (cont *AciController) populateL3OutData(l3OutData *fabattv1.FabricL3Out, l3OutData2 *fabattv1.FabricL3OutStatus, sviMap map[int]bool) *NfL3OutData {
+	rtCtrl := ""
+	podId := 0
+	rtrNodes := []fabattv1.FabricL3OutRtrNode{}
+	extEpgs := []fabattv1.PolicyPrefixGroup{}
+	if l3OutData != nil {
+		rtCtrl = l3OutData.RtCtrl
+		podId = l3OutData.PodRef.PodId
+		rtrNodes = l3OutData.RtrNodes
+		extEpgs = l3OutData.ExternalEpgs
+	} else if l3OutData2 != nil {
+		rtCtrl = l3OutData2.RtCtrl
+		podId = l3OutData2.PodRef.PodId
+		rtrNodes = l3OutData2.RtrNodes
+		extEpgs = l3OutData2.ExternalEpgs
+	}
+
 	nfL3OutData := &NfL3OutData{
-		RtCtrl:     l3OutData.RtCtrl,
-		PodId:      l3OutData.PodRef.PodId,
+		RtCtrl:     rtCtrl,
+		PodId:      podId,
 		RtrNodeMap: make(map[int]*fabattv1.FabricL3OutRtrNode),
 		ExtEpgMap:  make(map[string]*fabattv1.PolicyPrefixGroup),
 		SviMap:     make(map[int]bool),
@@ -610,11 +743,11 @@ func (cont *AciController) populateL3OutData(l3OutData *fabattv1.FabricL3Out, sv
 		nfL3OutData.SviMap[key] = true
 	}
 
-	for _, rtrNode := range l3OutData.RtrNodes {
+	for _, rtrNode := range rtrNodes {
 		rtrNode2 := rtrNode
 		nfL3OutData.RtrNodeMap[rtrNode.NodeRef.NodeId] = &rtrNode2
 	}
-	for _, extEpg := range l3OutData.ExternalEpgs {
+	for _, extEpg := range extEpgs {
 		extEpg2 := extEpg
 		nfL3OutData.ExtEpgMap[extEpg.Name] = &extEpg2
 	}
@@ -705,19 +838,32 @@ func (cont *AciController) compareL3Out(l3Out *fabattv1.FabricL3Out, nfL3Out *Nf
 	return false
 }
 
-func (cont *AciController) getL3OutTenant(tenantData *fabattv1.FabricTenantConfiguration) string {
+func (cont *AciController) getL3OutTenant(tenantData *fabattv1.FabricTenantConfiguration, tenantData2 *fabattv1.FabricTenantConfigurationStatus) string {
 
 	l3outTenant := cont.config.AciPolicyTenant
-	if tenantData.CommonTenant {
-		l3outTenant = "common"
+	if tenantData != nil {
+		if tenantData.CommonTenant {
+			l3outTenant = "common"
+		}
+	} else if tenantData2 != nil {
+		if tenantData2.CommonTenant {
+			l3outTenant = "common"
+		}
 	}
 	return l3outTenant
 }
 
-func (cont *AciController) getSviL3OutTenant(sviData *fabattv1.ConnectedL3Network) string {
+func (cont *AciController) getSviL3OutTenant(sviData *fabattv1.ConnectedL3Network, sviData2 *fabattv1.ConnectedL3NetworkStatus) string {
+
 	l3outTenant := cont.config.AciPolicyTenant
-	if sviData.L3OutOnCommonTenant {
-		l3outTenant = "common"
+	if sviData != nil {
+		if sviData.L3OutOnCommonTenant {
+			l3outTenant = "common"
+		}
+	} else if sviData2 != nil {
+		if sviData2.L3OutOnCommonTenant {
+			l3outTenant = "common"
+		}
 	}
 	return l3outTenant
 }
@@ -753,10 +899,10 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 			}
 			for _, sviData := range vrf.DirectlyConnectedNetworks {
 				sviDataCopy := sviData
-				cont.populateSviData(&sviDataCopy, &vrf.Vrf)
+				cont.populateSviData(&sviDataCopy, nil, &vrf.Vrf)
 				affectedVlanMap[sviData.Encap] = true
 				currSviMap[sviData.Encap] = true
-				l3outTenant := cont.getSviL3OutTenant(&sviData)
+				l3outTenant := cont.getSviL3OutTenant(&sviData, nil)
 				l3outMap, ok := currL3OutMap[l3outTenant]
 				if !ok {
 					l3outMap = make(map[string]map[int]bool)
@@ -773,11 +919,12 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 				currL3OutMap[l3outTenant] = l3outMap
 			}
 			for _, tenantData := range vrf.Tenants {
-				l3outTenant := cont.getL3OutTenant(&tenantData)
+				l3outTenant := cont.getL3OutTenant(&tenantData, nil)
 				nfTenantData, tenantExisting := cont.sharedEncapTenantCache[l3outTenant]
 				if !tenantExisting {
-					nfTenantData, _ = cont.populateTenantData(&tenantData, currL3OutMap)
+					nfTenantData, _ = cont.populateTenantData(&tenantData, nil, currL3OutMap)
 					nfVrfData.TenantConfig[l3outTenant] = nfTenantData
+					cont.sharedEncapTenantCache[l3outTenant] = nfTenantData
 				} else {
 					for _, l3out := range tenantData.L3OutInstances {
 						if _, ok := nfTenantData.L3OutConfig[l3out.Name]; !ok {
@@ -787,7 +934,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 									sviMap = currL3OutMap[l3outTenant][l3out.Name]
 								}
 							}
-							l3outData := cont.populateL3OutData(&l3out, sviMap)
+							l3outData := cont.populateL3OutData(&l3out, nil, sviMap)
 							nfTenantData.L3OutConfig[l3out.Name] = l3outData
 						}
 						// L3Out cannot be pre-existing since VRF is new here
@@ -799,9 +946,9 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 		} else {
 			for _, sviData := range vrf.DirectlyConnectedNetworks {
 				sviDataCopy := sviData
-				sviTenant := cont.getSviL3OutTenant(&sviData)
+				sviTenant := cont.getSviL3OutTenant(&sviData, nil)
 				if nfSvi, ok := cont.sharedEncapSviCache[sviData.Encap]; !ok {
-					cont.populateSviData(&sviDataCopy, &vrf.Vrf)
+					cont.populateSviData(&sviDataCopy, nil, &vrf.Vrf)
 					affectedVlanMap[sviData.Encap] = true
 				} else if cont.compareSvi(&vrf.Vrf, &sviData, nfSvi) {
 					cont.sharedEncapSviCache[sviData.Encap].ConnectedNw = &NfL3Networks{
@@ -838,8 +985,9 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 					l3outTenant = "common"
 				}
 				if nfTenantData, ok := cont.sharedEncapTenantCache[l3outTenant]; !ok {
-					nfTenantData, l3outTenant := cont.populateTenantData(&tenantData, currL3OutMap)
+					nfTenantData, l3outTenant := cont.populateTenantData(&tenantData, nil, currL3OutMap)
 					nfVrfData.TenantConfig[l3outTenant] = nfTenantData
+					cont.sharedEncapTenantCache[l3outTenant] = nfTenantData
 				} else {
 					for _, l3OutData := range tenantData.L3OutInstances {
 						var sviMap map[int]bool
@@ -849,7 +997,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 							}
 						}
 						if nfL3OutData, ok := nfTenantData.L3OutConfig[l3OutData.Name]; !ok {
-							nfL3OutData := cont.populateL3OutData(&l3OutData, sviMap)
+							nfL3OutData := cont.populateL3OutData(&l3OutData, nil, sviMap)
 							nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
 						} else {
 							nfL3OutData.SviMap = sviMap
@@ -953,19 +1101,136 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationDelete(key string) 
 	return false
 }
 
-/* TODO: Fix this
-func (cont *AciController) restoreNetworkFabricL3ConfigurationStatus() {
-
-		fabl3Config, err := cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations(metav1.NamespaceAll).Get(context.TODO(), "networkfabricl3configuration", metav1.GetOptions{})
-		if err == nil {
-			//for _, vrfData := range fabl3Config.Status.Vrfs {
-			//		vrfKey := cont.getL3OutVrfKey(vrfData.Vrf)
-			//}
-		} else {
-			cont.log.Errorf("%v. Skip restoring NetworkFabricL3Configuration status", err)
+func (cont *AciController) restoreNetworkFabricL3ConfigurationStatus(fabl3Config *fabattv1.NetworkFabricL3Configuration) {
+	var err error
+	if cont.unitTestMode {
+		err = fmt.Errorf("input NFCL3 Arg is null")
+		if fabl3Config != nil {
+			err = nil
 		}
+	} else {
+		fabl3Config, err = cont.fabNetAttClient.AciV1().NetworkFabricL3Configurations().Get(context.TODO(), "networkfabricl3configuration", metav1.GetOptions{})
+	}
+	if err == nil {
+		currSviMap := make(map[int]bool)
+		currVrfMap := make(map[string]bool)
+		currTenantMap := make(map[string]bool)
+		currL3OutMap := make(map[string]map[string]map[int]bool)
+		cont.indexMutex.Lock()
+		for _, vrf := range fabl3Config.Status.Vrfs {
+			vrfTenant := cont.config.AciPolicyTenant
+			if vrf.Vrf.CommonTenant {
+				vrfTenant = "common"
+			}
+			vrfKey := vrfTenant + "/" + vrf.Vrf.Name
+			if nfVrfData, ok := cont.sharedEncapVrfCache[vrfKey]; !ok {
+				nfVrfData = &NfVrfData{
+					TenantConfig: make(map[string]*NfTenantData),
+				}
+				for _, sviData := range vrf.DirectlyConnectedNetworks {
+					sviDataCopy := sviData
+					cont.populateSviData(nil, &sviDataCopy, &vrf.Vrf)
+					currSviMap[sviData.Encap] = true
+					l3outTenant := cont.getSviL3OutTenant(nil, &sviData)
+					l3outMap, ok := currL3OutMap[l3outTenant]
+					if !ok {
+						l3outMap = make(map[string]map[int]bool)
+						l3outMap[sviData.L3OutName] = make(map[int]bool)
+						l3outMap[sviData.L3OutName][sviData.Encap] = true
+					} else {
+						sviMap, ok := l3outMap[sviData.L3OutName]
+						if !ok {
+							sviMap = make(map[int]bool)
+						}
+						sviMap[sviData.Encap] = true
+						l3outMap[sviData.L3OutName] = sviMap
+					}
+					currL3OutMap[l3outTenant] = l3outMap
+				}
+				for _, tenantData := range vrf.Tenants {
+					l3outTenant := cont.getL3OutTenant(nil, &tenantData)
+					nfTenantData, tenantExisting := cont.sharedEncapTenantCache[l3outTenant]
+					if !tenantExisting {
+						nfTenantData, _ = cont.populateTenantData(nil, &tenantData, currL3OutMap)
+						nfVrfData.TenantConfig[l3outTenant] = nfTenantData
+						cont.sharedEncapTenantCache[l3outTenant] = nfTenantData
+					} else {
+						for _, l3out := range tenantData.L3OutInstances {
+							if _, ok := nfTenantData.L3OutConfig[l3out.Name]; !ok {
+								var sviMap map[int]bool
+								if _, ok := currL3OutMap[l3outTenant]; ok {
+									if _, ok := currL3OutMap[l3outTenant][l3out.Name]; ok {
+										sviMap = currL3OutMap[l3outTenant][l3out.Name]
+									}
+								}
+								l3outData := cont.populateL3OutData(nil, &l3out, sviMap)
+								nfTenantData.L3OutConfig[l3out.Name] = l3outData
+							}
+							// L3Out cannot be pre-existing since VRF is new here
+						}
+					}
+					currTenantMap[l3outTenant] = true
+				}
+				cont.sharedEncapVrfCache[vrfKey] = nfVrfData
+			} else {
+				for _, sviData := range vrf.DirectlyConnectedNetworks {
+					sviDataCopy := sviData
+					sviTenant := cont.getSviL3OutTenant(nil, &sviData)
+					if _, ok := cont.sharedEncapSviCache[sviData.Encap]; !ok {
+						cont.populateSviData(nil, &sviDataCopy, &vrf.Vrf)
+					}
+					currSviMap[sviData.Encap] = true
+					l3outMap, ok := currL3OutMap[sviTenant]
+					if !ok {
+						l3outMap = make(map[string]map[int]bool)
+						l3outMap[sviData.L3OutName] = make(map[int]bool)
+						l3outMap[sviData.L3OutName][sviData.Encap] = true
+					} else {
+						sviMap, ok := l3outMap[sviData.L3OutName]
+						if !ok {
+							sviMap = make(map[int]bool)
+						}
+						sviMap[sviData.Encap] = true
+						l3outMap[sviData.L3OutName] = sviMap
+					}
+					currL3OutMap[sviTenant] = l3outMap
+				}
+				for _, tenantData := range vrf.Tenants {
+					l3outTenant := cont.config.AciPolicyTenant
+					if tenantData.CommonTenant {
+						l3outTenant = "common"
+					}
+					if nfTenantData, ok := cont.sharedEncapTenantCache[l3outTenant]; !ok {
+						nfTenantData, l3outTenant := cont.populateTenantData(nil, &tenantData, currL3OutMap)
+						nfVrfData.TenantConfig[l3outTenant] = nfTenantData
+						cont.sharedEncapTenantCache[l3outTenant] = nfTenantData
+					} else {
+						for _, l3OutData := range tenantData.L3OutInstances {
+							var sviMap map[int]bool
+							if _, ok := currL3OutMap[l3outTenant]; ok {
+								if _, ok := currL3OutMap[l3outTenant][l3OutData.Name]; ok {
+									sviMap = currL3OutMap[l3outTenant][l3OutData.Name]
+								}
+							}
+							if _, ok := nfTenantData.L3OutConfig[l3OutData.Name]; !ok {
+								nfL3OutData := cont.populateL3OutData(nil, &l3OutData, sviMap)
+								nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
+							}
+						}
+						nfVrfData.TenantConfig[l3outTenant] = nfTenantData
+					}
+					currTenantMap[l3outTenant] = true
+				}
+				cont.sharedEncapVrfCache[vrfKey] = nfVrfData
+			}
+			currVrfMap[vrfKey] = true
+		}
+		cont.log.Infof("Restored %d vrfs %d svis", len(cont.sharedEncapVrfCache), len(cont.sharedEncapSviCache))
+		cont.indexMutex.Unlock()
+	} else {
+		cont.log.Errorf("%v. Skip restoring NetworkFabricL3Configuration status", err)
+	}
 }
-*/
 
 func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1.NetworkFabricL3ConfigStatus {
 	fabVrfs := make(map[string]*fabattv1.FabricVrfConfigurationStatus)
@@ -989,9 +1254,50 @@ func (cont *AciController) computeNetworkFabricL3ConfigurationStatus() *fabattv1
 					},
 				},
 			}
+			if connectedL3Network.ConnectedL3Network.FabricL3Network.PrimaryNetwork.SviType == "" {
+				connectedL3Network.ConnectedL3Network.FabricL3Network.PrimaryNetwork.SviType = fabattv1.FloatingSviType
+			}
+			is_floating_svi := false
+			if connectedL3Network.ConnectedL3Network.FabricL3Network.PrimaryNetwork.SviType == fabattv1.FloatingSviType {
+				is_floating_svi = true
+			}
 			subnets := []fabattv1.FabricL3Subnet{}
+			primarySubnetFound := false
 			for _, fabL3Subnet := range sviData.ConnectedNw.Subnets {
-				subnets = append(subnets, *fabL3Subnet)
+				subnet := *fabL3Subnet
+				_, nw, _ := net.ParseCIDR(fabL3Subnet.ConnectedSubnet)
+				if rtdNetData, ok := sviData.NetAddr[nw.String()]; ok {
+					addrStr := ""
+					if subnet.SecondaryAddress == "" {
+						cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNetData.maxAddresses, &addrStr)
+						subnet.SecondaryAddress = addrStr
+					}
+					if (subnet.FloatingAddress == "") && is_floating_svi {
+						cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, (rtdNetData.maxAddresses + 1), &addrStr)
+						subnet.FloatingAddress = addrStr
+					}
+				}
+				subnets = append(subnets, subnet)
+				if subnet.ConnectedSubnet == sviData.ConnectedNw.PrimarySubnet {
+					primarySubnetFound = true
+				}
+			}
+			if !primarySubnetFound {
+				_, nw, _ := net.ParseCIDR(sviData.ConnectedNw.PrimarySubnet)
+				if rtdNetData, ok := sviData.NetAddr[nw.String()]; ok {
+					secondaryAddrStr := ""
+					cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNetData.maxAddresses, &secondaryAddrStr)
+					subnet := fabattv1.FabricL3Subnet{
+						ConnectedSubnet:  sviData.ConnectedNw.PrimarySubnet,
+						SecondaryAddress: secondaryAddrStr,
+					}
+					if is_floating_svi {
+						floatingAddrStr := ""
+						cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, (rtdNetData.maxAddresses + 1), &floatingAddrStr)
+						subnet.FloatingAddress = floatingAddrStr
+					}
+					subnets = append(subnets, subnet)
+				}
 			}
 			connectedL3Network.FabricL3Network.Subnets = subnets
 			connectedL3Network.Nodes = cont.computeFabricL3OutNodes(sviData)

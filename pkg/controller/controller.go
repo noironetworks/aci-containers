@@ -254,6 +254,7 @@ type sharedEncapData struct {
 
 type globalVlanConfig struct {
 	SharedPhysDom apicapi.ApicObject
+	SharedL3Dom   apicapi.ApicObject
 }
 
 type hppReference struct {
@@ -358,7 +359,6 @@ type AdditionalNetworkMeta struct {
 	//node+localiface->fabricLinks
 	FabricLink map[string]map[string]LinkData
 	NodeCache  map[string]*fabattv1.NodeFabricNetworkAttachment
-	NetAddr    map[string]*RoutedNetworkData
 	Mode       util.EncapMode
 }
 
@@ -877,10 +877,17 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"infraRsDomP"}, "")
 		cont.apicConn.AddSubscriptionClass("physDomP",
 			[]string{"physDomP"}, "")
+		cont.apicConn.AddSubscriptionClass("l3extDomP",
+			[]string{"l3extDomP"}, "")
 		cont.apicConn.AddSubscriptionClass("infraRsVlanNs",
 			[]string{"infraRsVlanNs"}, "")
 		cont.apicConn.AddSubscriptionClass("infraGeneric",
 			[]string{"infraGeneric", "infraRsFuncToEpg"}, "")
+		cont.apicConn.AddSubscriptionClass("l3extOut",
+			[]string{"l3extInstP", "l3extSubnet", "fvRsCons", "fvRsProv", "l3extRsEctx", "l3extRsL3DomAtt", "l3extLNodeP", "l3extRsNodeL3OutAtt", "ipRouteP", "ipNexthopP", "l3extLIfP", "l3extVirtualLIfP", "l3extRsDynPathAtt",
+				"l3extRsPathL3OutAtt", "l3extMember", "l3extIp", "bgpPeerP", "bgpAsP", "bgpRsPeerPfxPol"}, "")
+		cont.apicConn.AddSubscriptionClass("bgpPeerPfxPol",
+			[]string{"bgpPeerPfxPol"}, "")
 	}
 	if !cont.config.ChainedMode {
 		// When a new class is added for subscriptio, check if its name attribute

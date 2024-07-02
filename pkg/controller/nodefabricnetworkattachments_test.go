@@ -82,10 +82,17 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string, 
 	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
 	physDom.AddChild(infraRsVlanNs)
 	apicSlice = append(apicSlice, physDom)
+	// Create l3dom
+	l3Dom := apicapi.NewL3DomP("kubernetes-" + networkName)
+	infraRsVlanNs2 := apicapi.NewInfraRsVlanNs(l3Dom.GetDn(), fvnsVlanInstP.GetDn())
+	l3Dom.AddChild(infraRsVlanNs2)
+	apicSlice = append(apicSlice, l3Dom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-second-aep"
 	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
 	apicSlice = append(apicSlice, infraRsDomP)
+	infraRsDomP2 := apicapi.NewInfraRsDomP(secondaryAepDn, l3Dom.GetDn())
+	apicSlice = append(apicSlice, infraRsDomP2)
 	return apicSlice
 }
 

@@ -100,7 +100,7 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	if use_regular_svi {
 		sviType = fabattv1.ConventionalSviType
 	}
-	nfcL3Obj = CreateNFCL3(101, sviType)
+	nfcL3Obj = CreateNFCL3(101, sviType, true)
 	progMapNFC := cont.updateNetworkFabricL3ConfigObj(nfcL3Obj)
 	progMap := cont.updateNodeFabNetAttObj(nfna1)
 	var expectedApicSlice1 apicapi.ApicSlice
@@ -121,6 +121,11 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	l3peers := cont.computeNodeFabricNetworkL3PeerStatus()
 	for _, peerInfo := range l3peers.PeeringInfo {
 		sort.Sort(TestFabL3OutNodes(peerInfo.FabricNodes))
+	}
+	for _, NADRefs := range l3peers.NADRefs {
+		for _, nodes := range NADRefs.Nodes {
+			sort.Ints(nodes.FabricL3Peers[0].FabricNodeIds)
+		}
 	}
 	assert.Equal(t, expectedL3Peers, l3peers, "nfna nodefabricl3peers status")
 	delProgMap := cont.deleteNetworkFabricL3ConfigObj()
