@@ -873,7 +873,6 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan.VlanList,
 			FabricLink:  make(map[string]map[string]LinkData),
 			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment),
-			NetAddr:     make(map[string]*RoutedNetworkData),
 			Mode:        util.ToEncapMode(nodeFabNetAtt.Spec.EncapVlan.Mode)}
 		cont.additionalNetworkCache[addNetKey] = addNet
 	} else {

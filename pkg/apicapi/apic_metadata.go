@@ -809,7 +809,9 @@ var metadata = map[string]*apicMeta{
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
-		children: []string{},
+		children: []string{
+			"l3extIp",
+		},
 	},
 	"l3extVirtualLIfP": {
 		attributes: map[string]interface{}{
@@ -885,6 +887,7 @@ var metadata = map[string]*apicMeta{
 			"l3extLNodeP",
 			"l3extLIfP",
 			"l3extInstP",
+			"l3extRsL3DomAtt",
 		},
 	},
 

@@ -153,6 +153,17 @@ func GetNFCL3Status(vlan int, sviType fabattv1.FabricSviType) *fabattv1.NetworkF
 			},
 		},
 	}
+	subnet := fabattv1.FabricL3Subnet{
+		ConnectedSubnet:  "192.168.100.0/24",
+		SecondaryAddress: "192.168.100.253/24",
+	}
+	if sviType == fabattv1.FloatingSviType {
+		subnet.FloatingAddress = "192.168.100.254/24"
+	} else {
+		nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].PrimaryAddress = "192.168.100.243/24"
+		nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1].PrimaryAddress = "192.168.100.244/24"
+	}
+	nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Subnets = append(nfcL3Status.Vrfs[0].DirectlyConnectedNetworks[0].Subnets, subnet)
 	return nfcL3Status
 }
 
@@ -164,6 +175,9 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 	_, nw, _ := net.ParseCIDR("192.168.100.0/24")
 	mskLen, _ := nw.Mask.Size()
 	nw.IP[3] = 247
+	if is_regular_svi {
+		nw.IP[3] = 243
+	}
 	primaryAddr := make(net.IP, 4)
 	floatingAddr := make(net.IP, 4)
 	secondaryAddr := make(net.IP, 4)
@@ -189,8 +203,8 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 			l3extVirtualLifP := apicapi.NewL3ExtVirtualLifP(l3outLifP.GetDn(), "ext-svi", nodeDn, encapVlan, primaryAddrStr)
 			l3extRsDynPathAtt := apicapi.NewL3ExtRsDynPathAtt(l3extVirtualLifP.GetDn(), cont.globalVlanConfig.SharedPhysDom.GetDn(), floatingAddrStr, encapVlan)
 			l3extIp := apicapi.NewL3ExtIp(l3extVirtualLifP.GetDn(), secondaryAddrStr)
-			l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
 			l3extVirtualLifP.AddChild(l3extIp)
+			l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
 			bgpPeerP := apicapi.NewBGPPeerP(l3extVirtualLifP.GetDn(), "192.168.100.0/24", "", "")
 			bgpAsP := apicapi.NewBGPAsP(bgpPeerP.GetDn(), peerASN)
 			bgpPeerP.AddChild(bgpAsP)
