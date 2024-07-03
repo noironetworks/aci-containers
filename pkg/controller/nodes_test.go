@@ -331,7 +331,6 @@ func TestNodeNetPol(t *testing.T) {
 func TestNodeNetPol2(t *testing.T) {
 	cont := testController()
 	cont.config.AciPolicyTenant = "test-tenant"
-	cont.config.LBType = "loadbalancer"
 	cont.config.EnableOpflexAgentReconnect = true
 	cont.config.AciMultipod = true
 	node := &v1.Node{
