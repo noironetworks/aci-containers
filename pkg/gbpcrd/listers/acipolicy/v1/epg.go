@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import (
 )
 
 // EpgLister helps list Epgs.
+// All objects returned here must be treated as read-only.
 type EpgLister interface {
 	// List lists all Epgs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Epg, err error)
 	// Epgs returns an object that can list and get Epgs.
 	Epgs(namespace string) EpgNamespaceLister
@@ -57,10 +59,13 @@ func (s *epgLister) Epgs(namespace string) EpgNamespaceLister {
 }
 
 // EpgNamespaceLister helps list and get Epgs.
+// All objects returned here must be treated as read-only.
 type EpgNamespaceLister interface {
 	// List lists all Epgs in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Epg, err error)
 	// Get retrieves the Epg from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.Epg, error)
 	EpgNamespaceListerExpansion
 }

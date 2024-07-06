@@ -35,7 +35,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
-	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 	nodePodIf "github.com/noironetworks/aci-containers/pkg/nodepodif/apis/acipolicy/v1"
@@ -46,12 +45,6 @@ import (
 const (
 	ACIContainersTaintName string = "aci-containers-host/unavailable"
 )
-
-type tunnelState struct {
-	stateDriver  *watchers.K8sStateDriver
-	nodeToTunnel map[string]int64
-	nextID       int64
-}
 
 func (cont *AciController) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {

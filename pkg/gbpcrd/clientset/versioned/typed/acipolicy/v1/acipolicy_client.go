@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ limitations under the License.
 package v1
 
 import (
+	"net/http"
+
 	v1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	"github.com/noironetworks/aci-containers/pkg/gbpcrd/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
@@ -27,7 +29,6 @@ type AciV1Interface interface {
 	RESTClient() rest.Interface
 	ContractsGetter
 	EpgsGetter
-	GBPSStatesGetter
 	PodIFsGetter
 }
 
@@ -44,21 +45,33 @@ func (c *AciV1Client) Epgs(namespace string) EpgInterface {
 	return newEpgs(c, namespace)
 }
 
-func (c *AciV1Client) GBPSStates(namespace string) GBPSStateInterface {
-	return newGBPSStates(c, namespace)
-}
-
 func (c *AciV1Client) PodIFs(namespace string) PodIFInterface {
 	return newPodIFs(c, namespace)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.
+// NewForConfig is equivalent to NewForConfigAndClient(c, httpClient),
+// where httpClient was generated with rest.HTTPClientFor(c).
 func NewForConfig(c *rest.Config) (*AciV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
 	}
-	client, err := rest.RESTClientFor(&config)
+	httpClient, err := rest.HTTPClientFor(&config)
+	if err != nil {
+		return nil, err
+	}
+	return NewForConfigAndClient(&config, httpClient)
+}
+
+// NewForConfigAndClient creates a new AciV1Client for the given config and http client.
+// Note the http client provided takes precedence over the configured transport values.
+func NewForConfigAndClient(c *rest.Config, h *http.Client) (*AciV1Client, error) {
+	config := *c
+	if err := setConfigDefaults(&config); err != nil {
+		return nil, err
+	}
+	client, err := rest.RESTClientForConfigAndClient(&config, h)
 	if err != nil {
 		return nil, err
 	}

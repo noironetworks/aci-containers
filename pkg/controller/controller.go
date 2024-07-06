@@ -172,7 +172,6 @@ type AciController struct {
 	nodeSyncEnabled     bool
 	serviceSyncEnabled  bool
 	snatSyncEnabled     bool
-	tunnelGetter        *tunnelState
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 	serviceEndPoints    ServiceEndPointType

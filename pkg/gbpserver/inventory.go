@@ -92,79 +92,18 @@ func getInvSubTree(url, vtep string) []*GBPObject {
 			log.Warnf("InvDB mo %s/%s not found", vtep, url)
 			continue
 		}
-		res = append(res, im.getSubTree(k, vtep)...)
+		res = append(res, im.getSubTree(k)...)
 	}
 
 	return res
 }
 
 // returns the preOrder traversal of the GBP subtree rooted at g.
-func (g *gbpInvMo) getSubTree(vtep, reqVtep string) []*GBPObject {
+func (g *gbpInvMo) getSubTree(vtep string) []*GBPObject {
 	st := make([]*GBPObject, 0, 8)
 
-	root := g.xformVteps(reqVtep)
+	root := g.clone()
 	return root.preOrder(st, vtep)
-}
-
-// Applies vtep transformation for forwarding via CSR
-func (g *gbpInvMo) xformVteps(reqVtep string) *gbpInvMo {
-	auxChildren := make(map[string]*gbpInvMo)
-	// find nextHop aka vtep
-	nh := g.GetStringProperty(propNht)
-
-	tunnels := strings.Split(nh, ",")
-	nhCount := len(tunnels)
-	if nhCount < 2 { // no change required
-		return g
-	}
-
-	// clone the mo and modify the clone
-	// add nexthops as children instead of property
-	// return this mo
-	newMo := g.clone()
-	newMo.DelProperty(propNht)
-	newMo.AddProperty(propInvProxyMac, csrDefMac)
-	needBounce := checkBounce(reqVtep)
-	log.Debugf("needBounce: %v, reqVtep: %s", needBounce, reqVtep)
-	if needBounce {
-		tunnels = theServer.bounceList
-		newMo.AddProperty(propAddBounce, 0)
-	} else {
-		// add bounce is set for nodes that have a tunnel
-		newMo.AddProperty(propAddBounce, 1)
-	}
-
-	for _, vtep := range tunnels {
-		cURI := fmt.Sprintf("%s%s/%s/", newMo.Uri, subjNhl, vtep)
-		child := &gbpInvMo{
-			gbpCommonMo{
-				GBPObject{
-					Subject: subjNhl,
-					Uri:     cURI,
-				},
-				false,
-				false,
-			},
-			nil,
-		}
-		child.AddProperty("ip", vtep)
-		child.SetParent(newMo.Subject, subjNhl, newMo.Uri)
-
-		newMo.AddChild(child.Uri)
-		auxChildren[child.Uri] = child
-	}
-
-	childGetter := func(uri string) *gbpInvMo {
-		c := auxChildren[uri]
-		if c != nil {
-			return c
-		}
-
-		return nil
-	}
-
-	newMo.childGetter = childGetter
-	return newMo
 }
 
 func (g *gbpInvMo) preOrder(moList []*GBPObject, vtep string) []*GBPObject {
@@ -407,9 +346,4 @@ func (ep *Endpoint) Delete() error {
 	}
 	invMo.DelChild(epURI)
 	return nil
-}
-
-func checkBounce(reqVtep string) bool {
-	_, found := theServer.tunnels[reqVtep]
-	return !found
 }

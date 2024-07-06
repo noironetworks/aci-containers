@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,8 +27,6 @@ type Interface interface {
 	Contracts() ContractInformer
 	// Epgs returns a EpgInformer.
 	Epgs() EpgInformer
-	// GBPSStates returns a GBPSStateInformer.
-	GBPSStates() GBPSStateInformer
 	// PodIFs returns a PodIFInformer.
 	PodIFs() PodIFInformer
 }
@@ -52,11 +50,6 @@ func (v *version) Contracts() ContractInformer {
 // Epgs returns a EpgInformer.
 func (v *version) Epgs() EpgInformer {
 	return &epgInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// GBPSStates returns a GBPSStateInformer.
-func (v *version) GBPSStates() GBPSStateInformer {
-	return &gBPSStateInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // PodIFs returns a PodIFInformer.

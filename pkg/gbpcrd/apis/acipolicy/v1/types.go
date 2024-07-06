@@ -109,37 +109,3 @@ type PodIFList struct {
 
 	Items []PodIF `json:"items"`
 }
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// GBPSState describes the internal state of the GBP server
-type GBPSState struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Status            GBPSStatus `json:"status"`
-}
-
-// GBPSSpec is the spec for a gbpserver
-type GBPSSpec struct {
-	ApiPort      string `json:"api-port,omitempty"`
-	InsecurePort string `json:"insecure-port,omitempty"`
-	ApicURL      string `json:"apic-url,omitempty"`
-	AwsRegion    string `json:"aws-region,omitempty"`
-}
-
-// GBPSStatus is the operational state for a gbpserver
-type GBPSStatus struct {
-	ClassIDs  map[string]uint  `json:"class-ids,omitempty"`
-	TunnelIDs map[string]int64 `json:"tunnel-ids,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// GBPSStateList is a list of gbpserverstate objects
-type GBPSStateList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []GBPSState `json:"items"`
-}

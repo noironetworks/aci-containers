@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import (
 )
 
 // ContractLister helps list Contracts.
+// All objects returned here must be treated as read-only.
 type ContractLister interface {
 	// List lists all Contracts in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Contract, err error)
 	// Contracts returns an object that can list and get Contracts.
 	Contracts(namespace string) ContractNamespaceLister
@@ -57,10 +59,13 @@ func (s *contractLister) Contracts(namespace string) ContractNamespaceLister {
 }
 
 // ContractNamespaceLister helps list and get Contracts.
+// All objects returned here must be treated as read-only.
 type ContractNamespaceLister interface {
 	// List lists all Contracts in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Contract, err error)
 	// Get retrieves the Contract from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.Contract, error)
 	ContractNamespaceListerExpansion
 }
