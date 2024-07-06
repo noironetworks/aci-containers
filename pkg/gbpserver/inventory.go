@@ -30,13 +30,9 @@ type gbpInvMo struct {
 }
 
 const (
-	epInvURI        = "/InvUniverse/InvRemoteEndpointInventory/"
-	subjRemoteEP    = "InvRemoteInventoryEp"
-	subjNhl         = "InvNextHopLink"
-	propNht         = "nextHopTunnel"
-	propInvProxyMac = "proxyMac"
-	propAddBounce   = "addBounce"
-	csrDefMac       = "00:00:5e:00:52:13"
+	epInvURI     = "/InvUniverse/InvRemoteEndpointInventory/"
+	subjRemoteEP = "InvRemoteInventoryEp"
+	propNht      = "nextHopTunnel"
 )
 
 func (g *gbpInvMo) save(vtep string) {

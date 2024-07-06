@@ -17,22 +17,6 @@ limitations under the License.
 
 package v1
 
-// ContractListerExpansion allows custom methods to be added to
-// ContractLister.
-type ContractListerExpansion interface{}
-
-// ContractNamespaceListerExpansion allows custom methods to be added to
-// ContractNamespaceLister.
-type ContractNamespaceListerExpansion interface{}
-
-// EpgListerExpansion allows custom methods to be added to
-// EpgLister.
-type EpgListerExpansion interface{}
-
-// EpgNamespaceListerExpansion allows custom methods to be added to
-// EpgNamespaceLister.
-type EpgNamespaceListerExpansion interface{}
-
 // PodIFListerExpansion allows custom methods to be added to
 // PodIFLister.
 type PodIFListerExpansion interface{}

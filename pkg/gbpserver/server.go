@@ -43,14 +43,6 @@ const (
 	OpdelGBPCustomMo
 )
 
-type PostResp struct {
-	URI string
-}
-
-type ListResp struct {
-	URIs []string
-}
-
 type Server struct {
 	config *GBPServerConfig
 	rxCh   chan *inputMsg
@@ -68,8 +60,6 @@ type Server struct {
 	insSrv        *http.Server
 	usedClassIDs  map[uint]bool
 	instToClassID map[string]uint
-	tunnels       map[string]int64
-	bounceList    []string
 	stopped       bool
 }
 

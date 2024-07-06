@@ -23,10 +23,6 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Contracts returns a ContractInformer.
-	Contracts() ContractInformer
-	// Epgs returns a EpgInformer.
-	Epgs() EpgInformer
 	// PodIFs returns a PodIFInformer.
 	PodIFs() PodIFInformer
 }
@@ -40,16 +36,6 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
-}
-
-// Contracts returns a ContractInformer.
-func (v *version) Contracts() ContractInformer {
-	return &contractInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// Epgs returns a EpgInformer.
-func (v *version) Epgs() EpgInformer {
-	return &epgInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // PodIFs returns a PodIFInformer.

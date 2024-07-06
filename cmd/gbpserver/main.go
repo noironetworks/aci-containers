@@ -94,7 +94,6 @@ func main() {
 
 	stopCh := make(chan struct{})
 	logrus.Infof("Listening for intent from k8s")
-	kw.InitIntentInformers(stopCh)
 	kw.InitEPInformer(stopCh)
 
 	if nfw != nil {

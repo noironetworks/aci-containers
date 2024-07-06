@@ -17,7 +17,6 @@ package watchers
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
@@ -36,7 +35,6 @@ const (
 type K8sWatcher struct {
 	log *logrus.Entry
 	gs  *gbpserver.Server
-	idb *intentDB
 	rc  restclient.Interface
 }
 
@@ -62,53 +60,12 @@ func NewK8sWatcher(gs *gbpserver.Server) (*K8sWatcher, error) {
 		log: log,
 		rc:  restClient,
 		gs:  gs,
-		idb: newIntentDB(gs, log),
 	}, nil
 }
 
 func (kw *K8sWatcher) InitEPInformer(stopCh <-chan struct{}) error {
 	kw.watchPodIFs(stopCh)
 	return nil
-}
-
-func (kw *K8sWatcher) InitIntentInformers(stopCh <-chan struct{}) error {
-	kw.watchEpgs(stopCh)
-	kw.watchContracts(stopCh)
-	return nil
-}
-
-func (kw *K8sWatcher) watchEpgs(stopCh <-chan struct{}) {
-	epgLw := cache.NewListWatchFromClient(kw.rc, "epgs", sysNs, fields.Everything())
-	_, epgInformer := cache.NewInformer(epgLw, &aciv1.Epg{}, 0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				kw.epgAdded(obj)
-			},
-			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				kw.epgAdded(newobj)
-			},
-			DeleteFunc: func(obj interface{}) {
-				kw.epgDeleted(obj)
-			},
-		})
-	go epgInformer.Run(stopCh)
-}
-
-func (kw *K8sWatcher) watchContracts(stopCh <-chan struct{}) {
-	contractLw := cache.NewListWatchFromClient(kw.rc, "contracts", sysNs, fields.Everything())
-	_, contractInformer := cache.NewInformer(contractLw, &aciv1.Contract{}, 0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				kw.contractAdded(obj)
-			},
-			UpdateFunc: func(oldobj interface{}, newobj interface{}) {
-				kw.contractAdded(newobj)
-			},
-			DeleteFunc: func(obj interface{}) {
-				kw.contractDeleted(obj)
-			},
-		})
-	go contractInformer.Run(stopCh)
 }
 
 func (kw *K8sWatcher) watchPodIFs(stopCh <-chan struct{}) {
@@ -126,84 +83,6 @@ func (kw *K8sWatcher) watchPodIFs(stopCh <-chan struct{}) {
 			},
 		})
 	go podIFInformer.Run(stopCh)
-}
-
-func (kw *K8sWatcher) epgAdded(obj interface{}) {
-	epgv1, ok := obj.(*aciv1.Epg)
-	if !ok {
-		kw.log.Errorf("epgAdded: Bad object type")
-		return
-	}
-
-	kw.log.Infof("epgAdded - %s", epgv1.Spec.Name)
-	e := &gbpserver.EPG{
-		Tenant:        kw.gs.Config().AciPolicyTenant,
-		Name:          epgv1.Spec.Name,
-		ConsContracts: epgv1.Spec.ConsContracts,
-		ProvContracts: epgv1.Spec.ProvContracts,
-	}
-
-	// normalize contract names to include tenant
-	normalizer := func(names []string) {
-		for ix, n := range names {
-			if len(strings.Split(n, "/")) == 1 {
-				names[ix] = fmt.Sprintf("%s/%s", e.Tenant, n)
-			}
-		}
-	}
-
-	normalizer(e.ConsContracts)
-	normalizer(e.ProvContracts)
-	kw.idb.saveEPG(e)
-}
-
-func (kw *K8sWatcher) epgDeleted(obj interface{}) {
-	epgv1, ok := obj.(*aciv1.Epg)
-	if !ok {
-		kw.log.Errorf("epgAdded: Bad object type")
-		return
-	}
-
-	kw.log.Infof("epgDeleted - %s", epgv1.Spec.Name)
-	e := &gbpserver.EPG{
-		Tenant: kw.gs.Config().AciPolicyTenant,
-		Name:   epgv1.Spec.Name,
-	}
-
-	kw.idb.deleteEPG(e)
-}
-
-func (kw *K8sWatcher) contractAdded(obj interface{}) {
-	contractv1, ok := obj.(*aciv1.Contract)
-	if !ok {
-		kw.log.Errorf("contractAdded: Bad object type")
-		return
-	}
-
-	kw.log.Infof("contractAdded - %s", contractv1.Spec.Name)
-	c := &gbpserver.Contract{
-		Tenant:    kw.gs.Config().AciPolicyTenant,
-		Name:      contractv1.Spec.Name,
-		AllowList: contractv1.Spec.AllowList,
-	}
-
-	kw.idb.saveGbpContract(c)
-}
-
-func (kw *K8sWatcher) contractDeleted(obj interface{}) {
-	contractv1, ok := obj.(*aciv1.Contract)
-	if !ok {
-		kw.log.Errorf("contractDeleted: Bad object type")
-		return
-	}
-	kw.log.Infof("contractDeleted - %s", contractv1.Spec.Name)
-	c := &gbpserver.Contract{
-		Tenant:    kw.gs.Config().AciPolicyTenant,
-		Name:      contractv1.Spec.Name,
-		AllowList: contractv1.Spec.AllowList,
-	}
-
-	kw.idb.deleteGbpContract(c)
 }
 
 func (kw *K8sWatcher) podIFAdded(obj interface{}) {
