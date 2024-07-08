@@ -77,13 +77,8 @@ func main() {
 		panic(err.Error())
 	}
 	logrus.SetLevel(level)
-	stateDriver := &watchers.K8sStateDriver{}
-	err = stateDriver.Init(watchers.FieldClassID)
-	if err != nil {
-		logrus.Fatalf("State Driver: %v", err)
-	}
 
-	s, err := gbpserver.StartNewServer(cfg, stateDriver)
+	s, err := gbpserver.StartNewServer(cfg)
 	if err != nil {
 		logrus.Fatalf("Starting api server: %v", err)
 	}

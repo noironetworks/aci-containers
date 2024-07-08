@@ -39,8 +39,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&EpgList{},
 		&PodIF{},
 		&PodIFList{},
-		&GBPSState{},
-		&GBPSStateList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

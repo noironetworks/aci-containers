@@ -120,29 +120,3 @@ func TestDelEPServeHTTP(t *testing.T) {
 		t.Errorf("Timeout waiting for message")
 	}
 }
-func TestUpdateTunnels(t *testing.T) {
-	s := &Server{
-		rxCh: make(chan *inputMsg),
-	}
-
-	tunnels := map[string]int64{
-		"tunnel1": 123,
-		"tunnel2": 456,
-	}
-
-	expectedMsg := &inputMsg{
-		op:   OpUpdTunnels,
-		data: tunnels,
-	}
-
-	go s.UpdateTunnels(tunnels)
-
-	select {
-	case msg := <-s.rxCh:
-		if !reflect.DeepEqual(msg, expectedMsg) {
-			t.Errorf("Expected message %v, got %v", expectedMsg, msg)
-		}
-	case <-time.After(time.Second):
-		t.Errorf("Timeout waiting for message")
-	}
-}

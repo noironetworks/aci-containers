@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,7 +39,6 @@ const (
 	OpdelEP
 	OpaddNetPol
 	OpdelNetPol
-	OpUpdTunnels
 	OpaddGBPCustomMo
 	OpdelGBPCustomMo
 )
@@ -55,7 +53,6 @@ type ListResp struct {
 
 type Server struct {
 	config *GBPServerConfig
-	driver StateDriver
 	rxCh   chan *inputMsg
 	// policy Mos
 	policyDB map[string]*gbpBaseMo
@@ -74,12 +71,6 @@ type Server struct {
 	tunnels       map[string]int64
 	bounceList    []string
 	stopped       bool
-}
-
-type StateDriver interface {
-	Init(int) error
-	Get() (*crdv1.GBPSState, error)
-	Update(*crdv1.GBPSState) error
 }
 
 // message from one of the watchers
@@ -117,9 +108,8 @@ func (n *nfh) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Errorf("+++ Request: %+v", r)
 }
 
-func StartNewServer(config *GBPServerConfig, sd StateDriver) (*Server, error) {
+func StartNewServer(config *GBPServerConfig) (*Server, error) {
 	s := NewServer(config)
-	s.InitState(sd)
 	s.InitDB()
 	go s.handleMsgs()
 
@@ -136,24 +126,7 @@ func NewServer(config *GBPServerConfig) *Server {
 		listeners:     make(map[string]func(op GBPOperation_OpCode, urls []string)),
 		usedClassIDs:  make(map[uint]bool),
 		instToClassID: make(map[string]uint),
-		tunnels:       make(map[string]int64),
 	}
-}
-
-func (s *Server) InitState(sd StateDriver) error {
-	s.driver = sd
-	state, err := s.driver.Get()
-	if err != nil {
-		return err
-	}
-
-	// populate classID maps based on the state
-	for epg, classID := range state.Status.ClassIDs {
-		s.instToClassID[epg] = classID
-		s.usedClassIDs[classID] = true
-	}
-
-	return nil
 }
 
 func (s *Server) getEncapClass(instURL string) (uint, uint) {
@@ -168,7 +141,6 @@ func (s *Server) getEncapClass(instURL string) (uint, uint) {
 		if !s.usedClassIDs[class] {
 			s.usedClassIDs[class] = true
 			s.instToClassID[instURL] = class
-			s.writeState()
 			return encapFromClass(class), class
 		}
 	}
@@ -182,17 +154,6 @@ func (s *Server) freeEncapClass(instURL string) {
 	log.Debugf("Freeing class: %v, uri: %s", class, instURL)
 	delete(s.instToClassID, instURL)
 	delete(s.usedClassIDs, class)
-	s.writeState()
-}
-
-func (s *Server) writeState() {
-	state := &crdv1.GBPSState{}
-	state.Status.ClassIDs = make(map[string]uint, len(s.instToClassID))
-	for uri, class := range s.instToClassID {
-		state.Status.ClassIDs[uri] = class
-	}
-
-	s.driver.Update(state)
 }
 
 func (s *Server) Config() *GBPServerConfig {
@@ -305,15 +266,6 @@ func (s *Server) DelEP(ep Endpoint) {
 	s.rxCh <- m
 }
 
-func (s *Server) UpdateTunnels(tunnels map[string]int64) {
-	m := &inputMsg{
-		op:   OpUpdTunnels,
-		data: tunnels,
-	}
-
-	s.rxCh <- m
-}
-
 func (s *Server) handleMsgs() {
 	moDB := getMoDB()
 	gMutex.Lock()
@@ -327,23 +279,6 @@ func (s *Server) handleMsgs() {
 		gMutex.Lock()
 
 		switch m.op {
-		case OpUpdTunnels:
-			tunnels, ok := m.data.(map[string]int64)
-			if !ok {
-				log.Errorf("Bad OpUpdTunnels msg")
-				continue
-			}
-
-			log.Debugf("OpUpdTunnels: %+v", tunnels)
-			s.tunnels = tunnels
-			var bL []string
-			for tunVtep := range tunnels {
-				bL = append(bL, tunVtep)
-			}
-			s.bounceList = bL
-			for _, fn := range s.listeners {
-				fn(GBPOperation_REPLACE, []string{epInvURI})
-			}
 		case OpaddEP:
 			ep, ok := m.data.(*Endpoint)
 			if !ok {

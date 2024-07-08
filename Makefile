@@ -246,8 +246,6 @@ container-host-ovscni: dist-static/aci-containers-host-agent-ovscni dist-static/
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-host-chained${DOCKER_TAG} -f ./docker/Dockerfile-host-chained${DOCKER_EXT} .
 container-controller: dist-static/aci-containers-controller
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/aci-containers-controller${DOCKER_TAG} -f ./docker/Dockerfile-controller${DOCKER_EXT} .
-container-opflex-build-base:
-	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/opflex-build-base${DOCKER_TAG} -f ./docker/Dockerfile-opflex-build-base docker
 container-openvswitch: dist-static/ovsresync
 	${DOCKER_BUILD_CMD} -t ${DOCKER_HUB_ID}/openvswitch${DOCKER_TAG} -f ./docker/Dockerfile-openvswitch .
 container-cnideploy:

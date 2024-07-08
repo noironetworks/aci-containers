@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,10 +33,6 @@ func (c *FakeAciV1) Contracts(namespace string) v1.ContractInterface {
 
 func (c *FakeAciV1) Epgs(namespace string) v1.EpgInterface {
 	return &FakeEpgs{c, namespace}
-}
-
-func (c *FakeAciV1) GBPSStates(namespace string) v1.GBPSStateInterface {
-	return &FakeGBPSStates{c, namespace}
 }
 
 func (c *FakeAciV1) PodIFs(namespace string) v1.PodIFInterface {

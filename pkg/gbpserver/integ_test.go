@@ -36,46 +36,8 @@ const (
 	testTenant = "gbpKubeTenant"
 )
 
-// implements StateDriver
-type testSD struct {
-	s v1.GBPSState
-}
-
-func (sd *testSD) Init(unused int) error {
-	sm := make(map[string]uint)
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpRoutingDomain/defaultVrf/GbpeInstContext/"] = 32000
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/defaultBD/GbpeInstContext/"] = 32001
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpBridgeDomain/nodeBD/GbpeInstContext/"] = 32002
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-default/GbpeInstContext/"] = 32003
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-system/GbpeInstContext/"] = 32004
-	sm["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/kubernetes%7ckube-nodes/GbpeInstContext/"] = 32005
-	sd.s.Status.ClassIDs = sm
-	return nil
-}
-
-func stateCopy(src, dest *v1.GBPSState) error {
-	b, err := json.Marshal(src)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(b, dest)
-}
-
-func (sd *testSD) Get() (*v1.GBPSState, error) {
-	out := &v1.GBPSState{}
-	return out, stateCopy(&sd.s, out)
-}
-
-func (sd *testSD) Update(s *v1.GBPSState) error {
-	log.Debugf("Update: %+v", s.Status.ClassIDs)
-	sd.s = v1.GBPSState{}
-	return stateCopy(s, &sd.s)
-}
-
 type testSuite struct {
 	dataDir string
-	sd      *testSD
 }
 
 func (ts *testSuite) tearDown() {
@@ -87,9 +49,6 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	assert.Equal(t, err, nil)
 
 	ts.dataDir = dataDir
-	ts.sd = &testSD{}
-	err = ts.sd.Init(0)
-	assert.Equal(t, err, nil)
 
 	gCfg := &GBPServerConfig{}
 	gCfg.LogLevel = "info"
@@ -103,7 +62,7 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	gCfg.AciVmmDomain = "testDom"
 	gCfg.AciVrf = "defaultVrf"
 
-	s, err := StartNewServer(gCfg, ts.sd)
+	s, err := StartNewServer(gCfg)
 	if err != nil {
 		t.Fatalf("Starting api server: %v", err)
 	}
@@ -335,22 +294,8 @@ rcvLoop:
 
 	s.AddEPG(epg)
 
-	assert.Eventually(t, func() bool {
-		state, err := suite.sd.Get()
-		assert.Equal(t, err, nil)
-		class := state.Status.ClassIDs["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/newComer/GbpeInstContext/"]
-		return class >= uint(32000) && class <= uint(64000)
-	}, time.Second, time.Millisecond)
-
-	// delete epg and verify state update
+	// delete epg
 	s.DelEPG(epg)
-	assert.Eventually(t, func() bool {
-		state, err := suite.sd.Get()
-		assert.Equal(t, err, nil)
-		_, found := state.Status.ClassIDs["/PolicyUniverse/PolicySpace/gbpKubeTenant/GbpEpGroup/newComer/GbpeInstContext/"]
-		return !found
-	}, 2*time.Second, time.Millisecond)
-
 	// delete the contract.
 	s.DelContract(contract)
 	time.Sleep(2 * time.Second)

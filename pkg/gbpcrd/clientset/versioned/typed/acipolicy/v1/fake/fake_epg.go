@@ -1,5 +1,5 @@
 /***
-Copyright 2019 Cisco Systems Inc. All rights reserved.
+Copyright 2021 Cisco Systems Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,10 +20,9 @@ package fake
 import (
 	"context"
 
-	acipolicyv1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/noironetworks/aci-containers/pkg/gbpcrd/apis/acipolicy/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,25 +34,25 @@ type FakeEpgs struct {
 	ns   string
 }
 
-var epgsResource = schema.GroupVersionResource{Group: "aci.aw", Version: "v1", Resource: "epgs"}
+var epgsResource = v1.SchemeGroupVersion.WithResource("epgs")
 
-var epgsKind = schema.GroupVersionKind{Group: "aci.aw", Version: "v1", Kind: "Epg"}
+var epgsKind = v1.SchemeGroupVersion.WithKind("Epg")
 
 // Get takes name of the epg, and returns the corresponding epg object, and an error if there is any.
-func (c *FakeEpgs) Get(ctx context.Context, name string, options v1.GetOptions) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Epg, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(epgsResource, c.ns, name), &acipolicyv1.Epg{})
+		Invokes(testing.NewGetAction(epgsResource, c.ns, name), &v1.Epg{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acipolicyv1.Epg), err
+	return obj.(*v1.Epg), err
 }
 
 // List takes label and field selectors, and returns the list of Epgs that match those selectors.
-func (c *FakeEpgs) List(ctx context.Context, opts v1.ListOptions) (result *acipolicyv1.EpgList, err error) {
+func (c *FakeEpgs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.EpgList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(epgsResource, epgsKind, c.ns, opts), &acipolicyv1.EpgList{})
+		Invokes(testing.NewListAction(epgsResource, epgsKind, c.ns, opts), &v1.EpgList{})
 
 	if obj == nil {
 		return nil, err
@@ -63,8 +62,8 @@ func (c *FakeEpgs) List(ctx context.Context, opts v1.ListOptions) (result *acipo
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &acipolicyv1.EpgList{ListMeta: obj.(*acipolicyv1.EpgList).ListMeta}
-	for _, item := range obj.(*acipolicyv1.EpgList).Items {
+	list := &v1.EpgList{ListMeta: obj.(*v1.EpgList).ListMeta}
+	for _, item := range obj.(*v1.EpgList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -73,57 +72,57 @@ func (c *FakeEpgs) List(ctx context.Context, opts v1.ListOptions) (result *acipo
 }
 
 // Watch returns a watch.Interface that watches the requested epgs.
-func (c *FakeEpgs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeEpgs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(epgsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a epg and creates it.  Returns the server's representation of the epg, and an error, if there is any.
-func (c *FakeEpgs) Create(ctx context.Context, epg *acipolicyv1.Epg, opts v1.CreateOptions) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Create(ctx context.Context, epg *v1.Epg, opts metav1.CreateOptions) (result *v1.Epg, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(epgsResource, c.ns, epg), &acipolicyv1.Epg{})
+		Invokes(testing.NewCreateAction(epgsResource, c.ns, epg), &v1.Epg{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acipolicyv1.Epg), err
+	return obj.(*v1.Epg), err
 }
 
 // Update takes the representation of a epg and updates it. Returns the server's representation of the epg, and an error, if there is any.
-func (c *FakeEpgs) Update(ctx context.Context, epg *acipolicyv1.Epg, opts v1.UpdateOptions) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Update(ctx context.Context, epg *v1.Epg, opts metav1.UpdateOptions) (result *v1.Epg, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(epgsResource, c.ns, epg), &acipolicyv1.Epg{})
+		Invokes(testing.NewUpdateAction(epgsResource, c.ns, epg), &v1.Epg{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acipolicyv1.Epg), err
+	return obj.(*v1.Epg), err
 }
 
 // Delete takes name of the epg and deletes it. Returns an error if one occurs.
-func (c *FakeEpgs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeEpgs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(epgsResource, c.ns, name), &acipolicyv1.Epg{})
+		Invokes(testing.NewDeleteActionWithOptions(epgsResource, c.ns, name, opts), &v1.Epg{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeEpgs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeEpgs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(epgsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &acipolicyv1.EpgList{})
+	_, err := c.Fake.Invokes(action, &v1.EpgList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched epg.
-func (c *FakeEpgs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *acipolicyv1.Epg, err error) {
+func (c *FakeEpgs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Epg, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(epgsResource, c.ns, name, pt, data, subresources...), &acipolicyv1.Epg{})
+		Invokes(testing.NewPatchSubresourceAction(epgsResource, c.ns, name, pt, data, subresources...), &v1.Epg{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*acipolicyv1.Epg), err
+	return obj.(*v1.Epg), err
 }
