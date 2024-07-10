@@ -480,7 +480,7 @@ func (cont *AciController) createNodeFabNetAttSvi(vlan int, sviContext *SviConte
 		l3OutConfigured := false
 		rtCtrl := ""
 		if tenantConfigured {
-			nfL3Out, l3OutConfigured := nfTenantData.L3OutConfig[sviContext.connectedNw.L3OutName]
+			nfL3Out, l3OutConfigured = nfTenantData.L3OutConfig[sviContext.connectedNw.L3OutName]
 			if l3OutConfigured {
 				rtCtrl = nfL3Out.RtCtrl
 			}
@@ -594,6 +594,7 @@ func (cont *AciController) populateTenantData(tenantData *fabattv1.FabricTenantC
 		nfL3OutData := cont.populateL3OutData(&l3OutData, sviMap)
 		nfTenantData.L3OutConfig[l3OutData.Name] = nfL3OutData
 	}
+	cont.sharedEncapTenantCache[l3outTenant] = nfTenantData
 	return nfTenantData, l3outTenant
 }
 

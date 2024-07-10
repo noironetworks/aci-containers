@@ -885,9 +885,22 @@ var metadata = map[string]*apicMeta{
 			"l3extLNodeP",
 			"l3extLIfP",
 			"l3extInstP",
+			"l3extRsEctx",
+			"l3extRsL3DomAtt",
 		},
 	},
-
+	"l3extRsEctx": {
+		attributes: map[string]interface{}{
+			"tnFvCtxName": "",
+		},
+		children: []string{},
+	},
+	"l3extRsL3DomAtt": {
+		attributes: map[string]interface{}{
+			"tDn": "",
+		},
+		children: []string{},
+	},
 	"bgpPeerP": {
 		attributes: map[string]interface{}{
 			"addr": "",
