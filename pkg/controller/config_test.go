@@ -84,6 +84,7 @@ func TestInitFlags(t *testing.T) {
 		EnableVmmInjectedLabels:           false,
 		OpflexDeviceDeleteTimeout:         0,
 		SleepTimeSnatGlobalInfoSync:       0,
+		UnknownMacUnicastAction:           "proxy",
 		AciPhysDom:                        "",
 		ChainedMode:                       false,
 		AciAdditionalAep:                  "",

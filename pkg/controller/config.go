@@ -256,6 +256,10 @@ type ControllerConfig struct {
 	// Configure sleep time for global SNAT sync
 	SleepTimeSnatGlobalInfoSync int `json:"sleep-time-snat-global-info-sync,omitempty"`
 
+	// Configure unkMacUcastAct attribute of service BD
+	// The forwarding method for unknown layer 2 destinations
+	UnknownMacUnicastAction string `json:"unkown-mac-unicast-action,omitempty"`
+
 	// PhysDom for additional networks in chained mode
 	AciPhysDom string `json:"aci-phys-dom,omitempty"`
 
@@ -329,6 +333,7 @@ func InitFlags(config *ControllerConfig) {
 
 	flag.IntVar(&config.StatusPort, "status-port", 8091, " TCP port to run status server on (or 0 to disable)")
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
+	flag.StringVar(&config.UnknownMacUnicastAction, "unkown-mac-unicast-action", "proxy", "Set the forwarding method for unknown mac for service BD")
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 	flag.BoolVar(&config.AciUseGlobalScopeVlan, "aci-use-global-scope-vlan", false, "Use global vlans for NADs in chained mode")
