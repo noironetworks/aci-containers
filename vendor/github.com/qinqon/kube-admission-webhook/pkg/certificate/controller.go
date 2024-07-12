@@ -30,10 +30,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
+
+// Watch only events for selected m.webhookName
+type onEventForThisWebhook[T client.Object] struct {
+	m *Manager
+}
+
+func (p onEventForThisWebhook[T]) Create(createEvent event.TypedCreateEvent[T]) bool {
+	return p.m.isWebhookConfig(createEvent.Object) || (isAnnotatedResource(createEvent.Object) && p.m.isGeneratedSecret(createEvent.Object))
+}
+
+func (p onEventForThisWebhook[T]) Delete(deleteEvent event.TypedDeleteEvent[T]) bool {
+	return isAnnotatedResource(deleteEvent.Object) && p.m.isGeneratedSecret(deleteEvent.Object)
+}
+
+func (p onEventForThisWebhook[T]) Update(updateEvent event.TypedUpdateEvent[T]) bool {
+	return p.m.isWebhookConfig(updateEvent.ObjectOld) ||
+		(isAnnotatedResource(updateEvent.ObjectOld) && p.m.isGeneratedSecret(updateEvent.ObjectOld))
+}
+
+func (p onEventForThisWebhook[T]) Generic(genericEvent event.TypedGenericEvent[T]) bool {
+	return p.m.isWebhookConfig(genericEvent.Object) || (isAnnotatedResource(genericEvent.Object) && p.m.isGeneratedSecret(genericEvent.Object))
+}
 
 // Add creates a new Node Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -50,39 +71,22 @@ func (m *Manager) add(mgr manager.Manager) error {
 		return errors.Wrap(err, "failed instanciating certificate controller")
 	}
 
-	// Watch only events for selected m.webhookName
-	onEventForThisWebhook := predicate.Funcs{
-		CreateFunc: func(createEvent event.CreateEvent) bool {
-			return m.isWebhookConfig(createEvent.Object) || (isAnnotatedResource(createEvent.Object) && m.isGeneratedSecret(createEvent.Object))
-		},
-		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
-			return isAnnotatedResource(deleteEvent.Object) && m.isGeneratedSecret(deleteEvent.Object)
-		},
-		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
-			return m.isWebhookConfig(updateEvent.ObjectOld) ||
-				(isAnnotatedResource(updateEvent.ObjectOld) && m.isGeneratedSecret(updateEvent.ObjectOld))
-		},
-		GenericFunc: func(genericEvent event.GenericEvent) bool {
-			return m.isWebhookConfig(genericEvent.Object) || (isAnnotatedResource(genericEvent.Object) && m.isGeneratedSecret(genericEvent.Object))
-		},
-	}
-
 	logger.Info("Starting to watch secrets")
-	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Secret{}), &handler.EnqueueRequestForObject{}, onEventForThisWebhook)
+	err = c.Watch(source.Kind[*corev1.Secret](mgr.GetCache(), &corev1.Secret{}, &handler.TypedEnqueueRequestForObject[*corev1.Secret]{}, onEventForThisWebhook[*corev1.Secret]{m: m}))
 	if err != nil {
 		return errors.Wrap(err, "failed watching Secret")
 	}
 
 	logger.Info("Starting to watch validatingwebhookconfiguration")
-	err = c.Watch(source.Kind(mgr.GetCache(), &admissionregistrationv1.ValidatingWebhookConfiguration{}),
-		&handler.EnqueueRequestForObject{}, onEventForThisWebhook)
+	err = c.Watch(source.Kind[*admissionregistrationv1.ValidatingWebhookConfiguration](mgr.GetCache(), &admissionregistrationv1.ValidatingWebhookConfiguration{},
+		&handler.TypedEnqueueRequestForObject[*admissionregistrationv1.ValidatingWebhookConfiguration]{}, onEventForThisWebhook[*admissionregistrationv1.ValidatingWebhookConfiguration]{m: m}))
 	if err != nil {
 		return errors.Wrap(err, "failed watching ValidatingWebhookConfiguration")
 	}
 
 	logger.Info("Starting to watch mutatingwebhookconfiguration")
-	err = c.Watch(source.Kind(mgr.GetCache(), &admissionregistrationv1.MutatingWebhookConfiguration{}),
-		&handler.EnqueueRequestForObject{}, onEventForThisWebhook)
+	err = c.Watch(source.Kind[*admissionregistrationv1.MutatingWebhookConfiguration](mgr.GetCache(), &admissionregistrationv1.MutatingWebhookConfiguration{},
+		&handler.TypedEnqueueRequestForObject[*admissionregistrationv1.MutatingWebhookConfiguration]{}, onEventForThisWebhook[*admissionregistrationv1.MutatingWebhookConfiguration]{m: m}))
 	if err != nil {
 		return errors.Wrap(err, "failed watching MutatingWebhookConfiguration")
 	}
