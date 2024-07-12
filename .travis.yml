@@ -12,7 +12,7 @@ jobs:
     - stage: check
       if: tag IS NOT present
       sudo: false
-      go: 1.21.x
+      go: 1.22.5
       before_install:
         - go install github.com/mattn/goveralls@v0.0.12
       install:

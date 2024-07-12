@@ -80,7 +80,7 @@ func (m *Manager) readyWebhookConfiguration() (client.Object, error) {
 	pollInterval := time.Second
 	pollTimeout := 120 * time.Second
 	// Do some polling to wait for manifest to be deployed
-	err := wait.PollUntilContextTimeout(context.TODO(), pollInterval, pollTimeout, false, func(_ context.Context) (bool, error) {
+	err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
 		webhookKey := types.NamespacedName{Name: m.webhookName}
 		err := m.get(webhookKey, webhook)
 		if err != nil {
