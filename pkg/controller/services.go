@@ -240,7 +240,7 @@ func (cont *AciController) staticServiceObjs() apicapi.ApicSlice {
 	}
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
-	bd.SetAttr("unkMacUcastAct", "flood")
+	bd.SetAttr("unkMacUcastAct", cont.config.UnknownMacUnicastAction)
 	bdToOut := apicapi.NewRsBdToOut(bd.GetDn(), cont.config.AciL3Out)
 	bd.AddChild(bdToOut)
 	bdToVrf := apicapi.NewRsCtx(bd.GetDn(), cont.config.AciVrf)
