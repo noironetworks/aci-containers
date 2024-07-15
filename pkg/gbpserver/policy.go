@@ -52,12 +52,6 @@ type Contract struct {
 }
 
 func (c *Contract) Make() error {
-	// if the contract exists, just update its classifier
-	//	currMo := MoDB[c.getURI()]
-	//	if currMo != nil {
-	//		return c.makeClassifiers()
-	//	}
-
 	// make a contract mo and its children
 	cmo := &GBPContract{}
 	cmo.Make(c.Name, c.getURI())
@@ -311,7 +305,6 @@ type EPG struct {
 	Name          string   `json:"name,omitempty"`
 	ConsContracts []string `json:"consumed-contracts,omitempty"`
 	ProvContracts []string `json:"provided-contracts,omitempty"`
-	ApicDN        string
 	bds           *BDSubnet
 }
 

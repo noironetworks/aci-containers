@@ -27,14 +27,6 @@ type FakeAciV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeAciV1) Contracts(namespace string) v1.ContractInterface {
-	return &FakeContracts{c, namespace}
-}
-
-func (c *FakeAciV1) Epgs(namespace string) v1.EpgInterface {
-	return &FakeEpgs{c, namespace}
-}
-
 func (c *FakeAciV1) PodIFs(namespace string) v1.PodIFInterface {
 	return &FakePodIFs{c, namespace}
 }

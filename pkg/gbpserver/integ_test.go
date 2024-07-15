@@ -55,7 +55,6 @@ func (ts *testSuite) setupGBPServer(t *testing.T) *Server {
 	gCfg.GRPCLogLevel = "info"
 	gCfg.WatchLogLevel = "info"
 	gCfg.GRPCPort = 19999
-	gCfg.ProxyListenPort = 8899
 	gCfg.PodSubnet = "10.2.56.1/21"
 	gCfg.NodeSubnet = "1.100.201.0/24"
 	gCfg.AciPolicyTenant = testTenant

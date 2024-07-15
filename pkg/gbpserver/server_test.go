@@ -16,9 +16,10 @@ limitations under the License.
 package gbpserver
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
-	reflect "reflect"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -26,7 +27,7 @@ import (
 func TestLoginHandlerServeHTTP(t *testing.T) {
 	handler := &loginHandler{}
 
-	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create HTTP request: %v", err)
 	}
@@ -42,7 +43,7 @@ func TestLoginHandlerServeHTTP(t *testing.T) {
 func TestNfhServeHTTP(t *testing.T) {
 	n := &nfh{}
 
-	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
 	if err != nil {
 		t.Fatalf("Failed to create HTTP request: %v", err)
 	}

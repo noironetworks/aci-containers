@@ -29,17 +29,8 @@ type GBPServerConfig struct {
 	// Watch log level
 	WatchLogLevel string `json:"watch-log-level,omitempty"`
 
-	// Absolute path to a kubeconfig file
-	KubeConfig string `json:"kubeconfig,omitempty"`
-
-	// TCP port to run status server on (or 0 to disable)
-	StatusPort int `json:"status-port,omitempty"`
-
 	// TCP port to run grpc server on
 	GRPCPort int `json:"grpc-port,omitempty"`
-
-	// TCP port to run apic proxy server on (or 0 to disable)
-	ProxyListenPort int `json:"proxy-listen-port,omitempty"`
 
 	// Pod subnet CIDR in the form <gateway-address>/<prefix-length> that
 	// cover all pod-ip-pools
@@ -67,10 +58,7 @@ func InitConfig(config *GBPServerConfig) {
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level")
 	flag.StringVar(&config.GRPCLogLevel, "grpc-log-level", "info", "Log level")
 	flag.StringVar(&config.WatchLogLevel, "watch-log-level", "info", "Log level")
-	flag.StringVar(&config.KubeConfig, "kubeconfig", "", "Absolute path to a kubeconfig file")
-	flag.IntVar(&config.StatusPort, "status-port", 8092, "TCP port to run status server on (or 0 to disable)")
 	flag.IntVar(&config.GRPCPort, "grpc-port", 19999, "TCP port to run grpc server on")
-	flag.IntVar(&config.ProxyListenPort, "proxy-listen-port", 8899, "TCP port to run apic proxy listener on(0 to disable)")
 	flag.StringVar(&config.AciPolicyTenant, "aci-policy-tenant", "kube", "Tenant")
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubedom", "VmmDomain")
 	flag.StringVar(&config.AciVrf, "aci-vrf", "defaultVrf", "Vrf")

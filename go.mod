@@ -5,11 +5,9 @@ require (
 	github.com/containernetworking/plugins v1.4.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/golang/glog v1.1.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.1.1-0.20201119153432-9d213757d22d
 	github.com/k8snetworkplumbingwg/sriov-network-device-plugin v0.0.0
