@@ -450,6 +450,13 @@ func NewPhysDomP(physDom string) ApicObject {
 	return ret
 }
 
+func NewL3DomP(l3Dom string) ApicObject {
+	ret := newApicObject("l3extDomP")
+	ret["l3extDomP"].Attributes["name"] = l3Dom
+	ret["l3extDomP"].HintDn = "uni/l3dom-" + l3Dom
+	return ret
+}
+
 func NewInfraRsDomP(parentDn, tDn string) ApicObject {
 	ret := newApicObject("infraRsDomP")
 	ret["infraRsDomP"].Attributes["tDn"] = tDn
@@ -1025,7 +1032,7 @@ func NewL3ExtVirtualLifP(parentDn, ifInstT, nodeDn, encap, addr string) ApicObje
 	ret["l3extVirtualLIfP"].Attributes["nodeDn"] = nodeDn
 	ret["l3extVirtualLIfP"].Attributes["encap"] = encap
 	ret["l3extVirtualLIfP"].Attributes["ifInstT"] = ifInstT
-	ret["l3extVirtualLIfP"].Attributes["encapScope"] = "local"
+	ret["l3extVirtualLIfP"].Attributes["encapScope"] = "ctx"
 	ret["l3extVirtualLIfP"].Attributes["addr"] = addr
 	ret["l3extVirtualLIfP"].Attributes["autostate"] = "enabled"
 	ret["l3extVirtualLIfP"].HintDn =
@@ -1463,9 +1470,9 @@ func NewL3ExtRsEctx(tenant, out, name string) ApicObject {
 }
 
 func NewL3ExtRsL3DomAtt(tenant, outName, l3Dom string) ApicObject {
-	ret := newApicObject("l3extL3DomAtt")
-	ret["l3extL3DomAtt"].Attributes["tDn"] = fmt.Sprintf("uni/l3dom-%s", l3Dom)
-	ret["l3extL3DomAtt"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s/rsl3DomAtt", tenant, outName)
+	ret := newApicObject("l3extRsL3DomAtt")
+	ret["l3extRsL3DomAtt"].Attributes["tDn"] = fmt.Sprintf("uni/l3dom-%s", l3Dom)
+	ret["l3extRsL3DomAtt"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s/rsl3DomAtt", tenant, outName)
 	return ret
 }
 

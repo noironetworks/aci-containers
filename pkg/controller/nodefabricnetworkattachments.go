@@ -152,6 +152,7 @@ func (cont *AciController) clearGlobalScopeVlanConfig(progMap map[string]apicapi
 	labelKey := cont.aciNameForKey("nfna", globalScopeVlanDomPrefix)
 	progMap[labelKey] = nil
 	cont.globalVlanConfig.SharedPhysDom = nil
+	cont.globalVlanConfig.SharedL3Dom = nil
 }
 
 func (cont *AciController) setGlobalScopeVlanConfig(encapStr string, progMap map[string]apicapi.ApicSlice) {
@@ -160,7 +161,7 @@ func (cont *AciController) setGlobalScopeVlanConfig(encapStr string, progMap map
 		cont.log.Errorf("Cannot set globalscope objects in per-port vlan mode")
 		return
 	}
-	if cont.globalVlanConfig.SharedPhysDom != nil {
+	if (cont.globalVlanConfig.SharedPhysDom != nil) && (cont.globalVlanConfig.SharedL3Dom != nil) {
 		return
 	}
 	_, encapBlks, _, err := util.ParseVlanList([]string{encapStr})
@@ -456,8 +457,8 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string, explici
 			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, globalScopeVlanBdPrefix, vlan)
 		}
 	}
-	var epg apicapi.ApicObject
-	epg = apicapi.NewFvAEPg(tenantName, apName, epgName)
+
+	epg := apicapi.NewFvAEPg(tenantName, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
 	if !cont.config.AciUseGlobalScopeVlan {
@@ -500,15 +501,23 @@ func (cont *AciController) updateNodeFabNetAttDom(encapBlks []string, networkNam
 	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
 	physDom.AddChild(infraRsVlanNs)
 	apicSlice = append(apicSlice, physDom)
+	// Create l3dom
+	l3Dom := apicapi.NewL3DomP(cont.config.AciPolicyTenant + "-" + networkName)
+	infraRsVlanNs2 := apicapi.NewInfraRsVlanNs(l3Dom.GetDn(), fvnsVlanInstP.GetDn())
+	l3Dom.AddChild(infraRsVlanNs2)
+	apicSlice = append(apicSlice, l3Dom)
 	// associate aep with physdom
 	secondaryAepDn := "uni/infra/attentp-" + cont.config.AciAdditionalAep
 	infraRsDomP := apicapi.NewInfraRsDomP(secondaryAepDn, physDom.GetDn())
 	apicSlice = append(apicSlice, infraRsDomP)
+	// associate aep with l3dom
+	infraRsDomP2 := apicapi.NewInfraRsDomP(secondaryAepDn, l3Dom.GetDn())
+	apicSlice = append(apicSlice, infraRsDomP2)
 	if cont.config.AciUseGlobalScopeVlan {
 		cont.globalVlanConfig.SharedPhysDom = physDom
+		cont.globalVlanConfig.SharedL3Dom = l3Dom
 	}
 	return apicSlice
-
 }
 
 func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, networkName string, epg apicapi.ApicObject, apicSlice apicapi.ApicSlice, progMap map[string]apicapi.ApicSlice) apicapi.ApicSlice {
@@ -873,7 +882,6 @@ func (cont *AciController) updateNodeFabNetAttObj(nodeFabNetAtt *fabattv1.NodeFa
 			EncapVlan:   nodeFabNetAtt.Spec.EncapVlan.VlanList,
 			FabricLink:  make(map[string]map[string]LinkData),
 			NodeCache:   make(map[string]*fabattv1.NodeFabricNetworkAttachment),
-			NetAddr:     make(map[string]*RoutedNetworkData),
 			Mode:        util.ToEncapMode(nodeFabNetAtt.Spec.EncapVlan.Mode)}
 		cont.additionalNetworkCache[addNetKey] = addNet
 	} else {
