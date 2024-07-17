@@ -34,7 +34,7 @@ jobs:
         - chmod a+x ~/.docker/cli-plugins/docker-buildx
       install:
         - pip install pytz
-      go: 1.21.x
+      go: 1.22.5
       go_import_path: github.com/noironetworks/aci-containers
       before_script:
         - export DOCKER_BUILDKIT=1
