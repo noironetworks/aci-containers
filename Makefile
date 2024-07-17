@@ -156,6 +156,9 @@ goinstall:
 	${INSTALL_CMD} ${BASE}/cmd/controller
 	${INSTALL_CMD} ${BASE}/cmd/hostagent
 	${INSTALL_CMD} ${BASE}/cmd/acikubectl
+	${INSTALL_CMD} ${BASE}/cmd/acicontainersoperator
+	${INSTALL_CMD} ${BASE}/cmd/webhook
+	${INSTALL_CMD} ${BASE}/cmd/certmanager
 
 dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
@@ -268,7 +271,7 @@ fix-gofmt:
 lint:
 	@${LINT_CMD} run
 
-check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver
+check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver check-webhook check-certmanager check-acicontainersoperator
 check-ipam:
 	cd pkg/ipam; ${TEST_CMD} -coverprofile=../../covprof-ipam ${TEST_ARGS}
 check-index:
@@ -281,6 +284,12 @@ check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:
 	${TEST_CMD} -coverprofile=covprof-gbpserver ${BASE}/pkg/gbpserver/... ${TEST_ARGS} && ./exclude-covprof.sh covprof-gbpserver exclude-covprof.conf
+check-webhook:
+	${TEST_CMD} -coverprofile=covprof-webhook ${BASE}/cmd/webhook ${BASE}/pkg/webhook ${TEST_ARGS} && ./exclude-covprof.sh covprof-webhook exclude-covprof.conf
+check-certmanager:
+	${TEST_CMD} -coverprofile=covprof-certmanager ${BASE}/cmd/certmanager ${TEST_ARGS} && ./exclude-covprof.sh covprof-certmanager exclude-covprof.conf
+check-acicontainersoperator:
+	${TEST_CMD} -coverprofile=covprof-acicontainersoperator ${BASE}/cmd/acicontainersoperator ${TEST_ARGS} && ./exclude-covprof.sh covprof-acicontainersoperator exclude-covprof.conf
 
 .PHONY: test-tools
 test-tools:
