@@ -15,9 +15,10 @@
 package hostagent
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInitFlags(t *testing.T) {
@@ -45,6 +46,7 @@ func TestInitFlags(t *testing.T) {
 		OpFlexServerConfigFile:      "/usr/local/var/lib/opflex-server/config.json",
 		PacketEventNotificationSock: "/usr/local/var/run/aci-containers-packet-event-notification.sock",
 		OpFlexDropLogConfigDir:      "/usr/local/var/lib/opflex-agent-ovs/droplog",
+		OpFlexNetPolDir:             "/usr/local/var/lib/opflex-agent-ovs/netpols/",
 		OpFlexDropLogRemoteIp:       "192.168.1.2",
 		OvsDbSock:                   "/usr/local/var/run/openvswitch/db.sock",
 		EpRpcSock:                   "/usr/local/var/run/aci-containers-ep-rpc.sock",
@@ -63,6 +65,7 @@ func TestInitFlags(t *testing.T) {
 		AciVrfTenant:                "common",
 		Zone:                        8191,
 		AciSnatNamespace:            "aci-containers-system",
+		AciHppObjsNamespace:         "aci-containers-system",
 		EnableDropLogging:           false,
 		DropLogAccessInterface:      "gen2",
 		DropLogIntInterface:         "gen1",

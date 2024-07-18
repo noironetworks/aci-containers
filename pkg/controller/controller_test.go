@@ -16,6 +16,7 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -52,4 +53,57 @@ func TestAciName(t *testing.T) {
 		assert.Equal(t, tc.result, name)
 		assert.True(t, len(name) < 64)
 	}
+}
+
+func TestProcessRemIpContQueue(t *testing.T) {
+	cont := NewController(nil, nil, nil, false)
+	queue := createQueue("remIpContQueue")
+	stopCh := make(chan struct{})
+
+	queue.Add("test1")
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		close(stopCh)
+	}()
+
+	fake_chan := make(chan string)
+	fake_del_chan := make(chan string)
+	fake_handler := func(s interface{}) bool {
+		fake_chan <- "fake_handler_called"
+		return false
+	}
+
+	fake_del_handler := func() bool {
+		fake_del_chan <- "fake_del_handler_called"
+		return false
+	}
+
+	cont.processRemIpContQueue(queue, fake_handler, fake_del_handler, stopCh)
+
+	fake_handler_called := false
+	fake_del_handler_called := false
+
+waitHandler:
+	for {
+		select {
+		case n := <-fake_chan:
+			if n == "fake_handler_called" {
+				fake_handler_called = true
+			}
+		case m := <-fake_del_chan:
+			if m == "fake_del_handler_called" {
+				fake_del_handler_called = true
+			}
+		case <-time.After(1 * time.Second):
+			assert.True(t, false, "Timeout waiting for handler")
+		}
+
+		if fake_handler_called && fake_del_handler_called {
+			break waitHandler
+		}
+	}
+
+	assert.True(t, fake_handler_called, "fake_handler not called")
+	assert.True(t, fake_del_handler_called, "fake_del_handler not called")
 }

@@ -151,6 +151,11 @@ if [ -w ${PREFIX} ]; then
     else
         mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
     fi
+    if [ -d "${VARDIR}/lib/opflex-agent-ovs/netpols" ]; then
+        rm -rf "${VARDIR}/lib/opflex-agent-ovs/netpols"/*
+    else
+        mkdir -p "${VARDIR}/lib/opflex-agent-ovs/netpols"
+    fi
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog

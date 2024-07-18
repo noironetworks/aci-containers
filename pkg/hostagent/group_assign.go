@@ -89,7 +89,7 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 			}
 			if exists && obj != nil {
 				var labelKey string
-				if agent.config.HppOptimization {
+				if agent.config.HppOptimization || agent.config.EnableHppDirect {
 					np := obj.(*v1net.NetworkPolicy)
 					hash, err := util.CreateHashFromNetPol(np)
 					if err != nil {

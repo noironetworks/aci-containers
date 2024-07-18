@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
+	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
@@ -62,6 +63,7 @@ type K8sEnvironment struct {
 	netClient           *netClientSet.Clientset
 	fabattClient        *fabattclientset.Clientset
 	configmapInformer   cache.SharedIndexInformer
+	hppClient           *hppclset.Clientset
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -144,9 +146,14 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize fabric attachment client")
 		return nil, err
 	}
+	hppClient, err := hppclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize hpp client")
+		return nil, err
+	}
 
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient, hppClient: hppClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -175,6 +182,10 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNetworkAttDefInformerFromClient(env.netClient)
 	env.agent.initNadVlanInformerFromClient(env.fabattClient)
 	env.agent.initFabricVlanPoolsInformerFromClient(env.fabattClient)
+	if agent.config.EnableHppDirect {
+		env.agent.initHppInformerFromClient(env.hppClient)
+		env.agent.initHostprotRemoteIpContainerInformerFromClient(env.hppClient)
+	}
 	return nil
 }
 
@@ -244,6 +255,19 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.netPolInformer.HasSynced)
 	env.agent.log.Info("networkPolicy cache sync successful")
 
+	if env.agent.config.EnableHppDirect {
+		env.agent.log.Debug("Starting hpp informers")
+		go env.agent.hppInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for hpp cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.hppInformer.HasSynced)
+		env.agent.log.Info("hpp cache sync successful")
+
+		env.agent.log.Debug("Starting hostprotremoteipcontainer informers")
+		go env.agent.hppRemoteIpInformer.Run(stopCh)
+		env.agent.log.Info("Waiting for hostprotremoteipcontainer cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.hppRemoteIpInformer.HasSynced)
+		env.agent.log.Info("hostprotremoteipcontainer cache sync successful")
+	}
 	env.agent.log.Debug("Starting deployment informers")
 	go env.agent.depInformer.Run(stopCh)
 	env.agent.log.Info("Waiting for deployment cache sync")
