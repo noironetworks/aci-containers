@@ -34,6 +34,7 @@ type RunTimeData struct {
 	// encap -> FabricNode -> PeerInfo
 	FabricPeerInfo map[int]*FabricPeeringInfo
 	CommonMutex    sync.Mutex
+	EligiblePods   map[string]bool
 }
 
 type Config struct {
