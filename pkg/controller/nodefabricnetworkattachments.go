@@ -291,7 +291,7 @@ func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, en
 		}
 	}
 	if ctxt.present {
-		cont.updateNetworkFabricL3ConfigurationStatus()
+		cont.updateNetworkFabricL3ConfigurationStatus(true)
 	}
 }
 
@@ -572,6 +572,7 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 			delete(cont.sharedEncapNfcAppProfileMap[apKey], vlan)
 			if len(cont.sharedEncapNfcAppProfileMap[apKey]) == 0 {
 				progMap[apKey] = nil
+				delete(cont.sharedEncapNfcAppProfileMap, apKey)
 			}
 		}
 		return
@@ -589,7 +590,7 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 			if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
 				var apicSlice apicapi.ApicSlice
 				cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-				ap := apicapi.NewFvAP(nfcEpgTenant, nfcEpgAp)
+				ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
 				apicSlice = append(apicSlice, ap)
 				apKey := cont.aciNameForKey("ap", apLabel)
 				progMap[apKey] = apicSlice
@@ -692,7 +693,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 				apLabel := "tenant_" + tenantName + "_" + nfcEpgAp
 				if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
 					cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-					ap := apicapi.NewFvAP(nfcEpgTenant, nfcEpgAp)
+					ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
 					apicSlice = append(apicSlice, ap)
 					apKey := cont.aciNameForKey("ap", apLabel)
 					progMap[apKey] = apicSlice
@@ -757,7 +758,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 				apLabel := "tenant_" + tenantName + "_" + nfcEpgAp
 				if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
 					cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-					ap := apicapi.NewFvAP(nfcEpgTenant, nfcEpgAp)
+					ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
 					apicSlice = append(apicSlice, ap)
 					apKey := cont.aciNameForKey("ap", apLabel)
 					progMap[apKey] = apicSlice

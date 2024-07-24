@@ -328,7 +328,7 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	labelKey = cont.aciNameForKey("nfna", epgName)
 	expectedApicSlice1 = CreateNFNASVIObjs(cont, 101, preexisting_l3out, use_regular_svi)
 	assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create floating svi")
-	status := cont.computeNetworkFabricL3ConfigurationStatus()
+	status := cont.computeNetworkFabricL3ConfigurationStatus(false)
 	expectedStatus := GetNFCL3Status(101, sviType, preexisting_l3out)
 	assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, status.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, "nfcl3status svi")
 	if expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef != status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef {
@@ -378,7 +378,7 @@ func NFCL3RestoreCase(t *testing.T, additionalVlans string, aciPrefix string, pr
 	cont.updateNodeFabNetAttObj(nfna1)
 	nfcL3Obj = CreateNFCL3(101, sviType, preexisting_l3out)
 	cont.updateNetworkFabricL3ConfigObj(nfcL3Obj)
-	status := cont.computeNetworkFabricL3ConfigurationStatus()
+	status := cont.computeNetworkFabricL3ConfigurationStatus(false)
 	assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, status.Vrfs[0].DirectlyConnectedNetworks[0].FabricL3Network, "nfcl3status svi")
 	if expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef != status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0].NodeRef {
 		assert.Equal(t, expectedStatus.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[0], status.Vrfs[0].DirectlyConnectedNetworks[0].Nodes[1], "nfcl3status svi ipam")

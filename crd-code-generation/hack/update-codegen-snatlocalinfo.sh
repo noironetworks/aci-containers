@@ -7,7 +7,7 @@ set -o nounset
 
 SCRIPT_ROOT=$(dirname ${PWD})
 
-vendor/k8s.io/code-generator/generate-groups.sh all \
+vendor/k8s.io/code-generator/kube_codegen.sh all \
   github.com/noironetworks/aci-containers/pkg/snatlocalinfo github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis \
   aci.snat:v1 \
   --go-header-file ${SCRIPT_ROOT}/aci-containers/crd-code-generation/hack/custom-boilerplate.go.txt

@@ -123,9 +123,6 @@ spec:
                   - encap
                   type: object
                 type: array
-            required:
-            - nadRefs
-            - peeringInfo
             type: object
         type: object
         x-kubernetes-validations:

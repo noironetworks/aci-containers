@@ -118,7 +118,7 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	expectedApicSlice1 = CreateNFNASVIObjs(cont, 101, preexisting_l3out, use_regular_svi)
 	assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create floating svi")
 	expectedL3Peers := GetNodeFabricNetworkL3PeerStatus(101)
-	l3peers := cont.computeNodeFabricNetworkL3PeerStatus()
+	l3peers := cont.computeNodeFabricNetworkL3PeerStatus(false)
 	for _, peerInfo := range l3peers.PeeringInfo {
 		sort.Sort(TestFabL3OutNodes(peerInfo.FabricNodes))
 	}
@@ -132,7 +132,7 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	nfcObjCount = 1
 	assert.Equal(t, nfcObjCount, len(delProgMap), "nfna update epg count")
 	expectedL3Peers = &fabattv1.NodeFabricNetworkL3PeerStatus{}
-	l3peers = cont.computeNodeFabricNetworkL3PeerStatus()
+	l3peers = cont.computeNodeFabricNetworkL3PeerStatus(false)
 	assert.Equal(t, expectedL3Peers, l3peers, "nfna nodefabricl3peers status ond delete")
 	delProgMap = cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
 	assert.Equal(t, 2, len(delProgMap), "nfna delete epg count")
