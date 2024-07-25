@@ -27,9 +27,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (cont *AciController) computeNodeFabricNetworkL3PeerStatus() *fabattv1.NodeFabricNetworkL3PeerStatus {
+func (cont *AciController) computeNodeFabricNetworkL3PeerStatus(lock_held bool) *fabattv1.NodeFabricNetworkL3PeerStatus {
 	nodeFabl3PeersStatus := &fabattv1.NodeFabricNetworkL3PeerStatus{}
 	nadAdjs := make(map[string]map[string]map[int][]int)
+	if !lock_held {
+		cont.indexMutex.Lock()
+	}
 	for _, sviData := range cont.sharedEncapSviCache {
 		if len(sviData.NetAddr) > 0 {
 			shEncapData, ok := cont.sharedEncapCache[sviData.ConnectedNw.Encap]
@@ -70,6 +73,9 @@ func (cont *AciController) computeNodeFabricNetworkL3PeerStatus() *fabattv1.Node
 			nodeFabl3PeersStatus.PeeringInfo = append(nodeFabl3PeersStatus.PeeringInfo, peeringInfo)
 		}
 	}
+	if !lock_held {
+		cont.indexMutex.Unlock()
+	}
 	for nadKey, nadData := range nadAdjs {
 		nadParts := strings.Split(nadKey, "/")
 		nadFabL3Peer := fabattv1.NADFabricL3Peer{
@@ -97,13 +103,13 @@ func (cont *AciController) computeNodeFabricNetworkL3PeerStatus() *fabattv1.Node
 	return nodeFabl3PeersStatus
 }
 
-func (cont *AciController) updateNodeFabricNetworkL3Peer() {
+func (cont *AciController) updateNodeFabricNetworkL3Peer(lock_held bool) {
 	if cont.unitTestMode {
 		return
 	}
 	nodeFabricL3Peers, err := cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Get(context.TODO(), "nodefabricnetworkl3peer", metav1.GetOptions{})
 	if err == nil {
-		nodeFabricL3Peers.Status = *cont.computeNodeFabricNetworkL3PeerStatus()
+		nodeFabricL3Peers.Status = *cont.computeNodeFabricNetworkL3PeerStatus(lock_held)
 		_, err = cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Update(context.TODO(), nodeFabricL3Peers, metav1.UpdateOptions{})
 		if err != nil {
 			cont.log.Errorf("Failed to update NodeFabricL3Peers: %v", err)
@@ -112,7 +118,7 @@ func (cont *AciController) updateNodeFabricNetworkL3Peer() {
 		nodeFabricL3Peers = &fabattv1.NodeFabricNetworkL3Peer{
 			ObjectMeta: metav1.ObjectMeta{Name: "nodefabricnetworkl3peer",
 				OwnerReferences: []metav1.OwnerReference{}},
-			Status: *cont.computeNodeFabricNetworkL3PeerStatus(),
+			Status: *cont.computeNodeFabricNetworkL3PeerStatus(lock_held),
 		}
 		_, err = cont.fabNetAttClient.AciV1().NodeFabricNetworkL3Peers().Create(context.TODO(), nodeFabricL3Peers, metav1.CreateOptions{})
 		if err != nil {

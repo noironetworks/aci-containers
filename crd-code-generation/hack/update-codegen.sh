@@ -6,7 +6,7 @@ set -o pipefail
 
 SCRIPT_ROOT=$(dirname ${PWD})
 
-vendor/k8s.io/code-generator/generate-groups.sh client,deepcopy,informer,lister \
+vendor/k8s.io/code-generator/kube_codegen.sh client,deepcopy,informer,lister \
   github.com/noironetworks/aci-containers/pkg/gbpcrd github.com/noironetworks/aci-containers/pkg/gbpcrd/apis \
   acipolicy:v1 \
   --go-header-file ${SCRIPT_ROOT}/aci-containers/crd-code-generation/hack/custom-boilerplate.go.txt

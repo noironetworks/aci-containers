@@ -28,8 +28,8 @@ type NADFabricL3Peer struct {
 }
 
 type NodeFabricNetworkL3PeerStatus struct {
-	NADRefs     []NADFabricL3Peer            `json:"nadRefs"`
-	PeeringInfo []NetworkFabricL3PeeringInfo `json:"peeringInfo"`
+	NADRefs     []NADFabricL3Peer            `json:"nadRefs,omitempty"`
+	PeeringInfo []NetworkFabricL3PeeringInfo `json:"peeringInfo,omitempty"`
 }
 
 // +genclient
