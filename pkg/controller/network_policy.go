@@ -2293,7 +2293,9 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 	}
 
 	if cont.config.HppOptimization || cont.config.EnableHppDirect {
-		cont.removeFromHppCache(oldnp, npkey)
+		if !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
+			cont.removeFromHppCache(oldnp, npkey)
+		}
 	}
 
 	cont.indexMutex.Lock()
