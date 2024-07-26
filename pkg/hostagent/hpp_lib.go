@@ -379,7 +379,7 @@ func addActionRef(p *gbpCommonMo) {
 	// action and action ref
 	aRef := &gbpToMo{}
 	aRef.setSubject(subjActionRsrc)
-	arefURI := fmt.Sprintf("%sGbpLocalSecGroupRuleToActionRSrc/365/%s/", p.Uri, "allow")
+	arefURI := fmt.Sprintf("%sGbpLocalSecGroupRuleToActionRSrc/%s/%s/", p.Uri, subjAction, "allow")
 	aRef.Make("", arefURI)
 	ref := Reference{
 		Subject:      subjAction,
@@ -567,7 +567,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	}
 
 	// make reference
-	tocfURI := fmt.Sprintf("%s%s/192/%s", ruleMo.Uri, subjClassRsrc, escapeName(cname, false))
+	tocfURI := fmt.Sprintf("%s%s/%s/%s", ruleMo.Uri, subjClassRsrc, subjL24Class, escapeName(cname, false))
 	toCF := &gbpToMo{}
 	toCF.setSubject(subjClassRsrc)
 	toCF.Make("", tocfURI)
@@ -589,7 +589,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 
 	ssRef := &gbpToMo{}
 	ssRef.setSubject(subjSGRuleToCidr)
-	ssRefURI := fmt.Sprintf("%sGbpLocalSecGroupRuleToRemoteAddressRSrc/447/%s/", ruleMo.Uri, escapeName(cname, false))
+	ssRefURI := fmt.Sprintf("%sGbpLocalSecGroupRuleToRemoteAddressRSrc/%s/%s/", ruleMo.Uri, subjSubnetSet, escapeName(cname, false))
 	ssRef.Make("", ssRefURI)
 
 	cfMo.Make(cname, uri)
