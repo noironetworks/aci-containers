@@ -241,9 +241,6 @@ type ControllerConfig struct {
 	// Install Istio ControlPlane components
 	InstallIstio bool `json:"install-istio,omitempty"`
 
-	// enable EndpointSlice
-	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
-
 	// Cluster Flavour
 	Flavor string `json:"flavor,omitempty"`
 
