@@ -1511,6 +1511,7 @@ func (cont *AciController) postOpflexDeviceDelete(nodes []string) {
 func (cont *AciController) opflexDeviceDeleted(dn string) {
 	var nodeUpdates []string
 	var dnFound bool //to check if the dn belongs to this cluster
+	cont.log.Info("Processing opflex device delete notification of ", dn)
 	cont.indexMutex.Lock()
 	for node, devices := range cont.nodeOpflexDevice {
 		for i, device := range devices {
@@ -1522,6 +1523,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 				Debug("Deleting opflex device path")
 			devices = append(devices[:i], devices[i+1:]...)
 			cont.nodeOpflexDevice[node] = devices
+			cont.log.Info("Deleted opflex device of node ", node, ": ", dn)
 			nodeUpdates = append(nodeUpdates, node)
 			break
 		}
