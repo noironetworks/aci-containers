@@ -69,14 +69,15 @@ type FabricL3Subnet struct {
 }
 
 type PrimaryNetwork struct {
-	L3OutName           string        `json:"l3OutName"`
-	L3OutOnCommonTenant bool          `json:"l3OutOnCommonTenant,omitempty"`
-	UseExistingL3Out    bool          `json:"useExistingL3Out,omitempty"`
-	MaxNodes            int           `json:"maxNodes,omitempty"`
-	Encap               int           `json:"encap"`
-	SviType             FabricSviType `json:"sviType,omitempty"`
-	PrimarySubnet       string        `json:"primarySubnet"`
-	BGPPeerPolicy       BGPPeerPolicy `json:"bgpPeerPolicy,omitempty"`
+	L3OutName             string        `json:"l3OutName"`
+	L3OutOnCommonTenant   bool          `json:"l3OutOnCommonTenant,omitempty"`
+	UseExistingL3Out      bool          `json:"useExistingL3Out,omitempty"`
+	MaxNodes              int           `json:"maxNodes,omitempty"`
+	Encap                 int           `json:"encap"`
+	SviType               FabricSviType `json:"sviType,omitempty"`
+	RequirePodToProvision bool          `json:"requirePodToProvision,omitempty"`
+	PrimarySubnet         string        `json:"primarySubnet"`
+	BGPPeerPolicy         BGPPeerPolicy `json:"bgpPeerPolicy,omitempty"`
 }
 
 type FabricL3Network struct {
