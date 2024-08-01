@@ -159,6 +159,7 @@ func (cont *AciController) getNodeRtrId(ctxt *SviContext, node int) string {
 		if _, ok := tenantData.L3OutConfig[ctxt.connectedNw.L3OutName]; ok {
 			if rtrNode, ok := tenantData.L3OutConfig[ctxt.connectedNw.L3OutName].RtrNodeMap[node]; ok {
 				rtrId = rtrNode.RtrId
+				cont.log.Debug("Using custom routerId ", rtrId, " for node ", node)
 			}
 		}
 	}
@@ -211,11 +212,13 @@ func (cont *AciController) allocateSviAddress(vlan int, ctxt *SviContext, rtdNet
 		mskLen, _ := nw.Mask.Size()
 		if ctxt.connectedNw.PrimarySubnet == rtdNetData.subnet {
 			if (err == nil) && (nw.IP.String() == rtdNetData.netAddress) && (mskLen == rtdNetData.maskLen) {
+				cont.log.Debug("Adjusting node ", nodeId, " primary address intended: ", intendedAddr.String())
 				adjustAlloc(intendedAddr, fabL3OutNode.PrimaryAddress)
 			}
 		} else {
 			for _, secAddr := range fabL3OutNode.SecondaryAddresses {
 				if (err == nil) && (nw.IP.String() == rtdNetData.netAddress) && (mskLen == rtdNetData.maskLen) {
+					cont.log.Debug("Adjusting node ", nodeId, " sec address intended: ", intendedAddr.String())
 					adjustAlloc(intendedAddr, secAddr)
 					break
 				}
@@ -314,6 +317,7 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 	rtdNetKey := nw.String()
 	rtdNetData = sviCacheData.NetAddr[rtdNetKey]
 	if rtdNetData == nil {
+		netAddress := nw.IP.String()
 		cont.applyInverseMask(nw.IP, nw.Mask)
 		addrlen := len(nw.IP)
 		mskLen, _ := nw.Mask.Size()
@@ -347,7 +351,7 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 		nw.IP[addrlen-1] -= byte((maxAddresses + 2) % 256)
 		rtdNetData = &RoutedNetworkData{
 			subnet:       subnet,
-			netAddress:   nw.IP.String(),
+			netAddress:   netAddress,
 			maskLen:      mskLen,
 			baseAddress:  make(net.IP, addrlen),
 			numAllocated: 0,
@@ -788,7 +792,33 @@ func (cont *AciController) computeFabricL3OutNodes(nfL3Data *NfL3Data) []fabattv
 				}
 			}
 		}
+		for nodeId, node := range nfL3Data.Nodes {
+			nodeStr := fmt.Sprintf("%d", nodeId)
+			if _, ok := nodeMap[nodeStr]; !ok {
+				fabricL3OutNode := &fabattv1.FabricL3OutNode{
+					NodeRef: fabattv1.FabricNodeRef{
+						FabricPodRef: fabattv1.FabricPodRef{
+							PodId: nfL3Data.PodId,
+						},
+						NodeId: nodeId,
+					},
+				}
+				if nw.String() == subnet {
+					fabricL3OutNode.PrimaryAddress = node.PrimaryAddress
+				} else {
+					for _, addr := range node.SecondaryAddresses {
+						_, nw2, _ := net.ParseCIDR(addr)
+						if nw2.String() == subnet {
+							fabricL3OutNode.SecondaryAddresses = append(fabricL3OutNode.SecondaryAddresses, addr)
+							break
+						}
+					}
+				}
+				nodeMap[nodeStr] = fabricL3OutNode
+			}
+		}
 	}
+
 	for _, fabricL3OutNode := range nodeMap {
 		fabricL3OutNodes = append(fabricL3OutNodes, *fabricL3OutNode)
 	}
@@ -800,27 +830,42 @@ func (cont *AciController) compareSvi(vrf *fabattv1.VRF, sviData *fabattv1.Conne
 	if sviData.L3OutOnCommonTenant {
 		sviTenant = "common"
 	}
-	subnetUpdated := false
 	if sviData.FabricL3Network.PrimaryNetwork != nfSvi.ConnectedNw.PrimaryNetwork {
 		nfSvi.ConnectedNw.PrimaryNetwork = sviData.FabricL3Network.PrimaryNetwork
-		subnetUpdated = true
+		return true
 	}
 	subnetPresent := make(map[string]bool)
 	for _, subnet := range sviData.FabricL3Network.Subnets {
 		if nfSubnet, ok := nfSvi.ConnectedNw.Subnets[subnet.ConnectedSubnet]; !ok || subnet != *nfSubnet {
 			subnetCopy := subnet
 			nfSvi.ConnectedNw.Subnets[subnet.ConnectedSubnet] = &subnetCopy
-			subnetUpdated = true
+			return true
 		}
 		subnetPresent[subnet.ConnectedSubnet] = true
+	}
+	for _, rtdNode := range sviData.Nodes {
+		if nfSviNodeData, ok := nfSvi.Nodes[rtdNode.NodeRef.NodeId]; ok {
+			if nfSviNodeData.PrimaryAddress != rtdNode.PrimaryAddress || len(nfSviNodeData.SecondaryAddresses) != len(rtdNode.SecondaryAddresses) {
+				return true
+			}
+			secAddrMap := make(map[string]bool)
+			for _, secAddr := range rtdNode.SecondaryAddresses {
+				secAddrMap[secAddr] = true
+			}
+			for _, secAddr := range nfSviNodeData.SecondaryAddresses {
+				if _, ok := secAddrMap[secAddr]; !ok {
+					return true
+				}
+			}
+		}
 	}
 	for subnet := range nfSvi.ConnectedNw.Subnets {
 		if _, ok := subnetPresent[subnet]; !ok {
 			delete(nfSvi.ConnectedNw.Subnets, subnet)
-			subnetUpdated = true
+			return true
 		}
 	}
-	return subnetUpdated || sviTenant != nfSvi.Tenant || *vrf != cont.sharedEncapSviCache[sviData.Encap].Vrf
+	return sviTenant != nfSvi.Tenant || *vrf != cont.sharedEncapSviCache[sviData.Encap].Vrf
 }
 
 func (cont *AciController) compareL3Out(l3Out *fabattv1.FabricL3Out, nfL3Out *NfL3OutData) bool {
@@ -959,6 +1004,7 @@ func (cont *AciController) updateNetworkFabricL3ConfigObj(obj *fabattv1.NetworkF
 					cont.populateSviData(&sviDataCopy, nil, &vrf.Vrf)
 					affectedVlanMap[sviData.Encap] = true
 				} else if cont.compareSvi(&vrf.Vrf, &sviData, nfSvi) {
+					cont.log.Debug("Change in svi vlan ", sviData.Encap)
 					cont.sharedEncapSviCache[sviData.Encap].ConnectedNw = &NfL3Networks{
 						PrimaryNetwork: sviDataCopy.FabricL3Network.PrimaryNetwork,
 						Subnets:        make(map[string]*fabattv1.FabricL3Subnet),

@@ -222,7 +222,7 @@ func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, en
 			continue
 		}
 		for localIface, fabricLinks := range localIfaceMap {
-			if len(fabricLinks.Pods) == 0 {
+			if (len(fabricLinks.Pods) == 0) && (!ctxt.present || ctxt.connectedNw.RequirePodToProvision) {
 				continue
 			}
 			var actualFabricLink, vpcIf string
@@ -531,7 +531,7 @@ func (cont *AciController) addNodeFabNetAttStaticAttachmentsLocked(vlan int, net
 }
 
 func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, nodeName string, nodeFabNetAttKey string, progMap map[string]apicapi.ApicSlice) {
-	nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(vlan)
+	nfcEpgTenant, _, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(vlan)
 	epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
 	labelKey := cont.aciNameForKey("nfna", epgName)
 	nfnaMap := cont.sharedEncapCache[vlan].NetRef
@@ -622,7 +622,7 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 		apicSlice2 = append(apicSlice2, sviContext.l3out)
 
 	}
-	if cont.isNodeFabNetAttVlanProgrammable(vlan, nil) {
+	if cont.isNodeFabNetAttVlanProgrammable(vlan, sviContext, nil) {
 		if nfcDiscovery != fabattv1.StaticPathMgmtTypeAEP || sviContext.present {
 			apicSlice2 = append(apicSlice2, cont.depopulateFabricPaths(epg, vlan, nodeName, nodeFabNetAttKey, sviContext)...)
 		}
@@ -635,7 +635,7 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 	progMap[labelKey] = apicSlice2
 }
 
-func (cont *AciController) isNodeFabNetAttVlanProgrammable(vlan int, addNet *AdditionalNetworkMeta) bool {
+func (cont *AciController) isNodeFabNetAttVlanProgrammable(vlan int, sviCtxt *SviContext, addNet *AdditionalNetworkMeta) bool {
 	podCount := 0
 	if !cont.config.AciUseGlobalScopeVlan {
 		for _, nodeIfaceMap := range addNet.FabricLink {
@@ -649,6 +649,9 @@ func (cont *AciController) isNodeFabNetAttVlanProgrammable(vlan int, addNet *Add
 	if !ok {
 		return false
 	}
+	if sviCtxt.present && !sviCtxt.connectedNw.RequirePodToProvision {
+		return true
+	}
 	for _, nodeNads := range shrdEncapData.Pods {
 		for _, podList := range nodeNads {
 			podCount += len(podList)
@@ -661,7 +664,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 	skipProgramming := false
 	for _, encap := range vlans {
 		if !cont.config.AciUseGlobalScopeVlan {
-			if skipProgramming || !cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
+			if skipProgramming || !cont.isNodeFabNetAttVlanProgrammable(encap, nil, addNet) {
 				skipProgramming = true
 				bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", []string{})
 				apicSlice = append(apicSlice, bd)
@@ -679,7 +682,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 			apicSlice = append(apicSlice, epg)
 			continue
 		}
-		nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(encap)
+		nfcEpgTenant, _, nfcEpgAp, nfcEpg, nfcEpgConsumers, nfcEpgProviders, nfcDiscovery := cont.getSharedEncapNfcCacheEpgLocked(encap)
 		nfcBdTenant, nfcVrf, nfcBd, nfcBdSubnets := cont.getSharedEncapNfcCacheBDLocked(encap)
 		sviContext := cont.getSharedEncapNfCacheSviLocked(encap)
 		var labelKey string
@@ -731,7 +734,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 				sviContext.l3out.AddChild(sviContext.l3outNodeP)
 				apicSlice2 = append(apicSlice2, sviContext.l3out)
 			}
-			if cont.isNodeFabNetAttVlanProgrammable(encap, addNet) {
+			if cont.isNodeFabNetAttVlanProgrammable(encap, sviContext, addNet) {
 				if (nfcDiscovery != fabattv1.StaticPathMgmtTypeAEP) || sviContext.present {
 					cont.populateFabricPaths(epg, encap, sviContext, addNet)
 				}

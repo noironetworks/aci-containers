@@ -107,6 +107,8 @@ spec:
                             type: array
                           primarySubnet:
                             type: string
+                          requirePodToProvision:
+                            type: boolean
                           subnets:
                             items:
                               properties:
@@ -333,6 +335,8 @@ spec:
                             type: array
                           primarySubnet:
                             type: string
+                          requirePodToProvision:
+                            type: boolean
                           status:
                             type: string
                           subnets:
