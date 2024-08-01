@@ -418,6 +418,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			if cont.nodeSyncEnabled {
 				if aciPodAnn != nodeAciPod && nodeAciPod != "" {
 					node.ObjectMeta.Annotations[metadata.NodeAciPodAnnotation] = nodeAciPod
+					logger.Info("ACI pod annotation on node ", node.ObjectMeta.Name, "changed from ", aciPodAnn, " to ", nodeAciPod)
 					nodeUpdated = true
 				}
 			}
