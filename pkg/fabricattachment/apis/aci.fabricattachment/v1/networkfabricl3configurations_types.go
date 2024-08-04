@@ -69,11 +69,14 @@ type FabricL3Subnet struct {
 }
 
 type PrimaryNetwork struct {
-	L3OutName             string        `json:"l3OutName"`
-	L3OutOnCommonTenant   bool          `json:"l3OutOnCommonTenant,omitempty"`
-	UseExistingL3Out      bool          `json:"useExistingL3Out,omitempty"`
-	MaxNodes              int           `json:"maxNodes,omitempty"`
-	Encap                 int           `json:"encap"`
+	L3OutName           string `json:"l3OutName"`
+	L3OutOnCommonTenant bool   `json:"l3OutOnCommonTenant,omitempty"`
+	UseExistingL3Out    bool   `json:"useExistingL3Out,omitempty"`
+	// +kubebuilder:validation:Minimum=2
+	MaxNodes int `json:"maxNodes,omitempty"`
+	Encap    int `json:"encap"`
+	// +kubebuilder:validation:Enum=floating_svi;svi
+	// +kubebuilder:default=floating_svi
 	SviType               FabricSviType `json:"sviType,omitempty"`
 	RequirePodToProvision bool          `json:"requirePodToProvision,omitempty"`
 	PrimarySubnet         string        `json:"primarySubnet"`

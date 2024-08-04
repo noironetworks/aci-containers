@@ -80,6 +80,7 @@ spec:
                           l3OutOnCommonTenant:
                             type: boolean
                           maxNodes:
+                            minimum: 2
                             type: integer
                           nodes:
                             items:
@@ -123,6 +124,10 @@ spec:
                               type: object
                             type: array
                           sviType:
+                            default: floating_svi
+                            enum:
+                            - floating_svi
+                            - svi
                             type: string
                           useExistingL3Out:
                             type: boolean
@@ -308,6 +313,7 @@ spec:
                           l3OutOnCommonTenant:
                             type: boolean
                           maxNodes:
+                            minimum: 2
                             type: integer
                           nodes:
                             items:
@@ -353,6 +359,10 @@ spec:
                               type: object
                             type: array
                           sviType:
+                            default: floating_svi
+                            enum:
+                            - floating_svi
+                            - svi
                             type: string
                           useExistingL3Out:
                             type: boolean
