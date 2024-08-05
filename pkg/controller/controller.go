@@ -134,6 +134,7 @@ type AciController struct {
 	fabNetAttClient                      *fabattclset.Clientset
 
 	indexMutex sync.Mutex
+	hppMutex   sync.Mutex
 
 	configuredPodNetworkIps *netIps
 	podNetworkIps           *netIps
