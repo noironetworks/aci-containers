@@ -273,16 +273,20 @@ func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, en
 					found = false
 					if vpcIf != "" {
 						_, nodeStr, found = strings.Cut(vpcIf, "protpaths-")
-
+						if !found {
+							_, nodeStr, found = strings.Cut(vpcIf, "paths-")
+						}
 					} else {
-						_, nodeStr, found = strings.Cut(vpcIf, "paths-")
-
+						_, nodeStr, found = strings.Cut(actualFabricLink, "paths-")
 					}
 					if found {
 						nodeCombined, _, found := strings.Cut(nodeStr, "/")
 						if found {
 							nodes = strings.Split(nodeCombined, "-")
 						}
+					}
+					if len(nodes) == 0 {
+						cont.log.Errorf("Could not parse for node id in %s", nodeStr)
 					}
 					cont.log.Debugf("l3out-svi:pod: %s nodes :%v", pod, nodes)
 					cont.createNodeFabNetAttSviPaths(encap, ctxt, actualFabricLink, pod, nodes)
