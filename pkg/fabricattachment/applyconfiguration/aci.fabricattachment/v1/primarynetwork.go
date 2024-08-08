@@ -24,14 +24,15 @@ import (
 // PrimaryNetworkApplyConfiguration represents an declarative configuration of the PrimaryNetwork type for use
 // with apply.
 type PrimaryNetworkApplyConfiguration struct {
-	L3OutName           *string                          `json:"l3OutName,omitempty"`
-	L3OutOnCommonTenant *bool                            `json:"l3OutOnCommonTenant,omitempty"`
-	UseExistingL3Out    *bool                            `json:"useExistingL3Out,omitempty"`
-	MaxNodes            *int                             `json:"maxNodes,omitempty"`
-	Encap               *int                             `json:"encap,omitempty"`
-	SviType             *v1.FabricSviType                `json:"sviType,omitempty"`
-	PrimarySubnet       *string                          `json:"primarySubnet,omitempty"`
-	BGPPeerPolicy       *BGPPeerPolicyApplyConfiguration `json:"bgpPeerPolicy,omitempty"`
+	L3OutName             *string                          `json:"l3OutName,omitempty"`
+	L3OutOnCommonTenant   *bool                            `json:"l3OutOnCommonTenant,omitempty"`
+	UseExistingL3Out      *bool                            `json:"useExistingL3Out,omitempty"`
+	MaxNodes              *int                             `json:"maxNodes,omitempty"`
+	Encap                 *int                             `json:"encap,omitempty"`
+	SviType               *v1.FabricSviType                `json:"sviType,omitempty"`
+	RequirePodToProvision *bool                            `json:"requirePodToProvision,omitempty"`
+	PrimarySubnet         *string                          `json:"primarySubnet,omitempty"`
+	BGPPeerPolicy         *BGPPeerPolicyApplyConfiguration `json:"bgpPeerPolicy,omitempty"`
 }
 
 // PrimaryNetworkApplyConfiguration constructs an declarative configuration of the PrimaryNetwork type for use with
@@ -85,6 +86,14 @@ func (b *PrimaryNetworkApplyConfiguration) WithEncap(value int) *PrimaryNetworkA
 // If called multiple times, the SviType field is set to the value of the last call.
 func (b *PrimaryNetworkApplyConfiguration) WithSviType(value v1.FabricSviType) *PrimaryNetworkApplyConfiguration {
 	b.SviType = &value
+	return b
+}
+
+// WithRequirePodToProvision sets the RequirePodToProvision field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RequirePodToProvision field is set to the value of the last call.
+func (b *PrimaryNetworkApplyConfiguration) WithRequirePodToProvision(value bool) *PrimaryNetworkApplyConfiguration {
+	b.RequirePodToProvision = &value
 	return b
 }
 

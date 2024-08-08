@@ -26,17 +26,30 @@ type BGPPeerPrefixPolicy struct {
 	Action      string `json:"action,omitempty"`
 }
 
+// +kubebuilder:validation:Enum={"AllowSelfAS","ASOverride","DisablePeerASCheck","Next-hopSelf","SendCommunity","SendExtendedCommunity","SendDomainPath","BFD","DisableConnectedCheck","RemovePrivateAS","RemoveAllPrivateAS","ReplacePrivateASWithLocalAS"}
+type BGPCtrlOption string
+
 type BGPPeerPolicy struct {
-	Enabled        bool   `json:"enabled,omitempty"`
-	Prefix         string `json:"prefix,omitempty"`
-	Ctrl           string `json:"ctrl,omitempty"`
-	PeerASN        int    `json:"peerASN"`
-	PeerCtl        string `json:"peerCtl,omitempty"`
-	LocalASN       int    `json:"localASN,omitempty"`
+	Enabled bool            `json:"enabled,omitempty"`
+	Prefix  string          `json:"prefix,omitempty"`
+	Ctrl    []BGPCtrlOption `json:"ctrl,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	AllowedSelfASCount int `json:"allowedSelfASCount,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	PeerASN int `json:"peerASN"`
+	// +kubebuilder:validation:Minimum=1
+	LocalASN int `json:"localASN,omitempty"`
+	// +kubebuilder:validation:Enum=noPrepend+replace-as+dual-as;no-prepend;no-options;no-prepend+replace-as
 	LocalASNConfig string `json:"localASNConfig,omitempty"`
 	// Refers to a k8s secret which has the BGP password in data field
 	Secret       ObjRef `json:"secret,omitempty"`
 	PrefixPolicy string `json:"prefixPolicy,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=255
+	EBGPTTL int `json:"eBGPTTL,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	Weight int `json:"weight,omitempty"`
 }
 
 type FabricL3OutNextHop struct {
@@ -134,10 +147,18 @@ type FabricVrfConfigurationStatus struct {
 	Status                    string                            `json:"status,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=export-rtctrl;import-rtctrl;shared-rtctrl;shared-security;import-security
+type PolicyPrefixScopeOptions string
+
+// +kubebuilder:validation:Enum=export-rtctrl;import-rtctrl;shared-rtctrl
+type PolicyPrefixAggregateOptions string
+
 type PolicyPrefix struct {
-	Subnet    string `json:"subnet"`
-	Scope     string `json:"scope,omitempty"`
-	Aggregate string `json:"aggregate,omitempty"`
+	Subnet string `json:"subnet"`
+	// +kubebuilder:validation:MaxItems=5
+	Scope []PolicyPrefixScopeOptions `json:"scope,omitempty"`
+	// +kubebuilder:validation:MaxItems=3
+	Aggregate []PolicyPrefixAggregateOptions `json:"aggregate,omitempty"`
 }
 
 type PolicyPrefixGroup struct {
@@ -147,7 +168,8 @@ type PolicyPrefixGroup struct {
 }
 
 type FabricL3Out struct {
-	Name         string               `json:"name"`
+	Name string `json:"name"`
+	// +kubebuilder:validation:Enum=export;"export,import"
 	RtCtrl       string               `json:"rtCtrl,omitempty"`
 	PodRef       FabricPodRef         `json:"podRef"`
 	RtrNodes     []FabricL3OutRtrNode `json:"rtrNodes,omitempty"`
@@ -167,6 +189,7 @@ type NetworkFabricL3ConfigStatus struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'networkfabricl3configuration'",message="Only one instance with name networkfabricl3configuration allowed"
 // NetworkFabricL3Configuration allows additional configuration on NAD based and regular vlans created by aci controller
 type NetworkFabricL3Configuration struct {
 	metav1.TypeMeta   `json:",inline"`

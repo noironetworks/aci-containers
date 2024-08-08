@@ -17,12 +17,16 @@ limitations under the License.
 
 package v1
 
+import (
+	v1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+)
+
 // PolicyPrefixApplyConfiguration represents an declarative configuration of the PolicyPrefix type for use
 // with apply.
 type PolicyPrefixApplyConfiguration struct {
-	Subnet    *string `json:"subnet,omitempty"`
-	Scope     *string `json:"scope,omitempty"`
-	Aggregate *string `json:"aggregate,omitempty"`
+	Subnet    *string                           `json:"subnet,omitempty"`
+	Scope     []v1.PolicyPrefixScopeOptions     `json:"scope,omitempty"`
+	Aggregate []v1.PolicyPrefixAggregateOptions `json:"aggregate,omitempty"`
 }
 
 // PolicyPrefixApplyConfiguration constructs an declarative configuration of the PolicyPrefix type for use with
@@ -39,18 +43,22 @@ func (b *PolicyPrefixApplyConfiguration) WithSubnet(value string) *PolicyPrefixA
 	return b
 }
 
-// WithScope sets the Scope field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Scope field is set to the value of the last call.
-func (b *PolicyPrefixApplyConfiguration) WithScope(value string) *PolicyPrefixApplyConfiguration {
-	b.Scope = &value
+// WithScope adds the given value to the Scope field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Scope field.
+func (b *PolicyPrefixApplyConfiguration) WithScope(values ...v1.PolicyPrefixScopeOptions) *PolicyPrefixApplyConfiguration {
+	for i := range values {
+		b.Scope = append(b.Scope, values[i])
+	}
 	return b
 }
 
-// WithAggregate sets the Aggregate field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Aggregate field is set to the value of the last call.
-func (b *PolicyPrefixApplyConfiguration) WithAggregate(value string) *PolicyPrefixApplyConfiguration {
-	b.Aggregate = &value
+// WithAggregate adds the given value to the Aggregate field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Aggregate field.
+func (b *PolicyPrefixApplyConfiguration) WithAggregate(values ...v1.PolicyPrefixAggregateOptions) *PolicyPrefixApplyConfiguration {
+	for i := range values {
+		b.Aggregate = append(b.Aggregate, values[i])
+	}
 	return b
 }

@@ -82,6 +82,14 @@ func (b *ConnectedL3NetworkApplyConfiguration) WithSviType(value acifabricattach
 	return b
 }
 
+// WithRequirePodToProvision sets the RequirePodToProvision field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RequirePodToProvision field is set to the value of the last call.
+func (b *ConnectedL3NetworkApplyConfiguration) WithRequirePodToProvision(value bool) *ConnectedL3NetworkApplyConfiguration {
+	b.RequirePodToProvision = &value
+	return b
+}
+
 // WithPrimarySubnet sets the PrimarySubnet field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the PrimarySubnet field is set to the value of the last call.

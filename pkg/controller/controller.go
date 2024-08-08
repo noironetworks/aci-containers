@@ -202,6 +202,7 @@ type AciController struct {
 	sharedEncapSviCache    map[int]*NfL3Data
 	sharedEncapVrfCache    map[string]*NfVrfData
 	sharedEncapTenantCache map[string]*NfTenantData
+	nfl3configGenerationId int64
 	// vlan to propertiesList
 	sharedEncapNfcCache         map[int]*NfcData
 	sharedEncapNfcVlanMap       map[int]*NfcData
@@ -217,6 +218,7 @@ type AciController struct {
 }
 
 type NfL3OutData struct {
+	// +kubebuilder:validation:Enum:"import"
 	RtCtrl     string
 	PodId      int
 	RtrNodeMap map[int]*fabattv1.FabricL3OutRtrNode
@@ -931,7 +933,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			[]string{"infraGeneric", "infraRsFuncToEpg"}, "")
 		cont.apicConn.AddSubscriptionClass("l3extOut",
 			[]string{"l3extInstP", "l3extSubnet", "fvRsCons", "fvRsProv", "l3extRsEctx", "l3extRsL3DomAtt", "l3extLNodeP", "l3extRsNodeL3OutAtt", "ipRouteP", "ipNexthopP", "l3extLIfP", "l3extVirtualLIfP", "l3extRsDynPathAtt",
-				"l3extRsPathL3OutAtt", "l3extMember", "l3extIp", "bgpPeerP", "bgpAsP", "bgpRsPeerPfxPol"}, "")
+				"l3extRsPathL3OutAtt", "l3extMember", "l3extIp", "bgpExtP", "bgpPeerP", "bgpAsP", "bgpLocalAsnP", "bgpRsPeerPfxPol"}, "")
 		cont.apicConn.AddSubscriptionClass("bgpPeerPfxPol",
 			[]string{"bgpPeerPfxPol"}, "")
 	}

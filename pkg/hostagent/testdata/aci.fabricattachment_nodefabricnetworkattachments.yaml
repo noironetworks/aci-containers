@@ -115,8 +115,6 @@ spec:
                   code after modifying this file7 Add custom validation using kubebuilder
                   tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html'
                 type: string
-            required:
-            - state
             type: object
         type: object
     served: true
