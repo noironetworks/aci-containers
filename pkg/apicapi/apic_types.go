@@ -1125,17 +1125,22 @@ func NewIpNexthopP(parentDn, nexthop string, pref int) ApicObject {
 	return ret
 }
 
-func NewBGPPeerP(parentDn, addr, ctrl, peerCtl string) ApicObject {
+func NewBGPPeerP(parentDn, addr, ctrlStr, ctrlExt, cap, peerCtrlStr, privateASCtrlStr string,
+	selfASCnt, ttl, weight int) ApicObject {
 	ret := newApicObject("bgpPeerP")
 	ret["bgpPeerP"].Attributes["addr"] = addr
-	if ctrl != "" {
-		ret["bgpPeerP"].Attributes["ctrl"] = ctrl
+	ret["bgpPeerP"].Attributes["ctrl"] = ctrlStr
+	ret["bgpPeerP"].Attributes["allowedSelfAsCnt"] = fmt.Sprintf("%d", selfASCnt)
+	ret["bgpPeerP"].Attributes["ctrlExt"] = ctrlExt
+	ret["bgpPeerP"].Attributes["capability"] = cap
+	ret["bgpPeerP"].Attributes["peerCtrl"] = peerCtrlStr
+	if ttl > 0 {
+		ret["bgpPeerP"].Attributes["ttl"] = fmt.Sprintf("%d", ttl)
 	}
-	if peerCtl != "" {
-		ret["bgpPeerP"].Attributes["peerCtrl"] = peerCtl
-	}
+	ret["bgpPeerP"].Attributes["weight"] = fmt.Sprintf("%d", weight)
+	ret["bgpPeerP"].Attributes["privateASctrl"] = privateASCtrlStr
 	ret["bgpPeerP"].HintDn =
-		fmt.Sprintf("%s/bgpPeerP-%s", parentDn, addr)
+		fmt.Sprintf("%s/peerP-[%s]", parentDn, addr)
 	return ret
 }
 
@@ -1144,6 +1149,15 @@ func NewBGPAsP(parentDn, peer string) ApicObject {
 	ret["bgpAsP"].Attributes["asn"] = peer
 	ret["bgpAsP"].HintDn =
 		fmt.Sprintf("%s/as", parentDn)
+	return ret
+}
+
+func NewBGPLocalAsnP(parentDn, localAsn, localAsnConfig string) ApicObject {
+	ret := newApicObject("bgpLocalAsnP")
+	ret["bgpLocalAsnP"].Attributes["localAsn"] = localAsn
+	ret["bgpLocalAsnP"].Attributes["asnPropagate"] = localAsnConfig
+	ret["bgpLocalAsnP"].HintDn =
+		fmt.Sprintf("%s/localasn", parentDn)
 	return ret
 }
 
@@ -1459,6 +1473,12 @@ func NewL3ExtOut(tenant, name string, rtctrl string) ApicObject {
 		ret["l3extOut"].Attributes["enforceRtctrl"] = rtctrl
 	}
 	ret["l3extOut"].HintDn = fmt.Sprintf("uni/tn-%s/out-%s", tenant, name)
+	return ret
+}
+
+func NewBGPExtP(parentDn string) ApicObject {
+	ret := newApicObject("bgpExtP")
+	ret["bgpExtP"].HintDn = fmt.Sprintf("%s/bgpExtP", parentDn)
 	return ret
 }
 

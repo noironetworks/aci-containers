@@ -23,6 +23,7 @@ import (
 	"net"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
@@ -245,6 +246,7 @@ func (cont *AciController) allocateSviAddress(vlan int, ctxt *SviContext, rtdNet
 		}
 	}
 	err = fmt.Errorf("max addresses reached")
+	cont.log.Error(err)
 	return
 }
 
@@ -399,9 +401,60 @@ func (cont *AciController) createNodeFabNetAttSviProtocolPolicies(ctxt *SviConte
 	if prefix == "" {
 		prefix = ctxt.connectedNw.PrimarySubnet
 	}
+	ctrlStr := ""
+	ctrlExt := ""
+	cap := ""
+	peerCtrlStr := ""
+	privateASCtrlStr := ""
+	selfASCnt := 3
+	if len(ctxt.connectedNw.BGPPeerPolicy.Ctrl) != 0 {
+		ctrls := []string{}
+		privateASCtrl := []string{}
+		peerCtrl := []string{}
+		privateAsCtrlNeeded := false
+		for _, ctrl := range ctxt.connectedNw.BGPPeerPolicy.Ctrl {
+			switch ctrl {
+			case "AllowSelfAS":
+				ctrls = append(ctrls, "allow-self-as")
+				if ctxt.connectedNw.BGPPeerPolicy.AllowedSelfASCount > 1 {
+					selfASCnt = ctxt.connectedNw.BGPPeerPolicy.AllowedSelfASCount
+				}
+			case "ASOverride":
+				ctrls = append(ctrls, "as-override")
+			case "DisablePeerASCheck":
+				ctrls = append(ctrls, "dis-peer-as-check")
+			case "Next-hopSelf":
+				ctrls = append(ctrls, "nh-self")
+			case "SendCommunity":
+				ctrls = append(ctrls, "send-com")
+			case "SendExtendedCommunity":
+				ctrls = append(ctrls, "send-ext-com")
+			case "SendDomainPath":
+				ctrlExt = "send-domain-path"
+			case "ReceiveAdditionalPaths":
+				cap = "receive-add-path"
+			case "BFD":
+				peerCtrl = append(peerCtrl, "bfd")
+			case "DisableConnectedCheck":
+				peerCtrl = append(peerCtrl, "dis-conn-check")
+			case "RemovePrivateAS":
+				privateASCtrl = append(privateASCtrl, "remove-exclusive")
+				privateAsCtrlNeeded = true
+			case "RemoveAllPrivateAS":
+				privateASCtrl = append(privateASCtrl, "remove-all")
+			case "ReplacePrivateASWithLocalAS":
+				privateASCtrl = append(privateASCtrl, "replace-as")
+			}
+		}
+		ctrlStr = strings.Join(ctrls, ",")
+		peerCtrlStr = strings.Join(peerCtrl, ",")
+		if privateAsCtrlNeeded {
+			privateASCtrlStr = strings.Join(privateASCtrl, ",")
+		}
+	}
 	bgpPeerP := apicapi.NewBGPPeerP(baseObj.GetDn(),
-		prefix, ctxt.connectedNw.BGPPeerPolicy.Ctrl,
-		ctxt.connectedNw.BGPPeerPolicy.PeerCtl)
+		prefix, ctrlStr, ctrlExt, cap, peerCtrlStr, privateASCtrlStr, selfASCnt,
+		ctxt.connectedNw.BGPPeerPolicy.Weight, ctxt.connectedNw.BGPPeerPolicy.EBGPTTL)
 	if ctxt.connectedNw.BGPPeerPolicy.Secret.Name != "" {
 		namespace := "default"
 		if ctxt.connectedNw.BGPPeerPolicy.Secret.Namespace != "" {
@@ -420,6 +473,22 @@ func (cont *AciController) createNodeFabNetAttSviProtocolPolicies(ctxt *SviConte
 	peerASN := fmt.Sprintf("%d", ctxt.connectedNw.BGPPeerPolicy.PeerASN)
 	bgpAsP := apicapi.NewBGPAsP(bgpPeerP.GetDn(), peerASN)
 	bgpPeerP.AddChild(bgpAsP)
+	if ctxt.connectedNw.BGPPeerPolicy.LocalASN != 0 {
+		localASN := fmt.Sprintf("%d", ctxt.connectedNw.BGPPeerPolicy.LocalASN)
+		localASNConfig := "none"
+		switch ctxt.connectedNw.BGPPeerPolicy.LocalASNConfig {
+		case "noPrepend+replace-as+dual-as":
+			localASNConfig = "dual-as"
+		case "no-prepend":
+			localASNConfig = "no-prepend"
+		case "no-options":
+			localASNConfig = "none"
+		case "no-prepend+replace-as":
+			localASNConfig = "replace-as"
+		}
+		bgpLocalAsnP := apicapi.NewBGPLocalAsnP(bgpPeerP.GetDn(), localASN, localASNConfig)
+		bgpPeerP.AddChild(bgpLocalAsnP)
+	}
 	if ctxt.connectedNw.BGPPeerPolicy.PrefixPolicy != "" {
 		bgpRsPPfxPol := apicapi.NewBGPRsPeerPfxPol(bgpPeerP.GetDn(), ctxt.tenant, ctxt.connectedNw.BGPPeerPolicy.PrefixPolicy)
 		bgpPeerP.AddChild(bgpRsPPfxPol)
@@ -512,9 +581,9 @@ func (cont *AciController) createNodeFabNetAttSviPaths(vlan int, ctxt *SviContex
 	if err != nil {
 		return
 	}
-	cont.log.Info("Creating floating svi for ", vlan)
 	for _, node := range nodes {
 		if _, ok := ctxt.nodeMap[node]; !ok {
+			cont.log.Info("Creating floating svi node ", node, "for ", vlan)
 			var err error
 			primaryAddr := ""
 			nodeId, _ := strconv.Atoi(node)
@@ -575,6 +644,10 @@ func (cont *AciController) createNodeFabNetAttSvi(vlan int, sviContext *SviConte
 		sviContext.l3out = apicapi.NewL3ExtOut(sviContext.tenant, sviContext.connectedNw.L3OutName, rtCtrl)
 		rsEctx := apicapi.NewL3ExtRsEctx(sviContext.tenant, sviContext.connectedNw.L3OutName, sviContext.vrf.Name)
 		sviContext.l3out.AddChild(rsEctx)
+		if sviContext.connectedNw.BGPPeerPolicy.Enabled {
+			bgpExtP := apicapi.NewBGPExtP(sviContext.l3out.GetDn())
+			sviContext.l3out.AddChild(bgpExtP)
+		}
 		l3Dom := cont.config.AciPolicyTenant + "-" + globalScopeVlanDomPrefix
 		rsl3DomAtt := apicapi.NewL3ExtRsL3DomAtt(sviContext.tenant, sviContext.connectedNw.L3OutName, l3Dom)
 		sviContext.l3out.AddChild(rsl3DomAtt)
@@ -584,7 +657,26 @@ func (cont *AciController) createNodeFabNetAttSvi(vlan int, sviContext *SviConte
 			for _, extepg := range nfL3Out.ExtEpgMap {
 				l3ExtInstP := apicapi.NewL3extInstP(sviContext.tenant, sviContext.connectedNw.L3OutName, extepg.Name)
 				for _, pp := range extepg.PolicyPrefixes {
-					l3ExtSubnet := apicapi.NewL3extSubnet(l3ExtInstP.GetDn(), pp.Subnet, pp.Scope, pp.Aggregate)
+					scopeStr := ""
+					aggrStr := ""
+					for _, scope := range pp.Scope {
+						if scopeStr == "" {
+							scopeStr = string(scope)
+							continue
+						}
+						scopeStr += "," + string(scope)
+					}
+					if scopeStr == "" {
+						scopeStr = "import-security"
+					}
+					for _, aggr := range pp.Aggregate {
+						if aggrStr == "" {
+							aggrStr = string(aggr)
+							continue
+						}
+						aggrStr += "," + string(aggr)
+					}
+					l3ExtSubnet := apicapi.NewL3extSubnet(l3ExtInstP.GetDn(), pp.Subnet, scopeStr, aggrStr)
 					l3ExtInstP.AddChild(l3ExtSubnet)
 				}
 				for _, consumer := range extepg.Contracts.Consumer {
@@ -830,7 +922,7 @@ func (cont *AciController) compareSvi(vrf *fabattv1.VRF, sviData *fabattv1.Conne
 	if sviData.L3OutOnCommonTenant {
 		sviTenant = "common"
 	}
-	if sviData.FabricL3Network.PrimaryNetwork != nfSvi.ConnectedNw.PrimaryNetwork {
+	if !reflect.DeepEqual(sviData.FabricL3Network.PrimaryNetwork, nfSvi.ConnectedNw.PrimaryNetwork) {
 		nfSvi.ConnectedNw.PrimaryNetwork = sviData.FabricL3Network.PrimaryNetwork
 		return true
 	}
@@ -1150,6 +1242,10 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationUpdate(obj interfac
 		cont.log.Error("handleNetworkFabricL3ConfigurationUpdate: Bad object type")
 		return false
 	}
+	if cont.nfl3configGenerationId == netFabL3Config.ObjectMeta.Generation {
+		return false
+	}
+	cont.nfl3configGenerationId = netFabL3Config.ObjectMeta.Generation
 	progMap := cont.updateNetworkFabricL3ConfigObj(netFabL3Config)
 	for labelKey, apicSlice := range progMap {
 		if apicSlice == nil {
@@ -1172,6 +1268,7 @@ func (cont *AciController) handleNetworkFabricL3ConfigurationDelete(key string) 
 		cont.apicConn.WriteApicObjects(labelKey, apicSlice)
 	}
 	cont.deleteNodeFabricNetworkL3Peer()
+	cont.nfl3configGenerationId = 0
 	return false
 }
 

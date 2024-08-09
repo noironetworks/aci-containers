@@ -67,7 +67,7 @@ type NodeFabricNetworkAttachmentStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file7
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
-	State FabricAttachmentState `json:"state,omitmepty"`
+	State FabricAttachmentState `json:"state,omitempty"`
 }
 
 // +genclient

@@ -4,6 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +kubebuilder:validation:Enum=LLDP;AEP;""
 type StaticPathMgmtType string
 
 const (
@@ -66,6 +67,7 @@ type NetworkFabricConfigurationSpec struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'networkfabricconfiguration'",message="Only one instance with name networkfabricconfiguration allowed"
 // NetworkFabricConfiguration allows additional configuration on NAD based and regular vlans created by aci controller
 type NetworkFabricConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`

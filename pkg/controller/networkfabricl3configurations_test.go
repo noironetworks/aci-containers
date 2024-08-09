@@ -247,7 +247,7 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 			l3extIp := apicapi.NewL3ExtIp(l3extVirtualLifP.GetDn(), secondaryAddrStr)
 			l3extVirtualLifP.AddChild(l3extIp)
 			l3extVirtualLifP.AddChild(l3extRsDynPathAtt)
-			bgpPeerP := apicapi.NewBGPPeerP(l3extVirtualLifP.GetDn(), "192.168.100.0/24", "", "")
+			bgpPeerP := apicapi.NewBGPPeerP(l3extVirtualLifP.GetDn(), "192.168.100.0/24", "", "", "", "", "", 3, 1, 0)
 			bgpAsP := apicapi.NewBGPAsP(bgpPeerP.GetDn(), peerASN)
 			bgpPeerP.AddChild(bgpAsP)
 			bgpRsPPfxPol := apicapi.NewBGPRsPeerPfxPol(bgpPeerP.GetDn(), "common", "default")
@@ -266,7 +266,7 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 		primaryAddrStr = fmt.Sprintf("%s/%d", primaryAddr.String(), mskLen)
 	}
 	if is_regular_svi {
-		bgpPeerP := apicapi.NewBGPPeerP(l3extRsPath.GetDn(), "192.168.100.0/24", "", "")
+		bgpPeerP := apicapi.NewBGPPeerP(l3extRsPath.GetDn(), "192.168.100.0/24", "", "", "", "", "", 3, 1, 0)
 		bgpAsP := apicapi.NewBGPAsP(bgpPeerP.GetDn(), peerASN)
 		bgpPeerP.AddChild(bgpAsP)
 		bgpRsPPfxPol := apicapi.NewBGPRsPeerPfxPol(bgpPeerP.GetDn(), "common", "default")
@@ -282,6 +282,8 @@ func CreateNFNASVIObjs(cont *testAciController, vlan int, use_preexisting_l3out,
 		l3out := apicapi.NewL3ExtOut("common", "l3out1", "")
 		rsEctx := apicapi.NewL3ExtRsEctx("common", "l3out1", "vrf1")
 		l3out.AddChild(rsEctx)
+		bgpExtP := apicapi.NewBGPExtP(l3out.GetDn())
+		l3out.AddChild(bgpExtP)
 		l3Dom := cont.config.AciPolicyTenant + "-" + globalScopeVlanDomPrefix
 		rsl3DomAtt := apicapi.NewL3ExtRsL3DomAtt("common", "l3out1", l3Dom)
 		l3out.AddChild(rsl3DomAtt)
@@ -327,6 +329,7 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, 101)
 	labelKey = cont.aciNameForKey("nfna", epgName)
 	expectedApicSlice1 = CreateNFNASVIObjs(cont, 101, preexisting_l3out, use_regular_svi)
+	//cont.log.Info("Expected", expectedApicSlice1, "\nActual: ", progMap[labelKey])
 	assert.Equal(t, expectedApicSlice1, progMap[labelKey], "nfna create floating svi")
 	status := cont.computeNetworkFabricL3ConfigurationStatus(false)
 	expectedStatus := GetNFCL3Status(101, sviType, preexisting_l3out)

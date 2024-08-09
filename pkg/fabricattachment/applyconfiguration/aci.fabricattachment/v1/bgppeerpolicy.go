@@ -17,18 +17,24 @@ limitations under the License.
 
 package v1
 
+import (
+	v1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
+)
+
 // BGPPeerPolicyApplyConfiguration represents an declarative configuration of the BGPPeerPolicy type for use
 // with apply.
 type BGPPeerPolicyApplyConfiguration struct {
-	Enabled        *bool                     `json:"enabled,omitempty"`
-	Prefix         *string                   `json:"prefix,omitempty"`
-	Ctrl           *string                   `json:"ctrl,omitempty"`
-	PeerASN        *int                      `json:"peerASN,omitempty"`
-	PeerCtl        *string                   `json:"peerCtl,omitempty"`
-	LocalASN       *int                      `json:"localASN,omitempty"`
-	LocalASNConfig *string                   `json:"localASNConfig,omitempty"`
-	Secret         *ObjRefApplyConfiguration `json:"secret,omitempty"`
-	PrefixPolicy   *string                   `json:"prefixPolicy,omitempty"`
+	Enabled            *bool                     `json:"enabled,omitempty"`
+	Prefix             *string                   `json:"prefix,omitempty"`
+	Ctrl               []v1.BGPCtrlOption        `json:"ctrl,omitempty"`
+	AllowedSelfASCount *int                      `json:"allowedSelfASCount,omitempty"`
+	PeerASN            *int                      `json:"peerASN,omitempty"`
+	LocalASN           *int                      `json:"localASN,omitempty"`
+	LocalASNConfig     *string                   `json:"localASNConfig,omitempty"`
+	Secret             *ObjRefApplyConfiguration `json:"secret,omitempty"`
+	PrefixPolicy       *string                   `json:"prefixPolicy,omitempty"`
+	EBGPTTL            *int                      `json:"eBGPTTL,omitempty"`
+	Weight             *int                      `json:"weight,omitempty"`
 }
 
 // BGPPeerPolicyApplyConfiguration constructs an declarative configuration of the BGPPeerPolicy type for use with
@@ -53,11 +59,21 @@ func (b *BGPPeerPolicyApplyConfiguration) WithPrefix(value string) *BGPPeerPolic
 	return b
 }
 
-// WithCtrl sets the Ctrl field in the declarative configuration to the given value
+// WithCtrl adds the given value to the Ctrl field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Ctrl field.
+func (b *BGPPeerPolicyApplyConfiguration) WithCtrl(values ...v1.BGPCtrlOption) *BGPPeerPolicyApplyConfiguration {
+	for i := range values {
+		b.Ctrl = append(b.Ctrl, values[i])
+	}
+	return b
+}
+
+// WithAllowedSelfASCount sets the AllowedSelfASCount field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Ctrl field is set to the value of the last call.
-func (b *BGPPeerPolicyApplyConfiguration) WithCtrl(value string) *BGPPeerPolicyApplyConfiguration {
-	b.Ctrl = &value
+// If called multiple times, the AllowedSelfASCount field is set to the value of the last call.
+func (b *BGPPeerPolicyApplyConfiguration) WithAllowedSelfASCount(value int) *BGPPeerPolicyApplyConfiguration {
+	b.AllowedSelfASCount = &value
 	return b
 }
 
@@ -66,14 +82,6 @@ func (b *BGPPeerPolicyApplyConfiguration) WithCtrl(value string) *BGPPeerPolicyA
 // If called multiple times, the PeerASN field is set to the value of the last call.
 func (b *BGPPeerPolicyApplyConfiguration) WithPeerASN(value int) *BGPPeerPolicyApplyConfiguration {
 	b.PeerASN = &value
-	return b
-}
-
-// WithPeerCtl sets the PeerCtl field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PeerCtl field is set to the value of the last call.
-func (b *BGPPeerPolicyApplyConfiguration) WithPeerCtl(value string) *BGPPeerPolicyApplyConfiguration {
-	b.PeerCtl = &value
 	return b
 }
 
@@ -106,5 +114,21 @@ func (b *BGPPeerPolicyApplyConfiguration) WithSecret(value *ObjRefApplyConfigura
 // If called multiple times, the PrefixPolicy field is set to the value of the last call.
 func (b *BGPPeerPolicyApplyConfiguration) WithPrefixPolicy(value string) *BGPPeerPolicyApplyConfiguration {
 	b.PrefixPolicy = &value
+	return b
+}
+
+// WithEBGPTTL sets the EBGPTTL field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EBGPTTL field is set to the value of the last call.
+func (b *BGPPeerPolicyApplyConfiguration) WithEBGPTTL(value int) *BGPPeerPolicyApplyConfiguration {
+	b.EBGPTTL = &value
+	return b
+}
+
+// WithWeight sets the Weight field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Weight field is set to the value of the last call.
+func (b *BGPPeerPolicyApplyConfiguration) WithWeight(value int) *BGPPeerPolicyApplyConfiguration {
+	b.Weight = &value
 	return b
 }

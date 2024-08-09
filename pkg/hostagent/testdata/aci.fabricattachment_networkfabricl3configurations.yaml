@@ -42,18 +42,45 @@ spec:
                         properties:
                           bgpPeerPolicy:
                             properties:
+                              allowedSelfASCount:
+                                minimum: 1
+                                type: integer
                               ctrl:
-                                type: string
+                                items:
+                                  enum:
+                                  - AllowSelfAS
+                                  - ASOverride
+                                  - DisablePeerASCheck
+                                  - Next-hopSelf
+                                  - SendCommunity
+                                  - SendExtendedCommunity
+                                  - SendDomainPath
+                                  - BFD
+                                  - DisableConnectedCheck
+                                  - RemovePrivateAS
+                                  - RemoveAllPrivateAS
+                                  - ReplacePrivateASWithLocalAS
+                                  type: string
+                                type: array
+                              eBGPTTL:
+                                maximum: 255
+                                minimum: 1
+                                type: integer
                               enabled:
                                 type: boolean
                               localASN:
+                                minimum: 1
                                 type: integer
                               localASNConfig:
+                                enum:
+                                - noPrepend+replace-as+dual-as
+                                - no-prepend
+                                - no-options
+                                - no-prepend+replace-as
                                 type: string
                               peerASN:
+                                minimum: 1
                                 type: integer
-                              peerCtl:
-                                type: string
                               prefix:
                                 type: string
                               prefixPolicy:
@@ -70,6 +97,10 @@ spec:
                                 - name
                                 - namespace
                                 type: object
+                              weight:
+                                maximum: 65535
+                                minimum: 0
+                                type: integer
                             required:
                             - peerASN
                             type: object
@@ -179,9 +210,25 @@ spec:
                                         items:
                                           properties:
                                             aggregate:
-                                              type: string
+                                              items:
+                                                enum:
+                                                - export-rtctrl
+                                                - import-rtctrl
+                                                - shared-rtctrl
+                                                type: string
+                                              maxItems: 3
+                                              type: array
                                             scope:
-                                              type: string
+                                              items:
+                                                enum:
+                                                - export-rtctrl
+                                                - import-rtctrl
+                                                - shared-rtctrl
+                                                - shared-security
+                                                - import-security
+                                                type: string
+                                              maxItems: 5
+                                              type: array
                                             subnet:
                                               type: string
                                           required:
@@ -203,6 +250,9 @@ spec:
                                   - podId
                                   type: object
                                 rtCtrl:
+                                  enum:
+                                  - export
+                                  - export,import
                                   type: string
                                 rtrNodes:
                                   items:
@@ -275,18 +325,45 @@ spec:
                         properties:
                           bgpPeerPolicy:
                             properties:
+                              allowedSelfASCount:
+                                minimum: 1
+                                type: integer
                               ctrl:
-                                type: string
+                                items:
+                                  enum:
+                                  - AllowSelfAS
+                                  - ASOverride
+                                  - DisablePeerASCheck
+                                  - Next-hopSelf
+                                  - SendCommunity
+                                  - SendExtendedCommunity
+                                  - SendDomainPath
+                                  - BFD
+                                  - DisableConnectedCheck
+                                  - RemovePrivateAS
+                                  - RemoveAllPrivateAS
+                                  - ReplacePrivateASWithLocalAS
+                                  type: string
+                                type: array
+                              eBGPTTL:
+                                maximum: 255
+                                minimum: 1
+                                type: integer
                               enabled:
                                 type: boolean
                               localASN:
+                                minimum: 1
                                 type: integer
                               localASNConfig:
+                                enum:
+                                - noPrepend+replace-as+dual-as
+                                - no-prepend
+                                - no-options
+                                - no-prepend+replace-as
                                 type: string
                               peerASN:
+                                minimum: 1
                                 type: integer
-                              peerCtl:
-                                type: string
                               prefix:
                                 type: string
                               prefixPolicy:
@@ -303,6 +380,10 @@ spec:
                                 - name
                                 - namespace
                                 type: object
+                              weight:
+                                maximum: 65535
+                                minimum: 0
+                                type: integer
                             required:
                             - peerASN
                             type: object
@@ -418,9 +499,25 @@ spec:
                                         items:
                                           properties:
                                             aggregate:
-                                              type: string
+                                              items:
+                                                enum:
+                                                - export-rtctrl
+                                                - import-rtctrl
+                                                - shared-rtctrl
+                                                type: string
+                                              maxItems: 3
+                                              type: array
                                             scope:
-                                              type: string
+                                              items:
+                                                enum:
+                                                - export-rtctrl
+                                                - import-rtctrl
+                                                - shared-rtctrl
+                                                - shared-security
+                                                - import-security
+                                                type: string
+                                              maxItems: 5
+                                              type: array
                                             subnet:
                                               type: string
                                           required:
@@ -442,6 +539,9 @@ spec:
                                   - podId
                                   type: object
                                 rtCtrl:
+                                  enum:
+                                  - export
+                                  - export,import
                                   type: string
                                 rtrNodes:
                                   items:
@@ -510,8 +610,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - rule: "self.metadata.name == 'networkfabricl3configuration'"
-          message: "Only one instance with name networkfabricl3configuration allowed"
+        - message: Only one instance with name networkfabricl3configuration allowed
+          rule: self.metadata.name == 'networkfabricl3configuration'
     served: true
     storage: true
     subresources:

@@ -877,8 +877,9 @@ var metadata = map[string]*apicMeta{
 	},
 	"l3extSubnet": {
 		attributes: map[string]interface{}{
-			"ip":    "",
-			"scope": "import-security",
+			"ip":        "",
+			"scope":     "import-security",
+			"aggregate": "",
 		},
 	},
 	"l3extRsPathL3OutAtt": {
@@ -901,9 +902,11 @@ var metadata = map[string]*apicMeta{
 	},
 	"l3extOut": {
 		attributes: map[string]interface{}{
-			"name": "",
+			"name":          "",
+			"enforceRtctrl": "export",
 		},
 		children: []string{
+			"bgpExtP",
 			"l3extLNodeP",
 			"l3extLIfP",
 			"l3extInstP",
@@ -911,18 +914,37 @@ var metadata = map[string]*apicMeta{
 			"l3extRsEctx",
 		},
 	},
+	"bgpExtP": {
+		attributes: map[string]interface{}{},
+		children:   []string{},
+	},
 	"bgpPeerP": {
 		attributes: map[string]interface{}{
-			"addr": "",
+			"addr":             "",
+			"ctrl":             "",
+			"allowedSelfAsCnt": "3",
+			"ctrlExt":          "",
+			"capability":       "",
+			"peerCtrl":         "",
+			"privateASctrl":    "",
+			"ttl":              "1",
+			"weight":           "0",
 		},
 		children: []string{
 			"bgpAsP",
 			"bgpRsPeerPfxPol",
+			"bgpLocalAsnP",
 		},
 	},
 	"bgpAsP": {
 		attributes: map[string]interface{}{
 			"asn": "",
+		},
+		children: []string{},
+	},
+	"bgpLocalAsnP": {
+		attributes: map[string]interface{}{
+			"localAsn": "",
 		},
 		children: []string{},
 	},
