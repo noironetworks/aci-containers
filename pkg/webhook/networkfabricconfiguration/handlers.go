@@ -85,7 +85,7 @@ func validateNFC(ctx context.Context, req AdmissionRequest) AdmissionResponse {
 		if err != nil {
 			return Denied(fmt.Sprintf("vlan %s is unparseable: %v", vlanRef.Vlans, err))
 		}
-		if len(vlans) > 0 {
+		if len(vlans) > 1 {
 			if ((vlanRef.Epg.ApplicationProfile != "") || (vlanRef.Epg.Name != "") || len(vlanRef.Epg.Contracts.Consumer) > 0 ||
 				len(vlanRef.Epg.Contracts.Provider) > 0) || (vlanRef.Epg.BD.Name != "") || (vlanRef.Epg.DiscoveryType != "") {
 				return Denied(fmt.Sprintf("vlan list %s cannot be mapped to a single EPG/BD vlan list can only be used to associate an AEP list",

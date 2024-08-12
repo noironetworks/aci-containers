@@ -2,10 +2,11 @@ FROM registry.access.redhat.com/ubi9/ubi:9.3
 # Required OpenShift Labels
 LABEL name="ACI Containers Certmanager" \
 vendor="Cisco" \
-version="v1.0.0" \
+version="v1.1.0" \
 release="1" \
 summary="This is a certmanager instance for ACI containers" \
 description="This will deploy a single instance of certmanager."
+RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
 # Required Licenses
 COPY docker/licenses /licenses
 COPY dist-static/aci-containers-certmanager docker/launch-certmanager.sh /usr/local/bin/
