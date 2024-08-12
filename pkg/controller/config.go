@@ -268,7 +268,7 @@ type ControllerConfig struct {
 
 	// Configure unkMacUcastAct attribute of service BD
 	// The forwarding method for unknown layer 2 destinations
-	UnknownMacUnicastAction string `json:"unkown-mac-unicast-action,omitempty"`
+	UnknownMacUnicastAction string `json:"unknown-mac-unicast-action,omitempty"`
 
 	// PhysDom for additional networks in chained mode
 	AciPhysDom string `json:"aci-phys-dom,omitempty"`
