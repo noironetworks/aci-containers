@@ -26,8 +26,10 @@ import (
 
 	hppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
+	"github.com/noironetworks/aci-containers/pkg/util"
 
 	"github.com/sirupsen/logrus"
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -271,18 +273,89 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 		return
 	}
 	modb := getMoDB()
+	agent.hppMoIndex[hpp.Spec.Name] = *modb
+
+	staticPols := []string{"static-ingress", "static-egress", "static-discovery"}
+
+	hppName := strings.TrimSpace(hpp.Spec.Name)
+
+	// If hpp is one of the static policies or node policy, create the netpol file
+	for _, pol := range staticPols {
+		labelKey := util.AciNameForKey(agent.config.AciPrefix, "np", pol)
+
+		if hppName == labelKey {
+			agent.log.Infof("SMS: %s", labelKey)
+			agent.updateNetpolFile(*modb, labelKey)
+			break
+		}
+	}
+
+	nodeName := agent.config.NodeName
+	labelKey := util.AciNameForKey(agent.config.AciPrefix, "node", nodeName)
+	if hppName == labelKey {
+		agent.log.Infof("SMS: %s", labelKey)
+		agent.updateNetpolFile(*modb, labelKey)
+	}
+
+	agent.scheduleSyncHppMo()
+}
+
+func (agent *HostAgent) syncHppMo() bool {
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+
+	netpols := agent.netPolInformer.GetIndexer().List()
+
+	for _, netpol := range netpols {
+		np := netpol.(*v1net.NetworkPolicy)
+		npkey, err := cache.MetaNamespaceKeyFunc(np)
+		if err != nil {
+			agent.log.Error("Could not create network policy key: ", err)
+			return true
+		}
+		pods := agent.netPolPods.GetPodForObj(npkey)
+
+		if len(pods) > 0 {
+			hash, err := util.CreateHashFromNetPol(np)
+			if err != nil {
+				agent.log.Error("Failed to create hash for network policy ", npkey)
+				return true
+			}
+			labelKey := util.AciNameForKey(agent.config.AciPrefix, "np", hash)
+			if modb, ok := agent.hppMoIndex[labelKey]; ok {
+				agent.updateNetpolFile(modb, labelKey)
+			} else {
+				agent.log.Infof("HPP %s not found in local cache", labelKey)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (agent *HostAgent) updateNetpolFile(modb []*gbpBaseMo, labelKey string) {
 	policyDBJson, err := json.MarshalIndent(modb, "", "  ")
 	if err != nil {
 		agent.log.Fatalf("Failed to marshal policyDB: %v", err)
 		return
 	}
-	filePath := filepath.Join(agent.config.OpFlexNetPolDir, fmt.Sprintf("%s.netpol", hpp.Spec.Name))
-	err = os.WriteFile(filePath, policyDBJson, 0644)
-	if err != nil {
-		agent.log.Fatalf("Failed to write netpol to file: %v", err)
+	filePath := filepath.Join(agent.config.OpFlexNetPolDir, fmt.Sprintf("%s.netpol", labelKey))
+	// Read existing file content, if any
+	existingContent, err := os.ReadFile(filePath)
+	if err != nil && !os.IsNotExist(err) {
+		agent.log.Fatalf("Failed to read file: %v", err)
 		return
-	} else {
-		agent.log.Infof("HPP %s updated", hpp.Spec.Name)
+	}
+	// Write to file if it doesn't exist or content is different
+	if os.IsNotExist(err) || string(existingContent) != string(policyDBJson) ||
+		labelKey == util.AciNameForKey(agent.config.AciPrefix, "np", "static-discovery") {
+		err = os.WriteFile(filePath, policyDBJson, 0644)
+		if err != nil {
+			agent.log.Fatalf("Failed to write netpol to file: %v", err)
+			return
+		}
+		agent.log.Infof("HPP %s updated", labelKey)
 	}
 }
 
@@ -296,10 +369,20 @@ func (agent *HostAgent) hppUpdate(old_obj interface{}, obj interface{}) {
 }
 
 func (agent *HostAgent) hppDelete(obj interface{}) {
-	hpp := obj.(*hppv1.HostprotPol)
+	hpp, ok := obj.(*hppv1.HostprotPol)
+	if !ok {
+		agent.log.Errorf("Invalid HostprotPol")
+		return
+	}
+
+	agent.indexMutex.Lock()
+	defer agent.indexMutex.Unlock()
+
+	delete(agent.hppMoIndex, hpp.Spec.Name)
 	filePath := filepath.Join(agent.config.OpFlexNetPolDir, fmt.Sprintf("%s.netpol", hpp.Spec.Name))
+
 	err := os.Remove(filePath)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		agent.log.Errorf("Failed to delete file: %v", err)
 	}
 }

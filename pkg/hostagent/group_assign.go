@@ -145,6 +145,9 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 	if len(g) == 0 {
 		return sgval, nil
 	}
+
+	agent.scheduleSyncHppMo()
+
 	return g, nil
 }
 

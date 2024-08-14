@@ -516,26 +516,6 @@ func (hs *HpSubj) getChildren(key string) []*HpSubjChild {
 	return res
 }
 
-func attrToProperties(a map[string]string) map[string]interface{} {
-	p := make(map[string]interface{})
-
-	p[propEther] = a["ethertype"]
-	ct, ok := a["connTrack"]
-	if ok {
-		p[propConnTrack] = ct
-	}
-	switch a["protocol"] {
-	case "udp":
-		p[propProt] = 17
-	case "icmp":
-		p[propProt] = 1
-	case "tcp":
-		p[propProt] = 6
-	}
-
-	return p
-}
-
 func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error {
 	// make a classifier mo
 	cfMo := &GBPL24Classifier{}
@@ -543,10 +523,24 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	uri := fmt.Sprintf("/PolicyUniverse/PolicySpace/%s/GbpeLocalL24Classifier/%s/", getTenantName(), escapeName(cname, false))
 	hsc.classifierUri = uri
 	cfMo.AddProperty(propName, cname)
+	cfMo.AddProperty(propEther, hsc.Attributes["ethertype"])
 
-	props := attrToProperties(hsc.Attributes)
-	for p, v := range props {
-		cfMo.AddProperty(p, v)
+	ct, ok := hsc.Attributes["connTrack"]
+	if ok {
+		cfMo.AddProperty(propConnTrack, ct)
+	}
+
+	var prot int
+	switch hsc.Attributes["protocol"] {
+	case "udp":
+		prot = 17
+	case "icmp":
+		prot = 1
+	case "tcp":
+		prot = 6
+	}
+	if prot != 0 {
+		cfMo.AddProperty(propProt, prot)
 	}
 
 	protocol := hsc.Attributes["protocol"]

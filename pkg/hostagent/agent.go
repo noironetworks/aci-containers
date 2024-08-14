@@ -108,12 +108,14 @@ type HostAgent struct {
 	fabricVlanPoolInformer cache.SharedIndexInformer
 	hppInformer            cache.SharedIndexInformer
 	hppRemoteIpInformer    cache.SharedIndexInformer
+	hppMoIndex             map[string][]*gbpBaseMo
 
 	syncEnabled         bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 	epSyncQueue         workqueue.RateLimitingInterface
 	portSyncQueue       workqueue.RateLimitingInterface
+	hppMoSyncQueue      workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
@@ -221,6 +223,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		podToNetAttachDef:     make(map[string][]string),
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		completedSyncTypes:    make(map[string]struct{}),
+		hppMoIndex:            make(map[string][]*gbpBaseMo),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -233,6 +236,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "portsync"),
+		hppMoSyncQueue: workqueue.NewNamedRateLimitingQueue(
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
+			}, "hppmosync"),
 		ocServices: []opflexOcService{
 			{
 				RouterInternalDefault,
@@ -250,7 +257,8 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"rdconfig":      ha.syncRdConfig,
 		"snatLocalInfo": ha.UpdateLocalInfoCr,
 		"nodepodifs":    ha.syncNodePodIfs,
-		"ports":         ha.syncPortsQ}
+		"ports":         ha.syncPortsQ,
+		"hpp":           ha.syncHppMo}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -424,6 +432,8 @@ func (agent *HostAgent) ScheduleSync(syncType string) {
 		agent.epSyncQueue.AddRateLimited(syncType)
 	} else if syncType == "ports" {
 		agent.portSyncQueue.AddRateLimited(syncType)
+	} else if syncType == "hpp" {
+		agent.hppMoSyncQueue.AddRateLimited(syncType)
 	} else {
 		agent.syncQueue.AddRateLimited(syncType)
 	}
@@ -459,6 +469,9 @@ func (agent *HostAgent) scheduleSyncNodePodIfs() {
 }
 func (agent *HostAgent) scheduleSyncPorts() {
 	agent.ScheduleSync("ports")
+}
+func (agent *HostAgent) scheduleSyncHppMo() {
+	agent.ScheduleSync("hpp")
 }
 
 func (agent *HostAgent) watchRebootConf(stopCh <-chan struct{}) {
@@ -637,6 +650,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
+		go agent.processSyncQueue(agent.hppMoSyncQueue, stopCh)
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)
