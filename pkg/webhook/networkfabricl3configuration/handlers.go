@@ -131,6 +131,13 @@ func validateNFL3Config(ctx context.Context, req AdmissionRequest) AdmissionResp
 				}
 				// TODO: Check for overlapping subnets
 			}
+			bgpCtrlMap := make(map[string]bool)
+			for _, ctrl := range svi.BGPPeerPolicy.Ctrl {
+				if _, ok := bgpCtrlMap[string(ctrl)]; ok {
+					return Denied(fmt.Sprintf("bgp ctrl flag %s is repeated in svi encap %d", ctrl, svi.Encap))
+				}
+				bgpCtrlMap[string(ctrl)] = true
+			}
 		}
 		for _, tenantCfg := range vrfCfg.Tenants {
 			if !vrfCfg.Vrf.CommonTenant && tenantCfg.CommonTenant {
@@ -170,6 +177,20 @@ func validateNFL3Config(ctx context.Context, req AdmissionRequest) AdmissionResp
 					for _, ppfx := range extEpg.PolicyPrefixes {
 						if _, ok := ppMap[ppfx.Subnet]; ok {
 							return Denied(fmt.Sprintf("subnet %s is repeated in extEpg %s", ppfx.Subnet, l3OutKey+"/"+extEpg.Name))
+						}
+						scopeMap := make(map[string]bool)
+						for _, scope := range ppfx.Scope {
+							if _, ok := scopeMap[string(scope)]; ok {
+								return Denied(fmt.Sprintf("scope %s is repeated in subnet %s ppfx %s", string(scope), ppfx.Subnet, l3OutKey+"/"+extEpg.Name))
+							}
+							scopeMap[string(scope)] = true
+						}
+						aggMap := make(map[string]bool)
+						for _, agg := range ppfx.Aggregate {
+							if _, ok := aggMap[string(agg)]; ok {
+								return Denied(fmt.Sprintf("aggregate %s is repeated in subnet %s ppfx %s", string(agg), ppfx.Subnet, l3OutKey+"/"+extEpg.Name))
+							}
+							scopeMap[string(agg)] = true
 						}
 						// TODO: Check for overlapping subnets
 						ppMap[ppfx.Subnet] = true

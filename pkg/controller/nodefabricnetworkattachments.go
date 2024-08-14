@@ -404,14 +404,6 @@ func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicit
 	return bd
 }
 
-func (cont *AciController) getNodeFabNetAttEpg(explicitEpgName string, vlan int) string {
-	epgName := explicitEpgName
-	if epgName == "" {
-		epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
-	}
-	return epgName
-}
-
 func (cont *AciController) getNodeFabNetAttTenant(explicitTenantName string) string {
 	tenantName := explicitTenantName
 	if tenantName == "" {
@@ -431,7 +423,7 @@ func (cont *AciController) getNodeFabNetAttAp(explicitApName, tenantName string)
 	return apName
 }
 
-func (cont *AciController) createNodeFabNetAttAp(name, explicitTenantName string) apicapi.ApicObject {
+func (cont *AciController) createNodeFabNetAttAp(explicitTenantName, name string) apicapi.ApicObject {
 	tenantName := cont.getNodeFabNetAttTenant(explicitTenantName)
 	apName := cont.getNodeFabNetAttAp(name, tenantName)
 	return apicapi.NewFvAP(tenantName, apName)
@@ -458,7 +450,7 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string, explici
 			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, globalScopeVlanBdPrefix, vlan)
 		}
 	}
-
+	_ = explicitVrfName
 	epg := apicapi.NewFvAEPg(tenantName, apName, epgName)
 	fvRsBd := apicapi.NewFvRsBD(epg.GetDn(), bdName)
 	epg.AddChild(fvRsBd)
@@ -567,15 +559,6 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 			}
 		}
 		delete(cont.sharedEncapCache, vlan)
-		if nfcEpgAp != "" {
-			tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
-			apKey := cont.aciNameForKey("ap", "tenant_"+tenantName+"_"+nfcEpgAp)
-			delete(cont.sharedEncapNfcAppProfileMap[apKey], vlan)
-			if len(cont.sharedEncapNfcAppProfileMap[apKey]) == 0 {
-				progMap[apKey] = nil
-				delete(cont.sharedEncapNfcAppProfileMap, apKey)
-			}
-		}
 		return
 	}
 	var epg apicapi.ApicObject
@@ -585,19 +568,6 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 	if !sviContext.present {
 		apicSlice2 = append(apicSlice2, cont.createNodeFabNetAttBd(vlan, globalScopeVlanBdPrefix, nfcBdTenant,
 			nfcVrf, nfcBd, nfcBdSubnets))
-		if nfcEpgAp != "" {
-			tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
-			apLabel := "tenant_" + tenantName + "_" + nfcEpgAp
-			if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
-				var apicSlice apicapi.ApicSlice
-				cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-				ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
-				apicSlice = append(apicSlice, ap)
-				apKey := cont.aciNameForKey("ap", apLabel)
-				progMap[apKey] = apicSlice
-			}
-			cont.sharedEncapNfcAppProfileMap[apLabel][vlan] = true
-		}
 		epg = cont.createNodeFabNetAttEpg(vlan, globalScopeVlanEpgPrefix, nfcEpgTenant, nfcBd, nfcEpgAp, nfcEpg, nfcVrf, nfcEpgConsumers, nfcEpgProviders)
 	}
 	programNodeFabNetAttObjs := func() {
@@ -692,18 +662,6 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 		epgName := fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, encap)
 		labelKey = cont.aciNameForKey("nfna", epgName)
 		if !sviContext.present {
-			if nfcEpgAp != "" {
-				tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
-				apLabel := "tenant_" + tenantName + "_" + nfcEpgAp
-				if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
-					cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-					ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
-					apicSlice = append(apicSlice, ap)
-					apKey := cont.aciNameForKey("ap", apLabel)
-					progMap[apKey] = apicSlice
-				}
-				cont.sharedEncapNfcAppProfileMap[apLabel][encap] = true
-			}
 			bd := cont.createNodeFabNetAttBd(encap, globalScopeVlanBdPrefix, nfcBdTenant,
 				nfcVrf, nfcBd, nfcBdSubnets)
 			apicSlice2 = append(apicSlice2, bd)
@@ -756,18 +714,6 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 					}
 					delete(cont.sharedEncapCache[encap].Aeps, aep)
 				}
-			}
-			if nfcEpgAp != "" && !sviContext.present {
-				tenantName := cont.getNodeFabNetAttTenant(nfcEpgTenant)
-				apLabel := "tenant_" + tenantName + "_" + nfcEpgAp
-				if _, ok := cont.sharedEncapNfcAppProfileMap[apLabel]; !ok {
-					cont.sharedEncapNfcAppProfileMap[apLabel] = make(map[int]bool)
-					ap := cont.createNodeFabNetAttAp(nfcEpgAp, nfcEpgTenant)
-					apicSlice = append(apicSlice, ap)
-					apKey := cont.aciNameForKey("ap", apLabel)
-					progMap[apKey] = apicSlice
-				}
-				cont.sharedEncapNfcAppProfileMap[apLabel][encap] = true
 			}
 		}
 		progMap[labelKey] = apicSlice2

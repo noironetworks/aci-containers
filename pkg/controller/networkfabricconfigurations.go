@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"context"
+	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -153,6 +154,18 @@ func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfigur
 				cont.sharedEncapNfcVlanMap[vlan].Aeps[aep] = true
 			}
 		}
+	}
+	for appProfile := range currAppProfs {
+		var apicSlice apicapi.ApicSlice
+		if _, ok := cont.sharedEncapNfcAppProfileMap[appProfile]; ok {
+			continue
+		}
+		cont.sharedEncapNfcAppProfileMap[appProfile] = true
+		labelKey := cont.aciNameForKey("ap", appProfile)
+		parts := strings.Split(appProfile, "_")
+		ap := cont.createNodeFabNetAttAp(parts[1], parts[2])
+		apicSlice = append(apicSlice, ap)
+		progMap[labelKey] = apicSlice
 	}
 	for appProfile := range cont.sharedEncapNfcAppProfileMap {
 		if _, ok := currAppProfs[appProfile]; !ok {

@@ -207,7 +207,7 @@ type AciController struct {
 	sharedEncapNfcCache         map[int]*NfcData
 	sharedEncapNfcVlanMap       map[int]*NfcData
 	sharedEncapNfcLabelMap      map[string]*NfcData
-	sharedEncapNfcAppProfileMap map[string]map[int]bool
+	sharedEncapNfcAppProfileMap map[string]bool
 	// nadVlanMap encapLabel to vlan
 	sharedEncapLabelMap      map[string][]int
 	lldpIfCache              map[string]string
@@ -509,7 +509,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		sharedEncapNfcCache:         make(map[int]*NfcData),
 		sharedEncapNfcVlanMap:       make(map[int]*NfcData),
 		sharedEncapNfcLabelMap:      make(map[string]*NfcData),
-		sharedEncapNfcAppProfileMap: make(map[string]map[int]bool),
+		sharedEncapNfcAppProfileMap: make(map[string]bool),
 		sharedEncapLabelMap:         make(map[string][]int),
 		lldpIfCache:                 make(map[string]string),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
