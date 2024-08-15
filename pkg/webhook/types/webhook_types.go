@@ -38,6 +38,7 @@ type RunTimeData struct {
 }
 
 type Config struct {
+	UnitTestMode         bool
 	RequireNADAnnotation bool
 	ContainerName        string
 	RunTimeData

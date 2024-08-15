@@ -66,10 +66,11 @@ func RegisterHandlers(config *aciwebhooktypes.Config, registry map[string]*Admis
 	registry[validatePath] = ValidatingHook
 }
 
-func createConfigMaps(kubeClient *kubernetes.Clientset, pod *corev1.Pod, podNode string, finalInjectMap map[string]bool) {
+func createConfigMaps(kubeClient *kubernetes.Clientset, pod *corev1.Pod, podNode string, finalInjectMap map[string]bool) []corev1.ConfigMap {
 	prefixStr := fmt.Sprintf("PodHandler: %s/%s: ", pod.Namespace, pod.Name)
 	webhookHdlrLog := ctrl.Log.WithName(prefixStr)
 	err := fmt.Errorf("envVar insertion failed")
+	cfgMaps := []corev1.ConfigMap{}
 	Config.CommonMutex.Lock()
 	for nw := range finalInjectMap {
 		namespace := pod.Namespace
@@ -83,79 +84,112 @@ func createConfigMaps(kubeClient *kubernetes.Clientset, pod *corev1.Pod, podNode
 			continue
 		}
 		webhookHdlrLog.Info("NwData: ", "nwData", nwData, "nodeName", podNode)
-		if nodeData, ok := nwData[podNode]; ok {
-			// For now, only consider the least encap in a NAD
-			// If at all, a NAD needs to include more than one vlan,
-			// there needs to be some annotation on the pod that indicates
-			// what vlan the container is intending to use.
-			minEncap := 4096
+		// For now, only consider the least encap in a NAD
+		// If at all, a NAD needs to include more than one vlan,
+		// there needs to be some annotation on the pod that indicates
+		// what vlan the container is intending to use.
+		minEncap := 4096
+		fabricPeers := []string{}
+		configMapName := pod.Name + "-" + nw + "-bgp-config"
+		cfgMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: configMapName,
+				Namespace: pod.Namespace},
+			Data: make(map[string]string),
+		}
+		var fabPeerInfo *aciwebhooktypes.FabricPeeringInfo
+		peerInfoOk := false
+		if nodeData, nodePresent := nwData[podNode]; nodePresent {
 			for encap := range nodeData {
 				if encap < minEncap {
 					minEncap = encap
 				}
 			}
-			fabPeerInfo, peerInfoOk := Config.FabricPeerInfo[minEncap]
+			fabPeerInfo, peerInfoOk = Config.FabricPeerInfo[minEncap]
 			if !peerInfoOk {
 				webhookHdlrLog.Error(err, "No peering info for ", "NAD", nw)
-				return
+				continue
 			}
-			fabricPeers := []string{}
+
 			for _, fabricPeer := range nodeData[minEncap] {
 				if addr, ok := fabPeerInfo.Peers[fabricPeer]; ok {
 					fabricPeers = append(fabricPeers, addr)
 				}
 			}
-			configMapName := pod.Name + "-" + nw + "-bgp-config"
-			cfgMap := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: configMapName,
-					Namespace: pod.Namespace},
-				Data: make(map[string]string),
-			}
-			for _, envKey := range []string{"BGP_ASN", "BGP_PEERING_ENDPOINTS", "BGP_SECRET_PATH"} {
-				var envVal string
-				switch envKey {
-				case "BGP_ASN":
-					{
-						envVal = fmt.Sprintf("%d", fabPeerInfo.ASN)
+		} else {
+			for _, nodeData := range nwData {
+				for encap := range nodeData {
+					if encap < minEncap {
+						minEncap = encap
 					}
-				case "BGP_PEERING_ENDPOINTS":
-					{
-						envVal = fmt.Sprintf("%v", strings.Join(fabricPeers, ","))
+				}
+			}
+			fabPeerInfo, peerInfoOk = Config.FabricPeerInfo[minEncap]
+			if !peerInfoOk {
+				webhookHdlrLog.Error(err, "No peering info for ", "NAD", nw)
+				continue
+			}
+			fabricNodeMap := map[int]bool{}
+			for _, nodeData := range nwData {
+				for _, fabricPeer := range nodeData[minEncap] {
+					if _, ok := fabricNodeMap[fabricPeer]; ok {
+						continue
+					}
+					fabricNodeMap[fabricPeer] = true
+					if addr, ok := fabPeerInfo.Peers[fabricPeer]; ok {
+						fabricPeers = append(fabricPeers, addr)
+					}
+				}
+			}
+		}
+		for _, envKey := range []string{"BGP_ASN", "BGP_PEERING_ENDPOINTS", "BGP_SECRET_PATH"} {
+			var envVal string
+			switch envKey {
+			case "BGP_ASN":
+				{
+					envVal = fmt.Sprintf("%d", fabPeerInfo.ASN)
+				}
+			case "BGP_PEERING_ENDPOINTS":
+				{
+					envVal = fmt.Sprintf("%v", strings.Join(fabricPeers, ","))
 
-					}
-				case "BGP_SECRET_PATH":
-					{
-						if fabPeerInfo.Secret.Name != "" {
-							envVal = fmt.Sprintf("%s/%s", fabPeerInfo.Secret.Namespace, fabPeerInfo.Secret.Name)
-						}
+				}
+			case "BGP_SECRET_PATH":
+				{
+					if fabPeerInfo.Secret.Name != "" {
+						envVal = fmt.Sprintf("%s/%s", fabPeerInfo.Secret.Namespace, fabPeerInfo.Secret.Name)
 					}
 				}
-				cfgMap.Data[envKey] = envVal
 			}
-			configMap, err := kubeClient.CoreV1().ConfigMaps(pod.Namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					_, err = kubeClient.CoreV1().ConfigMaps(pod.Namespace).Create(context.TODO(), cfgMap, metav1.CreateOptions{})
-					if err != nil {
-						webhookHdlrLog.Error(err, "")
-					} else {
-						webhookHdlrLog.Info("Created ", "configmap", pod.Namespace+"/"+configMapName)
-					}
-				} else {
-					webhookHdlrLog.Error(err, "")
-				}
-			} else {
-				configMap.Data = cfgMap.Data
-				_, err = kubeClient.CoreV1().ConfigMaps(pod.Namespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
+			cfgMap.Data[envKey] = envVal
+		}
+		if Config.UnitTestMode {
+			cfgMaps = append(cfgMaps, *cfgMap)
+			continue
+		}
+		configMap, err := kubeClient.CoreV1().ConfigMaps(pod.Namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				_, err = kubeClient.CoreV1().ConfigMaps(pod.Namespace).Create(context.TODO(), cfgMap, metav1.CreateOptions{})
 				if err != nil {
 					webhookHdlrLog.Error(err, "")
 				} else {
-					webhookHdlrLog.Info("Updated ", "configmap", pod.Namespace+"/"+configMapName)
+					webhookHdlrLog.Info("Created ", "configmap", pod.Namespace+"/"+configMapName)
 				}
+			} else {
+				webhookHdlrLog.Error(err, "")
+			}
+		} else {
+			configMap.Data = cfgMap.Data
+			_, err = kubeClient.CoreV1().ConfigMaps(pod.Namespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
+			if err != nil {
+				webhookHdlrLog.Error(err, "")
+			} else {
+				webhookHdlrLog.Info("Updated ", "configmap", pod.Namespace+"/"+configMapName)
 			}
 		}
 	}
 	Config.CommonMutex.Unlock()
+	return cfgMaps
 }
 
 func deleteConfigMaps(kubeClient *kubernetes.Clientset, pod *corev1.Pod, finalInjectMap map[string]bool) {
