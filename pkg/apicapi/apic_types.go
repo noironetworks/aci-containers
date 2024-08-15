@@ -1075,7 +1075,7 @@ func NewL3ExtMember(parentDn, side, addr string) ApicObject {
 	ret["l3extMember"].Attributes["addr"] = addr
 	ret["l3extMember"].Attributes["side"] = side
 	ret["l3extMember"].HintDn =
-		fmt.Sprintf("%s/mem-[%s]", parentDn, side)
+		fmt.Sprintf("%s/mem-%s", parentDn, side)
 	return ret
 }
 
