@@ -105,29 +105,35 @@ func validateNFL3Config(ctx context.Context, req AdmissionRequest) AdmissionResp
 					return Denied(fmt.Sprintf("vrf %s,subnet %s is repeated", vrfName, nw2.String()))
 				}
 				vrfMap[vrfName][nw2.String()] = true
-				secIP := net.ParseIP(secNw.SecondaryAddress)
-				if secIP == nil {
-					return Denied(fmt.Sprintf("vrf %s,subnet %s, secondary address %s is not valid",
-						vrfName, secNw.ConnectedSubnet, secNw.SecondaryAddress))
-				} else {
-					if !nw2.Contains(secIP) {
-						return Denied(fmt.Sprintf("vrf %s,subnet %s, secondary address %s is not in the subnet",
+				if secNw.SecondaryAddress != "" {
+					_, secIP, err3 := net.ParseCIDR(secNw.SecondaryAddress)
+					if err3 != nil {
+						return Denied(fmt.Sprintf("vrf %s,subnet %s, secondary address %s is not valid",
 							vrfName, secNw.ConnectedSubnet, secNw.SecondaryAddress))
+					} else {
+						if !nw2.Contains(secIP.IP) {
+							return Denied(fmt.Sprintf("vrf %s,subnet %s, secondary address %s is not in the subnet",
+								vrfName, secNw.ConnectedSubnet, secNw.SecondaryAddress))
+						}
 					}
 				}
-				floatIP := net.ParseIP(secNw.FloatingAddress)
-				if floatIP == nil {
-					return Denied(fmt.Sprintf("vrf %s,subnet %s, floating address %s is not valid",
-						vrfName, secNw.ConnectedSubnet, secNw.FloatingAddress))
-				} else {
-					if !nw2.Contains(floatIP) {
-						return Denied(fmt.Sprintf("vrf %s,subnet %s, floating address %s is not in the subnet",
+				if secNw.FloatingAddress != "" {
+					_, floatIP, err3 := net.ParseCIDR(secNw.FloatingAddress)
+					if err3 != nil {
+						return Denied(fmt.Sprintf("vrf %s,subnet %s, floating address %s is not valid",
 							vrfName, secNw.ConnectedSubnet, secNw.FloatingAddress))
+					} else {
+						if !nw2.Contains(floatIP.IP) {
+							return Denied(fmt.Sprintf("vrf %s,subnet %s, floating address %s is not in the subnet",
+								vrfName, secNw.ConnectedSubnet, secNw.FloatingAddress))
+						}
 					}
 				}
-				if secNw.SecondaryAddress == secNw.FloatingAddress {
-					return Denied(fmt.Sprintf("vrf %s,floating address %s should not be the same as secondary address %s",
-						vrfName, secNw.FloatingAddress, secNw.SecondaryAddress))
+				if secNw.SecondaryAddress != "" && secNw.FloatingAddress != "" {
+					if secNw.SecondaryAddress == secNw.FloatingAddress {
+						return Denied(fmt.Sprintf("vrf %s,floating address %s should not be the same as secondary address %s",
+							vrfName, secNw.FloatingAddress, secNw.SecondaryAddress))
+					}
 				}
 				// TODO: Check for overlapping subnets
 			}

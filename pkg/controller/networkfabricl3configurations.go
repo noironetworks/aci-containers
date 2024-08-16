@@ -378,7 +378,7 @@ func (cont *AciController) getSviNetworkPool(ctxt *SviContext, subnet string) (f
 		} else {
 			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, (rtdNetData.maxAddresses + 1), &floatingAddrStr)
 		}
-		if fabL3Subnet.FloatingAddress != "" {
+		if fabL3Subnet.SecondaryAddress != "" {
 			secondaryAddrStr = fabL3Subnet.SecondaryAddress
 		} else {
 			cont.generateSviAddress(rtdNetData.baseAddress, rtdNetData.maskLen, rtdNetData.maxAddresses, &secondaryAddrStr)
@@ -557,7 +557,7 @@ func (cont *AciController) createNodeFabNetAttSviPaths(vlan int, ctxt *SviContex
 				l3extIp = apicapi.NewL3ExtIp(l3extMember.GetDn(), secondaryAddr2)
 				l3extMember.AddChild(l3extIp)
 				primaryAddr, err = cont.allocateSviAddress(vlan, ctxt, rtdNetData2, nodes[idx])
-				if err != nil {
+				if err == nil {
 					l3extIp = apicapi.NewL3ExtIp(l3extMember.GetDn(), primaryAddr)
 					l3extMember.AddChild(l3extIp)
 				}
@@ -610,7 +610,7 @@ func (cont *AciController) createNodeFabNetAttSviPaths(vlan int, ctxt *SviContex
 					l3extIp = apicapi.NewL3ExtIp(ctxt.l3extVirtualLifP.GetDn(), secondaryAddr2)
 					ctxt.l3extVirtualLifP.AddChild(l3extIp)
 					primaryAddr, err = cont.allocateSviAddress(vlan, ctxt, rtdNetData2, node)
-					if err != nil {
+					if err == nil {
 						l3extIp = apicapi.NewL3ExtIp(ctxt.l3extVirtualLifP.GetDn(), primaryAddr)
 						ctxt.l3extVirtualLifP.AddChild(l3extIp)
 					}
