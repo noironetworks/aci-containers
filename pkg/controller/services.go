@@ -312,7 +312,7 @@ func deleteDevicesFromList(delDevices, devices apicapi.ApicSlice) apicapi.ApicSl
 	var newDevices apicapi.ApicSlice
 	for _, device := range devices {
 		found := false
-		for delDev := range delDevices {
+		for _, delDev := range delDevices {
 			if reflect.DeepEqual(delDev, device) {
 				found = true
 			}
@@ -556,6 +556,7 @@ func (cont *AciController) deleteOldOpflexDevices() {
 			if len(delDevices) > 0 {
 				newDevices := deleteDevicesFromList(delDevices, devices)
 				cont.nodeOpflexDevice[node] = newDevices
+				cont.log.Info("Opflex device list for node ", node, " after deleting stale entries: ", cont.nodeOpflexDevice[node])
 				if len(newDevices) == 0 {
 					delete(cont.nodeOpflexDevice, node)
 				}
