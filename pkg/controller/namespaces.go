@@ -90,6 +90,7 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	if !cont.isCNOEnabled() {
 		cont.netPolPods.UpdateNamespace(ns)
 		cont.netPolIngressPods.UpdateNamespace(ns)
+		cont.netPolEgressPods.UpdateNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 	cont.checkIfEpgExistNs(ns)
@@ -110,6 +111,7 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 		if !cont.isCNOEnabled() {
 			cont.netPolPods.UpdateNamespace(newns)
 			cont.netPolIngressPods.UpdateNamespace(newns)
+			cont.netPolEgressPods.UpdateNamespace(newns)
 		}
 	}
 	if !reflect.DeepEqual(oldns.ObjectMeta.Annotations,
@@ -139,6 +141,7 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 	if !cont.isCNOEnabled() {
 		cont.netPolPods.DeleteNamespace(ns)
 		cont.netPolIngressPods.DeleteNamespace(ns)
+		cont.netPolEgressPods.DeleteNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 }
