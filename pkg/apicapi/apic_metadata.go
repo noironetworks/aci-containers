@@ -842,7 +842,9 @@ var metadata = map[string]*apicMeta{
 		attributes: map[string]interface{}{
 			"tDn": "",
 		},
-		children: []string{},
+		children: []string{
+			"ipRouteP",
+		},
 	},
 	"l3extLNodeP": {
 		attributes: map[string]interface{}{
@@ -1231,6 +1233,20 @@ var metadata = map[string]*apicMeta{
 		attributes: map[string]interface{}{
 			"name":  "",
 			"value": "",
+		},
+	},
+	"ipRouteP": {
+		attributes: map[string]interface{}{
+			"ip":     "",
+			"rtCtrl": "",
+		},
+		children: []string{
+			"ipNexthopP",
+		},
+	},
+	"ipNexthopP": {
+		attributes: map[string]interface{}{
+			"nhAddr": "",
 		},
 	},
 }
