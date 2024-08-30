@@ -85,6 +85,7 @@ type AciController struct {
 	netFabL3ConfigQueue   workqueue.RateLimitingInterface
 	remIpContQueue        workqueue.RateLimitingInterface
 	epgDnCacheUpdateQueue workqueue.RateLimitingInterface
+	lldpIfQueue           workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -213,11 +214,19 @@ type AciController struct {
 	sharedEncapNfcAppProfileMap map[string]bool
 	// nadVlanMap encapLabel to vlan
 	sharedEncapLabelMap      map[string][]int
-	lldpIfCache              map[string]string
+	lldpIfCache              map[string]*NfLLDPIfData
 	globalVlanConfig         globalVlanConfig
 	fabricVlanPoolMap        map[string]map[string]string
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	openStackSystemId        string
+}
+
+type NfLLDPIfData struct {
+	LLDPIf string
+	// As of now, manage at the NAD level
+	// more granular introduces intf tracking complexities
+	// for not sufficient benefits
+	Refs map[string]bool
 }
 
 type NfL3OutData struct {
@@ -448,6 +457,18 @@ func createQueue(name string) workqueue.RateLimitingInterface {
 		"delta")
 }
 
+func createQueueWithEventLimits(name string, eventsPerSec float64, burstSize int) workqueue.RateLimitingInterface {
+	return workqueue.NewNamedRateLimitingQueue(
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(eventsPerSec), int(burstSize)),
+			},
+		),
+		name)
+}
+
 func NewController(config *ControllerConfig, env Environment, log *logrus.Logger, unittestmode bool) *AciController {
 	cont := &AciController{
 		log:          log,
@@ -474,6 +495,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netFabL3ConfigQueue:   createQueue("networkfabricl3configuration"),
 		remIpContQueue:        createQueue("remoteIpContainer"),
 		epgDnCacheUpdateQueue: createQueue("epgDnCache"),
+		lldpIfQueue:           createQueueWithEventLimits("lldpIf", 5, 200),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -515,7 +537,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		sharedEncapNfcLabelMap:      make(map[string]*NfcData),
 		sharedEncapNfcAppProfileMap: make(map[string]bool),
 		sharedEncapLabelMap:         make(map[string][]int),
-		lldpIfCache:                 make(map[string]string),
+		lldpIfCache:                 make(map[string]*NfLLDPIfData),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpCont),
@@ -674,6 +696,36 @@ func (cont *AciController) processEpgDnCacheUpdateQueue(queue workqueue.RateLimi
 				}
 				if postDelHandler != nil {
 					requeue = postDelHandler()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processLLDPIfQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
+				if handler != nil {
+					requeue = handler(key)
 				}
 			}
 			if requeue {

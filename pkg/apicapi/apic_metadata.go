@@ -832,6 +832,11 @@ var metadata = map[string]*apicMeta{
 			"l3extRsDynPathAtt",
 		},
 	},
+	// lldpIf is read-only
+	"lldpIf": {
+		attributes: map[string]interface{}{},
+		children:   []string{},
+	},
 	"l3extIp": {
 		attributes: map[string]interface{}{
 			"addr": "",
