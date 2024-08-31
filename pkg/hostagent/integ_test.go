@@ -133,12 +133,17 @@ func SetupInteg(t *testing.T, c *HostAgentConfig) *integ {
 	if err != nil {
 		panic(err)
 	}
+	oobpoldir, err := os.MkdirTemp("", "it_oobpol_")
+	if err != nil {
+		panic(err)
+	}
 
 	it := &integ{t: t, testNS: testPodNS, hcf: c}
 	it.hcf.CniMetadataDir = cnidir
 	it.hcf.OpFlexEndpointDir = epdir
 	it.hcf.OpFlexServiceDir = svcdir
 	it.hcf.OpFlexSnatDir = snatdir
+	it.hcf.OOBPolicyDir = oobpoldir
 	PluginCloner.Stub = true
 	it.ta = testAgentWithConf(c)
 	it.ta.run()

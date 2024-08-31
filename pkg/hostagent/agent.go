@@ -64,6 +64,7 @@ type HostAgent struct {
 	epfileMutex          sync.Mutex
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
+	oobPolicyMutex       sync.Mutex
 
 	opflexEps              map[string][]*opflexEndpoint
 	opflexServices         map[string]*opflexService
@@ -104,6 +105,7 @@ type HostAgent struct {
 	netAttDefInformer      cache.SharedIndexInformer
 	nadVlanMapInformer     cache.SharedIndexInformer
 	fabricVlanPoolInformer cache.SharedIndexInformer
+	oobPolicyInformer      cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool
@@ -620,8 +622,9 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
-		agent.config.OpFlexSnatDir == "" {
-		agent.log.Warn("OpFlex endpoint,service or snat directories not set")
+		agent.config.OpFlexSnatDir == "" ||
+		agent.config.OOBPolicyDir == "" {
+		agent.log.Warn("OpFlex endpoint, service, snat, oobpolicy directories not set")
 	} else {
 		if syncEnabled {
 			agent.EnableSync()

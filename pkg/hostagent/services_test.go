@@ -275,6 +275,7 @@ func TestServiceSync(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
@@ -352,6 +353,7 @@ func TestServiceSyncWithEps(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
@@ -430,6 +432,7 @@ func TestServiceWithTopoKeys(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
@@ -523,6 +526,7 @@ func TestServiceEptoSerMap(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
@@ -584,6 +588,7 @@ func TestSingleStackIPv6ServiceEptoSerMap(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003
@@ -645,6 +650,7 @@ func TestDualStackServiceEptoSerMap(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth42"
 	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
 	agent.config.ServiceVlan = 4003

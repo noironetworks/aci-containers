@@ -77,6 +77,7 @@ type AciController struct {
 	netFabConfigQueue   workqueue.RateLimitingInterface
 	nadVlanMapQueue     workqueue.RateLimitingInterface
 	fabricVlanPoolQueue workqueue.RateLimitingInterface
+	epgDnCacheQueue     workqueue.RateLimitingInterface
 
 	namespaceIndexer       cache.Indexer
 	namespaceInformer      cache.Controller
@@ -121,6 +122,7 @@ type AciController struct {
 	netFabConfigInformer   cache.SharedIndexInformer
 	nadVlanMapInformer     cache.SharedIndexInformer
 	fabricVlanPoolInformer cache.SharedIndexInformer
+	oobPolicyInformer      cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 
@@ -398,6 +400,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netFabConfigQueue:   createQueue("networkfabricconfiguration"),
 		nadVlanMapQueue:     createQueue("nadvlanmap"),
 		fabricVlanPoolQueue: createQueue("fabricvlanpool"),
+		epgDnCacheQueue:     createQueue("epgDnCache"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -539,6 +542,41 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 				queue.Forget(key)
 			}
 			queue.Done(key)
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processEpgDnCacheUpdateQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case bool:
+				if handler != nil {
+					requeue = handler(key)
+				}
+				if postDelHandler != nil {
+					requeue = postDelHandler()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
 		}
 	}, time.Second, stopCh)
 	<-stopCh
@@ -781,7 +819,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				}
 				qs = append(qs, cont.qosQueue, cont.serviceQueue,
 					cont.snatQueue, cont.netflowQueue, cont.snatNodeInfoQueue,
-					cont.rdConfigQueue, cont.erspanQueue)
+					cont.rdConfigQueue, cont.erspanQueue, cont.epgDnCacheQueue)
 			}
 		}
 		for _, q := range qs {
