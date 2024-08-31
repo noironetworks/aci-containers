@@ -84,6 +84,7 @@ type AciController struct {
 	fabricVlanPoolQueue workqueue.RateLimitingInterface
 	netFabL3ConfigQueue workqueue.RateLimitingInterface
 	remIpContQueue      workqueue.RateLimitingInterface
+	epgDnCacheQueue     workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -132,6 +133,7 @@ type AciController struct {
 	fabricVlanPoolInformer               cache.SharedIndexInformer
 	networkFabricL3ConfigurationInformer cache.SharedIndexInformer
 	fabNetAttClient                      *fabattclset.Clientset
+	oobPolicyInformer                    cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 	hppMutex   sync.Mutex
@@ -471,6 +473,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		fabricVlanPoolQueue: createQueue("fabricvlanpool"),
 		netFabL3ConfigQueue: createQueue("networkfabricl3configuration"),
 		remIpContQueue:      createQueue("remoteIpContainer"),
+		epgDnCacheQueue:     createQueue("epgDnCache"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -631,6 +634,41 @@ func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInt
 			case chan struct{}:
 				close(key)
 			case string:
+				if handler != nil {
+					requeue = handler(key)
+				}
+				if postDelHandler != nil {
+					requeue = postDelHandler()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processEpgDnCacheUpdateQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case bool:
 				if handler != nil {
 					requeue = handler(key)
 				}
@@ -890,7 +928,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				}
 				qs = append(qs, cont.qosQueue, cont.serviceQueue,
 					cont.snatQueue, cont.netflowQueue, cont.snatNodeInfoQueue,
-					cont.rdConfigQueue, cont.erspanQueue)
+					cont.rdConfigQueue, cont.erspanQueue, cont.epgDnCacheQueue)
 			}
 		}
 		for _, q := range qs {

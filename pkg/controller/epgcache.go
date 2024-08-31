@@ -69,6 +69,7 @@ func (cont *AciController) vmmEpPDChanged(obj apicapi.ApicObject) {
 		cont.indexMutex.Lock()
 		if ok := !cont.contains(cont.cachedEpgDns, epgDn); ok {
 			cont.cachedEpgDns = append(cont.cachedEpgDns, epgDn)
+			cont.epgDnCacheQueue.Add(true)
 		}
 		sort.Strings(cont.cachedEpgDns)
 		cont.indexMutex.Unlock()
@@ -81,6 +82,7 @@ func (cont *AciController) vmmEpPDDeleted(dn string) {
 		cont.indexMutex.Lock()
 		if cont.contains(cont.cachedEpgDns, epgDn) {
 			cont.removeSlice(&cont.cachedEpgDns, epgDn)
+			cont.epgDnCacheQueue.Add(true)
 		}
 		cont.indexMutex.Unlock()
 	}

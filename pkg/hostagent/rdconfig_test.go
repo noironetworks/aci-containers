@@ -16,13 +16,14 @@ package hostagent
 
 import (
 	"encoding/json"
+	"os"
+	"testing"
+	"time"
+
 	rdconfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
-	"testing"
-	"time"
 )
 
 func rdConfigdata(usersubnets, discoveredsubnets []string) *rdconfig.RdConfig {
@@ -68,6 +69,7 @@ func TestRdConfig(t *testing.T) {
 	agent.config.OpFlexSnatDir = tempdir
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth10"
 	agent.config.NodeName = "test-node"
 	agent.config.ServiceVlan = 4003
