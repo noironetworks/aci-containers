@@ -306,6 +306,9 @@ type ControllerConfig struct {
 
 	// Enable/disable local hpp distribution
 	EnableHppDirect bool `json:"enable-hpp-direct,omitempty"`
+
+	// Enable/disable proactive conf
+	ProactiveConf bool `json:"proactive-conf,omitempty"`
 }
 
 type netIps struct {

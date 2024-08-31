@@ -156,6 +156,11 @@ if [ -w ${PREFIX} ]; then
     else
         mkdir -p "${VARDIR}/lib/opflex-agent-ovs/netpols"
     fi
+    if [ -d "${VARDIR}/lib/opflex-agent-ovs/outofband" ]; then
+        rm -rf "${VARDIR}/lib/opflex-agent-ovs/outofband"/*
+    else
+        mkdir -p "${VARDIR}/lib/opflex-agent-ovs/outofband"
+    fi
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/reboot-conf.d
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/ids
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog

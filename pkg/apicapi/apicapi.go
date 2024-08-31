@@ -1480,3 +1480,47 @@ func getRootDn(dn, rootClass string) string {
 	parts = parts[:depth]
 	return strings.Join(parts, "/")
 }
+
+func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error {
+	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
+	conn.log.Debug("Apic POST url: ", url)
+
+	if conn.token == "" {
+		token, err := conn.login()
+		if err != nil {
+			conn.log.Errorf("Login: %v", err)
+			return err
+		}
+		conn.token = token
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		conn.log.Error("Could not serialize object: ", err)
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
+	if err != nil {
+		conn.log.Error("Could not create request: ", err)
+		return err
+	}
+
+	conn.sign(req, uri, raw)
+	req.Header.Set("Content-Type", "application/json")
+	conn.log.Infof("Post: %+v", req)
+	resp, err := conn.client.Do(req)
+	if err != nil {
+		conn.log.Error("Could not update  ", url, ": ", err)
+		return err
+	}
+
+	complete(resp)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Status: %v", resp.StatusCode)
+	}
+
+	return nil
+}

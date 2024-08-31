@@ -57,6 +57,7 @@ type testHostAgent struct {
 	fakeFabAttSource         *framework.FakeControllerSource
 	fakeNadVlanMapSource     *framework.FakeControllerSource
 	fakeFabricVlanPoolSource *framework.FakeControllerSource
+	fakeProactiveConfSource  *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -220,6 +221,13 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 		&cache.ListWatch{
 			ListFunc:  agent.fakeFabricVlanPoolSource.List,
 			WatchFunc: agent.fakeFabricVlanPoolSource.Watch,
+		},
+	)
+	agent.fakeProactiveConfSource = framework.NewFakeControllerSource()
+	agent.initProactiveConfInformerBase(
+		&cache.ListWatch{
+			ListFunc:  agent.fakeProactiveConfSource.List,
+			WatchFunc: agent.fakeProactiveConfSource.Watch,
 		},
 	)
 	integ_test := "true"
