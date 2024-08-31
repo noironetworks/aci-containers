@@ -284,7 +284,6 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 		labelKey := util.AciNameForKey(agent.config.AciPrefix, "np", pol)
 
 		if hppName == labelKey {
-			agent.log.Infof("SMS: %s", labelKey)
 			agent.updateNetpolFile(*modb, labelKey)
 			break
 		}
@@ -293,7 +292,6 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 	nodeName := agent.config.NodeName
 	labelKey := util.AciNameForKey(agent.config.AciPrefix, "node", nodeName)
 	if hppName == labelKey {
-		agent.log.Infof("SMS: %s", labelKey)
 		agent.updateNetpolFile(*modb, labelKey)
 	}
 
