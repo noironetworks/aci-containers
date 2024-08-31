@@ -23,6 +23,7 @@ import (
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	nodepodifclientset "github.com/noironetworks/aci-containers/pkg/nodepodif/clientset/versioned"
+	proactiveconfclientset "github.com/noironetworks/aci-containers/pkg/proactiveconf/clientset/versioned"
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
@@ -57,15 +58,16 @@ type Environment interface {
 }
 
 type K8sEnvironment struct {
-	kubeClient       *kubernetes.Clientset
-	snatClient       *snatclientset.Clientset
-	snatGlobalClient *snatglobalclset.Clientset
-	nodeInfoClient   *nodeinfoclientset.Clientset
-	rdConfigClient   *rdconfigclientset.Clientset
-	istioClient      *istioclientset.Clientset
-	restConfig       *restclient.Config
-	cont             *AciController
-	nodePodifClient  *nodepodifclientset.Clientset
+	kubeClient          *kubernetes.Clientset
+	snatClient          *snatclientset.Clientset
+	snatGlobalClient    *snatglobalclset.Clientset
+	nodeInfoClient      *nodeinfoclientset.Clientset
+	rdConfigClient      *rdconfigclientset.Clientset
+	istioClient         *istioclientset.Clientset
+	restConfig          *restclient.Config
+	cont                *AciController
+	nodePodifClient     *nodepodifclientset.Clientset
+	proactiveConfClient *proactiveconfclientset.Clientset
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -121,10 +123,15 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize AciIstio client")
 		return nil, err
 	}
+	proactiveConfClient, err := proactiveconfclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize ProactiveConf client")
+		return nil, err
+	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
 		nodeInfoClient: nodeInfoClient, rdConfigClient: rdConfigClient,
-		istioClient: istioClient}, nil
+		istioClient: istioClient, proactiveConfClient: proactiveConfClient}, nil
 }
 
 func (env *K8sEnvironment) RESTConfig() *restclient.Config {
@@ -292,6 +299,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 					return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 				}, nil, nil, stopCh)
 		}
+		go cont.processEpgDnCacheUpdateQueue(cont.epgDnCacheUpdateQueue,
+			func(obj interface{}) bool {
+				return cont.handleEpgDnCacheUpdate(obj.(bool))
+			}, nil, stopCh)
 		go cont.processQueue(cont.snatNodeInfoQueue, cont.snatNodeInfoIndexer,
 			func(obj interface{}) bool {
 				return cont.handleSnatNodeInfo(obj.(*snatnodeinfo.NodeInfo))
@@ -331,6 +342,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.registerCRDHook(netflowCRDName, netflowInit)
 		cont.registerCRDHook(nodePodIfCRDName, nodePodIfInit)
 		cont.registerCRDHook(erspanCRDName, erspanInit)
+		if cont.config.ProactiveConf {
+			cont.registerCRDHook(proactiveConfCRDName, proactiveConfInit)
+		}
 	}
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	cont.registerCRDHook(netFabConfigCRDName, netFabConfigInit)
