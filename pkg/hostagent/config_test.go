@@ -47,6 +47,7 @@ func TestInitFlags(t *testing.T) {
 		PacketEventNotificationSock: "/usr/local/var/run/aci-containers-packet-event-notification.sock",
 		OpFlexDropLogConfigDir:      "/usr/local/var/lib/opflex-agent-ovs/droplog",
 		OpFlexNetPolDir:             "/usr/local/var/lib/opflex-agent-ovs/netpols/",
+		OOBPolicyDir:                "/usr/local/var/lib/opflex-agent-ovs/outofband/",
 		OpFlexDropLogRemoteIp:       "192.168.1.2",
 		OvsDbSock:                   "/usr/local/var/run/openvswitch/db.sock",
 		EpRpcSock:                   "/usr/local/var/run/aci-containers-ep-rpc.sock",

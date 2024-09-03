@@ -294,6 +294,9 @@ type HostAgentConfig struct {
 
 	// Enable/disable local hpp distribution
 	EnableHppDirect bool `json:"enable-hpp-direct,omitempty"`
+
+	// Directory for writing oob policy data
+	OOBPolicyDir string `json:"oob-policy-dir,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
@@ -383,4 +386,5 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
 	flag.IntVar(&config.MetricsPort, "metrics-port", 8190, "Port to expose metrics on")
 	flag.BoolVar(&config.EnableHppDirect, "enable-hpp-direct", false, "Enable local hpp distribution")
+	flag.StringVar(&config.OOBPolicyDir, "oob-policy-dir", "/usr/local/var/lib/opflex-agent-ovs/outofband/", "Directory for writing OOB policy data")
 }
