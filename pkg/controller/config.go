@@ -270,6 +270,10 @@ type ControllerConfig struct {
 	// The forwarding method for unknown layer 2 destinations
 	UnknownMacUnicastAction string `json:"unknown-mac-unicast-action,omitempty"`
 
+	// To disable service vlan preprovisioning on OpenShift on OpenStack Clusters
+	// By default the feature will be enabled
+	DisableServiceVlanPreprovisioning bool `json:"disable-service-vlan-preprovisioning"`
+
 	// PhysDom for additional networks in chained mode
 	AciPhysDom string `json:"aci-phys-dom,omitempty"`
 
