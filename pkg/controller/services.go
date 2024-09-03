@@ -1411,7 +1411,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 	domName := obj.GetAttrStr("domName")
 	ctrlrName := obj.GetAttrStr("ctrlrName")
 
-	if strings.Contains(cont.config.Flavor, "openstack") {
+	if !cont.config.DisableServiceVlanPreprovisioning && strings.Contains(cont.config.Flavor, "openstack") {
 		if cont.openStackOpflexOdevUpdate(obj) {
 			cont.log.Info("OpenStack opflexODev for ", obj.GetAttrStr("hostName"), " is added")
 			cont.updateDeviceCluster()
