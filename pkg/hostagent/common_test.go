@@ -57,7 +57,6 @@ type testHostAgent struct {
 	fakeFabAttSource         *framework.FakeControllerSource
 	fakeNadVlanMapSource     *framework.FakeControllerSource
 	fakeFabricVlanPoolSource *framework.FakeControllerSource
-	fakeOOBPoliciesSource    *framework.FakeControllerSource
 }
 
 func testAgent() *testHostAgent {
@@ -221,13 +220,6 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 		&cache.ListWatch{
 			ListFunc:  agent.fakeFabricVlanPoolSource.List,
 			WatchFunc: agent.fakeFabricVlanPoolSource.Watch,
-		},
-	)
-	agent.fakeOOBPoliciesSource = framework.NewFakeControllerSource()
-	agent.initOOBPolicyInformerBase(
-		&cache.ListWatch{
-			ListFunc:  agent.fakeOOBPoliciesSource.List,
-			WatchFunc: agent.fakeOOBPoliciesSource.Watch,
 		},
 	)
 	integ_test := "true"

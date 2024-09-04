@@ -187,7 +187,6 @@ func TestPodSync(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
-	agent.config.OOBPolicyDir = tempdir
 	agent.run()
 
 	for i, pt := range podTests {
@@ -248,7 +247,6 @@ func TestAdditional(t *testing.T) {
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
 	agent.config.OpFlexSnatDir = tempdir
-	agent.config.OOBPolicyDir = tempdir
 	agent.run()
 
 	for i, pt := range podTests {

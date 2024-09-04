@@ -29,7 +29,6 @@ import (
 	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
-	oobpolicyclientset "github.com/noironetworks/aci-containers/pkg/oobpolicy/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
@@ -65,7 +64,6 @@ type K8sEnvironment struct {
 	fabattClient        *fabattclientset.Clientset
 	configmapInformer   cache.SharedIndexInformer
 	hppClient           *hppclset.Clientset
-	oobPolicyClient     *oobpolicyclientset.Clientset
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -153,14 +151,9 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize hpp client")
 		return nil, err
 	}
-	oobPolicyClient, err := oobpolicyclientset.NewForConfig(restconfig)
-	if err != nil {
-		log.Debug("Failed to intialize oob policy client")
-		return nil, err
-	}
 
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient, hppClient: hppClient, oobPolicyClient: oobPolicyClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient, hppClient: hppClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -193,7 +186,6 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 		env.agent.initHppInformerFromClient(env.hppClient)
 		env.agent.initHostprotRemoteIpContainerInformerFromClient(env.hppClient)
 	}
-	env.agent.initOOBPolicyInformerFromClient(env.oobPolicyClient)
 	return nil
 }
 
@@ -310,14 +302,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		go env.agent.fabricVlanPoolInformer.Run(stopCh)
 		cache.WaitForCacheSync(stopCh, env.agent.fabricVlanPoolInformer.HasSynced)
 		env.agent.log.Info("fabricvlanpool cache sync successful")
-	}
-
-	if !env.agent.config.ChainedMode {
-		env.agent.log.Debug("Starting oobPolicy informers")
-		go env.agent.oobPolicyInformer.Run(stopCh)
-		env.agent.log.Info("Waiting for oobPolicy cache sync")
-		cache.WaitForCacheSync(stopCh, env.agent.oobPolicyInformer.HasSynced)
-		env.agent.log.Info("oobPolicy cache sync successful")
 	}
 
 	env.agent.log.Info("Cache sync successful")
