@@ -180,7 +180,6 @@ func TestSnatSync(t *testing.T) {
 	agent.config.OpFlexSnatDir = tempdir
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
-	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth10"
 	agent.config.NodeName = "test-node"
 	agent.config.ServiceVlan = 4003
@@ -252,7 +251,6 @@ func TestSnatPortExhausted(t *testing.T) {
 	agent.config.OpFlexSnatDir = tempdir
 	agent.config.OpFlexEndpointDir = tempdir
 	agent.config.OpFlexServiceDir = tempdir
-	agent.config.OOBPolicyDir = tempdir
 	agent.config.UplinkIface = "eth10"
 	agent.config.NodeName = "test-node"
 	agent.config.ServiceVlan = 4003
