@@ -61,6 +61,11 @@ func init() {
 	if err == nil {
 		defaultkubeconfig = path.Join(usr.HomeDir, ".kube", "config")
 	}
+	envKubeConfig := os.Getenv("KUBECONFIG")
+	if envKubeConfig != "" {
+		defaultkubeconfig = envKubeConfig
+	}
+
 	RootCmd.PersistentFlags().StringVar(&kubeconfig,
 		"kubeconfig", defaultkubeconfig,
 		"Path to the kubeconfig file to use for CLI requests.")
