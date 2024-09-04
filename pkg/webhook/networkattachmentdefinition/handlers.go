@@ -18,10 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	cncfv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	aciwebhooktypes "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	admv1 "k8s.io/api/admission/v1"
-	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
 	. "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -93,6 +94,13 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 	if err != nil {
 		return Errored(http.StatusBadRequest, err)
 	}
+
+	needsUpdate := false
+	pluginExists := false
+	if name, ok := config["name"]; !ok || name == "" {
+		config["name"] = nad.Name
+		needsUpdate = true
+	}
 	if RequireNADAnnotation {
 		if enableChaining, ok := nad.ObjectMeta.Annotations["netop-cni.cisco.com/auto-chain-cni"]; !ok {
 			webhookHdlrLog.Info("netop-cni.cisco.com/auto-chain-cni annotation not present: no op")
@@ -119,20 +127,25 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 				return Errored(http.StatusBadRequest, err)
 			}
 			if (cniType == "netop-cni") || (cniType == "opflex-agent-cni") {
-				webhookHdlrLog.Info("netop-cni already present in chain. Allowing")
-				return Allowed("already chained")
+				pluginExists = true
+				break
 			}
 		}
-		pluginsAsIntf := plugins.([]interface{})
-		pluginsAsIntf = append(pluginsAsIntf, netopPlugin)
-		config["plugins"] = pluginsAsIntf
-		newConfig, err := json.Marshal(config)
-		if err != nil {
-			return Errored(http.StatusBadRequest, err)
+		if !pluginExists {
+			pluginsAsIntf := plugins.([]interface{})
+			pluginsAsIntf = append(pluginsAsIntf, netopPlugin)
+			config["plugins"] = pluginsAsIntf
+			needsUpdate = true
 		}
-		webhookHdlrLog.Info("Appending netop-cni")
-		return Patched("Append Netop-CNI",
-			JSONPatchOp{Operation: "replace", Path: "/spec/config", Value: bytes.NewBuffer(newConfig).String()})
+		if needsUpdate {
+			newConfig, err := json.Marshal(config)
+			if err != nil {
+				return Errored(http.StatusBadRequest, err)
+			}
+			webhookHdlrLog.Info("Appending netop-cni to")
+			return Patched("Append Netop-CNI",
+				JSONPatchOp{Operation: "replace", Path: "/spec/config", Value: bytes.NewBuffer(newConfig).String()})
+		}
 	} else {
 		cniType, err := getCniType(config)
 		if err != nil {
@@ -163,5 +176,5 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 			JSONPatchOp{Operation: "replace", Path: "/spec/config", Value: bytes.NewBuffer(newConfig).String()})
 
 	}
-
+	return Allowed("No changes required")
 }
