@@ -68,22 +68,23 @@ type AciController struct {
 
 	unitTestMode bool
 
-	podQueue            workqueue.RateLimitingInterface
-	netPolQueue         workqueue.RateLimitingInterface
-	qosQueue            workqueue.RateLimitingInterface
-	serviceQueue        workqueue.RateLimitingInterface
-	snatQueue           workqueue.RateLimitingInterface
-	netflowQueue        workqueue.RateLimitingInterface
-	erspanQueue         workqueue.RateLimitingInterface
-	snatNodeInfoQueue   workqueue.RateLimitingInterface
-	rdConfigQueue       workqueue.RateLimitingInterface
-	istioQueue          workqueue.RateLimitingInterface
-	nodeFabNetAttQueue  workqueue.RateLimitingInterface
-	netFabConfigQueue   workqueue.RateLimitingInterface
-	nadVlanMapQueue     workqueue.RateLimitingInterface
-	fabricVlanPoolQueue workqueue.RateLimitingInterface
-	netFabL3ConfigQueue workqueue.RateLimitingInterface
-	remIpContQueue      workqueue.RateLimitingInterface
+	podQueue              workqueue.RateLimitingInterface
+	netPolQueue           workqueue.RateLimitingInterface
+	qosQueue              workqueue.RateLimitingInterface
+	serviceQueue          workqueue.RateLimitingInterface
+	snatQueue             workqueue.RateLimitingInterface
+	netflowQueue          workqueue.RateLimitingInterface
+	erspanQueue           workqueue.RateLimitingInterface
+	snatNodeInfoQueue     workqueue.RateLimitingInterface
+	rdConfigQueue         workqueue.RateLimitingInterface
+	istioQueue            workqueue.RateLimitingInterface
+	nodeFabNetAttQueue    workqueue.RateLimitingInterface
+	netFabConfigQueue     workqueue.RateLimitingInterface
+	nadVlanMapQueue       workqueue.RateLimitingInterface
+	fabricVlanPoolQueue   workqueue.RateLimitingInterface
+	netFabL3ConfigQueue   workqueue.RateLimitingInterface
+	remIpContQueue        workqueue.RateLimitingInterface
+	epgDnCacheUpdateQueue workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -132,6 +133,7 @@ type AciController struct {
 	fabricVlanPoolInformer               cache.SharedIndexInformer
 	networkFabricL3ConfigurationInformer cache.SharedIndexInformer
 	fabNetAttClient                      *fabattclset.Clientset
+	proactiveConfInformer                cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 	hppMutex   sync.Mutex
@@ -455,22 +457,23 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		defaultSg:    "",
 		unitTestMode: unittestmode,
 
-		podQueue:            createQueue("pod"),
-		netPolQueue:         createQueue("networkPolicy"),
-		qosQueue:            createQueue("qos"),
-		netflowQueue:        createQueue("netflow"),
-		erspanQueue:         createQueue("erspan"),
-		serviceQueue:        createQueue("service"),
-		snatQueue:           createQueue("snat"),
-		snatNodeInfoQueue:   createQueue("snatnodeinfo"),
-		rdConfigQueue:       createQueue("rdconfig"),
-		istioQueue:          createQueue("istio"),
-		nodeFabNetAttQueue:  createQueue("nodefabricnetworkattachment"),
-		netFabConfigQueue:   createQueue("networkfabricconfiguration"),
-		nadVlanMapQueue:     createQueue("nadvlanmap"),
-		fabricVlanPoolQueue: createQueue("fabricvlanpool"),
-		netFabL3ConfigQueue: createQueue("networkfabricl3configuration"),
-		remIpContQueue:      createQueue("remoteIpContainer"),
+		podQueue:              createQueue("pod"),
+		netPolQueue:           createQueue("networkPolicy"),
+		qosQueue:              createQueue("qos"),
+		netflowQueue:          createQueue("netflow"),
+		erspanQueue:           createQueue("erspan"),
+		serviceQueue:          createQueue("service"),
+		snatQueue:             createQueue("snat"),
+		snatNodeInfoQueue:     createQueue("snatnodeinfo"),
+		rdConfigQueue:         createQueue("rdconfig"),
+		istioQueue:            createQueue("istio"),
+		nodeFabNetAttQueue:    createQueue("nodefabricnetworkattachment"),
+		netFabConfigQueue:     createQueue("networkfabricconfiguration"),
+		nadVlanMapQueue:       createQueue("nadvlanmap"),
+		fabricVlanPoolQueue:   createQueue("fabricvlanpool"),
+		netFabL3ConfigQueue:   createQueue("networkfabricl3configuration"),
+		remIpContQueue:        createQueue("remoteIpContainer"),
+		epgDnCacheUpdateQueue: createQueue("epgDnCache"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -631,6 +634,41 @@ func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInt
 			case chan struct{}:
 				close(key)
 			case string:
+				if handler != nil {
+					requeue = handler(key)
+				}
+				if postDelHandler != nil {
+					requeue = postDelHandler()
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
+func (cont *AciController) processEpgDnCacheUpdateQueue(queue workqueue.RateLimitingInterface,
+	handler func(interface{}) bool,
+	postDelHandler func() bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case bool:
 				if handler != nil {
 					requeue = handler(key)
 				}
@@ -890,7 +928,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				}
 				qs = append(qs, cont.qosQueue, cont.serviceQueue,
 					cont.snatQueue, cont.netflowQueue, cont.snatNodeInfoQueue,
-					cont.rdConfigQueue, cont.erspanQueue)
+					cont.rdConfigQueue, cont.erspanQueue,
+					cont.epgDnCacheUpdateQueue)
 			}
 		}
 		for _, q := range qs {

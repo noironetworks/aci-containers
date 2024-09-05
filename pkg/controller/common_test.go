@@ -56,6 +56,7 @@ type testAciController struct {
 	fakeSnatCfgSource         *framework.FakeControllerSource
 	fakeCRDSource             *framework.FakeControllerSource
 	fakeFabricVlanPoolsSource *framework.FakeControllerSource
+	fakeProactiveConfSource   *framework.FakeControllerSource
 	podUpdates                []*v1.Pod
 	nodeUpdates               []*v1.Node
 	serviceUpdates            []*v1.Service
@@ -207,6 +208,13 @@ func (cont *testAciController) InitController() {
 		&cache.ListWatch{
 			ListFunc:  cont.fakeFabricVlanPoolsSource.List,
 			WatchFunc: cont.fakeFabricVlanPoolsSource.Watch,
+		})
+
+	cont.fakeProactiveConfSource = framework.NewFakeControllerSource()
+	cont.initProactiveConfInformerBase(
+		&cache.ListWatch{
+			ListFunc:  cont.fakeProactiveConfSource.List,
+			WatchFunc: cont.fakeProactiveConfSource.Watch,
 		})
 
 	cont.updatePod = func(pod *v1.Pod) (*v1.Pod, error) {
