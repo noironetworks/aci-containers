@@ -310,6 +310,9 @@ type ControllerConfig struct {
 
 	// Enable/disable making node unschedulable when it's not ready
 	TaintNotReadyNode bool `json:"taint-not-ready-node,omitempty"`
+
+	// Enable/disable proactive conf
+	ProactiveConf bool `json:"proactive-conf,omitempty"`
 }
 
 type netIps struct {

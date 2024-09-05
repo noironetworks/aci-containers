@@ -16,8 +16,11 @@
 package controller
 
 import (
+	"context"
+
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
 	"fmt"
@@ -69,6 +72,7 @@ func (cont *AciController) vmmEpPDChanged(obj apicapi.ApicObject) {
 		cont.indexMutex.Lock()
 		if ok := !cont.contains(cont.cachedEpgDns, epgDn); ok {
 			cont.cachedEpgDns = append(cont.cachedEpgDns, epgDn)
+			cont.epgDnCacheUpdateQueue.Add(true)
 		}
 		sort.Strings(cont.cachedEpgDns)
 		cont.indexMutex.Unlock()
@@ -81,6 +85,7 @@ func (cont *AciController) vmmEpPDDeleted(dn string) {
 		cont.indexMutex.Lock()
 		if cont.contains(cont.cachedEpgDns, epgDn) {
 			cont.removeSlice(&cont.cachedEpgDns, epgDn)
+			cont.epgDnCacheUpdateQueue.Add(true)
 		}
 		cont.indexMutex.Unlock()
 	}
@@ -129,4 +134,24 @@ func (cont *AciController) checkEpgCache(epGroup, comment string) (bool, metadat
 		}
 	}
 	return false, egval, setFaultInst
+}
+
+func (cont *AciController) handleEpgDnCacheUpdate(epgDnCacheUpdated bool) bool {
+	if epgDnCacheUpdated && cont.config.ProactiveConf {
+		env := cont.env.(*K8sEnvironment)
+		pccl := env.proactiveConfClient
+		if pccl == nil {
+			cont.log.Error("proactiveConfClient not found")
+			return false
+		}
+		ProactiveConfList, err := pccl.AciV1().ProactiveConfs(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			cont.log.Errorf("Failed to get ProactiveConfs: %v", err)
+			return false
+		}
+		for _, proactiveConf := range ProactiveConfList.Items {
+			cont.updateProactiveConf(&proactiveConf)
+		}
+	}
+	return false
 }

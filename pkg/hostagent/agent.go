@@ -64,6 +64,7 @@ type HostAgent struct {
 	epfileMutex          sync.Mutex
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
+	proactiveConfMutex   sync.Mutex
 
 	opflexEps              map[string][]*opflexEndpoint
 	opflexServices         map[string]*opflexService
@@ -104,6 +105,7 @@ type HostAgent struct {
 	netAttDefInformer      cache.SharedIndexInformer
 	nadVlanMapInformer     cache.SharedIndexInformer
 	fabricVlanPoolInformer cache.SharedIndexInformer
+	proactiveConfInformer  cache.SharedIndexInformer
 
 	syncEnabled         bool
 	opflexConfigWritten bool

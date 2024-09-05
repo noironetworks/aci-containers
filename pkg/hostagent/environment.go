@@ -28,6 +28,7 @@ import (
 	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	md "github.com/noironetworks/aci-containers/pkg/metadata"
 	nodeinfoclientset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
+	proactiveconfclientset "github.com/noironetworks/aci-containers/pkg/proactiveconf/clientset/versioned"
 	qospolicyclset "github.com/noironetworks/aci-containers/pkg/qospolicy/clientset/versioned"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
@@ -62,6 +63,7 @@ type K8sEnvironment struct {
 	netClient           *netClientSet.Clientset
 	fabattClient        *fabattclientset.Clientset
 	configmapInformer   cache.SharedIndexInformer
+	proactiveConfClient *proactiveconfclientset.Clientset
 }
 
 func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -144,9 +146,14 @@ func NewK8sEnvironment(config *HostAgentConfig, log *logrus.Logger) (*K8sEnviron
 		log.Debug("Failed to intialize fabric attachment client")
 		return nil, err
 	}
+	proactiveConfClient, err := proactiveconfclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize ProactiveConf client")
+		return nil, err
+	}
 
 	return &K8sEnvironment{kubeClient: kubeClient, snatGlobalClient: snatGlobalClient,
-		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient}, nil
+		nodeInfo: nodeInfo, snatPolicyClient: snatPolicyClient, qosPolicyClient: qosPolicyClient, rdConfig: rdConfig, snatLocalInfoClient: snatLocalInfoClient, netClient: netClient, fabattClient: fabattClient, proactiveConfClient: proactiveConfClient}, nil
 }
 
 func (env *K8sEnvironment) Init(agent *HostAgent) error {
@@ -167,6 +174,9 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 		env.agent.initQoSPolicyInformerFromClient(env.qosPolicyClient)
 		env.agent.initRdConfigInformerFromClient(env.rdConfig)
 		env.agent.initQoSPolPodIndex()
+		if agent.config.ProactiveConf {
+			env.agent.initProactiveConfInformerFromClient(env.proactiveConfClient)
+		}
 	}
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
@@ -217,6 +227,14 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		env.agent.log.Info("Waiting for rdConfig cache sync")
 		cache.WaitForCacheSync(stopCh, env.agent.rdConfigInformer.HasSynced)
 		env.agent.log.Info("RdConfig cache sync successful")
+
+		if env.agent.config.ProactiveConf {
+			env.agent.log.Debug("Starting ProactiveConf informers")
+			go env.agent.proactiveConfInformer.Run(stopCh)
+			env.agent.log.Info("Waiting for ProactiveConf cache sync")
+			cache.WaitForCacheSync(stopCh, env.agent.proactiveConfInformer.HasSynced)
+			env.agent.log.Info("ProactiveConf cache sync successful")
+		}
 	}
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
