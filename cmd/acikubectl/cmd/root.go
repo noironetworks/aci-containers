@@ -16,6 +16,8 @@ package cmd
 
 import (
 	"fmt"
+	pconfclientset "github.com/noironetworks/aci-containers/pkg/proactiveconf/clientset/versioned"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"os/user"
 	"path"
@@ -121,4 +123,37 @@ func initClientPrintError() kubernetes.Interface {
 		return nil
 	}
 	return kubeClient
+}
+
+func initProactiveClient() (pconfclientset.Interface, error) {
+	var restconfig *restclient.Config
+	var err error
+	// the context is only useful with a kubeconfig
+	if kubeconfig != "" {
+		// use kubeconfig file from command line
+		restconfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{
+				ExplicitPath: kubeconfig,
+			},
+			&clientcmd.ConfigOverrides{
+				CurrentContext: context,
+			}).ClientConfig()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// creates the in-cluster config
+		restconfig, err = restclient.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pconfClient, err := pconfclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Fatalf("Failed to intialize ProactiveConf client %v", err)
+		return nil, err
+	}
+
+	return pconfClient, nil
 }
