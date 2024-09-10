@@ -285,32 +285,6 @@ func apicGetNodesFromInterfacePolicyProfiles(apicClient *http.Client, apicHost s
 				continue
 			}
 			dn := infraRtAccBaseGrp.GetAttr("tDn").(string)
-			var fromCard, toCard string
-			var fromPort, toPort int
-			var fromCardParts, toCardParts []int
-			if isDisAggPort {
-				infraPortBlkUri := fmt.Sprintf("/api/node/mo/%s.json?query-target=children&target-subtree-class=infraPortBlk", dn)
-				apicResp5, err := apicGetResponse(apicClient, apicHost, infraPortBlkUri)
-				if err != nil {
-					fmt.Printf("\nUnable to fetch infraPortBlk: %v", err)
-					continue
-				}
-				for _, infraPortBlk := range apicResp5.Imdata {
-					fromCard = infraPortBlk.GetAttr("fromCard").(string)
-					fromPort = infraPortBlk.GetAttr("fromPort").(int)
-					toCard = infraPortBlk.GetAttr("toCard").(string)
-					toPort = infraPortBlk.GetAttr("toPort").(int)
-					fromCardPartsStr := strings.Split(fromCard, "/")
-					toCardPartsStr := strings.Split(toCard, "/")
-					for i := 0; i < len(fromCardPartsStr); i++ {
-						cardId, _ := strconv.Atoi(fromCardPartsStr[i])
-						fromCardParts = append(fromCardParts, cardId)
-						cardId, _ = strconv.Atoi(toCardPartsStr[i])
-						toCardParts = append(toCardParts, cardId)
-					}
-
-				}
-			}
 			dnParts := strings.Split(dn, "/")
 			infraAccPortPDn := dnParts[0] + "/" + dnParts[1] + "/" + dnParts[2]
 			infraRtAccPortPUri := fmt.Sprintf("/api/node/mo/%s.json?query-target=children&target-subtree-class=infraRtAccPortP", infraAccPortPDn)
@@ -367,16 +341,39 @@ func apicGetNodesFromInterfacePolicyProfiles(apicClient *http.Client, apicHost s
 				}
 			}
 			if isDisAggPort && (len(nodeSet) > 0) {
-				if fromCard == toCard {
-					for j := fromPort; j <= toPort; j++ {
-						pathDn = fmt.Sprintf("topology/pod-%d/paths-%d/pathep-[eth%s/%d]", podId, nodeSet[0], fromCard, j)
-						fabricNodeMap[pathDn] = []int{nodeSet[0]}
+				infraPortBlkUri := fmt.Sprintf("/api/node/mo/%s.json?query-target=children&target-subtree-class=infraPortBlk", dn)
+				apicResp5, err := apicGetResponse(apicClient, apicHost, infraPortBlkUri)
+				if err != nil {
+					fmt.Printf("\nUnable to fetch infraPortBlk: %v", err)
+					continue
+				}
+				for _, infraPortBlk := range apicResp5.Imdata {
+					var fromCardParts, toCardParts []int
+					fromCard := infraPortBlk.GetAttr("fromCard").(string)
+					fromPortStr := infraPortBlk.GetAttr("fromPort").(string)
+					fromPort, _ := strconv.Atoi(fromPortStr)
+					toCard := infraPortBlk.GetAttr("toCard").(string)
+					toPortStr := infraPortBlk.GetAttr("toPort").(string)
+					toPort, _ := strconv.Atoi(toPortStr)
+					fromCardPartsStr := strings.Split(fromCard, "/")
+					toCardPartsStr := strings.Split(toCard, "/")
+					for i := 0; i < len(fromCardPartsStr); i++ {
+						cardId, _ := strconv.Atoi(fromCardPartsStr[i])
+						fromCardParts = append(fromCardParts, cardId)
+						cardId, _ = strconv.Atoi(toCardPartsStr[i])
+						toCardParts = append(toCardParts, cardId)
 					}
-				} else {
-					_ = fromCardParts
-					_ = toCardParts
-					//TODO: handle breakoutports aka port spread across multiple cards
-					//Need to fetch number of ports in each level of the card
+					if fromCard == toCard {
+						for j := fromPort; j <= toPort; j++ {
+							pathDn = fmt.Sprintf("topology/pod-%d/paths-%d/pathep-[eth%s/%d]", podId, nodeSet[0], fromCard, j)
+							fabricNodeMap[pathDn] = []int{nodeSet[0]}
+						}
+					} else {
+						_ = fromCardParts
+						_ = toCardParts
+						// TODO: handle breakoutports aka port spread across multiple cards
+						// Need to fetch number of ports in each level of the card
+					}
 				}
 			}
 		}

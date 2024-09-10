@@ -157,6 +157,7 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 				fmt.Printf("Failed to get aep attachments:%v", err)
 				return
 			}
+			verifyFailures := false
 			fabricNodeMap := apicGetNodesFromInterfacePolicyProfiles(client, (*apicHosts)[apicIdx], resp.Imdata)
 			for _, fvRsDomAtt := range effectiveDns {
 				fvRsDomAttDn := fvRsDomAtt.GetAttrDn()
@@ -171,10 +172,12 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 						resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri)
 						if err != nil {
 							fmt.Printf("\nMissing pv attachment(%s,node-%d,%s):%v", pathDn, nodeId, epgDn)
+							verifyFailures = true
 							continue
 						}
 						if len(resp.Imdata) == 0 {
 							fmt.Printf("\nMissing pv attachment(%s,node-%d,%s)", pathDn, nodeId, epgDn)
+							verifyFailures = true
 							continue
 						}
 						for _, fvDyPathAtt := range resp.Imdata {
@@ -187,7 +190,11 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 					}
 				}
 			}
-
+			if verifyFailures {
+				fmt.Printf("\nVERIFY FAILURE: some attachments are missing!")
+			} else {
+				fmt.Printf("\nVERIFY SUCCESS!")
+			}
 		}
 	default:
 		{
