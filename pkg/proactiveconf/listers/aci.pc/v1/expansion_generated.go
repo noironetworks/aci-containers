@@ -20,7 +20,3 @@ package v1
 // ProactiveConfListerExpansion allows custom methods to be added to
 // ProactiveConfLister.
 type ProactiveConfListerExpansion interface{}
-
-// ProactiveConfNamespaceListerExpansion allows custom methods to be added to
-// ProactiveConfNamespaceLister.
-type ProactiveConfNamespaceListerExpansion interface{}

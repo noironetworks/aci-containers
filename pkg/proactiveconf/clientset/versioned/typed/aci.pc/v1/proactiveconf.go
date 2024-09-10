@@ -35,7 +35,7 @@ import (
 // ProactiveConfsGetter has a method to return a ProactiveConfInterface.
 // A group's client should implement this interface.
 type ProactiveConfsGetter interface {
-	ProactiveConfs(namespace string) ProactiveConfInterface
+	ProactiveConfs() ProactiveConfInterface
 }
 
 // ProactiveConfInterface has methods to work with ProactiveConf resources.
@@ -55,14 +55,12 @@ type ProactiveConfInterface interface {
 // proactiveConfs implements ProactiveConfInterface
 type proactiveConfs struct {
 	client rest.Interface
-	ns     string
 }
 
 // newProactiveConfs returns a ProactiveConfs
-func newProactiveConfs(c *AciV1Client, namespace string) *proactiveConfs {
+func newProactiveConfs(c *AciV1Client) *proactiveConfs {
 	return &proactiveConfs{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -70,7 +68,6 @@ func newProactiveConfs(c *AciV1Client, namespace string) *proactiveConfs {
 func (c *proactiveConfs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ProactiveConf, err error) {
 	result = &v1.ProactiveConf{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -87,7 +84,6 @@ func (c *proactiveConfs) List(ctx context.Context, opts metav1.ListOptions) (res
 	}
 	result = &v1.ProactiveConfList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -104,7 +100,6 @@ func (c *proactiveConfs) Watch(ctx context.Context, opts metav1.ListOptions) (wa
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -115,7 +110,6 @@ func (c *proactiveConfs) Watch(ctx context.Context, opts metav1.ListOptions) (wa
 func (c *proactiveConfs) Create(ctx context.Context, proactiveConf *v1.ProactiveConf, opts metav1.CreateOptions) (result *v1.ProactiveConf, err error) {
 	result = &v1.ProactiveConf{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(proactiveConf).
@@ -128,7 +122,6 @@ func (c *proactiveConfs) Create(ctx context.Context, proactiveConf *v1.Proactive
 func (c *proactiveConfs) Update(ctx context.Context, proactiveConf *v1.ProactiveConf, opts metav1.UpdateOptions) (result *v1.ProactiveConf, err error) {
 	result = &v1.ProactiveConf{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		Name(proactiveConf.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -141,7 +134,6 @@ func (c *proactiveConfs) Update(ctx context.Context, proactiveConf *v1.Proactive
 // Delete takes name of the proactiveConf and deletes it. Returns an error if one occurs.
 func (c *proactiveConfs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		Name(name).
 		Body(&opts).
@@ -156,7 +148,6 @@ func (c *proactiveConfs) DeleteCollection(ctx context.Context, opts metav1.Delet
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -169,7 +160,6 @@ func (c *proactiveConfs) DeleteCollection(ctx context.Context, opts metav1.Delet
 func (c *proactiveConfs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ProactiveConf, err error) {
 	result = &v1.ProactiveConf{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		Name(name).
 		SubResource(subresources...).
@@ -196,7 +186,6 @@ func (c *proactiveConfs) Apply(ctx context.Context, proactiveConf *acipcv1.Proac
 	}
 	result = &v1.ProactiveConf{}
 	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
 		Resource("proactiveconfs").
 		Name(*name).
 		VersionedParams(&patchOpts, scheme.ParameterCodec).
