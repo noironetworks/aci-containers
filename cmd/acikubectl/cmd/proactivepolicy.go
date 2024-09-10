@@ -58,6 +58,8 @@ type AccProvisionInput struct {
 
 func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment string) {
 	var ctrlrConfig aciCtrlr.ControllerConfig
+	var useCert bool
+	var user string
 
 	kubeClient := initClientPrintError()
 	if kubeClient == nil {
@@ -80,8 +82,34 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 	if apicPassword == "" {
 		apicPassword = os.Getenv("APIC_PASSWORD")
 	}
-	if apicUser == "" || apicPassword == "" || len(*apicHosts) == 0 {
-		fmt.Printf("Some missing arguments: apicUser: %s, apicPassword: %s, apicHosts:%v", apicUser, apicPassword, *apicHosts)
+	certFile, keyFile, file_err := findCertAndKeyFiles()
+
+	if file_err == nil {
+		fmt.Printf("Found Cert:%s and Key:%s\n", certFile, keyFile)
+		useCert = true
+
+		var provConfig AccProvisionInput
+		cfgMap2, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Get(appContext.TODO(), "acc-provision-config", metav1.GetOptions{})
+		if err != nil {
+			fmt.Printf("Failed to read configmap aci-containers-system/acc-provision-config:%v", err)
+			return
+		}
+		buffer := bytes.NewBufferString(cfgMap2.Data["spec"])
+		err = json.Unmarshal(buffer.Bytes(), &provConfig)
+		if err != nil {
+			fmt.Printf("Failed to read acc_provision_input:%v", err)
+			return
+		}
+
+		user = provConfig.ProvisionConfig.AciConfig.SystemId
+
+	} else if apicUser == "" || apicPassword == "" {
+		fmt.Printf("Missing arguments: apicUser: %s, apicPassword: %s\n", apicUser, apicPassword)
+		return
+	}
+
+	if len(*apicHosts) == 0 {
+		fmt.Printf("Missing argument: apicHosts:%v\n", *apicHosts)
 		return
 	}
 	immediacy := ""
@@ -96,13 +124,13 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 		fmt.Printf("Failed to create apicclient:%v", err)
 		return
 	}
-	_, apicIdx, err := apicLogin(client, *apicHosts, apicUser, apicPassword, &ctrlrConfig)
+	_, apicIdx, err := apicLogin(client, *apicHosts, apicUser, apicPassword, certFile, keyFile, user)
 	if err != nil || apicIdx == -1 {
 		fmt.Printf("Failed to login to APIC/s:%v", err)
 		return
 	}
 	uri := fmt.Sprintf("/api/node/class/fvRsDomAtt.json?query-target-filter=and(wcard(fvRsDomAtt.dn,\"%s\"))", ctrlrConfig.AciPolicyTenant)
-	resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri)
+	resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri, useCert, user)
 	if err != nil {
 		fmt.Printf("Failed to get APIC response:%v", err)
 		return
@@ -114,7 +142,7 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 			updatedDns := apicUpdateFvRsDomAttInstrImedcy(effectiveDns, immediacy)
 			fmt.Println(updatedDns)
 			uri = fmt.Sprintf("/api/node/mo/uni/tn-%s.json", ctrlrConfig.AciPolicyTenant)
-			err = apicPostApicObjects(client, (*apicHosts)[apicIdx], uri, updatedDns)
+			err = apicPostApicObjects(client, (*apicHosts)[apicIdx], uri, updatedDns, useCert, user)
 			if err != nil {
 				fmt.Printf("%v", err)
 				return
@@ -129,7 +157,7 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 			updatedDns := apicUpdateFvRsDomAttInstrImedcy(effectiveDns, "lazy")
 			fmt.Println(updatedDns)
 			uri = fmt.Sprintf("/api/node/mo/uni/tn-%s.json", ctrlrConfig.AciPolicyTenant)
-			err = apicPostApicObjects(client, (*apicHosts)[apicIdx], uri, updatedDns)
+			err = apicPostApicObjects(client, (*apicHosts)[apicIdx], uri, updatedDns, useCert, user)
 			if err != nil {
 				fmt.Printf("%v", err)
 				return
@@ -152,13 +180,16 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 			}
 			provisionedAep := provConfig.ProvisionConfig.AciConfig.Aep
 			uri = fmt.Sprintf("/api/node/class/infraRsAttEntP.json?query-target-filter=and(eq(infraRsAttEntP.tDn,\"uni/infra/attentp-%s\"))", provisionedAep)
-			resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri)
+			resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri, useCert, user)
 			if err != nil {
 				fmt.Printf("Failed to get aep attachments:%v", err)
 				return
 			}
+
 			verifyFailures := false
-			fabricNodeMap := apicGetNodesFromInterfacePolicyProfiles(client, (*apicHosts)[apicIdx], resp.Imdata)
+
+			fabricNodeMap := apicGetNodesFromInterfacePolicyProfiles(client, (*apicHosts)[apicIdx], resp.Imdata, useCert, user)
+
 			for _, fvRsDomAtt := range effectiveDns {
 				fvRsDomAttDn := fvRsDomAtt.GetAttrDn()
 				rsdomAttIndex := strings.LastIndex(fvRsDomAttDn, "/rsdomAtt-")
@@ -169,7 +200,7 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 				for pathDn, nodeList := range fabricNodeMap {
 					for _, nodeId := range nodeList {
 						uri = fmt.Sprintf("/api/node/mo/uni/epp/fv-[%s]/node-%d/dyatt-[%s].json?query-target=self", epgDn, nodeId, pathDn)
-						resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri)
+						resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri, useCert, user)
 						if err != nil {
 							fmt.Printf("\nMissing pv attachment(%s,node-%d,%s):%v", pathDn, nodeId, epgDn)
 							verifyFailures = true
