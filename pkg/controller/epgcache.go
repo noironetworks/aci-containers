@@ -144,7 +144,7 @@ func (cont *AciController) handleEpgDnCacheUpdate(epgDnCacheUpdated bool) bool {
 			cont.log.Error("proactiveConfClient not found")
 			return false
 		}
-		ProactiveConfList, err := pccl.AciV1().ProactiveConfs(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		ProactiveConfList, err := pccl.AciV1().ProactiveConfs().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			cont.log.Errorf("Failed to get ProactiveConfs: %v", err)
 			return false

@@ -40,5 +40,5 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // ProactiveConfs returns a ProactiveConfInformer.
 func (v *version) ProactiveConfs() ProactiveConfInformer {
-	return &proactiveConfInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &proactiveConfInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

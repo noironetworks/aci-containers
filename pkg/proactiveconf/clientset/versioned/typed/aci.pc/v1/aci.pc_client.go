@@ -35,8 +35,8 @@ type AciV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *AciV1Client) ProactiveConfs(namespace string) ProactiveConfInterface {
-	return newProactiveConfs(c, namespace)
+func (c *AciV1Client) ProactiveConfs() ProactiveConfInterface {
+	return newProactiveConfs(c)
 }
 
 // NewForConfig creates a new AciV1Client for the given config.
