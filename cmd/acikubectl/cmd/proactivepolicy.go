@@ -60,11 +60,13 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 	var ctrlrConfig aciCtrlr.ControllerConfig
 	var useCert bool
 	var user string
+	var provConfig AccProvisionInput
 
 	kubeClient := initClientPrintError()
 	if kubeClient == nil {
 		return
 	}
+
 	cfgMap, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Get(appContext.TODO(), "aci-containers-config", metav1.GetOptions{})
 	if err != nil {
 		fmt.Printf("Failed to read configmap aci-containers-system/aci-containers-config:%v", err)
@@ -76,33 +78,37 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 		fmt.Printf("Failed to read aci-containers-controller-config:%v", err)
 		return
 	}
+
+	cfgMap2, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Get(appContext.TODO(), "acc-provision-config", metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Failed to read configmap aci-containers-system/acc-provision-config:%v", err)
+		return
+	}
+	buffer = bytes.NewBufferString(cfgMap2.Data["spec"])
+	err = json.Unmarshal(buffer.Bytes(), &provConfig)
+	if err != nil {
+		fmt.Printf("Failed to read acc_provision_input:%v", err)
+		return
+	}
+
+	user = provConfig.ProvisionConfig.AciConfig.SystemId
+
 	if apicHosts == nil || len(*apicHosts) == 0 {
 		apicHosts = &ctrlrConfig.ApicHosts
 	}
 	if apicPassword == "" {
 		apicPassword = os.Getenv("APIC_PASSWORD")
 	}
-	certFile, keyFile, file_err := findCertAndKeyFiles()
+
+	certFile, keyFile, file_err := findCertAndKeyFiles(user)
+
+	if file_err != nil {
+		fmt.Printf("Failed to find certificate and key files:%v", file_err)
+	}
 
 	if file_err == nil {
 		fmt.Printf("Found Cert:%s and Key:%s\n", certFile, keyFile)
 		useCert = true
-
-		var provConfig AccProvisionInput
-		cfgMap2, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Get(appContext.TODO(), "acc-provision-config", metav1.GetOptions{})
-		if err != nil {
-			fmt.Printf("Failed to read configmap aci-containers-system/acc-provision-config:%v", err)
-			return
-		}
-		buffer := bytes.NewBufferString(cfgMap2.Data["spec"])
-		err = json.Unmarshal(buffer.Bytes(), &provConfig)
-		if err != nil {
-			fmt.Printf("Failed to read acc_provision_input:%v", err)
-			return
-		}
-
-		user = provConfig.ProvisionConfig.AciConfig.SystemId
-
 	} else if apicUser == "" || apicPassword == "" {
 		fmt.Printf("Missing arguments: apicUser: %s, apicPassword: %s\n", apicUser, apicPassword)
 		return
