@@ -27,8 +27,8 @@ type FakeAciV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeAciV1) ProactiveConfs(namespace string) v1.ProactiveConfInterface {
-	return &FakeProactiveConfs{c, namespace}
+func (c *FakeAciV1) ProactiveConfs() v1.ProactiveConfInterface {
+	return &FakeProactiveConfs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

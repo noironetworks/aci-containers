@@ -19,8 +19,10 @@ type ProactiveConfSpec struct {
 
 // +genclient
 // +genclient:noStatus
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'proactiveconf'",message="Only one instance allowed with name proactiveconf"
 // ProactiveConf is the Schema for the proactiveconfs API
 type ProactiveConf struct {
 	metav1.TypeMeta   `json:",inline"`

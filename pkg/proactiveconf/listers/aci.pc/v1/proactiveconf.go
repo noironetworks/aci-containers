@@ -30,8 +30,9 @@ type ProactiveConfLister interface {
 	// List lists all ProactiveConfs in the indexer.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ProactiveConf, err error)
-	// ProactiveConfs returns an object that can list and get ProactiveConfs.
-	ProactiveConfs(namespace string) ProactiveConfNamespaceLister
+	// Get retrieves the ProactiveConf from the index for a given name.
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*v1.ProactiveConf, error)
 	ProactiveConfListerExpansion
 }
 
@@ -53,41 +54,9 @@ func (s *proactiveConfLister) List(selector labels.Selector) (ret []*v1.Proactiv
 	return ret, err
 }
 
-// ProactiveConfs returns an object that can list and get ProactiveConfs.
-func (s *proactiveConfLister) ProactiveConfs(namespace string) ProactiveConfNamespaceLister {
-	return proactiveConfNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// ProactiveConfNamespaceLister helps list and get ProactiveConfs.
-// All objects returned here must be treated as read-only.
-type ProactiveConfNamespaceLister interface {
-	// List lists all ProactiveConfs in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.ProactiveConf, err error)
-	// Get retrieves the ProactiveConf from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.ProactiveConf, error)
-	ProactiveConfNamespaceListerExpansion
-}
-
-// proactiveConfNamespaceLister implements the ProactiveConfNamespaceLister
-// interface.
-type proactiveConfNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all ProactiveConfs in the indexer for a given namespace.
-func (s proactiveConfNamespaceLister) List(selector labels.Selector) (ret []*v1.ProactiveConf, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ProactiveConf))
-	})
-	return ret, err
-}
-
-// Get retrieves the ProactiveConf from the indexer for a given namespace and name.
-func (s proactiveConfNamespaceLister) Get(name string) (*v1.ProactiveConf, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the ProactiveConf from the index for a given name.
+func (s *proactiveConfLister) Get(name string) (*v1.ProactiveConf, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

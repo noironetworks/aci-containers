@@ -34,7 +34,6 @@ import (
 // FakeProactiveConfs implements ProactiveConfInterface
 type FakeProactiveConfs struct {
 	Fake *FakeAciV1
-	ns   string
 }
 
 var proactiveconfsResource = v1.SchemeGroupVersion.WithResource("proactiveconfs")
@@ -44,8 +43,7 @@ var proactiveconfsKind = v1.SchemeGroupVersion.WithKind("ProactiveConf")
 // Get takes name of the proactiveConf, and returns the corresponding proactiveConf object, and an error if there is any.
 func (c *FakeProactiveConfs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ProactiveConf, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(proactiveconfsResource, c.ns, name), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootGetAction(proactiveconfsResource, name), &v1.ProactiveConf{})
 	if obj == nil {
 		return nil, err
 	}
@@ -55,8 +53,7 @@ func (c *FakeProactiveConfs) Get(ctx context.Context, name string, options metav
 // List takes label and field selectors, and returns the list of ProactiveConfs that match those selectors.
 func (c *FakeProactiveConfs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ProactiveConfList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(proactiveconfsResource, proactiveconfsKind, c.ns, opts), &v1.ProactiveConfList{})
-
+		Invokes(testing.NewRootListAction(proactiveconfsResource, proactiveconfsKind, opts), &v1.ProactiveConfList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -77,15 +74,13 @@ func (c *FakeProactiveConfs) List(ctx context.Context, opts metav1.ListOptions) 
 // Watch returns a watch.Interface that watches the requested proactiveConfs.
 func (c *FakeProactiveConfs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(proactiveconfsResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(proactiveconfsResource, opts))
 }
 
 // Create takes the representation of a proactiveConf and creates it.  Returns the server's representation of the proactiveConf, and an error, if there is any.
 func (c *FakeProactiveConfs) Create(ctx context.Context, proactiveConf *v1.ProactiveConf, opts metav1.CreateOptions) (result *v1.ProactiveConf, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(proactiveconfsResource, c.ns, proactiveConf), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootCreateAction(proactiveconfsResource, proactiveConf), &v1.ProactiveConf{})
 	if obj == nil {
 		return nil, err
 	}
@@ -95,8 +90,7 @@ func (c *FakeProactiveConfs) Create(ctx context.Context, proactiveConf *v1.Proac
 // Update takes the representation of a proactiveConf and updates it. Returns the server's representation of the proactiveConf, and an error, if there is any.
 func (c *FakeProactiveConfs) Update(ctx context.Context, proactiveConf *v1.ProactiveConf, opts metav1.UpdateOptions) (result *v1.ProactiveConf, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(proactiveconfsResource, c.ns, proactiveConf), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootUpdateAction(proactiveconfsResource, proactiveConf), &v1.ProactiveConf{})
 	if obj == nil {
 		return nil, err
 	}
@@ -106,14 +100,13 @@ func (c *FakeProactiveConfs) Update(ctx context.Context, proactiveConf *v1.Proac
 // Delete takes name of the proactiveConf and deletes it. Returns an error if one occurs.
 func (c *FakeProactiveConfs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(proactiveconfsResource, c.ns, name, opts), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootDeleteActionWithOptions(proactiveconfsResource, name, opts), &v1.ProactiveConf{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeProactiveConfs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(proactiveconfsResource, c.ns, listOpts)
+	action := testing.NewRootDeleteCollectionAction(proactiveconfsResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.ProactiveConfList{})
 	return err
@@ -122,8 +115,7 @@ func (c *FakeProactiveConfs) DeleteCollection(ctx context.Context, opts metav1.D
 // Patch applies the patch and returns the patched proactiveConf.
 func (c *FakeProactiveConfs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ProactiveConf, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(proactiveconfsResource, c.ns, name, pt, data, subresources...), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(proactiveconfsResource, name, pt, data, subresources...), &v1.ProactiveConf{})
 	if obj == nil {
 		return nil, err
 	}
@@ -144,8 +136,7 @@ func (c *FakeProactiveConfs) Apply(ctx context.Context, proactiveConf *acipcv1.P
 		return nil, fmt.Errorf("proactiveConf.Name must be provided to Apply")
 	}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(proactiveconfsResource, c.ns, *name, types.ApplyPatchType, data), &v1.ProactiveConf{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(proactiveconfsResource, *name, types.ApplyPatchType, data), &v1.ProactiveConf{})
 	if obj == nil {
 		return nil, err
 	}
