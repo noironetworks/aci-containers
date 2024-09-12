@@ -36,7 +36,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -148,35 +147,18 @@ func apicClient() (*http.Client, error) {
 	return client, nil
 }
 
-func findCertAndKeyFiles() (string, string, error) {
-	var certFile, keyFile string
+func findCertAndKeyFiles(sysid string) (string, string, error) {
+	certFile := fmt.Sprintf("user-%s.crt", sysid)
+	keyFile := fmt.Sprintf("user-%s.key", sysid)
 
-	files, err := os.ReadDir(".")
+	_, err := os.Stat(certFile)
 	if err != nil {
 		return "", "", err
 	}
 
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		name := file.Name()
-		ext := filepath.Ext(name)
-
-		if ext == ".crt" && certFile == "" {
-			certFile = name
-		}
-		if ext == ".key" && keyFile == "" {
-			keyFile = name
-		}
-
-		if certFile != "" && keyFile != "" {
-			break
-		}
-	}
-
-	if certFile == "" || keyFile == "" {
-		return "", "", errors.New("no cert or key files found")
+	_, err = os.Stat(keyFile)
+	if err != nil {
+		return "", "", err
 	}
 
 	return certFile, keyFile, nil
@@ -265,7 +247,7 @@ func loginWithTLS(apicClient *http.Client, apicHosts []string, certFile, keyFile
 		if err != nil {
 			return "", -1, fmt.Errorf("failed to create request: %v", err)
 		}
-		
+
 		sign(user, req, uri, nil, signed)
 		req.Header.Set("Content-Type", "application/json")
 
