@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"net"
@@ -58,17 +59,11 @@ type PacketSummary struct {
 	PacketDropped bool
 	previousTable int
 	tcp_dst       string
+	udp_dst       string
 	ip_dst        string
 	snat_ip       string
 	ct_mark       string
 }
-
-var nodeIdMaps *NodeIdMaps
-var tcpFlag bool
-var tcpSrc int
-var tcpDst int
-var verbose bool
-var ct_mark string
 
 type Bridge struct {
 	br_type       string
@@ -144,6 +139,15 @@ type Property struct {
 type Reference struct {
 	Subject      string `json:"subject"`
 	ReferenceURI string `json:"reference_uri"`
+}
+
+type TpProto struct {
+	Enabled    bool
+	Protocol   string
+	SrcPort    string
+	SrcPortVal int
+	DstPort    string
+	DstPortVal int
 }
 
 var BrAccessRegisterMap = map[string]string{
@@ -563,6 +567,8 @@ func (br *Bridge) buildPacketTrace() string {
 					fieldValue := strings.TrimSpace(strings.Split(setFieldAction[0], "set_field:")[1])
 					if fieldName == "tcp_dst" {
 						summary.tcp_dst = fieldValue
+					} else if fieldName == "udp_dst" {
+						summary.udp_dst = fieldValue
 					} else if fieldName == "ip_dst" {
 						summary.ip_dst = fieldValue
 					}
@@ -664,49 +670,103 @@ func findPortName(port string, bridgName string, ovspod string) string {
 	return ""
 }
 
-func init() {
-	PodtoPodtraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	PodtoPodtraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
-	PodtoPodtraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
-	PodtoPodtraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
-
-	PodtoSvctraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	PodtoSvctraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
-	PodtoSvctraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
-	PodtoSvctraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
-
-	PodtoExttraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	PodtoExttraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
-	PodtoExttraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
-	PodtoExttraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
-
-}
-
 func isValidPort(port int) bool {
 	return port > 0 && port <= 65535
 }
 
-func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, verbose bool) {
+func protoConfigAndValidation(proto *TpProto, tcpFlag bool, tcpSrc *int, tcpDst *int, udpFlag bool, udpSrc *int,
+	udpDst *int) error {
+	if tcpFlag && udpFlag {
+		return fmt.Errorf("\n%sInvalid Input: Either tcp or udp should be provided.%s\n", ColorRed, ColorReset)
+	}
+
+	if tcpFlag && (*udpSrc != 0 || *udpDst != 0) {
+		return fmt.Errorf("\n%sInvalid Input: UDP ports are provided with TCP.%s\n", ColorRed, ColorReset)
+	}
+
+	if udpFlag && (*tcpSrc != 0 || *tcpDst != 0) {
+		return fmt.Errorf("\n%sInvalid Input: TCP ports are provided with UDP.%s\n", ColorRed, ColorReset)
+
+	}
+
 	if tcpFlag {
-		if tcpSrc == 0 && tcpDst == 0 {
-			fmt.Printf("\n%sError: If tcp is specified, either tcp_src or tcp_dst must be provided.%s\n", ColorRed, ColorReset)
-			return
-		} else if tcpSrc == 0 {
-			tcpSrc = 12345
-		} else if tcpDst == 0 {
-			tcpDst = 12345
+		if *tcpSrc == 0 && *tcpDst == 0 {
+			return fmt.Errorf("\n%sInvalid Input: If tcp is specified, either tcp_src or tcp_dst must be provided.%s\n", ColorRed, ColorReset)
+		} else if *tcpSrc == 0 {
+			*tcpSrc = 12345
+		} else if *tcpDst == 0 {
+			*tcpDst = 12345
 		}
 
-		if !isValidPort(tcpSrc) {
-			fmt.Printf("\n%sError: Please enter tcp_src value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
-			return
+		if !isValidPort(*tcpSrc) {
+			return fmt.Errorf("\n%sInvalid Input: Please enter tcp_src value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
+
 		}
 
-		if !isValidPort(tcpDst) {
-			fmt.Printf("\n%sError: Please enter tcp_dst value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
-			return
+		if !isValidPort(*tcpDst) {
+			return fmt.Errorf("\n%sInvalid Input: Please enter tcp_dst value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
+
 		}
 
+		proto.Enabled = true
+		proto.Protocol = "tcp"
+		proto.DstPort = "tcp_dst"
+		proto.SrcPort = "tcp_src"
+		proto.SrcPortVal = *tcpSrc
+		proto.DstPortVal = *tcpDst
+
+	} else if udpFlag {
+		if *udpSrc == 0 && *udpDst == 0 {
+			return fmt.Errorf("\n%sInvalid Input: If udp is specified, either udp_src or udp_dst must be provided.%s\n", ColorRed, ColorReset)
+		} else if *udpSrc == 0 {
+			*udpSrc = 12345
+		} else if *udpDst == 0 {
+			*udpDst = 12345
+		}
+
+		if !isValidPort(*udpSrc) {
+			return fmt.Errorf("\n%sInvalid Input: Please enter udp_src value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
+
+		}
+
+		if !isValidPort(*udpDst) {
+			return fmt.Errorf("\n%sInvalid Input: Please enter udp_dst value in valid port range [1-65535].%s\n", ColorRed, ColorReset)
+
+		}
+
+		proto.Enabled = true
+		proto.Protocol = "udp"
+		proto.DstPort = "udp_dst"
+		proto.SrcPort = "udp_src"
+		proto.SrcPortVal = *udpSrc
+		proto.DstPortVal = *udpDst
+	}
+
+	return nil
+}
+
+func checkDstPort(dstPod *v1.Pod, dstPort int32, protocol string) error {
+
+	for _, container := range dstPod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.ContainerPort == dstPort && string(port.Protocol) == protocol {
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("\n%sNo process is running on %s port %d on the destination pod %s\n", ColorRed, protocol, dstPort, ColorReset)
+}
+
+func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, udpFlag bool, udpSrc int,
+	udpDst int, verbose bool) {
+
+	proto := &TpProto{}
+
+	err := protoConfigAndValidation(proto, tcpFlag, &tcpSrc, &tcpDst, udpFlag, &udpSrc, &udpDst)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
 	srcnspod := args[0]
@@ -722,7 +782,6 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 	sections := []string{}
 	var tun_id string
 	var tun_id_int int64
-	var targetPort int32
 
 	out_bridgeflows := []Bridge{}
 
@@ -770,16 +829,15 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 	}
 
 	if tcpFlag {
-		for _, container := range dstPod.Spec.Containers {
-			for _, port := range container.Ports {
-				if port.ContainerPort == int32(tcpDst) {
-					targetPort = port.ContainerPort
-				}
-			}
+		err = checkDstPort(dstPod, int32(tcpDst), "TCP")
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
-
-		if targetPort == 0 {
-			fmt.Printf("\n%sNo process is running on tcp port %d on the destination pod %s\n", ColorRed, tcpDst, ColorReset)
+	} else if udpFlag {
+		err = checkDstPort(dstPod, int32(udpDst), "UDP")
+		if err != nil {
+			fmt.Println(err)
 			return
 		}
 	}
@@ -907,18 +965,18 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 	if !src_pod_hostnetwork {
 		if !dst_pod_hostnetwork {
-			if !tcpFlag {
+			if !proto.Enabled {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'", src_ep.Attributes.InterfaceName,
 						srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac)}
 			} else {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
-					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, tcp, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'", src_ep.Attributes.InterfaceName,
-						srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac, tcpSrc, tcpDst)}
+					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'", src_ep.Attributes.InterfaceName,
+						proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 			}
 		} else {
 
-			if !tcpFlag {
+			if !proto.Enabled {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, ip, "+
 						"nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'", src_ep.Attributes.InterfaceName,
@@ -926,9 +984,9 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 			} else {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
-					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, tcp, "+
-						"nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'", src_ep.Attributes.InterfaceName,
-						srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, "00:22:bd:f8:19:ff", tcpSrc, tcpDst)}
+					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, "+
+						"nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'", src_ep.Attributes.InterfaceName,
+						proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, "00:22:bd:f8:19:ff", proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 			}
 
 		}
@@ -1046,7 +1104,7 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		if !dst_pod_hostnetwork {
 			if !src_pod_hostnetwork {
 				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
-					if !tcpFlag {
+					if !proto.Enabled {
 						cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
 							"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
 								"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
@@ -1054,13 +1112,14 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					} else {
 						cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
 							"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
-								"tun_id=0x%s, tcp, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'",
-								tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac, tcpSrc, tcpDst)}
+								"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+								tun_id, proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac,
+								dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 					}
 				}
 
 			} else {
-				if !tcpFlag {
+				if !proto.Enabled {
 					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
 						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
 							"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
@@ -1068,8 +1127,9 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				} else {
 					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
 						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
-							"tun_id=0x%s, tcp, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'",
-							tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, "00:22:bd:f8:19:ff", dst_ep.Mac, tcpSrc, tcpDst)}
+							"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+							tun_id, proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, "00:22:bd:f8:19:ff",
+							dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 				}
 			}
 
@@ -1170,27 +1230,60 @@ func podIPMatchesNodeIP(podIP string, nodeAddresses []v1.NodeAddress) bool {
 	return false
 }
 
-func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, verbose bool) {
-	if tcpFlag {
-		if tcpSrc == 0 && tcpDst == 0 {
-			fmt.Println("Error: If tcp is specified then tcp_dst must be provided.")
-			return
-		} else if tcpSrc == 0 {
-			tcpSrc = 12345
+func getTargetPortValue(kubeClient kubernetes.Interface, service *v1.Service, dst_port int) (int32, error) {
+	var targetPort intstr.IntOrString
+
+	for _, port := range service.Spec.Ports {
+		if port.Port == int32(dst_port) {
+			if port.TargetPort.Type == intstr.Int {
+				targetPort.IntVal = port.TargetPort.IntVal
+			} else if port.TargetPort.Type == intstr.String {
+				targetPort.StrVal = port.TargetPort.StrVal
+			}
+			break
+		}
+	}
+
+	if targetPort.IntVal == 0 && targetPort.StrVal == "" {
+		return 0, fmt.Errorf("No TargetPort found. Destination Port %d does not match with any Service Port\n", dst_port)
+
+	}
+
+	if targetPort.IntVal == 0 && targetPort.StrVal != "" {
+		podList, err := kubeClient.CoreV1().Pods(service.Namespace).List(kubecontext.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(service.Spec.Selector).String(),
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to list pods: %v", err)
 		}
 
-		if !isValidPort(tcpSrc) {
-			fmt.Println("Error: Please enter tcpSrc value in valid port range [1-65535].")
+		for _, pod := range podList.Items {
+			for _, container := range pod.Spec.Containers {
+				for _, port := range container.Ports {
+					if port.Name == targetPort.StrVal {
+						targetPort.IntVal = port.ContainerPort
+						break
+					}
+				}
+			}
+		}
+	}
+	return targetPort.IntVal, nil
+}
+
+func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, udpFlag bool, udpSrc int,
+	udpDst int, verbose bool) {
+
+	proto := &TpProto{}
+
+	if tcpFlag || udpFlag {
+		err := protoConfigAndValidation(proto, tcpFlag, &tcpSrc, &tcpDst, udpFlag, &udpSrc, &udpDst)
+		if err != nil {
+			fmt.Println(err)
 			return
 		}
-
-		if !isValidPort(tcpDst) {
-			fmt.Println("Error: Please enter tcpDst value in valid port range [1-65535].")
-			return
-		}
-
 	} else {
-		fmt.Println("Error: tcp protocol must be provided.")
+		fmt.Printf("\n%sInvalid Input: tcp/udp protocol must be provided.%s\n", ColorRed, ColorReset)
 		return
 	}
 
@@ -1256,16 +1349,9 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		return
 	}
 
-	for _, port := range dest_svc.Spec.Ports {
-		if port.Port == int32(tcpDst) {
-			if port.TargetPort.Type == intstr.Int {
-				targetPort = port.TargetPort.IntVal
-			}
-		}
-	}
-
-	if targetPort == 0 {
-		fmt.Fprintln(os.Stderr, "tcpDst port does not match with service port")
+	targetPort, err = getTargetPortValue(kubeClient, dest_svc, proto.DstPortVal)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 
@@ -1339,9 +1425,9 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 		cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 			"--", "/bin/sh", "-c",
-			fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, tcp, nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, tcp_src=%d,tcp_dst=%d'",
-				src_ep.Attributes.InterfaceName,
-				srcPod.Status.PodIP, dest_svc_file.ServiceMapping[0].ServiceIp, src_ep.Mac, tcpSrc, tcpDst)}
+			fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, %s=%d,%s=%d'",
+				src_ep.Attributes.InterfaceName, proto.Protocol,
+				srcPod.Status.PodIP, dest_svc_file.ServiceMapping[0].ServiceIp, src_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 
 		err = execKubectl(cmd_args, src_buffer)
 		if err != nil {
@@ -1540,8 +1626,9 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 				cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
-						"tun_id=0x%s, tcp,nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'",
-						tun_id, srcPod.Status.PodIP, destPod.Status.PodIP, "00:22:bd:f8:19:ff", dest_ep.Mac, tcpSrc, targetPort)}
+						"tun_id=0x%s, %s,nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+						tun_id, proto.Protocol, srcPod.Status.PodIP, destPod.Status.PodIP, "00:22:bd:f8:19:ff",
+						dest_ep.Mac, proto.SrcPort, tcpSrc, proto.DstPort, targetPort)}
 
 				err = execKubectl(cmd_args, dest_buffer)
 				if err != nil {
@@ -1667,10 +1754,11 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		if !dst_pod_hostnetwork && destPod != nil {
 			if destPod.Spec.NodeName != srcPod.Spec.NodeName {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
-					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, tcp, "+
-						"nw_ttl=10,nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,tcp_src=%d,tcp_dst=%d'",
-						dest_ep.Attributes.InterfaceName,
-						destPod.Status.PodIP, srcPod.Status.PodIP, dest_ep.Mac, "00:22:bd:f8:19:ff", targetPort, tcpSrc)}
+					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, "+
+						"nw_ttl=10,nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+						dest_ep.Attributes.InterfaceName, proto.Protocol,
+						destPod.Status.PodIP, srcPod.Status.PodIP, dest_ep.Mac,
+						"00:22:bd:f8:19:ff", proto.DstPort, targetPort, proto.SrcPort, tcpSrc)}
 
 				err = execKubectl(cmd_args, src_buffer)
 				if err != nil {
@@ -1782,8 +1870,8 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				if destPod.Spec.NodeName != srcPod.Spec.NodeName {
 					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,tun_id=0x%s, "+
-							"tcp,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,tcp_src=%d,nw_ttl=64'",
-							tun_id, ct_mark, destPod.Status.PodIP, srcPod.Status.PodIP, src_ep.Mac, targetPort)}
+							"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
+							tun_id, proto.Protocol, ct_mark, destPod.Status.PodIP, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
 
 					err = execKubectl(cmd_args, dest_buffer)
 					if err != nil {
@@ -1796,8 +1884,8 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 			} else {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,tun_id=0x%s, "+
-						"tcp,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,tcp_src=%d,nw_ttl=64'",
-						tun_id, ct_mark, destPodIp, srcPod.Status.PodIP, src_ep.Mac, targetPort)}
+						"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
+						tun_id, proto.Protocol, ct_mark, destPodIp, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
 
 				err = execKubectl(cmd_args, dest_buffer)
 				if err != nil {
@@ -1924,26 +2012,19 @@ func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 
-func pod_to_ext_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, verbose bool) {
-	if tcpFlag {
-		if tcpSrc == 0 && tcpDst == 0 {
-			fmt.Println("Error: If tcp is specified, either tcp_src or tcp_dst must be provided.")
+func pod_to_ext_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, udpFlag bool, udpSrc int,
+	udpDst int, verbose bool) {
+
+	proto := &TpProto{}
+
+	if tcpFlag || udpFlag {
+		err := protoConfigAndValidation(proto, tcpFlag, &tcpSrc, &tcpDst, udpFlag, &udpSrc, &udpDst)
+		if err != nil {
+			fmt.Println(err)
 			return
-		} else if tcpSrc == 0 {
-			tcpSrc = 12345
 		}
 	} else {
-		fmt.Println("Error: tcp protocol must be provided.")
-		return
-	}
-
-	if !isValidPort(tcpSrc) {
-		fmt.Println("Error: Please enter tcpSrc value in valid port range [1-65535].")
-		return
-	}
-
-	if !isValidPort(tcpDst) {
-		fmt.Println("Error: Please enter tcpDst value in valid port range [1-65535].")
+		fmt.Printf("\n%sInvalid Input: tcp/udp protocol must be provided.%s\n", ColorRed, ColorReset)
 		return
 	}
 
@@ -2033,9 +2114,9 @@ func pod_to_ext_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 	cmd_args := []string{}
 
 	cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
-		"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, tcp, nw_ttl=10, "+
-			"nw_src=%s, nw_dst=%s, dl_src=%s, tcp_src=%d,tcp_dst=%d'", src_ep.Attributes.InterfaceName,
-			srcPod.Status.PodIP, destip, src_ep.Mac, tcpSrc, tcpDst)}
+		"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, nw_ttl=10, "+
+			"nw_src=%s, nw_dst=%s, dl_src=%s, %s=%d,%s=%d'", src_ep.Attributes.InterfaceName,
+			proto.Protocol, srcPod.Status.PodIP, destip, src_ep.Mac, proto.SrcPort, tcpSrc, proto.DstPort, tcpDst)}
 
 	err = execKubectl(cmd_args, src_buffer)
 	if err != nil {
@@ -2396,35 +2477,67 @@ func printACIDiagram() {
 var PodtoPodtraceCmd = &cobra.Command{
 	Use:     "trace_pod_to_pod [src_ns:src_pod] [dest_ns:dest_pod]",
 	Short:   "Trace ip packet's flow in ovs for pod to pod communication",
-	Example: `acikubectl trace_pod_to_pod src_ns:src_pod dest_ns:dest_pod --tcp --tcp_src <source_port> --tcp_dst <destination_port>`,
+	Example: `acikubectl trace_pod_to_pod src_ns:src_pod dest_ns:dest_pod`,
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		pod_to_pod_tracepacket(args, tcpFlag, tcpSrc, tcpDst, verbose)
+		pod_to_pod_tracepacket(args, tcpFlag, tcpSrc, tcpDst, udpFlag, udpSrc, udpDst, verbose)
 	},
 }
 
 var PodtoSvctraceCmd = &cobra.Command{
 	Use:     "trace_pod_to_svc [src_ns:src_pod] [dest_ns:dest_svc]",
 	Short:   "Trace ip packet's flow in ovs from pod to service communication",
-	Example: `acikubectl trace_pod_to_svc src_ns:src_pod dest_ns:dest_svc --tcp --tcp_src <source_port> --tcp_dst <destination_port>`,
+	Example: `acikubectl trace_pod_to_svc src_ns:src_pod dest_ns:dest_svc`,
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		pod_to_svc_tracepacket(args, tcpFlag, tcpSrc, tcpDst, verbose)
+		pod_to_svc_tracepacket(args, tcpFlag, tcpSrc, tcpDst, udpFlag, udpSrc, udpDst, verbose)
 	},
 }
 
 var PodtoExttraceCmd = &cobra.Command{
 	Use:     "trace_pod_to_ext [src_ns:src_pod] [dest_ip]",
 	Short:   "Trace ip packet's flow in ovs from pod to outside cluster communication",
-	Example: `acikubectl trace_pod_to_ext src_ns:src_pod dest_ip --tcp --tcp_src <source_port> --tcp_dst <destination_port>`,
+	Example: `acikubectl trace_pod_to_ext src_ns:src_pod dest_ip`,
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		pod_to_ext_tracepacket(args, tcpFlag, tcpSrc, tcpDst, verbose)
+		pod_to_ext_tracepacket(args, tcpFlag, tcpSrc, tcpDst, udpFlag, udpSrc, udpDst, verbose)
 	},
 }
 
+var nodeIdMaps *NodeIdMaps
+var tcpFlag, udpFlag bool
+var tcpSrc, udpSrc int
+var tcpDst, udpDst int
+var verbose bool
+var ct_mark string
+
 func init() {
 	nodeIdMaps = NewNodeIdMaps()
+
+	PodtoPodtraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	PodtoPodtraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
+	PodtoPodtraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
+	PodtoPodtraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
+	PodtoPodtraceCmd.Flags().BoolVar(&udpFlag, "udp", false, "Specify if the protocol is UDP")
+	PodtoPodtraceCmd.Flags().IntVar(&udpSrc, "udp_src", 0, "Specify the source UDP port")
+	PodtoPodtraceCmd.Flags().IntVar(&udpDst, "udp_dst", 0, "Specify the destination UDP port")
+
+	PodtoSvctraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	PodtoSvctraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
+	PodtoSvctraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
+	PodtoSvctraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
+	PodtoSvctraceCmd.Flags().BoolVar(&udpFlag, "udp", false, "Specify if the protocol is UDP")
+	PodtoSvctraceCmd.Flags().IntVar(&udpSrc, "udp_src", 0, "Specify the source UDP port")
+	PodtoSvctraceCmd.Flags().IntVar(&udpDst, "udp_dst", 0, "Specify the destination UDP port")
+
+	PodtoExttraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	PodtoExttraceCmd.Flags().BoolVar(&tcpFlag, "tcp", false, "Specify if the protocol is TCP")
+	PodtoExttraceCmd.Flags().IntVar(&tcpSrc, "tcp_src", 0, "Specify the source TCP port")
+	PodtoExttraceCmd.Flags().IntVar(&tcpDst, "tcp_dst", 0, "Specify the destination TCP port")
+	PodtoExttraceCmd.Flags().BoolVar(&udpFlag, "udp", false, "Specify if the protocol is UDP")
+	PodtoExttraceCmd.Flags().IntVar(&udpSrc, "udp_src", 0, "Specify the source UDP port")
+	PodtoExttraceCmd.Flags().IntVar(&udpDst, "udp_dst", 0, "Specify the destination UDP port")
+
 	RootCmd.AddCommand(PodtoPodtraceCmd)
 	RootCmd.AddCommand(PodtoSvctraceCmd)
 	RootCmd.AddCommand(PodtoExttraceCmd)
