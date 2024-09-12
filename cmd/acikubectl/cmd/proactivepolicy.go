@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	aciCtrlr "github.com/noironetworks/aci-containers/pkg/controller"
@@ -157,7 +158,7 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 		}
 	case "delete":
 		{
-			if immediacy != "lazy" {
+			if immediacy != "immediate" {
 				fmt.Println("vmmEpgAttachment/-e argument has no effect in delete command.")
 			}
 			updatedDns := apicUpdateFvRsDomAttInstrImedcy(effectiveDns, "lazy")
@@ -195,40 +196,47 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 			verifyFailures := false
 
 			fabricNodeMap := apicGetNodesFromInterfacePolicyProfiles(client, (*apicHosts)[apicIdx], resp.Imdata, useCert, user)
-
 			for _, fvRsDomAtt := range effectiveDns {
+				eppMissingCnt := 0
 				fvRsDomAttDn := fvRsDomAtt.GetAttrDn()
 				rsdomAttIndex := strings.LastIndex(fvRsDomAttDn, "/rsdomAtt-")
 				if rsdomAttIndex == -1 {
 					continue
 				}
 				epgDn := fvRsDomAttDn[:rsdomAttIndex]
-				for pathDn, nodeList := range fabricNodeMap {
+				fmt.Printf("Checking epg profile(fvEpP) for %s...", epgDn)
+				fvEppMap := make(map[int]bool)
+				missingNodeMap := make(map[int]bool)
+				// Check fabric node
+				uri = fmt.Sprintf("/api/node/mo/uni/epp/fv-[%s].json?query-target=children&target-subtree-class=fvLocale", epgDn)
+				resp, err = apicGetResponse(client, (*apicHosts)[apicIdx], uri, useCert, user)
+				if err != nil {
+					fmt.Printf("Failed to get epg profile(fvEpP):%v", err)
+					return
+				}
+				for _, fvLocale := range resp.Imdata {
+					nodeIdStr := fvLocale.GetAttr("id").(string)
+					nodeId, _ := strconv.Atoi(nodeIdStr)
+					fvEppMap[nodeId] = true
+					fmt.Printf("\nFound fvEpP on node-%d", nodeId)
+				}
+				for _, nodeList := range fabricNodeMap {
 					for _, nodeId := range nodeList {
-						uri = fmt.Sprintf("/api/node/mo/uni/epp/fv-[%s]/node-%d/dyatt-[%s].json?query-target=self", epgDn, nodeId, pathDn)
-						resp, err := apicGetResponse(client, (*apicHosts)[apicIdx], uri, useCert, user)
-						if err != nil {
-							fmt.Printf("\nMissing pv attachment(%s,node-%d,%s):%v", pathDn, nodeId, epgDn)
-							verifyFailures = true
-							continue
-						}
-						if len(resp.Imdata) == 0 {
-							fmt.Printf("\nMissing pv attachment(%s,node-%d,%s)", pathDn, nodeId, epgDn)
-							verifyFailures = true
-							continue
-						}
-						for _, fvDyPathAtt := range resp.Imdata {
-							tDn := fvDyPathAtt.GetAttr("targetDn").(string)
-							if tDn == pathDn {
-								fmt.Printf("\nFound pv attachment(%s,node-%d,%s)", pathDn, nodeId, epgDn)
-								break
+						if _, ok := fvEppMap[nodeId]; !ok {
+							if _, ok2 := missingNodeMap[nodeId]; !ok2 {
+								missingNodeMap[nodeId] = true
+								fmt.Printf("\nMissing fvEpP %s on node-%d", epgDn, nodeId)
+								eppMissingCnt++
 							}
 						}
 					}
 				}
+				if eppMissingCnt > 0 {
+					verifyFailures = true
+				}
 			}
 			if verifyFailures {
-				fmt.Printf("\nVERIFY FAILURE: some attachments are missing!")
+				fmt.Printf("\nVERIFY FAILURE: some nodes are missing epg deployments!")
 			} else {
 				fmt.Printf("\nVERIFY SUCCESS!")
 			}
