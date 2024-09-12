@@ -102,8 +102,8 @@ func proactivePolicy(args []string, apicUser, apicPassword, vmmEpgAttachment str
 
 	certFile, keyFile, file_err := findCertAndKeyFiles(user)
 
-	if file_err != nil {
-		fmt.Printf("Failed to find certificate and key files:%v\n", file_err)
+	if file_err != nil && (apicUser == "" && apicPassword == "") {
+		fmt.Printf("Failed to find file: %v\n", file_err)
 	}
 
 	if file_err == nil {
