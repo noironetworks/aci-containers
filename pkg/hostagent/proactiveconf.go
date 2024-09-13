@@ -37,10 +37,10 @@ func (agent *HostAgent) initProactiveConfInformerFromClient(
 	agent.initProactiveConfInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return proactiveConfClient.AciV1().ProactiveConfs(metav1.NamespaceAll).List(context.TODO(), options)
+				return proactiveConfClient.AciV1().ProactiveConfs().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return proactiveConfClient.AciV1().ProactiveConfs(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return proactiveConfClient.AciV1().ProactiveConfs().Watch(context.TODO(), options)
 			},
 		})
 }

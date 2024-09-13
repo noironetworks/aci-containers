@@ -55,10 +55,10 @@ func (cont *AciController) initProactiveConfInformerFromClient(
 	cont.initProactiveConfInformerBase(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return proactiveConfClient.AciV1().ProactiveConfs(metav1.NamespaceAll).List(context.TODO(), options)
+				return proactiveConfClient.AciV1().ProactiveConfs().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return proactiveConfClient.AciV1().ProactiveConfs(metav1.NamespaceAll).Watch(context.TODO(), options)
+				return proactiveConfClient.AciV1().ProactiveConfs().Watch(context.TODO(), options)
 			},
 		})
 }
@@ -110,22 +110,13 @@ func (cont *AciController) proactiveConfDelete(obj interface{}) {
 }
 
 func (cont *AciController) filterfvRsDomAtt(imdata []apicapi.ApicObject) []apicapi.ApicObject {
-	epgDnsSet := make(map[string]struct{}, len(cont.cachedEpgDns)+1)
-	for _, epgDn := range cont.cachedEpgDns {
-		epgDnsSet[epgDn] = struct{}{}
-	}
-
 	systemDnsToFilter := []string{
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-system", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-istio", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-nodes", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-system", cont.config.AciPolicyTenant, cont.config.AciPrefix),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-istio", cont.config.AciPolicyTenant, cont.config.AciPrefix),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-nodes", cont.config.AciPolicyTenant, cont.config.AciPrefix),
 	}
 
-	for _, dn := range systemDnsToFilter {
-		delete(epgDnsSet, dn)
-	}
-
-	vmmDomPDn := fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
+	vmmDomPDn := fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.config.AciVmmDomainType, cont.config.AciVmmDomain)
 
 	var fvRsDomAttSlice []apicapi.ApicObject
 	for _, fvRsDomAtt := range imdata {
@@ -136,8 +127,14 @@ func (cont *AciController) filterfvRsDomAtt(imdata []apicapi.ApicObject) []apica
 			continue
 		}
 
-		parentDn := dn[:rsdomAttIndex]
-		if _, found := epgDnsSet[parentDn]; !found {
+		skipEpg := false
+		for _, epgDn := range systemDnsToFilter {
+			if strings.HasPrefix(dn, epgDn) {
+				skipEpg = true
+				break
+			}
+		}
+		if skipEpg {
 			continue
 		}
 
@@ -169,12 +166,12 @@ func (cont *AciController) postfvRsDomAtt(fvRsDomAttSlice []apicapi.ApicObject) 
 	}
 }
 
-func (cont *AciController) updateFvRsDomAttInstrImedcy(fvRsDomAttSlice []apicapi.ApicObject, immediacy string) {
+func (cont *AciController) updateFvRsDomAttImmediacy(fvRsDomAttSlice []apicapi.ApicObject, instrImedcy, resImedcy string) {
 	for _, fvRsDomAtt := range fvRsDomAttSlice {
 		dn := fvRsDomAtt.GetAttr("dn").(string)
 		fvRsDomAttNew := apicapi.EmptyApicObject("fvRsDomAtt", dn)
-		fvRsDomAttNew.SetAttr("instrImedcy", immediacy)
-		fvRsDomAttNew.SetAttr("resImedcy", immediacy)
+		fvRsDomAttNew.SetAttr("instrImedcy", instrImedcy)
+		fvRsDomAttNew.SetAttr("resImedcy", resImedcy)
 		cont.postfvRsDomAtt([]apicapi.ApicObject{fvRsDomAttNew})
 	}
 }
@@ -186,12 +183,12 @@ func (cont *AciController) updateProactiveConf(policy *pcv1.ProactiveConf) {
 	fvRsDomAttSlice := cont.getfvRsDomAtt()
 
 	if vmmEpgDeploymentImmediacy == pcv1.VmmEpgDeploymentImmediacyTypeImmediate {
-		cont.updateFvRsDomAttInstrImedcy(fvRsDomAttSlice, "immediate")
+		cont.updateFvRsDomAttImmediacy(fvRsDomAttSlice, "immediate", "pre-provision")
 	} else {
 		cont.deleteProactiveConf(fvRsDomAttSlice)
 	}
 }
 
 func (cont *AciController) deleteProactiveConf(fvRsDomAttSlice []apicapi.ApicObject) {
-	cont.updateFvRsDomAttInstrImedcy(fvRsDomAttSlice, "lazy")
+	cont.updateFvRsDomAttImmediacy(fvRsDomAttSlice, "lazy", "lazy")
 }
