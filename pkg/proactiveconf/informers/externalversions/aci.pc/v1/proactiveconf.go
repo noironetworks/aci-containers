@@ -41,33 +41,32 @@ type ProactiveConfInformer interface {
 type proactiveConfInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
-	namespace        string
 }
 
 // NewProactiveConfInformer constructs a new informer for ProactiveConf type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewProactiveConfInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredProactiveConfInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewProactiveConfInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredProactiveConfInformer(client, resyncPeriod, indexers, nil)
 }
 
 // NewFilteredProactiveConfInformer constructs a new informer for ProactiveConf type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredProactiveConfInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredProactiveConfInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().ProactiveConfs(namespace).List(context.TODO(), options)
+				return client.AciV1().ProactiveConfs().List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AciV1().ProactiveConfs(namespace).Watch(context.TODO(), options)
+				return client.AciV1().ProactiveConfs().Watch(context.TODO(), options)
 			},
 		},
 		&acipcv1.ProactiveConf{},
@@ -77,7 +76,7 @@ func NewFilteredProactiveConfInformer(client versioned.Interface, namespace stri
 }
 
 func (f *proactiveConfInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredProactiveConfInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewFilteredProactiveConfInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *proactiveConfInformer) Informer() cache.SharedIndexInformer {

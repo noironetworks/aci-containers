@@ -33,10 +33,9 @@ type ProactiveConfApplyConfiguration struct {
 
 // ProactiveConf constructs an declarative configuration of the ProactiveConf type for use with
 // apply.
-func ProactiveConf(name, namespace string) *ProactiveConfApplyConfiguration {
+func ProactiveConf(name string) *ProactiveConfApplyConfiguration {
 	b := &ProactiveConfApplyConfiguration{}
 	b.WithName(name)
-	b.WithNamespace(namespace)
 	b.WithKind("ProactiveConf")
 	b.WithAPIVersion("aci.pc/v1")
 	return b
