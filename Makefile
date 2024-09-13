@@ -59,7 +59,7 @@ STATIC_BUILD_CMD_CGO ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD} \
         -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
         -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
          -s -w" -a -installsuffix cgo
-STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
+STATIC_BUILD_CMD ?= GOARCH=arm64 CC=/opt/musl-cross/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
         -ldflags="\
         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
         -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
@@ -97,6 +97,7 @@ all-static: dist-static/aci-containers-host-agent \
 	dist-static/aci-containers-operator dist-static/aci-containers-webhook \
 	dist-static/aci-containers-certmanager
 
+
 all-static-race: dist-static-race/aci-containers-host-agent \
 	dist-static-race/aci-containers-host-agent-ovscni \
 	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
@@ -118,6 +119,7 @@ clean-dist-static-race:
 clean-dist:
 	rm -rf dist
 clean: clean-dist
+
 
 PACKAGE = aci-containers
 VERSION_BASE ?= 1.9.0

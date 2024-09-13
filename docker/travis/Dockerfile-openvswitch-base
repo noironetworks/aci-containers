@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
 RUN microdnf install -y yum yum-utils \
- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os \
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os \
  && yum --nogpgcheck -y update
 RUN yum --nogpgcheck --disablerepo=\*ubi\* install -y \
   libtool pkgconfig autoconf automake make file python3-six \
