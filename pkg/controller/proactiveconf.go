@@ -110,22 +110,13 @@ func (cont *AciController) proactiveConfDelete(obj interface{}) {
 }
 
 func (cont *AciController) filterfvRsDomAtt(imdata []apicapi.ApicObject) []apicapi.ApicObject {
-	epgDnsSet := make(map[string]struct{}, len(cont.cachedEpgDns)+1)
-	for _, epgDn := range cont.cachedEpgDns {
-		epgDnsSet[epgDn] = struct{}{}
-	}
-
 	systemDnsToFilter := []string{
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-system", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-istio", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
-		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-nodes", cont.config.AciPolicyTenant, cont.config.AciVmmDomain),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-system", cont.config.AciPolicyTenant, cont.config.AciPrefix),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-istio", cont.config.AciPolicyTenant, cont.config.AciPrefix),
+		fmt.Sprintf("uni/tn-%s/ap-aci-containers-%s/epg-aci-containers-nodes", cont.config.AciPolicyTenant, cont.config.AciPrefix),
 	}
 
-	for _, dn := range systemDnsToFilter {
-		delete(epgDnsSet, dn)
-	}
-
-	vmmDomPDn := fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.vmmDomainProvider(), cont.config.AciVmmDomain)
+	vmmDomPDn := fmt.Sprintf("uni/vmmp-%s/dom-%s", cont.config.AciVmmDomainType, cont.config.AciVmmDomain)
 
 	var fvRsDomAttSlice []apicapi.ApicObject
 	for _, fvRsDomAtt := range imdata {
@@ -136,8 +127,14 @@ func (cont *AciController) filterfvRsDomAtt(imdata []apicapi.ApicObject) []apica
 			continue
 		}
 
-		parentDn := dn[:rsdomAttIndex]
-		if _, found := epgDnsSet[parentDn]; !found {
+		skipEpg := false
+		for _, epgDn := range systemDnsToFilter {
+			if strings.HasPrefix(dn, epgDn) {
+				skipEpg = true
+				break
+			}
+		}
+		if skipEpg {
 			continue
 		}
 
