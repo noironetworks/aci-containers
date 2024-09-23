@@ -444,6 +444,35 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 
 type fullSync struct{}
 
+func (conn *ApicConnection) UnsubscribeImmediateDnLocked(dn string,
+	targetClasses []string) {
+	// Post local delete, subscription will not be refreshed
+	// after refresh time-out
+	delete(conn.subscriptions.subs, dn)
+}
+
+func (conn *ApicConnection) AddImmediateSubscriptionDnLocked(dn string,
+	targetClasses []string, updateHook ApicObjectHandler, deleteHook ApicDnHandler) bool {
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+	}).Debug("Adding Subscription for Dn")
+
+	conn.subscriptions.subs[dn] = &subscription{
+		kind:          apicSubDn,
+		childSubs:     make(map[string]subComponent),
+		targetClasses: targetClasses,
+		respClasses:   computeRespClasses(targetClasses),
+	}
+	if updateHook != nil {
+		conn.subscriptions.subs[dn].updateHook = updateHook
+	}
+	if deleteHook != nil {
+		conn.subscriptions.subs[dn].deleteHook = deleteHook
+	}
+	return conn.subscribe(dn, conn.subscriptions.subs[dn], true)
+}
+
 func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	done := make(chan struct{})
 	restart := make(chan struct{})
@@ -523,7 +552,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 
 	var hasErr bool
 	for value, subscription := range conn.subscriptions.subs {
-		if !(conn.subscribe(value, subscription)) {
+		if !(conn.subscribe(value, subscription, false)) {
 			hasErr = true
 			conn.restart()
 			break
@@ -1297,7 +1326,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 	return true
 }
 
-func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
+func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld bool) bool {
 	baseArgs := []string{
 		"query-target=subtree",
 		"rsp-subtree=full",
@@ -1402,8 +1431,9 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			"id":    subId,
 			"args":  argSet[i],
 		}).Debug("Subscribed")
-
-		conn.indexMutex.Lock()
+		if !lockHeld {
+			conn.indexMutex.Lock()
+		}
 		if argCount > defaultArgs {
 			sub.childSubs[subId] = subComponent{
 				targetClasses: splitTargetClasses[i],
@@ -1413,7 +1443,9 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription) bool {
 			conn.subscriptions.subs[value].id = subId
 		}
 		conn.subscriptions.ids[subId] = value
-		conn.indexMutex.Unlock()
+		if !lockHeld {
+			conn.indexMutex.Unlock()
+		}
 		var respObjCount int
 		for _, obj := range apicresp.Imdata {
 			dn := obj.GetDn()
