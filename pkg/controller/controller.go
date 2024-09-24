@@ -301,6 +301,7 @@ type aciPodAnnot struct {
 	isSingleOpflexOdev bool
 	disconnectTime     time.Time
 	connectTime        time.Time
+	lastErrorTime      time.Time
 }
 
 type nodeServiceMeta struct {
