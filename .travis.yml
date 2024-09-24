@@ -1,19 +1,22 @@
 os: linux
-services: docker
+arch: arm64-graviton2
 dist: jammy
+services: docker
 language: go
 env:
   global:
     - DEFAULT_BRANCH: master
     - GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
 
+
 jobs:
   include:
+    # Check Stage
     - stage: check
-      if: tag IS NOT present
       sudo: false
       go: 1.22.5
       before_install:
+        - uname -a
         - go install github.com/mattn/goveralls@v0.0.12
       install:
         - export PATH=$PATH:$GOPATH/bin
@@ -26,12 +29,11 @@ jobs:
       after_success:
         - tail -200 /tmp/check.log
         - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
-    - stage: build-images
-      if: tag IS present
-      before_install:
-        - mkdir -vp ~/.docker/cli-plugins/
-        - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.3.0/buildx-v0.3.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
-        - chmod a+x ~/.docker/cli-plugins/docker-buildx
+
+
+    # Build Images for ARM64
+    - stage: build-images-arm64
+      arch: arm64  # Specify ARM64 architecture
       install:
         - pip install pytz
       go: 1.22.5
@@ -40,7 +42,7 @@ jobs:
         - export DOCKER_BUILDKIT=1
         - export UPSTREAM_ID=81c2369
       script:
-        - echo "Skip running UTs"
-        - git clone http://www.github.com/noironetworks/cicd -b main /tmp/cicd
-        - /tmp/cicd/travis/check-git-tag.sh; RETURN_CODE=$? ; if [ $RETURN_CODE -eq 140 ]; then travis_terminate 0; elif [ $RETURN_CODE -ne 0 ]; then travis_terminate $RETURN_CODE; fi
+        - echo "Skip running UTs for ARM64"
+        - git clone http://www.github.com/noironetworks/cicd -b arm64-build /tmp/cicd
+        # - /tmp/cicd/travis/check-git-tag.sh; RETURN_CODE=$? ; if [ $RETURN_CODE -eq 140 ]; then travis_terminate 0; elif [ $RETURN_CODE -ne 0 ]; then travis_terminate $RETURN_CODE; fi
         - /tmp/cicd/travis/build-push-aci-containers-images.sh || travis_terminate 1

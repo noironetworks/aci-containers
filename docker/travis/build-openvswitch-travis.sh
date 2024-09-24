@@ -26,7 +26,7 @@ echo "building base image"
 rm -Rf build/openvswitch
 mkdir -p build/openvswitch
 cp $DOCKER_DIR/Dockerfile-openvswitch-base build/openvswitch
-docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG -f ./build/openvswitch/Dockerfile-openvswitch-base build/openvswitch &> /tmp/openvswitch-base.log &
+docker build "$BUILDARG" -t "$DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG" -f ./build/openvswitch/Dockerfile-openvswitch-base build/openvswitch &> /tmp/openvswitch-base.log &
 while [ ! -f  /tmp/openvswitch-base.log ]; do sleep 10; done
 tail -f /tmp/openvswitch-base.log | awk 'NR%100-1==0' &
 while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
@@ -50,4 +50,4 @@ cp dist-static/ovsresync build/openvswitch/dist/usr/local/bin
 
 echo "building final image"
 cp $DOCKER_DIR/Dockerfile-openvswitch build/openvswitch
-docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch:$DOCKER_TAG -f ./build/openvswitch/Dockerfile-openvswitch build/openvswitch/dist
+docker build "$BUILDARG" -t "$DOCKER_HUB_ID/openvswitch:$DOCKER_TAG" -f ./build/openvswitch/Dockerfile-openvswitch build/openvswitch/dist
