@@ -318,7 +318,7 @@ func (cont *AciController) getSharedEncapNfcCacheEpgLocked(encap int) (nfcEpgTen
 	return
 }
 
-func (cont *AciController) getSharedEncapNfcCacheBDLocked(encap int) (nfcBdTenant, nfcVrf, nfcBd string, nfcBdSubnets []string) {
+func (cont *AciController) getSharedEncapNfcCacheBDLocked(encap int) (nfcBdTenant, nfcVrf, nfcBd string, nfcBdSubnets []fabattv1.Subnets) {
 	if nfcData, nfcExists := cont.sharedEncapNfcCache[encap]; nfcExists {
 		nfcBdTenant = nfcData.Epg.Tenant
 		if nfcData.Epg.BD.CommonTenant {

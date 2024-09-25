@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.ApicObject {
+func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []fabattv1.Subnets) apicapi.ApicObject {
 	bd := apicapi.NewFvBD(tenant, bdName)
 	bd.SetAttr("arpFlood", "yes")
 	bd.SetAttr("ipLearning", "no")
@@ -37,7 +37,11 @@ func CreateNFNAExplicitBD(tenant, vrf, bdName string, subnets []string) apicapi.
 	fvRsCtx := apicapi.NewFvRsCtx(bd.GetDn(), vrf)
 	bd.AddChild(fvRsCtx)
 	for _, subnet := range subnets {
-		fvSubnet := apicapi.NewFvSubnet(bd.GetDn(), subnet)
+		fvSubnet := apicapi.NewFvSubnet(bd.GetDn(), subnet.Subnet)
+		scope := getSubnetScope(subnet.ScopeOptions)
+		fvSubnet.SetAttr("scope", scope)
+		ctrl := getSubnetCtrl(subnet.ControlOptions)
+		fvSubnet.SetAttr("ctrl", ctrl)
 		bd.AddChild(fvSubnet)
 	}
 	return bd
@@ -105,7 +109,11 @@ func CreateNFCVlanRef(vlans string, explicitAp bool, discoveryType fabattv1.Stat
 						BD: fabattv1.BridgeDomain{
 							Name:         "testBd",
 							CommonTenant: true,
-							Subnets:      []string{"10.30.40.1/24"},
+							Subnets: []fabattv1.Subnets{
+								{
+									Subnet: "10.30.40.1/24",
+								},
+							},
 							Vrf: fabattv1.VRF{
 								Name:         "testVrf",
 								CommonTenant: true},
@@ -149,7 +157,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	labelKey = cont.aciNameForKey("nfna", "secondary")
 	assert.Equal(t, expectedApicSlice1, progMapPool[labelKey], "nfna create global dom")
 	var expectedApicSlice2 apicapi.ApicSlice
-	bd := CreateNFNAExplicitBD("common", "testVrf", "testBd", []string{"10.30.40.1/24"})
+	bd := CreateNFNAExplicitBD("common", "testVrf", "testBd", []fabattv1.Subnets{{"10.30.40.1/24", nil, nil}})
 	expectedApicSlice2 = append(expectedApicSlice2, bd)
 	apName := ""
 	if explicitAp {

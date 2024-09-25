@@ -20,10 +20,10 @@ package v1
 // BridgeDomainApplyConfiguration represents an declarative configuration of the BridgeDomain type for use
 // with apply.
 type BridgeDomainApplyConfiguration struct {
-	Name         *string                `json:"name,omitempty"`
-	CommonTenant *bool                  `json:"common-tenant,omitempty"`
-	Subnets      []string               `json:"subnets,omitempty"`
-	Vrf          *VRFApplyConfiguration `json:"vrf,omitempty"`
+	Name         *string                     `json:"name,omitempty"`
+	CommonTenant *bool                       `json:"common-tenant,omitempty"`
+	Subnets      []SubnetsApplyConfiguration `json:"subnets,omitempty"`
+	Vrf          *VRFApplyConfiguration      `json:"vrf,omitempty"`
 }
 
 // BridgeDomainApplyConfiguration constructs an declarative configuration of the BridgeDomain type for use with
@@ -51,9 +51,12 @@ func (b *BridgeDomainApplyConfiguration) WithCommonTenant(value bool) *BridgeDom
 // WithSubnets adds the given value to the Subnets field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Subnets field.
-func (b *BridgeDomainApplyConfiguration) WithSubnets(values ...string) *BridgeDomainApplyConfiguration {
+func (b *BridgeDomainApplyConfiguration) WithSubnets(values ...*SubnetsApplyConfiguration) *BridgeDomainApplyConfiguration {
 	for i := range values {
-		b.Subnets = append(b.Subnets, values[i])
+		if values[i] == nil {
+			panic("nil value passed to WithSubnets")
+		}
+		b.Subnets = append(b.Subnets, *values[i])
 	}
 	return b
 }

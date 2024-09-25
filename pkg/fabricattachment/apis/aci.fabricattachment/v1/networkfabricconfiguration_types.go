@@ -28,11 +28,39 @@ type VRF struct {
 	CommonTenant bool   `json:"common-tenant,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=shared-between-vrfs;advertise-externally;""
+type ScopeOptions string
+
+const (
+	ScopeSharedBtwVrfs ScopeOptions = "shared-between-vrfs"
+	ScopeAdvExt        ScopeOptions = "advertise-externally"
+)
+
+// +kubebuilder:validation:Enum=nd-ra-prefix;querier-ip;no-default-svi-gateway;""
+type ControlOptions string
+
+const (
+	ControlNd          ControlOptions = "nd-ra-prefix"
+	ControlQuerier     ControlOptions = "querier-ip"
+	ControlNoDefaultGw ControlOptions = "no-default-svi-gateway"
+	ControlEmpty       ControlOptions = "" // for no control options
+)
+
+type Subnets struct {
+	Subnet string `json:"subnet,omitempty"`
+	// +kubebuilder:validation:MaxItems=2
+	// +kubebuilder:default={""}
+	ScopeOptions []ScopeOptions `json:"scope,omitempty"`
+	// +kubebuilder:validation:MaxItems=3
+	// +kubebuilder:default={""}
+	ControlOptions []ControlOptions `json:"control,omitempty"`
+}
+
 type BridgeDomain struct {
-	Name         string   `json:"name,omitempty"`
-	CommonTenant bool     `json:"common-tenant,omitempty"`
-	Subnets      []string `json:"subnets,omitempty"`
-	Vrf          VRF      `json:"vrf,omitempty"`
+	Name         string    `json:"name,omitempty"`
+	CommonTenant bool      `json:"common-tenant,omitempty"`
+	Subnets      []Subnets `json:"subnets,omitempty"`
+	Vrf          VRF       `json:"vrf,omitempty"`
 }
 
 type Contracts struct {
