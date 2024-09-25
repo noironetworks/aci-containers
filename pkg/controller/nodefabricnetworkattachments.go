@@ -174,10 +174,66 @@ func (cont *AciController) setGlobalScopeVlanConfig(encapStr string, progMap map
 	progMap[labelKey] = apicSlice
 }
 
-func (cont *AciController) getLLDPIf(fabricLink string) string {
+func (cont *AciController) deletelldpIf(dn string) {
+	fabricLink := strings.Replace(dn, "/sys/lldp/inst/if-", "/pathep-", 1)
+	cont.indexMutex.Lock()
+	cont.log.Info("deletelldpIf: deleted mapping for ", fabricLink)
+	cont.apicConn.UnsubscribeImmediateDnLocked(dn, []string{"lldpIf"})
+	delete(cont.lldpIfCache, fabricLink)
+	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) updateLLDPIf(obj apicapi.ApicObject) {
+	var lldpIf, fabricLink string
+	lresp, ok := obj["lldpIf"]
+	updateNeeded := false
+	if !ok {
+		cont.log.Errorf("updateLLDPIf: lldpIf Object not found in response")
+		return
+	}
+	if val, ok := lresp.Attributes["portDesc"]; ok {
+		lldpIf = val.(string)
+		if lldpIf != "" {
+			if val2, ok2 := lresp.Attributes["dn"]; ok2 {
+				fabricLink = strings.Replace(val2.(string), "/sys/lldp/inst/if-", "/pathep-", 1)
+			}
+		}
+		cont.indexMutex.Lock()
+		if fabricLink != "" {
+			if oldIf, ok := cont.lldpIfCache[fabricLink]; ok {
+				if oldIf.LLDPIf != lldpIf {
+					updateNeeded = true
+					cont.log.Infof("updateLLDPIf: updated mapping fabricLink %s => %s", fabricLink, lldpIf)
+					cont.lldpIfCache[fabricLink].LLDPIf = lldpIf
+
+				}
+			}
+		}
+		cont.indexMutex.Unlock()
+		if updateNeeded {
+			cont.lldpIfQueue.Add(fabricLink)
+		}
+	}
+}
+
+func (cont *AciController) clearLLDPIf(addNetKey string) {
+	for fabricLink, lldpIfData := range cont.lldpIfCache {
+		if _, ok := lldpIfData.Refs[addNetKey]; !ok {
+			continue
+		}
+		delete(cont.lldpIfCache[fabricLink].Refs, addNetKey)
+		if len(cont.lldpIfCache[fabricLink].Refs) == 0 {
+			dn := strings.Replace(fabricLink, "/pathep-", "/sys/lldp/inst/if-", 1)
+			cont.apicConn.UnsubscribeImmediateDnLocked(dn, []string{"lldpIf"})
+		}
+	}
+}
+
+func (cont *AciController) getLLDPIf(fabricLink string, addNetKey string) string {
 	var lldpIf, apicIf string
 	if lldpIf, ok := cont.lldpIfCache[fabricLink]; ok {
-		return lldpIf
+		cont.lldpIfCache[fabricLink].Refs[addNetKey] = true
+		return lldpIf.LLDPIf
 	}
 	fabricPathParts := strings.SplitN(fabricLink, "/", 4)
 	if len(fabricPathParts) < 4 {
@@ -208,8 +264,21 @@ func (cont *AciController) getLLDPIf(fabricLink string) string {
 		}
 	}
 	if lldpIf != "" {
-		cont.lldpIfCache[fabricLink] = lldpIf
+		cont.lldpIfCache[fabricLink] = &NfLLDPIfData{
+			LLDPIf: lldpIf,
+			Refs: map[string]bool{
+				addNetKey: true,
+			}}
 		cont.log.Infof("getLLDPIf: Found port=>pc/vpc mapping: %s=>%s", fabricLink, lldpIf)
+		dn := fmt.Sprintf("%s/sys/lldp/inst/if-[%s]", apicPodLeaf, apicIf)
+		cont.apicConn.AddImmediateSubscriptionDnLocked(dn, []string{"lldpIf"},
+			func(obj apicapi.ApicObject) bool {
+				cont.updateLLDPIf(obj)
+				return true
+			},
+			func(dn string) {
+				cont.deletelldpIf(dn)
+			})
 	}
 	return lldpIf
 }
@@ -217,76 +286,72 @@ func (cont *AciController) getLLDPIf(fabricLink string) string {
 func (cont *AciController) populateNodeFabNetAttPaths(epg apicapi.ApicObject, encap int, ctxt *SviContext, addNet *AdditionalNetworkMeta, skipNode string, resultingLinks map[string]bool) {
 	fabLinks := make(map[string]bool)
 	encapVlan := fmt.Sprintf("%d", encap)
+	var addNetKey string
+	for _, nfna := range addNet.NodeCache {
+		addNetKey = nfna.Spec.NetworkRef.Namespace + "/" + nfna.Spec.NetworkRef.Name
+		break
+	}
 	for node, localIfaceMap := range addNet.FabricLink {
 		if node == skipNode {
 			continue
 		}
-		for localIface, fabricLinks := range localIfaceMap {
+		for _, fabricLinks := range localIfaceMap {
 			if (len(fabricLinks.Pods) == 0) && (!ctxt.present || ctxt.connectedNw.RequirePodToProvision) {
 				continue
 			}
-			var actualFabricLink, vpcIf string
+			var actualFabricLink, lldpIf string
 			// Check if port is part of a PC
 			for i := range fabricLinks.Link {
-				lldpIf := cont.getLLDPIf(fabricLinks.Link[i])
-				if vpcIf != "" && lldpIf != vpcIf {
-					cont.log.Errorf(" Individual fabricLinks are part of different vpcs(%s): %s %s", localIface, lldpIf, vpcIf)
-					continue
-				}
-				vpcIf = lldpIf
-			}
-			if len(fabricLinks.Link) > 2 {
-				cont.log.Errorf("populate Failed : %d(>2) fabriclinks found ", len(fabricLinks.Link))
-				continue
-			}
-			if vpcIf != "" {
-				actualFabricLink = vpcIf
-			} else {
-				actualFabricLink = strings.Replace(fabricLinks.Link[0], "node-", "paths-", 1)
-			}
-			// eliminate duplicates in case of VPC links
-			if _, ok := fabLinks[actualFabricLink]; !ok {
-				fabLinks[actualFabricLink] = true
-				if ctxt == nil || !ctxt.present {
-					fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan, addNet.Mode.String())
-					if _, ok := resultingLinks[actualFabricLink]; !ok {
-						resultingLinks[actualFabricLink] = true
-						epg.AddChild(fvRsPathAtt)
-					}
+				lldpIf = cont.getLLDPIf(fabricLinks.Link[i], addNetKey)
+				if lldpIf != "" {
+					actualFabricLink = lldpIf
 				} else {
-					//Collect Nodes in the fabricpath
-					_, podStr, found := strings.Cut(actualFabricLink, "pod-")
-					if !found {
-						cont.log.Errorf("Could not parse for pod in fabriclink:%s", actualFabricLink)
-						continue
-					}
-					pod, _, found := strings.Cut(podStr, "/")
-					if !found {
-						cont.log.Errorf("Could not parse for pod id in fabriclink:%s", actualFabricLink)
-						continue
-					}
-					var nodes []string
-					var nodeStr string
-					found = false
-					if vpcIf != "" {
-						_, nodeStr, found = strings.Cut(vpcIf, "protpaths-")
-						if !found {
-							_, nodeStr, found = strings.Cut(vpcIf, "paths-")
+					actualFabricLink = strings.Replace(fabricLinks.Link[0], "node-", "paths-", 1)
+				}
+				// eliminate duplicates in case of VPC links
+				if _, ok := fabLinks[actualFabricLink]; !ok {
+					fabLinks[actualFabricLink] = true
+					if ctxt == nil || !ctxt.present {
+						fvRsPathAtt := apicapi.NewFvRsPathAtt(epg.GetDn(), actualFabricLink, encapVlan, addNet.Mode.String())
+						if _, ok := resultingLinks[actualFabricLink]; !ok {
+							resultingLinks[actualFabricLink] = true
+							epg.AddChild(fvRsPathAtt)
 						}
 					} else {
-						_, nodeStr, found = strings.Cut(actualFabricLink, "paths-")
-					}
-					if found {
-						nodeCombined, _, found := strings.Cut(nodeStr, "/")
-						if found {
-							nodes = strings.Split(nodeCombined, "-")
+						//Collect Nodes in the fabricpath
+						_, podStr, found := strings.Cut(actualFabricLink, "pod-")
+						if !found {
+							cont.log.Errorf("Could not parse for pod in fabriclink:%s", actualFabricLink)
+							continue
 						}
+						pod, _, found := strings.Cut(podStr, "/")
+						if !found {
+							cont.log.Errorf("Could not parse for pod id in fabriclink:%s", actualFabricLink)
+							continue
+						}
+						var nodes []string
+						var nodeStr string
+						found = false
+						if lldpIf != "" {
+							_, nodeStr, found = strings.Cut(lldpIf, "protpaths-")
+							if !found {
+								_, nodeStr, found = strings.Cut(lldpIf, "paths-")
+							}
+						} else {
+							_, nodeStr, found = strings.Cut(actualFabricLink, "paths-")
+						}
+						if found {
+							nodeCombined, _, found := strings.Cut(nodeStr, "/")
+							if found {
+								nodes = strings.Split(nodeCombined, "-")
+							}
+						}
+						if len(nodes) == 0 {
+							cont.log.Errorf("Could not parse for node id in %s", nodeStr)
+						}
+						cont.log.Debugf("l3out-svi:pod: %s nodes :%v", pod, nodes)
+						cont.createNodeFabNetAttSviPaths(encap, ctxt, actualFabricLink, pod, nodes)
 					}
-					if len(nodes) == 0 {
-						cont.log.Errorf("Could not parse for node id in %s", nodeStr)
-					}
-					cont.log.Debugf("l3out-svi:pod: %s nodes :%v", pod, nodes)
-					cont.createNodeFabNetAttSviPaths(encap, ctxt, actualFabricLink, pod, nodes)
 				}
 			}
 		}
@@ -924,6 +989,7 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 			for _, encap := range vlans {
 				cont.deleteNodeFabNetAttGlobalEncapVlanLocked(encap, nodeName, nodeFabNetAttKey, progMap)
 			}
+			cont.clearLLDPIf(nodeFabNetAttKey)
 			if len(cont.additionalNetworkCache) == 0 {
 				cont.clearGlobalScopeVlanConfig(progMap)
 				return progMap
@@ -959,6 +1025,33 @@ func (cont *AciController) updateNodeFabNetAttStaticAttachments(vlans []int, pro
 		cont.applyNodeFabNetAttObjLocked(vlans, nil, apicSlice, progMap)
 		cont.indexMutex.Unlock()
 	}
+}
+
+func (cont *AciController) handleLLDPIfUpdate(fabricLink string) bool {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	lldpIfData, ok := cont.lldpIfCache[fabricLink]
+	if !ok {
+		return false
+	}
+	for addNetKey := range lldpIfData.Refs {
+		progMap := make(map[string]apicapi.ApicSlice)
+		var apicSlice apicapi.ApicSlice
+		addNet, ok := cont.additionalNetworkCache[addNetKey]
+		if !ok {
+			continue
+		}
+		vlans, _, _, _ := util.ParseVlanList([]string{addNet.EncapVlan})
+		cont.applyNodeFabNetAttObjLocked(vlans, addNet, apicSlice, progMap)
+		for labelKey, apicSlice := range progMap {
+			if apicSlice == nil {
+				cont.apicConn.ClearApicObjects(labelKey)
+				continue
+			}
+			cont.apicConn.WriteApicObjects(labelKey, apicSlice)
+		}
+	}
+	return false
 }
 
 // func returns false if executed without error, true if the caller has to requeue.
