@@ -289,20 +289,20 @@ func (cont *AciController) getActiveFabricPathDn(node string) string {
 }
 
 func (cont *AciController) getOpflexOdevCount(node string) (int, string) {
-	devIdCount := make(map[string]int)
+	fabricPathDnCount := make(map[string]int)
 	var maxCount int
 	var fabricPathDn string
 	for _, device := range cont.nodeOpflexDevice[node] {
-		devId := device.GetAttrStr("devId")
-		count, ok := devIdCount[devId]
+		fabricpathdn := device.GetAttrStr("fabricPathDn")
+		count, ok := fabricPathDnCount[fabricpathdn]
 		if ok {
-			devIdCount[devId] = count + 1
+			fabricPathDnCount[fabricpathdn] = count + 1
 		} else {
-			devIdCount[devId] = 1
+			fabricPathDnCount[fabricpathdn] = 1
 		}
-		if devIdCount[devId] >= maxCount {
-			maxCount = devIdCount[devId]
-			fabricPathDn = device.GetAttrStr("fabricPathDn")
+		if fabricPathDnCount[fabricpathdn] >= maxCount {
+			maxCount = fabricPathDnCount[fabricpathdn]
+			fabricPathDn = fabricpathdn
 		}
 	}
 	return maxCount, fabricPathDn
@@ -422,7 +422,7 @@ func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, err
 			return nodeAciPodAnnot, fmt.Errorf("Invalid fabricPathDn of opflexOdev")
 		}
 	}
-	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
+	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation for node %s", node)
 }
 
 func (cont *AciController) createNodeAciPodAnnotation(node string) (aciPodAnnot, error) {
@@ -468,7 +468,7 @@ func (cont *AciController) createNodeAciPodAnnotation(node string) (aciPodAnnot,
 			return nodeAciPodAnnot, fmt.Errorf("Invalid fabricPathDn of opflexOdev")
 		}
 	}
-	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation")
+	return nodeAciPodAnnot, fmt.Errorf("Failed to get annotation for node %s", node)
 }
 
 func (cont *AciController) checkChangeOfOpflexOdevAciPod() {
@@ -485,7 +485,16 @@ func (cont *AciController) checkChangeOfOpflexOdevAciPod() {
 	for node := range cont.nodeACIPodAnnot {
 		annot, err := cont.createNodeAciPodAnnotation(node)
 		if err != nil {
-			cont.log.Error(err.Error())
+			if strings.Contains(fmt.Sprint(err), "Failed to get annotation") {
+				now := time.Now()
+				if annot.lastErrorTime.IsZero() || now.Sub(annot.lastErrorTime).Seconds() >= 60 {
+					annot.lastErrorTime = now
+					cont.nodeACIPodAnnot[node] = annot
+					cont.log.Error(err.Error())
+				}
+			} else {
+				cont.log.Error(err.Error())
+			}
 		} else {
 			if annot != cont.nodeACIPodAnnot[node] {
 				cont.nodeACIPodAnnot[node] = annot
@@ -515,7 +524,16 @@ func (cont *AciController) checkChangeOfOdevAciPod() {
 	for node := range cont.nodeACIPod {
 		annot, err := cont.createAciPodAnnotation(node)
 		if err != nil {
-			cont.log.Error(err.Error())
+			if strings.Contains(fmt.Sprint(err), "Failed to get annotation") {
+				now := time.Now()
+				if annot.lastErrorTime.IsZero() || now.Sub(annot.lastErrorTime).Seconds() >= 60 {
+					annot.lastErrorTime = now
+					cont.nodeACIPod[node] = annot
+					cont.log.Error(err.Error())
+				}
+			} else {
+				cont.log.Error(err.Error())
+			}
 		} else {
 			if annot != cont.nodeACIPod[node] {
 				cont.nodeACIPod[node] = annot
