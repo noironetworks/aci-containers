@@ -352,13 +352,73 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
+func (cont *AciController) isSingleOpflexOdev(fabricPathDn string) (bool, error) {
+	pathSlice := strings.Split(fabricPathDn, "/")
+	if len(pathSlice) > 2 {
+		path := pathSlice[2]
+		// topology/<aci_pod_name>/paths-<id>/pathep-<iface> - fabricPathDn if
+		// host is connnected via single link
+		// topology/<aci_pod_name>/protpaths-<id_1>-<id_2>/pathep-<iface> - fabricPathDn if
+		// host is connected to vpc pair
+		if strings.Contains(path, "protpaths-") {
+			args := []string{
+				"query-target=self",
+			}
+			url := fmt.Sprintf("/api/node/class/vpcDom.json?%s", strings.Join(args, "&"))
+			apicresp, err := cont.apicConn.GetApicResponse(url)
+			if err != nil {
+				cont.log.Debug("Failed to get APIC response, err: ", err.Error())
+				return false, err
+			}
+			nodeIdSlice := strings.Split(path, "-")
+			if len(nodeIdSlice) != 3 {
+				cont.log.Error("Invalid fabricPathDn ", fabricPathDn)
+				return false, fmt.Errorf("Invalid path in fabricPathDn ", fabricPathDn)
+			}
+			// As host is connected to vpc pair, check if the status of any of the vpcDom is down
+			upCount := 0
+			for i, nodeId := range nodeIdSlice {
+				instDn := fmt.Sprintf("topology/%s/node-%s/sys/vpc/inst", pathSlice[1], nodeId)
+				if i == 0 {
+					continue
+				}
+				for _, obj := range apicresp.Imdata {
+					for _, body := range obj {
+						dn, ok := body.Attributes["dn"].(string)
+						if ok && strings.Contains(dn, instDn) {
+							peerSt, ok := body.Attributes["peerSt"].(string)
+							if ok && peerSt == "up" {
+								upCount++
+							}
+						}
+					}
+				}
+			}
+			if upCount < 2 {
+				return true, nil
+			}
+			return false, nil
+		} else {
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("Invalid fabricPathDn %s ", fabricPathDn)
+}
+
 func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
 	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
 	nodeAciPodAnnot := cont.nodeACIPod[node]
-	isSingleOdev := nodeAciPodAnnot.isSingleOpflexOdev
+	isSingleOdev := false
+	if odevCount == 1 {
+		var err error
+		isSingleOdev, err = cont.isSingleOpflexOdev(fabricPathDn)
+		if err != nil {
+			cont.log.Error(err)
+			return nodeAciPodAnnot, err
+		}
+	}
 	if (odevCount == 0) ||
-		(odevCount == 1 && !isSingleOdev) ||
-		(odevCount == 1 && isSingleOdev && !nodeAciPodAnnot.disconnectTime.IsZero()) {
+		(odevCount == 1 && !isSingleOdev) {
 		if nodeAciPodAnnot.aciPod != "none" {
 			if nodeAciPodAnnot.disconnectTime.IsZero() {
 				nodeAciPodAnnot.disconnectTime = time.Now()
@@ -371,34 +431,14 @@ func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, err
 				}
 			}
 		}
-		if odevCount == 1 {
-			nodeAciPodAnnot.isSingleOpflexOdev = true
-		}
-		nodeAciPodAnnot.connectTime = time.Time{}
 		return nodeAciPodAnnot, nil
 	} else if (odevCount == 2) ||
-		(odevCount == 1 && isSingleOdev && nodeAciPodAnnot.disconnectTime.IsZero()) {
+		(odevCount == 1 && isSingleOdev) {
 		// when there is already a connected opflex device,
 		// fabricPathDn will have latest pod iformation
 		// and annotation will be in the form pod-<podid>-<subnet of pod>
 		nodeAciPodAnnot.disconnectTime = time.Time{}
 		nodeAciPod := nodeAciPodAnnot.aciPod
-		if odevCount == 2 {
-			nodeAciPodAnnot.isSingleOpflexOdev = false
-		}
-		if odevCount == 1 && nodeAciPod == "none" {
-			if nodeAciPodAnnot.connectTime.IsZero() {
-				nodeAciPodAnnot.connectTime = time.Now()
-				return nodeAciPodAnnot, nil
-			} else {
-				currentTime := time.Now()
-				diff := currentTime.Sub(nodeAciPodAnnot.connectTime)
-				if diff.Seconds() < float64(10) {
-					return nodeAciPodAnnot, nil
-				}
-			}
-		}
-		nodeAciPodAnnot.connectTime = time.Time{}
 		pathSlice := strings.Split(fabricPathDn, "/")
 		if len(pathSlice) > 1 {
 			pod := pathSlice[1]
@@ -428,36 +468,23 @@ func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, err
 func (cont *AciController) createNodeAciPodAnnotation(node string) (aciPodAnnot, error) {
 	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
 	nodeAciPodAnnot := cont.nodeACIPodAnnot[node]
-	isSingleOdev := nodeAciPodAnnot.isSingleOpflexOdev
+	isSingleOdev := false
+	if odevCount == 1 {
+		var err error
+		isSingleOdev, err = cont.isSingleOpflexOdev(fabricPathDn)
+		if err != nil {
+			cont.log.Error(err)
+			return nodeAciPodAnnot, err
+		}
+	}
 	if (odevCount == 0) ||
 		(odevCount == 1 && !isSingleOdev) {
 		if nodeAciPodAnnot.aciPod != "none" {
 			nodeAciPodAnnot.aciPod = "none"
 		}
-		if odevCount == 1 {
-			nodeAciPodAnnot.isSingleOpflexOdev = true
-		}
-		nodeAciPodAnnot.connectTime = time.Time{}
 		return nodeAciPodAnnot, nil
 	} else if (odevCount == 2) ||
 		(odevCount == 1 && isSingleOdev) {
-		nodeAciPod := nodeAciPodAnnot.aciPod
-		if odevCount == 2 {
-			nodeAciPodAnnot.isSingleOpflexOdev = false
-		}
-		if odevCount == 1 && nodeAciPod == "none" {
-			if nodeAciPodAnnot.connectTime.IsZero() {
-				nodeAciPodAnnot.connectTime = time.Now()
-				return nodeAciPodAnnot, nil
-			} else {
-				currentTime := time.Now()
-				diff := currentTime.Sub(nodeAciPodAnnot.connectTime)
-				if diff.Seconds() < float64(10) {
-					return nodeAciPodAnnot, nil
-				}
-			}
-		}
-		nodeAciPodAnnot.connectTime = time.Time{}
 		pathSlice := strings.Split(fabricPathDn, "/")
 		if len(pathSlice) > 1 {
 
