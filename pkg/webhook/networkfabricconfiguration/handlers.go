@@ -128,10 +128,10 @@ func validateNFC(ctx context.Context, req AdmissionRequest) AdmissionResponse {
 				if _, ok := subnetMap[vrfName]; !ok {
 					subnetMap[vrfName] = make(map[string]bool)
 				}
-				if _, ok := subnetMap[vrfName][subnet]; ok {
+				if _, ok := subnetMap[vrfName][subnet.Subnet]; ok {
 					return Denied(fmt.Sprintf("subnet %s is repeated under vrf %s", subnet, vrfName))
 				}
-				bdAddress, nw, err := net.ParseCIDR(subnet)
+				bdAddress, nw, err := net.ParseCIDR(subnet.Subnet)
 				if err != nil {
 					return Denied(fmt.Sprintf("subnet %s under BD %s is invalid", subnet, vlanRef.Epg.BD.Name))
 				}
@@ -139,7 +139,13 @@ func validateNFC(ctx context.Context, req AdmissionRequest) AdmissionResponse {
 					return Denied(fmt.Sprintf("subnet %s under BD %s should have BD host address besides subnet and mask",
 						subnet, vlanRef.Epg.BD.Name))
 				}
-				subnetMap[vrfName][subnet] = true
+				if res := validateSubnetScope(subnet); !res.Allowed {
+					return res
+				}
+				if res := validateSubnetControl(subnet); !res.Allowed {
+					return res
+				}
+				subnetMap[vrfName][subnet.Subnet] = true
 				// TODO: Check for overlapping subnets
 			}
 		}
@@ -152,4 +158,37 @@ func validateNFC(ctx context.Context, req AdmissionRequest) AdmissionResponse {
 	}
 	webhookHdlrLog.Info("Validated")
 	return Allowed("validated")
+}
+
+func validateSubnetScope(subnet fabattv1.Subnets) AdmissionResponse {
+	scopeMap := make(map[string]bool)
+	for _, s := range subnet.ScopeOptions {
+		if scopeMap[string(s)] {
+			return Denied(fmt.Sprintf("subnet %s has duplicate scope option: %s", subnet.Subnet, s))
+		}
+	}
+	return Allowed("validated")
+}
+
+func validateSubnetControl(subnet fabattv1.Subnets) AdmissionResponse {
+	controlMap := make(map[string]bool)
+	for _, c := range subnet.ControlOptions {
+		if controlMap[string(c)] {
+			return Denied(fmt.Sprintf("subnet %s has duplicate control options: %s", subnet.Subnet, c))
+		}
+		controlMap[string(c)] = true
+	}
+
+	if controlMap["nd-ra-prefix"] && !isIPv6(subnet.Subnet) {
+		return Denied(fmt.Sprintf("IPv4 subnet %s  should not have use subnet control option nd-ra-prefix", subnet.Subnet))
+	}
+	return Allowed("validated")
+}
+
+func isIPv6(subnet string) bool {
+	_, ipNet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		return false
+	}
+	return ipNet.IP.To4() == nil // If the IP is not IPv4, it should be IPv6
 }

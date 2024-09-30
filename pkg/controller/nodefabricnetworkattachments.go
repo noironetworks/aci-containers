@@ -437,7 +437,7 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 	return apicSlice
 }
 
-func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicitTenantName, explicitVrfName, explicitBdName string, subnets []string) apicapi.ApicObject {
+func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicitTenantName, explicitVrfName, explicitBdName string, subnets []fabattv1.Subnets) apicapi.ApicObject {
 	bdName := explicitBdName
 	tenantName := explicitTenantName
 	vrfName := explicitVrfName
@@ -463,10 +463,60 @@ func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicit
 
 	// add subnets to BD
 	for _, subnet := range subnets {
-		fvSubnet := apicapi.NewFvSubnet(bd.GetDn(), subnet)
+		fvSubnet := apicapi.NewFvSubnet(bd.GetDn(), subnet.Subnet)
+		scope := getSubnetScope(subnet.ScopeOptions)
+		fvSubnet.SetAttr("scope", scope)
+		ctrl := getSubnetCtrl(subnet.ControlOptions)
+		fvSubnet.SetAttr("ctrl", ctrl)
 		bd.AddChild(fvSubnet)
 	}
 	return bd
+}
+
+func getSubnetScope(ScopeOpts []fabattv1.ScopeOptions) string {
+	scopeMap := make(map[fabattv1.ScopeOptions]bool)
+
+	for _, s := range ScopeOpts {
+		scopeMap[s] = true
+	}
+
+	switch {
+	case scopeMap[fabattv1.ScopeAdvExt] && scopeMap[fabattv1.ScopeSharedBtwVrfs]:
+		// advertise-externally, shared-between-vrfs: public,shared
+		return "public,shared"
+	case scopeMap[fabattv1.ScopeAdvExt] && !scopeMap[fabattv1.ScopeSharedBtwVrfs]:
+		// advertise-externally: public
+		return "public"
+	case scopeMap[fabattv1.ScopeSharedBtwVrfs] && !scopeMap[fabattv1.ScopeAdvExt]:
+		// shared-between-vrfs: private,shared
+		return "private,shared"
+	default:
+		return "private"
+	}
+}
+
+func getSubnetCtrl(ControlOpts []fabattv1.ControlOptions) string {
+	ctrlMap := make(map[fabattv1.ControlOptions]bool)
+	for _, c := range ControlOpts {
+		ctrlMap[c] = true
+	}
+	ctrlString := ""
+	if ctrlMap[fabattv1.ControlNd] {
+		ctrlString += "nd"
+	}
+	if ctrlMap[fabattv1.ControlNoDefaultGw] {
+		if ctrlString != "" {
+			ctrlString += ","
+		}
+		ctrlString += "no-default-gateway"
+	}
+	if ctrlMap[fabattv1.ControlQuerier] {
+		if ctrlString != "" {
+			ctrlString += ","
+		}
+		ctrlString += "querier"
+	}
+	return ctrlString
 }
 
 func (cont *AciController) getNodeFabNetAttTenant(explicitTenantName string) string {
@@ -698,11 +748,12 @@ func (cont *AciController) isNodeFabNetAttVlanProgrammable(vlan int, sviCtxt *Sv
 
 func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *AdditionalNetworkMeta, apicSlice apicapi.ApicSlice, progMap map[string]apicapi.ApicSlice) {
 	skipProgramming := false
+	emptySubnets := []fabattv1.Subnets{}
 	for _, encap := range vlans {
 		if !cont.config.AciUseGlobalScopeVlan {
 			if skipProgramming || !cont.isNodeFabNetAttVlanProgrammable(encap, nil, addNet) {
 				skipProgramming = true
-				bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", []string{})
+				bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", emptySubnets)
 				apicSlice = append(apicSlice, bd)
 				epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName, "", "", "", "", "",
 					[]string{}, []string{})
@@ -710,7 +761,7 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 				cont.log.Infof("Skipping static paths as NAD has no pods yet: %s", addNet.NetworkName)
 				continue
 			}
-			bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", []string{})
+			bd := cont.createNodeFabNetAttBd(encap, addNet.NetworkName, "", "", "", emptySubnets)
 			apicSlice = append(apicSlice, bd)
 			epg := cont.createNodeFabNetAttEpg(encap, addNet.NetworkName, "", "", "", "", "",
 				[]string{}, []string{})
