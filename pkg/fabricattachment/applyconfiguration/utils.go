@@ -132,6 +132,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acifabricattachmentv1.PolicyPrefixGroupApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("PrimaryNetwork"):
 		return &acifabricattachmentv1.PrimaryNetworkApplyConfiguration{}
+	case v1.SchemeGroupVersion.WithKind("Subnets"):
+		return &acifabricattachmentv1.SubnetsApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("VlanRef"):
 		return &acifabricattachmentv1.VlanRefApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("VlanSpec"):
