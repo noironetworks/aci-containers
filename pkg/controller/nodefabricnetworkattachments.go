@@ -183,37 +183,22 @@ func (cont *AciController) deletelldpIf(dn string) {
 	cont.indexMutex.Unlock()
 }
 
-func (cont *AciController) updateLLDPIf(obj apicapi.ApicObject) {
-	var lldpIf, fabricLink string
-	lresp, ok := obj["lldpIf"]
-	updateNeeded := false
-	if !ok {
-		cont.log.Errorf("updateLLDPIf: lldpIf Object not found in response")
-		return
+func (cont *AciController) UpdateLLDPIfLocked(dn, lldpIf string) bool {
+	ret := false
+	fabricLink := ""
+	if dn != "" {
+		fabricLink = strings.Replace(dn, "/sys/lldp/inst/if-", "/pathep-", 1)
 	}
-	if val, ok := lresp.Attributes["portDesc"]; ok {
-		lldpIf = val.(string)
-		if lldpIf != "" {
-			if val2, ok2 := lresp.Attributes["dn"]; ok2 {
-				fabricLink = strings.Replace(val2.(string), "/sys/lldp/inst/if-", "/pathep-", 1)
+	if fabricLink != "" {
+		if oldIf, ok := cont.lldpIfCache[fabricLink]; ok {
+			if oldIf.LLDPIf != lldpIf {
+				cont.log.Infof("updateLLDPIf: updated mapping fabricLink %s => %s", fabricLink, lldpIf)
+				cont.lldpIfCache[fabricLink].LLDPIf = lldpIf
+				ret = cont.handleLLDPIfUpdateLocked(fabricLink)
 			}
 		}
-		cont.indexMutex.Lock()
-		if fabricLink != "" {
-			if oldIf, ok := cont.lldpIfCache[fabricLink]; ok {
-				if oldIf.LLDPIf != lldpIf {
-					updateNeeded = true
-					cont.log.Infof("updateLLDPIf: updated mapping fabricLink %s => %s", fabricLink, lldpIf)
-					cont.lldpIfCache[fabricLink].LLDPIf = lldpIf
-
-				}
-			}
-		}
-		cont.indexMutex.Unlock()
-		if updateNeeded {
-			cont.lldpIfQueue.Add(fabricLink)
-		}
 	}
+	return ret
 }
 
 func (cont *AciController) clearLLDPIf(addNetKey string) {
@@ -271,14 +256,7 @@ func (cont *AciController) getLLDPIf(fabricLink string, addNetKey string) string
 			}}
 		cont.log.Infof("getLLDPIf: Found port=>pc/vpc mapping: %s=>%s", fabricLink, lldpIf)
 		dn := fmt.Sprintf("%s/sys/lldp/inst/if-[%s]", apicPodLeaf, apicIf)
-		cont.apicConn.AddImmediateSubscriptionDnLocked(dn, []string{"lldpIf"},
-			func(obj apicapi.ApicObject) bool {
-				cont.updateLLDPIf(obj)
-				return true
-			},
-			func(dn string) {
-				cont.deletelldpIf(dn)
-			})
+		cont.apicConn.AddImmediateSubscriptionDnLocked(dn, []string{"lldpIf"}, nil, nil)
 	}
 	return lldpIf
 }
@@ -1078,9 +1056,7 @@ func (cont *AciController) updateNodeFabNetAttStaticAttachments(vlans []int, pro
 	}
 }
 
-func (cont *AciController) handleLLDPIfUpdate(fabricLink string) bool {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
+func (cont *AciController) handleLLDPIfUpdateLocked(fabricLink string) bool {
 	lldpIfData, ok := cont.lldpIfCache[fabricLink]
 	if !ok {
 		return false
