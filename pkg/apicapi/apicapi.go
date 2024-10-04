@@ -181,7 +181,7 @@ func configureTls(cert []byte) (*tls.Config, error) {
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
 	prefix string, refresh int, refreshTickerAdjust int,
-	subscriptionDelay int, vrfTenant string) (*ApicConnection, error) {
+	subscriptionDelay int, vrfTenant string, lldpIfHldr func(dn, lldpIf string) bool) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -229,6 +229,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		prefix:              prefix,
 		client:              client,
 		vrfTenant:           vrfTenant,
+		lldpIfHldr:          lldpIfHldr,
 		subscriptions: subIndex{
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
@@ -241,6 +242,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		cacheDnSubIds:      make(map[string]map[string]bool),
 		pendingSubDnUpdate: make(map[string]pendingChange),
 		CachedSubnetDns:    make(map[string]string),
+		cachedLLDPIfs:      make(map[string]string),
 	}
 	return conn, nil
 }
@@ -306,6 +308,12 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 					} else if isPriorityObject(dn) {
 						conn.log.Debug("Adding dn to priorityQueue: ", dn)
 						conn.priorityQueue.Add(dn)
+					} else if isLLDPIfObject(dn) && conn.lldpIfQueue != nil {
+						if lldpIf, ok := body.Attributes["portDesc"].(string); ok {
+							conn.cachedLLDPIfs[dn] = lldpIf
+						}
+						conn.log.Debug("Adding dn to lldpIfQueue: ", dn)
+						conn.lldpIfQueue.Add(dn)
 					} else if conn.deltaQueue != nil {
 						conn.deltaQueue.Add(dn)
 					}
@@ -442,6 +450,38 @@ func (conn *ApicConnection) processQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
+func (conn *ApicConnection) processLLDPIfQueue(queue workqueue.RateLimitingInterface,
+	handler func(dn, lldpIf string) bool, stopCh <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				break
+			}
+			var requeue bool
+			switch key := key.(type) {
+			case chan struct{}:
+				close(key)
+			case string:
+				if handler != nil {
+					if lldpIf, ok := conn.cachedLLDPIfs[key]; ok {
+						requeue = handler(key, lldpIf)
+					}
+				}
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+
+		}
+	}, time.Second, stopCh)
+	<-stopCh
+	queue.ShutDown()
+}
+
 type fullSync struct{}
 
 func (conn *ApicConnection) UnsubscribeImmediateDnLocked(dn string,
@@ -538,6 +578,17 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		),
 		"priority")
 	go conn.processQueue(conn.priorityQueue, priorityQueueStop, "priority")
+	conn.lldpIfQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.NewMaxOfRateLimiter(
+			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
+				10*time.Second),
+			&workqueue.BucketRateLimiter{
+				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+			},
+		),
+		"lldpIf")
+	go conn.processLLDPIfQueue(conn.lldpIfQueue,
+		conn.lldpIfHldr, stopCh)
 	conn.indexMutex.Unlock()
 
 	refreshInterval := conn.RefreshInterval
@@ -599,6 +650,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.deltaQueue = nil
 		conn.odevQueue = nil
 		conn.priorityQueue = nil
+		conn.lldpIfQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
@@ -1452,15 +1504,18 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 			if dn == "" {
 				continue
 			}
-			conn.indexMutex.Lock()
+			if !lockHeld {
+				conn.indexMutex.Lock()
+			}
 			subIds, found := conn.cacheDnSubIds[dn]
 			if !found {
 				subIds = make(map[string]bool)
 				conn.cacheDnSubIds[dn] = subIds
 			}
 			subIds[subId] = true
-			conn.indexMutex.Unlock()
-
+			if !lockHeld {
+				conn.indexMutex.Unlock()
+			}
 			if sub.updateHook != nil && sub.updateHook(obj) {
 				continue
 			}
@@ -1479,9 +1534,13 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 			var count int
 			prepareApicCache("", obj, &count)
 			respObjCount += count
-			conn.indexMutex.Lock()
+			if !lockHeld {
+				conn.indexMutex.Lock()
+			}
 			conn.cachedState[tag] = append(conn.cachedState[tag], obj)
-			conn.indexMutex.Unlock()
+			if !lockHeld {
+				conn.indexMutex.Unlock()
+			}
 		}
 		if respObjCount >= ApicSubscriptionResponseMoMaxCount/10 {
 			conn.logger.WithFields(logrus.Fields{

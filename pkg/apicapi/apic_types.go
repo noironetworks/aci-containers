@@ -119,6 +119,7 @@ type ApicConnection struct {
 	log           *logrus.Entry
 	signer        *signer
 	token         string
+	lldpIfHldr    func(dn, lldpIf string) bool
 
 	indexMutex   sync.Mutex
 	syncEnabled  bool
@@ -135,10 +136,12 @@ type ApicConnection struct {
 	cacheDnSubIds      map[string]map[string]bool
 	pendingSubDnUpdate map[string]pendingChange
 	CachedSubnetDns    map[string]string
+	cachedLLDPIfs      map[string]string
 
 	deltaQueue    workqueue.RateLimitingInterface
 	odevQueue     workqueue.RateLimitingInterface
 	priorityQueue workqueue.RateLimitingInterface
+	lldpIfQueue   workqueue.RateLimitingInterface
 }
 
 func (s ApicSlice) Len() int {

@@ -8,17 +8,18 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"time"
+
 	"github.com/gorilla/websocket"
 	apicapi "github.com/noironetworks/aci-containers/pkg/apicapi"
 	"github.com/noironetworks/aci-containers/pkg/ipam"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
-	"time"
 )
 
 type podTest struct {
@@ -174,7 +175,7 @@ func (server *testServer) testConn(key []byte) (*apicapi.ApicConnection, error) 
 	})
 
 	n, err := apicapi.New(log, []string{apic}, "admin", "noir0123", key, cert, "kube",
-		60, 5, 5, "common")
+		60, 5, 5, "common", nil)
 	if err != nil {
 		return nil, err
 	}
