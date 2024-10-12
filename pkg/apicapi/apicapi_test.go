@@ -184,7 +184,7 @@ func (server *testServer) testConn(key []byte) (*ApicConnection, error) {
 	})
 
 	n, err := New(log, []string{apic}, "admin", "noir0123", key, cert, "kube",
-		60, 5, 5, "common")
+		60, 5, 5, "common", nil)
 	if err != nil {
 		return nil, err
 	}
