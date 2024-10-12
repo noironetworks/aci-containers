@@ -284,6 +284,16 @@ func isPriorityObject(dn string) bool {
 	return false
 }
 
+func isLLDPIfObject(dn string) bool {
+	dnParts := strings.Split(dn, "/")
+	if len(dnParts) >= 5 {
+		if dnParts[4] == "lldp" {
+			return true
+		}
+	}
+	return false
+}
+
 func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	context string) {
 	sort.Sort(updates)
