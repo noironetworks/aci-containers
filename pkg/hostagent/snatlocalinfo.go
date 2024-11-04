@@ -140,6 +140,9 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		Spec := snatLocalInfov1.SnatLocalInfoSpec{
 			LocalInfos: localInfos,
 		}
+		if len(localInfos) == 0 {
+			return agent.deleteLocalInfoCr()
+		}
 		if !reflect.DeepEqual(snatLocalInfoCr.Spec, Spec) {
 			snatLocalInfoCr.Spec = Spec
 			_, err = snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Update(context.TODO(), snatLocalInfoCr, metav1.UpdateOptions{})
