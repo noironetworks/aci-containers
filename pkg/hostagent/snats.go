@@ -821,7 +821,7 @@ func (agent *HostAgent) syncSnat() bool {
 			}
 			seen[uuid] = true
 		} else {
-			logger.Info("Removing snat")
+			logger.Info("Removing snat ", snatfile)
 			os.Remove(snatfile)
 		}
 	}
@@ -1277,9 +1277,11 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 		agent.snatPolicyCacheMutex.RUnlock()
 		for _, uid := range poduids {
 			if getResourceType(obj) == SERVICE {
-				agent.log.Debug("Service deleted update the localInfo: ", name)
 				for _, res := range resources {
-					agent.deleteSnatLocalInfo(uid, res, name)
+					if res == SERVICE {
+						agent.deleteSnatLocalInfo(uid, res, name)
+						agent.log.Debug("Service deleted update the localInfo: ", name)
+					}
 				}
 			} else {
 				delete(agent.opflexSnatLocalInfos, uid)
