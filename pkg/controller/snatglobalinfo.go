@@ -324,6 +324,10 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 				}
 			}
 		}
+		deleted := cont.deleteStaleNodeInfoFromGlInfoCache(nodeinfo.Spec.SnatPolicyNames, nodename)
+		if deleted {
+			updated = true
+		}
 		ret = cont.setSnatPoliciesState(allocfailed, snatv1.IpPortsExhausted)
 		ret = cont.setSnatPoliciesState(markready, snatv1.Ready) && ret
 	}
@@ -333,6 +337,35 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		cont.log.Debug("Triggered scheduleSyncGlobalInfo")
 	}
 	return ret
+}
+
+func (cont *AciController) deleteStaleNodeInfoFromGlInfoCache(snatPolicyNames map[string]bool, nodename string) bool {
+	deleted := false
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	for snatip, glinfos := range cont.snatGlobalInfoCache {
+		if glinfo, ok := glinfos[nodename]; ok {
+			found := false
+			for snatpolicy := range snatPolicyNames {
+				if snatpolicy == glinfo.SnatPolicyName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				cont.log.Info("Deleting following node from snatglobalinfo: ", nodename, " for snat ip: ", snatip)
+				delete(glinfos, nodename)
+				deleted = true
+			}
+		}
+		if len(glinfos) == 0 {
+			cont.log.Info("Deleting snatip ", snatip, " from snatglobalinfo")
+			delete(cont.snatGlobalInfoCache, snatip)
+		} else {
+			cont.snatGlobalInfoCache[snatip] = glinfos
+		}
+	}
+	return deleted
 }
 
 func (cont *AciController) syncSnatGlobalInfo() bool {
@@ -561,6 +594,7 @@ func (cont *AciController) clearSnatGlobalCache(policyName, nodename string) {
 			break
 		}
 	}
+	cont.scheduleSyncGlobalInfo()
 }
 
 func (cont *AciController) getNodeInfoKeys(policyName string, nodeinfokeys map[string]bool) {
