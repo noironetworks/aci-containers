@@ -117,7 +117,7 @@ type HostAgent struct {
 	syncQueue           workqueue.RateLimitingInterface
 	epSyncQueue         workqueue.RateLimitingInterface
 	portSyncQueue       workqueue.RateLimitingInterface
-	hppMoSyncQueue      workqueue.RateLimitingInterface
+	hppLocalMoSyncQueue workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 
 	ignoreOvsPorts        map[string][]string
@@ -238,10 +238,10 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
 			}, "portsync"),
-		hppMoSyncQueue: workqueue.NewNamedRateLimitingQueue(
+		hppLocalMoSyncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
-			}, "hppmosync"),
+			}, "hpplocalmosync"),
 		ocServices: []opflexOcService{
 			{
 				RouterInternalDefault,
@@ -260,7 +260,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		"snatLocalInfo": ha.UpdateLocalInfoCr,
 		"nodepodifs":    ha.syncNodePodIfs,
 		"ports":         ha.syncPortsQ,
-		"hpp":           ha.syncHppMo}
+		"hpp":           ha.syncLocalHppMo}
 
 	if ha.config.EPRegistry == "k8s" {
 		cfg, err := rest.InClusterConfig()
@@ -435,7 +435,7 @@ func (agent *HostAgent) ScheduleSync(syncType string) {
 	} else if syncType == "ports" {
 		agent.portSyncQueue.AddRateLimited(syncType)
 	} else if syncType == "hpp" {
-		agent.hppMoSyncQueue.AddRateLimited(syncType)
+		agent.hppLocalMoSyncQueue.AddRateLimited(syncType)
 	} else {
 		agent.syncQueue.AddRateLimited(syncType)
 	}
@@ -472,7 +472,7 @@ func (agent *HostAgent) scheduleSyncNodePodIfs() {
 func (agent *HostAgent) scheduleSyncPorts() {
 	agent.ScheduleSync("ports")
 }
-func (agent *HostAgent) scheduleSyncHppMo() {
+func (agent *HostAgent) scheduleSyncLocalHppMo() {
 	agent.ScheduleSync("hpp")
 }
 
@@ -652,7 +652,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.syncQueue, stopCh)
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
-		go agent.processSyncQueue(agent.hppMoSyncQueue, stopCh)
+		go agent.processSyncQueue(agent.hppLocalMoSyncQueue, stopCh)
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)

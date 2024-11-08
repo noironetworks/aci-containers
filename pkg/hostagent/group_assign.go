@@ -146,7 +146,9 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 		return sgval, nil
 	}
 
-	agent.scheduleSyncHppMo()
+	if agent.config.EnableHppDirect {
+		agent.scheduleSyncLocalHppMo()
+	}
 
 	return g, nil
 }
