@@ -477,6 +477,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			args:     []string{"-urq", "DmtreeRoot"},
 		},
 		{
+			path:     "cluster-report/cmds/node-%s/opflex-agent-conn-status.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  otherNodeArgs,
+			args:     []string{"sh", "-c", "netstat -antp | grep 8009"},
+		},
+		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-int.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
