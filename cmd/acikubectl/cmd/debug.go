@@ -23,12 +23,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -476,6 +477,13 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			selector: opflexAgentSelector,
 			argFunc:  inspectArgs,
 			args:     []string{"-urq", "DmtreeRoot"},
+		},
+		{
+			path:     "cluster-report/cmds/node-%s/opflex-agent-conn-status.log",
+			cont:     "opflex-agent",
+			selector: opflexAgentSelector,
+			argFunc:  otherNodeArgs,
+			args:     []string{"sh", "-c", "netstat -antp | grep 8009"},
 		},
 		{
 			path:     "cluster-report/cmds/node-%s/ovs-ofctl-show-int.log",
