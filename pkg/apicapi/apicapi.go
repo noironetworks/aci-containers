@@ -510,7 +510,11 @@ func (conn *ApicConnection) AddImmediateSubscriptionDnLocked(dn string,
 	if deleteHook != nil {
 		conn.subscriptions.subs[dn].deleteHook = deleteHook
 	}
-	return conn.subscribe(dn, conn.subscriptions.subs[dn], true)
+	if conn.connection != nil {
+		return conn.subscribe(dn, conn.subscriptions.subs[dn], true)
+	} else {
+		return false
+	}
 }
 
 func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
