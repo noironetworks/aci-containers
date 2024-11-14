@@ -206,6 +206,7 @@ func (cont *AciController) clearLLDPIf(addNetKey string) {
 		if _, ok := lldpIfData.Refs[addNetKey]; !ok {
 			continue
 		}
+		cont.log.Info("clear lldpIf: deleted mapping for ", fabricLink)
 		delete(cont.lldpIfCache[fabricLink].Refs, addNetKey)
 		if len(cont.lldpIfCache[fabricLink].Refs) == 0 {
 			dn := strings.Replace(fabricLink, "/pathep-", "/sys/lldp/inst/if-", 1)
