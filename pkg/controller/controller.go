@@ -757,7 +757,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 
 	// If RefreshTickerAdjustInterval is not defined, default to 150Sec.
 	if cont.config.ApicRefreshTickerAdjust == "" {
-		cont.config.ApicRefreshTickerAdjust = "150"
+		cont.config.ApicRefreshTickerAdjust = "210"
 	}
 	refreshTickerAdjust, err := strconv.Atoi(cont.config.ApicRefreshTickerAdjust)
 	if err != nil {
