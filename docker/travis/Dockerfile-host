@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3 as base
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest as base
 # Required OpenShift Labels
 LABEL name="ACI CNI Host-Agent" \
 vendor="Cisco" \
