@@ -210,6 +210,7 @@ func (cont *AciController) clearLLDPIf(addNetKey string) {
 		delete(cont.lldpIfCache[fabricLink].Refs, addNetKey)
 		if len(cont.lldpIfCache[fabricLink].Refs) == 0 {
 			dn := strings.Replace(fabricLink, "/pathep-", "/sys/lldp/inst/if-", 1)
+			delete(cont.lldpIfCache, fabricLink)
 			cont.apicConn.UnsubscribeImmediateDnLocked(dn, []string{"lldpIf"})
 		}
 	}
