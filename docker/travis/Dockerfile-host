@@ -9,12 +9,10 @@ description="This will deploy a single instance of ACI CNI Host-Agent."
 # For some reason this prevents the next RUN from installing the incompat fips module
 RUN microdnf install -y yum yum-utils \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
- && yum --nogpgcheck -y update
-RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
+ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os
+
 RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft jq nmstate tar -y --nogpgcheck && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client curl iptables-nft jq nmstate tar -y --allowerasing --nogpgcheck && rm -rf /var/cache/yum
 
 COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
 RUN tar -zxf /tmp/iptables-bin.tar.gz -C /usr/sbin \
