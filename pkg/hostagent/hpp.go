@@ -295,10 +295,10 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 		agent.updateNetpolFile(*modb, labelKey)
 	}
 
-	agent.scheduleSyncHppMo()
+	agent.scheduleSyncLocalHppMo()
 }
 
-func (agent *HostAgent) syncHppMo() bool {
+func (agent *HostAgent) syncLocalHppMo() bool {
 	agent.indexMutex.Lock()
 	defer agent.indexMutex.Unlock()
 
