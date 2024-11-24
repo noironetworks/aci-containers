@@ -119,7 +119,7 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 				if err != nil {
 					agent.log.Error("Failed to inform opflex-agent about opflexOdev disconnect ", err)
 				} else {
-					agent.log.Debug("Informed opflex-agent about opflexOdev disconnect")
+					agent.log.Info("Informed opflex-agent about opflexOdev disconnect")
 				}
 			}
 			agent.nodeAciPodAnnotation = nodeAciPod
