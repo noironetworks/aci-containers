@@ -81,35 +81,57 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	}
 }
 
-func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
-	links, err := netlink.LinkList()
+func (agent *HostAgent) isIpV4Present(iface string) bool {
+	link, err := netlink.LinkByName(iface)
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
 		return false
 	}
-	_, ipnet, _ := net.ParseCIDR(subnet)
-	for _, link := range links {
-		if nlLink, ok := link.(*netlink.Vlan); ok {
-			if nlLink.Name == iface {
-				addrs, err := netlink.AddrList(nlLink, 2)
-				if err != nil {
-					agent.log.Error("Could not enumerate addresses: ", err)
-					return false
-				}
-				for _, addr := range addrs {
-					agent.log.Debug("Interface ip address: ", addr.String())
-					addressSlice := strings.Split(addr.String(), " ")
-					if len(addressSlice) > 0 {
-						ipslice := strings.Split(addressSlice[0], "/")
-						if len(ipslice) > 0 {
-							ip := net.ParseIP(ipslice[0])
-							if ipnet.Contains(ip) {
-								return true
-							}
-						}
-					}
-				}
-			}
+	if nlLink, ok := link.(*netlink.Vlan); ok {
+		addrs, err := netlink.AddrList(nlLink, netlink.FAMILY_V4)
+		if err != nil {
+			agent.log.Error("Could not enumerate addresses: ", err)
+			return false
+		}
+		if len(addrs) > 0 {
+			agent.log.Info("vlan interface ip address: ", addrs)
+			return true
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		return false
+	}
+	if nlLink, ok := link.(*netlink.Vlan); ok {
+		addrs, err := netlink.AddrList(nlLink, netlink.FAMILY_V4)
+		if err != nil {
+			agent.log.Error("Could not enumerate addresses: ", err)
+			return false
+		}
+		return agent.checkIfAnyIpsInSubnet(subnet, addrs)
+	}
+	return false
+}
+
+func (agent *HostAgent) checkIfAnyIpsInSubnet(subnet string, addrs []netlink.Addr) bool {
+	_, ipnet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		agent.log.Error("Failed to parse subnet: ", subnet, " ", err.Error())
+		return false
+	}
+	for _, addr := range addrs {
+		agent.log.Info("vlan interface ip address: ", addr.String())
+		ipAddr := addr.IP.To4()
+		if ipAddr == nil {
+			ipAddr = addr.IP.To16()
+		}
+		if ipAddr != nil && ipnet.Contains(ipAddr) {
+			return true
 		}
 	}
 	return false
@@ -122,10 +144,61 @@ func (agent *HostAgent) updateResetConfFile() error {
 	return err
 }
 
-func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
+func (agent *HostAgent) releaseVlanIp(name string) bool {
+	released := false
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	dhcpDelay := time.Duration(agent.config.DhcpDelay)
+	for i := 0; i < retryCount; i++ {
+		time.Sleep(dhcpDelay * time.Second)
+		cmd := exec.Command("dhclient", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
+		agent.log.Info("Executing command:", cmd.String())
+		opt, err := cmd.Output()
+		if err != nil {
+			agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
+			continue
+		} else {
+			agent.log.Info(string(opt))
+		}
+		if !agent.isIpV4Present(name) {
+			agent.log.Info("vlan interface ip released")
+			released = true
+			break
+		}
+		agent.log.Info("vlan interface ip not released..retrying ")
+	}
+	return released
+}
 
+func (agent *HostAgent) renewVlanIp(name string) bool {
+	renewed := false
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	dhcpDelay := time.Duration(agent.config.DhcpDelay)
+	for i := 0; i < retryCount; i++ {
+		time.Sleep(dhcpDelay * time.Second)
+		cmd := exec.Command("dhclient", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
+		agent.log.Info("Executing command:", cmd.String())
+		opt, err := cmd.Output()
+		if err != nil {
+			agent.log.Error("Failed to renew ip : ", err.Error(), " ", string(opt))
+			continue
+		} else {
+			agent.log.Info(string(opt))
+		}
+		if !agent.isIpV4Present(name) {
+			agent.log.Info("Ip not renewed..retrying ")
+			continue
+		}
+		renewed = true
+		break
+	}
+	return renewed
+}
+
+func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+
+	agent.log.Info("old aci-pod annotiation for multipod ", agent.aciPodAnnotation)
+	agent.log.Info("new aci-pod annotiation for multipod ", aciPodSubnet)
 	// no dhcp release-renew for none to pod-<id>-subnet case
 	// as this is an odev connect case
 	if agent.aciPodAnnotation == "none" &&
@@ -144,6 +217,13 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			subnet = subnetSlice[2]
 		}
 	}
+	var oldsubnet string
+	if agent.aciPodAnnotation != "none" && agent.aciPodAnnotation != "" {
+		subnetSlice := strings.Split(agent.aciPodAnnotation, "-")
+		if len(subnetSlice) > 2 {
+			oldsubnet = subnetSlice[2]
+		}
+	}
 	for _, link := range links {
 		switch link := link.(type) {
 		case *netlink.Vlan:
@@ -153,33 +233,40 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			}
 			if aciPodSubnet != "none" {
 				if agent.isIpSameSubnet(link.Name, subnet) {
-					agent.log.Debug("Ip already from same subnet ", subnet)
+					agent.log.Info("Ip already from same subnet ", subnet)
 					break
 				}
 			}
+			success := false
 			for i := 0; i < retryCount; i++ {
-				cmd := exec.Command("dhclient", "-r", link.Name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-				opt, err := cmd.Output()
-				if err != nil {
-					agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
-					continue
+				if !agent.releaseVlanIp(link.Name) {
+					agent.log.Error("FAILURE: Failed to release vlan interface ip, stopped retrying")
+					break
 				}
-				time.Sleep(dhcpDelay * time.Second)
-				cmd = exec.Command("dhclient", link.Name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-				opt, err = cmd.Output()
-				if err != nil {
-					agent.log.Error("Failed to get new ip: ", err.Error(), " ", string(opt))
-					continue
+				if !agent.renewVlanIp(link.Name) {
+					agent.log.Error("FAILURE: Failed to renew vlan interface ip, stopped retrying")
+					break
 				}
 				if aciPodSubnet != "none" {
 					if agent.isIpSameSubnet(link.Name, subnet) {
+						success = true
 						break
 					} else {
-						agent.log.Debug("Interface ip is not from the subnet ", subnet)
+						agent.log.Info("Interface ip is not from the subnet ", subnet, " retrying...")
 					}
+				} else if oldsubnet != "" {
+					if !agent.isIpSameSubnet(link.Name, oldsubnet) {
+						success = true
+						agent.log.Info("Interface ip is not from old subnet ", oldsubnet, " retrying...")
+						break
+					}
+					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet)
 				} else {
-					agent.log.Debug("dhcp release and renew done. Iteration : ", i+1)
+					agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 				}
+			}
+			if (aciPodSubnet != "none" && !success) || (aciPodSubnet == "none" && oldsubnet != "" && !success) {
+				agent.log.Error("FAILURE: Failed to assign an ip from new pod subnet to vlan interface")
 			}
 		}
 	}
