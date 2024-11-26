@@ -216,6 +216,21 @@ func (cont *AciController) clearLLDPIf(addNetKey string) {
 	}
 }
 
+func (cont *AciController) UpdateLLDPIfHook(obj apicapi.ApicObject) bool {
+	if obj.GetDn() == "" {
+		return true
+	}
+	cont.log.Debugf("UpdateLLDPIfHook called for %s", obj.GetDn())
+	for mo, body := range obj {
+		if mo == "lldpIf" {
+			if lldpIf, ok := body.Attributes["portDesc"]; ok {
+				cont.UpdateLLDPIfLocked(obj.GetDn(), lldpIf.(string))
+			}
+		}
+	}
+	return true
+}
+
 func (cont *AciController) getLLDPIf(fabricLink string, addNetKey string) string {
 	var lldpIf, apicIf string
 	if lldpIf, ok := cont.lldpIfCache[fabricLink]; ok {
@@ -258,7 +273,7 @@ func (cont *AciController) getLLDPIf(fabricLink string, addNetKey string) string
 			}}
 		cont.log.Infof("getLLDPIf: Found port=>pc/vpc mapping: %s=>%s", fabricLink, lldpIf)
 		dn := fmt.Sprintf("%s/sys/lldp/inst/if-[%s]", apicPodLeaf, apicIf)
-		cont.apicConn.AddImmediateSubscriptionDnLocked(dn, []string{"lldpIf"}, nil, nil)
+		cont.apicConn.AddImmediateSubscriptionDnLocked(dn, []string{"lldpIf"}, cont.UpdateLLDPIfHook, nil)
 	}
 	return lldpIf
 }
