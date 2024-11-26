@@ -144,6 +144,45 @@ func (agent *HostAgent) updateResetConfFile() error {
 	return err
 }
 
+func (agent *HostAgent) isMultiCastRoutePresent(link netlink.Link) bool {
+	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	if err != nil {
+		agent.log.Error("Failed to list routes: ", err)
+		return false
+	}
+	ip := "224.0.0.0/4"
+	for _, route := range routes {
+		if route.Dst != nil && route.Dst.String() == ip {
+			return true
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
+	if agent.isMultiCastRoutePresent(link) {
+		agent.log.Info("Multicast route already present for interface ", name)
+		return
+	}
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	for i := 0; i < retryCount; i++ {
+		cmd := exec.Command("ip", "route", "add", "224.0.0.0/4", "dev", name, "proto", "static", "scope", "link", "metric", "401")
+		agent.log.Info("Executing command:", cmd.String())
+		opt, err := cmd.Output()
+		if err != nil {
+			agent.log.Error("Failed to add multicast route : ", err.Error(), " ", string(opt))
+			continue
+		} else {
+			agent.log.Info(string(opt))
+		}
+		if agent.isMultiCastRoutePresent(link) {
+			agent.log.Info("Added Multicast route successfully ")
+			return
+		}
+		agent.log.Error("Failed to add Multicast route...iteration:", i+1)
+	}
+}
+
 func (agent *HostAgent) releaseVlanIp(name string) bool {
 	released := false
 	retryCount := agent.config.DhcpRenewMaxRetryCount
@@ -164,7 +203,7 @@ func (agent *HostAgent) releaseVlanIp(name string) bool {
 			released = true
 			break
 		}
-		agent.log.Info("vlan interface ip not released..retrying ")
+		agent.log.Info("vlan interface ip not released..iteration: ", i+1)
 	}
 	return released
 }
@@ -185,7 +224,7 @@ func (agent *HostAgent) renewVlanIp(name string) bool {
 			agent.log.Info(string(opt))
 		}
 		if !agent.isIpV4Present(name) {
-			agent.log.Info("Ip not renewed..retrying ")
+			agent.log.Info("vlan interface ip is not renewed..iteration:", i+1)
 			continue
 		}
 		renewed = true
@@ -196,7 +235,6 @@ func (agent *HostAgent) renewVlanIp(name string) bool {
 
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
-
 	agent.log.Info("old aci-pod annotiation for multipod ", agent.aciPodAnnotation)
 	agent.log.Info("new aci-pod annotiation for multipod ", aciPodSubnet)
 	// no dhcp release-renew for none to pod-<id>-subnet case
@@ -252,15 +290,15 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 						success = true
 						break
 					} else {
-						agent.log.Info("Interface ip is not from the subnet ", subnet, " retrying...")
+						agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
 					}
 				} else if oldsubnet != "" {
 					if !agent.isIpSameSubnet(link.Name, oldsubnet) {
 						success = true
-						agent.log.Info("Interface ip is not from old subnet ", oldsubnet, " retrying...")
+						agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
 						break
 					}
-					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet)
+					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
 				} else {
 					agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 				}
@@ -268,8 +306,10 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			if (aciPodSubnet != "none" && !success) || (aciPodSubnet == "none" && oldsubnet != "" && !success) {
 				agent.log.Error("FAILURE: Failed to assign an ip from new pod subnet to vlan interface")
 			}
+			agent.addMultiCastRoute(link, link.Name)
 		}
 	}
+
 }
 
 func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
