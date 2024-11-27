@@ -48,7 +48,7 @@ func (cont *AciController) updateGlobalConfig(encapStr string, progMap map[strin
 		cont.log.Errorf("Cannot set globalscope objects in per-port vlan mode")
 		return
 	}
-	_, encapBlks, _, err := util.ParseVlanList([]string{encapStr})
+	_, encapBlks, _, err := util.ParseVlanListWithRangePreserved([]string{encapStr})
 	if err != nil {
 		cont.log.Errorf("Error updating GlobalScopeVlanConfig: %v", err)
 		return

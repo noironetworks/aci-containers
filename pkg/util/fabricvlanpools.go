@@ -8,7 +8,14 @@ import (
 )
 
 func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combinedStr string, err error) {
-	vlanMap := make(map[int]bool)
+	return parseVlanSpecs(specVlans, false)
+}
+func ParseVlanListWithRangePreserved(specVlans []string) (vlans []int, vlanBlks []string, combinedStr string, err error) {
+	return parseVlanSpecs(specVlans, true)
+}
+func parseVlanSpecs(specVlans []string, preserveRange bool) (vlans []int, vlanBlks []string, combinedStr string, err error) {
+	vlanMap := make(map[int]int)
+	rangeIdx := -1
 	for _, vlan := range specVlans {
 		listContents := vlan
 		_, after, found := strings.Cut(vlan, "[")
@@ -16,7 +23,7 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 			listContents, _, found = strings.Cut(after, "]")
 			if !found {
 				if err == nil {
-					err = fmt.Errorf("Failed to parse vlan list: Mismatched brackets: %s", vlan)
+					err = fmt.Errorf("failed to parse vlan list: Mismatched brackets: %s", vlan)
 				}
 				continue
 			}
@@ -24,8 +31,9 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 		vlanElems := strings.Split(listContents, ",")
 		for idx := range vlanElems {
 			vlanStr := strings.TrimSpace(vlanElems[idx])
+			rangeIdx++
 			if strings.Contains(vlanStr, "-") {
-				rangeErr := fmt.Errorf("Failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanStr)
+				rangeErr := fmt.Errorf("failed to parse vlan list: vlan range unformed: %s[%s]", vlan, vlanStr)
 				vlanRange := strings.Split(vlanStr, "-")
 				if len(vlanRange) != 2 {
 					if err == nil {
@@ -50,14 +58,14 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 				for i := vlanFrom; i <= vlanTo; i++ {
 					if _, ok := vlanMap[i]; !ok {
 						vlans = append(vlans, i)
-						vlanMap[i] = true
+						vlanMap[i] = rangeIdx
 					}
 				}
 			} else {
 				vlan, err2 := strconv.Atoi(vlanStr)
 				if (err2 != nil) || (vlan > 4095) {
 					if err == nil && (vlanStr != "") {
-						err = fmt.Errorf("Failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
+						err = fmt.Errorf("failed to parse vlan list: vlan incorrect: %d[%s]", vlan, vlanStr)
 					}
 					continue
 				}
@@ -66,7 +74,7 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 				}
 				if _, ok := vlanMap[vlan]; !ok {
 					vlans = append(vlans, vlan)
-					vlanMap[vlan] = true
+					vlanMap[vlan] = rangeIdx
 				}
 			}
 		}
@@ -86,7 +94,7 @@ func ParseVlanList(specVlans []string) (vlans []int, vlanBlks []string, combined
 		vlanBlks = append(vlanBlks, rngStr)
 	}
 	for _, i := range vlans {
-		if prev != i-1 {
+		if prev != i-1 || (preserveRange && (vlanMap[i] != vlanMap[prev])) {
 			if rngStart <= rngEnd {
 				appendToCombinedStr()
 			}
