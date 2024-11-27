@@ -135,7 +135,7 @@ func (cont *AciController) updateFabricVlanPool(obj interface{}) map[string]apic
 	if !ok {
 		nsVlanPoolMap = make(map[string]string)
 	}
-	_, _, vlanStr, err := util.ParseVlanList(fabricVlanPoolObj.Spec.Vlans)
+	_, _, vlanStr, err := util.ParseVlanListWithRangePreserved(fabricVlanPoolObj.Spec.Vlans)
 	if err != nil {
 		cont.log.Error(err)
 	}

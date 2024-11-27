@@ -18,6 +18,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
@@ -70,13 +71,21 @@ func CreateNFNADom(nfna *fabattv1.NodeFabricNetworkAttachment, encapStr string, 
 		networkName = "secondary"
 	}
 	fvnsVlanInstP := apicapi.NewFvnsVlanInstP("kubernetes", networkName)
-	var fvnsEncapBlk apicapi.ApicObject
+	var fvnsEncapBlk1, fvnsEncapBlk2 apicapi.ApicObject
 	if cont.config.AciUseGlobalScopeVlan {
-		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
+		if strings.Contains(encapStr, ",") {
+			fvnsEncapBlk1 = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "100")
+			fvnsEncapBlk2 = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "101", "101")
+			fvnsVlanInstP.AddChild(fvnsEncapBlk1)
+			fvnsVlanInstP.AddChild(fvnsEncapBlk2)
+		} else {
+			fvnsEncapBlk1 = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "100", "101")
+			fvnsVlanInstP.AddChild(fvnsEncapBlk1)
+		}
 	} else {
-		fvnsEncapBlk = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "5", "6")
+		fvnsEncapBlk1 = apicapi.NewFvnsEncapBlk(fvnsVlanInstP.GetDn(), "5", "6")
+		fvnsVlanInstP.AddChild(fvnsEncapBlk1)
 	}
-	fvnsVlanInstP.AddChild(fvnsEncapBlk)
 	apicSlice = append(apicSlice, fvnsVlanInstP)
 	physDom := apicapi.NewPhysDomP("kubernetes-" + networkName)
 	infraRsVlanNs := apicapi.NewInfraRsVlanNs(physDom.GetDn(), fvnsVlanInstP.GetDn())
