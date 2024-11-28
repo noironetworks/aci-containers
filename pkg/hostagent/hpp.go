@@ -228,7 +228,7 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 
 			hostprotServiceRemoteIps := rule.HostprotServiceRemoteIps
 
-			if strings.HasPrefix(rule.Name, "service_") && len(hostprotServiceRemoteIps) > 0 {
+			if len(hostprotServiceRemoteIps) > 0 {
 				for _, remoteIp := range hostprotServiceRemoteIps {
 					hpSubnet := &HpSubjGrandchild{
 						Attributes: map[string]string{
