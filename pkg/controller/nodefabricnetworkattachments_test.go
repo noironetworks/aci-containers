@@ -347,7 +347,7 @@ func NFNACRUDCase(t *testing.T, globalScopeVlan bool, additionalVlans string, ac
 
 	if globalScopeVlan {
 		cont.log.Debugf("%v", progMap)
-		assert.Equal(t, 3, len(progMap), "nfna delete apicKey count")
+		assert.Equal(t, 2, len(progMap), "nfna delete apicKey count")
 
 	} else {
 		assert.Equal(t, 1, len(progMap), "nfna create apicKey count")

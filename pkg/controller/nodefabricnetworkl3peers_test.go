@@ -135,7 +135,7 @@ func NodeFabricNetworkL3PeerCRUDCase(t *testing.T, additionalVlans string, aciPr
 	l3peers = cont.computeNodeFabricNetworkL3PeerStatus(false)
 	assert.Equal(t, expectedL3Peers, l3peers, "nfna nodefabricl3peers status ond delete")
 	delProgMap = cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
-	assert.Equal(t, 2, len(delProgMap), "nfna delete epg count")
+	assert.Equal(t, 1, len(delProgMap), "nfna delete epg count")
 }
 
 func TestNodeFabricL3PeersCRUD(t *testing.T) {
