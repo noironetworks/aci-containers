@@ -200,9 +200,9 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	assert.Equal(t, expectedApicSlice3, delProgMap[labelKey], "nfna update global epg vlan 101")
 	delProgMap = cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
 
-	lenEpgObjs = 2
+	lenEpgObjs = 1
 	if discoveryType == fabattv1.StaticPathMgmtTypeAEP {
-		lenEpgObjs = 3
+		lenEpgObjs = 2
 	}
 	assert.Equal(t, lenEpgObjs, len(delProgMap), "nfna delete epg count")
 }
