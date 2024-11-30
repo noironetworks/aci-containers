@@ -353,7 +353,7 @@ func NFCL3CRUDCase(t *testing.T, additionalVlans string, aciPrefix string, preex
 	nfcObjCount = 1
 	assert.Equal(t, nfcObjCount, len(delProgMap), "nfna update epg count")
 	delProgMap = cont.deleteNodeFabNetAttObj("master1.cluster.local_" + nfna1.Spec.NetworkRef.Namespace + "/" + nfna1.Spec.NetworkRef.Name)
-	assert.Equal(t, 2, len(delProgMap), "nfna delete epg count")
+	assert.Equal(t, 1, len(delProgMap), "nfna delete epg count")
 }
 
 func TestNFCL3CRUD(t *testing.T) {

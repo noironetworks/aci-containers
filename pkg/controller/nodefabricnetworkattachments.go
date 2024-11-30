@@ -1036,10 +1036,12 @@ func (cont *AciController) deleteNodeFabNetAttObj(key string) (progMap map[strin
 				cont.deleteNodeFabNetAttGlobalEncapVlanLocked(encap, nodeName, nodeFabNetAttKey, progMap)
 			}
 			cont.clearLLDPIf(nodeFabNetAttKey)
+			/* Avoid deleting vlan pool as the deletes can be reordered on APIC
 			if len(cont.additionalNetworkCache) == 0 {
 				cont.clearGlobalScopeVlanConfig(progMap)
 				return progMap
 			}
+			*/
 			return progMap
 		}
 	}
