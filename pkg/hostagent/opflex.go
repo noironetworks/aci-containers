@@ -32,7 +32,10 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-const DHCLIENT_CONF = "/usr/local/etc/dhclient.conf"
+const (
+	DHCLIENT_CONF    = "/usr/local/etc/dhclient.conf"
+	MCAST_ROUTE_DEST = "224.0.0.0/4"
+)
 
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
@@ -150,9 +153,8 @@ func (agent *HostAgent) isMultiCastRoutePresent(link netlink.Link) bool {
 		agent.log.Error("Failed to list routes: ", err)
 		return false
 	}
-	ip := "224.0.0.0/4"
 	for _, route := range routes {
-		if route.Dst != nil && route.Dst.String() == ip {
+		if route.Dst != nil && route.Dst.String() == MCAST_ROUTE_DEST {
 			return true
 		}
 	}
@@ -166,7 +168,7 @@ func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	}
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	for i := 0; i < retryCount; i++ {
-		cmd := exec.Command("ip", "route", "add", "224.0.0.0/4", "dev", name, "proto", "static", "scope", "link", "metric", "401")
+		cmd := exec.Command("ip", "route", "add", MCAST_ROUTE_DEST, "dev", name, "proto", "static", "scope", "link", "metric", "401")
 		agent.log.Info("Executing command:", cmd.String())
 		opt, err := cmd.Output()
 		if err != nil {
