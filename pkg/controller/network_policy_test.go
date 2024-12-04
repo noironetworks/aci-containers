@@ -4155,7 +4155,7 @@ func TestGetPeerRemoteSubnets(t *testing.T) {
 	expectedSubnetMap := map[string]bool{"192.168.0.1": true}
 	expectedRemoteSubnets := []string{"192.168.0.1"}
 
-	remoteSubnets, peerNsList, peerremote, subnetMap := cont.getPeerRemoteSubnets(peers, namespace, peerPods, peerNs, logger)
+	remoteSubnets, peerNsList, peerremote, subnetMap, _ := cont.getPeerRemoteSubnets(peers, namespace, peerPods, peerNs, logger)
 
 	assert.Equal(t, expectedRemoteSubnets, remoteSubnets)
 	assert.Equal(t, expectedPeerNsList, peerNsList)
@@ -4196,7 +4196,6 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 					"app": "web",
 				},
 			},
-			remoteSubnets: []string{"10.0.0.0/24", "192.168.0.0/16"},
 			expectedRule: hppv1.HostprotRule{
 				ConnTrack:           "reflexive",
 				Direction:           "ingress",
@@ -4239,14 +4238,15 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 			},
 			remoteSubnets: []string{"10.0.0.0/24", "192.168.0.0/16"},
 			expectedRule: hppv1.HostprotRule{
-				ConnTrack:           "reflexive",
-				Direction:           "egress",
-				Ethertype:           "ipv4",
-				Protocol:            "tcp",
-				FromPort:            "unspecified",
-				ToPort:              "80",
-				Name:                "rule1",
-				RsRemoteIpContainer: []string{"namespace1", "namespace2"},
+				ConnTrack:                "reflexive",
+				Direction:                "egress",
+				Ethertype:                "ipv4",
+				Protocol:                 "tcp",
+				FromPort:                 "unspecified",
+				ToPort:                   "80",
+				Name:                     "rule1",
+				HostprotServiceRemoteIps: []string{"10.0.0.0/24", "192.168.0.0/16"},
+				RsRemoteIpContainer:      []string{"namespace1", "namespace2"},
 				HostprotFilterContainer: hppv1.HostprotFilterContainer{
 					HostprotFilter: []hppv1.HostprotFilter{
 						{
@@ -4325,7 +4325,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 
 	subj := &hppv1.HostprotSubj{}
 
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
 	assert.Equal(t, "test-rule_0-ipv4", subj.HostprotRule[0].Name)
@@ -4357,7 +4357,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 
 	subj = &hppv1.HostprotSubj{}
 
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	expected := hppv1.HostprotSubj{
 		HostprotRule: []hppv1.HostprotRule{
@@ -4388,7 +4388,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.Equal(t, expected, *subj)
 
 	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	expectedRule := []hppv1.HostprotRule{
 		{
@@ -4467,7 +4467,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	}
 
 	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, expectedRule, subj.HostprotRule)
 
