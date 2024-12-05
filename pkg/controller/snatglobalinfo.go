@@ -270,6 +270,9 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 			cont.log.Info("Could not lookup node: ", err, "nodeName: ", nodename)
 			return false
 		}
+		if cont.updateMacAddressIfChanged(nodename, nodeinfo.Spec.Macaddress) {
+			updated = true
+		}
 		allocfailed := make(map[string]bool)
 		markready := make(map[string]bool)
 		for name := range nodeinfo.Spec.SnatPolicyNames {
@@ -438,6 +441,23 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 	cont.snatGlobalInfoCache[snatIp][nodename] = glinfo
 	cont.log.Info("Node name and globalinfo: ", nodename, glinfo)
 	cont.indexMutex.Unlock()
+}
+
+func (cont *AciController) updateMacAddressIfChanged(nodename, macaddress string) bool {
+	var updated bool
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	for snatip, glinfos := range cont.snatGlobalInfoCache {
+		if v, ok := glinfos[nodename]; ok {
+			if v.MacAddress != macaddress {
+				cont.log.Info("Mismatch in macAddress of ", nodename, " in SnatGlobalInfo and NodeInfo. Updating macAdress from ", v.MacAddress, " to ", macaddress, " in SnatGlobalInfo for snat ip ", snatip)
+				v.MacAddress = macaddress
+				cont.snatGlobalInfoCache[snatip][nodename] = v
+				updated = true
+			}
+		}
+	}
+	return updated
 }
 
 func (cont *AciController) checkIfPolicyApplied(nodename, snatpolicyname string, snatIps []string) bool {

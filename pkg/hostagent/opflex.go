@@ -439,6 +439,10 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 		intf, err := net.InterfaceByName(conf.UplinkIface)
 		if err == nil {
 			conf.UplinkMacAdress = intf.HardwareAddr.String()
+			if conf.UplinkMacAdress != agent.config.UplinkMacAdress {
+				agent.log.Info("UplinkMacAdress updated from ", agent.config.UplinkMacAdress, " to ", conf.UplinkMacAdress)
+				agent.scheduleSyncNodeInfo()
+			}
 			return
 		}
 	}
