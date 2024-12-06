@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi:9.3
+FROM registry.access.redhat.com/ubi9/ubi:latest
 # Required OpenShift Labels
 LABEL name="ACI CNI Operator" \
 vendor="Cisco" \
