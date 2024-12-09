@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]bool) bool {
+func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clientset, snatpolicies map[string]bool, uplinkMacAddress string) bool {
 	if nodeInfoClient == nil {
 		agent.log.Debug("nodeInfo or Kube clients are not intialized")
 		return true
@@ -41,7 +41,7 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 				},
 				Spec: nodeInfov1.NodeInfoSpec{
 					SnatPolicyNames: snatpolicies,
-					Macaddress:      agent.config.UplinkMacAdress,
+					Macaddress:      uplinkMacAddress,
 				},
 			}
 			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Create(context.TODO(), nodeInfoInstance, metav1.CreateOptions{})
@@ -50,8 +50,9 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 			}
 		}
 	} else {
-		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) {
+		if !reflect.DeepEqual(nodeInfo.Spec.SnatPolicyNames, snatpolicies) || nodeInfo.Spec.Macaddress != uplinkMacAddress {
 			nodeInfo.Spec.SnatPolicyNames = snatpolicies
+			nodeInfo.Spec.Macaddress = uplinkMacAddress
 			_, err = nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Update(context.TODO(), nodeInfo, metav1.UpdateOptions{})
 			if err != nil {
 				agent.log.Debugf("Failed to update NodeInfo: %s, err: %v", nodeInfo.ObjectMeta.Name, err)

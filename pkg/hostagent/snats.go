@@ -507,17 +507,18 @@ func (agent *HostAgent) syncSnatNodeInfo() bool {
 			snatPolicyNames[key] = true
 		}
 	}
+	uplinkMacAddress := agent.config.UplinkMacAdress
 	agent.indexMutex.Unlock()
 	env := agent.env.(*K8sEnvironment)
 	if env == nil {
 		return false
 	}
 	// send nodeupdate for the policy names
-	if !agent.InformNodeInfo(env.nodeInfo, snatPolicyNames) {
-		agent.log.Debug("Failed to update retry: ", snatPolicyNames)
+	if !agent.InformNodeInfo(env.nodeInfo, snatPolicyNames, uplinkMacAddress) {
+		agent.log.Debug("Failed to update retry: ", snatPolicyNames, " macAddress:", uplinkMacAddress)
 		return true
 	}
-	agent.log.Debug("Updated Node Info: ", snatPolicyNames)
+	agent.log.Debug("Updated Node Info: ", snatPolicyNames, " macAddress:", uplinkMacAddress)
 	return false
 }
 
