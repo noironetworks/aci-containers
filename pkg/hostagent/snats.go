@@ -566,6 +566,9 @@ func (agent *HostAgent) deleteSnatLocalInfo(poduid string, res ResourceType, plc
 				if len(localinfo.Snatpolicies[res]) == 0 {
 					delete(localinfo.Snatpolicies, res)
 				}
+				if len(localinfo.Snatpolicies) == 0 {
+					delete(agent.opflexSnatLocalInfos, poduid)
+				}
 				if v, ok := agent.snatPods[plcyname]; ok {
 					if _, ok := v[poduid]; ok {
 						agent.snatPods[plcyname][poduid] &= ^(res) // clear the bit
@@ -915,6 +918,7 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 	for _, uid := range poduids {
 		localinfo, ok := agent.opflexSnatLocalInfos[uid]
 		if !ok {
+			syncEp = true
 			continue
 		}
 		var i uint = 1
@@ -958,9 +962,6 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 			agent.log.Debug("Update EpFile: ", uids)
 			agent.opflexSnatLocalInfos[uid].Existing = false
 			agent.opflexSnatLocalInfos[uid].PlcyUuids = uids
-			if len(uids) == 0 {
-				delete(agent.opflexSnatLocalInfos, uid)
-			}
 			syncEp = true
 		}
 	}
