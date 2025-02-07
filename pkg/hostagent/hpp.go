@@ -258,6 +258,15 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 						hpRule.Children = append(hpRule.Children, map[string]HpSubjGrandchild{"hostprotRemoteIp": *hpSubnet})
 					}
 				}
+
+				for _, hostprotRemoteIp := range rule.HostprotRemoteIp {
+					hpSubnet := &HpSubjGrandchild{
+						Attributes: map[string]string{
+							"addr": hostprotRemoteIp.Addr,
+						},
+					}
+					hpRule.Children = append(hpRule.Children, map[string]HpSubjGrandchild{"hostprotRemoteIp": *hpSubnet})
+				}
 			}
 
 			hpSubj.Children = append(hpSubj.Children, map[string]HpSubjChild{"hostprotRule": *hpRule})
