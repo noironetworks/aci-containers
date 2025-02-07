@@ -4238,13 +4238,21 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 			},
 			remoteSubnets: []string{"10.0.0.0/24", "192.168.0.0/16"},
 			expectedRule: hppv1.HostprotRule{
-				ConnTrack:                "reflexive",
-				Direction:                "egress",
-				Ethertype:                "ipv4",
-				Protocol:                 "tcp",
-				FromPort:                 "unspecified",
-				ToPort:                   "80",
-				Name:                     "rule1",
+				ConnTrack: "reflexive",
+				Direction: "egress",
+				Ethertype: "ipv4",
+				Protocol:  "tcp",
+				FromPort:  "unspecified",
+				ToPort:    "80",
+				Name:      "rule1",
+				HostprotRemoteIp: []hppv1.HostprotRemoteIp{
+					{
+						Addr: "10.0.0.0/24",
+					},
+					{
+						Addr: "192.168.0.0/16",
+					},
+				},
 				HostprotServiceRemoteIps: []string{"10.0.0.0/24", "192.168.0.0/16"},
 				RsRemoteIpContainer:      []string{"namespace1", "namespace2"},
 				HostprotFilterContainer: hppv1.HostprotFilterContainer{
