@@ -28,6 +28,7 @@ type HostprotRule struct {
 	FromPort                 string                  `json:"fromPort,omitempty"`
 	RsRemoteIpContainer      []string                `json:"rsRemoteIpContainer,omitempty"`
 	HostprotFilterContainer  HostprotFilterContainer `json:"hostprotFilterContainer,omitempty"`
+	HostprotRemoteIp         []HostprotRemoteIp      `json:"hostprotRemoteIp,omitempty"`
 	HostprotServiceRemoteIps []string                `json:"hostprotServiceRemoteIps,omitempty"`
 }
 

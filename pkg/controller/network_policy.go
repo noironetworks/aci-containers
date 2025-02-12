@@ -1146,6 +1146,21 @@ func (cont *AciController) buildLocalNetPolSubjRule(subj *hppv1.HostprotSubj, ru
 	rule.Name = ruleName
 
 	rule.RsRemoteIpContainer = remoteNs
+	var remoteSubnetsCidr []hppv1.HostprotRemoteIp
+	for _, subnetStr := range remoteSubnets {
+		_, subnet, err := net.ParseCIDR(subnetStr)
+		if err == nil && subnet != nil {
+			if (ethertype == "ipv4" && subnet.IP.To4() != nil) || (ethertype == "ipv6" && subnet.IP.To4() == nil) {
+				remIpObj := hppv1.HostprotRemoteIp{
+					Addr: subnetStr,
+				}
+				remoteSubnetsCidr = append(remoteSubnetsCidr, remIpObj)
+			}
+		}
+	}
+	if len(remoteSubnetsCidr) > 0 {
+		rule.HostprotRemoteIp = remoteSubnetsCidr
+	}
 
 	if podSelector != nil {
 		filterContainer := hppv1.HostprotFilterContainer{}
@@ -1172,7 +1187,9 @@ func (cont *AciController) buildLocalNetPolSubjRule(subj *hppv1.HostprotSubj, ru
 		rule.ToPort = port
 	}
 
-	if len(remoteSubnets) != 0 {
+	cont.log.Debug(direction)
+	if len(remoteSubnets) != 0 && direction == "egress" {
+		cont.log.Debug("HostprotServiceRemoteIps")
 		rule.HostprotServiceRemoteIps = remoteSubnets
 	}
 
@@ -2123,7 +2140,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			}
 
 			for i, ingress := range np.Spec.Ingress {
-				remoteSubnets, peerNsList, peerremote, _, _ := cont.getPeerRemoteSubnets(ingress.From,
+				remoteSubnets, peerNsList, peerremote, _, peerIpBlock := cont.getPeerRemoteSubnets(ingress.From,
 					np.Namespace, peerPods, peerNs, logger)
 				if isAllowAllForAllNamespaces(ingress.From) {
 					peerNsList = append(peerNsList, "nodeips")
@@ -2131,7 +2148,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				if !(len(ingress.From) > 0 && len(remoteSubnets) == 0) {
 					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjIngress,
 						"ingress", peerNsList, peerremote.podSelector, ingress.Ports,
-						logger, key, np, nil)
+						logger, key, np, peerIpBlock)
 				}
 			}
 			hpp.Spec.HostprotSubj = append(hpp.Spec.HostprotSubj, *subjIngress)
