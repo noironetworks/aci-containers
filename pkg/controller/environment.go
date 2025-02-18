@@ -28,6 +28,7 @@ import (
 	rdConfig "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclientset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
+	snatlocalinfoclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/sirupsen/logrus"
@@ -62,6 +63,7 @@ type K8sEnvironment struct {
 	kubeClient          *kubernetes.Clientset
 	snatClient          *snatclientset.Clientset
 	snatGlobalClient    *snatglobalclset.Clientset
+	snatLocalInfoClient *snatlocalinfoclset.Clientset
 	nodeInfoClient      *nodeinfoclientset.Clientset
 	rdConfigClient      *rdconfigclientset.Clientset
 	istioClient         *istioclientset.Clientset
@@ -115,6 +117,11 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize node info client")
 		return nil, err
 	}
+	snatLocalInfoClient, err := snatlocalinfoclset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize snat local info client")
+		return nil, err
+	}
 	rdConfigClient, err := rdconfigclientset.NewForConfig(restconfig)
 	if err != nil {
 		log.Debug("Failed to intialize rdconfig client")
@@ -137,7 +144,7 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
-		nodeInfoClient: nodeInfoClient, rdConfigClient: rdConfigClient,
+		nodeInfoClient: nodeInfoClient, snatLocalInfoClient: snatLocalInfoClient, rdConfigClient: rdConfigClient,
 		istioClient: istioClient, hppClient: hppClient, proactiveConfClient: proactiveConfClient}, nil
 }
 

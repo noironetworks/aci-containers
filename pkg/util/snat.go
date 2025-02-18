@@ -26,6 +26,7 @@ import (
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatglobalclset "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/clientset/versioned"
+	snatlocalinfoclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatpolicyclset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 )
@@ -105,6 +106,15 @@ func DeleteNodeInfoCR(c nodeinfoclset.Clientset, name string) error {
 		return err
 	}
 	return nil
+}
+
+func DeleteSnatLocalInfoCr(c snatlocalinfoclset.Clientset, name string) error {
+	ns := os.Getenv("ACI_SNAT_NAMESPACE")
+	_, err := c.AciV1().SnatLocalInfos(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		err = c.AciV1().SnatLocalInfos(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	}
+	return err
 }
 
 func GetPortRangeFromConfigMap(c *kubernetes.Clientset) (snatglobal.PortRange, int) {
