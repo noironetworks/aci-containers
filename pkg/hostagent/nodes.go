@@ -239,3 +239,11 @@ func (agent *HostAgent) routeInit() {
 		agent.log.Infof("VtepIP: %s, subnet: %+v, interface: %s", agent.vtepIP, nc.Subnet, hostVethName)
 	}
 }
+
+func (agent *HostAgent) isNodeExists(name string) bool {
+	_, exists, err := agent.nodeInformer.GetStore().GetByKey(name)
+	if err == nil && exists {
+		return true
+	}
+	return false
+}

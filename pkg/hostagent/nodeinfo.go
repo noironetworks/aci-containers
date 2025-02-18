@@ -31,6 +31,12 @@ func (agent *HostAgent) InformNodeInfo(nodeInfoClient *nodeInfoclientset.Clients
 		agent.log.Debug("nodeInfo or Kube clients are not intialized")
 		return true
 	}
+
+	if !agent.isNodeExists(agent.config.NodeName) {
+		agent.log.Error("Node not present in cluster : ", agent.config.NodeName, ", skipping NodeInfoCR creation/updation")
+		return true
+	}
+
 	nodeInfo, err := nodeInfoClient.AciV1().NodeInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {

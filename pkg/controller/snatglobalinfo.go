@@ -253,6 +253,44 @@ func (cont *AciController) checksnatPolicyPortExhausted(name string) bool {
 	return false
 }
 
+func (cont *AciController) deleteStaleSnatResources(nodename string) error {
+	env := cont.env.(*K8sEnvironment)
+	_, nodeinfoExists, err := cont.snatNodeInfoIndexer.GetByKey(nodename)
+	if err != nil {
+		cont.log.Info("Could not lookup NodeInfoCR: ", err, "NodeInfo Name: ", nodename)
+		return err
+	}
+	cont.log.Info("Deleting the stale NodeInfoCR and SnatLocalInfoCR: ", nodename)
+	if !nodeinfoExists {
+		nodeinfocl := env.nodeInfoClient
+		if nodeinfocl != nil {
+			err = util.DeleteNodeInfoCR(*nodeinfocl, nodename)
+			if err != nil {
+				cont.log.Error("Could not delete the NodeInfoCR: ", nodename)
+				return err
+			}
+			cont.log.Debug("Successfully Deleted NodeInfoCR: ", nodename)
+		}
+	}
+	snatLocalInfoClient := env.snatLocalInfoClient
+	if snatLocalInfoClient != nil {
+		err = util.DeleteSnatLocalInfoCr(*snatLocalInfoClient, nodename)
+		if err != nil {
+			cont.log.Error("Could not delete the snatlocalinfo: ", nodename)
+			return err
+		}
+	}
+	return nil
+}
+
+func (cont *AciController) isNodeExists(name string) bool {
+	_, exists, err := cont.nodeIndexer.GetByKey(name)
+	if err == nil && exists {
+		return true
+	}
+	return false
+}
+
 func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool {
 	cont.log.Debug("handle Node Info: ", nodeinfo)
 	updated := false
@@ -263,13 +301,16 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		cont.log.Debug("SnatPolicyNames are : ", nodeinfo.Spec.SnatPolicyNames)
 		ret = cont.deleteNodeinfoFromGlInfoCache(nodeinfo.Spec.SnatPolicyNames, nodename)
 		updated = true
-	} else {
-		// This case ignores any stale entry is present in nodeinfo
-		_, _, err := cont.nodeIndexer.GetByKey(nodename)
+	} else if !cont.isNodeExists(nodename) {
+		if _, ok := cont.snatNodeInfoCache[nodename]; ok {
+			delete(cont.snatNodeInfoCache, nodename)
+			updated = true
+		}
+		err := cont.deleteStaleSnatResources(nodename)
 		if err != nil {
-			cont.log.Info("Could not lookup node: ", err, "nodeName: ", nodename)
 			return false
 		}
+	} else {
 		if cont.updateMacAddressIfChanged(nodename, nodeinfo.Spec.Macaddress) {
 			updated = true
 		}
