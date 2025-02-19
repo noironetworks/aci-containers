@@ -182,6 +182,10 @@ func snatWaitForIpUpdated(t *testing.T, desc, snatIp string, actual map[string]m
 
 func TestSnatnodeInfo(t *testing.T) {
 	cont := testController()
+
+	cont.fakeNodeSource.Add(node("node-1"))
+	cont.fakeNodeSource.Add(node("node-2"))
+
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Add(snatObj)
@@ -290,6 +294,10 @@ func TestSnatnodeInfo(t *testing.T) {
 
 func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 	cont := testController()
+
+	cont.fakeNodeSource.Add(node("node-1"))
+	cont.fakeNodeSource.Add(node("node-2"))
+
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Add(snatObj)
@@ -353,6 +361,9 @@ func TestPeriodicSnatGlobalCacheCachesync(t *testing.T) {
 
 func TestSnatCfgChangeTest(t *testing.T) {
 	cont := testController()
+
+	cont.fakeNodeSource.Add(node("node-1"))
+
 	for _, pt := range snatTests {
 		snatObj := snatpolicydata(pt.name, pt.namespace, pt.snatip, pt.labels)
 		cont.fakeSnatPolicySource.Add(snatObj)

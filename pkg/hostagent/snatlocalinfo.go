@@ -119,6 +119,12 @@ func (agent *HostAgent) UpdateLocalInfoCr() bool {
 		}
 	}
 	agent.indexMutex.Unlock()
+
+	if !agent.isNodeExists(agent.config.NodeName) {
+		agent.log.Error("Node not presnt in cluster : ", agent.config.NodeName, ", skipping SnatLocalInfoCR Creation/Updation")
+		return true
+	}
+
 	snatLocalInfoCr, err := snatLocalInfoClient.AciV1().SnatLocalInfos(agent.config.AciSnatNamespace).Get(context.TODO(), agent.config.NodeName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
