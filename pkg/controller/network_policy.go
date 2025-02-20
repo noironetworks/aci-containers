@@ -747,7 +747,17 @@ func (cont *AciController) peerMatchesPod(npNs string,
 		if err != nil {
 			cont.log.Error("Could not parse namespace selector: ", err)
 		} else {
-			return selector.Matches(labels.Set(podNs.ObjectMeta.Labels))
+			match := selector.Matches(labels.Set(podNs.ObjectMeta.Labels))
+			if match && peer.PodSelector != nil {
+				podSelector, err :=
+					metav1.LabelSelectorAsSelector(peer.PodSelector)
+				if err != nil {
+					cont.log.Error("Could not parse pod selector: ", err)
+				} else {
+					return podSelector.Matches(labels.Set(pod.ObjectMeta.Labels))
+				}
+			}
+			return match
 		}
 	}
 	return false
