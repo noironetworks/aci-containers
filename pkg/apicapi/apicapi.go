@@ -1246,12 +1246,6 @@ func computeRespClasses(targetClasses []string) []string {
 	visited := make(map[string]bool)
 	doComputeRespClasses(targetClasses, visited)
 
-	// Don't include targetclasses in rsp-subtree
-	// because they are implicitly included
-	for i := range targetClasses {
-		delete(visited, targetClasses[i])
-	}
-
 	var respClasses []string
 	for class := range visited {
 		respClasses = append(respClasses, class)
