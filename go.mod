@@ -39,7 +39,7 @@ require (
 	k8s.io/code-generator v0.30.3
 	k8s.io/kubectl v0.30.3
 	k8s.io/kubelet v0.30.3
-	k8s.io/kubernetes v1.30.3
+	k8s.io/kubernetes v1.30.10
 	sigs.k8s.io/controller-runtime v0.18.4
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1
 )
