@@ -404,7 +404,12 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 		cont.sharedEncapCache[vlan].Aeps[aep] = true
 		progMap[labelKey] = apicSlice2
 		if _, ok := cont.sharedEncapAepCache[aep]; !ok {
+			var apicSlice3 apicapi.ApicSlice
+			labelKey2 := cont.aciNameForKey("aepInfraGeneric", aep)
 			cont.sharedEncapAepCache[aep] = make(map[int]bool)
+			infraGeneric := apicapi.NewInfraGeneric(aep)
+			apicSlice3 = append(apicSlice3, infraGeneric)
+			progMap[labelKey2] = apicSlice3
 		}
 		cont.sharedEncapAepCache[aep][vlan] = true
 	} else {
@@ -412,6 +417,8 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 		if _, ok := cont.sharedEncapAepCache[aep]; ok {
 			delete(cont.sharedEncapAepCache[aep], vlan)
 			if len(cont.sharedEncapAepCache[aep]) == 0 {
+				labelKey2 := cont.aciNameForKey("aepInfraGeneric", aep)
+				progMap[labelKey2] = nil
 				delete(cont.sharedEncapAepCache, aep)
 				progMap[labelKey] = nil
 				cont.log.Infof("Remove physdom association for AEP %s", aep)
@@ -426,7 +433,6 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 		infraGeneric := apicapi.NewInfraGeneric(aep)
 		encap := fmt.Sprintf("%d", vlan)
 		infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
-		apicSlice = append(apicSlice, infraGeneric)
 		apicSlice = append(apicSlice, infraRsFuncToEpg)
 	}
 	return apicSlice
