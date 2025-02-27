@@ -206,6 +206,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		cont.initCRDInformer()
 		cont.initSnatInformerFromClient(snatClient)
 		cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
+		cont.initSnatLocalInfoInformerFromClient(env.snatLocalInfoClient)
 		cont.initRdConfigInformerFromClient(env.rdConfigClient)
 		cont.initSnatCfgFromClient(kubeClient)
 		if cont.config.InstallIstio {
@@ -303,6 +304,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		go cont.snatNodeInformer.Run(stopCh)
 		cont.log.Debug("Waiting for snat nodeinfo cache sync")
 		cache.WaitForCacheSync(stopCh, cont.snatNodeInformer.HasSynced)
+		go cont.snatLocalInfoInformer.Run(stopCh)
+		cont.log.Debug("Waiting for snatlocalinfo cache sync")
+		cache.WaitForCacheSync(stopCh, cont.snatLocalInfoInformer.HasSynced)
 		cont.createGlobalInfoCache(cont.unitTestMode)
 		cont.snatFullSync()
 		cont.log.Info("Snat cache sync successful")

@@ -433,16 +433,11 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	cont.updateServicesForNode(node.ObjectMeta.Name)
 	cont.snatFullSync()
 	if _, ok := cont.snatNodeInfoCache[node.ObjectMeta.Name]; ok {
-		env := cont.env.(*K8sEnvironment)
-		nodeinfocl := env.nodeInfoClient
-		//TODO Add reconcile here on failure
-		if nodeinfocl != nil {
-			err := util.DeleteNodeInfoCR(*nodeinfocl, node.ObjectMeta.Name)
-			if err != nil {
-				cont.log.Error("Could not delete the NodeInfo", node.ObjectMeta.Name)
-				return
-			}
-			cont.log.Debug("Successfully Deleted NodeInfoCR for node: ", node.ObjectMeta.Name)
+		cont.log.Info("Deleting stale snat resources of node: ", node.ObjectMeta.Name)
+		err := cont.deleteStaleSnatResources(node.ObjectMeta.Name, true, true)
+		if err != nil {
+			cont.log.Error("Failed to delete stale snat resources for node: ", node.ObjectMeta.Name)
+			return
 		}
 		nodeinfo := cont.snatNodeInfoCache[node.ObjectMeta.Name]
 		delete(cont.snatNodeInfoCache, node.ObjectMeta.Name)
