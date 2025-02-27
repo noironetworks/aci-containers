@@ -85,7 +85,6 @@ func CreateAepEpgAttachment(vlan int, aep string, discoveryType fabattv1.StaticP
 		infraGeneric := apicapi.NewInfraGeneric(aep)
 		encap := fmt.Sprintf("%d", vlan)
 		infraRsFuncToEpg := apicapi.NewInfraRsFuncToEpg(infraGeneric.GetDn(), epg.GetDn(), encap, "regular")
-		apicSlice = append(apicSlice, infraGeneric)
 		apicSlice = append(apicSlice, infraRsFuncToEpg)
 	}
 	return apicSlice
@@ -150,7 +149,7 @@ func NFCCRUDCase(t *testing.T, additionalVlans string, explicitAp bool, discover
 	assert.Equal(t, 1, len(progMapPool), "dom count")
 	lenEpgObjs := 1
 	if discoveryType == fabattv1.StaticPathMgmtTypeAEP {
-		lenEpgObjs = 2
+		lenEpgObjs = 3
 	}
 	assert.Equal(t, lenEpgObjs, len(progMap), "nfna epg count")
 	expectedApicSlice1 = CreateNFNADom(nfna1, additionalVlans, cont)
