@@ -18,6 +18,7 @@ package controller
 import (
 	"context"
 	"net"
+	"os"
 	"reflect"
 	"strconv"
 
@@ -25,6 +26,8 @@ import (
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	nodeinfoclset "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
+	snatlocalinfo "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/apis/aci.snat/v1"
+	snatlocalinfoclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
 	snatv1 "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	v1 "k8s.io/api/core/v1"
@@ -37,6 +40,41 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
+
+func (cont *AciController) initSnatLocalInfoInformerFromClient(
+	snatClient *snatlocalinfoclset.Clientset) {
+	cont.initSnatLocalInfoInformerBase(
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				obj, err := snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).List(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to list SnatLocalInfos during initialization of SnatLocalInfoInformer ", err)
+				}
+				return obj, err
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				obj, err := snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
+				if err != nil {
+					cont.log.Fatal("Failed to watch SnatLocalInfos during initialization SnatLocalInfoInformer ", err)
+				}
+				return obj, err
+			},
+		})
+}
+
+func (cont *AciController) initSnatLocalInfoInformerBase(listWatch *cache.ListWatch) {
+	_, cont.snatLocalInfoInformer = cache.NewIndexerInformer(
+		listWatch,
+		&snatlocalinfo.SnatLocalInfo{}, 0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cont.snatLocalInfoAdded(obj)
+			},
+		},
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+	cont.log.Debug("Initializing SnatLocalInfo Informers: ")
+}
 
 func (cont *AciController) initSnatNodeInformerFromClient(
 	snatClient *nodeinfoclset.Clientset) {
@@ -155,6 +193,14 @@ func (cont *AciController) snatCfgUpdate(oldObj, newObj interface{}) {
 	}
 }
 
+func (cont *AciController) snatLocalInfoAdded(obj interface{}) {
+	localinfo := obj.(*snatlocalinfo.SnatLocalInfo)
+	if !cont.isNodeExists(localinfo.ObjectMeta.Name) {
+		cont.log.Info("Deleting stale SnatLocalInfo : ", localinfo.ObjectMeta.Name)
+		cont.deleteStaleSnatResources(localinfo.ObjectMeta.Name, false, true)
+	}
+}
+
 func (cont *AciController) snatNodeInfoAdded(obj interface{}) {
 	nodeinfo := obj.(*nodeinfo.NodeInfo)
 	nodeinfokey, err := cache.MetaNamespaceKeyFunc(nodeinfo)
@@ -253,31 +299,37 @@ func (cont *AciController) checksnatPolicyPortExhausted(name string) bool {
 	return false
 }
 
-func (cont *AciController) deleteStaleSnatResources(nodename string) error {
+func (cont *AciController) deleteStaleSnatResources(nodename string,
+	nodeinfodel, localinfodel bool) error {
+
+	ns := os.Getenv("SYSTEM_NAMESPACE")
 	env := cont.env.(*K8sEnvironment)
-	_, nodeinfoExists, err := cont.snatNodeInfoIndexer.GetByKey(nodename)
-	if err != nil {
-		cont.log.Info("Could not lookup NodeInfoCR: ", err, "NodeInfo Name: ", nodename)
-		return err
-	}
-	cont.log.Info("Deleting the stale NodeInfoCR and SnatLocalInfoCR: ", nodename)
-	if !nodeinfoExists {
-		nodeinfocl := env.nodeInfoClient
-		if nodeinfocl != nil {
-			err = util.DeleteNodeInfoCR(*nodeinfocl, nodename)
-			if err != nil {
-				cont.log.Error("Could not delete the NodeInfoCR: ", nodename)
-				return err
+	if nodeinfodel {
+		_, nodeinfoExists, err := cont.snatNodeInfoIndexer.GetByKey(ns + "/" + nodename)
+		if err != nil {
+			cont.log.Info("Could not lookup NodeInfoCR: ", err, "NodeInfo Name: ", nodename)
+			return err
+		}
+		if nodeinfoExists {
+			nodeinfocl := env.nodeInfoClient
+			if nodeinfocl != nil {
+				err = util.DeleteNodeInfoCR(*nodeinfocl, nodename)
+				if err != nil {
+					cont.log.Error("Could not delete the NodeInfoCR: ", nodename)
+					return err
+				}
+				cont.log.Info("Successfully Deleted NodeInfoCR: ", nodename)
 			}
-			cont.log.Debug("Successfully Deleted NodeInfoCR: ", nodename)
 		}
 	}
-	snatLocalInfoClient := env.snatLocalInfoClient
-	if snatLocalInfoClient != nil {
-		err = util.DeleteSnatLocalInfoCr(*snatLocalInfoClient, nodename)
-		if err != nil {
-			cont.log.Error("Could not delete the snatlocalinfo: ", nodename)
-			return err
+	if localinfodel {
+		snatLocalInfoClient := env.snatLocalInfoClient
+		if snatLocalInfoClient != nil {
+			err := util.DeleteSnatLocalInfoCr(*snatLocalInfoClient, nodename)
+			if err != nil {
+				cont.log.Error("Could not delete the snatlocalinfo: ", nodename)
+				return err
+			}
 		}
 	}
 	return nil
@@ -306,7 +358,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 			delete(cont.snatNodeInfoCache, nodename)
 			updated = true
 		}
-		err := cont.deleteStaleSnatResources(nodename)
+		err := cont.deleteStaleSnatResources(nodename, true, false)
 		if err != nil {
 			return false
 		}
