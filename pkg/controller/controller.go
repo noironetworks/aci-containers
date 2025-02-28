@@ -106,6 +106,7 @@ type AciController struct {
 	snatInformer                         cache.Controller
 	snatNodeInfoIndexer                  cache.Indexer
 	snatNodeInformer                     cache.Controller
+	snatLocalInfoInformer                cache.Controller
 	crdInformer                          cache.Controller
 	rdConfigInformer                     cache.Controller
 	rdConfigIndexer                      cache.Indexer
