@@ -147,7 +147,7 @@ func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfigur
 			if vlanRef.Epg.ApplicationProfile != "" {
 				appProfile := vlanRef.Epg.ApplicationProfile
 				tenantName := cont.getNodeFabNetAttTenant(vlanRef.Epg.Tenant)
-				appProfKey := "tenant_" + tenantName + "_" + appProfile
+				appProfKey := "tenant/" + tenantName + "/" + appProfile
 				currAppProfs[appProfKey] = true
 			}
 			for _, aep := range vlanRef.Aeps {
@@ -162,7 +162,7 @@ func (cont *AciController) updateNfcVlanMap(sfna *fabattv1.NetworkFabricConfigur
 		}
 		cont.sharedEncapNfcAppProfileMap[appProfile] = true
 		labelKey := cont.aciNameForKey("ap", appProfile)
-		parts := strings.Split(appProfile, "_")
+		parts := strings.Split(appProfile, "/")
 		ap := cont.createNodeFabNetAttAp(parts[1], parts[2])
 		apicSlice = append(apicSlice, ap)
 		progMap[labelKey] = apicSlice
