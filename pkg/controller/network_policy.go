@@ -372,6 +372,22 @@ func (cont *AciController) updateHostprotPol(hpp *hppv1.HostprotPol, ns string) 
 	return true
 }
 
+func (cont *AciController) deleteAllHostprotPol() error {
+	sysNs := os.Getenv("SYSTEM_NAMESPACE")
+	hppcl, ok := cont.getHppClient()
+	if !ok {
+		cont.log.Error("Failed to delete HostprotPol CRs")
+		return fmt.Errorf("HppClient not initialized")
+	}
+
+	cont.log.Debug("Deleting all HostprotPol CRs")
+	err := hppcl.AciV1().HostprotPols(sysNs).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+	if err != nil {
+		cont.log.Error("Failed to delete HostprotPol CRs: ", err)
+	}
+	return err
+}
+
 func (cont *AciController) deleteHostprotPol(hppName string, ns string) bool {
 	hppcl, ok := cont.getHppClient()
 	if !ok {
@@ -447,6 +463,22 @@ func (cont *AciController) updateHostprotRemoteIpContainer(hppIpCont *hppv1.Host
 	}
 
 	return true
+}
+
+func (cont *AciController) deleteAllHostprotRemoteIpContainers() error {
+	sysNs := os.Getenv("SYSTEM_NAMESPACE")
+	hppcl, ok := cont.getHppClient()
+	if !ok {
+		cont.log.Error("Failed to delete HostprotRemoteIpContainer CRs")
+		return fmt.Errorf("HppClient not initialized")
+	}
+
+	cont.log.Debug("Deleting all HostprotRemoteIpContainer CRs")
+	err := hppcl.AciV1().HostprotRemoteIpContainers(sysNs).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+	if err != nil {
+		cont.log.Error("Failed to delete HostprotRemoteIpContainer CRs: ", err)
+	}
+	return err
 }
 
 func (cont *AciController) deleteHostprotRemoteIpContainer(hppIpContName string, ns string) bool {
@@ -693,6 +725,9 @@ func (cont *AciController) initStaticNetPolObjs() {
 			cont.log.Error("Error creating static HPP CRs")
 		}
 		return
+	} else {
+		cont.deleteAllHostprotPol()
+		cont.deleteAllHostprotRemoteIpContainers()
 	}
 
 	cont.apicConn.WriteApicObjects(cont.config.AciPrefix+"_np_static", cont.staticNetPolObjs())
