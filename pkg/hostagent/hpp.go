@@ -149,26 +149,39 @@ func (agent *HostAgent) matchesFilter(label hppv1.HppEpLabel, filter hppv1.Hostp
 	}
 }
 
-func (agent *HostAgent) matchesAllFilters(labels []hppv1.HppEpLabel, filters []hppv1.HostprotFilter) bool {
-	for _, filter := range filters {
-		matchFound := false
-		for _, label := range labels {
-			if agent.matchesFilter(label, filter) {
-				matchFound = true
+func (agent *HostAgent) matchesAllFilters(labels []hppv1.HppEpLabel, filterContainers []hppv1.HostprotFilterContainer) bool {
+	if len(filterContainers) == 0 {
+		return true
+	}
+	matchFound := false
+	for _, filterContainer := range filterContainers {
+		filterMatch := true
+		filters := filterContainer.HostprotFilter
+		for _, filter := range filters {
+			labelMatch := false
+			for _, label := range labels {
+				if agent.matchesFilter(label, filter) {
+					labelMatch = true
+					break
+				}
+			}
+			if !labelMatch {
+				filterMatch = false
 				break
 			}
 		}
-		if !matchFound {
-			return false
+		if filterMatch {
+			matchFound = true
+			break
 		}
 	}
-	return true
+	return matchFound
 }
 
-func (agent *HostAgent) filterHostProtRemoteIps(remoteIps []hppv1.HostprotRemoteIp, filters []hppv1.HostprotFilter) []string {
+func (agent *HostAgent) filterHostProtRemoteIps(remoteIps []hppv1.HostprotRemoteIp, filterContainers []hppv1.HostprotFilterContainer) []string {
 	var matchedAddrs []string
 	for _, remoteIp := range remoteIps {
-		if agent.matchesAllFilters(remoteIp.HppEpLabel, filters) {
+		if agent.matchesAllFilters(remoteIp.HppEpLabel, filterContainers) {
 			matchedAddrs = append(matchedAddrs, remoteIp.Addr)
 		}
 	}
@@ -239,7 +252,7 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 				}
 			} else {
 				rsRemoteIpContainer := rule.RsRemoteIpContainer
-				hostprotFilters := rule.HostprotFilterContainer.HostprotFilter
+				hostprotFilters := rule.HostprotFilterContainer
 
 				for _, remoteIpContainerName := range rsRemoteIpContainer {
 					remoteIpCont, err := agent.getHostprotRemoteIpContainer(remoteIpContainerName, ns)
