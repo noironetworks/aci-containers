@@ -1057,8 +1057,8 @@ func (cont *AciController) getNetPolTargetPorts(np *v1net.NetworkPolicy) map[str
 }
 
 type peerRemoteInfo struct {
-	remotePods  []*v1.Pod
-	podSelector *metav1.LabelSelector
+	remotePods   []*v1.Pod
+	podSelectors []*metav1.LabelSelector
 }
 
 func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
@@ -1091,7 +1091,9 @@ func (cont *AciController) getPeerRemoteSubnets(peers []v1net.NetworkPolicyPeer,
 					}
 				}
 				if cont.config.EnableHppDirect && peer.PodSelector != nil {
-					peerremote.podSelector = peer.PodSelector
+					if !cont.isPodSelectorPresent(peerremote.podSelectors, peer.PodSelector) {
+						peerremote.podSelectors = append(peerremote.podSelectors, peer.PodSelector)
+					}
 				}
 			}
 		}
@@ -1172,9 +1174,22 @@ func (cont *AciController) buildNetPolSubjRule(subj apicapi.ApicObject, ruleName
 	subj.AddChild(rule)
 }
 
+func (cont *AciController) isPodSelectorPresent(podSelectors []*metav1.LabelSelector,
+	podSelector *metav1.LabelSelector) bool {
+
+	present := false
+	for _, selector := range podSelectors {
+		if reflect.DeepEqual(selector, podSelector) {
+			present = true
+			break
+		}
+	}
+	return present
+}
+
 func (cont *AciController) buildLocalNetPolSubjRule(subj *hppv1.HostprotSubj, ruleName,
 	direction, ethertype, proto, port string, remoteNs []string,
-	podSelector *metav1.LabelSelector, remoteSubnets []string) {
+	podSelectors []*metav1.LabelSelector, remoteSubnets []string) {
 	rule := hppv1.HostprotRule{
 		ConnTrack: "reflexive",
 		Direction: "ingress",
@@ -1207,7 +1222,8 @@ func (cont *AciController) buildLocalNetPolSubjRule(subj *hppv1.HostprotSubj, ru
 		rule.HostprotRemoteIp = remoteSubnetsCidr
 	}
 
-	if podSelector != nil {
+	var filterContainers []hppv1.HostprotFilterContainer
+	for _, podSelector := range podSelectors {
 		filterContainer := hppv1.HostprotFilterContainer{}
 		for key, val := range podSelector.MatchLabels {
 			filter := hppv1.HostprotFilter{
@@ -1225,7 +1241,11 @@ func (cont *AciController) buildLocalNetPolSubjRule(subj *hppv1.HostprotSubj, ru
 			}
 			filterContainer.HostprotFilter = append(filterContainer.HostprotFilter, filter)
 		}
-		rule.HostprotFilterContainer = filterContainer
+		filterContainers = append(filterContainers, filterContainer)
+	}
+
+	if len(filterContainers) > 0 {
+		rule.HostprotFilterContainer = filterContainers
 	}
 
 	if port != "" {
@@ -1318,7 +1338,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 
 func (cont *AciController) buildLocalNetPolSubjRules(ruleName string,
 	subj *hppv1.HostprotSubj, direction string, peerNs []string,
-	podSelector *metav1.LabelSelector, ports []v1net.NetworkPolicyPort,
+	podSelector []*metav1.LabelSelector, ports []v1net.NetworkPolicyPort,
 	logger *logrus.Entry, npKey string, np *v1net.NetworkPolicy, peerIpBlock []string) {
 	if len(ports) == 0 {
 		if !cont.configuredPodNetworkIps.V4.Empty() {
@@ -2192,7 +2212,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				}
 				if !(len(ingress.From) > 0 && len(remoteSubnets) == 0) {
 					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjIngress,
-						"ingress", peerNsList, peerremote.podSelector, ingress.Ports,
+						"ingress", peerNsList, peerremote.podSelectors, ingress.Ports,
 						logger, key, np, peerIpBlock)
 				}
 			}
@@ -2215,7 +2235,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				}
 				if !(len(egress.To) > 0 && len(remoteSubnets) == 0) {
 					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjEgress,
-						"egress", peerNsList, peerremote.podSelector, egress.Ports, logger, key, np, peerIpBlock)
+						"egress", peerNsList, peerremote.podSelectors, egress.Ports, logger, key, np, peerIpBlock)
 				}
 
 				if len(egress.To) == 0 {
