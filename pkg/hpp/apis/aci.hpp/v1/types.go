@@ -19,17 +19,17 @@ type HostprotSubj struct {
 }
 
 type HostprotRule struct {
-	Name                     string                  `json:"name,omitempty"`
-	Direction                string                  `json:"direction,omitempty"`
-	Ethertype                string                  `json:"ethertype,omitempty"`
-	ConnTrack                string                  `json:"connTrack,omitempty"`
-	Protocol                 string                  `json:"protocol,omitempty"`
-	ToPort                   string                  `json:"toPort,omitempty"`
-	FromPort                 string                  `json:"fromPort,omitempty"`
-	RsRemoteIpContainer      []string                `json:"rsRemoteIpContainer,omitempty"`
-	HostprotFilterContainer  HostprotFilterContainer `json:"hostprotFilterContainer,omitempty"`
-	HostprotRemoteIp         []HostprotRemoteIp      `json:"hostprotRemoteIp,omitempty"`
-	HostprotServiceRemoteIps []string                `json:"hostprotServiceRemoteIps,omitempty"`
+	Name                     string                    `json:"name,omitempty"`
+	Direction                string                    `json:"direction,omitempty"`
+	Ethertype                string                    `json:"ethertype,omitempty"`
+	ConnTrack                string                    `json:"connTrack,omitempty"`
+	Protocol                 string                    `json:"protocol,omitempty"`
+	ToPort                   string                    `json:"toPort,omitempty"`
+	FromPort                 string                    `json:"fromPort,omitempty"`
+	RsRemoteIpContainer      []string                  `json:"rsRemoteIpContainer,omitempty"`
+	HostprotFilterContainer  []HostprotFilterContainer `json:"hostprotFilterContainer,omitempty"`
+	HostprotRemoteIp         []HostprotRemoteIp        `json:"hostprotRemoteIp,omitempty"`
+	HostprotServiceRemoteIps []string                  `json:"hostprotServiceRemoteIps,omitempty"`
 }
 
 type HostprotFilterContainer struct {

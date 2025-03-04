@@ -20,16 +20,17 @@ package v1
 // HostprotRuleApplyConfiguration represents an declarative configuration of the HostprotRule type for use
 // with apply.
 type HostprotRuleApplyConfiguration struct {
-	Name                     *string                                    `json:"name,omitempty"`
-	Direction                *string                                    `json:"direction,omitempty"`
-	Ethertype                *string                                    `json:"ethertype,omitempty"`
-	ConnTrack                *string                                    `json:"connTrack,omitempty"`
-	Protocol                 *string                                    `json:"protocol,omitempty"`
-	ToPort                   *string                                    `json:"toPort,omitempty"`
-	FromPort                 *string                                    `json:"fromPort,omitempty"`
-	RsRemoteIpContainer      []string                                   `json:"rsRemoteIpContainer,omitempty"`
-	HostprotFilterContainer  *HostprotFilterContainerApplyConfiguration `json:"hostprotFilterContainer,omitempty"`
-	HostprotServiceRemoteIps []string                                   `json:"hostprotServiceRemoteIps,omitempty"`
+	Name                     *string                                     `json:"name,omitempty"`
+	Direction                *string                                     `json:"direction,omitempty"`
+	Ethertype                *string                                     `json:"ethertype,omitempty"`
+	ConnTrack                *string                                     `json:"connTrack,omitempty"`
+	Protocol                 *string                                     `json:"protocol,omitempty"`
+	ToPort                   *string                                     `json:"toPort,omitempty"`
+	FromPort                 *string                                     `json:"fromPort,omitempty"`
+	RsRemoteIpContainer      []string                                    `json:"rsRemoteIpContainer,omitempty"`
+	HostprotFilterContainer  []HostprotFilterContainerApplyConfiguration `json:"hostprotFilterContainer,omitempty"`
+	HostprotRemoteIp         []HostprotRemoteIpApplyConfiguration        `json:"hostprotRemoteIp,omitempty"`
+	HostprotServiceRemoteIps []string                                    `json:"hostprotServiceRemoteIps,omitempty"`
 }
 
 // HostprotRuleApplyConfiguration constructs an declarative configuration of the HostprotRule type for use with
@@ -104,11 +105,29 @@ func (b *HostprotRuleApplyConfiguration) WithRsRemoteIpContainer(values ...strin
 	return b
 }
 
-// WithHostprotFilterContainer sets the HostprotFilterContainer field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the HostprotFilterContainer field is set to the value of the last call.
-func (b *HostprotRuleApplyConfiguration) WithHostprotFilterContainer(value *HostprotFilterContainerApplyConfiguration) *HostprotRuleApplyConfiguration {
-	b.HostprotFilterContainer = value
+// WithHostprotFilterContainer adds the given value to the HostprotFilterContainer field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the HostprotFilterContainer field.
+func (b *HostprotRuleApplyConfiguration) WithHostprotFilterContainer(values ...*HostprotFilterContainerApplyConfiguration) *HostprotRuleApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithHostprotFilterContainer")
+		}
+		b.HostprotFilterContainer = append(b.HostprotFilterContainer, *values[i])
+	}
+	return b
+}
+
+// WithHostprotRemoteIp adds the given value to the HostprotRemoteIp field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the HostprotRemoteIp field.
+func (b *HostprotRuleApplyConfiguration) WithHostprotRemoteIp(values ...*HostprotRemoteIpApplyConfiguration) *HostprotRuleApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithHostprotRemoteIp")
+		}
+		b.HostprotRemoteIp = append(b.HostprotRemoteIp, *values[i])
+	}
 	return b
 }
 
