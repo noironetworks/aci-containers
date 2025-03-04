@@ -4161,7 +4161,7 @@ func TestGetPeerRemoteSubnets(t *testing.T) {
 	assert.Equal(t, expectedPeerNsList, peerNsList)
 	assert.Equal(t, expectedSubnetMap, subnetMap)
 	assert.Equal(t, peerPods, peerremote.remotePods)
-	assert.Equal(t, peers[0].PodSelector, peerremote.podSelector)
+	assert.Equal(t, peers[0].PodSelector, peerremote.podSelectors[0])
 }
 
 func TestBuildLocalNetPolSubjRule(t *testing.T) {
@@ -4205,14 +4205,16 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 				FromPort:            "unspecified",
 				Name:                "rule1",
 				RsRemoteIpContainer: []string{"namespace1", "namespace2"},
-				HostprotFilterContainer: hppv1.HostprotFilterContainer{
-					HostprotFilter: []hppv1.HostprotFilter{
-						{
-							Key: "app",
-							Values: []string{
-								"web",
+				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
+					{
+						HostprotFilter: []hppv1.HostprotFilter{
+							{
+								Key: "app",
+								Values: []string{
+									"web",
+								},
+								Operator: "Equals",
 							},
-							Operator: "Equals",
 						},
 					},
 				},
@@ -4255,14 +4257,16 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 				},
 				HostprotServiceRemoteIps: []string{"10.0.0.0/24", "192.168.0.0/16"},
 				RsRemoteIpContainer:      []string{"namespace1", "namespace2"},
-				HostprotFilterContainer: hppv1.HostprotFilterContainer{
-					HostprotFilter: []hppv1.HostprotFilter{
-						{
-							Key: "app",
-							Values: []string{
-								"web",
+				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
+					{
+						HostprotFilter: []hppv1.HostprotFilter{
+							{
+								Key: "app",
+								Values: []string{
+									"web",
+								},
+								Operator: "In",
 							},
-							Operator: "In",
 						},
 					},
 				},
@@ -4292,8 +4296,12 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		var podSelectors []*metav1.LabelSelector
+		if tc.podSelector != nil {
+			podSelectors = []*metav1.LabelSelector{tc.podSelector}
+		}
 		t.Run(tc.name, func(t *testing.T) {
-			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, tc.remoteNs, tc.podSelector, tc.remoteSubnets)
+			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, tc.remoteNs, podSelectors, tc.remoteSubnets)
 			assert.Equal(t, tc.expectedRule, tc.subj.HostprotRule[0], "Unexpected rule. Expected: %v, Actual: %v", tc.expectedRule, tc.subj.HostprotRule[0])
 
 		})
@@ -4311,13 +4319,17 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Namespace: "test-namespace",
 		},
 		Spec: v1net.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "test-app",
-				},
-			},
 			Ingress: []v1net.NetworkPolicyIngressRule{
 				{
+					From: []v1net.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"app": "test-app",
+								},
+							},
+						},
+					},
 					Ports: []v1net.NetworkPolicyPort{
 						{
 							Port: &intstr.IntOrString{
@@ -4333,7 +4345,10 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 
 	subj := &hppv1.HostprotSubj{}
 
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	podSelectors := []*metav1.LabelSelector{
+		np.Spec.Ingress[0].From[0].PodSelector,
+	}
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
 	assert.Equal(t, "test-rule_0-ipv4", subj.HostprotRule[0].Name)
@@ -4350,13 +4365,17 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Namespace: "test-namespace",
 		},
 		Spec: v1net.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "test-app",
-				},
-			},
 			Ingress: []v1net.NetworkPolicyIngressRule{
 				{
+					From: []v1net.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"app": "test-app",
+								},
+							},
+						},
+					},
 					Ports: []v1net.NetworkPolicyPort{},
 				},
 			},
@@ -4365,7 +4384,10 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 
 	subj = &hppv1.HostprotSubj{}
 
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	podSelectors = []*metav1.LabelSelector{
+		np.Spec.Ingress[0].From[0].PodSelector,
+	}
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	expected := hppv1.HostprotSubj{
 		HostprotRule: []hppv1.HostprotRule{
@@ -4378,7 +4400,40 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 				ToPort:              "unspecified",
 				Name:                "test-rule-ipv4",
 				RsRemoteIpContainer: []string{"test-namespace"},
-				HostprotFilterContainer: hppv1.HostprotFilterContainer{
+				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
+					{
+						HostprotFilter: []hppv1.HostprotFilter{
+							{
+								Key: "app",
+								Values: []string{
+									"test-app",
+								},
+								Operator: "Equals",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, *subj)
+
+	subj = &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+
+	expectedRule := []hppv1.HostprotRule{
+		{
+			ConnTrack:           "reflexive",
+			Direction:           "ingress",
+			Ethertype:           "ipv4",
+			Protocol:            "unspecified",
+			FromPort:            "unspecified",
+			ToPort:              "unspecified",
+			Name:                "test-rule-ipv4",
+			RsRemoteIpContainer: []string{},
+			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
+				{
 					HostprotFilter: []hppv1.HostprotFilter{
 						{
 							Key: "app",
@@ -4393,35 +4448,6 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, *subj)
-
-	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
-
-	expectedRule := []hppv1.HostprotRule{
-		{
-			ConnTrack:           "reflexive",
-			Direction:           "ingress",
-			Ethertype:           "ipv4",
-			Protocol:            "unspecified",
-			FromPort:            "unspecified",
-			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4",
-			RsRemoteIpContainer: []string{},
-			HostprotFilterContainer: hppv1.HostprotFilterContainer{
-				HostprotFilter: []hppv1.HostprotFilter{
-					{
-						Key: "app",
-						Values: []string{
-							"test-app",
-						},
-						Operator: "Equals",
-					},
-				},
-			},
-		},
-	}
-
 	assert.Equal(t, expectedRule, subj.HostprotRule)
 
 	np = &v1net.NetworkPolicy{
@@ -4430,13 +4456,17 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Namespace: "test-namespace",
 		},
 		Spec: v1net.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "test-app",
-				},
-			},
 			Ingress: []v1net.NetworkPolicyIngressRule{
 				{
+					From: []v1net.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"app": "test-app",
+								},
+							},
+						},
+					},
 					Ports: []v1net.NetworkPolicyPort{
 						{
 							Port: &intstr.IntOrString{
@@ -4460,14 +4490,16 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			ToPort:              "8080",
 			Name:                "test-rule_0-ipv4",
 			RsRemoteIpContainer: []string{},
-			HostprotFilterContainer: hppv1.HostprotFilterContainer{
-				HostprotFilter: []hppv1.HostprotFilter{
-					{
-						Key: "app",
-						Values: []string{
-							"test-app",
+			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
+				{
+					HostprotFilter: []hppv1.HostprotFilter{
+						{
+							Key: "app",
+							Values: []string{
+								"test-app",
+							},
+							Operator: "Equals",
 						},
-						Operator: "Equals",
 					},
 				},
 			},
@@ -4475,7 +4507,10 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	}
 
 	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, &np.Spec.PodSelector, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	podSelectors = []*metav1.LabelSelector{
+		np.Spec.Ingress[0].From[0].PodSelector,
+	}
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, expectedRule, subj.HostprotRule)
 

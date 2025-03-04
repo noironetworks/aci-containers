@@ -268,7 +268,20 @@ func (in *HostprotRule) DeepCopyInto(out *HostprotRule) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	in.HostprotFilterContainer.DeepCopyInto(&out.HostprotFilterContainer)
+	if in.HostprotFilterContainer != nil {
+		in, out := &in.HostprotFilterContainer, &out.HostprotFilterContainer
+		*out = make([]HostprotFilterContainer, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.HostprotRemoteIp != nil {
+		in, out := &in.HostprotRemoteIp, &out.HostprotRemoteIp
+		*out = make([]HostprotRemoteIp, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.HostprotServiceRemoteIps != nil {
 		in, out := &in.HostprotServiceRemoteIps, &out.HostprotServiceRemoteIps
 		*out = make([]string, len(*in))
