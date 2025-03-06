@@ -2453,8 +2453,9 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		cont.netPolEgressPods.UpdateSelectorObjNoCallback(newobj)
 		queue = true
 	}
-	if cont.config.EnableHppDirect {
+	if cont.config.EnableHppDirect && !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
 		cont.deleteHppCr(oldnp)
+		queue = true
 	}
 	if queue {
 		cont.queueNetPolUpdateByKey(npkey)
