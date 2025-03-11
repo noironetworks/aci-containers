@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -275,6 +276,19 @@ var brIntTableDescriptions = map[int]string{
 	14: "OUT_TABLE (Apply a destination action based on the action set in the metadata field.)",
 	15: "EXP_DROP_TABLE (Handle explicitly dropped packets here based on the drop-log config)",
 	16: "NUM_FLOW_TABLES (The total number of flow tables)",
+}
+
+func initLogger() {
+	logLevel := os.Getenv("LOG_LEVEL")
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
 }
 
 func wrapText(text string, width int) string {
@@ -652,6 +666,7 @@ func findPortName(port string, bridgName string, ovspod string) string {
 	cmd_args := []string{"exec", "-n", "aci-containers-system", ovspod,
 		"--", "/bin/sh", "-c", fmt.Sprintf("ovs-ofctl show %s", bridgName), "|",
 		fmt.Sprintf("grep -E ' %s\\([^)]+\\):'", port)}
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 	err := execKubectl(cmd_args, port_buffer)
 	if err != nil {
 		return ""
@@ -755,7 +770,7 @@ func checkDstPort(dstPod *v1.Pod, dstPort int32, protocol string) error {
 		}
 	}
 
-	return fmt.Errorf("\n%sNo process is running on %s port %d on the destination pod %s\n", ColorRed, protocol, dstPort, ColorReset)
+	return fmt.Errorf("\n%sThe destination pod spec field does not explictly specify %s port %d%s\n", ColorYellow, protocol, dstPort, ColorReset)
 }
 
 func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int, udpFlag bool, udpSrc int,
@@ -832,13 +847,11 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		err = checkDstPort(dstPod, int32(tcpDst), "TCP")
 		if err != nil {
 			fmt.Println(err)
-			return
 		}
 	} else if udpFlag {
 		err = checkDstPort(dstPod, int32(udpDst), "UDP")
 		if err != nil {
 			fmt.Println(err)
-			return
 		}
 	}
 
@@ -991,6 +1004,7 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 		}
 
+		log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 		err = execKubectl(cmd_args, src_buffer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1133,6 +1147,7 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				}
 			}
 
+			log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 			err = execKubectl(cmd_args, dest_buffer)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
@@ -1429,6 +1444,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				src_ep.Attributes.InterfaceName, proto.Protocol,
 				srcPod.Status.PodIP, dest_svc_file.ServiceMapping[0].ServiceIp, src_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 
+		log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 		err = execKubectl(cmd_args, src_buffer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1630,6 +1646,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						tun_id, proto.Protocol, srcPod.Status.PodIP, destPod.Status.PodIP, "00:22:bd:f8:19:ff",
 						dest_ep.Mac, proto.SrcPort, tcpSrc, proto.DstPort, targetPort)}
 
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, dest_buffer)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
@@ -1760,6 +1777,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						destPod.Status.PodIP, srcPod.Status.PodIP, dest_ep.Mac,
 						"00:22:bd:f8:19:ff", proto.DstPort, targetPort, proto.SrcPort, tcpSrc)}
 
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, src_buffer)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
@@ -1873,6 +1891,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 							"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
 							tun_id, proto.Protocol, ct_mark, destPod.Status.PodIP, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
 
+					log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 					err = execKubectl(cmd_args, dest_buffer)
 					if err != nil {
 						fmt.Fprintln(os.Stderr, err)
@@ -1887,6 +1906,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
 						tun_id, proto.Protocol, ct_mark, destPodIp, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
 
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, dest_buffer)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
@@ -2118,6 +2138,7 @@ func pod_to_ext_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 			"nw_src=%s, nw_dst=%s, dl_src=%s, %s=%d,%s=%d'", src_ep.Attributes.InterfaceName,
 			proto.Protocol, srcPod.Status.PodIP, destip, src_ep.Mac, proto.SrcPort, tcpSrc, proto.DstPort, tcpDst)}
 
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 	err = execKubectl(cmd_args, src_buffer)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -2214,6 +2235,7 @@ func FetchFileContent(opflex_pod_name, filePath string) ([]byte, error) {
 	cmd_args := []string{"exec", "-n", "aci-containers-system", opflex_pod_name, "-c", "opflex-agent",
 		"--", "/bin/sh", "-c", fmt.Sprintf("cat %s", filePath)}
 
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 	err := execKubectl(cmd_args, file_buffer)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -2284,6 +2306,7 @@ func findEpFile(pod *v1.Pod, hostPodName string) (EndPoints, error) {
 	cmd_args := []string{"exec", "-n", "aci-containers-system", hostPodName, "-c", "opflex-agent",
 		"--", "/bin/sh", "-c", fmt.Sprintf("for file in $(grep -l '%s' /usr/local/var/lib/opflex-agent-ovs/endpoints/*); do cat $file; done", podIPRegex)}
 
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 	err := execKubectl(cmd_args, ep_buffer)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -2328,6 +2351,7 @@ func findServiceFile(kubeClient kubernetes.Interface, pod *v1.Pod, svcip string)
 		fmt.Sprintf("for file in $(grep -l '%s' /usr/local/var/lib/opflex-agent-ovs/services/*); do cat $file; done", serviceRegex),
 	}
 
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 	err = execKubectl(cmd_args, svc_buffer)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -2409,9 +2433,10 @@ func findGbpPolicy(kubeClient kubernetes.Interface, pod *v1.Pod) ([]GBPObject, e
 	}
 
 	gbpBuffer := new(bytes.Buffer)
-	cmdArgs := []string{"exec", "-n", "aci-containers-system", hostPodName, "-c", "opflex-agent", "--", "/bin/sh", "-c", "gbp_inspect -fprq DmtreeRoot -t dump"}
+	cmd_args := []string{"exec", "-n", "aci-containers-system", hostPodName, "-c", "opflex-agent", "--", "/bin/sh", "-c", "gbp_inspect -fprq DmtreeRoot -t dump"}
 
-	err = execKubectl(cmdArgs, gbpBuffer)
+	log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+	err = execKubectl(cmd_args, gbpBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute kubectl command: %w", err)
 	}
@@ -2512,6 +2537,7 @@ var verbose bool
 var ct_mark string
 
 func init() {
+	initLogger()
 	nodeIdMaps = NewNodeIdMaps()
 
 	PodtoPodtraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
