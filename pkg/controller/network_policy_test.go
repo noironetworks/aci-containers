@@ -4784,9 +4784,11 @@ func TestHandleRemIpContUpdate(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	cont.nsRemoteIpCont["test-namespace"] = map[string]map[string]string{
-		"192.168.10.5": {
-			"app": "db",
+	cont.nsRemoteIpCont["test-namespace"] = remoteIpConts{
+		"test-pod": {
+			"192.168.10.5": {
+				"app": "db",
+			},
 		},
 	}
 

@@ -1819,20 +1819,22 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 	return false
 }
 
-func buildHostprotRemoteIpList(remIpCont map[string]map[string]string) []hppv1.HostprotRemoteIp {
+func buildHostprotRemoteIpList(remIpConts map[string]remoteIpCont) []hppv1.HostprotRemoteIp {
 	hostprotRemoteIpList := []hppv1.HostprotRemoteIp{}
 
-	for ip, labels := range remIpCont {
-		remIpObj := hppv1.HostprotRemoteIp{
-			Addr: ip,
+	for _, remIpCont := range remIpConts {
+		for ip, labels := range remIpCont {
+			remIpObj := hppv1.HostprotRemoteIp{
+				Addr: ip,
+			}
+			for key, val := range labels {
+				remIpObj.HppEpLabel = append(remIpObj.HppEpLabel, hppv1.HppEpLabel{
+					Key:   key,
+					Value: val,
+				})
+			}
+			hostprotRemoteIpList = append(hostprotRemoteIpList, remIpObj)
 		}
-		for key, val := range labels {
-			remIpObj.HppEpLabel = append(remIpObj.HppEpLabel, hppv1.HppEpLabel{
-				Key:   key,
-				Value: val,
-			})
-		}
-		hostprotRemoteIpList = append(hostprotRemoteIpList, remIpObj)
 	}
 
 	return hostprotRemoteIpList
@@ -2270,8 +2272,9 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool {
 	podips := ipsForPod(pod)
 	podns := pod.ObjectMeta.Namespace
+	podname := pod.ObjectMeta.Name
 	podlabels := pod.ObjectMeta.Labels
-	remipcont, ok := cont.nsRemoteIpCont[podns]
+	remipconts, ok := cont.nsRemoteIpCont[podns]
 
 	if deleted {
 		if !ok {
@@ -2279,14 +2282,19 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 		}
 
 		present := false
-		for _, ip := range podips {
-			if _, ipok := remipcont[ip]; ipok {
-				delete(remipcont, ip)
-				present = true
+		if remipcont, remipcontok := remipconts[podname]; remipcontok {
+			for _, ip := range podips {
+				if _, ipok := remipcont[ip]; ipok {
+					delete(remipcont, ip)
+					present = true
+				}
+			}
+			if len(remipcont) < 1 {
+				delete(remipconts, podname)
 			}
 		}
 
-		if len(remipcont) < 1 {
+		if len(remipconts) < 1 {
 			delete(cont.nsRemoteIpCont, podns)
 			cont.apicConn.ClearApicObjects(cont.aciNameForKey("hostprot-ns-", podns))
 			return false
@@ -2297,13 +2305,18 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 		}
 	} else {
 		if !ok {
-			remipcont = make(remoteIpCont)
-			cont.nsRemoteIpCont[podns] = remipcont
+			remipconts = make(remoteIpConts)
+			cont.nsRemoteIpCont[podns] = remipconts
 		}
 
+		remipcont, remipcontok := remipconts[podname]
+		if !remipcontok {
+			remipcont = make(remoteIpCont)
+		}
 		for _, ip := range podips {
 			remipcont[ip] = podlabels
 		}
+		remipconts[podname] = remipcont
 	}
 
 	return true

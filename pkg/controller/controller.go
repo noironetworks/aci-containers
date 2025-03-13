@@ -194,8 +194,8 @@ type AciController struct {
 	nmPortNp map[string]bool
 	//maps network policy hash to hpp
 	hppRef map[string]hppReference
-	//map for ns to remoteIpCont
-	nsRemoteIpCont map[string]remoteIpCont
+	//map for ns to remoteIpConts
+	nsRemoteIpCont map[string]remoteIpConts
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
@@ -261,6 +261,9 @@ type NfL3Data struct {
 	NetAddr     map[string]*RoutedNetworkData
 	Nodes       map[int]fabattv1.FabricL3OutNode
 }
+
+// maps pod name to remoteIpCont
+type remoteIpConts map[string]remoteIpCont
 
 // remoteIpCont maps ip to pod labels
 type remoteIpCont map[string]map[string]string
@@ -528,7 +531,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		lldpIfCache:                 make(map[string]*NfLLDPIfData),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
-		nsRemoteIpCont:              make(map[string]remoteIpCont),
+		nsRemoteIpCont:              make(map[string]remoteIpConts),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
