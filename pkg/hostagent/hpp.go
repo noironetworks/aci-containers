@@ -178,11 +178,11 @@ func (agent *HostAgent) matchesAllFilters(labels []hppv1.HppEpLabel, filterConta
 	return matchFound
 }
 
-func (agent *HostAgent) filterHostProtRemoteIps(remoteIps []hppv1.HostprotRemoteIp, filterContainers []hppv1.HostprotFilterContainer) []string {
-	var matchedAddrs []string
+func (agent *HostAgent) filterHostProtRemoteIps(remoteIps []hppv1.HostprotRemoteIp, filterContainers []hppv1.HostprotFilterContainer) map[string]struct{} {
+	matchedAddrs := make(map[string]struct{})
 	for _, remoteIp := range remoteIps {
 		if agent.matchesAllFilters(remoteIp.HppEpLabel, filterContainers) {
-			matchedAddrs = append(matchedAddrs, remoteIp.Addr)
+			matchedAddrs[remoteIp.Addr] = struct{}{}
 		}
 	}
 	return matchedAddrs
@@ -262,7 +262,7 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 					}
 					hostprotRemoteIps := remoteIpCont.Spec.HostprotRemoteIp
 					matchedAddrs := agent.filterHostProtRemoteIps(hostprotRemoteIps, hostprotFilters)
-					for _, matchedAddr := range matchedAddrs {
+					for matchedAddr := range matchedAddrs {
 						hpSubnet := &HpSubjGrandchild{
 							Attributes: map[string]string{
 								"addr": matchedAddr,
