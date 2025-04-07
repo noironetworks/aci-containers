@@ -164,13 +164,13 @@ dist/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
 dist/netop-cni: ${AGENTCNI_DEPS}
-	${BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+	${BUILD_CMD} -tags netopcni -o $@ ${BASE}/cmd/opflexagentcni
 
 dist-static/opflex-agent-cni: ${AGENTCNI_DEPS}
 	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
 
 dist-static/netop-cni: ${AGENTCNI_DEPS}
-	${STATIC_BUILD_CMD} -o $@ ${BASE}/cmd/opflexagentcni
+	${STATIC_BUILD_CMD} -tags netopcni -o $@ ${BASE}/cmd/opflexagentcni
 
 dist/aci-containers-host-agent: ${HOSTAGENT_DEPS}
 	${BUILD_CMD} -o $@ ${BASE}/cmd/hostagent
