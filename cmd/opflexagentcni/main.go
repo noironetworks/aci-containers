@@ -426,8 +426,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel,
-		version.PluginSupports("0.3.0", "0.3.1", "0.4.0"), "cni")
+	pluginMain()
 
 	if logFile != "" {
 		logFd.Close()
