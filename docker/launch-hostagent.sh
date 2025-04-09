@@ -34,7 +34,7 @@ if [ -z != $CHAINED_MODE ] && [ "$CHAINED_MODE" == "true" ] && [ -z != $PRIMARY_
     if [ "$PATCH_PRIMARY" == "true" ]; then
     CHAINEDACICNI=$(echo "\
 {\
-  \"supportedVersions\": [ \"0.3.0\", \"0.3.1\", \"0.4.0\" ],\
+  \"supportedVersions\": [ \"0.3.0\", \"0.3.1\", \"0.4.0\", \"1.0.0\" ],\
   \"type\": \"netop-cni\",\
   \"chaining-mode\": true,\
   \"log-file\": \"/var/log/netopcni.log\"\

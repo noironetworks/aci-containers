@@ -192,7 +192,7 @@ func TestNADSRIOVCRUD(t *testing.T) {
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	assert.Nil(t, err, "clientset create")
 
-	configJsondata := `{ "cniVersion":"0.3.1", "name":"sriov-net-1","plugins":[{"name":"sriov-net-1","cniVersion":"0.3.1","type":"sriov","vlan":0,"trust":"on","vlanQoS":0,"capabilities":{"ips":true},"link_state":"auto", "ipam": {"type": "whereabouts","range": "192.168.64.0/24", "exclude": ["192.168.64.0/32", "192.168.64.1/32", "192.168.64.254/32"]}}, {"supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "netop-cni", "chaining-mode": true }]}`
+	configJsondata := `{ "cniVersion":"0.3.1", "name":"sriov-net-1","plugins":[{"name":"sriov-net-1","cniVersion":"0.3.1","type":"sriov","vlan":0,"trust":"on","vlanQoS":0,"capabilities":{"ips":true},"link_state":"auto", "ipam": {"type": "whereabouts","range": "192.168.64.0/24", "exclude": ["192.168.64.0/32", "192.168.64.1/32", "192.168.64.254/32"]}}, {"supportedVersions": [ "0.3.0", "0.3.1", "0.4.0", "1.0.0" ], "type": "netop-cni", "chaining-mode": true }]}`
 
 	resourceAnnot := make(map[string]string)
 	resourceAnnot["k8s.v1.cni.cncf.io/resourceName"] = "openshift.io/enp216s0f0"
@@ -262,9 +262,9 @@ func TestNADMacVlanCRUD(t *testing.T) {
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	assert.Nil(t, err, "clientset create")
 
-	configJsondata := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
+	configJsondata := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0", "1.0.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
 
-	configJsondata2 := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1.101", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
+	configJsondata2 := `{"cniVersion": "0.3.1", "name": "macvlan-net2", "plugins":[{"cniVersion": "0.3.1", "name": "macvlan-net2", "type": "macvlan", "mode": "private", "master": "bond1.101", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0", "1.0.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
 	resourceAnnot := make(map[string]string)
 	agent := testAgentEnvtest(getChainedModeConfig(nodename), kubeClient, cfg)
 	kubeClient.CoreV1().Namespaces().Create(context.Background(), mkNamespace("aci-containers-system", "", "", ""), metav1.CreateOptions{})
@@ -341,7 +341,7 @@ func TestNADVlanMatch(t *testing.T) {
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	assert.Nil(t, err, "clientset create")
 
-	configJsondata := `{"cniVersion": "0.3.1", "name": "pc-mm-net1", "plugins":[{"cniVersion": "0.3.1", "name": "pc-mm-net1", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
+	configJsondata := `{"cniVersion": "0.3.1", "name": "pc-mm-net1", "plugins":[{"cniVersion": "0.3.1", "name": "pc-mm-net1", "type": "macvlan", "mode": "private", "master": "bond1", "ipam": {"type": "whereabouts", "range": "192.168.100.0/24", "exclude": ["192.168.100.0/32", "192.168.100.1/32", "192.168.100.254/32"]}},{ "supportedVersions": [ "0.3.0", "0.3.1", "0.4.0", "1.0.0" ], "type": "opflex-agent-cni", "chaining-mode": true, "log-level": "debug", "log-file": "/var/log/opflexagentcni.log" }]}`
 	nadVlanMap := &fabattv1.NadVlanMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "nad-vlan-map",
 			Namespace: "aci-containers-system",
