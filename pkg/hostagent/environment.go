@@ -249,6 +249,19 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	}
 	env.agent.log.Debug("Starting remaining informers")
 	env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
+
+	env.agent.log.Debug("Starting namespace informers")
+	go env.agent.nsInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for namespace cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.nsInformer.HasSynced)
+	env.agent.log.Info("namespace cache sync successful")
+
+	env.agent.log.Debug("Starting deployment informers")
+	go env.agent.depInformer.Run(stopCh)
+	env.agent.log.Info("Waiting for deployment cache sync")
+	cache.WaitForCacheSync(stopCh, env.agent.depInformer.HasSynced)
+	env.agent.log.Info("deployment cache sync successful")
+
 	go env.agent.podInformer.Run(stopCh)
 	cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced)
 	env.agent.log.Info("Pod cache sync successful")
@@ -260,12 +273,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	env.agent.log.Info("controller cache sync successful")
 
 	env.agent.serviceEndPoints.Run(stopCh)
-
-	env.agent.log.Debug("Starting namespace informers")
-	go env.agent.nsInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for namespace cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.nsInformer.HasSynced)
-	env.agent.log.Info("namespace cache sync successful")
 
 	env.agent.log.Debug("Starting networkPolicy informers")
 	go env.agent.netPolInformer.Run(stopCh)
@@ -286,11 +293,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		cache.WaitForCacheSync(stopCh, env.agent.hppRemoteIpInformer.HasSynced)
 		env.agent.log.Info("hostprotremoteipcontainer cache sync successful")
 	}
-	env.agent.log.Debug("Starting deployment informers")
-	go env.agent.depInformer.Run(stopCh)
-	env.agent.log.Info("Waiting for deployment cache sync")
-	cache.WaitForCacheSync(stopCh, env.agent.depInformer.HasSynced)
-	env.agent.log.Info("deployment cache sync successful")
 
 	env.agent.log.Debug("Starting ReplicationController informers")
 	go env.agent.rcInformer.Run(stopCh)
