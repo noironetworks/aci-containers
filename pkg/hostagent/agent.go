@@ -51,6 +51,7 @@ import (
 // Name of the taint set by Controller
 const (
 	ACIContainersTaintName string = "aci-containers-host/unavailable"
+	ResolvedEpgsFile       string = "/usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/resolved-epgs.json"
 )
 
 var GbpConfig *GBPConfig
@@ -153,8 +154,11 @@ type HostAgent struct {
 	orphanNadMap      map[string]*NetworkAttachmentData
 	// Pod info
 	podNameToTimeStamps map[string]*epTimeStamps
-	completedSyncTypes  map[string]struct{}
-	taintRemoved        atomic.Value
+	// Maps epg to poduuid
+	pendingEpWriteList map[string]map[string]struct{}
+	resolvedEPGCache   []md.OpflexGroup
+	completedSyncTypes map[string]struct{}
+	taintRemoved       atomic.Value
 }
 
 type ServiceEndPointType interface {
@@ -203,6 +207,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		nodePodIfEPs:   make(map[string]*opflexEndpoint),
 
 		podNameToTimeStamps: make(map[string]*epTimeStamps),
+		pendingEpWriteList:  make(map[string]map[string]struct{}),
 
 		podIps: ipam.NewIpCache(),
 
@@ -490,6 +495,35 @@ func (agent *HostAgent) watchRebootConf(stopCh <-chan struct{}) {
 		// watch for events
 		case event := <-watcher.Events:
 			agent.log.Info("Reloading aci-containers-host because of an event in /usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/reboot.conf : ", event)
+			os.Exit(0)
+
+			// watch for errors
+		case err := <-watcher.Errors:
+			agent.log.Error("ERROR: ", err)
+
+		case <-stopCh:
+			return
+		}
+	}
+}
+
+func (agent *HostAgent) watchResolvedEpgsFile(stopCh <-chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(err)
+	}
+	defer watcher.Close()
+	// akhila : TODO change name of file
+	if err := watcher.Add(ResolvedEpgsFile); err != nil {
+		panic(err)
+	}
+	for {
+		select {
+		// watch for events
+		case event := <-watcher.Events:
+			// akhila : TODO load json and process list
+			agent.log.Info("Recievd event ", event)
+			agent.processPendingWriteEpFiles()
 			os.Exit(0)
 
 			// watch for errors

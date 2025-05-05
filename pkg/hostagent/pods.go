@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -330,6 +331,103 @@ func touchFileIfExists(epfile string) (bool, error) {
 	return touch, nil
 }
 
+// Updates PendingEpWriteList
+// if remove is true, remove from the list
+// else add to the list
+// and then remove the stale entries if any
+func (agent *HostAgent) updatePendingEpWriteList(podepg, poduuid string, remove bool) {
+	var emptyEpg []string
+	for epg, poduuids := range agent.pendingEpWriteList {
+		if epg == podepg || podepg == "" {
+			if remove {
+				delete(poduuids, poduuid)
+			} else {
+				agent.pendingEpWriteList[podepg][poduuid] = struct{}{}
+			}
+		} else {
+			// This covers the case where there is any epg annotation change
+			delete(poduuids, poduuid)
+		}
+		if len(agent.pendingEpWriteList[podepg]) < 1 {
+			emptyEpg = append(emptyEpg, epg)
+		}
+	}
+
+	if _, exists := agent.pendingEpWriteList[podepg]; !exists && !remove {
+		agent.pendingEpWriteList[podepg] = make(map[string]struct{})
+		agent.pendingEpWriteList[podepg][poduuid] = struct{}{}
+	}
+
+	for _, epg := range emptyEpg {
+		delete(agent.pendingEpWriteList, epg)
+	}
+}
+
+func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) (bool, bool, error) {
+	var wrote, queued bool
+	var err error
+	podepg := ep.EgPolicySpace + "-" + ep.EndpointGroup
+	// If epg resolved, write to ep file
+	for _, epg := range agent.resolvedEPGCache {
+		if epg.PolicySpace == ep.EgPolicySpace && epg.Name == ep.EndpointGroup {
+			agent.updatePendingEpWriteList(podepg, poduuid, true)
+			wrote, err = writeEp(epfile, ep)
+			return wrote, queued, err
+		}
+	}
+
+	// if not default EPG
+	if !(agent.config.DefaultEg.PolicySpace == ep.EgPolicySpace &&
+		agent.config.DefaultEg.Name == ep.EndpointGroup) {
+		// if atleast one entry is NOT present in pendingEpWriteList
+		// ie, if its the first entry with the epg and is not resolves
+		// write to ep file so that opflex-agent will get notified
+		// about the epg
+		if _, exists := agent.pendingEpWriteList[podepg]; !exists {
+			wrote, err = writeEp(epfile, ep)
+		}
+	}
+
+	// add to pending write list
+	agent.updatePendingEpWriteList(podepg, poduuid, false)
+	queued = true
+	return wrote, queued, err
+}
+
+/*
+func (agent *HostAgent) getDummyEpFileName(policySpace, epGroupName string) string {
+	temp := strings.Split(epGroupName, "|")
+	var EpFileName string
+	if len(temp) == 1 {
+		EpFileName = policySpace + "_" + epGroupName + "_" + NullMac + ".ep"
+	} else {
+		EpFileName = policySpace + "_" + temp[0] + "_" + temp[1] + "_" + NullMac + ".ep"
+	}
+	return EpFileName
+}
+
+func (agent *HostAgent) writeDummyEp(policySpace, endpointGroup string) {
+	EpFileName := agent.getDummyEpFileName(policySpace, endpointGroup)
+	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
+	ep_file_exists := fileExists(EpFilePath)
+	if ep_file_exists {
+		return
+	}
+	ep := &opflexEndpoint{
+		Uuid:          uuid.New().String(),
+		EgPolicySpace: policySpace,
+		EndpointGroup: endpointGroup,
+		MacAddress:    "00:00:00:00:00:00",
+	}
+	wrote, err := writeEp(EpFilePath, ep)
+	if err != nil {
+		agent.log.Debug("Unable to write null mac Ep file ", EpFileName)
+	} else if wrote {
+		agent.log.Debug("Created null mac Ep file ", EpFileName)
+	}
+}
+*/
+
 func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	newdata, err := json.MarshalIndent(ep, "", "  ")
 	if err != nil {
@@ -381,6 +479,64 @@ func (agent *HostAgent) syncOpflexServer() bool {
 	}
 
 	return false
+}
+
+// akhila: TODO return? lock?
+func (agent *HostAgent) updateResolvedEPGCache() error {
+	var epgs struct {
+		ResolvedEPGs []string `json:"resolved-epgs"`
+	}
+
+	resolvedEpgsJson, err := os.ReadFile(ResolvedEpgsFile)
+	if err != nil {
+		agent.log.Error("Failed to read file : ", err)
+		return err
+	}
+	err = json.Unmarshal(resolvedEpgsJson, &epgs)
+	if err != nil {
+		agent.log.Error("Error unmarshaling resolved epgs file:", err)
+		return err
+	}
+
+	var resolvedEpgList []metadata.OpflexGroup
+	for _, epg := range epgs.ResolvedEPGs {
+		epgurl, err := url.QueryUnescape(epg)
+		if err != nil {
+			agent.log.Error("Failed to decode query : ", epg, " err: ", err)
+			return err
+		}
+		epgurls := strings.Split(epgurl, "/")
+		if len(epgurls) < 6 {
+			agent.log.Error("Invalid url ", epgurl)
+			return err
+		}
+		var resolvedEpg metadata.OpflexGroup
+		resolvedEpg.PolicySpace = epgurls[3]
+		resolvedEpg.Name = epgurls[5]
+		resolvedEpgList = append(resolvedEpgList, resolvedEpg)
+	}
+	// lock
+	agent.resolvedEPGCache = resolvedEpgList
+	return nil
+}
+
+// akhila: TODO return? lock?
+func (agent *HostAgent) processPendingWriteEpFiles() {
+	err := agent.updateResolvedEPGCache()
+	if err != nil {
+		agent.log.Error("Failed to update resolved EPG cache:", err)
+		return
+	}
+	for _, epg := range agent.resolvedEPGCache {
+		resolvedEpg := epg.PolicySpace + "-" + epg.Name
+		agent.log.Info("Resolved epg : ", epg)
+		if _, ok := agent.pendingEpWriteList[resolvedEpg]; ok {
+			//schedule sync eps?
+			agent.log.Debug("syncEP scheduled as a new epg is resolved")
+			agent.scheduleSyncEps()
+			break
+		}
+	}
 }
 
 func (agent *HostAgent) syncEps() bool {
@@ -486,7 +642,7 @@ func (agent *HostAgent) syncEps() bool {
 				}
 
 				agent.epfileMutex.Lock()
-				wrote, err := writeEp(epfile, ep)
+				wrote, _, err := agent.writeEpFile(poduuid, epfile, ep)
 				agent.epfileMutex.Unlock()
 				if err != nil {
 					opflexEpLogger(agent.log, ep).
@@ -530,6 +686,7 @@ func (agent *HostAgent) syncEps() bool {
 			}
 			logger.Info("Removing endpoint")
 			os.Remove(epfile)
+			agent.updatePendingEpWriteList("", poduuid, true)
 		}
 	}
 
@@ -557,13 +714,13 @@ func (agent *HostAgent) syncEps() bool {
 			agent.indexMutex.Unlock()
 
 			agent.epfileMutex.Lock()
-			_, err = writeEp(epfile, ep)
+			wrote, _, err := agent.writeEpFile(poduuid, epfile, ep)
 			agent.epfileMutex.Unlock()
 			if err != nil {
 				opflexEpLogger(agent.log, ep).
 					Error("Error writing EP file: ", err)
 				needRetry = true
-			} else {
+			} else if wrote {
 				needRetry = agent.EPRegAdd(ep)
 				agent.nodePodIfEPs[ep.Uuid] = ep
 			}

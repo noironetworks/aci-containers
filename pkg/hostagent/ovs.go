@@ -255,7 +255,7 @@ func (agent *HostAgent) diffPorts(bridges map[string]ovsBridge) []libovsdb.Opera
 									agent.log.Error("Failed to fill fields of endpoint file ", epfile, " : ", err)
 								} else {
 									ep.Attributes["interface-name"] = iface.HostVethName
-									wrote, err := writeEp(epfile, ep)
+									wrote, _, err := agent.writeEpFile(epUuid, epfile, ep)
 									if err != nil {
 										agent.log.Error("Failed to write endpoint file ", epfile, " : ", err)
 									} else if wrote {
