@@ -51,7 +51,7 @@ import (
 // Name of the taint set by Controller
 const (
 	ACIContainersTaintName string = "aci-containers-host/unavailable"
-	ResolvedEpgsFile       string = "/usr/local/var/lib/opflex-agent-ovs/reboot-conf.d/resolved-epgs.json"
+	ResolvedEpgsFile       string = "/usr/local/var/lib/opflex-agent-ovs/resolved-epgs/resolved-epgs.json"
 )
 
 var GbpConfig *GBPConfig
@@ -65,6 +65,7 @@ type HostAgent struct {
 	vethMutex            sync.Mutex
 	ipamMutex            sync.Mutex
 	epfileMutex          sync.Mutex
+	pendingEpMutex       sync.Mutex
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
 	proactiveConfMutex   sync.Mutex
@@ -514,26 +515,32 @@ func (agent *HostAgent) watchResolvedEpgsFile(stopCh <-chan struct{}) {
 	}
 	defer watcher.Close()
 	// akhila : TODO change name of file
-	if err := watcher.Add(ResolvedEpgsFile); err != nil {
-		panic(err)
+	if err := watcher.Add("/usr/local/var/lib/opflex-agent-ovs/resolved-epgs/resolved-epgs.json"); err != nil {
+		//panic(err)
+		agent.log.Error(err)
+		return
 	}
 	for {
 		select {
 		// watch for events
 		case event := <-watcher.Events:
 			// akhila : TODO load json and process list
-			agent.log.Info("Recievd event ", event)
+			agent.log.Info("akhilaaaa......Recievd event ", event)
 			agent.processPendingWriteEpFiles()
-			os.Exit(0)
+			agent.log.Info("akhilaaaa......done processing event")
 
 			// watch for errors
 		case err := <-watcher.Errors:
+			agent.log.Info("akhilaaaa......error event", err)
 			agent.log.Error("ERROR: ", err)
 
 		case <-stopCh:
+			agent.log.Info("akhilaaaa......stopping event", err)
 			return
 		}
+		agent.log.Info("akhilaaaa......nextt event")
 	}
+	agent.log.Info("akhilaaaa......exiting event")
 }
 
 func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {

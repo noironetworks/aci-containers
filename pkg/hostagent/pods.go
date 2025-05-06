@@ -337,18 +337,25 @@ func touchFileIfExists(epfile string) (bool, error) {
 // and then remove the stale entries if any
 func (agent *HostAgent) updatePendingEpWriteList(podepg, poduuid string, remove bool) {
 	var emptyEpg []string
+	agent.pendingEpMutex.Lock()
+	defer agent.pendingEpMutex.Unlock()
 	for epg, poduuids := range agent.pendingEpWriteList {
 		if epg == podepg || podepg == "" {
 			if remove {
 				delete(poduuids, poduuid)
+				agent.log.Debug("akhilaaaa...removing from  queue", poduuid, " ", podepg)
 			} else {
 				agent.pendingEpWriteList[podepg][poduuid] = struct{}{}
+				agent.log.Debug("akhilaaaa...adding to queue", poduuid, " ", podepg)
 			}
 		} else {
 			// This covers the case where there is any epg annotation change
-			delete(poduuids, poduuid)
+			if _, ok := poduuids[poduuid]; ok {
+				delete(poduuids, poduuid)
+				agent.log.Debug("akhilaaaa...removing from  queue", poduuid, " ", podepg)
+			}
 		}
-		if len(agent.pendingEpWriteList[podepg]) < 1 {
+		if len(poduuids) < 1 {
 			emptyEpg = append(emptyEpg, epg)
 		}
 	}
@@ -356,11 +363,14 @@ func (agent *HostAgent) updatePendingEpWriteList(podepg, poduuid string, remove 
 	if _, exists := agent.pendingEpWriteList[podepg]; !exists && !remove {
 		agent.pendingEpWriteList[podepg] = make(map[string]struct{})
 		agent.pendingEpWriteList[podepg][poduuid] = struct{}{}
+		agent.log.Debug("akhilaaaa...adding to  queue neww", poduuid, " ", podepg)
 	}
 
 	for _, epg := range emptyEpg {
+		agent.log.Debug("akhilaaaa...removing empty")
 		delete(agent.pendingEpWriteList, epg)
 	}
+
 }
 
 func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) (bool, bool, error) {
@@ -372,6 +382,7 @@ func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) 
 		if epg.PolicySpace == ep.EgPolicySpace && epg.Name == ep.EndpointGroup {
 			agent.updatePendingEpWriteList(podepg, poduuid, true)
 			wrote, err = writeEp(epfile, ep)
+			agent.log.Debug("akhilaaaa...writing ep file", epfile)
 			return wrote, queued, err
 		}
 	}
@@ -383,9 +394,13 @@ func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) 
 		// ie, if its the first entry with the epg and is not resolves
 		// write to ep file so that opflex-agent will get notified
 		// about the epg
+		agent.pendingEpMutex.Lock()
+		agent.log.Debug("akhilaaaa....", agent.pendingEpWriteList)
 		if _, exists := agent.pendingEpWriteList[podepg]; !exists {
 			wrote, err = writeEp(epfile, ep)
+			agent.log.Debug("akhilaaaa...writing ep file dummy", epfile)
 		}
+		agent.pendingEpMutex.Unlock()
 	}
 
 	// add to pending write list
@@ -499,6 +514,7 @@ func (agent *HostAgent) updateResolvedEPGCache() error {
 	}
 
 	var resolvedEpgList []metadata.OpflexGroup
+	agent.log.Debug("akhilaaaa....Resolved epgs ", epgs.ResolvedEPGs)
 	for _, epg := range epgs.ResolvedEPGs {
 		epgurl, err := url.QueryUnescape(epg)
 		if err != nil {
@@ -514,6 +530,7 @@ func (agent *HostAgent) updateResolvedEPGCache() error {
 		resolvedEpg.PolicySpace = epgurls[3]
 		resolvedEpg.Name = epgurls[5]
 		resolvedEpgList = append(resolvedEpgList, resolvedEpg)
+		agent.log.Debug("akhilaaaa ...epg resolved", epg)
 	}
 	// lock
 	agent.resolvedEPGCache = resolvedEpgList
@@ -522,6 +539,8 @@ func (agent *HostAgent) updateResolvedEPGCache() error {
 
 // akhila: TODO return? lock?
 func (agent *HostAgent) processPendingWriteEpFiles() {
+	agent.pendingEpMutex.Lock()
+	defer agent.pendingEpMutex.Unlock()
 	err := agent.updateResolvedEPGCache()
 	if err != nil {
 		agent.log.Error("Failed to update resolved EPG cache:", err)
@@ -532,7 +551,7 @@ func (agent *HostAgent) processPendingWriteEpFiles() {
 		agent.log.Info("Resolved epg : ", epg)
 		if _, ok := agent.pendingEpWriteList[resolvedEpg]; ok {
 			//schedule sync eps?
-			agent.log.Debug("syncEP scheduled as a new epg is resolved")
+			agent.log.Debug("akhilaaaa...syncEP scheduled as a new epg is resolved")
 			agent.scheduleSyncEps()
 			break
 		}
@@ -684,7 +703,7 @@ func (agent *HostAgent) syncEps() bool {
 				agent.EPRegDelEP(k)
 				delete(agent.nodePodIfEPs, staleEp.Uuid)
 			}
-			logger.Info("Removing endpoint")
+			logger.Info("akhilaaaa.....Removing endpoint")
 			os.Remove(epfile)
 			agent.updatePendingEpWriteList("", poduuid, true)
 		}

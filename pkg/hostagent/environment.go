@@ -206,6 +206,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 
 	if env.agent.integ_test == nil && !env.agent.config.ChainedMode {
 		go env.agent.watchRebootConf(stopCh)
+		go env.agent.watchResolvedEpgsFile(stopCh)
 	}
 
 	env.agent.log.Debug("Starting node informer")
