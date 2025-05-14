@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1302,6 +1303,12 @@ func (cont *AciController) updateDeviceCluster() {
 	for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
 		nodeMap[host] = opflexOdevInfo.fabricPathDn
 	}
+
+	// For OpenShift On OpenStackc clusters,
+	// hostFabricPathDnMap will be empty
+	for host, fabricPathDn := range cont.hostFabricPathDnMap {
+		nodeMap[host] = fabricPathDn
+	}
 	cont.indexMutex.Unlock()
 
 	var nodes []string
@@ -1422,6 +1429,79 @@ func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) boo
 		}
 	}
 	return deviceClusterUpdate
+}
+
+func (cont *AciController) infraRtAttEntPDeleted(dn string) {
+	// dn format : uni/infra/attentp-k8s-scale-esxi-aaep/rtattEntP-[uni/infra/funcprof/accbundle-esxi1-vpc-ipg]
+	re := regexp.MustCompile(`accbundle-([^]]+)`)
+	cont.log.Info("Processing delete of infraRtAttEntP: ", dn)
+	matches := re.FindStringSubmatch(dn)
+	if len(matches) < 2 {
+		cont.log.Error("Failed to extract ipg from dn : ", dn)
+		return
+	}
+	host := matches[1]
+
+	cont.indexMutex.Lock()
+	_, ok := cont.hostFabricPathDnMap[host]
+	if ok {
+		delete(cont.hostFabricPathDnMap, host)
+		cont.log.Info("Deleted ipg : ", host)
+	}
+	cont.indexMutex.Unlock()
+
+	if ok {
+		cont.updateDeviceCluster()
+	}
+}
+
+func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
+	var tdn string
+	for _, body := range obj {
+		var ok bool
+		tdn, ok = body.Attributes["tDn"].(string)
+		if !ok {
+			cont.log.Error("tDn missing in infraRtAttEntP")
+			return
+		}
+	}
+	var updated bool
+	if tdn != "" {
+		// tdn format : /uni/infra/funcprof/accbundle-esxi1-vpc-ipg
+		// extract esxi1-vpc-ipg
+		cont.log.Info("infraRtAttEntP updated, tDn : ", tdn)
+		parts := strings.Split(tdn, "/")
+		lastPart := parts[len(parts)-1]
+		host := strings.TrimPrefix(lastPart, "accbundle-")
+		assocGrpFilter := fmt.Sprintf(`query-target-filter=and(eq(infraPortSummary.assocGrp,"%s"))`, tdn)
+		url := fmt.Sprintf("/api/class/infraPortSummary.json?%s", assocGrpFilter)
+		apicresp, err := cont.apicConn.GetApicResponse(url)
+		if err != nil {
+			cont.log.Error("Failed to get APIC response, err: ", err.Error())
+			return
+		}
+		for _, obj := range apicresp.Imdata {
+			for _, body := range obj {
+				pcPortDn, ok := body.Attributes["pcPortDn"].(string)
+				if ok {
+					cont.indexMutex.Lock()
+					fabricPathDn, exists := cont.hostFabricPathDnMap[host]
+					if !exists || (exists && fabricPathDn != pcPortDn) {
+						cont.hostFabricPathDnMap[host] = pcPortDn
+						cont.log.Info("Updated fabricPathDn of ipg :", host, " to: ", pcPortDn)
+						updated = true
+					}
+					cont.indexMutex.Unlock()
+					break
+				}
+			}
+		}
+
+	}
+	if updated {
+		cont.updateDeviceCluster()
+	}
+	return
 }
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {

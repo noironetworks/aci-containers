@@ -289,6 +289,7 @@ type ControllerConfig struct {
 	// Labels to filter nodes from SNAT redirect policy
 	NodeSnatRedirectExclude []NodeSnatRedirectExclude `json:"node-snat-redirect-exclude,omitempty"`
 
+	AEP string `json:"aep,omitempty"`
 	// Application Profile
 	AppProfile string `json:"app-profile,omitempty"`
 

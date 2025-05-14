@@ -218,6 +218,7 @@ type AciController struct {
 	globalVlanConfig         globalVlanConfig
 	fabricVlanPoolMap        map[string]map[string]string
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
+	hostFabricPathDnMap      map[string]string
 	openStackSystemId        string
 }
 
@@ -531,6 +532,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		lldpIfCache:                 make(map[string]*NfLLDPIfData),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
+		hostFabricPathDnMap:         make(map[string]string),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
 	}
 	cont.syncProcessors = map[string]func() bool{
@@ -1048,6 +1050,24 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			func(dn string) {
 				cont.opflexDeviceDeleted(dn)
 			})
+
+		if !cont.config.DisableServiceVlanPreprovisioning && !strings.Contains(cont.config.Flavor, "openstack") {
+			if cont.config.AEP == "" {
+				cont.log.Error("AEP is missing in configuration, preprovisioning of service vlan will be disabled")
+			} else {
+				infraRtAttEntPFilter := fmt.Sprintf("and(wcard(infraRtAttEntP.dn,\"/attentp-%s/\"))", cont.config.AEP)
+				cont.apicConn.AddSubscriptionClass("infraRtAttEntP",
+					[]string{"infraRtAttEntP"}, infraRtAttEntPFilter)
+				cont.apicConn.SetSubscriptionHooks("infraRtAttEntP",
+					func(obj apicapi.ApicObject) bool {
+						cont.infraRtAttEntPChanged(obj)
+						return true
+					},
+					func(dn string) {
+						cont.infraRtAttEntPDeleted(dn)
+					})
+			}
+		}
 
 		cont.apicConn.VersionUpdateHook =
 			func() {
