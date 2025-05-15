@@ -39,9 +39,13 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// defaultConnectionRefresh is used as connection refresh interval if
-// RefreshInterval is set to 0
-const defaultConnectionRefresh = 30 * time.Second
+const (
+	// defaultConnectionRefresh is used as connection refresh interval if
+	// RefreshInterval is set to 0
+	defaultConnectionRefresh = 30 * time.Second
+
+	maxRequestRetry = 5
+)
 
 // ApicVersion - This global variable to be used when dealing with version-
 // dependencies during APIC interaction. It gets filled with actual version
@@ -876,16 +880,8 @@ func (conn *ApicConnection) refresh() {
 				return
 			}
 			conn.sign(req, uri, nil)
-			resp, err := conn.client.Do(req)
+			resp, err := sendRequestToAPIC(req, true)
 			if err != nil {
-				conn.log.Error("Failed to refresh APIC subscription: ", err)
-				conn.restart()
-				return
-			}
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				conn.logErrorResp("Error while refreshing subscription", resp)
-				complete(resp)
-				conn.restart()
 				return
 			}
 			complete(resp)
@@ -899,6 +895,43 @@ func (conn *ApicConnection) refresh() {
 		} else {
 			refreshId(sub.id)
 		}
+	}
+}
+
+func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool) (*http.Response, error) {
+	retry := 0
+	for {
+		if retry > 0 {
+			conn.log.Infof("Retrying request : %s, Attempt %d ", req.URL.String(), retry)
+		}
+
+		resp, err := conn.client.Do(req)
+		if err != nil {
+			conn.log.Error("Failed to send request to APIC: ", err)
+			conn.restart()
+			return resp, err
+		}
+
+		if cont.apicConn.EnableRequestRetry && resp.StatusCode == 503 {
+			conn.log.Error("Recieved Service Unavailable Response for url : ", req.URL.String())
+			retry++
+			if retry > maxRequestRetry {
+				conn.log.Warnf("Maximum retry for %s exceeded", req.URL.String())
+				return resp, fmt.Errorf("Got error response from APIC")
+			}
+			time.Sleep(cont.apicConn.RequestRetryDelay * time.Minute)
+			continue
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			conn.logErrorResp("Error response from APIC ", resp)
+			complete(resp)
+			conn.restart()
+			return resp, fmt.Errorf("Got error response from APIC")
+		}
+
+		//success case
+		return resp, nil
 	}
 }
 
@@ -949,7 +982,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 		return err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.client.Do(req)
+	resp, err := conn.sendRequestToAPIC(req)
 	if err != nil {
 		conn.log.Error("Could not get subtree for ", acivrfdn, ": ", err)
 		return err
@@ -1007,18 +1040,12 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		return
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.client.Do(req)
+	resp, err := conn.sendRequestToAPIC(req, true)
 	if err != nil {
-		conn.log.Error("Could not get subtree for ", dn, ": ", err)
-		conn.restart()
+		complete(resp)
 		return
 	}
 	defer complete(resp)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		conn.logErrorResp("Could not get subtree for "+dn, resp)
-		conn.restart()
-		return
-	}
 
 	var apicresp ApicResponse
 	err = json.NewDecoder(resp.Body).Decode(&apicresp)
@@ -1102,9 +1129,8 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
 	conn.log.Infof("Post: %+v", req)
-	resp, err := conn.client.Do(req)
+	resp, err := conn.sendRequestToAPIC(req, false)
 	if err != nil {
-		conn.log.Error("Could not update dn ", dn, ": ", err)
 		return err
 	}
 
@@ -1128,7 +1154,7 @@ func (conn *ApicConnection) DeleteDnInline(dn string) error {
 		return err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.client.Do(req)
+	resp, err := conn.sendRequestToAPIC(req, false)
 	if err != nil {
 		conn.log.Error("Could not delete dn ", dn, ": ", err)
 		return err
