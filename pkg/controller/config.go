@@ -299,6 +299,12 @@ type ControllerConfig struct {
 	// Number of times the connection to APIC should be retried before switching to another APIC
 	ApicConnectionRetryLimit int `json:"apic-connection-retry-limit,omitempty"`
 
+	// Timeout in minutes to wait in between retries before sending request to APIC
+	ApicRequestRetryDelay int `json:"apic-request-retry-delay,omitempty"`
+
+	// Enable retying request to APIC when a 503 error is encountered
+	EnableApicRequestRetry bool `json:"enable-apic-request-retry-delay,omitempty"`
+
 	// Disable hpp rendering if set to true
 	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
 

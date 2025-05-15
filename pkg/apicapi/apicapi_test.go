@@ -1114,6 +1114,8 @@ func TestAddSubscriptionTree(t *testing.T) {
 	}
 }
 
+/*
+// commented out - DeleteDnInline function no longer in use
 func TestDeleteDnInline(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
@@ -1128,6 +1130,7 @@ func TestDeleteDnInline(t *testing.T) {
 	// No HTTPS server running, so we expect an error
 	assert.Error(t, err, "Could not delete dn")
 }
+*/
 
 func TestGetVersion(t *testing.T) {
 
