@@ -103,6 +103,9 @@ type ApicConnection struct {
 	CachedVersion       string
 	ReconnectInterval   time.Duration
 	ReconnectRetryLimit int
+	RequestRetryDelay   int
+	EnableRequestRetry  bool
+
 	RefreshInterval     time.Duration
 	RefreshTickerAdjust time.Duration
 	SubscriptionDelay   time.Duration
