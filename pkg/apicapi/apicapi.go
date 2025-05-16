@@ -132,7 +132,7 @@ func (conn *ApicConnection) login() (string, error) {
 	conn.log.Infof("Req: %+v", req)
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.sendRequestToAPIC(req, false)
+	resp, err := conn.sendRequestToAPIC(req, false, nil)
 	if err != nil {
 		return "", err
 	}
@@ -737,7 +737,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 			continue
 		}
 		conn.sign(req, uri, nil)
-		resp, err := conn.sendRequestToAPIC(req, false)
+		resp, err := conn.sendRequestToAPIC(req, false, nil)
 		if err != nil {
 			continue
 		}
@@ -843,7 +843,7 @@ func (conn *ApicConnection) refresh() {
 			conn.log.Error("Could not create request: ", err)
 			return
 		}
-		resp, err := conn.sendRequestToAPIC(req, true)
+		resp, err := conn.sendRequestToAPIC(req, true, nil)
 		if err != nil {
 			return
 		}
@@ -861,7 +861,7 @@ func (conn *ApicConnection) refresh() {
 				return
 			}
 			conn.sign(req, uri, nil)
-			resp, err := conn.sendRequestToAPIC(req, true)
+			resp, err := conn.sendRequestToAPIC(req, true, nil)
 			if err != nil {
 				return
 			}
@@ -879,7 +879,7 @@ func (conn *ApicConnection) refresh() {
 	}
 }
 
-func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool) (*http.Response, error) {
+func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool, exceptionStatusCode []int) (*http.Response, error) {
 	retry := 0
 	for {
 		if retry > 0 {
@@ -895,12 +895,24 @@ func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool) (
 			return nil, err
 		}
 
+		// If exceptionStatusCode is passed by caller function,
+		// the caller is responsible for handling those status codes.
+		for _, exception := range exceptionStatusCode {
+			if exception == resp.StatusCode {
+				return resp, nil
+			}
+		}
+
 		// Retry on 503 Service Unavailable
 		if conn.EnableRequestRetry && resp.StatusCode == 503 {
 			conn.log.Error("Recieved Service Unavailable Response for url : ", req.URL.String())
 			retry++
 			if retry > maxRequestRetry {
-				conn.log.Warnf("Maximum retry for %s exceeded", req.URL.String())
+				conn.log.Errorf("Maximum retry for %s exceeded", req.URL.String())
+				complete(resp)
+				if restart {
+					conn.restart()
+				}
 				return resp, fmt.Errorf("Got error response from APIC")
 			}
 			complete(resp)
@@ -911,8 +923,8 @@ func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool) (
 		// Handle non-success status codes
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			conn.logErrorResp("Error response from APIC ", resp)
+			complete(resp)
 			if restart {
-				complete(resp)
 				conn.restart()
 			}
 			return resp, fmt.Errorf("Got error response from APIC")
@@ -970,7 +982,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 		return err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false)
+	resp, err := conn.sendRequestToAPIC(req, false, nil)
 	if err != nil {
 		return err
 	}
@@ -1023,9 +1035,8 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 		return
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, true)
+	resp, err := conn.sendRequestToAPIC(req, true, nil)
 	if err != nil {
-		complete(resp)
 		return
 	}
 	defer complete(resp)
@@ -1083,69 +1094,6 @@ func (conn *ApicConnection) ForceRelogin() {
 	conn.token = ""
 }
 
-func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
-	conn.logger.WithFields(logrus.Fields{
-		"mod": "APICAPI",
-		"dn":  dn,
-		"obj": obj,
-	}).Debug("Posting Dn Inline")
-	if conn.token == "" {
-		token, err := conn.login()
-		if err != nil {
-			conn.log.Errorf("Login: %v", err)
-			return err
-		}
-		conn.token = token
-	}
-	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	raw, err := json.Marshal(obj)
-	if err != nil {
-		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
-		return err
-	}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return err
-	}
-	conn.sign(req, uri, raw)
-	req.Header.Set("Content-Type", "application/json")
-	conn.log.Infof("Post: %+v", req)
-	resp, err := conn.sendRequestToAPIC(req, false)
-	if err != nil {
-		return err
-	}
-
-	complete(resp)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Status: %v", resp.StatusCode)
-	}
-	return nil
-}
-
-func (conn *ApicConnection) DeleteDnInline(dn string) error {
-	conn.logger.WithFields(logrus.Fields{
-		"mod": "APICAPI",
-		"dn":  dn,
-	}).Debug("Deleting Dn Inline")
-	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("DELETE", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create delete request: ", err)
-		return err
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false)
-	if err != nil {
-		conn.log.Error("Could not delete dn ", dn, ": ", err)
-		return err
-	}
-	defer complete(resp)
-	return nil
-}
-
 func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
@@ -1167,13 +1115,14 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.sendRequestToAPIC(req, true)
+	resp, err := conn.sendRequestToAPIC(req, true, 400)
 	if err != nil {
-		if resp != nil && resp.StatusCode == 400 {
-			return true
-		}
+		return false
 	}
 	defer complete(resp)
+	if resp.StatusCode == 400 {
+		return true
+	}
 	return false
 }
 
@@ -1217,7 +1166,7 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 		return false
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, true)
+	resp, err := conn.sendRequestToAPIC(req, true, nil)
 	if err != nil {
 		return false
 	}
@@ -1320,7 +1269,7 @@ func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 		return apicresp, err
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false)
+	resp, err := conn.sendRequestToAPIC(req, false, nil)
 	if err != nil {
 		return apicresp, err
 	}
@@ -1347,7 +1296,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 		return false
 	}
 	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false)
+	resp, err := conn.sendRequestToAPIC(req, false, nil)
 	if err != nil {
 		return false
 	}
@@ -1585,11 +1534,11 @@ func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
 	conn.log.Infof("Post: %+v", req)
-	resp, err := conn.sendRequestToAPIC(req, false)
+	resp, err := conn.sendRequestToAPIC(req, false, nil)
 	if err != nil {
 		return err
 	}
-	complete(resp)
+	defer complete(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Status: %v", resp.StatusCode)
