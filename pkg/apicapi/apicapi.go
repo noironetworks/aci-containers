@@ -1115,7 +1115,7 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	}
 	conn.sign(req, uri, raw)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.sendRequestToAPIC(req, true, 400)
+	resp, err := conn.sendRequestToAPIC(req, true, []int{400})
 	if err != nil {
 		return false
 	}
