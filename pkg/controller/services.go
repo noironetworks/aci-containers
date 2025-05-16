@@ -1304,7 +1304,7 @@ func (cont *AciController) updateDeviceCluster() {
 		nodeMap[host] = opflexOdevInfo.fabricPathDn
 	}
 
-	// For OpenShift On OpenStackc clusters,
+	// For OpenShift On OpenStack clusters,
 	// hostFabricPathDnMap will be empty
 	for host, fabricPathDn := range cont.hostFabricPathDnMap {
 		nodeMap[host] = fabricPathDn
@@ -1467,9 +1467,18 @@ func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
 	}
 	var updated bool
 	if tdn != "" {
-		// tdn format : /uni/infra/funcprof/accbundle-esxi1-vpc-ipg
-		// extract esxi1-vpc-ipg
 		cont.log.Info("infraRtAttEntP updated, tDn : ", tdn)
+
+		// tdn format for vpc : /uni/infra/funcprof/accbundle-esxi1-vpc-ipg
+		// tdn format for single leaf : /uni/infra/funcprof/accportgrp-IPG_CLIENT_SIM
+
+		// Ignore processing of single leaf
+		if !strings.Contains(tdn, "/accbundle-") {
+			cont.log.Info("Skipping processing of infraRtAttEntP update, not applicable for VPC configuration: ", tdn)
+			return
+		}
+
+		// extract esxi1-vpc-ipg
 		parts := strings.Split(tdn, "/")
 		lastPart := parts[len(parts)-1]
 		host := strings.TrimPrefix(lastPart, "accbundle-")
@@ -1483,7 +1492,7 @@ func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
 		for _, obj := range apicresp.Imdata {
 			for _, body := range obj {
 				pcPortDn, ok := body.Attributes["pcPortDn"].(string)
-				if ok {
+				if ok && pcPortDn != "" {
 					cont.indexMutex.Lock()
 					fabricPathDn, exists := cont.hostFabricPathDnMap[host]
 					if !exists || (exists && fabricPathDn != pcPortDn) {
