@@ -1474,7 +1474,7 @@ func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
 
 		// Ignore processing of single leaf
 		if !strings.Contains(tdn, "/accbundle-") {
-			cont.log.Info("Skipping processing of infraRtAttEntP update, not applicable for VPC configuration: ", tdn)
+			cont.log.Info("Skipping processing of infraRtAttEntP update, not applicable for non-VPC configuration: ", tdn)
 			return
 		}
 
