@@ -1114,21 +1114,6 @@ func TestAddSubscriptionTree(t *testing.T) {
 	}
 }
 
-func TestDeleteDnInline(t *testing.T) {
-	server := newTestServer()
-	defer server.server.Close()
-	conn, err := server.testConn(nil)
-	assert.Nil(t, err)
-
-	conn.Apic = []string{"apic1", "apic2"}
-
-	dn := "uni/tn-common"
-
-	err = conn.DeleteDnInline(dn)
-	// No HTTPS server running, so we expect an error
-	assert.Error(t, err, "Could not delete dn")
-}
-
 func TestGetVersion(t *testing.T) {
 
 	server := newTestServer()

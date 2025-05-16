@@ -854,6 +854,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	cont.apicConn.ReconnectRetryLimit = cont.config.ApicConnectionRetryLimit
+	cont.apicConn.RequestRetryDelay = cont.config.ApicRequestRetryDelay
+	cont.apicConn.EnableRequestRetry = cont.config.EnableApicRequestRetry
 
 	if len(cont.config.ApicHosts) != 0 {
 	APIC_SWITCH:
