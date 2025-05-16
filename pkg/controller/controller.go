@@ -1064,6 +1064,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				infraRtAttEntPFilter := fmt.Sprintf("and(wcard(infraRtAttEntP.dn,\"/attentp-%s/\"))", cont.config.AEP)
 				cont.apicConn.AddSubscriptionClass("infraRtAttEntP",
 					[]string{"infraRtAttEntP"}, infraRtAttEntPFilter)
+
+				// For bare metal, the infraRtAttEntP associated with an AEP will be empty.
+				// We should not receive any updates for such cases.
 				cont.apicConn.SetSubscriptionHooks("infraRtAttEntP",
 					func(obj apicapi.ApicObject) bool {
 						cont.infraRtAttEntPChanged(obj)
