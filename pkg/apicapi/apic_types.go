@@ -832,6 +832,7 @@ func NewVnsSvcRedirectPol(tenantName, name string) ApicObject {
 	ret["vnsSvcRedirectPol"].Attributes["name"] = name
 	ret["vnsSvcRedirectPol"].Attributes["dn"] =
 		fmt.Sprintf("uni/tn-%s/svcCont/svcRedirectPol-%s", tenantName, name)
+	ret["vnsSvcRedirectPol"].Attributes["resilientHashEnabled"] = "yes"
 	return ret
 }
 

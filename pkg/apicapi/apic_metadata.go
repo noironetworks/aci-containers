@@ -635,8 +635,9 @@ var metadata = map[string]*apicMeta{
 	},
 	"vnsSvcRedirectPol": {
 		attributes: map[string]interface{}{
-			"name":                "",
-			"thresholdDownAction": "permit",
+			"name":                 "",
+			"thresholdDownAction":  "permit",
+			"resilientHashEnabled": "yes",
 		},
 		children: []string{
 			"vnsRedirectDest",
