@@ -139,6 +139,10 @@ type ControllerConfig struct {
 	// is enabled for snat
 	AciPbrTrackingNonSnat bool `json:"aci-pbr-tracking-non-snat,omitempty"`
 
+	// By default, the Resilient Hashing Enabled field of vnsSvcRedirectPol is
+	// set to "yes". If DisableResilientHashing is true, it will be set to "no"
+	DisableResilientHashing bool `json:"disable-resilient-hashing,omitempty"`
+
 	// The tenants related to AciVrf where BDs/EPGs/Subnets could exist.
 	// Usually AciVrfTenant and AciPolicyTenant
 	AciVrfRelatedTenants []string `json:"aci-vrf-related-tenants,omitempty"`
