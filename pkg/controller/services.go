@@ -661,6 +661,9 @@ func (cont *AciController) apicRedirectPol(name string, tenantName string, nodes
 	monPolDn string, enablePbrTracking bool) (apicapi.ApicObject, string) {
 	rp := apicapi.NewVnsSvcRedirectPol(tenantName, name)
 	rp.SetAttr("thresholdDownAction", "deny")
+	if cont.config.DisableResilientHashing {
+		rp.SetAttr("resilientHashEnabled", "no")
+	}
 	rpDn := rp.GetDn()
 	for _, node := range nodes {
 		cont.indexMutex.Lock()
