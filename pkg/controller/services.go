@@ -1306,8 +1306,10 @@ func (cont *AciController) updateDeviceCluster() {
 
 	// For OpenShift On OpenStack clusters,
 	// hostFabricPathDnMap will be empty
-	for host, fabricPathDn := range cont.hostFabricPathDnMap {
-		nodeMap[host] = fabricPathDn
+	for _, hostInfo := range cont.hostFabricPathDnMap {
+		if hostInfo.fabricPathDn != "" {
+			nodeMap[hostInfo.host] = hostInfo.fabricPathDn
+		}
 	}
 	cont.indexMutex.Unlock()
 
@@ -1433,20 +1435,23 @@ func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) boo
 
 func (cont *AciController) infraRtAttEntPDeleted(dn string) {
 	// dn format : uni/infra/attentp-k8s-scale-esxi-aaep/rtattEntP-[uni/infra/funcprof/accbundle-esxi1-vpc-ipg]
-	re := regexp.MustCompile(`accbundle-([^]]+)`)
 	cont.log.Info("Processing delete of infraRtAttEntP: ", dn)
+
+	// extract uni/infra/funcprof/accbundle-esxi1-vpc-ipg
+	re := regexp.MustCompile(`\[(.*?)\]`)
 	matches := re.FindStringSubmatch(dn)
+
 	if len(matches) < 2 {
 		cont.log.Error("Failed to extract ipg from dn : ", dn)
 		return
 	}
-	host := matches[1]
+	tdn := matches[1]
 
 	cont.indexMutex.Lock()
-	_, ok := cont.hostFabricPathDnMap[host]
+	_, ok := cont.hostFabricPathDnMap[tdn]
 	if ok {
-		delete(cont.hostFabricPathDnMap, host)
-		cont.log.Info("Deleted ipg : ", host)
+		delete(cont.hostFabricPathDnMap, tdn)
+		cont.log.Info("Deleted ipg : ", tdn)
 	}
 	cont.indexMutex.Unlock()
 
@@ -1455,58 +1460,125 @@ func (cont *AciController) infraRtAttEntPDeleted(dn string) {
 	}
 }
 
+func (cont *AciController) vpcIfDeleted(dn string) {
+	var deleted bool
+	cont.indexMutex.Lock()
+	for tDn, hostInfo := range cont.hostFabricPathDnMap {
+		if _, present := hostInfo.vpcIfDn[dn]; present {
+			cont.log.Info("Deleting vpcIf, dn :", dn)
+			delete(hostInfo.vpcIfDn, dn)
+			if len(hostInfo.vpcIfDn) == 0 {
+				cont.log.Infof("Removing fabricPathDn(%s) of ipg : %s ", hostInfo.fabricPathDn, hostInfo.host)
+				hostInfo.fabricPathDn = ""
+				deleted = true
+			}
+			cont.hostFabricPathDnMap[tDn] = hostInfo
+		}
+	}
+	cont.indexMutex.Unlock()
+	if deleted {
+		cont.updateDeviceCluster()
+	}
+}
+
+func (cont *AciController) vpcIfChanged(obj apicapi.ApicObject) {
+	if cont.updateHostFabricPathDnMap(obj) {
+		cont.updateDeviceCluster()
+	}
+}
+
+func (cont *AciController) updateHostFabricPathDnMap(obj apicapi.ApicObject) bool {
+	var accBndlGrpDn, fabricPathDn, dn string
+	for _, body := range obj {
+		var ok bool
+		accBndlGrpDn, ok = body.Attributes["accBndlGrpDn"].(string)
+		if !ok || (ok && accBndlGrpDn == "") {
+			cont.log.Error("accBndlGrpDn missing/empty in vpcIf")
+			return false
+		}
+		fabricPathDn, ok = body.Attributes["fabricPathDn"].(string)
+		if !ok && (ok && fabricPathDn == "") {
+			cont.log.Error("fabricPathDn missing/empty in vpcIf")
+			return false
+		}
+		dn, ok = body.Attributes["dn"].(string)
+		if !ok && (ok && dn == "") {
+			cont.log.Error("dn missing/empty in vpcIf")
+			return false
+		}
+	}
+	var updated bool
+	cont.indexMutex.Lock()
+	// If accBndlGrpDn exists in hostFabricPathDnMap, the vpcIf belongs to the cluster AEP
+	hostInfo, exists := cont.hostFabricPathDnMap[accBndlGrpDn]
+	if exists {
+		if _, present := hostInfo.vpcIfDn[dn]; !present {
+			hostInfo.vpcIfDn[dn] = struct{}{}
+			cont.log.Infof("vpcIf processing, dn : %s, accBndlGrpDn: %s", dn, accBndlGrpDn)
+		}
+		if hostInfo.fabricPathDn != fabricPathDn {
+			hostInfo.fabricPathDn = fabricPathDn
+			cont.log.Info("Updated fabricPathDn of ipg :", hostInfo.host, " to: ", hostInfo.fabricPathDn)
+			updated = true
+		}
+		cont.hostFabricPathDnMap[accBndlGrpDn] = hostInfo
+	}
+	cont.indexMutex.Unlock()
+	return updated
+}
+
 func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
 	var tdn string
 	for _, body := range obj {
 		var ok bool
 		tdn, ok = body.Attributes["tDn"].(string)
-		if !ok {
-			cont.log.Error("tDn missing in infraRtAttEntP")
+		if !ok || (ok && tdn == "") {
+			cont.log.Error("tDn missing/empty in infraRtAttEntP")
 			return
 		}
 	}
 	var updated bool
-	if tdn != "" {
-		cont.log.Info("infraRtAttEntP updated, tDn : ", tdn)
+	cont.log.Info("infraRtAttEntP updated, tDn : ", tdn)
 
-		// tdn format for vpc : /uni/infra/funcprof/accbundle-esxi1-vpc-ipg
-		// tdn format for single leaf : /uni/infra/funcprof/accportgrp-IPG_CLIENT_SIM
+	// tdn format for vpc : /uni/infra/funcprof/accbundle-esxi1-vpc-ipg
+	// tdn format for single leaf : /uni/infra/funcprof/accportgrp-IPG_CLIENT_SIM
 
-		// Ignore processing of single leaf
-		if !strings.Contains(tdn, "/accbundle-") {
-			cont.log.Info("Skipping processing of infraRtAttEntP update, not applicable for non-VPC configuration: ", tdn)
-			return
-		}
-
-		// extract esxi1-vpc-ipg
-		parts := strings.Split(tdn, "/")
-		lastPart := parts[len(parts)-1]
-		host := strings.TrimPrefix(lastPart, "accbundle-")
-		assocGrpFilter := fmt.Sprintf(`query-target-filter=and(eq(infraPortSummary.assocGrp,"%s"))`, tdn)
-		url := fmt.Sprintf("/api/class/infraPortSummary.json?%s", assocGrpFilter)
-		apicresp, err := cont.apicConn.GetApicResponse(url)
-		if err != nil {
-			cont.log.Error("Failed to get APIC response, err: ", err.Error())
-			return
-		}
-		for _, obj := range apicresp.Imdata {
-			for _, body := range obj {
-				pcPortDn, ok := body.Attributes["pcPortDn"].(string)
-				if ok && pcPortDn != "" {
-					cont.indexMutex.Lock()
-					fabricPathDn, exists := cont.hostFabricPathDnMap[host]
-					if !exists || (exists && fabricPathDn != pcPortDn) {
-						cont.hostFabricPathDnMap[host] = pcPortDn
-						cont.log.Info("Updated fabricPathDn of ipg :", host, " to: ", pcPortDn)
-						updated = true
-					}
-					cont.indexMutex.Unlock()
-					break
-				}
-			}
-		}
-
+	// Ignore processing of single leaf
+	if !strings.Contains(tdn, "/accbundle-") {
+		cont.log.Info("Skipping processing of infraRtAttEntP update, not applicable for non-VPC configuration: ", tdn)
+		return
 	}
+
+	// extract esxi1-vpc-ipg
+	parts := strings.Split(tdn, "/")
+	lastPart := parts[len(parts)-1]
+	host := strings.TrimPrefix(lastPart, "accbundle-")
+
+	// adding entry for ipg in hostFabricPathDnMap
+	cont.indexMutex.Lock()
+	_, exists := cont.hostFabricPathDnMap[tdn]
+	if !exists {
+		var hostInfo hostFabricInfo
+		hostInfo.host = host
+		hostInfo.vpcIfDn = make(map[string]struct{})
+		cont.hostFabricPathDnMap[tdn] = hostInfo
+	}
+	cont.indexMutex.Unlock()
+
+	accBndlGrpFilter := fmt.Sprintf(`query-target-filter=and(eq(vpcIf.accBndlGrpDn,"%s"))`, tdn)
+	url := fmt.Sprintf("/api/class/vpcIf.json?%s", accBndlGrpFilter)
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to get APIC response, err: ", err.Error())
+		return
+	}
+
+	for _, obj := range apicresp.Imdata {
+		if cont.updateHostFabricPathDnMap(obj) && !updated {
+			updated = true
+		}
+	}
+
 	if updated {
 		cont.updateDeviceCluster()
 	}
