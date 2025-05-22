@@ -218,8 +218,14 @@ type AciController struct {
 	globalVlanConfig         globalVlanConfig
 	fabricVlanPoolMap        map[string]map[string]string
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
-	hostFabricPathDnMap      map[string]string
+	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
+}
+
+type hostFabricInfo struct {
+	fabricPathDn string
+	host         string
+	vpcIfDn      map[string]struct{}
 }
 
 type NfLLDPIfData struct {
@@ -532,7 +538,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		lldpIfCache:                 make(map[string]*NfLLDPIfData),
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
-		hostFabricPathDnMap:         make(map[string]string),
+		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
 	}
 	cont.syncProcessors = map[string]func() bool{
@@ -1076,6 +1082,18 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 					},
 					func(dn string) {
 						cont.infraRtAttEntPDeleted(dn)
+					})
+
+				cont.apicConn.AddSubscriptionClass("vpcIf",
+					[]string{"vpcIf"}, "")
+
+				cont.apicConn.SetSubscriptionHooks("vpcIf",
+					func(obj apicapi.ApicObject) bool {
+						cont.vpcIfChanged(obj)
+						return true
+					},
+					func(dn string) {
+						cont.vpcIfDeleted(dn)
 					})
 			}
 		}
