@@ -369,6 +369,11 @@ func (agent *HostAgent) updatePendingEpWriteList(podepg, poduuid string, remove 
 	for _, epg := range emptyEpg {
 		agent.log.Debug("akhilaaaa...removing empty")
 		delete(agent.pendingEpWriteList, epg)
+		parts := strings.SplitN(epg, "-", 2)
+		if len(parts) != 2 {
+			agent.log.Error("Invalid format : ", epg)
+		}
+		agent.removeDummyEp(parts[0], parts[1])
 	}
 
 }
@@ -381,6 +386,7 @@ func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) 
 	for _, epg := range agent.resolvedEPGCache {
 		if epg.PolicySpace == ep.EgPolicySpace && epg.Name == ep.EndpointGroup {
 			agent.updatePendingEpWriteList(podepg, poduuid, true)
+			agent.removeDummyEp(ep.EgPolicySpace, ep.EndpointGroup)
 			wrote, err = writeEp(epfile, ep)
 			agent.log.Debug("akhilaaaa...writing ep file", epfile)
 			return wrote, queued, err
@@ -394,13 +400,8 @@ func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) 
 		// ie, if its the first entry with the epg and is not resolves
 		// write to ep file so that opflex-agent will get notified
 		// about the epg
-		agent.pendingEpMutex.Lock()
 		agent.log.Debug("akhilaaaa....", agent.pendingEpWriteList)
-		if _, exists := agent.pendingEpWriteList[podepg]; !exists {
-			wrote, err = writeEp(epfile, ep)
-			agent.log.Debug("akhilaaaa...writing ep file dummy", epfile)
-		}
-		agent.pendingEpMutex.Unlock()
+		_, err = writeDummyEp(ep.EgPolicySpace, ep.EndpointGroup)
 	}
 
 	// add to pending write list
@@ -409,7 +410,6 @@ func (agent *HostAgent) writeEpFile(poduuid, epfile string, ep *opflexEndpoint) 
 	return wrote, queued, err
 }
 
-/*
 func (agent *HostAgent) getDummyEpFileName(policySpace, epGroupName string) string {
 	temp := strings.Split(epGroupName, "|")
 	var EpFileName string
@@ -419,6 +419,16 @@ func (agent *HostAgent) getDummyEpFileName(policySpace, epGroupName string) stri
 		EpFileName = policySpace + "_" + temp[0] + "_" + temp[1] + "_" + NullMac + ".ep"
 	}
 	return EpFileName
+}
+
+func (agent *HostAgent) removeDummyEp(policySpace, endpointGroup string) {
+	EpFileName := agent.getDummyEpFileName(policySpace, endpointGroup)
+	EpFilePath := filepath.Join(agent.config.OpFlexEndpointDir, EpFileName)
+	ep_file_exists := fileExists(EpFilePath)
+	if ep_file_exists {
+		agent.log.Info("Removing Created null mac Ep file : ", EpFilePath)
+		os.Remove(EpFilePath)
+	}
 }
 
 func (agent *HostAgent) writeDummyEp(policySpace, endpointGroup string) {
@@ -441,7 +451,6 @@ func (agent *HostAgent) writeDummyEp(policySpace, endpointGroup string) {
 		agent.log.Debug("Created null mac Ep file ", EpFileName)
 	}
 }
-*/
 
 func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	newdata, err := json.MarshalIndent(ep, "", "  ")
