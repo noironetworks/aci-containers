@@ -1047,14 +1047,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				cont.SubnetDeleted(dn)
 			})
 
-		var opflexODevFilter string
-		if strings.Contains(cont.config.Flavor, "openstack") {
-			opflexODevFilter = fmt.Sprintf("or(eq(opflexODev.domName,\"%s\"),wcard(opflexODev.compHvDn,\"prov-OpenStack\"))", cont.config.AciVmmDomain)
-		} else {
-			opflexODevFilter = fmt.Sprintf("eq(opflexODev.domName,\"%s\")", cont.config.AciVmmDomain)
-		}
 		cont.apicConn.AddSubscriptionClass("opflexODev",
-			[]string{"opflexODev"}, opflexODevFilter)
+			[]string{"opflexODev"}, "")
 
 		cont.apicConn.SetSubscriptionHooks("opflexODev",
 			func(obj apicapi.ApicObject) bool {
