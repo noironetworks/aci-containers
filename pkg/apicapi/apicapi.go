@@ -233,6 +233,7 @@ func New(log *logrus.Logger, apic []string, user string,
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
 		},
+		cacheOpflexOdev:    make(map[string]struct{}),
 		desiredState:       make(map[string]ApicSlice),
 		desiredStateDn:     make(map[string]ApicObject),
 		keyHashes:          make(map[string]string),
@@ -302,8 +303,15 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						isDirty: false,
 					}
 					if key == "opflexODev" && conn.odevQueue != nil {
-						conn.log.Debug("Adding dn to odevQueue: ", dn)
-						conn.odevQueue.Add(dn)
+						if conn.FilterOpflexDevice {
+							if conn.isPresentInOpflexOdevCache(dn, status, obj) {
+								conn.log.Info("Adding dn to odevQueue: ", dn)
+								conn.odevQueue.Add(dn)
+							}
+						} else {
+							conn.log.Info("Adding dn to odevQueue: ", dn)
+							conn.odevQueue.Add(dn)
+						}
 					} else if isPriorityObject(dn) {
 						conn.log.Debug("Adding dn to priorityQueue: ", dn)
 						conn.priorityQueue.Add(dn)
@@ -1095,7 +1103,7 @@ func (conn *ApicConnection) ForceRelogin() {
 }
 
 /*
-// Commented out — function no longer in use
+// Commented out - function no longer in use
 func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
@@ -1138,7 +1146,7 @@ func (conn *ApicConnection) PostDnInline(dn string, obj ApicObject) error {
 	return nil
 }
 
-// Commented out — function no longer in use
+// Commented out - function no longer in use
 func (conn *ApicConnection) DeleteDnInline(dn string) error {
 	conn.logger.WithFields(logrus.Fields{
 		"mod": "APICAPI",
@@ -1380,6 +1388,44 @@ func (conn *ApicConnection) doSubscribe(args []string,
 	return true
 }
 
+func (conn *ApicConnection) isPresentInOpflexOdevCache(dn, status string, obj ApicObject) bool {
+	if _, ok := conn.cacheOpflexOdev[dn]; ok {
+		return true
+	}
+
+	switch status {
+	case "created":
+		return conn.updateOpflexOdevCache(obj, false, true)
+	case "deleted":
+		return conn.updateOpflexOdevCache(obj, true, true)
+	default:
+		return false
+	}
+}
+
+func (conn *ApicConnection) updateOpflexOdevCache(obj ApicObject, remove, lockHeld bool) bool {
+	var updated bool
+	dn := obj.GetDn()
+	if !lockHeld {
+		conn.indexMutex.Lock()
+		defer conn.indexMutex.Unlock()
+	}
+
+	if remove {
+		if _, ok := conn.cacheOpflexOdev[dn]; ok {
+			delete(conn.cacheOpflexOdev, dn)
+			updated = true
+			conn.log.Info("Removed dn from opflexOdev cache: ", dn)
+		}
+	} else if strings.Contains(obj.GetDomName(), conn.VmmDomain) ||
+		(strings.Contains(conn.Flavor, "openstack") && strings.Contains(obj.GetCompHvDn(), "/prov-OpenStack/")) {
+		conn.cacheOpflexOdev[dn] = struct{}{}
+		updated = true
+		conn.log.Info("Added dn in opflexOdev cache: ", dn)
+	}
+	return updated
+}
+
 func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld bool) bool {
 	baseArgs := []string{
 		"query-target=subtree",
@@ -1517,6 +1563,9 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 			subIds[subId] = true
 			if !lockHeld {
 				conn.indexMutex.Unlock()
+			}
+			if value == "opflexODev" && conn.FilterOpflexDevice {
+				conn.updateOpflexOdevCache(obj, false, lockHeld)
 			}
 			if sub.updateHook != nil && sub.updateHook(obj) {
 				continue
