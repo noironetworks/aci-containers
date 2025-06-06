@@ -859,6 +859,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	cont.apicConn.FilterOpflexDevice = cont.config.FilterOpflexDevice
+	cont.apicConn.Flavor = cont.config.Flavor
+	cont.apicConn.VmmDomain = cont.config.AciVmmDomain
 	cont.apicConn.ReconnectRetryLimit = cont.config.ApicConnectionRetryLimit
 	cont.apicConn.RequestRetryDelay = cont.config.ApicRequestRetryDelay
 	cont.apicConn.EnableRequestRetry = cont.config.EnableApicRequestRetry

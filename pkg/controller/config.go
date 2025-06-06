@@ -143,6 +143,9 @@ type ControllerConfig struct {
 	// set to "yes". If DisableResilientHashing is true, it will be set to "no"
 	DisableResilientHashing bool `json:"disable-resilient-hashing,omitempty"`
 
+	// To ignore the opflexODev which belongs to different vmmDomain
+	FilterOpflexDevice bool `json:"filter-opflex-device,omitempty"`
+
 	// The tenants related to AciVrf where BDs/EPGs/Subnets could exist.
 	// Usually AciVrfTenant and AciPolicyTenant
 	AciVrfRelatedTenants []string `json:"aci-vrf-related-tenants,omitempty"`
