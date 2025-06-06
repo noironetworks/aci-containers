@@ -105,6 +105,9 @@ type ApicConnection struct {
 	ReconnectRetryLimit int
 	RequestRetryDelay   int
 	EnableRequestRetry  bool
+	VmmDomain           string
+	Flavor              string
+	FilterOpflexDevice  bool
 
 	RefreshInterval     time.Duration
 	RefreshTickerAdjust time.Duration
@@ -131,6 +134,7 @@ type ApicConnection struct {
 	SyncDone     bool
 	SyncMutex    sync.Mutex
 
+	cacheOpflexOdev    map[string]struct{}
 	desiredState       map[string]ApicSlice
 	desiredStateDn     map[string]ApicObject
 	keyHashes          map[string]string
@@ -186,6 +190,14 @@ func (o ApicObject) GetDn() string {
 		return o.GetHintDn()
 	}
 	return attrDn
+}
+
+func (o ApicObject) GetDomName() string {
+	return o.GetAttrStr("domName")
+}
+
+func (o ApicObject) GetCompHvDn() string {
+	return o.GetAttrStr("compHvDn")
 }
 
 func (o ApicObject) String() string {
