@@ -87,8 +87,13 @@ func nodeFabNetAttInit(cont *AciController, stopCh <-chan struct{}) {
 
 func (cont *AciController) staticChainedModeObjs() apicapi.ApicSlice {
 	var apicSlice apicapi.ApicSlice
+	var ap apicapi.ApicObject
 	tenant := apicapi.NewFvTenant(cont.config.AciPolicyTenant)
-	ap := apicapi.NewFvAP(cont.config.AciPolicyTenant, "netop-"+cont.config.AciPrefix)
+	if cont.config.AciUseSystemIdForSecondaryNames {
+		ap = apicapi.NewFvAP(cont.config.AciPolicyTenant, "netop-"+cont.config.AciPrefix)
+	} else {
+		ap = apicapi.NewFvAP(cont.config.AciPolicyTenant, "netop-"+cont.config.AciPolicyTenant)
+	}
 	apCommon := apicapi.NewFvAP("common", "netop-common")
 	bd := apicapi.NewFvBD(cont.config.AciPolicyTenant, "netop-nodes")
 	bd.SetAttr("arpFlood", "yes")
@@ -412,21 +417,6 @@ func (cont *AciController) createNodeFabNetAttEpgStaticAttachments(vlan int, aep
 			progMap[labelKey2] = apicSlice3
 		}
 		cont.sharedEncapAepCache[aep][vlan] = true
-	} else {
-		delete(cont.sharedEncapCache[vlan].Aeps, aep)
-		if _, ok := cont.sharedEncapAepCache[aep]; ok {
-			delete(cont.sharedEncapAepCache[aep], vlan)
-			if len(cont.sharedEncapAepCache[aep]) == 0 {
-				labelKey2 := cont.aciNameForKey("aepInfraGeneric", aep)
-				progMap[labelKey2] = nil
-				delete(cont.sharedEncapAepCache, aep)
-				progMap[labelKey] = nil
-				cont.log.Infof("Remove physdom association for AEP %s", aep)
-			}
-		}
-	}
-
-	if discoveryType != fabattv1.StaticPathMgmtTypeLLDP {
 		// Workaround alert: Due to the fact that infraGeneric cannot take
 		// any other name than default, we have to follow this hack of not adding
 		// infraRsFuncToEpg as a child and making infraGeneric not deletable.
@@ -443,7 +433,11 @@ func (cont *AciController) createNodeFabNetAttBd(vlan int, name string, explicit
 	tenantName := explicitTenantName
 	vrfName := explicitVrfName
 	if bdName == "" {
-		bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
+		if cont.config.AciUseSystemIdForSecondaryNames {
+			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
+		} else {
+			bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+		}
 	}
 	if tenantName == "" {
 		tenantName = cont.config.AciPolicyTenant
@@ -532,8 +526,10 @@ func (cont *AciController) getNodeFabNetAttAp(explicitApName, tenantName string)
 	apName := explicitApName
 	if apName == "" {
 		apName = "netop-" + tenantName
-		if tenantName != cont.config.AciPrefix {
-			apName = "netop-" + cont.config.AciPrefix
+		if cont.config.AciUseSystemIdForSecondaryNames {
+			if tenantName != cont.config.AciPrefix {
+				apName = "netop-" + cont.config.AciPrefix
+			}
 		}
 	}
 	return apName
@@ -556,14 +552,22 @@ func (cont *AciController) createNodeFabNetAttEpg(vlan int, name string, explici
 			epgName = fmt.Sprintf("%s-vlan-%d", name, vlan)
 		}
 		if bdName == "" {
-			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
+			if cont.config.AciUseSystemIdForSecondaryNames {
+				bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, name, vlan)
+			} else {
+				bdName = fmt.Sprintf("%s-vlan-%d", name, vlan)
+			}
 		}
 	} else {
 		if epgName == "" {
 			epgName = fmt.Sprintf("%s-%d", globalScopeVlanEpgPrefix, vlan)
 		}
 		if bdName == "" {
-			bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, globalScopeVlanBdPrefix, vlan)
+			if cont.config.AciUseSystemIdForSecondaryNames {
+				bdName = fmt.Sprintf("%s-%s-vlan-%d", cont.config.AciPrefix, globalScopeVlanBdPrefix, vlan)
+			} else {
+				bdName = fmt.Sprintf("%s-vlan-%d", globalScopeVlanBdPrefix, vlan)
+			}
 		}
 	}
 	_ = explicitVrfName
@@ -688,17 +692,6 @@ func (cont *AciController) deleteNodeFabNetAttGlobalEncapVlanLocked(vlan int, no
 	}
 	programNodeFabNetAttObjs := func() {
 		if !sviContext.present {
-			apicSlice2 = append(apicSlice2, epg)
-			for aep := range cont.sharedEncapCache[vlan].Aeps {
-				delete(cont.sharedEncapAepCache[aep], vlan)
-				if len(cont.sharedEncapAepCache[aep]) == 0 {
-					lblKey := cont.aciNameForKey("aepPhysDom", aep)
-					progMap[lblKey] = nil
-					delete(cont.sharedEncapAepCache, aep)
-					cont.log.Infof("Deleting physdom association for AEP %s", aep)
-				}
-				delete(cont.sharedEncapCache[vlan].Aeps, aep)
-			}
 			return
 		}
 		if sviContext.connectedNw.UseExistingL3Out {
@@ -822,14 +815,14 @@ func (cont *AciController) applyNodeFabNetAttObjLocked(vlans []int, addNet *Addi
 				programNodeFabNetAttObjs()
 				cont.log.Infof("Skipping staticpaths of shared encap vlan-%d with no pods", encap)
 				for aep := range cont.sharedEncapCache[encap].Aeps {
-					delete(cont.sharedEncapAepCache[aep], encap)
-					if len(cont.sharedEncapAepCache[aep]) == 0 {
-						lblKey := cont.aciNameForKey("aepPhysDom", aep)
-						progMap[lblKey] = nil
-						delete(cont.sharedEncapAepCache, aep)
-						cont.log.Infof("Clearing physdom association for AEP %s", aep)
+					if _, ok := cont.sharedEncapNfcCache[encap].Aeps[aep]; !ok {
+						delete(cont.sharedEncapAepCache[aep], encap)
+						/* At this point even though ref count for AEP may have
+						reduced to 0, we can't delete physdom association because
+						it may get added later on in the loop.It will get deleted
+						based on nfna ref going to 0 */
+						delete(cont.sharedEncapCache[encap].Aeps, aep)
 					}
-					delete(cont.sharedEncapCache[encap].Aeps, aep)
 				}
 			}
 		}

@@ -289,6 +289,9 @@ type ControllerConfig struct {
 	//In chained mode, global l2 port policy has been configured, so enable shared vlan pool
 	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 
+	//In chained mode, use system-id for auto-generated names
+	AciUseSystemIdForSecondaryNames bool `aci-use-system-id-for-secondary-names,omitempty"`
+
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
 	MetricsPort   int  `json:"metrics-port,omitempty"`
@@ -361,6 +364,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 	flag.BoolVar(&config.AciUseGlobalScopeVlan, "aci-use-global-scope-vlan", false, "Use global vlans for NADs in chained mode")
+	flag.BoolVar(&config.AciUseSystemIdForSecondaryNames, "aci-use-system-id-for-secondary-names", false, "Use system id for auto-generated names in chained mode")
 	flag.BoolVar(&config.EnableMetrics, "enable-metrics", false, "Enable metrics")
 	flag.IntVar(&config.MetricsPort, "metrics-port", 8191, "Port to expose metrics on")
 }
