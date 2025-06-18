@@ -276,14 +276,15 @@ func testChainedController(aciPrefix string, aciUseGlobalScopeVlan bool, additio
 
 	cont := &testAciController{
 		AciController: *NewController(&ControllerConfig{
-			AciPolicyTenant:       "kubernetes",
-			AciPrefix:             aciPrefix,
-			AciVrf:                "kube-vrf",
-			AciVrfTenant:          "common",
-			ChainedMode:           true,
-			AciPhysDom:            "first-physdom",
-			AciAdditionalAep:      "second-aep",
-			AciUseGlobalScopeVlan: aciUseGlobalScopeVlan,
+			AciPolicyTenant:                 "kubernetes",
+			AciPrefix:                       aciPrefix,
+			AciVrf:                          "kube-vrf",
+			AciVrfTenant:                    "common",
+			ChainedMode:                     true,
+			AciPhysDom:                      "first-physdom",
+			AciAdditionalAep:                "second-aep",
+			AciUseGlobalScopeVlan:           aciUseGlobalScopeVlan,
+			AciUseSystemIdForSecondaryNames: true,
 		},
 			&K8sEnvironment{}, log, true),
 	}
