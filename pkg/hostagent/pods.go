@@ -767,6 +767,11 @@ func (agent *HostAgent) podChangedLocked(podobj interface{}) {
 	if epAttributes == nil {
 		epAttributes = make(map[string]string)
 	}
+	isTerminating := pod.ObjectMeta.DeletionTimestamp != nil
+	if isTerminating {
+		logger.Debug("Pod is terminating")
+		epAttributes["terminating"] = "True"
+	}
 	epAttributes["vm-name"] = pod.ObjectMeta.Name
 	epAttributes["namespace"] = pod.ObjectMeta.Namespace
 
