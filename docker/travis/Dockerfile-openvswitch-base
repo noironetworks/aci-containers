@@ -3,7 +3,7 @@ RUN microdnf install -y yum yum-utils \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os
 
-RUN yum update --exclude=openssl* -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os && rm -rf /var/cache/yum
+RUN yum update --exclude=openssl*,rpm*,python3-rpm -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os && rm -rf /var/cache/yum
 
 RUN yum --nogpgcheck --disablerepo=* install --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y \
   libtool pkgconfig autoconf automake make file python3-six \
