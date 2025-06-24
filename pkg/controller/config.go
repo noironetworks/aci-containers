@@ -290,7 +290,7 @@ type ControllerConfig struct {
 	AciUseGlobalScopeVlan bool `json:"aci-use-global-scope-vlan,omitempty"`
 
 	//In chained mode, use system-id for auto-generated names
-	AciUseSystemIdForSecondaryNames bool `aci-use-system-id-for-secondary-names,omitempty"`
+	AciUseSystemIdForSecondaryNames bool `json:"aci-use-system-id-for-secondary-names,omitempty"`
 
 	// Metrics
 	EnableMetrics bool `json:"enable-metrics,omitempty"`
