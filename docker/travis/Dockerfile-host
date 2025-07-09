@@ -6,6 +6,7 @@ version="v1.1.0" \
 release="1" \
 summary="This is an ACI CNI Host-Agent." \
 description="This will deploy a single instance of ACI CNI Host-Agent."
+RUN rpm -e --nodeps openssl-fips-provider-so 2>/dev/null || true
 # For some reason this prevents the next RUN from installing the incompat fips module
 RUN microdnf install -y yum yum-utils \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
