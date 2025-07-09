@@ -1,9 +1,10 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+RUN rpm -e --nodeps openssl-fips-provider-so 2>/dev/null || true
 RUN microdnf install -y yum yum-utils
-RUN yum update --exclude=openssl* -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os && rm -rf /var/cache/yum
+RUN yum update -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os && rm -rf /var/cache/yum
 RUN yum install -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
   logrotate conntrack-tools tcpdump strace ltrace iptables net-tools \
-  libcap vi hostname iproute procps-ng kmod tar \
+  libcap vi hostname iproute openssl procps-ng kmod tar \
  && yum clean all
 RUN yum --nogpgcheck update -y
 # Required OpenShift Labels
