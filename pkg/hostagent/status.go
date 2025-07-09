@@ -42,13 +42,13 @@ func (agent *HostAgent) RunStatus() {
 	http.HandleFunc("/endpoints", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		agent.indexMutex.Lock()
-		eps := make([]*opflexEndpoint, 0, len(agent.opflexEps))
+		endpoints := make([]*opflexEndpoint, 0, len(agent.opflexEps))
 		for _, eps := range agent.opflexEps {
 			for _, ep := range eps {
-				eps = append(eps, ep)
+				endpoints = append(endpoints, ep)
 			}
 		}
-		json.NewEncoder(w).Encode(eps)
+		json.NewEncoder(w).Encode(endpoints)
 		agent.indexMutex.Unlock()
 	})
 	http.HandleFunc("/services", func(w http.ResponseWriter, r *http.Request) {
