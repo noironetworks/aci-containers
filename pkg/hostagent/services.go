@@ -877,12 +877,12 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							nodeZone = zone
 							if !external && zoneOk && hintsEnabled && e.Hints != nil {
 								for _, hintZone := range e.Hints.ForZones {
-									if nodeZone == hintZone.Name && *e.Conditions.Ready {
+									if nodeZone == hintZone.Name && (*e.Conditions.Ready || (e.Conditions.Terminating != nil && *e.Conditions.Terminating)) {
 										nexthops["topologyawarehints"] =
 											append(nexthops["topologyawarehints"], a)
 									}
 								}
-							} else if *e.Conditions.Ready {
+							} else if *e.Conditions.Ready || (e.Conditions.Terminating != nil && *e.Conditions.Terminating) {
 								nexthops["any"] = append(nexthops["any"], a)
 							}
 						}
