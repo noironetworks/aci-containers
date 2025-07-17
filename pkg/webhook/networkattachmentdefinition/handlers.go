@@ -100,7 +100,6 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 	pluginExists := false
 	if name, ok := config["name"]; !ok || name == "" {
 		config["name"] = nad.Name
-		needsUpdate = true
 	}
 	if RequireNADAnnotation {
 		if enableChaining, ok := nad.ObjectMeta.Annotations["netop-cni.cisco.com/auto-chain-cni"]; !ok {
