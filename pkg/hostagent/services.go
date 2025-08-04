@@ -50,6 +50,7 @@ type opflexServiceMapping struct {
 	NextHopPort uint16   `json:"next-hop-port,omitempty"`
 
 	Conntrack       bool                         `json:"conntrack-enabled"`
+	ConntrackNat    bool                         `json:"conntrack-nat,omitempty"`
 	NodePort        uint16                       `json:"node-port,omitempty"`
 	SessionAffinity *opflexSessionAffinityConfig `json:"session-affinity,omitempty"`
 }
@@ -739,7 +740,7 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 				} else {
 					sm.ServiceIp = clusterIP
 				}
-				sm.SessionAffinity = getSessionAffinity(as)
+				sm.setServiceAffinityConfig(as, sep.agent.config.DisableOpflexResilientHashing)
 				for _, a := range e.Addresses {
 					if !external ||
 						(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
@@ -757,16 +758,20 @@ func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service
 	return hasValidMapping
 }
 
-func getSessionAffinity(as *v1.Service) *opflexSessionAffinityConfig {
-	if as.Spec.SessionAffinityConfig != nil && as.Spec.SessionAffinity == "ClientIP" {
-		config := as.Spec.SessionAffinityConfig
-		if config.ClientIP != nil && config.ClientIP.TimeoutSeconds != nil {
-			return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: *config.ClientIP.TimeoutSeconds}}
-		} else {
-			return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: DefaultSessionAffinityTimer}}
+func (sm *opflexServiceMapping) setServiceAffinityConfig(as *v1.Service, resilientHashingDisabled bool) {
+	if as.Spec.SessionAffinity == "ClientIP" {
+		if !resilientHashingDisabled {
+			sm.ConntrackNat = true
 		}
+		config := as.Spec.SessionAffinityConfig
+		if config != nil && config.ClientIP != nil && config.ClientIP.TimeoutSeconds != nil {
+			sm.SessionAffinity = &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: *config.ClientIP.TimeoutSeconds}}
+		} else {
+			sm.SessionAffinity = &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: DefaultSessionAffinityTimer}}
+		}
+	} else {
+		sm.SessionAffinity = &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: TempSessionAffinityTimer}}
 	}
-	return &opflexSessionAffinityConfig{ClientIP: opflexClientIPConfig{TimeoutSeconds: TempSessionAffinityTimer}}
 }
 
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
@@ -900,7 +905,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 					hasValidMapping = true
 				}
-				sm.SessionAffinity = getSessionAffinity(as)
+				sm.setServiceAffinityConfig(as, seps.agent.config.DisableOpflexResilientHashing)
 				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
 			}
 		}
