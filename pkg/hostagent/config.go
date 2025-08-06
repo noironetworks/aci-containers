@@ -300,6 +300,9 @@ type HostAgentConfig struct {
 
 	// Directory for writing oob policy data
 	OOBPolicyDir string `json:"oob-policy-dir,omitempty"`
+
+	// Disable resilient hashing
+	DisableOpflexResilientHashing bool `json:"disable-opflex-resilient-hashing,omitempty"`
 }
 
 func (config *HostAgentConfig) InitFlags() {
