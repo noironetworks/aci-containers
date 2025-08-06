@@ -775,6 +775,19 @@ func (sm *opflexServiceMapping) setServiceAffinityConfig(as *v1.Service, resilie
 	}
 }
 
+func addEmptyServiceMapping(ofsm *[]opflexServiceMapping, clusterIP string, sp *v1.ServicePort, as *v1.Service, resilientHashingDisabled bool) {
+	sm := &opflexServiceMapping{
+		ServiceIp:    clusterIP,
+		ServicePort:  uint16(sp.Port),
+		ServiceProto: strings.ToLower(string(sp.Protocol)),
+		NextHopIps:   make([]string, 0),
+		Conntrack:    true,
+		NodePort:     uint16(sp.NodePort),
+	}
+	sm.setServiceAffinityConfig(as, resilientHashingDisabled)
+	*ofsm = append(*ofsm, *sm)
+}
+
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
 	external bool, key string, sp *v1.ServicePort) bool {
 	agent := seps.agent
@@ -799,6 +812,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	}
 
 	for clusterIP := range clusterIPs {
+		emtpyService := true
 		for _, endpointSlice := range endpointSlices {
 			if !(len(endpointSlice.Endpoints) > 0 && len(endpointSlice.Endpoints[0].Addresses) > 0) {
 				continue
@@ -918,12 +932,17 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					agent.log.Info("NextHopIps are", sm.NextHopIps)
 					agent.log.Info("TerminatingNextHopIps are", sm.TerminatingNextHopIps)
 				}
-				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
+				if sm.ServiceIp != "" {
 					hasValidMapping = true
 				}
 				sm.setServiceAffinityConfig(as, seps.agent.config.DisableOpflexResilientHashing)
 				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
+				emtpyService = false
 			}
+		}
+		if !external && emtpyService {
+			addEmptyServiceMapping(&ofas.ServiceMappings, clusterIP, sp, as, seps.agent.config.DisableOpflexResilientHashing)
+			hasValidMapping = true
 		}
 	}
 	return hasValidMapping
