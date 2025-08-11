@@ -46,8 +46,9 @@ type opflexServiceMapping struct {
 	ServiceProto string `json:"service-proto,omitempty"`
 	ServicePort  uint16 `json:"service-port,omitempty"`
 
-	NextHopIps  []string `json:"next-hop-ips"`
-	NextHopPort uint16   `json:"next-hop-port,omitempty"`
+	NextHopIps            []string `json:"next-hop-ips"`
+	TerminatingNextHopIps []string `json:"terminating-next-hop-ips"`
+	NextHopPort           uint16   `json:"next-hop-port,omitempty"`
 
 	Conntrack       bool                         `json:"conntrack-enabled"`
 	ConntrackNat    bool                         `json:"conntrack-nat,omitempty"`
@@ -825,12 +826,13 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				}
 
 				sm := &opflexServiceMapping{
-					ServicePort:  uint16(sp.Port),
-					ServiceProto: strings.ToLower(string(sp.Protocol)),
-					NextHopIps:   make([]string, 0),
-					NextHopPort:  uint16(*p.Port),
-					Conntrack:    true,
-					NodePort:     uint16(sp.NodePort),
+					ServicePort:           uint16(sp.Port),
+					ServiceProto:          strings.ToLower(string(sp.Protocol)),
+					NextHopIps:            make([]string, 0),
+					TerminatingNextHopIps: make([]string, 0),
+					NextHopPort:           uint16(*p.Port),
+					Conntrack:             true,
+					NodePort:              uint16(sp.NodePort),
 				}
 
 				if external {
@@ -848,6 +850,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					sm.ServiceIp = clusterIP
 				}
 				nexthops := make(map[string][]string)
+				terminatingnexthops := make(map[string][]string)
 				var nodeZone string
 				for _, e := range endpointSlice.Endpoints {
 					for _, a := range e.Addresses {
@@ -882,13 +885,23 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							nodeZone = zone
 							if !external && zoneOk && hintsEnabled && e.Hints != nil {
 								for _, hintZone := range e.Hints.ForZones {
-									if nodeZone == hintZone.Name && (*e.Conditions.Ready || (e.Conditions.Terminating != nil && *e.Conditions.Terminating)) {
-										nexthops["topologyawarehints"] =
-											append(nexthops["topologyawarehints"], a)
+									if nodeZone == hintZone.Name {
+										if *e.Conditions.Ready {
+											nexthops["topologyawarehints"] =
+												append(nexthops["topologyawarehints"], a)
+										} else if e.Conditions.Terminating != nil && *e.Conditions.Terminating {
+											terminatingnexthops["topologyawarehints"] =
+												append(terminatingnexthops["topologyawarehints"], a)
+										}
 									}
 								}
-							} else if *e.Conditions.Ready || (e.Conditions.Terminating != nil && *e.Conditions.Terminating) {
-								nexthops["any"] = append(nexthops["any"], a)
+							} else {
+								if *e.Conditions.Ready {
+									nexthops["any"] = append(nexthops["any"], a)
+								} else if e.Conditions.Terminating != nil && *e.Conditions.Terminating {
+									terminatingnexthops["any"] =
+										append(terminatingnexthops["any"], a)
+								}
 							}
 						}
 					}
@@ -896,11 +909,15 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				// Select the high priority keys as datapath doesn't have support for fallback
 				if _, ok := nexthops["topologyawarehints"]; ok {
 					sm.NextHopIps = append(sm.NextHopIps, nexthops["topologyawarehints"]...)
+					sm.TerminatingNextHopIps = append(sm.TerminatingNextHopIps, terminatingnexthops["topologyawarehints"]...)
 					agent.log.Info("NextHopIps are", sm.NextHopIps)
+					agent.log.Info("TerminatingNextHopIps are", sm.TerminatingNextHopIps)
 					agent.log.Debugf("Topology matching hint: %s Nexthops: %s", nodeZone, sm.NextHopIps)
 				} else {
 					sm.NextHopIps = append(sm.NextHopIps, nexthops["any"]...)
+					sm.TerminatingNextHopIps = append(sm.TerminatingNextHopIps, terminatingnexthops["any"]...)
 					agent.log.Info("NextHopIps are", sm.NextHopIps)
+					agent.log.Info("TerminatingNextHopIps are", sm.TerminatingNextHopIps)
 				}
 				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
 					hasValidMapping = true
