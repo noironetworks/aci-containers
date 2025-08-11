@@ -775,6 +775,21 @@ func (sm *opflexServiceMapping) setServiceAffinityConfig(as *v1.Service, resilie
 	}
 }
 
+func addEmptyServiceMapping(ofsm *[]opflexServiceMapping, clusterIP string, sp *v1.ServicePort, as *v1.Service, resilientHashingDisabled bool) {
+	logrus.Debugf("Adding empty service mapping for %s:%d for service %s", clusterIP, sp.Port, as.ObjectMeta.Name)
+	sm := &opflexServiceMapping{
+		ServiceIp:             clusterIP,
+		ServicePort:           uint16(sp.Port),
+		ServiceProto:          strings.ToLower(string(sp.Protocol)),
+		NextHopIps:            make([]string, 0),
+		TerminatingNextHopIps: make([]string, 0),
+		Conntrack:             true,
+		NodePort:              uint16(sp.NodePort),
+	}
+	sm.setServiceAffinityConfig(as, resilientHashingDisabled)
+	*ofsm = append(*ofsm, *sm)
+}
+
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
 	external bool, key string, sp *v1.ServicePort) bool {
 	agent := seps.agent
@@ -799,6 +814,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 	}
 
 	for clusterIP := range clusterIPs {
+		emtpyService := true
 		for _, endpointSlice := range endpointSlices {
 			if !(len(endpointSlice.Endpoints) > 0 && len(endpointSlice.Endpoints[0].Addresses) > 0) {
 				continue
@@ -919,12 +935,28 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					agent.log.Info("NextHopIps are", sm.NextHopIps)
 					agent.log.Info("TerminatingNextHopIps are", sm.TerminatingNextHopIps)
 				}
-				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
+				sm.setServiceAffinityConfig(as, seps.agent.config.DisableOpflexResilientHashing)
+				// Mark the mapping as valid to prevent opflex service deletion, even if the
+				// service has only terminating endpoints. This is necessary to support graceful
+				// connection termination and sending connection resets when resilient hashing
+				// is enabled.
+				if sm.ServiceIp != "" &&
+					(len(sm.NextHopIps) > 0 || (sm.ConntrackNat && len(sm.TerminatingNextHopIps) > 0)) {
 					hasValidMapping = true
 				}
-				sm.setServiceAffinityConfig(as, seps.agent.config.DisableOpflexResilientHashing)
 				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
+				emtpyService = false
 			}
+		}
+		// With resilient hashing, if the service has no endpoints, add an empty mapping
+		// to support sending RST / ICMP Unreachable messages to clients.
+		resilientHashingDisabled := seps.agent.config.DisableOpflexResilientHashing
+		if !external &&
+			emtpyService &&
+			!resilientHashingDisabled &&
+			as.Spec.SessionAffinity == "ClientIP" {
+			addEmptyServiceMapping(&ofas.ServiceMappings, clusterIP, sp, as, resilientHashingDisabled)
+			hasValidMapping = true
 		}
 	}
 	return hasValidMapping
