@@ -94,6 +94,7 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 	cont.checkIfEpgExistNs(ns)
+	cont.ProcessDeferredNads(ns.ObjectMeta.Name)
 }
 
 func (cont *AciController) namespaceChanged(oldobj interface{},
@@ -141,6 +142,7 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 		cont.netPolEgressPods.DeleteNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+	cont.ProcessDeferredNads(ns.ObjectMeta.Name)
 }
 
 func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {

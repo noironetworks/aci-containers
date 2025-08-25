@@ -353,6 +353,66 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
+func (cont *AciController) getAciEpgByDn(dn string) (map[string]interface{}, error) {
+	var epg map[string]interface{}
+
+	args := []string{
+		"query-target=self",
+	}
+	url := fmt.Sprintf("/api/node/mo/%s.json?%s", dn, strings.Join(args, "&"))
+
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response for DN=", dn, " err: ", err.Error())
+		return nil, err
+	}
+
+	if len(apicresp.Imdata) > 0 {
+		for _, obj := range apicresp.Imdata {
+			for _, body := range obj {
+				cont.log.Debug("EPG BODY = ", body)
+				epg = body.Attributes
+				return epg, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("EPG not found for DN=%s", dn)
+}
+
+func (cont *AciController) getinfraRsFuncToEpg() ([]apicapi.ApicObject, bool) {
+	// Query all infraRsFuncToEpg objects
+	url := "/api/node/class/infraRsFuncToEpg.json?query-target=self"
+	resp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to query infraRsFuncToEpg: ", err)
+		return nil, false
+	}
+
+	return resp.Imdata, true
+}
+func (cont *AciController) getAnnotationValue(epgDn, key string) (string, error) {
+	url := fmt.Sprintf("/api/node/mo/%s/annotationKey-[%s].json?query-target=self", epgDn, key)
+
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		return "", fmt.Errorf("APIC query failed for key=%s: %w", key, err)
+	}
+
+	if len(apicresp.Imdata) > 0 {
+		for _, obj := range apicresp.Imdata {
+			for _, body := range obj {
+				cont.log.Debug("Annotation BODY = ", body)
+				if val, ok := body.Attributes["value"].(string); ok && val != "" {
+					return val, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("Annotation key=%s not found under EPG=%s", key, epgDn)
+}
+
 func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
 	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
 	nodeAciPodAnnot := cont.nodeACIPod[node]

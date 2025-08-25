@@ -220,6 +220,14 @@ type AciController struct {
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
+	epgState                 map[string]EpgAnnotationState
+	epgMutex                 sync.Mutex
+}
+
+type EpgAnnotationState struct {
+	Namespace string
+	NadName   string
+	Vlan      string
 }
 
 type hostFabricInfo struct {
@@ -540,6 +548,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
+		epgState:                    make(map[string]EpgAnnotationState),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -1002,6 +1011,41 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 				"l3extRsPathL3OutAtt", "l3extMember", "l3extIp", "bgpExtP", "bgpPeerP", "bgpAsP", "bgpLocalAsnP", "bgpRsPeerPfxPol"}, "")
 		cont.apicConn.AddSubscriptionClass("bgpPeerPfxPol",
 			[]string{"bgpPeerPfxPol"}, "")
+		cont.apicConn.AddSubscriptionClass("infraAttEntityP",
+			[]string{"infraRsFuncToEpg"}, "")
+
+		cont.apicConn.SetSubscriptionHooks(
+			"infraAttEntityP",
+			func(obj apicapi.ApicObject) bool {
+				cont.log.Debug("[AAEP-EVENT] EPG attached to AAEP")
+				cont.HandleAaepEpgAttach(obj)
+				return true
+			},
+			func(dn string) {
+				cont.log.Debug("[AAEP-EVENT] EPG detached to AAEP")
+				cont.HandleAaepEpgDetach(dn)
+			},
+		)
+
+		cont.apicConn.AddSubscriptionClass("fvAEPg",
+			[]string{"fvAEPg", "tagAnnotation"}, "")
+
+		cont.apicConn.SetSubscriptionHooks(
+			"fvAEPg",
+			func(obj apicapi.ApicObject) bool {
+				cont.log.Debug("EPG added")
+				dn := obj.GetDn()
+				cont.HandleEpgChange(obj)
+				cont.log.Debug("EPG added DN=", dn)
+				return true
+			},
+			func(dn string) {
+				cont.log.Debug("EPG deleted")
+				cont.HandleEpgDetach(dn)
+				cont.log.Debug("EPG deleted: DN=", dn)
+			},
+		)
+
 	}
 	if !cont.config.ChainedMode {
 		// When a new class is added for subscriptio, check if its name attribute
