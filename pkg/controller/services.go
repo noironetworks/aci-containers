@@ -353,33 +353,6 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
-func (cont *AciController) getAciEpgByDn(dn string) (map[string]interface{}, error) {
-	var epg map[string]interface{}
-
-	args := []string{
-		"query-target=self",
-	}
-	url := fmt.Sprintf("/api/node/mo/%s.json?%s", dn, strings.Join(args, "&"))
-
-	apicresp, err := cont.apicConn.GetApicResponse(url)
-	if err != nil {
-		cont.log.Debug("Failed to get APIC response for DN=", dn, " err: ", err.Error())
-		return nil, err
-	}
-
-	if len(apicresp.Imdata) > 0 {
-		for _, obj := range apicresp.Imdata {
-			for _, body := range obj {
-				cont.log.Debug("EPG BODY = ", body)
-				epg = body.Attributes
-				return epg, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("EPG not found for DN=%s", dn)
-}
-
 func (cont *AciController) getinfraRsFuncToEpg() ([]apicapi.ApicObject, bool) {
 	// Query all infraRsFuncToEpg objects
 	url := "/api/node/class/infraRsFuncToEpg.json?query-target=self"

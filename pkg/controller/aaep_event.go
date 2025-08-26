@@ -18,15 +18,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var aaepList = []string{
-	"deepanshu-test",
-}
+// cont.aaepState = map[string][]AaepEntry{
+// 	"deepanshu-test": {},
+// }
 
 // HandleAaepEpgAttach processes the AAEP EPG attach event.
 func (cont *AciController) HandleAaepEpgAttach(obj apicapi.ApicObject) {
@@ -40,87 +41,122 @@ func (cont *AciController) HandleAaepEpgAttach(obj apicapi.ApicObject) {
 	cont.log.Debug("[AAEP-HANDLER] EPG attached to AAEP in list: AAEP=", aaep, " DN=", dn)
 
 	tdn := obj.GetAttrStr("tDn")
-	vlan := strings.TrimPrefix(obj.GetAttrStr("encap"), "vlan-")
+	encap := obj.GetAttrStr("encap")
+	vlanStr := strings.TrimPrefix(encap, "vlan-")
+	vlan, _ := strconv.Atoi(vlanStr)
 	cont.log.Debug("[AAEP-HANDLER] EPG DN=", tdn)
-	epg, err := cont.getAciEpgByDn(tdn)
-	if err != nil {
-		cont.log.Error("Failed to get EPG for DN=", tdn, " err=", err)
-		return
-	}
-	epgName := epg["name"].(string)
-	cont.handleEpgAnnotation(tdn, epgName, vlan)
+	cont.handleEpgAnnotation(aaep, tdn, vlan)
 }
 
 // handleEpgAnnotation parses the annotation and triggers NAD creation/defer.
-func (cont *AciController) handleEpgAnnotation(tdn string, epgName string, vlan string) {
-	namespace, nadName := cont.getEpgAnnotationValues(tdn, epgName)
-	if namespace == "" {
-		cont.log.Debug("[AAEP-HANDLER] Skipping NAD creation because namespace annotation is missing for EPG=", epgName)
-		return
-	}
+func (cont *AciController) handleEpgAnnotation(aaep string, tdn string, vlan int) {
+	namespace, nadName := cont.getEpgAnnotationValues(tdn)
 	cont.log.Debug("[AAEP-HANDLER] Final namespace=", namespace, " nad=", nadName, " vlan=", vlan)
 
-	old, exists := cont.epgState[tdn]
-	cont.log.Debug("EPG State : ", cont.epgState)
-	if exists {
-		// If namespace was deleted then we should delete nad else recreate nad
+	oldEntries, exists := cont.aaepState[aaep]
+	cont.log.Debug("EPG State : ", cont.aaepState)
+	if !exists {
+		cont.log.Debug("AAEP  NOT IN THE CACHE AAEP: ", aaep)
+		return
+	}
+	var found *AaepEntry
+	for i := range oldEntries {
+		if oldEntries[i].AaepEpgData.EpgDn == tdn {
+			found = &oldEntries[i]
+			break
+		}
+	}
+	if found != nil {
 		if cont.namespaceExists(namespace) {
-			// If annotation values changed
-			if old.Namespace != namespace || old.NadName != nadName || old.Vlan != vlan {
-				cont.log.Debug("[AAEP-HANDLER] Change detected for EPG=", epgName,
-					" oldNamespace=", old.Namespace, " oldNad=", old.NadName, " oldVlan=", old.Vlan,
-					" newNamespace=", namespace, " newNad=", nadName, " newVlan=", vlan)
-
-				// Delete old NAD
-				cont.HandleDeleteNAD(tdn)
-				cont.HandleCreateNAD(namespace, nadName, vlan, tdn)
+			if found.NamespaceName != namespace || found.NadName != nadName || found.AaepEpgData.EncapVlan != vlan {
+				cont.log.Debug("[AAEP-HANDLER] Change detected for EPG=", tdn,
+					" oldNamespace=", found.NamespaceName, " oldNad=", found.NadName, " oldVlan=", found.AaepEpgData.EncapVlan, " newNamespace=", namespace, " newNad=", nadName, " newVlan=", vlan)
+				cont.HandleDeleteNAD(aaep, tdn)
+				cont.HandleCreateNAD(aaep, namespace, nadName, vlan, tdn)
 			} else {
-				cont.log.Debug("[AAEP-HANDLER] No change for EPG=", epgName)
+				cont.log.Debug("[AAEP-HANDLER] No change for EPG=", tdn)
 			}
 		} else {
-			cont.HandleDeleteNAD(tdn)
+			cont.HandleDeleteNAD(aaep, tdn)
 		}
 
 	} else {
 		// First time seeing this EPG
-		cont.log.Debug("[AAEP-HANDLER] New EPG=", epgName, " namespace=", namespace, " nad=", nadName)
-		cont.HandleCreateNAD(namespace, nadName, vlan, tdn)
+		cont.log.Debug("[AAEP-HANDLER] New EPG=", tdn, " namespace=", namespace, " nad=", nadName)
+		cont.HandleCreateNAD(aaep, namespace, nadName, vlan, tdn)
 	}
 }
 
 func (cont *AciController) HandleAaepEpgDetach(dn string) {
-	cont.log.Debug("EPG State 2: ", cont.epgState)
+	cont.log.Debug("EPG State 2: ", cont.aaepState)
 	cont.log.Debug("[AAEPDETACH-HANDLER] EPG detached to AAEP: DN=", dn)
-	_, exists := cont.epgState[dn]
-	if exists {
-		cont.HandleDeleteNAD(dn)
+	for aaepName, entries := range cont.aaepState {
+		// Check if AAEP name is part of the DN
+		if !strings.Contains(dn, aaepName) {
+			continue
+		}
+
+		// Find the index of the EPG entry whose EpgDn is part of the DN
+		indexToDelete := -1
+		for i, entry := range entries {
+			if strings.Contains(dn, entry.AaepEpgData.EpgDn) {
+				indexToDelete = i
+				break
+			}
+		}
+
+		if indexToDelete != -1 {
+			// Delete the NAD
+			entryToDelete := entries[indexToDelete]
+			cont.HandleDeleteNAD(aaepName, dn)
+
+			// Remove the entry from the slice
+			entries = append(entries[:indexToDelete], entries[indexToDelete+1:]...)
+			cont.aaepState[aaepName] = entries // Keep AAEP key even if slice becomes empty
+
+			cont.log.Debug("[AAEP-HANDLER] Detached EPG removed:", entryToDelete.AaepEpgData.EpgDn, "from AAEP:", aaepName)
+			break // Only one EPG per DN, so we can stop
+		}
 	}
+	cont.log.Debug("EPG State 222: ", cont.aaepState)
 }
 
 func (cont *AciController) HandleEpgChange(obj apicapi.ApicObject) {
 	dn := obj.GetDn()
 	if strings.Contains(dn, "/annotationKey-") {
 		dn = dn[:strings.Index(dn, "/annotationKey-")]
-		dn, epgName, ok := cont.isEpgAttachedtoAaepinCR(dn)
+		dn, aaep, ok := cont.isEpgAttachedtoAaepinCR(dn)
 		if !ok {
 			return
 		}
 		// If we already had nad for the rsobj, then we will have vlan  in state already and will use that. This function will get only annotation change, there will not be vlan change
-		vlan := ""
-		if old, exists := cont.epgState[dn]; exists {
-			vlan = old.Vlan
-		} else {
-			// Incase the rsobj was already there but nad was not present, in that case we need to have the vlan as well while creating nad
-			rsObj, ok := cont.getinfraRsFuncToEpgByEpgDn(dn)
-			if !ok {
-				cont.log.Error("No infraRsFuncToEpg found for DN:", dn)
-				return
+		vlan := 0
+		if oldEntries, exists := cont.aaepState[aaep]; exists {
+			var found *AaepEntry
+			for i := range oldEntries {
+				if oldEntries[i].AaepEpgData.EpgDn == dn {
+					found = &oldEntries[i]
+					break
+				}
 			}
-			encap := rsObj["encap"].(string)
-			vlan = strings.TrimPrefix(encap, "vlan-")
-		}
 
-		cont.handleEpgAnnotation(dn, epgName, vlan)
+			if found != nil {
+				vlan = found.AaepEpgData.EncapVlan
+			} else {
+				// Incase the rsobj was already there but nad was not present, in that case we need to have the vlan as well while creating nad
+				rsObj, ok := cont.getinfraRsFuncToEpgByEpgDn(dn)
+				if !ok {
+					cont.log.Error("No infraRsFuncToEpg found for DN:", dn)
+					return
+				}
+				encap := rsObj["encap"].(string)
+				vlanStr := strings.TrimPrefix(encap, "vlan-")
+				vlan, _ = strconv.Atoi(vlanStr)
+			}
+			cont.handleEpgAnnotation(aaep, dn, vlan)
+		} else {
+			cont.log.Debug("AAEP NOT FOUND IN THE STATE=", aaep)
+		}
 	} else {
 		// Incase there is a change in fvaepg
 		cont.log.Debug("[EPG-HOOK] EPG MO ADDED, ignoring: DN=", dn)
@@ -128,43 +164,49 @@ func (cont *AciController) HandleEpgChange(obj apicapi.ApicObject) {
 }
 
 func (cont *AciController) HandleEpgDetach(dn string) {
-	cont.log.Debug("EPG State: ", cont.epgState)
+	cont.log.Debug(" HandleEpgDetach EPG State: ", cont.aaepState)
 	if strings.Contains(dn, "/annotationKey-") {
 		dn = dn[:strings.Index(dn, "/annotationKey-")]
-		old, exists := cont.epgState[dn]
-		if exists {
-			// Since this is related to annotation change, we will continue to use the vlan that is already in state
-			vlan := old.Vlan
-			epg, err := cont.getAciEpgByDn(dn)
-			if err != nil {
-				cont.log.Error("Failed to get EPG for DN=", dn, " err=", err)
-				return
-			}
-			epgName := epg["name"].(string)
-			namespace, nadName := cont.getEpgAnnotationValues(dn, epgName)
-			if namespace == "" {
-				cont.log.Debug("[EPG DETACHANDLER] Namespace annotaiotn deleted so deleting nad for EPG=", epgName)
-				cont.HandleDeleteNAD(dn)
-				return
-			}
-			if old.Namespace != namespace || old.NadName != nadName {
-				cont.log.Debug("[EPGDETACH] Change detected for EPG=", epgName,
-					" oldNamespace=", old.Namespace, " oldNad=", old.NadName,
-					" newNamespace=", namespace, " newNad=", nadName)
+		for aaep, entries := range cont.aaepState {
+			for _, entry := range entries {
+				if entry.AaepEpgData.EpgDn != dn {
+					continue
+				}
+				vlan := entry.AaepEpgData.EncapVlan
+				namespace, nadName := cont.getEpgAnnotationValues(dn)
+				if namespace == "" {
+					cont.log.Debug("[EPG DETACHANDLER] Namespace annotaiotn deleted so deleting nad for EPG=", dn)
+					cont.HandleDeleteNAD(aaep, dn)
+					cont.log.Debug("HandleEpgDetach EPG State2: ", cont.aaepState)
+					return
+				}
+				if entry.NamespaceName != namespace || entry.NadName != nadName {
+					cont.log.Debug("[EPGDETACH] Change detected for EPG=", dn,
+						" oldNamespace=", entry.NamespaceName, " oldNad=", entry.NadName,
+						" newNamespace=", namespace, " newNad=", nadName)
 
-				// Delete old NAD
-				cont.HandleDeleteNAD(dn)
-				cont.HandleCreateNAD(namespace, nadName, vlan, dn)
-				return
-			} else {
-				cont.log.Debug("[EPGDETACH] No change for EPG=", epgName)
+					// Delete old NAD
+					cont.HandleDeleteNAD(aaep, dn)
+					cont.HandleCreateNAD(aaep, namespace, nadName, vlan, dn)
+					cont.log.Debug("HandleEpgDetach EPG State3: ", cont.aaepState)
+					return
+				} else {
+					cont.log.Debug("[EPGDETACH] No change for EPG=", dn)
+				}
+
 			}
 		}
 		cont.log.Debug("[EPGDETACH] Annotation detach for EPG which is not in state= ", dn)
 	} else {
-		_, exists := cont.epgState[dn]
-		if exists {
-			cont.HandleDeleteNAD(dn)
+		// When epg is detached, we will check if that is in our state, then delete nad
+		for aaep, entries := range cont.aaepState {
+			for _, entry := range entries {
+				if entry.AaepEpgData.EpgDn != dn {
+					continue
+				}
+				cont.HandleDeleteNAD(aaep, dn)
+				cont.log.Debug("HandleEpgDetach EPG State4: ", cont.aaepState)
+			}
 		}
 	}
 }
@@ -172,20 +214,6 @@ func (cont *AciController) HandleEpgDetach(dn string) {
 // helper to check if epg is attached to aaep
 func (cont *AciController) isEpgAttachedtoAaepinCR(dn string) (string, string, bool) {
 	cont.log.Debug("[ReSOLVE] DN of the EPG = ", dn)
-
-	epg, err := cont.getAciEpgByDn(dn)
-	if err != nil {
-		cont.log.Error("Failed to get EPG for DN=", dn, " err=", err)
-		return "", "", false
-	}
-
-	epgName, ok := epg["name"].(string)
-	if !ok {
-		cont.log.Error("EPG has no valid name for DN=", dn)
-		return "", "", false
-	}
-	cont.log.Debug("[ReSOLVE] EPG ", epgName)
-
 	aaepdn, _ := cont.findAaepForEpg(dn)
 	aaep, ok := cont.isAAEPInMap(aaepdn)
 	if !ok {
@@ -194,7 +222,7 @@ func (cont *AciController) isEpgAttachedtoAaepinCR(dn string) (string, string, b
 	}
 	cont.log.Debug("[ReSOLVE] EPG attached to AAEP in list: AAEP=", aaep, " DN=", dn)
 
-	return dn, epgName, true
+	return dn, aaep, true
 }
 
 func (cont *AciController) findAaepForEpg(epgDn string) (string, bool) {
@@ -242,9 +270,9 @@ func (cont *AciController) getinfraRsFuncToEpgByEpgDn(epgDn string) (map[string]
 	return nil, false
 }
 
-func (cont *AciController) getEpgAnnotationValues(epgDn, epgName string) (string, string) {
+func (cont *AciController) getEpgAnnotationValues(epgDn string) (string, string) {
 	var namespace string
-	nad := epgName
+	var nad string
 
 	nsVal, err := cont.getAnnotationValue(epgDn, "namespace")
 	if err == nil && nsVal != "" {
@@ -258,7 +286,7 @@ func (cont *AciController) getEpgAnnotationValues(epgDn, epgName string) (string
 	if err == nil && nadVal != "" {
 		nad = nadVal
 	} else {
-		nad := cont.buildNadNameFromDn(epgDn)
+		nad = cont.buildNadNameFromDn(epgDn)
 		cont.log.Debug("[EPGDETACH] No annotation found for nad. Generated NAD name=", nad)
 	}
 
@@ -282,7 +310,7 @@ func (cont *AciController) buildNadNameFromDn(dn string) string {
 }
 
 func (cont *AciController) isAAEPInMap(dn string) (string, bool) {
-	for _, aaep := range aaepList {
+	for aaep := range cont.aaepState {
 		if strings.Contains(dn, aaep) {
 			return aaep, true
 		}
@@ -290,32 +318,51 @@ func (cont *AciController) isAAEPInMap(dn string) (string, bool) {
 	return "", false
 }
 
-func (cont *AciController) HandleCreateNAD(namespace string, nadName string, vlan string, dn string) {
+func (cont *AciController) HandleCreateNAD(aaep string, namespace string, nadName string, vlan int, dn string) {
 	if cont.namespaceExists(namespace) {
 		cont.createNAD(namespace, nadName)
-		// Update state
-		cont.epgState[dn] = EpgAnnotationState{
-			Namespace: namespace,
-			NadName:   nadName,
-			Vlan:      vlan,
+		cont.epgMutex.Lock()
+		defer cont.epgMutex.Unlock()
+		newEntry := AaepEntry{
+			AaepEpgData: AaepEpgData{
+				EpgDn:     dn,
+				EncapVlan: vlan,
+			},
+			NamespaceName: namespace,
+			NadName:       nadName,
 		}
+		cont.aaepState[aaep] = append(cont.aaepState[aaep], newEntry)
 	} else {
 		cont.deferNADCreation(namespace, nadName)
 	}
-	cont.log.Debug("EPG State 3: ", cont.epgState)
+	cont.log.Debug("EPG State 3: ", cont.aaepState)
 }
 
-func (cont *AciController) HandleDeleteNAD(dn string) {
+func (cont *AciController) HandleDeleteNAD(aaep string, dn string) {
 	cont.epgMutex.Lock()
 	defer cont.epgMutex.Unlock()
-	old, exists := cont.epgState[dn]
-	if exists {
-		cont.deleteNAD(old.Namespace, old.NadName)
-		delete(cont.epgState, dn)
-		cont.log.Debug("[EEPGDETACH-ANNNOTATION] Deleted EPG from state:", dn)
+	entries, exists := cont.aaepState[aaep]
+	if !exists || len(entries) == 0 {
+		cont.log.Debug("[AAEP-HANDLER] No entries found for AAEP:", aaep)
+		return
 	}
-
-	cont.log.Debug("EPG State 4: ", cont.epgState)
+	entryIndex := -1
+	for i, entry := range entries {
+		if entry.AaepEpgData.EpgDn == dn {
+			entryIndex = i
+			break
+		}
+	}
+	if entryIndex == -1 {
+		cont.log.Debug("[AAEP-HANDLER] EPG DN not found under AAEP:", dn)
+		return
+	}
+	entryToDelete := entries[entryIndex]
+	cont.deleteNAD(entryToDelete.NamespaceName, entryToDelete.NadName)
+	entries = append(entries[:entryIndex], entries[entryIndex+1:]...)
+	cont.aaepState[aaep] = entries
+	cont.log.Debug("[AAEP-HANDLER] Deleted EPG from state:", dn)
+	cont.log.Debug("[AAEP-HANDLER] Updated AAEP state 4:", cont.aaepState)
 }
 
 // Example helper: check if namespace exists

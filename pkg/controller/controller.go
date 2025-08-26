@@ -220,14 +220,25 @@ type AciController struct {
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
-	epgState                 map[string]EpgAnnotationState
-	epgMutex                 sync.Mutex
+	//epgState                 map[string]EpgAnnotationState
+	aaepState map[string][]AaepEntry
+	epgMutex  sync.Mutex
 }
 
-type EpgAnnotationState struct {
-	Namespace string
-	NadName   string
-	Vlan      string
+// type EpgAnnotationState struct {
+// 	Namespace string
+// 	NadName   string
+// 	Vlan      string
+// }
+
+type AaepEpgData struct {
+	EpgDn     string `json:"epgDn"`
+	EncapVlan int    `json:"encapVlan"`
+}
+type AaepEntry struct {
+	AaepEpgData   AaepEpgData `json:"aaepEpgData"`
+	NamespaceName string      `json:"namespaceName"`
+	NadName       string      `json:"nadName"`
 }
 
 type hostFabricInfo struct {
@@ -548,7 +559,8 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
-		epgState:                    make(map[string]EpgAnnotationState),
+		aaepState:                   map[string][]AaepEntry{"deepanshu-test": {}},
+		//epgState:                    make(map[string]EpgAnnotationState),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
