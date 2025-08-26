@@ -1739,7 +1739,7 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 }
 
 func (cont *AciController) writeApicSvc(key string, service *v1.Service) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	aobj := apicapi.NewVmmInjectedSvc(cont.vmmDomainProvider(),
@@ -2121,7 +2121,7 @@ func (cont *AciController) allocateServiceIps(servicekey string,
 }
 
 func (cont *AciController) handleServiceDelete(servicekey string) bool {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return false
 	}
 	cont.clearLbService(servicekey)
@@ -2137,7 +2137,7 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 			Error("Could not create service key: ", err)
 		return false
 	}
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return false
 	}
 	var requeue bool
