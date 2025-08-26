@@ -31,6 +31,8 @@ import (
 	snatlocalinfoclset "github.com/noironetworks/aci-containers/pkg/snatlocalinfo/clientset/versioned"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
+	aaepmonitorclientset "github.com/noironetworks/aci-containers/pkg/aaepmonitor/clientset/versioned"
+	nadclientset "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	"github.com/sirupsen/logrus"
 	"github.com/yl2chen/cidranger"
 	v1 "k8s.io/api/core/v1"
@@ -72,6 +74,8 @@ type K8sEnvironment struct {
 	nodePodifClient     *nodepodifclientset.Clientset
 	hppClient           hppclset.Interface
 	proactiveConfClient *proactiveconfclientset.Clientset
+	aaepMonitorClient   *aaepmonitorclientset.Clientset
+	nadClient			*nadclientset.Clientset
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -142,10 +146,21 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize ProactiveConf client")
 		return nil, err
 	}
+	aaepMonitorClient, err := aaepmonitorclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize AaepMonitor client")
+		return nil, err
+	}
+	nadClient, err := nadclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("error creating NAD client")
+		return nil, err
+	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
 		nodeInfoClient: nodeInfoClient, snatLocalInfoClient: snatLocalInfoClient, rdConfigClient: rdConfigClient,
-		istioClient: istioClient, hppClient: hppClient, proactiveConfClient: proactiveConfClient}, nil
+		istioClient: istioClient, hppClient: hppClient, proactiveConfClient: proactiveConfClient, aaepMonitorClient: aaepMonitorClient,
+		nadClient: nadClient}, nil
 }
 
 func (env *K8sEnvironment) RESTConfig() *restclient.Config {
@@ -377,6 +392,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		if cont.config.ProactiveConf {
 			cont.registerCRDHook(proactiveConfCRDName, proactiveConfInit)
 		}
+	}
+	if cont.config.AaepMonitor {
+		cont.registerCRDHook(aaepMonitorCRDName, aaepMonitorInit)
 	}
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	cont.registerCRDHook(netFabConfigCRDName, netFabConfigInit)

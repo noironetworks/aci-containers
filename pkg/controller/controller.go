@@ -85,6 +85,7 @@ type AciController struct {
 	netFabL3ConfigQueue   workqueue.RateLimitingInterface
 	remIpContQueue        workqueue.RateLimitingInterface
 	epgDnCacheUpdateQueue workqueue.RateLimitingInterface
+	aaepMonitorConfigQueue workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -135,6 +136,7 @@ type AciController struct {
 	networkFabricL3ConfigurationInformer cache.SharedIndexInformer
 	fabNetAttClient                      *fabattclset.Clientset
 	proactiveConfInformer                cache.SharedIndexInformer
+	aaepMonitorInformer                  cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 	hppMutex   sync.Mutex
@@ -220,6 +222,7 @@ type AciController struct {
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
+	sharedAaepMonitor       map[string][]*AaepMonitoringData
 }
 
 type hostFabricInfo struct {
@@ -417,6 +420,17 @@ type serviceEndpointSlice struct {
 	cont *AciController
 }
 
+type AaepEpgAttachData struct {
+	epgDn string
+	encapVlan int
+}
+
+type AaepMonitoringData struct {
+	aaepEpgData AaepEpgAttachData
+	nadName string
+	namespaceName string
+}
+
 func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
 	sep.cont.initEndpointsInformerFromClient(kubeClient)
 }
@@ -494,6 +508,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		netFabL3ConfigQueue:   createQueue("networkfabricl3configuration"),
 		remIpContQueue:        createQueue("remoteIpContainer"),
 		epgDnCacheUpdateQueue: createQueue("epgDnCache"),
+		aaepMonitorConfigQueue: createQueue("aaepepgmap"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -540,6 +555,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
+		sharedAaepMonitor:           make(map[string][]*AaepMonitoringData),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -1003,6 +1019,25 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.AddSubscriptionClass("bgpPeerPfxPol",
 			[]string{"bgpPeerPfxPol"}, "")
 	}
+
+	if cont.config.AaepMonitor {
+		cont.apicConn.AddSubscriptionClass("infraAttEntityP",
+		[]string{"infraRsFuncToEpg"}, "")
+
+		cont.apicConn.SetSubscriptionHooks(
+			"infraAttEntityP",
+			func(obj apicapi.ApicObject) bool {
+				cont.log.Debug("[AAEP-EVENT] EPG attached to AAEP")
+				cont.handleAaepEpgAttach(obj)
+				return true
+			},
+			func(dn string) {
+				cont.log.Debug("[AAEP-EVENT] EPG detached to AAEP")
+				cont.handleAaepEpgDetach(dn)
+			},
+		)
+	}
+
 	if !cont.config.ChainedMode {
 		// When a new class is added for subscriptio, check if its name attribute
 		// is in the format aciPrefix-<some value>, if so add it in nameAttrClass
