@@ -2060,7 +2060,7 @@ func (cont *AciController) createNodeHostProtPol(name, nodeName string, nodeIps 
 }
 
 func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return false
 	}
 	key, err := cache.MetaNamespaceKeyFunc(np)
@@ -2402,7 +2402,7 @@ func (cont *AciController) networkPolicyAdded(obj interface{}) {
 			Error("Could not create network policy key: ", err)
 		return
 	}
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	cont.netPolPods.UpdateSelectorObj(obj)

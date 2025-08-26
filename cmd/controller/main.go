@@ -25,12 +25,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/noironetworks/aci-containers/pkg/controller"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/noironetworks/aci-containers/pkg/controller"
 )
 
 func main() {

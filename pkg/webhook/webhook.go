@@ -38,8 +38,10 @@ func AddWebHookHandlerToManager(mgr *aciwebhooktypes.Manager) {
 		nadhdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
 		//Register Pod webhooks
 		podhdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
-		nfchdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
-		nfl3confighdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
+		if !mgr.Config.VmmLiteEnabled {
+			nfchdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
+			nfl3confighdlr.RegisterHandlers(WebHookConfig, registeredWebHooks)
+		}
 	}
 	for path, hdlr := range registeredWebHooks {
 		mgr.Mgr.GetWebhookServer().Register(path, hdlr)

@@ -467,7 +467,7 @@ func (cont *AciController) deleteStaleNodeInfoFromGlInfoCache(snatPolicyNames ma
 func (cont *AciController) syncSnatGlobalInfo() bool {
 	env := cont.env.(*K8sEnvironment)
 	globalcl := env.snatGlobalClient
-	if globalcl == nil || cont.config.ChainedMode {
+	if globalcl == nil || cont.isCNOEnabled() {
 		return false
 	}
 	cont.indexMutex.Lock()
