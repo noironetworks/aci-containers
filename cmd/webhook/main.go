@@ -55,7 +55,7 @@ func init() {
 
 func main() {
 	var metricsAddr string
-	var enableLeaderElection, requireNadAnnotation bool
+	var enableLeaderElection, requireNadAnnotation, vmmLiteEnabled, chainedModeEnabled bool
 	var probeAddr string
 	var certDir string
 	var containerName string
@@ -66,6 +66,8 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certDir, "certs-directory", "/tmp/k8s-webhook-server/serving-certs", "The path where tls crt/key pair is located.")
 	flag.BoolVar(&requireNadAnnotation, "require-nad-annotation", false, "Whether NADs need to be annotated to enable insertion of netop-cni in chain")
+	flag.BoolVar(&vmmLiteEnabled, "vmm-lite-enabled", false, "Whether VMM Lite enabled or not")
+	flag.BoolVar(&chainedModeEnabled, "chained-mode-enabled", false, "Whether VMM Lite enabled or not")
 	flag.StringVar(&containerName, "container-name-for-envvars", "fabric-peer", "name of the container that needs peering environment variables inserted")
 	opts := zap.Options{
 		Development: true,
@@ -108,6 +110,8 @@ func main() {
 		Mgr: mgr,
 		Config: aciwebhooktypes.Config{
 			RequireNADAnnotation: requireNadAnnotation,
+			VmmLiteEnabled:       vmmLiteEnabled,
+			ChainedModeEnabled:   chainedModeEnabled,
 			ContainerName:        containerName,
 			RunTimeData: aciwebhooktypes.RunTimeData{
 				CommonMutex:    sync.Mutex{},
@@ -117,22 +121,24 @@ func main() {
 		},
 	}
 
-	// Setup a new controller to reconcile NodeFabricL3Peers
-	setupLog.Info("Setting up controller")
-	c, err := controller.New("nodefabricl3peers-controller", mgr, controller.Options{
-		Reconciler: &aciwebhooks.ReconcileNFL3Peers{
-			Client: mgr.GetClient(),
-			Config: &webhookMgr.Config.RunTimeData,
-		}})
-	if err != nil {
-		setupLog.Error(err, "unable to set up individual controller")
-		os.Exit(1)
-	}
+	if chainedModeEnabled {
+		// Setup a new controller to reconcile NodeFabricL3Peers
+		setupLog.Info("Setting up controller")
+		c, err := controller.New("nodefabricl3peers-controller", mgr, controller.Options{
+			Reconciler: &aciwebhooks.ReconcileNFL3Peers{
+				Client: mgr.GetClient(),
+				Config: &webhookMgr.Config.RunTimeData,
+			}})
+		if err != nil {
+			setupLog.Error(err, "unable to set up individual controller")
+			os.Exit(1)
+		}
 
-	// Watch NodeFabricL3Peers and enqueue NodeFabricL3Peers object key
-	if err := c.Watch(source.Kind[*fabattv1.NodeFabricNetworkL3Peer](mgr.GetCache(), &fabattv1.NodeFabricNetworkL3Peer{}, &handler.TypedEnqueueRequestForObject[*fabattv1.NodeFabricNetworkL3Peer]{})); err != nil {
-		setupLog.Error(err, "unable to watch NodeFabricNetworkL3Peer")
-		os.Exit(1)
+		// Watch NodeFabricL3Peers and enqueue NodeFabricL3Peers object key
+		if err := c.Watch(source.Kind[*fabattv1.NodeFabricNetworkL3Peer](mgr.GetCache(), &fabattv1.NodeFabricNetworkL3Peer{}, &handler.TypedEnqueueRequestForObject[*fabattv1.NodeFabricNetworkL3Peer]{})); err != nil {
+			setupLog.Error(err, "unable to watch NodeFabricNetworkL3Peer")
+			os.Exit(1)
+		}
 	}
 
 	// Register the webhooks in the server.

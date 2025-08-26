@@ -65,7 +65,7 @@ func (cont *AciController) updatePodsForNamespace(ns string) {
 }
 
 func (cont *AciController) writeApicNs(ns *v1.Namespace) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	aobj := apicapi.NewVmmInjectedNs(cont.vmmDomainProvider(),
@@ -87,12 +87,15 @@ func (cont *AciController) namespaceAdded(obj interface{}) {
 	ns := obj.(*v1.Namespace)
 	cont.writeApicNs(ns)
 	cont.depPods.UpdateNamespace(ns)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.netPolPods.UpdateNamespace(ns)
 		cont.netPolIngressPods.UpdateNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
 	cont.checkIfEpgExistNs(ns)
+	if cont.config.VmmLite {
+		cont.addDeferredNADs(ns.ObjectMeta.Name)
+	}
 }
 
 func (cont *AciController) namespaceChanged(oldobj interface{},
@@ -104,7 +107,7 @@ func (cont *AciController) namespaceChanged(oldobj interface{},
 
 	if !reflect.DeepEqual(oldns.ObjectMeta.Labels, newns.ObjectMeta.Labels) {
 		cont.depPods.UpdateNamespace(newns)
-		if !cont.config.ChainedMode {
+		if !cont.isCNOEnabled() {
 			cont.netPolPods.UpdateNamespace(newns)
 			cont.netPolIngressPods.UpdateNamespace(newns)
 		}
@@ -133,11 +136,14 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("ns", ns.Name))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("nsfs", ns.Name))
 	cont.depPods.DeleteNamespace(ns)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.netPolPods.DeleteNamespace(ns)
 		cont.netPolIngressPods.DeleteNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
+	if cont.config.VmmLite {
+		cont.cleanNADs(ns.ObjectMeta.Name)
+	}
 }
 
 func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {

@@ -218,7 +218,7 @@ func (cont *AciController) syncPodNet(obj interface{}) {
 }
 
 func (cont *AciController) writeApicNode(node *v1.Node) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	tunnelID := 0
@@ -257,7 +257,7 @@ func (cont *AciController) nodeChangedByName(nodeName string) {
 }
 
 func (cont *AciController) nodeChanged(obj interface{}) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	cont.indexMutex.Lock()
@@ -398,7 +398,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 }
 
 func (cont *AciController) nodeDeleted(obj interface{}) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	node, isNode := obj.(*v1.Node)

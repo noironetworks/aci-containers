@@ -18,6 +18,9 @@ package controller
 
 import (
 	"context"
+	"os"
+	"reflect"
+
 	rdConfigv1 "github.com/noironetworks/aci-containers/pkg/rdconfig/apis/aci.snat/v1"
 	rdconfigclset "github.com/noironetworks/aci-containers/pkg/rdconfig/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -28,8 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-	"os"
-	"reflect"
 )
 
 func (cont *AciController) initRdConfigInformerFromClient(
@@ -189,7 +190,7 @@ func (cont *AciController) syncRdConfig() bool {
 	cont.indexMutex.Unlock()
 	env := cont.env.(*K8sEnvironment)
 	rdConfigClient := env.rdConfigClient
-	if rdConfigClient == nil || cont.config.ChainedMode {
+	if rdConfigClient == nil || cont.isCNOEnabled() {
 		return false
 	}
 	ns := os.Getenv("ACI_SNAT_NAMESPACE")
