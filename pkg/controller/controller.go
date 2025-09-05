@@ -1039,24 +1039,24 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			},
 		)
 
-		cont.apicConn.AddSubscriptionClass("fvAEPg",
-			[]string{"fvAEPg", "tagAnnotation"}, "")
+		// cont.apicConn.AddSubscriptionClass("fvAEPg",
+		// 	[]string{"fvAEPg", "tagAnnotation"}, "")
 
-		cont.apicConn.SetSubscriptionHooks(
-			"fvAEPg",
-			func(obj apicapi.ApicObject) bool {
-				cont.log.Debug("EPG added")
-				dn := obj.GetDn()
-				cont.HandleEpgChange(obj)
-				cont.log.Debug("EPG added DN=", dn)
-				return true
-			},
-			func(dn string) {
-				cont.log.Debug("EPG deleted")
-				cont.HandleEpgDetach(dn)
-				cont.log.Debug("EPG deleted: DN=", dn)
-			},
-		)
+		// cont.apicConn.SetSubscriptionHooks(
+		// 	"fvAEPg",
+		// 	func(obj apicapi.ApicObject) bool {
+		// 		cont.log.Debug("EPG added")
+		// 		dn := obj.GetDn()
+		// 		cont.HandleEpgChange(obj)
+		// 		cont.log.Debug("EPG added DN=", dn)
+		// 		return true
+		// 	},
+		// 	func(dn string) {
+		// 		cont.log.Debug("EPG deleted")
+		// 		cont.HandleEpgDetach(dn)
+		// 		cont.log.Debug("EPG deleted: DN=", dn)
+		// 	},
+		// )
 
 	}
 	if !cont.config.ChainedMode {

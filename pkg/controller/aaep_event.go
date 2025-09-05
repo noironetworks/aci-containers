@@ -25,12 +25,61 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// cont.aaepState = map[string][]AaepEntry{
-// 	"deepanshu-test": {},
-// }
+func (cont *AciController) HandleAaepEpgAttach(obj apicapi.ApicObject) {
+	for className := range obj {
+		cont.log.Debugf("[AAEP-HANDLER] MO class: %s", className)
+		if className == "infraRsFuncToEpg" {
+			cont.HandleRsAttach(obj)
+		} else {
+			cont.log.Debugf("[AAEP-HANDLER] MO  ELSE class: %s", className)
+			cont.HandleAaep(obj)
+		}
+	}
+
+}
+
+func (cont *AciController) HandleAaep(obj apicapi.ApicObject) {
+	cont.log.Debugf("[AAEP-HANDLER] INSIDE HANDLE AAE")
+
+	dn := obj.GetDn()
+	aaep, ok := cont.isAAEPInMap(dn)
+	if !ok {
+		cont.log.Debug("[AAEP-HANDLER] AAEP not in configured map: AAEP=", aaep)
+		return
+	}
+
+	for className, body := range obj {
+		cont.log.Debugf("[AAEP-HANDLER] MO class: %s", className)
+		if body == nil {
+			continue
+		}
+
+		cont.log.Debugf("[AAEP-HANDLER] Attributes: %+v", body.Attributes)
+
+		// look for "infraGeneric" children
+		for _, childMap := range body.Children {
+			if childBody, ok := childMap["infraGeneric"]; ok && childBody != nil {
+				cont.log.Debugf("[AAEP-HANDLER] Child attributes: %+v", childBody.Attributes)
+
+				// look for "infraRsFuncToEpg" grandchildren
+				for _, grandChildMap := range childBody.Children {
+					if grandChildBody, ok := grandChildMap["infraRsFuncToEpg"]; ok && grandChildBody != nil {
+						cont.log.Debugf("[AAEP-HANDLER] Grandchild attributes: %+v", grandChildBody.Attributes)
+
+						// wrap into ApicObject and delegate
+						rsObj := apicapi.ApicObject{
+							"infraRsFuncToEpg": grandChildBody,
+						}
+						cont.HandleRsAttach(rsObj)
+					}
+				}
+			}
+		}
+	}
+}
 
 // HandleAaepEpgAttach processes the AAEP EPG attach event.
-func (cont *AciController) HandleAaepEpgAttach(obj apicapi.ApicObject) {
+func (cont *AciController) HandleRsAttach(obj apicapi.ApicObject) {
 	dn := obj.GetDn()
 	// Check if DN contains any of the AAEPs in the list
 	aaep, ok := cont.isAAEPInMap(dn)
@@ -383,12 +432,19 @@ func (cont *AciController) namespaceExists(ns string) bool {
 }
 
 func (cont *AciController) ProcessDeferredNads(ns string) bool {
-	rsObjs, ok := cont.getinfraRsFuncToEpg()
-	if !ok {
-		return false
-	}
-	for _, obj := range rsObjs {
-		cont.HandleAaepEpgAttach(obj)
+	for aaep, _ := range cont.aaepState {
+		// Convert AaepEntry into an ApicObject
+		resp, ok := cont.getAaepObject()
+		if ok {
+			for _, obj := range resp {
+				if rsObj, ok := obj["infraAttEntityP"]; ok {
+					attrs := rsObj.Attributes
+					if name, ok := attrs["name"].(string); ok && name == aaep {
+						cont.HandleAaep(obj)
+					}
+				}
+			}
+		}
 	}
 	return true
 }

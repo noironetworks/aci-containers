@@ -386,6 +386,18 @@ func (cont *AciController) getAnnotationValue(epgDn, key string) (string, error)
 	return "", fmt.Errorf("Annotation key=%s not found under EPG=%s", key, epgDn)
 }
 
+func (cont *AciController) getAaepObject() ([]apicapi.ApicObject, bool) {
+	// Query all infraRsFuncToEpg objects
+	url := "/api/node/class/infraAttEntityP.json?query-target=self"
+	resp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to query infraRsFuncToEpg: ", err)
+		return nil, false
+	}
+
+	return resp.Imdata, true
+}
+
 func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
 	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
 	nodeAciPodAnnot := cont.nodeACIPod[node]
