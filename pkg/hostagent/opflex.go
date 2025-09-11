@@ -16,8 +16,10 @@ package hostagent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -28,13 +30,19 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	"github.com/insomniacslk/dhcp/dhcpv4"
+	"github.com/insomniacslk/dhcp/dhcpv4/nclient4"
+	"github.com/insomniacslk/dhcp/iana"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 
 const (
-	DHCLIENT_CONF    = "/usr/local/etc/dhclient.conf"
-	MCAST_ROUTE_DEST = "224.0.0.0/4"
+	dhcpServerPort    = 67
+	dhcpClientPort    = 68
+	dhcpClientTimeout = 10 * time.Second
+	linkFlapDelay     = 500 * time.Millisecond
+	MCAST_ROUTE_DEST  = "224.0.0.0/4"
 )
 
 type opflexFault struct {
@@ -185,58 +193,156 @@ func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	}
 }
 
-func (agent *HostAgent) releaseVlanIp(name string) bool {
-	released := false
-	retryCount := agent.config.DhcpRenewMaxRetryCount
-	dhcpDelay := time.Duration(agent.config.DhcpDelay)
-	for i := 0; i < retryCount; i++ {
-		time.Sleep(dhcpDelay * time.Second)
-		cmd := exec.Command("dhclient", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-		agent.log.Info("Executing command:", cmd.String())
-		opt, err := cmd.Output()
-		if err != nil {
-			agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
-			continue
-		} else {
-			agent.log.Info(string(opt))
-		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip released")
-			released = true
-			break
-		}
-		agent.log.Info("vlan interface ip not released..iteration: ", i+1)
+func getInterfaceIPv4AndMAC(iface string) (net.IP, net.HardwareAddr, error) {
+	ifi, err := net.InterfaceByName(iface)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find interface %s: %w", iface, err)
 	}
-	return released
+	if ifi.HardwareAddr == nil {
+		return nil, nil, fmt.Errorf("interface %s has no hardware address", iface)
+	}
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get addresses for interface %s: %w", iface, err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip4 := ip.To4(); ip4 != nil && !ip4.IsLoopback() && !ip4.IsUnspecified() {
+			logrus.Infof("J: Found IPv4 address %s on interface %s", ip4, iface)
+			return ip4, ifi.HardwareAddr, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("no suitable IPv4 address found on interface %s", iface)
 }
 
-func (agent *HostAgent) renewVlanIp(name string) bool {
-	renewed := false
+func discoverDHCPServerIP(iface string, mac net.HardwareAddr) (net.IP, error) {
+	client, err := nclient4.New(iface, nclient4.WithTimeout(dhcpClientTimeout))
+	if err != nil {
+
+		return nil, fmt.Errorf("Failed to create dhcp client on %s: %v", iface, err)
+	}
+	logrus.Infof("J: Created dhcp client on %s", iface)
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), dhcpClientTimeout)
+	defer cancel()
+	// Build the DHCPINFORM packet.
+	discover, err := dhcpv4.NewDiscovery(mac)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DHCP discover packet: %v", err)
+	}
+	// Add client identifier
+	clientID := make([]byte, len(mac)+1)
+	clientID[0] = 1
+	copy(clientID[1:], mac)
+	discover.UpdateOption(dhcpv4.OptClientIdentifier(clientID))
+	discoverXID := discover.TransactionID // Save the XID for later
+	serverAddr := &net.UDPAddr{
+		IP:   net.IPv4bcast,
+		Port: dhcpServerPort,
+	}
+	// Create a matcher for DHCP OFFER messages
+	matcher := func(packet *dhcpv4.DHCPv4) bool {
+		return packet.MessageType() == dhcpv4.MessageTypeOffer && packet.TransactionID == discoverXID
+	}
+	logrus.Infof("J: Sending DHCP discover packet %v to %s", discover, serverAddr.String())
+	offer, err := client.SendAndRead(ctx, serverAddr, discover, matcher)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send DISCOVER and receive OFFER: %v", err)
+	}
+	logrus.Infof("J: Received DHCP offer packet %v from %s", offer, serverAddr.String())
+	serverID := offer.ServerIdentifier()
+	if serverID == nil {
+		return nil, fmt.Errorf("no server identifier found in DHCP offer")
+	}
+	return serverID, nil
+}
+
+func getDHCPClientIDfromMAC(mac net.HardwareAddr) ([]byte, error) {
+	clientID := make([]byte, len(mac)+1)
+	clientID[0] = 1
+	copy(clientID[1:], mac)
+	logrus.Infof("J: ClientID: %v", clientID)
+	return clientID, nil
+}
+
+func sendDHCPRelease(iface string) error {
+	ip, mac, err := getInterfaceIPv4AndMAC(iface)
+	if err != nil {
+		return fmt.Errorf("Failed to get hardware address for interface %s: %v", iface, err)
+	}
+	serverIP, err := discoverDHCPServerIP(iface, mac)
+	logrus.Infof("J: Found ServerIP: %v", serverIP)
+	if err != nil {
+		return err
+	}
+	release := &dhcpv4.DHCPv4{
+		OpCode:       dhcpv4.OpcodeBootRequest,
+		HWType:       iana.HWTypeEthernet,
+		ClientIPAddr: ip,
+		ClientHWAddr: mac,
+	}
+	clientID, err := getDHCPClientIDfromMAC(mac)
+	if err != nil {
+		return err
+	}
+	release.UpdateOption(dhcpv4.OptClientIdentifier(clientID))
+	release.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeRelease))
+	conn, err := nclient4.NewRawUDPConn(iface, dhcpClientPort)
+	logrus.Infof("J: Created dhcp client on %s, conn: %v", iface, conn)
+	if err != nil {
+		return fmt.Errorf("failed to open UDP socket: %w", err)
+	}
+	logrus.Infof("J: Sending DHCP release packet %v to %s", release, serverIP.String())
+	_, err = conn.WriteTo(release.ToBytes(), &net.UDPAddr{IP: serverIP, Port: dhcpServerPort})
+	if err != nil {
+		return fmt.Errorf("failed to send DHCPRELEASE: %w", err)
+	}
+	logrus.Infof("Successfully released ip %v of interface %v", ip, iface)
+	return nil
+}
+
+func (agent *HostAgent) releaseVlanIp(name string) bool {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	dhcpDelay := time.Duration(agent.config.DhcpDelay)
 	for i := 0; i < retryCount; i++ {
 		time.Sleep(dhcpDelay * time.Second)
-		cmd := exec.Command("dhclient", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-		agent.log.Info("Executing command:", cmd.String())
-		opt, err := cmd.Output()
+		err := sendDHCPRelease(name)
 		if err != nil {
-			agent.log.Error("Failed to renew ip : ", err.Error(), " ", string(opt))
-			continue
-		} else {
-			agent.log.Info(string(opt))
-		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip is not renewed..iteration:", i+1)
+			agent.log.Errorf("Failed to release ip %v : %v", name, err.Error())
 			continue
 		}
-		renewed = true
-		break
+		return true
 	}
-	return renewed
+	agent.log.Error("FAILURE: Failed to release vlan interface ip, stopped retrying")
+	return false
+}
+
+func (agent *HostAgent) renewVlanIp(name string) error {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return fmt.Errorf("failed to find interface %s: %w", name, err)
+	}
+	// Down → short sleep → Up tends to trigger renew across managers.
+	if err := netlink.LinkSetDown(link); err != nil {
+		return fmt.Errorf("failed to set interface %s down: %w", name, err)
+	}
+	time.Sleep(linkFlapDelay)
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to set interface %s up: %w", name, err)
+	}
+	agent.log.Infof("J: Successfully bounced interface %v", name)
+	return nil
 }
 
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
+	dhcpDelay := time.Duration(agent.config.DhcpDelay)
 	agent.log.Info("old aci-pod annotiation for multipod ", agent.aciPodAnnotation)
 	agent.log.Info("new aci-pod annotiation for multipod ", aciPodSubnet)
 	// no dhcp release-renew for none to pod-<id>-subnet case
@@ -278,31 +384,33 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				}
 			}
 			success := false
-			for i := 0; i < retryCount; i++ {
-				if !agent.releaseVlanIp(link.Name) {
-					agent.log.Error("FAILURE: Failed to release vlan interface ip, stopped retrying")
-					break
-				}
-				if !agent.renewVlanIp(link.Name) {
-					agent.log.Error("FAILURE: Failed to renew vlan interface ip, stopped retrying")
-					break
-				}
-				if aciPodSubnet != "none" {
-					if agent.isIpSameSubnet(link.Name, subnet) {
-						success = true
-						break
+
+			if agent.releaseVlanIp(link.Name) {
+				// agent.log.Info("J: Sleeping for 2 mins")
+				// time.Sleep(2 * time.Minute)
+				for i := 0; i < retryCount; i++ {
+					time.Sleep(dhcpDelay * time.Second)
+					err := agent.renewVlanIp(link.Name)
+					if err != nil {
+						agent.log.Errorf("FAILURE: Failed to renew vlan interface ip; retrying. Error: %v", err)
+					}
+					if aciPodSubnet != "none" {
+						if agent.isIpSameSubnet(link.Name, subnet) {
+							success = true
+							break
+						} else {
+							agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
+						}
+					} else if oldsubnet != "" {
+						if !agent.isIpSameSubnet(link.Name, oldsubnet) {
+							success = true
+							agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
+							break
+						}
+						agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
 					} else {
-						agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
+						agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 					}
-				} else if oldsubnet != "" {
-					if !agent.isIpSameSubnet(link.Name, oldsubnet) {
-						success = true
-						agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
-						break
-					}
-					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
-				} else {
-					agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 				}
 			}
 			if (aciPodSubnet != "none" && !success) || (aciPodSubnet == "none" && oldsubnet != "" && !success) {
