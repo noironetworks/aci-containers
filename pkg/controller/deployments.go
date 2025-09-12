@@ -87,7 +87,7 @@ func deploymentLogger(log *logrus.Logger, dep *appsv1.Deployment) *logrus.Entry 
 }
 
 func (cont *AciController) writeApicDepl(dep *appsv1.Deployment) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	depkey, err :=

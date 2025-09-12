@@ -326,6 +326,15 @@ type ControllerConfig struct {
 
 	// Enable/disable proactive conf
 	ProactiveConf bool `json:"proactive-conf,omitempty"`
+
+	// Enable/disable aaep monitoring for vmm lite feature
+	VmmLite bool `json:"aci-aaep-monitoring-enabled,omitempty"`
+
+	// Name of linux-bridge for NAD creation in vmm lite feature
+	BridgeName string `json:"bridge-name,omitempty"`
+
+	// Prefix for EPG annotation to identify CNO, default is "cno"
+	CnoIdentifier string `json:"cno-identifier,omitempty"`
 }
 
 type netIps struct {
@@ -362,6 +371,7 @@ func InitFlags(config *ControllerConfig) {
 	flag.BoolVar(&config.EnableVmmInjectedLabels, "enable-vmm-injected-labels", false, "Enable creation of VmmInjectedLabel")
 	flag.StringVar(&config.UnknownMacUnicastAction, "unkown-mac-unicast-action", "proxy", "Set the forwarding method for unknown mac for service BD")
 	flag.BoolVar(&config.ChainedMode, "chained-mode", false, "CNI is in chained mode")
+	flag.BoolVar(&config.VmmLite, "aci-aaep-monitoring-enabled", false, "Enables AAEP monitoring for VMM Lite mode")
 	flag.BoolVar(&config.ReconcileStaticObjects, "reconcile-static-objects", false, "controller will reconcile implicit static objects")
 	flag.BoolVar(&config.AciUseGlobalScopeVlan, "aci-use-global-scope-vlan", false, "Use global vlans for NADs in chained mode")
 	flag.BoolVar(&config.AciUseSystemIdForSecondaryNames, "aci-use-system-id-for-secondary-names", false, "Use system id for auto-generated names in chained mode")

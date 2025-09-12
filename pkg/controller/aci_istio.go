@@ -259,7 +259,7 @@ func (cont *AciController) createIstioCR() bool {
 		cont.log.Debug("CreateIstioCR: InstallIstio is set to: ", cont.config.InstallIstio)
 		return false
 	}
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return false
 	}
 	ns := os.Getenv("SYSTEM_NAMESPACE")

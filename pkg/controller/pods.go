@@ -152,7 +152,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 	if !podFilter(pod) {
 		return false
 	}
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return false
 	}
 
@@ -175,7 +175,7 @@ func (cont *AciController) handlePodUpdate(pod *v1.Pod) bool {
 }
 
 func (cont *AciController) writeApicPod(pod *v1.Pod) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
@@ -227,7 +227,7 @@ func (cont *AciController) podAdded(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	cont.writeApicPod(pod)
 	cont.depPods.UpdatePodNoCallback(pod)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.erspanPolPods.UpdatePodNoCallback(pod)
 		cont.netPolPods.UpdatePodNoCallback(pod)
 		cont.netPolIngressPods.UpdatePodNoCallback(pod)
@@ -248,7 +248,7 @@ func (cont *AciController) podUpdated(oldobj, newobj interface{}) {
 		!reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
 		shouldqueue =
 			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
-		if !cont.config.ChainedMode {
+		if !cont.isCNOEnabled() {
 			shouldqueue =
 				cont.erspanPolPods.UpdatePodNoCallback(newpod) || shouldqueue
 			shouldqueue =
@@ -296,7 +296,7 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("pod", podkey))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("podfs", podkey))
 	cont.depPods.DeletePod(pod)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.erspanPolPods.DeletePod(pod)
 		cont.netPolPods.DeletePod(pod)
 		cont.netPolIngressPods.DeletePod(pod)

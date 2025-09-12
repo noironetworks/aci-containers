@@ -46,6 +46,10 @@ var (
 		}),
 	}
 	RequireNADAnnotation = false
+
+	DeletingHook = &Admission{
+		Handler: admission.HandlerFunc(handleVmmLiteNAD),
+	}
 )
 
 type Plugin struct {
@@ -62,6 +66,8 @@ func RegisterHandlers(config *aciwebhooktypes.Config, registry map[string]*Admis
 	registry[mutatePath] = MutatingHook
 	validatePath := fmt.Sprintf("/validate-%s", ResourceName)
 	registry[validatePath] = ValidatingHook
+	deletePath := fmt.Sprintf("/delete-%s", ResourceName)
+	registry[deletePath] = DeletingHook
 }
 
 func getCniType(cniPlugin map[string]interface{}) (string, error) {
@@ -89,6 +95,13 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 	}
 	prefixStr := fmt.Sprintf("NADHandler: %s/%s: ", nad.Namespace, nad.Name)
 	webhookHdlrLog := ctrl.Log.WithName(prefixStr)
+	if nadOwner, ok := nad.ObjectMeta.Annotations["managed-by"]; ok {
+		webhookHdlrLog.Info(nadOwner)
+		if nadOwner == "cisco-network-operator" {
+			webhookHdlrLog.Info("NAD is managed by VMM Lite")
+			return Allowed("no op")
+		}
+	}
 	var config map[string]interface{}
 	nadBytes := bytes.NewBufferString(nad.Spec.Config)
 	err = json.Unmarshal(nadBytes.Bytes(), &config)
@@ -177,4 +190,26 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 
 	}
 	return Allowed("No changes required")
+}
+
+func handleVmmLiteNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse {
+	if req.Operation != admv1.Delete {
+		return Allowed("no op")
+	}
+	raw := req.OldObject.Raw
+	nad := &cncfv1.NetworkAttachmentDefinition{}
+	err := json.Unmarshal(raw, &nad)
+	if err != nil {
+		return Errored(http.StatusBadRequest, err)
+	}
+	prefixStr := fmt.Sprintf("NADHandler: %s/%s: ", nad.Namespace, nad.Name)
+	webhookHdlrLog := ctrl.Log.WithName(prefixStr)
+	if nadOwner, ok := nad.ObjectMeta.Annotations["managed-by"]; ok {
+		webhookHdlrLog.Info(nadOwner)
+		if nadOwner == "cisco-network-operator" {
+			webhookHdlrLog.Info("Denying deletion: NAD is managed by VMM Lite")
+			return Denied("Denying deletion: NAD is managed by VMM Lite")
+		}
+	}
+	return Allowed("no op")
 }

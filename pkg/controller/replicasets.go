@@ -63,7 +63,7 @@ func replicaSetLogger(log *logrus.Logger, rs *appsv1.ReplicaSet) *logrus.Entry {
 }
 
 func (cont *AciController) writeApicRs(rs *appsv1.ReplicaSet) {
-	if cont.config.ChainedMode {
+	if cont.isCNOEnabled() {
 		return
 	}
 	rskey, err :=

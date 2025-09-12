@@ -40,6 +40,7 @@ type RunTimeData struct {
 type Config struct {
 	UnitTestMode         bool
 	RequireNADAnnotation bool
+	VmmLiteEnabled       bool
 	ContainerName        string
 	RunTimeData
 }

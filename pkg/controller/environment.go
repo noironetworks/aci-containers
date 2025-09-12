@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	// istiov1 "github.com/noironetworks/aci-containers/pkg/istiocrd/apis/aci.istio/v1"
+	nadclientset "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
+	aaepmonitorclientset "github.com/noironetworks/aci-containers/pkg/aaepmonitor/clientset/versioned"
 	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	istioclientset "github.com/noironetworks/aci-containers/pkg/istiocrd/clientset/versioned"
 	snatnodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
@@ -72,6 +74,8 @@ type K8sEnvironment struct {
 	nodePodifClient     *nodepodifclientset.Clientset
 	hppClient           hppclset.Interface
 	proactiveConfClient *proactiveconfclientset.Clientset
+	aaepMonitorClient   *aaepmonitorclientset.Clientset
+	nadClient           *nadclientset.Clientset
 }
 
 func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnvironment, error) {
@@ -142,10 +146,21 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize ProactiveConf client")
 		return nil, err
 	}
+	aaepMonitorClient, err := aaepmonitorclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("Failed to intialize AaepMonitor client")
+		return nil, err
+	}
+	nadClient, err := nadclientset.NewForConfig(restconfig)
+	if err != nil {
+		log.Debug("error creating NAD client")
+		return nil, err
+	}
 	return &K8sEnvironment{restConfig: restconfig, kubeClient: kubeClient,
 		snatClient: snatClient, snatGlobalClient: snatGlobalClient,
 		nodeInfoClient: nodeInfoClient, snatLocalInfoClient: snatLocalInfoClient, rdConfigClient: rdConfigClient,
-		istioClient: istioClient, hppClient: hppClient, proactiveConfClient: proactiveConfClient}, nil
+		istioClient: istioClient, hppClient: hppClient, proactiveConfClient: proactiveConfClient, aaepMonitorClient: aaepMonitorClient,
+		nadClient: nadClient}, nil
 }
 
 func (env *K8sEnvironment) RESTConfig() *restclient.Config {
@@ -198,7 +213,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 	cont.initReplicaSetInformerFromClient(kubeClient)
 	cont.initDeploymentInformerFromClient(kubeClient)
 	cont.initPodInformerFromClient(kubeClient)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.initEndpointSliceInformerFromClient(kubeClient)
 		cont.serviceEndPoints.InitClientInformer(kubeClient)
 		cont.initServiceInformerFromClient(kubeClient)
@@ -219,10 +234,11 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		}
 	} else {
 		cont.initCRDInformer()
+		cont.initEventPoster(env.kubeClient)
 	}
 	cont.log.Debug("Initializing indexes")
 	cont.initDepPodIndex()
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.initNetPolPodIndex()
 		cont.initErspanPolPodIndex()
 		cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
@@ -233,7 +249,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 }
 
 func (env *K8sEnvironment) InitStaticAciObjects() {
-	if env.cont.config.ChainedMode {
+	if env.cont.isCNOEnabled() {
 		env.cont.initStaticChainedModeObjs()
 	} else {
 		env.cont.initStaticNetPolObjs()
@@ -269,7 +285,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
 	cont.log.Info("Node/namespace cache sync successful")
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.serviceEndPoints.Run(stopCh)
 		go cont.serviceInformer.Run(stopCh)
 		go cont.processQueue(cont.serviceQueue, cont.serviceIndexer,
@@ -289,7 +305,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
 	go cont.podInformer.Run(stopCh)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		go cont.snatInformer.Run(stopCh)
 		go cont.processQueue(cont.snatQueue, cont.snatIndexer,
 			func(obj interface{}) bool {
@@ -318,7 +334,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		func(obj interface{}) bool {
 			return cont.handlePodUpdate(obj.(*v1.Pod))
 		}, nil, nil, stopCh)
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		if !cont.config.DisableHppRendering {
 			go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 				func(obj interface{}) bool {
@@ -341,7 +357,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			}, nil, nil, stopCh)
 		go cont.processSyncQueue(cont.syncQueue, stopCh)
 	}
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		if cont.config.InstallIstio {
 			go cont.istioInformer.Run(stopCh)
 			/* Commenting code to remove dependency from istio.io/istio package.
@@ -378,6 +394,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 			cont.registerCRDHook(proactiveConfCRDName, proactiveConfInit)
 		}
 	}
+	if cont.config.VmmLite {
+		cont.registerCRDHook(aaepMonitorCRDName, aaepMonitorInit)
+	}
 	cont.registerCRDHook(nodeFabNetAttCRDName, nodeFabNetAttInit)
 	cont.registerCRDHook(netFabConfigCRDName, netFabConfigInit)
 	cont.registerCRDHook(nadVlanMapCRDName, nadVlanMapInit)
@@ -391,12 +410,12 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.deploymentInformer.HasSynced,
 		cont.podInformer.HasSynced)
 
-	if !cont.config.ChainedMode && !cont.config.DisableHppRendering {
+	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering {
 		cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)
 	}
 
 	cont.log.Info("Cache sync successful")
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		if !cont.config.DisablePeriodicSnatGlobalInfoSync {
 			go cont.snatGlobalInfoSync(stopCh, cont.config.SleepTimeSnatGlobalInfoSync)
 		}
