@@ -214,7 +214,6 @@ func getInterfaceIPv4AndMAC(iface string) (net.IP, net.HardwareAddr, error) {
 			ip = v.IP
 		}
 		if ip4 := ip.To4(); ip4 != nil && !ip4.IsLoopback() && !ip4.IsUnspecified() {
-			logrus.Infof("J: Found IPv4 address %s on interface %s", ip4, iface)
 			return ip4, ifi.HardwareAddr, nil
 		}
 	}
@@ -227,7 +226,6 @@ func discoverDHCPServerIP(iface string, mac net.HardwareAddr) (net.IP, error) {
 
 		return nil, fmt.Errorf("Failed to create dhcp client on %s: %v", iface, err)
 	}
-	logrus.Infof("J: Created dhcp client on %s", iface)
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), dhcpClientTimeout)
 	defer cancel()
@@ -250,12 +248,10 @@ func discoverDHCPServerIP(iface string, mac net.HardwareAddr) (net.IP, error) {
 	matcher := func(packet *dhcpv4.DHCPv4) bool {
 		return packet.MessageType() == dhcpv4.MessageTypeOffer && packet.TransactionID == discoverXID
 	}
-	logrus.Infof("J: Sending DHCP discover packet %v to %s", discover, serverAddr.String())
 	offer, err := client.SendAndRead(ctx, serverAddr, discover, matcher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send DISCOVER and receive OFFER: %v", err)
 	}
-	logrus.Infof("J: Received DHCP offer packet %v from %s", offer, serverAddr.String())
 	serverID := offer.ServerIdentifier()
 	if serverID == nil {
 		return nil, fmt.Errorf("no server identifier found in DHCP offer")
@@ -267,7 +263,6 @@ func getDHCPClientIDfromMAC(mac net.HardwareAddr) ([]byte, error) {
 	clientID := make([]byte, len(mac)+1)
 	clientID[0] = 1
 	copy(clientID[1:], mac)
-	logrus.Infof("J: ClientID: %v", clientID)
 	return clientID, nil
 }
 
@@ -277,7 +272,6 @@ func sendDHCPRelease(iface string) error {
 		return fmt.Errorf("Failed to get hardware address for interface %s: %v", iface, err)
 	}
 	serverIP, err := discoverDHCPServerIP(iface, mac)
-	logrus.Infof("J: Found ServerIP: %v", serverIP)
 	if err != nil {
 		return err
 	}
@@ -294,11 +288,9 @@ func sendDHCPRelease(iface string) error {
 	release.UpdateOption(dhcpv4.OptClientIdentifier(clientID))
 	release.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeRelease))
 	conn, err := nclient4.NewRawUDPConn(iface, dhcpClientPort)
-	logrus.Infof("J: Created dhcp client on %s, conn: %v", iface, conn)
 	if err != nil {
 		return fmt.Errorf("failed to open UDP socket: %w", err)
 	}
-	logrus.Infof("J: Sending DHCP release packet %v to %s", release, serverIP.String())
 	_, err = conn.WriteTo(release.ToBytes(), &net.UDPAddr{IP: serverIP, Port: dhcpServerPort})
 	if err != nil {
 		return fmt.Errorf("failed to send DHCPRELEASE: %w", err)
@@ -336,7 +328,6 @@ func (agent *HostAgent) renewVlanIp(name string) error {
 	if err := netlink.LinkSetUp(link); err != nil {
 		return fmt.Errorf("failed to set interface %s up: %w", name, err)
 	}
-	agent.log.Infof("J: Successfully bounced interface %v", name)
 	return nil
 }
 
@@ -386,8 +377,6 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			success := false
 
 			if agent.releaseVlanIp(link.Name) {
-				// agent.log.Info("J: Sleeping for 2 mins")
-				// time.Sleep(2 * time.Minute)
 				for i := 0; i < retryCount; i++ {
 					time.Sleep(dhcpDelay * time.Second)
 					err := agent.renewVlanIp(link.Name)
