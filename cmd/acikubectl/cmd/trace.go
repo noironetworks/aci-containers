@@ -16,19 +16,13 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	kubecontext "context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
 	"net"
 	"net/url"
 	"os"
@@ -37,6 +31,14 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 )
 
 const (
@@ -2229,6 +2231,672 @@ func pod_to_ext_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 }
 
+func pod_to_pod_arptracepacket(args []string, verbose bool) {
+
+	srcnspod := args[0]
+	dstnspod := args[1]
+	var src_pod_hostnetwork bool
+	var dst_pod_hostnetwork bool
+	src_opflex_pod := ""
+	dst_opflex_pod := ""
+	var src_ep EndPoints
+	var dst_ep EndPoints
+	var request_egress_packetdropped bool
+	var request_ingress_packetdropped bool
+	var reply_egress_packetdropped bool
+	var reply_ingress_packetdropped bool
+	sections := []string{}
+	var tun_id string
+	var tun_id_int int64
+	var destPodIp string
+	var destNodeName string
+
+	srcns, srcpodname, err := splitNamespaceAndPod(srcnspod)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	destns, destpodname, err := splitNamespaceAndPod(dstnspod)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	kubeClient := initClientPrintError()
+	if kubeClient == nil {
+		return
+	}
+
+	is_src_ns_valid := validNamespace(kubeClient, srcns)
+	if !is_src_ns_valid {
+		fmt.Fprintf(os.Stderr, "Could not find namespace: %s\n", srcns)
+		return
+	}
+
+	is_dest_ns_valid := validNamespace(kubeClient, destns)
+	if !is_dest_ns_valid {
+		fmt.Fprintf(os.Stderr, "Could not find namespace: %s\n", destns)
+		return
+	}
+
+	srcPod, err := getPod(kubeClient, srcns, srcpodname)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not find source pod:", err)
+		return
+	}
+
+	dstPod, err := getPod(kubeClient, destns, destpodname)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not find destination pod:", err)
+		return
+	}
+
+	src_node, err := kubeClient.CoreV1().Nodes().Get(kubecontext.TODO(), srcPod.Spec.NodeName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not find source node:", err)
+		return
+	}
+
+	if podIPMatchesNodeIP(srcPod.Status.PodIP, src_node.Status.Addresses) {
+		src_pod_hostnetwork = true
+	}
+
+	dst_node, err := kubeClient.CoreV1().Nodes().Get(kubecontext.TODO(), dstPod.Spec.NodeName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not find destination node:", err)
+		return
+	}
+
+	if podIPMatchesNodeIP(dstPod.Status.PodIP, dst_node.Status.Addresses) {
+		dst_pod_hostnetwork = true
+	}
+
+	srcOvsPodName, err := podForNode(kubeClient, "aci-containers-system",
+		srcPod.Spec.NodeName, "name=aci-containers-openvswitch")
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err, " which has label aci-containers-openvswitch")
+		return
+	}
+
+	destOvsPodName := ""
+	if dstPod.Spec.NodeName != srcPod.Spec.NodeName {
+		destOvsPodName, err = podForNode(kubeClient, "aci-containers-system",
+			dstPod.Spec.NodeName, "name=aci-containers-openvswitch")
+
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+	} else {
+		destOvsPodName = srcOvsPodName
+	}
+
+	src_opflex_pod, err = podForNode(kubeClient, "aci-containers-system",
+		srcPod.Spec.NodeName, "name=aci-containers-host")
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	dst_opflex_pod = ""
+	if dstPod.Spec.NodeName != srcPod.Spec.NodeName {
+		dst_opflex_pod, err = podForNode(kubeClient, "aci-containers-system",
+			dstPod.Spec.NodeName, "name=aci-containers-host")
+
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+	} else {
+		dst_opflex_pod = src_opflex_pod
+	}
+
+	if !src_pod_hostnetwork {
+		src_ep, err = findEpFile(srcPod, src_opflex_pod)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+	}
+
+	if !dst_pod_hostnetwork {
+		dst_ep, err = findEpFile(dstPod, dst_opflex_pod)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+
+	if _, ok := nodeIdMaps.nodeMaps[srcPod.Spec.NodeName]; !ok {
+		err := buildIdMaps(srcPod.Spec.NodeName, src_opflex_pod)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+	}
+
+	if !dst_pod_hostnetwork {
+		//Find gbpObjects
+		gbpObjects, err := findGbpPolicy(kubeClient, dstPod)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+
+		//Destination Calculation
+		tun_id, err = findTunnelId(gbpObjects, dst_ep)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+
+		tun_id_int, _ = strconv.ParseInt("0x"+tun_id, 0, 64)
+	}
+
+	//Source Calculation
+	src_buffer := new(bytes.Buffer)
+
+	cmd_args := []string{}
+
+	printACIDiagram()
+
+	fmt.Printf("\n%s%s%s\n", ColorGreen, "Summary", ColorReset)
+
+	if !src_pod_hostnetwork {
+		// Print the EP details
+		printEndpointDetails(src_ep, srcPod, src_opflex_pod)
+	}
+
+	if !dst_pod_hostnetwork {
+		// Print the EP details
+		printEndpointDetails(dst_ep, dstPod, dst_opflex_pod)
+	}
+	if dstPod != nil && dstPod.Status.PodIP == "" {
+		destPodIp = dstPod.Status.PodIP
+	}
+	fmt.Printf("\n\n%s%s%s\n\n", ColorYellow, "ForwardPath Summary", ColorReset)
+
+	request_out_bridgeflows := []Bridge{}
+	if !src_pod_hostnetwork {
+		cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+			"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, arp, arp_op=1, arp_spa=%s, arp_tpa=%s, dl_src=%s, dl_dst=ff:ff:ff:ff:ff:ff, arp_sha=%s, arp_tha=00:00:00:00:00:00'",
+				src_ep.Attributes.InterfaceName, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, src_ep.Mac)}
+		log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+		err = execKubectl(cmd_args, src_buffer)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+
+		}
+
+		sections = strings.Split(src_buffer.String(), "bridge")
+		for idx, section := range sections {
+			if strings.Contains(section, "br-access") {
+				request_out_bridgeflows = append(request_out_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+					nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+			} else if strings.Contains(section, "br-int") {
+				request_out_bridgeflows = append(request_out_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+					nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+			}
+
+			if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
+				request_out_bridgeflows[len(request_out_bridgeflows)-1].br_type = "br-access"
+			}
+
+			if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
+				request_out_bridgeflows[len(request_out_bridgeflows)-1].br_type = "br-int"
+			}
+		}
+
+		for idx := range request_out_bridgeflows {
+			request_out_bridgeflows[idx].brFlowEntries = request_out_bridgeflows[idx].parseFlowEntries()
+			request_out_bridgeflows[idx].out_br_buff = request_out_bridgeflows[idx].buildPacketTrace()
+		}
+
+		for _, br := range request_out_bridgeflows {
+			if br.summary != nil && br.summary.PacketDropped {
+				if br.br_type == "br-access" {
+					fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n", ColorRed,
+						"br-access", br.summary.previousTable, wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
+					request_egress_packetdropped = true
+				} else {
+					fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n", ColorRed,
+						"br-int", br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
+					request_egress_packetdropped = true
+				}
+			}
+			if br.summary != nil && br.br_type == "br-int" && br.summary.ip_dst != "" {
+				destPodIp = br.summary.ip_dst
+				if destPodIp != "" {
+					_, err = findEndpoint(kubeClient, destPodIp, 0, nil)
+					if err != nil {
+						fmt.Printf("%sEndpoint is a node with IP:%s%s\n", ColorGreen, destPodIp, ColorReset)
+						destNodeName, err = findNodeByIP(kubeClient, destPodIp)
+						if err != nil {
+							fmt.Fprintln(os.Stderr, "Error: ", err)
+							return
+						}
+					}
+				}
+			}
+		}
+
+		if !dst_pod_hostnetwork {
+			if !request_egress_packetdropped {
+				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> ARP Packet sent out from node:%s\n"+
+						"with source_epg %s(%s)\n"+
+						"to destination_epg with VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s)\n"+
+						"%s\n\n",
+						ColorGreen, srcPod.Spec.NodeName, request_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
+						src_ep.EndpointGroupName, tun_id, tun_id_int, dst_ep.EndpointGroupName, ColorReset)
+				} else {
+					fmt.Printf("%s=> ARP Packet sent out and received on same node: %s%s\n\n", ColorGreen,
+						srcPod.Spec.NodeName, ColorReset)
+				}
+			}
+		} else {
+			if !request_egress_packetdropped {
+				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> ARP Packet sent out from node:%s\n"+
+						"with source_epg %s(%s)\n"+
+						"to destination pod IP (%s) on the node(%s) network %s\n\n",
+						ColorGreen, srcPod.Spec.NodeName, request_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
+						src_ep.EndpointGroupName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
+
+				} else {
+					fmt.Printf("%s=> ARP Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+				}
+			}
+		}
+
+	} else {
+		if !dst_pod_hostnetwork {
+			if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+				fmt.Printf("%s=> ARP Packet sent out from source pod IP (%s) on the node(%s)\n"+
+					"with node network to destination pod IP (%s) on the node(%s) %s\n",
+					ColorGreen, srcPod.Status.PodIP, srcPod.Spec.NodeName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
+			} else {
+				fmt.Printf("%s=> ARP Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+			}
+		} else {
+			if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+				fmt.Printf("%s=> ARP Packet sent out from source pod IP (%s) on the node(%s)\n"+
+					"with node network to destination pod IP (%s) on the node(%s) network %s\n",
+					ColorGreen, srcPod.Status.PodIP, srcPod.Spec.NodeName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
+
+			} else {
+				fmt.Printf("%s=> ARP Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+			}
+		}
+	}
+
+	///////////////////////////////// Request Incoming Traffic //////////////////////
+
+	request_in_bridgeflows := []Bridge{}
+
+	if !request_egress_packetdropped {
+
+		if _, ok := nodeIdMaps.nodeMaps[dstPod.Spec.NodeName]; !ok {
+			err := buildIdMaps(dstPod.Spec.NodeName, dst_opflex_pod)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+		}
+
+		dest_buffer := new(bytes.Buffer)
+		if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+			if !dst_pod_hostnetwork {
+				if !src_pod_hostnetwork {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, arp, arp_op=1, arp_spa=%s, arp_tpa=%s, dl_src=%s, dl_dst=ff:ff:ff:ff:ff:ff,arp_sha=%s,arp_tha=00:00:00:00:00:00'",
+							tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, src_ep.Mac)}
+
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, arp, arp_op=1, arp_spa=%s, arp_tpa=%s, dl_src=%s, dl_dst=ff:ff:ff:ff:ff:ff,arp_sha=%s,arp_tha=00:00:00:00:00:00'",
+							tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, "00:22:bd:f8:19:ff", "00:22:bd:f8:19:ff")}
+				}
+
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+				err = execKubectl(cmd_args, dest_buffer)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+
+				sections = strings.Split(dest_buffer.String(), "bridge")
+
+				for idx, section := range sections {
+					if strings.Contains(section, "br-access") {
+						request_in_bridgeflows = append(request_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+							nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
+					} else if strings.Contains(section, "br-int") {
+						request_in_bridgeflows = append(request_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+							nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
+						request_in_bridgeflows[len(request_in_bridgeflows)-1].br_type = "br-access"
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
+						request_in_bridgeflows[len(request_in_bridgeflows)-1].br_type = "br-int"
+					}
+				}
+
+				for idx := range request_in_bridgeflows {
+					request_in_bridgeflows[idx].brFlowEntries = request_in_bridgeflows[idx].parseFlowEntries()
+					request_in_bridgeflows[idx].out_br_buff = request_in_bridgeflows[idx].buildPacketTrace()
+				}
+
+				for _, br := range request_in_bridgeflows {
+					if br.summary != nil && br.summary.PacketDropped {
+						if br.br_type == "br-int" {
+							fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n",
+								ColorRed, "br-int", br.summary.previousTable,
+								wrapText(brIntTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
+							request_egress_packetdropped = true
+
+						} else {
+							fmt.Printf("%s=>ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n",
+								ColorRed, "br-access", br.summary.previousTable,
+								wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
+							request_egress_packetdropped = true
+						}
+					}
+				}
+				if !request_egress_packetdropped && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> ARP Packet received on node:%s with TunID: %s%s\n", ColorGreen, dstPod.Spec.NodeName, tun_id, ColorReset)
+				}
+			}
+		}
+	}
+
+	///////////////////////////////// Reply Outgoing Traffic //////////////////////
+
+	reply_out_bridgeflows := []Bridge{}
+	src_buffer = new(bytes.Buffer)
+
+	if !request_egress_packetdropped && !request_ingress_packetdropped {
+		fmt.Printf("\n\n%s%s%s\n\n", ColorYellow, "ReturnPath Summary", ColorReset)
+		if !src_pod_hostnetwork {
+			gbpObjects, err := findGbpPolicy(kubeClient, srcPod)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+
+			tun_id, err = findTunnelId(gbpObjects, src_ep)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+			tun_id_int, _ = strconv.ParseInt("0x"+tun_id, 0, 64)
+		}
+
+		if !dst_pod_hostnetwork && dstPod != nil {
+			if dstPod.Spec.NodeName != srcPod.Spec.NodeName {
+				src_mac := "00:22:bd:f8:19:ff"
+				if !src_pod_hostnetwork {
+					src_mac = src_ep.Mac
+				}
+				cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, arp, arp_op=2, "+
+						"arp_spa=%s, arp_tpa=%s, dl_src=%s, dl_dst=%s, arp_sha=%s, arp_tha=%s'",
+						dst_ep.Attributes.InterfaceName, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_ep.Mac,
+						src_mac, dst_ep.Mac, src_mac)}
+
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+				err = execKubectl(cmd_args, src_buffer)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+
+				sections := strings.Split(src_buffer.String(), "bridge")
+
+				for idx, section := range sections {
+					if strings.Contains(section, "br-access") {
+						reply_out_bridgeflows = append(reply_out_bridgeflows, Bridge{br_type: "br-access",
+							brFlows: "bridge" + section, nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName,
+							opflexPod: dst_opflex_pod})
+					} else if strings.Contains(section, "br-int") {
+						reply_out_bridgeflows = append(reply_out_bridgeflows, Bridge{br_type: "br-int",
+							brFlows: "bridge" + section, nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName,
+							opflexPod: dst_opflex_pod})
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-access") &&
+						strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_out_bridgeflows[len(reply_out_bridgeflows)-1].br_type = "br-access"
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-int") &&
+						strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_out_bridgeflows[len(reply_out_bridgeflows)-1].br_type = "br-int"
+					}
+				}
+
+				for idx := range reply_out_bridgeflows {
+					reply_out_bridgeflows[idx].brFlowEntries = reply_out_bridgeflows[idx].parseFlowEntries()
+					reply_out_bridgeflows[idx].out_br_buff = reply_out_bridgeflows[idx].buildPacketTrace()
+				}
+
+				for _, br := range reply_out_bridgeflows {
+					if br.summary != nil && br.summary.PacketDropped {
+						if br.br_type == "br-access" {
+							fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+								ColorRed, "br-access", br.summary.previousTable,
+								wrapText(brAccessTableDescriptions[br.summary.previousTable], 60),
+								dstPod.Spec.NodeName, ColorReset)
+							reply_egress_packetdropped = true
+						} else {
+							fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+								ColorRed, "br-int", br.summary.previousTable,
+								wrapText(brIntTableDescriptions[br.summary.previousTable], 60),
+								dstPod.Spec.NodeName, ColorReset)
+							reply_egress_packetdropped = true
+						}
+					}
+				}
+
+				if !reply_egress_packetdropped {
+					if !src_pod_hostnetwork {
+						fmt.Printf("%s=> ARP Packet sent out from node:%s\n"+
+							"with epg %s(%s)\n"+
+							"to origin pod IP %s\n"+
+							"with destination_epg/VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s) %s\n\n",
+							ColorGreen, dstPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
+							dst_ep.EndpointGroupName, srcPod.Status.PodIP, tun_id, tun_id_int, src_ep.EndpointGroupName, ColorReset)
+
+					} else {
+						fmt.Printf("%s=> ARP Packet sent out from node:%s\n"+
+							"with epg %s(%s)\n"+
+							"to origin pod IP %s\n"+
+							"on node(%s) network %s\n\n",
+							ColorGreen, dstPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
+							dst_ep.EndpointGroupName, srcPod.Status.PodIP, src_node.Name, ColorReset)
+					}
+				}
+			}
+		} else {
+			if !src_pod_hostnetwork {
+				fmt.Printf(
+					"%s=> No ovs datapath found for the reply packet\n"+
+						"from destination pod IP %s on node network to source pod IP %s\n"+
+						"with destination_epg/VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s) %s\n\n",
+					ColorGreen,
+					destPodIp,
+					srcPod.Status.PodIP,
+					tun_id,
+					tun_id_int,
+					src_ep.EndpointGroupName,
+					ColorReset,
+				)
+
+			} else {
+				fmt.Printf(
+					"%s=> No ovs datapath found for the reply packet\n"+
+						"on the node %s %s\n\n",
+					ColorGreen,
+					srcPod.Spec.NodeName,
+					ColorReset,
+				)
+			}
+		}
+	}
+
+	///////////////////////////////// Reply Incoming Traffic //////////////////////
+
+	reply_in_bridgeflows := []Bridge{}
+	dest_buffer := new(bytes.Buffer)
+	if !request_egress_packetdropped && !request_ingress_packetdropped && !reply_egress_packetdropped {
+		if !src_pod_hostnetwork {
+			if dstPod != nil {
+				dst_mac := "00:22:bd:f8:19:ff"
+				if !dst_pod_hostnetwork {
+					dst_mac = dst_ep.Mac
+				}
+				if dstPod.Spec.NodeName != srcPod.Spec.NodeName {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,tun_id=0x%s, "+
+							"arp, arp_op=2,arp_spa=%s,arp_tpa=%s,dl_src=%s,arp_sha=%s,arp_tha=%s,dl_dst=%s'",
+							tun_id, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_mac, dst_mac, src_ep.Mac, src_ep.Mac)}
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, arp, arp_op=2, "+
+							"arp_spa=%s, arp_tpa=%s, dl_src=%s, dl_dst=%s, arp_sha=%s, arp_tha=%s'",
+							dst_ep.Attributes.InterfaceName, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_mac, dst_mac, src_ep.Mac, src_ep.Mac)}
+				}
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+				err = execKubectl(cmd_args, dest_buffer)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+			}
+			sections := strings.Split(dest_buffer.String(), "bridge")
+
+			for idx, section := range sections {
+				if strings.Contains(section, "br-access") {
+					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" +
+						section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+				} else if strings.Contains(section, "br-int") {
+					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" +
+						section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+				}
+
+				if idx > 0 && strings.Contains(sections[idx-1], "br-access") &&
+					strings.Contains(sections[idx-1], "resume conntrack") {
+					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-access"
+				}
+
+				if idx > 0 && strings.Contains(sections[idx-1], "br-int") &&
+					strings.Contains(sections[idx-1], "resume conntrack") {
+					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-int"
+				}
+			}
+			for idx := range reply_in_bridgeflows {
+				reply_in_bridgeflows[idx].brFlowEntries = reply_in_bridgeflows[idx].parseFlowEntries()
+				reply_in_bridgeflows[idx].out_br_buff = reply_in_bridgeflows[idx].buildPacketTrace()
+			}
+
+			for _, br := range reply_in_bridgeflows {
+				if br.summary != nil && br.summary.PacketDropped {
+					if br.br_type == "br-access" {
+						fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+							ColorRed, "br-access", br.summary.previousTable,
+							wrapText(brAccessTableDescriptions[br.summary.previousTable], 60),
+							srcPod.Spec.NodeName, ColorReset)
+						reply_ingress_packetdropped = true
+					} else {
+						fmt.Printf("%s=> ARP Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+							ColorRed, "br-int",
+							br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60),
+							srcPod.Spec.NodeName, ColorReset)
+						reply_ingress_packetdropped = true
+					}
+				}
+			}
+			if !reply_ingress_packetdropped {
+				fmt.Printf("%s=> ARP Packet received on the source Pod %s(%s) %s\n\n", ColorGreen,
+					srcPod.Name, srcPod.Status.PodIP, ColorReset)
+			}
+		}
+	}
+
+	if verbose {
+		if !src_pod_hostnetwork {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ForwardPath Outgoing ARP Packet from node: ", src_node.Name, ColorReset)
+			bucket := ""
+			for _, br := range request_out_bridgeflows {
+				if br.br_type == "br-access" {
+					if bucket != "" {
+						fmt.Printf("\n%sBucket %s %s%s\n", ColorYellow, bucket, "br-access:", ColorReset)
+					} else {
+						fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					}
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
+				bucket = extractLastBucketNumber(br.out_br_buff)
+			}
+		}
+
+		if !dst_pod_hostnetwork && !request_egress_packetdropped && dstPod != nil && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ForwardPath Incoming ARP Packet to node: ", dstPod.Spec.NodeName, ColorReset)
+			for _, br := range request_in_bridgeflows {
+				if br.br_type == "br-access" {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
+			}
+		}
+
+		if !dst_pod_hostnetwork && !request_egress_packetdropped && !request_ingress_packetdropped && dstPod != nil &&
+			srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ReturnPath Outgoing ARP Packet from node: ", dstPod.Spec.NodeName, ColorReset)
+			for _, br := range reply_out_bridgeflows {
+				if br.br_type == "br-access" {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
+			}
+		}
+
+		if !src_pod_hostnetwork && !request_egress_packetdropped && !request_ingress_packetdropped &&
+			!reply_egress_packetdropped && ((dstPod != nil && srcPod.Spec.NodeName != dstPod.Spec.NodeName) ||
+			(destPodIp != "" && destNodeName != "" && src_node.Name != destNodeName)) {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ReturnPath Incoming ARP Packet to node: ", src_node.Name, ColorReset)
+			for _, br := range reply_in_bridgeflows {
+				if br.br_type == "br-access" {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
+			}
+		}
+	}
+}
+
 // FetchFileContent fetches the content of the file from the pod
 func FetchFileContent(opflex_pod_name, filePath string) ([]byte, error) {
 	file_buffer := new(bytes.Buffer)
@@ -2463,6 +3131,27 @@ func splitNamespaceAndPod(arg string) (namespace, pod string, err error) {
 	return parts[0], parts[1], nil
 }
 
+// Extract the last bucket number from the given data string
+func extractLastBucketNumber(data string) string {
+	var buckets []string
+	// Compile regex pattern to match "bucket" followed by a number
+	bucketRegex := regexp.MustCompile(`(?i)^\s*bucket\s+(\d+)`)
+	// Split text into lines
+	scanner := bufio.NewScanner(strings.NewReader(data))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		matches := bucketRegex.FindStringSubmatch(line)
+		if len(matches) > 1 {
+			buckets = append(buckets, matches[1])
+		}
+	}
+	if len(buckets) > 0 {
+		return buckets[len(buckets)-1]
+	}
+	return ""
+}
+
 func printACIDiagram() {
 	yellow := "\033[33m"
 	reset := "\033[0m"
@@ -2529,6 +3218,16 @@ var PodtoExttraceCmd = &cobra.Command{
 	},
 }
 
+var PodtoPodArpTraceCmd = &cobra.Command{
+	Use:     "trace_arp_pod_to_pod [src_ns:src_pod] [dest_ns:dest_pod]",
+	Short:   "Trace arp packet's flow in ovs from pod to pod communication",
+	Example: `acikubectl trace_arp_pod_to_pod src_ns:src_pod dest_ns:dest_pod`,
+	Args:    cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		pod_to_pod_arptracepacket(args, verbose)
+	},
+}
+
 var nodeIdMaps *NodeIdMaps
 var tcpFlag, udpFlag bool
 var tcpSrc, udpSrc int
@@ -2564,6 +3263,8 @@ func init() {
 	PodtoExttraceCmd.Flags().IntVar(&udpSrc, "udp_src", 0, "Specify the source UDP port")
 	PodtoExttraceCmd.Flags().IntVar(&udpDst, "udp_dst", 0, "Specify the destination UDP port")
 
+	PodtoPodArpTraceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	RootCmd.AddCommand(PodtoPodArpTraceCmd)
 	RootCmd.AddCommand(PodtoPodtraceCmd)
 	RootCmd.AddCommand(PodtoSvctraceCmd)
 	RootCmd.AddCommand(PodtoExttraceCmd)
