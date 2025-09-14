@@ -68,23 +68,24 @@ type AciController struct {
 
 	unitTestMode bool
 
-	podQueue              workqueue.RateLimitingInterface
-	netPolQueue           workqueue.RateLimitingInterface
-	qosQueue              workqueue.RateLimitingInterface
-	serviceQueue          workqueue.RateLimitingInterface
-	snatQueue             workqueue.RateLimitingInterface
-	netflowQueue          workqueue.RateLimitingInterface
-	erspanQueue           workqueue.RateLimitingInterface
-	snatNodeInfoQueue     workqueue.RateLimitingInterface
-	rdConfigQueue         workqueue.RateLimitingInterface
-	istioQueue            workqueue.RateLimitingInterface
-	nodeFabNetAttQueue    workqueue.RateLimitingInterface
-	netFabConfigQueue     workqueue.RateLimitingInterface
-	nadVlanMapQueue       workqueue.RateLimitingInterface
-	fabricVlanPoolQueue   workqueue.RateLimitingInterface
-	netFabL3ConfigQueue   workqueue.RateLimitingInterface
-	remIpContQueue        workqueue.RateLimitingInterface
-	epgDnCacheUpdateQueue workqueue.RateLimitingInterface
+	podQueue               workqueue.RateLimitingInterface
+	netPolQueue            workqueue.RateLimitingInterface
+	qosQueue               workqueue.RateLimitingInterface
+	serviceQueue           workqueue.RateLimitingInterface
+	snatQueue              workqueue.RateLimitingInterface
+	netflowQueue           workqueue.RateLimitingInterface
+	erspanQueue            workqueue.RateLimitingInterface
+	snatNodeInfoQueue      workqueue.RateLimitingInterface
+	rdConfigQueue          workqueue.RateLimitingInterface
+	istioQueue             workqueue.RateLimitingInterface
+	nodeFabNetAttQueue     workqueue.RateLimitingInterface
+	netFabConfigQueue      workqueue.RateLimitingInterface
+	nadVlanMapQueue        workqueue.RateLimitingInterface
+	fabricVlanPoolQueue    workqueue.RateLimitingInterface
+	netFabL3ConfigQueue    workqueue.RateLimitingInterface
+	remIpContQueue         workqueue.RateLimitingInterface
+	epgDnCacheUpdateQueue  workqueue.RateLimitingInterface
+	aaepMonitorConfigQueue workqueue.RateLimitingInterface
 
 	namespaceIndexer                     cache.Indexer
 	namespaceInformer                    cache.Controller
@@ -135,6 +136,8 @@ type AciController struct {
 	networkFabricL3ConfigurationInformer cache.SharedIndexInformer
 	fabNetAttClient                      *fabattclset.Clientset
 	proactiveConfInformer                cache.SharedIndexInformer
+	aaepMonitorInformer                  cache.SharedIndexInformer
+	poster                               *EventPoster
 
 	indexMutex sync.Mutex
 	hppMutex   sync.Mutex
@@ -220,6 +223,7 @@ type AciController struct {
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
+	sharedAaepMonitor        map[string][]*AaepMonitoringData
 }
 
 type hostFabricInfo struct {
@@ -417,6 +421,17 @@ type serviceEndpointSlice struct {
 	cont *AciController
 }
 
+type AaepEpgAttachData struct {
+	epgDn     string
+	encapVlan int
+}
+
+type AaepMonitoringData struct {
+	aaepEpgData   AaepEpgAttachData
+	nadName       string
+	namespaceName string
+}
+
 func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
 	sep.cont.initEndpointsInformerFromClient(kubeClient)
 }
@@ -477,23 +492,24 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		defaultSg:    "",
 		unitTestMode: unittestmode,
 
-		podQueue:              createQueue("pod"),
-		netPolQueue:           createQueue("networkPolicy"),
-		qosQueue:              createQueue("qos"),
-		netflowQueue:          createQueue("netflow"),
-		erspanQueue:           createQueue("erspan"),
-		serviceQueue:          createQueue("service"),
-		snatQueue:             createQueue("snat"),
-		snatNodeInfoQueue:     createQueue("snatnodeinfo"),
-		rdConfigQueue:         createQueue("rdconfig"),
-		istioQueue:            createQueue("istio"),
-		nodeFabNetAttQueue:    createQueue("nodefabricnetworkattachment"),
-		netFabConfigQueue:     createQueue("networkfabricconfiguration"),
-		nadVlanMapQueue:       createQueue("nadvlanmap"),
-		fabricVlanPoolQueue:   createQueue("fabricvlanpool"),
-		netFabL3ConfigQueue:   createQueue("networkfabricl3configuration"),
-		remIpContQueue:        createQueue("remoteIpContainer"),
-		epgDnCacheUpdateQueue: createQueue("epgDnCache"),
+		podQueue:               createQueue("pod"),
+		netPolQueue:            createQueue("networkPolicy"),
+		qosQueue:               createQueue("qos"),
+		netflowQueue:           createQueue("netflow"),
+		erspanQueue:            createQueue("erspan"),
+		serviceQueue:           createQueue("service"),
+		snatQueue:              createQueue("snat"),
+		snatNodeInfoQueue:      createQueue("snatnodeinfo"),
+		rdConfigQueue:          createQueue("rdconfig"),
+		istioQueue:             createQueue("istio"),
+		nodeFabNetAttQueue:     createQueue("nodefabricnetworkattachment"),
+		netFabConfigQueue:      createQueue("networkfabricconfiguration"),
+		nadVlanMapQueue:        createQueue("nadvlanmap"),
+		fabricVlanPoolQueue:    createQueue("fabricvlanpool"),
+		netFabL3ConfigQueue:    createQueue("networkfabricl3configuration"),
+		remIpContQueue:         createQueue("remoteIpContainer"),
+		epgDnCacheUpdateQueue:  createQueue("epgDnCache"),
+		aaepMonitorConfigQueue: createQueue("aaepepgmap"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
@@ -540,6 +556,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
+		sharedAaepMonitor:           make(map[string][]*AaepMonitoringData),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -557,6 +574,9 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 func (cont *AciController) Init() {
 	if cont.config.ChainedMode {
 		cont.log.Info("In chained mode")
+	}
+	if cont.config.VmmLite {
+		cont.log.Info("In VMM lite mode")
 	}
 
 	egdata, err := json.Marshal(cont.config.DefaultEg)
@@ -802,7 +822,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.PodIpPoolChunkSize == 0 {
 		cont.config.PodIpPoolChunkSize = 32
 	}
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.log.Info("PodIpPoolChunkSize conf is set to: ", cont.config.PodIpPoolChunkSize)
 	}
 
@@ -847,7 +867,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	if cont.config.MaxSvcGraphNodes == 0 {
 		cont.config.MaxSvcGraphNodes = 32
 	}
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.log.Info("Max number of nodes per svc graph is set to: ", cont.config.MaxSvcGraphNodes)
 	}
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
@@ -894,7 +914,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.SnatPbrFltrChain = true
 	}
 
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		cont.log.Debug("SnatPbrFltrChain set to:", cont.apicConn.SnatPbrFltrChain)
 		// Make sure Pod/NodeBDs are assoicated to same VRF.
 		if len(cont.config.ApicHosts) != 0 && cont.config.AciPodBdDn != "" && cont.config.AciNodeBdDn != "" {
@@ -909,7 +929,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		}
 	}
 
-	if len(cont.config.ApicHosts) != 0 && cont.vmmClusterFaultSupported && !cont.config.ChainedMode {
+	if len(cont.config.ApicHosts) != 0 && cont.vmmClusterFaultSupported && !cont.isCNOEnabled() {
 		//Clear fault instances when the controller starts
 		cont.clearFaultInstances()
 		//Subscribe for vmmEpPD for a given domain
@@ -945,7 +965,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		_, ok := cont.env.(*K8sEnvironment)
 		if ok {
 			qs = []workqueue.RateLimitingInterface{cont.podQueue}
-			if !cont.config.ChainedMode {
+			if !cont.isCNOEnabled() {
 				if !cont.config.DisableHppRendering {
 					qs = append(qs, cont.netPolQueue)
 				}
@@ -969,7 +989,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.log.Debug("Checkpoint complete")
 	}
 
-	if len(cont.config.ApicHosts) != 0 && !cont.config.ChainedMode {
+	if len(cont.config.ApicHosts) != 0 && !cont.isCNOEnabled() {
 		cont.BuildSubnetDnCache(cont.config.AciVrfDn, cont.config.AciVrfDn)
 		cont.scheduleRdConfig()
 		if strings.Contains(cont.config.Flavor, "openstack") {
@@ -977,7 +997,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		}
 	}
 
-	if !cont.config.ChainedMode {
+	if !cont.isCNOEnabled() {
 		if cont.config.AciPolicyTenant != cont.config.AciVrfTenant {
 			cont.apicConn.AddSubscriptionDn("uni/tn-"+cont.config.AciPolicyTenant,
 				[]string{"hostprotPol"})
@@ -1003,7 +1023,26 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.AddSubscriptionClass("bgpPeerPfxPol",
 			[]string{"bgpPeerPfxPol"}, "")
 	}
-	if !cont.config.ChainedMode {
+
+	if cont.config.VmmLite {
+		cont.apicConn.AddSubscriptionClass("infraAttEntityP",
+			[]string{"infraRsFuncToEpg"}, "")
+
+		cont.apicConn.SetSubscriptionHooks(
+			"infraAttEntityP",
+			func(obj apicapi.ApicObject) bool {
+				cont.log.Debug("[AAEP-EVENT] EPG attached to AAEP")
+				cont.handleAaepEpgAttach(obj)
+				return true
+			},
+			func(dn string) {
+				cont.log.Debug("[AAEP-EVENT] EPG detached to AAEP")
+				cont.handleAaepEpgDetach(dn)
+			},
+		)
+	}
+
+	if !cont.isCNOEnabled() {
 		// When a new class is added for subscriptio, check if its name attribute
 		// is in the format aciPrefix-<some value>, if so add it in nameAttrClass
 		// in apicapi.go
@@ -1292,4 +1331,8 @@ func (cont *AciController) addVmmInjectedLabel() {
 			panic(err.Error())
 		}
 	}
+}
+
+func (cont *AciController) isCNOEnabled() bool {
+	return cont.config.ChainedMode || cont.config.VmmLite
 }
