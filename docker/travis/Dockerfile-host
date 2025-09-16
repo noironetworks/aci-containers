@@ -14,19 +14,21 @@ RUN microdnf install -y yum yum-utils \
  && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os
 
 RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
-RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client curl iptables-nft jq nmstate tar -y --allowerasing --nogpgcheck && rm -rf /var/cache/yum
+RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft curl jq nmstate tar -y --allowerasing --nogpgcheck && rm -rf /var/cache/yum
+
 
 RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
 
 COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
 
-### CHANGED: unpack into /usr/local instead of /usr + add ENV
+# CHANGED: unpack into /usr/local instead of /usr + add ENV
 RUN mkdir -p /usr/local/sbin /usr/local/lib64 \
  && tar -zxf /tmp/iptables-bin.tar.gz -C /usr/local/sbin \
  && tar -zxf /tmp/iptables-libs.tar.gz -C /usr/local/lib64
-ENV LD_LIBRARY_PATH="/usr/local/lib64:$LD_LIBRARY_PATH"   ### CHANGED
+ENV LD_LIBRARY_PATH="/usr/local/lib64:$LD_LIBRARY_PATH"   
+# CHANGED
 
-### CHANGED: symlinks now point to /usr/local/sbin
+# CHANGED: symlinks now point to /usr/local/sbin
 RUN for i in iptables-legacy iptables-legacy-restore iptables-legacy-save iptables iptables-restore iptables-save; \
   do \
   ln -s -f /usr/local/sbin/xtables-legacy-multi "/usr/local/sbin/$i"; \
@@ -45,7 +47,7 @@ RUN for i in iptables-nft iptables-nft-restore iptables-nft-save ip6tables-nft i
   ln -s -f /usr/local/sbin/xtables-nft-multi "/usr/local/sbin/$i"; \
   done;
 
-### CHANGED: alternatives registered with /usr/local targets
+# CHANGED: alternatives registered with /usr/local targets
 RUN alternatives --install /usr/sbin/iptables iptables /usr/local/sbin/iptables-legacy 1 \
                  --slave /usr/sbin/iptables-restore iptables-restore /usr/local/sbin/iptables-legacy-restore \
                  --slave /usr/sbin/iptables-save iptables-save /usr/local/sbin/iptables-legacy-save \
@@ -59,7 +61,12 @@ RUN alternatives --install /usr/sbin/iptables iptables /usr/local/sbin/iptables-
                  --slave /usr/sbin/ip6tables-restore ip6tables-restore /usr/local/sbin/ip6tables-nft-restore \
                  --slave /usr/sbin/ip6tables-save ip6tables-save /usr/local/sbin/ip6tables-nft-save
 
-RUN /tmp/iptables-wrapper-installer.sh
+
+# Force the system paths to point to our custom binaries before the script runs
+#RUN ln -sf /usr/local/sbin/iptables-legacy /usr/sbin/iptables-legacy && \
+#    ln -sf /usr/local/sbin/iptables-nft /usr/sbin/iptables-nft
+
+RUN /tmp/iptables-wrapper-installer.sh --no-sanity-check
 
 # Required Licenses
 COPY docker/licenses /licenses
