@@ -522,24 +522,24 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 		{
 			path:     "cluster-report/cmds/node-%s/ip-a.log",
-			cont:     "aci-containers-openvswitch",
-			selector: openvswitchSelector,
-			argFunc:  otherNodeArgs,
-			args:     []string{"ip", "a"},
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "ip", "a"},
 		},
 		{
 			path:     "cluster-report/cmds/node-%s/ip-r.log",
-			cont:     "aci-containers-openvswitch",
-			selector: openvswitchSelector,
-			argFunc:  otherNodeArgs,
-			args:     []string{"ip", "r"},
+			cont:     "aci-containers-host",
+			selector: hostAgentSelector,
+			argFunc:  hostAgentLogCmdArgs,
+			args:     []string{"--", "ip", "r"},
 		},
 		{
 			path:     "cluster-report/cmds/node-%s/ovs-conf-db.log",
 			cont:     "aci-containers-openvswitch",
 			selector: openvswitchSelector,
 			argFunc:  otherNodeArgs,
-			args:     []string{"cat", "/etc/openvswitch/conf.db", "/usr/local/etc/openvswitch/conf.db"},
+			args:     []string{"cat", "/usr/local/etc/openvswitch/conf.db"},
 		},
 	}
 
