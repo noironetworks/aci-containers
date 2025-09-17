@@ -45,6 +45,10 @@ const (
 	MCAST_ROUTE_DEST  = "224.0.0.0/4"
 )
 
+var (
+	errIpAddrNotFound = errors.New("ip address not found")
+)
+
 type opflexFault struct {
 	FaultUUID   string `json:"fault_uuid"`
 	Severity    string `json:"severity"`
@@ -203,7 +207,7 @@ func getInterfaceIPv4AndMAC(iface string) (net.IP, net.HardwareAddr, error) {
 	}
 	addrs, err := ifi.Addrs()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get addresses for interface %s: %w", iface, err)
+		return nil, ifi.HardwareAddr, fmt.Errorf("failed to get addresses for interface %s: %w", iface, err)
 	}
 	for _, addr := range addrs {
 		var ip net.IP
@@ -217,7 +221,7 @@ func getInterfaceIPv4AndMAC(iface string) (net.IP, net.HardwareAddr, error) {
 			return ip4, ifi.HardwareAddr, nil
 		}
 	}
-	return nil, nil, fmt.Errorf("no suitable IPv4 address found on interface %s", iface)
+	return nil, ifi.HardwareAddr, errIpAddrNotFound
 }
 
 func discoverDHCPServerIP(iface string, mac net.HardwareAddr) (net.IP, error) {
@@ -261,7 +265,7 @@ func discoverDHCPServerIP(iface string, mac net.HardwareAddr) (net.IP, error) {
 
 func getDHCPClientIDfromMAC(mac net.HardwareAddr) ([]byte, error) {
 	clientID := make([]byte, len(mac)+1)
-	clientID[0] = 1
+	clientID[0] = 1 // Set first byte to Type 1 (Ethernet)
 	copy(clientID[1:], mac)
 	return clientID, nil
 }
@@ -269,7 +273,11 @@ func getDHCPClientIDfromMAC(mac net.HardwareAddr) ([]byte, error) {
 func sendDHCPRelease(iface string) error {
 	ip, mac, err := getInterfaceIPv4AndMAC(iface)
 	if err != nil {
-		return fmt.Errorf("Failed to get hardware address for interface %s: %v", iface, err)
+		if errors.Is(err, errIpAddrNotFound) {
+			logrus.Warnf("No IP address found for interface %s. Skipping DHCP release", iface)
+			return nil
+		}
+		return fmt.Errorf("Failed to get ip / hardware address for interface %s: %v", iface, err)
 	}
 	serverIP, err := discoverDHCPServerIP(iface, mac)
 	if err != nil {
