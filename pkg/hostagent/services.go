@@ -776,8 +776,8 @@ func (sm *opflexServiceMapping) setServiceAffinityConfig(as *v1.Service) {
 	}
 }
 
-func addEmptyConntrackNatServiceMapping(ofsm *[]opflexServiceMapping, clusterIP string, sp *v1.ServicePort, as *v1.Service) {
-	logrus.Debugf("Adding empty service mapping for %s:%d for service %s", clusterIP, sp.Port, as.ObjectMeta.Name)
+func (seps *serviceEndpointSlice) addEmptyConntrackNatServiceMapping(ofsm *[]opflexServiceMapping, clusterIP string, sp *v1.ServicePort, as *v1.Service) {
+	seps.agent.log.Infof("Adding empty service mapping for %s:%d for service %s", clusterIP, sp.Port, as.ObjectMeta.Name)
 	sm := &opflexServiceMapping{
 		ServiceIp:             clusterIP,
 		ServicePort:           uint16(sp.Port),
@@ -959,7 +959,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 			!external &&
 			!seps.agent.config.DisableOpflexResilientHashing &&
 			as.Spec.SessionAffinity == "ClientIP" {
-			addEmptyConntrackNatServiceMapping(&ofas.ServiceMappings, clusterIP, sp, as)
+			seps.addEmptyConntrackNatServiceMapping(&ofas.ServiceMappings, clusterIP, sp, as)
 			hasValidMapping = true
 		}
 	}
