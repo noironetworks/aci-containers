@@ -15,14 +15,18 @@
 package hostagent
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -35,6 +39,7 @@ import (
 const (
 	DHCLIENT_CONF    = "/usr/local/etc/dhclient.conf"
 	MCAST_ROUTE_DEST = "224.0.0.0/4"
+	dhclientLeaseDir = "/usr/local/var/lib/dhclient"
 )
 
 type opflexFault struct {
@@ -235,6 +240,102 @@ func (agent *HostAgent) renewVlanIp(name string) bool {
 	return renewed
 }
 
+func (agent *HostAgent) dhclientOneshotRenew(name string) bool {
+	cmd := exec.Command("dhclient", name, "-1", "--timeout", "30", "-cf", DHCLIENT_CONF)
+	agent.log.Info("Executing command:", cmd.String())
+	opt, err := cmd.Output()
+	if err != nil {
+		agent.log.Error("Failed to renew ip : ", err.Error(), " ", string(opt))
+		return false
+	}
+	agent.log.Info(string(opt))
+	return true
+}
+
+func (agent *HostAgent) checkDhclientLease(interfaceName string) bool {
+	pattern := fmt.Sprintf(`^\s*interface\s+"%s"\s*;\s*$`, regexp.QuoteMeta(interfaceName))
+	re, _ := regexp.Compile(pattern)
+	var dhcpLeaseFound bool
+	walkErr := filepath.WalkDir(dhclientLeaseDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".leases") {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			agent.log.Warnf("Could not open file %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if re.MatchString(scanner.Text()) {
+				dhcpLeaseFound = true
+				return fs.SkipAll
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			agent.log.Warnf("Error reading file %s: %v", path, err)
+		}
+		return nil
+	})
+	switch {
+	case dhcpLeaseFound:
+		return true
+	case walkErr != nil:
+		agent.log.Error("Failed to check dhclient lease: ", walkErr)
+		return false
+	default:
+		return false
+	}
+}
+
+func (agent *HostAgent) ensureDhclientLease() {
+	agent.dhcpMutex.Lock()
+	defer agent.dhcpMutex.Unlock()
+	links, err := netlink.LinkList()
+	if err != nil {
+		agent.log.Error("Could not enumerate interfaces: ", err)
+		return
+	}
+	for _, link := range links {
+		link, ok := link.(*netlink.Vlan)
+		if !ok || link.VlanId != int(agent.config.AciInfraVlan) {
+			continue
+		}
+		agent.log.Infof("Checking dhclient lease for interface %s", link.Name)
+		if agent.checkDhclientLease(link.Name) {
+			agent.log.Infof("Lease found for interface %s", link.Name)
+			return
+		}
+		retryCount := agent.config.DhcpRenewMaxRetryCount
+		dhcpDelay := time.Duration(agent.config.DhcpDelay)
+		for i := range retryCount {
+			agent.log.Infof("Renewing dhclient lease for interface %s", link.Name)
+			if agent.dhclientOneshotRenew(link.Name) {
+				if agent.checkDhclientLease(link.Name) {
+					agent.log.Infof("Lease populated for interface %s", link.Name)
+					return
+				} else {
+					agent.log.Error("dhclient lease not found..iteration:", i+1)
+				}
+			} else {
+				agent.log.Errorf("Failed to renew ip for interface %s.. iteration:%d", link.Name, i+1)
+			}
+			if i == retryCount-1 {
+				agent.log.Errorf("Failed to get dhclient lease for interface %s. Stopped trying after %d iterations", link.Name, retryCount)
+				return
+			}
+			time.Sleep(dhcpDelay * time.Second)
+		}
+	}
+}
+
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	agent.log.Info("old aci-pod annotiation for multipod ", agent.aciPodAnnotation)
@@ -245,6 +346,8 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 		aciPodSubnet != "" && aciPodSubnet != "none" {
 		return
 	}
+	agent.dhcpMutex.Lock()
+	defer agent.dhcpMutex.Unlock()
 	links, err := netlink.LinkList()
 	if err != nil {
 		agent.log.Error("Could not enumerate interfaces: ", err)
