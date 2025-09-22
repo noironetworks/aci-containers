@@ -58,23 +58,6 @@ func (cont *AciController) initEventRecorder(kubeClient *kubernetes.Clientset) r
 	return recorder
 }
 
-func (cont *AciController) getNADDeleteMessage(deleteReason string) string {
-	messagePrefix := "NAD is in use by pods: "
-	switch {
-	case deleteReason == "NamespaceAnnotationRemoved":
-		return messagePrefix + "Namespace name EPG annotaion removed"
-	case deleteReason == "NamespaceAnnotationChanged":
-		return messagePrefix + "EPG annotation mentioning namespace name removed. NAD will be created in namespace mentioned in EPG annotation"
-	case deleteReason == "AaepEpgDetached":
-		return messagePrefix + "EPG detached from AAEP"
-	case deleteReason == "CRDeleted":
-		return messagePrefix + "aaepmonitor CR deleted"
-	case deleteReason == "AaepRemovedFromCR":
-		return messagePrefix + "AAEP removed from aaepmonitor CR"
-	}
-	return messagePrefix + "One or many pods are using NAD"
-}
-
 // Submit an event using kube API with message attached
 func (cont *AciController) submitEvent(nad *nadapi.NetworkAttachmentDefinition, reason, message string) error {
 	cont.log.Debug("Posting event ", message)
