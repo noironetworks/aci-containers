@@ -1429,10 +1429,10 @@ func TestServiceLogger(t *testing.T) {
 			Type: v1.ServiceTypeLoadBalancer,
 		},
 	}
-	
+
 	// Test that the function creates a logger with proper fields
 	entry := serviceLogger(cont.log, service)
-	
+
 	// Verify that the entry has the expected fields
 	assert.Equal(t, "test-namespace", entry.Data["namespace"])
 	assert.Equal(t, "test-service", entry.Data["name"])
@@ -1442,7 +1442,7 @@ func TestServiceLogger(t *testing.T) {
 func TestQueuePortNetPolUpdates(t *testing.T) {
 	cont := testController()
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
-	
+
 	// Create test target port entry
 	portKey := "test-port"
 	entry := &portIndexEntry{
@@ -1451,19 +1451,19 @@ func TestQueuePortNetPolUpdates(t *testing.T) {
 		},
 	}
 	cont.targetPortIndex[portKey] = entry
-	
+
 	// Test with ports that have entries
 	ports := map[string]targetPort{
 		portKey: {proto: v1.ProtocolTCP, ports: []int{80}},
 	}
-	
+
 	cont.queuePortNetPolUpdates(ports)
-	
+
 	// Test with ports that don't have entries
 	missingPorts := map[string]targetPort{
 		"missing-port": {proto: v1.ProtocolTCP, ports: []int{443}},
 	}
-	
+
 	cont.queuePortNetPolUpdates(missingPorts)
 }
 
@@ -1471,15 +1471,15 @@ func TestQueueMatchingNamedNp(t *testing.T) {
 	cont := testController()
 	cont.nmPortNp = make(map[string]bool)
 	cont.nmPortNp["test-policy"] = true
-	
+
 	// Test with served policies
 	served := map[string]bool{
 		"already-served": true,
 	}
 	podkey := "test-namespace/test-pod"
-	
+
 	cont.queueMatchingNamedNp(served, podkey)
-	
+
 	// Test with empty served map
 	emptyServed := map[string]bool{}
 	cont.queueMatchingNamedNp(emptyServed, podkey)
@@ -1489,10 +1489,10 @@ func TestQueueEndpointsNetPolUpdates(t *testing.T) {
 	cont := testController()
 	// Initialize the required index
 	if cont.netPolEgressPods == nil {
-		cont.netPolEgressPods = cont.netPolPods  // Use existing initialized index
+		cont.netPolEgressPods = cont.netPolPods // Use existing initialized index
 	}
 	cont.nmPortNp = make(map[string]bool)
-	
+
 	// Test with endpoints containing addresses
 	endpoints := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1524,9 +1524,9 @@ func TestQueueEndpointsNetPolUpdates(t *testing.T) {
 			},
 		},
 	}
-	
+
 	cont.queueEndpointsNetPolUpdates(endpoints)
-	
+
 	// Test with empty endpoints
 	emptyEndpoints := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1535,6 +1535,6 @@ func TestQueueEndpointsNetPolUpdates(t *testing.T) {
 		},
 		Subsets: []v1.EndpointSubset{},
 	}
-	
+
 	cont.queueEndpointsNetPolUpdates(emptyEndpoints)
 }
