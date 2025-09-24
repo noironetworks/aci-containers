@@ -1415,3 +1415,126 @@ func TestServiceGraphiWithEps(t *testing.T) {
 
 	cont.stop()
 }
+
+// Additional service tests for coverage improvement
+
+func TestServiceLogger(t *testing.T) {
+	cont := testController()
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-service",
+		},
+		Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeLoadBalancer,
+		},
+	}
+	
+	// Test that the function creates a logger with proper fields
+	entry := serviceLogger(cont.log, service)
+	
+	// Verify that the entry has the expected fields
+	assert.Equal(t, "test-namespace", entry.Data["namespace"])
+	assert.Equal(t, "test-service", entry.Data["name"])
+	assert.Equal(t, v1.ServiceTypeLoadBalancer, entry.Data["type"])
+}
+
+func TestQueuePortNetPolUpdates(t *testing.T) {
+	cont := testController()
+	cont.targetPortIndex = make(map[string]*portIndexEntry)
+	
+	// Create test target port entry
+	portKey := "test-port"
+	entry := &portIndexEntry{
+		networkPolicyKeys: map[string]bool{
+			"test-policy": true,
+		},
+	}
+	cont.targetPortIndex[portKey] = entry
+	
+	// Test with ports that have entries
+	ports := map[string]targetPort{
+		portKey: {proto: v1.ProtocolTCP, ports: []int{80}},
+	}
+	
+	cont.queuePortNetPolUpdates(ports)
+	
+	// Test with ports that don't have entries
+	missingPorts := map[string]targetPort{
+		"missing-port": {proto: v1.ProtocolTCP, ports: []int{443}},
+	}
+	
+	cont.queuePortNetPolUpdates(missingPorts)
+}
+
+func TestQueueMatchingNamedNp(t *testing.T) {
+	cont := testController()
+	cont.nmPortNp = make(map[string]bool)
+	cont.nmPortNp["test-policy"] = true
+	
+	// Test with served policies
+	served := map[string]bool{
+		"already-served": true,
+	}
+	podkey := "test-namespace/test-pod"
+	
+	cont.queueMatchingNamedNp(served, podkey)
+	
+	// Test with empty served map
+	emptyServed := map[string]bool{}
+	cont.queueMatchingNamedNp(emptyServed, podkey)
+}
+
+func TestQueueEndpointsNetPolUpdates(t *testing.T) {
+	cont := testController()
+	// Initialize the required index
+	if cont.netPolEgressPods == nil {
+		cont.netPolEgressPods = cont.netPolPods  // Use existing initialized index
+	}
+	cont.nmPortNp = make(map[string]bool)
+	
+	// Test with endpoints containing addresses
+	endpoints := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "test-endpoints",
+		},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{
+						IP: "192.168.1.1",
+						TargetRef: &v1.ObjectReference{
+							Kind:      "Pod",
+							Namespace: "test-namespace",
+							Name:      "test-pod1",
+						},
+					},
+				},
+				NotReadyAddresses: []v1.EndpointAddress{
+					{
+						IP: "192.168.1.2",
+						TargetRef: &v1.ObjectReference{
+							Kind:      "Pod",
+							Namespace: "test-namespace",
+							Name:      "test-pod2",
+						},
+					},
+				},
+			},
+		},
+	}
+	
+	cont.queueEndpointsNetPolUpdates(endpoints)
+	
+	// Test with empty endpoints
+	emptyEndpoints := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "empty-endpoints",
+		},
+		Subsets: []v1.EndpointSubset{},
+	}
+	
+	cont.queueEndpointsNetPolUpdates(emptyEndpoints)
+}

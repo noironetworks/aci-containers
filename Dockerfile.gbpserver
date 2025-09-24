@@ -1,0 +1,28 @@
+# Dockerfile for running gbpserver coverage tests on Linux
+FROM ubuntu:jammy
+
+# Install basic tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    make \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.23.7 for AMD64 (most common Docker architecture)
+RUN curl -L https://go.dev/dl/go1.23.7.linux-amd64.tar.gz | tar -xz -C /usr/local
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy the source code
+COPY . .
+
+# Install goveralls
+RUN go install github.com/mattn/goveralls@v0.0.12
+
+# Default command to run gbpserver coverage
+CMD ["make", "check-gbpserver"]

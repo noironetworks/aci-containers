@@ -1,0 +1,44 @@
+# Dockerfile for running coverage tests on Linux
+FROM ubuntu:jammy
+
+# Install basic tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    make \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.23.7 for AMD64 (most common Docker architecture)
+RUN curl -L https://go.dev/dl/go1.23.7.linux-amd64.tar.gz | tar -xz -C /usr/local
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy the source code
+COPY . .
+
+# Install goveralls
+RUN go install github.com/mattn/goveralls@v0.0.12
+
+# Set up test environment
+RUN mkdir -p /tmp/kubebuilder
+RUN ./tools/setup-envtest.bash
+
+# Setup environment variables for test assets
+ENV PATH="/tmp/kubebuilder/bin:${PATH}"
+ENV TEST_ASSET_KUBECTL="/tmp/kubebuilder/bin/kubectl"
+ENV TEST_ASSET_KUBE_APISERVER="/tmp/kubebuilder/bin/kube-apiserver"
+ENV TEST_ASSET_ETCD="/tmp/kubebuilder/bin/etcd"
+ENV KUBEBUILDER_ASSETS="/tmp/kubebuilder/bin"
+
+# Default command to run coverage (can be overridden)
+# Examples:
+# make check-hostagent (needs kubebuilder assets)
+# make check-gbpserver (simpler, no special requirements)
+# make check-controller (no special requirements)
+# make check-webhook (no special requirements)
+CMD ["make", "check-hostagent"]

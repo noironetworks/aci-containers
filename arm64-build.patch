@@ -1,0 +1,107 @@
+diff --git a/Makefile b/Makefile
+index da65e60d0..2491a2257 100644
+--- a/Makefile
++++ b/Makefile
+@@ -59,7 +59,7 @@ STATIC_BUILD_CMD_CGO ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD} \
+         -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+         -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
+          -s -w" -a -installsuffix cgo
+-STATIC_BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
++STATIC_BUILD_CMD ?= GOARCH=arm64 CC=/opt/musl-cross/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_ENABLED=0 GOOS=linux ${BUILD_CMD} \
+         -ldflags="\
+         -X ${PKG_NAME_CONTROLLER}.buildTime=$(shell date -u +%m-%d-%Y.%H:%M:%S.UTC) \
+         -X ${PKG_NAME_CONTROLLER}.gitCommit=${GIT_COMMIT} \
+@@ -97,6 +97,7 @@ all-static: dist-static/aci-containers-host-agent \
+ 	dist-static/aci-containers-operator dist-static/aci-containers-webhook \
+ 	dist-static/aci-containers-certmanager
+ 
++
+ all-static-race: dist-static-race/aci-containers-host-agent \
+ 	dist-static-race/aci-containers-host-agent-ovscni \
+ 	dist-static-race/opflex-agent-cni dist-static-race/aci-containers-controller \
+@@ -119,6 +120,7 @@ clean-dist:
+ 	rm -rf dist
+ clean: clean-dist
+ 
++
+ PACKAGE = aci-containers
+ VERSION_BASE ?= 1.9.0
+ VERSION_SUFFIX ?=
+diff --git a/docker/travis/Dockerfile-cnideploy b/docker/travis/Dockerfile-cnideploy
+index 8f88d2c10..363bf572e 100644
+--- a/docker/travis/Dockerfile-cnideploy
++++ b/docker/travis/Dockerfile-cnideploy
+@@ -11,6 +11,6 @@ RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ub
+ COPY docker/licenses /licenses
+ RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y wget ca-certificates tar gzip \
+   && yum clean all \
+-  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz | tar xz -C /opt/cni/bin
++  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-arm64-v0.9.1.tgz | tar xz -C /opt/cni/bin
+ COPY docker/launch-cnideploy.sh /usr/local/bin/
+ CMD ["/usr/local/bin/launch-cnideploy.sh"]
+diff --git a/docker/travis/Dockerfile-controller b/docker/travis/Dockerfile-controller
+index f4779cf8e..b4a05ede3 100644
+--- a/docker/travis/Dockerfile-controller
++++ b/docker/travis/Dockerfile-controller
+@@ -10,9 +10,9 @@ RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ub
+ RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
+ # Required Licenses
+ COPY docker/licenses /licenses
+-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl \
++RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/arm64/kubectl \
+   && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl \
+-  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-amd64.tar.gz" | tar xz \
++  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-arm64.tar.gz" | tar xz \
+   && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
+   && mkdir -p /usr/local/var/lib/aci-cni
+ COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
+diff --git a/docker/travis/Dockerfile-host b/docker/travis/Dockerfile-host
+index af82a3a21..1c9bae103 100644
+--- a/docker/travis/Dockerfile-host
++++ b/docker/travis/Dockerfile-host
+@@ -8,13 +8,13 @@ summary="This is an ACI CNI Host-Agent." \
+ description="This will deploy a single instance of ACI CNI Host-Agent."
+ # For some reason this prevents the next RUN from installing the incompat fips module
+ RUN microdnf install -y yum yum-utils \
+- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
+- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
++ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os \
++ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os \
+  && yum --nogpgcheck -y update
+ RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y && rm -rf /var/cache/yum
+ RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
+-RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os -y --nogpgcheck && rm -rf /var/cache/yum
+-RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os dhcp-client iptables-nft jq nmstate tar -y --nogpgcheck && rm -rf /var/cache/yum
++RUN yum update --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os -y --nogpgcheck && rm -rf /var/cache/yum
++RUN yum install --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os dhcp-client iptables-nft jq nmstate tar -y --nogpgcheck && rm -rf /var/cache/yum
+ 
+ COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-static/iptables-wrapper-installer.sh /tmp/
+ RUN tar -zxf /tmp/iptables-bin.tar.gz -C /usr/sbin \
+diff --git a/docker/travis/Dockerfile-openvswitch b/docker/travis/Dockerfile-openvswitch
+index 2547724a3..0dbb50f1c 100644
+--- a/docker/travis/Dockerfile-openvswitch
++++ b/docker/travis/Dockerfile-openvswitch
+@@ -1,7 +1,7 @@
+ FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
+ RUN microdnf install -y yum yum-utils
+-RUN yum update -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os && rm -rf /var/cache/yum
+-RUN yum install -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
++RUN yum update -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os  --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os && rm -rf /var/cache/yum
++RUN yum install -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os --repofrompath=centos-app,https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os \
+   logrotate conntrack-tools tcpdump strace ltrace iptables net-tools \
+   libcap vi hostname iproute openssl procps-ng kmod tar \
+  && yum clean all
+diff --git a/docker/travis/Dockerfile-openvswitch-base b/docker/travis/Dockerfile-openvswitch-base
+index 7befd8ec0..65a1026de 100644
+--- a/docker/travis/Dockerfile-openvswitch-base
++++ b/docker/travis/Dockerfile-openvswitch-base
+@@ -1,7 +1,7 @@
+ FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
+ RUN microdnf install -y yum yum-utils \
+- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os \
+- && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os \
++ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os \
++ && yum-config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os \
+  && yum --nogpgcheck -y update
+ RUN yum --nogpgcheck --disablerepo=\*ubi\* install -y \
+   libtool pkgconfig autoconf automake make file python3-six \
