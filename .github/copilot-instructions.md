@@ -42,6 +42,89 @@ make dist/aci-containers-controller
 - Docker builds in `docker/` directory with component-specific Dockerfiles
 - Cross-compilation using `GOBUILD` container environment
 
+### Running Host Agent Tests on macOS with Podman
+
+The hostagent component requires Linux-specific networking features and CGO dependencies that can cause build issues on macOS. Use containerized testing with Podman for reliable results:
+
+#### Prerequisites
+- Podman installed on macOS (`brew install podman`)
+- Podman machine running (`podman machine start`)
+
+#### Dockerfile for Host Agent Testing
+Create `Dockerfile.coverage` in the project root:
+
+```dockerfile
+# Dockerfile for running hostagent coverage tests on Linux
+FROM quay.io/centos/centos:stream9
+
+# Install basic tools
+RUN dnf update -y && dnf install -y \
+    git \
+    make \
+    gcc \
+    gcc-c++ \
+    tar \
+    && dnf clean all
+
+# Install Go 1.23.7 for ARM64 (to match container architecture)
+RUN curl -L https://go.dev/dl/go1.23.7.linux-arm64.tar.gz | tar -xz -C /usr/local
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy the source code
+COPY . .
+
+# Install goveralls
+RUN go install github.com/mattn/goveralls@v0.0.12
+
+# Set up test environment
+RUN mkdir -p /tmp/kubebuilder
+RUN ./tools/setup-envtest.bash
+
+# Setup environment variables for test assets
+ENV PATH="/tmp/kubebuilder/bin:${PATH}"
+ENV TEST_ASSET_KUBECTL="/tmp/kubebuilder/bin/kubectl"
+ENV TEST_ASSET_KUBE_APISERVER="/tmp/kubebuilder/bin/kube-apiserver"
+ENV TEST_ASSET_ETCD="/tmp/kubebuilder/bin/etcd"
+ENV KUBEBUILDER_ASSETS="/tmp/kubebuilder/bin"
+
+# Default command to run coverage
+CMD ["make", "check-hostagent"]
+```
+
+#### Running Tests
+
+```bash
+# Build the container image
+podman build -f Dockerfile.coverage -t aci-coverage:latest .
+
+# Run hostagent tests with coverage
+podman run --rm -v $(pwd):/workspace -w /workspace aci-coverage:latest
+
+# Run specific test commands
+podman run --rm -v $(pwd):/workspace -w /workspace aci-coverage:latest \
+    sh -c "go test -v ./pkg/hostagent -run TestNewHostAgent"
+
+# Get detailed coverage report
+podman run --rm -v $(pwd):/workspace -w /workspace aci-coverage:latest \
+    sh -c "make check-hostagent && go tool cover -func=covprof-hostagent"
+```
+
+#### Container Architecture Notes
+- The container runs on ARM64 architecture when using Apple Silicon Macs
+- Go binary must match container architecture (linux-arm64 vs linux-amd64)
+- Network dependencies and CGO requirements are resolved in the Linux environment
+- Test assets (kubectl, kube-apiserver, etcd) are automatically downloaded and configured
+
+#### Troubleshooting
+- If authentication issues occur with container registries, try alternative base images
+- For build failures, ensure Go version matches the container architecture
+- Test failures due to nil pointer dereferences indicate missing Kubernetes client setup in tests
+
 ## Project Conventions
 
 ### Configuration Management

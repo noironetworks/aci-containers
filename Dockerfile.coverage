@@ -1,16 +1,17 @@
 # Dockerfile for running coverage tests on Linux
-FROM ubuntu:jammy
+FROM quay.io/centos/centos:stream9
 
 # Install basic tools
-RUN apt-get update && apt-get install -y \
-    curl \
+RUN dnf update -y && dnf install -y \
     git \
     make \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    gcc-c++ \
+    tar \
+    && dnf clean all
 
-# Install Go 1.23.7 for AMD64 (most common Docker architecture)
-RUN curl -L https://go.dev/dl/go1.23.7.linux-amd64.tar.gz | tar -xz -C /usr/local
+# Install Go 1.23.7 for ARM64 (to match container architecture)
+RUN curl -L https://go.dev/dl/go1.23.7.linux-arm64.tar.gz | tar -xz -C /usr/local
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
