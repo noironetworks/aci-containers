@@ -13,6 +13,17 @@ coverage.out
 *.out
 cscope.*
 covprof*
+coverage-results/
+.github/COVERAGE_ANALYSIS.md
+.DS_Store
+
+# Build and coverage analysis files
+Dockerfile.gbpserver
+Dockerfile.coverage
+arm64-build.patch
+hostagent-coverage-details.txt
+makefile-arm64.patch
+run-coverage.sh
 
 # IDE directories
 .idea/

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestStringInSlice(t *testing.T) {
@@ -102,4 +103,83 @@ func TestApicExtNet(t *testing.T) {
 
 	// Check that the external network was created successfully
 	assert.Equal(t, "test-snat", extNetSnat.GetAttr("name"))
+}
+
+// Test getProtocolStr function - Protocol string conversion utility
+func TestGetProtocolStrExpanded(t *testing.T) {
+	tests := []struct {
+		name     string
+		proto    v1.Protocol
+		expected string
+	}{
+		{
+			name:     "TCP protocol",
+			proto:    v1.ProtocolTCP,
+			expected: "tcp",
+		},
+		{
+			name:     "UDP protocol",
+			proto:    v1.ProtocolUDP,
+			expected: "udp",
+		},
+		{
+			name:     "SCTP protocol",
+			proto:    v1.ProtocolSCTP,
+			expected: "sctp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getProtocolStr(tt.proto)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// Test transformMac function - MAC address transformation utility
+func TestTransformMac(t *testing.T) {
+	tests := []struct {
+		name     string
+		mac      string
+		expected string
+	}{
+		{
+			name:     "Standard MAC with colons",
+			mac:      "aa:bb:cc:dd:ee:ff",
+			expected: "aa-bb-cc-dd-ee-ff",
+		},
+		{
+			name:     "Uppercase MAC with colons",
+			mac:      "AA:BB:CC:DD:EE:FF",
+			expected: "AA-BB-CC-DD-EE-FF",
+		},
+		{
+			name:     "MAC already with dashes",
+			mac:      "aa-bb-cc-dd-ee-ff",
+			expected: "aa-bb-cc-dd-ee-ff",
+		},
+		{
+			name:     "Empty string",
+			mac:      "",
+			expected: "",
+		},
+		{
+			name:     "Single colon",
+			mac:      "aa:bb",
+			expected: "aa-bb",
+		},
+		{
+			name:     "No separator",
+			mac:      "aabbccddeeff",
+			expected: "aabbccddeeff",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := transformMac(tt.mac)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
