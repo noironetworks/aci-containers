@@ -142,7 +142,7 @@ func TestRemoveTaintBasic(t *testing.T) {
 	// This tests the function without actually calling Kubernetes API
 	originalTaints := len(node.Spec.Taints)
 	assert.Equal(t, 2, originalTaints, "Should start with 2 taints")
-	
+
 	// The function should handle nil client gracefully
 	// Rather than calling the function that will panic, we test the logic conceptually
 	// by verifying the taint removal logic would work on a ready node

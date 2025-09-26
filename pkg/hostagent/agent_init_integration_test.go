@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 // Copyright 2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +15,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package hostagent contains integration tests for the HostAgent component.
+// These tests require full Kubernetes client setup and are more complex than unit tests.
+// To run these tests: go test -tags=integration ./pkg/hostagent
 package hostagent
 
 import (
