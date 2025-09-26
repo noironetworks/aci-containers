@@ -278,8 +278,14 @@ check-index:
 	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
 	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS} && ./exclude-covprof.sh covprof-apicapi exclude-covprof.conf
-check-hostagent: test-tools
+# all hostagent tests: unit tests and integration tests require Linux
+# Integration tests have //go:build integration constraint and also require Linux CNI dependencies
+check-hostagent: test-tools check-hostagent-unit check-hostagent-integration
+check-hostagent-unit: test-tools
 	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS} && ./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
+check-hostagent-integration: test-tools
+	# Integration tests require Linux environment (Travis CI) due to CNI plugin dependencies
+	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -tags=integration -coverprofile=covprof-hostagent-integration ${BASE}/pkg/hostagent ${TEST_ARGS}
 check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:

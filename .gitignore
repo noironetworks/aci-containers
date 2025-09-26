@@ -10,5 +10,10 @@ __pycache__
 *.swp
 *.pyc
 coverage.out
+*.out
 cscope.*
 covprof*
+
+# IDE directories
+.idea/
+.vscode/

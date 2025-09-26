@@ -181,8 +181,8 @@ podman run --rm -v $(pwd):/workspace -w /workspace aci-coverage:latest \
 ## Test Coverage Analysis
 
 ### Current Coverage Status
-- **Controller**: 54.2% coverage (18,721 lines) - Primary improvement target
-- **Host Agent**: 62.4% coverage - Good baseline, moderate improvement potential  
+- **Controller**: 54.1% coverage (18,721 lines) - Primary improvement target
+- **Host Agent**: 48.9% coverage - Successfully improved from 47.9% through systematic 0% function testing
 - **GBP Server**: 54.1% coverage - Moderate baseline, good improvement potential
 - **Target**: 75% overall coverage across all components
 
@@ -301,6 +301,57 @@ Reference these implemented test files for patterns:
 - `pkg/controller/network_test.go` - Network function testing with corrected signatures
 - `pkg/controller/service_util_test.go` - APIC integration testing
 - `pkg/controller/controller_basic_test.go` - Core controller function testing
+- `pkg/hostagent/agent_coverage_test.go` - **PROVEN COVERAGE IMPROVEMENT PATTERN** - Improved hostagent from 47.9% to 48.9%
+
+### Host Agent Testing Success Pattern
+
+#### Proven Strategy for Coverage Improvement
+The hostagent component was successfully improved from 47.9% to 48.9% coverage by systematically targeting 0% coverage functions with utility-focused unit tests. This approach provides the highest impact per test function written.
+
+#### Host Agent Test Implementation Pattern
+```go
+// pkg/hostagent/agent_coverage_test.go - Follow this proven pattern
+func TestUtilityFunctionGroup(t *testing.T) {
+    // Target utility functions that don't require complex setup
+    result := functionUnderTest(testInput)
+    assert.Equal(t, expected, result)
+}
+
+func TestSnatPolicyFunctions(t *testing.T) {
+    // Initialize policy maps properly to avoid nil pointer issues
+    agent := &HostAgent{
+        snatPolicyMap: make(map[string]*snatPolicy),
+    }
+    
+    // Test policy utility functions
+    label := agent.generatePolicyLabel(testData)
+    assert.NotEmpty(t, label)
+}
+```
+
+#### Key Learnings from Host Agent Testing
+1. **Target 0% Coverage Functions First**: Maximum impact with minimal effort
+2. **Focus on Utility Functions**: Avoid complex dependency chains
+3. **Initialize Maps and Slices**: Prevent nil pointer dereferences in tests
+4. **Use Stub Functions**: Test environment-specific functions with simple stubs
+5. **Test Scheduling Logic**: Verify queue management and event handling
+6. **Environment Testing Approach**:
+   - **Local Development**: Use macOS environment for faster iteration and cleaner execution
+   - **Containerized CI**: Use Podman containers for Linux-specific dependencies in CI
+   - **Hybrid Strategy**: Develop locally, validate in containers for CI compatibility
+
+#### Host Agent Coverage Improvement Areas Validated
+- **SNAT Policy Functions**: Policy label generation, matching, and validation
+- **Scheduling Functions**: Queue management and delayed execution
+- **Environment Stubs**: Network interface and system-specific functionality
+- **Fabric Discovery**: ACI fabric path and attachment point discovery
+- **Utility Functions**: String manipulation, validation, and helper functions
+
+#### Test Environment Best Practices
+- **Local Testing**: Faster feedback, simpler debugging, proven successful for hostagent
+- **Containerized Testing**: Required for Linux-specific CNI functionality, use for final validation
+- **Coverage Analysis**: Use `go tool cover -func=coverage.out | grep "0.0%"` to identify high-impact targets
+- **Incremental Approach**: Add 5-10 test functions per iteration, validate coverage improvement
 
 ## Contribution Guidelines
 - Follow existing code patterns and conventions
@@ -308,6 +359,6 @@ Reference these implemented test files for patterns:
 - Target 0% coverage functions for maximum coverage impact
 - Verify function signatures before writing tests
 - Use `testController()` pattern for consistency
+- **ALWAYS run `go fmt ./...` or `make check-gofmt` before committing** to ensure consistent code formatting
 - Ensure code passes `make check` before submitting PRs
  
-

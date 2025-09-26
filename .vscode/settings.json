@@ -1,9 +1,0 @@
-{
-    "workbench.colorCustomizations": {
-        "activityBar.background": "#233301",
-        "titleBar.activeBackground": "#304701",
-        "titleBar.activeForeground": "#F3FEDB"
-    },
-    "copy-github-permalink.branch": "upstream/master",
-    "chat.agent.maxRequests": 15
-}

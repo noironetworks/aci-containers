@@ -1,6 +1,11 @@
 //go:build integration
 // +build integration
 
+// Integration tests for hostagent - requires Linux environment
+// These tests require CNI plugin dependencies that have Linux-specific build constraints
+// Run with: go test -tags=integration
+// In CI: make check-hostagent-integration (Linux environments only)
+
 // Copyright 2017 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -298,10 +303,10 @@ func TestAddPodRoute(t *testing.T) {
 func TestRemoveTaintNodeReadinessLogic(t *testing.T) {
 	// Test the logic for determining node readiness without calling actual removeTaintIfNodeReady
 	// This avoids the nil pointer dereference issue
-	
+
 	tests := []struct {
-		name      string
-		node      *v1.Node
+		name              string
+		node              *v1.Node
 		shouldRemoveTaint bool
 	}{
 		{
@@ -368,7 +373,7 @@ func TestRemoveTaintNodeReadinessLogic(t *testing.T) {
 					break
 				}
 			}
-			
+
 			assert.Equal(t, tt.shouldRemoveTaint, isReady, "Node readiness should match expected taint removal behavior")
 		})
 	}
