@@ -9,6 +9,7 @@ RUN yum install -y --nogpgcheck --disablerepo=* --repofrompath=centos,https://mi
 RUN yum --nogpgcheck update -y
 # Required OpenShift Labels
 LABEL name="ACI CNI Openvswitch" \
+maintainer="Vishal Lella <vlella@cisco.com>" \
 vendor="Cisco" \
 version="v1.1.0" \
 release="1" \

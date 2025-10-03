@@ -1,6 +1,7 @@
 FROM registry.access.redhat.com/ubi9/ubi:latest
 # Required OpenShift Labels
 LABEL name="ACI CNI Containers Controller" \
+maintainer="Vishal Lella <vlella@cisco.com>" \
 vendor="Cisco" \
 version="v1.1.0" \
 release="1" \
