@@ -1031,12 +1031,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.apicConn.SetSubscriptionHooks(
 			"infraAttEntityP",
 			func(obj apicapi.ApicObject) bool {
-				cont.log.Debug("[AAEP-EVENT] EPG attached to AAEP")
+				cont.log.Debug("EPG attached to AAEP")
 				cont.handleAaepEpgAttach(obj)
 				return true
 			},
 			func(dn string) {
-				cont.log.Debug("[AAEP-EVENT] EPG detached to AAEP")
+				cont.log.Debug("EPG detached from AAEP")
 				cont.handleAaepEpgDetach(dn)
 			},
 		)
