@@ -67,7 +67,6 @@ type HostAgent struct {
 	snatPolicyLabelMutex sync.RWMutex
 	snatPolicyCacheMutex sync.RWMutex
 	proactiveConfMutex   sync.Mutex
-	dhcpMutex            sync.Mutex
 
 	opflexEps              map[string][]*opflexEndpoint
 	opflexServices         map[string]*opflexService
@@ -633,9 +632,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.checkSyncProcessorsCompletionStatus(stopCh)
 	} else {
 		agent.taintRemoved.Store(true)
-	}
-	if agent.config.AciMultipod {
-		go agent.ensureDhclientLease()
 	}
 	syncEnabled, err := agent.env.PrepareRun(stopCh)
 	if err != nil {
