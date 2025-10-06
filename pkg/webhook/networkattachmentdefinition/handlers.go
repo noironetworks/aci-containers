@@ -208,7 +208,7 @@ func handleVmmLiteNAD(ctx context.Context, req AdmissionRequest) AdmissionRespon
 		webhookHdlrLog.Info(nadOwner)
 		if nadOwner == "cisco-network-operator" {
 			webhookHdlrLog.Info("Denying deletion: NAD is managed by VMM Lite")
-			msg := "Denying deletion: NAD is managed by VMM Lite. Manual deletion is not recomended. Remove the 'managed-by' annotation from the NAD, then try deleting it manually."
+			msg := "Denying deletion: NAD is managed by VMM Lite. Manual deletion is not recommended. Remove the 'managed-by' annotation from the NAD, then try deleting it manually."
 			return Denied(msg)
 		}
 	}
