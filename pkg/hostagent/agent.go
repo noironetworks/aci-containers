@@ -129,7 +129,7 @@ type HostAgent struct {
 	//snatpods per snat policy
 	snatPods map[string]map[string]ResourceType
 	//Object Key and list of labels active for snatpolicy
-	snatPolicyLabels map[string]map[string]ResourceType
+	snatPolicyLabels map[string]map[string]map[ResourceType]struct{}
 	snatPolicyCache  map[string]*snatpolicy.SnatPolicy
 	rdConfig         *opflexRdConfig
 	poster           *EventPoster
@@ -212,7 +212,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		opflexSnatGlobalInfos: make(map[string][]*opflexSnatGlobalInfo),
 		opflexSnatLocalInfos:  make(map[string]*opflexSnatLocalInfo),
 		snatPods:              make(map[string]map[string]ResourceType),
-		snatPolicyLabels:      make(map[string]map[string]ResourceType),
+		snatPolicyLabels:      make(map[string]map[string]map[ResourceType]struct{}),
 		snatPolicyCache:       make(map[string]*snatpolicy.SnatPolicy),
 		servicetoPodUids:      make(map[string]map[string]struct{}),
 		podtoServiceUids:      make(map[string]map[string][]string),
@@ -324,7 +324,7 @@ func addPodRoute(ipn types.IPNet, dev, src string) error {
 	return netlink.RouteAdd(&route)
 }
 
-func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]ResourceType, bool) {
+func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]map[ResourceType]struct{}, bool) {
 	agent.snatPolicyLabelMutex.RLock()
 	defer agent.snatPolicyLabelMutex.RUnlock()
 	value, ok := agent.snatPolicyLabels[key]
@@ -334,13 +334,22 @@ func (agent *HostAgent) ReadSnatPolicyLabel(key string) (map[string]ResourceType
 func (agent *HostAgent) WriteSnatPolicyLabel(key, policy string, res ResourceType) {
 	agent.snatPolicyLabelMutex.Lock()
 	defer agent.snatPolicyLabelMutex.Unlock()
-	agent.snatPolicyLabels[key][policy] = res
+	if _, ok := agent.snatPolicyLabels[key][policy]; !ok {
+		agent.snatPolicyLabels[key][policy] = make(map[ResourceType]struct{})
+	}
+	agent.snatPolicyLabels[key][policy][res] = struct{}{}
 }
 
 func (agent *HostAgent) WriteNewSnatPolicyLabel(key string) {
 	agent.snatPolicyLabelMutex.Lock()
 	defer agent.snatPolicyLabelMutex.Unlock()
-	agent.snatPolicyLabels[key] = make(map[string]ResourceType)
+	agent.snatPolicyLabels[key] = make(map[string]map[ResourceType]struct{})
+}
+
+func (agent *HostAgent) DeleteSnatPolicyLabelEntryResource(key, policy string, res ResourceType) {
+	agent.snatPolicyLabelMutex.Lock()
+	defer agent.snatPolicyLabelMutex.Unlock()
+	delete(agent.snatPolicyLabels[key][policy], res)
 }
 
 func (agent *HostAgent) DeleteSnatPolicyLabelEntry(key, policy string) {
