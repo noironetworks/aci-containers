@@ -849,20 +849,19 @@ func (agent *HostAgent) syncSnat() bool {
 
 // Get the Pods matching the Object selector
 func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string) (poduids []string, res ResourceType) {
-	metadata, err := meta.Accessor(obj)
-	if err != nil {
-		return
-	}
-	if !agent.isPolicyNameSpaceMatches(policyname, metadata.GetNamespace()) {
-		return
-	}
 	switch obj := obj.(type) {
 	case *v1.Pod:
+		if !agent.isPolicyNameSpaceMatches(policyname, obj.GetNamespace()) {
+			return
+		}
 		poduids = append(poduids, string(obj.ObjectMeta.UID))
 		if len(poduids) != 0 {
 			agent.log.Info("Matching pod uids: ", poduids)
 		}
 	case *appsv1.Deployment:
+		if !agent.isPolicyNameSpaceMatches(policyname, obj.GetNamespace()) {
+			return
+		}
 		depkey, _ :=
 			cache.MetaNamespaceKeyFunc(obj)
 		for _, podkey := range agent.depPods.GetPodForObj(depkey) {
@@ -882,6 +881,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 		}
 		res = DEPLOYMENT
 	case *v1.Service:
+		if !agent.isPolicyNameSpaceMatches(policyname, obj.GetNamespace()) {
+			return
+		}
 		selector := labels.SelectorFromSet(obj.Spec.Selector)
 		cache.ListAllByNamespace(agent.podInformer.GetIndexer(),
 			obj.ObjectMeta.Namespace, selector,
@@ -896,6 +898,9 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 		}
 		res = SERVICE
 	case *v1.Namespace:
+		if !agent.isPolicyNameSpaceMatches(policyname, obj.GetName()) {
+			return
+		}
 		cache.ListAllByNamespace(agent.podInformer.GetIndexer(),
 			obj.ObjectMeta.Name, labels.Everything(),
 			func(podobj interface{}) {
@@ -1049,7 +1054,8 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 		} else { //Check Policy matches the labels on the Object
 			if (item.Spec.Selector.Namespace != "" &&
 				item.Spec.Selector.Namespace == namespace) ||
-				(item.Spec.Selector.Namespace == "") {
+				(item.Spec.Selector.Namespace == "") ||
+				(res == NAMESPACE && item.Spec.Selector.Namespace == name) {
 				if util.MatchLabels(item.Spec.Selector.Labels, label) {
 					snatPolicyNames[item.ObjectMeta.Name] =
 						append(snatPolicyNames[item.ObjectMeta.Name], res)
