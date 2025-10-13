@@ -813,14 +813,54 @@ func (cont *AciController) createNetworkAttachmentDefinition(aaepName string, ep
 	}
 
 	cnvBridgeConfig := map[string]any{
-		"cniVersion":       "0.3.1",
-		"name":             defaultNadName,
-		"type":             "bridge",
-		"isDefaultGateway": true,
-		"bridge":           bridge,
-		"mtu":              mtu,
+		"cniVersion":                "0.3.1",
+		"name":                      defaultNadName,
+		"type":                      "bridge",
+		"bridge":                    bridge,
+		"mtu":                       mtu,
+		"disableContainerInterface": true,
 	}
 
+	// Add optional parameters from controller config if they are set
+	if cont.config.IsGateway != nil {
+		cnvBridgeConfig["isGateway"] = *cont.config.IsGateway
+	}
+	if cont.config.IsDefaultGateway != nil {
+		cnvBridgeConfig["isDefaultGateway"] = *cont.config.IsDefaultGateway
+	}
+	if cont.config.ForceAddress != nil {
+		cnvBridgeConfig["forceAddress"] = *cont.config.ForceAddress
+	}
+	if cont.config.IpMasq != nil {
+		cnvBridgeConfig["ipMasq"] = *cont.config.IpMasq
+	}
+	if cont.config.IpMasqBackend != "" {
+		cnvBridgeConfig["ipMasqBackend"] = cont.config.IpMasqBackend
+	}
+	if cont.config.Mtu != nil {
+		cnvBridgeConfig["mtu"] = *cont.config.Mtu
+	}
+	if cont.config.HairpinMode != nil {
+		cnvBridgeConfig["hairpinMode"] = *cont.config.HairpinMode
+	}
+	if cont.config.PromiscMode != nil {
+		cnvBridgeConfig["promiscMode"] = *cont.config.PromiscMode
+	}
+	if cont.config.Enabledad != nil {
+		cnvBridgeConfig["enabledad"] = *cont.config.Enabledad
+	}
+	if cont.config.Macspoofchk != nil {
+		cnvBridgeConfig["macspoofchk"] = *cont.config.Macspoofchk
+	}
+	if cont.config.DisableContainerInterface != nil {
+		cnvBridgeConfig["disableContainerInterface"] = *cont.config.DisableContainerInterface
+	}
+	if cont.config.PortIsolation != nil {
+		cnvBridgeConfig["portIsolation"] = *cont.config.PortIsolation
+	}
+	if len(cont.config.Ipam) > 0 {
+		cnvBridgeConfig["ipam"] = cont.config.Ipam
+	}
 	if vlanID > 0 {
 		cnvBridgeConfig["vlan"] = vlanID
 	}

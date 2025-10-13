@@ -333,6 +333,21 @@ type ControllerConfig struct {
 	// Name of linux-bridge for NAD creation in vmm lite feature
 	BridgeName string `json:"bridge-name,omitempty"`
 
+	// Optional fields for linux-bridge NAD creation in vmm lite feature
+	IsGateway                 *bool                  `json:"isGateway,omitempty"`
+	IsDefaultGateway          *bool                  `json:"isDefaultGateway,omitempty"`
+	ForceAddress              *bool                  `json:"forceAddress,omitempty"`
+	IpMasq                    *bool                  `json:"ipMasq,omitempty"`
+	IpMasqBackend             string                 `json:"ipMasqBackend,omitempty"`
+	Mtu                       *int                   `json:"mtu,omitempty"`
+	HairpinMode               *bool                  `json:"hairpinMode,omitempty"`
+	PromiscMode               *bool                  `json:"promiscMode,omitempty"`
+	Enabledad                 *bool                  `json:"enabledad,omitempty"`
+	Macspoofchk               *bool                  `json:"macspoofchk,omitempty"`
+	DisableContainerInterface *bool                  `json:"disableContainerInterface,omitempty"`
+	PortIsolation             *bool                  `json:"portIsolation,omitempty"`
+	Ipam                      map[string]interface{} `json:"ipam,omitempty"`
+
 	// Prefix for EPG annotation to identify CNO, default is "cno"
 	CnoIdentifier string `json:"cno-identifier,omitempty"`
 
