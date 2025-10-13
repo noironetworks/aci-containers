@@ -335,6 +335,8 @@ type ControllerConfig struct {
 
 	// Prefix for EPG annotation to identify CNO, default is "cno"
 	CnoIdentifier string `json:"cno-identifier,omitempty"`
+
+	KubeapiVlan int `json:"kubeapi-vlan,omitempty"`
 }
 
 type netIps struct {
