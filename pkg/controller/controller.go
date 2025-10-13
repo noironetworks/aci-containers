@@ -223,7 +223,7 @@ type AciController struct {
 	openStackFabricPathDnMap map[string]openstackOpflexOdevInfo
 	hostFabricPathDnMap      map[string]hostFabricInfo
 	openStackSystemId        string
-	sharedAaepMonitor        map[string][]*AaepMonitoringData
+	sharedAaepMonitor        map[string]map[string]*AaepEpgAttachData
 }
 
 type hostFabricInfo struct {
@@ -422,14 +422,15 @@ type serviceEndpointSlice struct {
 }
 
 type AaepEpgAttachData struct {
-	epgDn     string
-	encapVlan int
-}
-
-type AaepMonitoringData struct {
-	aaepEpgData   AaepEpgAttachData
+	encapVlan     int
 	nadName       string
 	namespaceName string
+	nadCreated    bool
+}
+
+type EpgVlanMap struct {
+	epgDn     string
+	encapVlan int
 }
 
 func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
@@ -556,7 +557,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
 		nsRemoteIpCont:              make(map[string]remoteIpConts),
-		sharedAaepMonitor:           make(map[string][]*AaepMonitoringData),
+		sharedAaepMonitor:           make(map[string]map[string]*AaepEpgAttachData),
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
