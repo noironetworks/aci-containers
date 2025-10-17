@@ -602,6 +602,15 @@ func (br *Bridge) buildPacketTrace() string {
 					// Extract the value moved to the IPv4 destination address
 					ipv4Dest := strings.Split(criteria, " is now ")[1]
 					fmt.Fprintf(&buffer, "    IPv4 Destination is now %s\n", ipv4Dest)
+				} else if strings.Contains(criteria, "nat(dst=") && bridgName == "br-int" && table == 6 {
+					// In case of NodePort service, fetch destination pod ip from nat rule.
+					re := regexp.MustCompile(`nat\(dst=(\d+\.\d+\.\d+\.\d+)`)
+					match := re.FindStringSubmatch(criteria)
+					if len(match) > 1 {
+						ipAddress := match[1]
+						fmt.Fprintf(&buffer, "%sPod IP is %s%s\n", ColorPurple, ipAddress, ColorReset)
+						summary.ip_dst = ipAddress
+					}
 				} else if strings.Contains(criteria, "nat(src=") && summary.snat_ip == "" {
 
 					re := regexp.MustCompile(`nat\(src=(\d+\.\d+\.\d+\.\d+)`)
@@ -1679,7 +1688,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					}
 				}
 
-				for idx, _ := range request_in_bridgeflows {
+				for idx := range request_in_bridgeflows {
 					request_in_bridgeflows[idx].brFlowEntries = request_in_bridgeflows[idx].parseFlowEntries()
 					request_in_bridgeflows[idx].out_br_buff = request_in_bridgeflows[idx].buildPacketTrace()
 				}
@@ -1702,7 +1711,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				}
 
 				if !request_ingress_packetdropped {
-					fmt.Printf("%s=> Packet recieved on the destination %s %s\n", ColorGreen, destPod.Status.PodIP, ColorReset)
+					fmt.Printf("%s=> Packet received on the destination %s %s\n", ColorGreen, destPod.Status.PodIP, ColorReset)
 				}
 
 			} else {
@@ -1840,7 +1849,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 							"with epg %s(%s)\n"+
 							"to origin pod IP %s\n"+
 							"with destination_epg/VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s) %s\n\n",
-							ColorGreen, destPod.Spec.NodeName, reply_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
+							ColorGreen, destPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
 							dest_ep.EndpointGroupName, srcPod.Status.PodIP, tun_id, tun_id_int, src_ep.EndpointGroupName, ColorReset)
 
 					} else {
@@ -1848,7 +1857,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 							"with epg %s(%s)\n"+
 							"to origin pod IP %s\n"+
 							"on node(%s) network %s\n\n",
-							ColorGreen, destPod.Spec.NodeName, reply_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
+							ColorGreen, destPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
 							dest_ep.EndpointGroupName, srcPod.Status.PodIP, src_node.Name, ColorReset)
 					}
 				}
@@ -1941,7 +1950,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 			}
 
-			for idx, _ := range reply_in_bridgeflows {
+			for idx := range reply_in_bridgeflows {
 				reply_in_bridgeflows[idx].brFlowEntries = reply_in_bridgeflows[idx].parseFlowEntries()
 				reply_in_bridgeflows[idx].out_br_buff = reply_in_bridgeflows[idx].buildPacketTrace()
 			}
@@ -1965,7 +1974,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 			}
 
 			if !reply_ingress_packetdropped {
-				fmt.Printf("%s=> Packet recieved on the source Pod %s(%s) %s\n\n", ColorGreen,
+				fmt.Printf("%s=> Packet received on the source Pod %s(%s) %s\n\n", ColorGreen,
 					srcPod.Name, srcPod.Status.PodIP, ColorReset)
 			}
 		}
