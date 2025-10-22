@@ -265,7 +265,7 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 			if dn, ok := body.Attributes["dn"].(string); ok {
 				if status, isStr := body.Attributes["status"].(string); isStr {
 					dnSlice := strings.Split(dn, "/")
-					if len(dnSlice) > 1 && strings.Contains(dnSlice[1], conn.vrfTenant) {
+					if len(dnSlice) > 1 && conn.vrfTenant != "" && strings.Contains(dnSlice[1], conn.vrfTenant) {
 						var attr string
 						if nameAttrClass[key] {
 							_, ok := body.Attributes["name"]
