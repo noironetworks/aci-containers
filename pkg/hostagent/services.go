@@ -908,7 +908,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 										if *e.Conditions.Ready {
 											nexthops["topologyawarehints"] =
 												append(nexthops["topologyawarehints"], a)
-										} else if e.Conditions.Terminating != nil && *e.Conditions.Terminating {
+										} else if as.Spec.Type == v1.ServiceTypeClusterIP && e.Conditions.Terminating != nil && *e.Conditions.Terminating {
 											terminatingnexthops["topologyawarehints"] =
 												append(terminatingnexthops["topologyawarehints"], a)
 										}
@@ -917,7 +917,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							} else {
 								if *e.Conditions.Ready {
 									nexthops["any"] = append(nexthops["any"], a)
-								} else if e.Conditions.Terminating != nil && *e.Conditions.Terminating {
+								} else if as.Spec.Type == v1.ServiceTypeClusterIP && e.Conditions.Terminating != nil && *e.Conditions.Terminating {
 									terminatingnexthops["any"] =
 										append(terminatingnexthops["any"], a)
 								}
@@ -939,7 +939,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 					agent.log.Info("TerminatingNextHopIps are", sm.TerminatingNextHopIps)
 				}
 				sm.setServiceAffinityConfig(as)
-				if !external && !seps.agent.config.DisableOpflexResilientHashing && as.Spec.SessionAffinity == "ClientIP" {
+				if !seps.agent.config.DisableOpflexResilientHashing && as.Spec.Type == v1.ServiceTypeClusterIP && as.Spec.SessionAffinity == "ClientIP" {
 					sm.ConntrackNat = true
 					agent.log.Infof("Service %s:%s has resilient hashing enabled", as.ObjectMeta.Namespace, as.ObjectMeta.Name)
 				}
@@ -958,8 +958,8 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		// For service with resilient hashing, add an empty mapping to support sending
 		// RST / ICMP Unreachable messages to clients when there are no endpoints.
 		if emtpyService &&
-			!external &&
 			!seps.agent.config.DisableOpflexResilientHashing &&
+			as.Spec.Type == v1.ServiceTypeClusterIP &&
 			as.Spec.SessionAffinity == "ClientIP" {
 			seps.addEmptyConntrackNatServiceMapping(&ofas.ServiceMappings, clusterIP, sp, as)
 			hasValidMapping = true
