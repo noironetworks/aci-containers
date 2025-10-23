@@ -153,6 +153,7 @@ func (cont *AciController) handleAaepMonitorConfigurationUpdate(obj interface{})
 		return false
 	}
 
+	cont.log.Infof("Started processing of aaepmonitor CR creation/modification")
 	addedAaeps, removedAaeps := cont.getAaepDiff(aaepMonitorConfig.Spec.Aaeps)
 	for _, aaepName := range addedAaeps {
 		cont.reconcileNadData(aaepName)
@@ -170,13 +171,14 @@ func (cont *AciController) handleAaepMonitorConfigurationUpdate(obj interface{})
 		}
 		cont.indexMutex.Unlock()
 	}
-
+	cont.log.Infof("Completed processing of aaepmonitor CR creation/modification")
 	return false
 }
 
 func (cont *AciController) handleAaepMonitorConfigurationDelete(key string) bool {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
+	cont.log.Infof("Started processing of aaepmonitor CR deletion")
 	for aaepName, aaepEpgAttachDataMap := range cont.sharedAaepMonitor {
 		cont.cleanAnnotationSubscriptions(aaepName)
 
@@ -186,12 +188,14 @@ func (cont *AciController) handleAaepMonitorConfigurationDelete(key string) bool
 	}
 
 	cont.sharedAaepMonitor = make(map[string]map[string]*AaepEpgAttachData)
+	cont.log.Infof("Completed processing of aaepmonitor CR deletion")
 	return false
 }
 
 func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 	infraRsObjDn := infraRsObj.GetDn()
 	aaepName := cont.matchesAEPFilter(infraRsObjDn)
+	cont.log.Infof("Started processing of EPG: %s attached with AAEP: %s", infraRsObj.GetAttrStr("tDn"), aaepName)
 	if aaepName == "" {
 		cont.log.Debugf("Unable to find AAEP from %s in monitoring list", infraRsObjDn)
 		return
@@ -212,10 +216,13 @@ func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 		return
 	}
 
+	cont.indexMutex.Lock()
+	oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
+	cont.indexMutex.Unlock()
+
 	if cont.checkVlanUsedInCluster(vlanID) {
 		// This is needed when user updates vlan to the vlan already used in cluster
-		cont.handleOverlappingVlan(aaepName, epgDn, vlanID)
-
+		cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "AaepEpgAttachedWithVlanInUse")
 		cont.log.Errorf("Skipping NAD creation: VLAN %d is already used in cluster", vlanID)
 		return
 	}
@@ -233,10 +240,11 @@ func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 		return
 	}
 
-	if cont.checkIfEpgWithOverlappingVlan(aaepName, vlanID) {
+	if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, vlanID) {
 		// This is needed when user updates vlan from non-overlapping to overlapping
-		cont.handleOverlappingVlan(aaepName, epgDn, vlanID)
+		cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "AaepEpgAttachedWithOverlappingVlan")
 
+		// Add new entry with nadCreated as false
 		cont.indexMutex.Lock()
 		if cont.sharedAaepMonitor[aaepName] == nil {
 			cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
@@ -247,11 +255,8 @@ func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 		cont.log.Errorf("Skipping NAD creation: EPG %s with AAEP %s has overlapping VLAN %d", epgDn, aaepName, vlanID)
 		return
 	}
-	cont.indexMutex.Lock()
-	oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
-	cont.indexMutex.Unlock()
-
 	cont.syncNADsWithAciState(aaepName, epgDn, oldAaepMonitorData, aaepEpgAttachData, "AaepEpgAttached")
+	cont.log.Infof("Completed processing of EPG: %s attached with AAEP: %s", epgDn, aaepName)
 }
 
 func (cont *AciController) handleAaepEpgDetach(infraRsObjDn string) {
@@ -263,6 +268,12 @@ func (cont *AciController) handleAaepEpgDetach(infraRsObjDn string) {
 
 	epgDn := cont.getEpgDnFromInfraRsDn(infraRsObjDn)
 
+	if epgDn == "" {
+		cont.log.Errorf("Unable to find EPG from %s", infraRsObjDn)
+		return
+	}
+
+	cont.log.Infof("Started processing of EPG: %s detached from AAEP: %s", infraRsObjDn, aaepName)
 	// Need to check if EPG is not attached with any other AAEP
 	if !cont.isEpgAttachedWithAaep(epgDn) {
 		cont.apicConn.UnsubscribeImmediateDnLocked(epgDn, []string{"tagAnnotation"})
@@ -281,18 +292,8 @@ func (cont *AciController) handleAaepEpgDetach(infraRsObjDn string) {
 		return
 	}
 
-	if aaepEpgAttachData.nadCreated == false {
-		cont.indexMutex.Lock()
-		delete(cont.sharedAaepMonitor[aaepName], epgDn)
-		cont.indexMutex.Unlock()
-		return
-	}
-
-	cont.indexMutex.Lock()
-	delete(cont.sharedAaepMonitor[aaepName], epgDn)
-	cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "AaepEpgDetached")
-	cont.indexMutex.Unlock()
-	cont.createNadForNextEpg(aaepName, aaepEpgAttachData.encapVlan)
+	cont.handleOldNadDeletion(aaepName, epgDn, aaepEpgAttachData, "AaepEpgDetached")
+	cont.log.Infof("Completed processing of EPG: %s detached from AAEP: %s", epgDn, aaepName)
 }
 
 func (cont *AciController) handleAnnotationAdded(obj apicapi.ApicObject) bool {
@@ -300,41 +301,65 @@ func (cont *AciController) handleAnnotationAdded(obj apicapi.ApicObject) bool {
 	epgDn := annotationDn[:strings.Index(annotationDn, "/annotationKey-")]
 	aaepMonitorDataMap := cont.getAaepMonitoringDataForEpg(epgDn)
 
+	cont.log.Infof("Started processing of EPG: %s annotation %s addition/modification", epgDn, annotationDn)
 	for aaepName, aaepMonitorData := range aaepMonitorDataMap {
-		if aaepMonitorData == nil {
+		cont.indexMutex.Lock()
+		oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
+		cont.indexMutex.Unlock()
+
+		if len(aaepMonitorData) == 0 {
+			// No new monitoring data available for this EPG with this AAEP but old data exists
+			// delete old NAD if exists and remove from monitoring map
+			// create NAD for next EPG with old VLAN
+			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationAdded")
 			cont.log.Debugf("Insufficient data for NAD creation: Monitoring data not available for EPG %s with AAEP %s", epgDn, aaepName)
 			continue
 		}
 
-		if _, exists := aaepMonitorData[epgDn]; !exists {
-			cont.log.Debugf("EPG %s not found in monitoring data for AAEP %s", epgDn, aaepName)
+		aaepEpgAttachData, exists := aaepMonitorData[epgDn]
+		if !exists || aaepEpgAttachData == nil {
+			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationAdded")
+			cont.log.Debugf("Insufficient data for NAD creation: Monitoring data not available for EPG %s with AAEP %s", epgDn, aaepName)
 			continue
 		}
 
-		aaepEpgAttachData := aaepMonitorData[epgDn]
+		if !cont.checkMonitorDataModified(oldAaepMonitorData, aaepEpgAttachData) {
+			cont.log.Debugf("No changes in annotation for EPG %s with AAEP %s", epgDn, aaepName)
+			continue
+		}
+
 		if !cont.namespaceChecks(aaepEpgAttachData.namespaceName, epgDn) {
-			cont.log.Debugf("Insufficient data for NAD creation: Namespace not exist, in case of EPG %s with AAEP %s", epgDn, aaepName)
+			// Namespace not exist, need to delete old NAD if exists and remove from monitoring map
+			// create NAD for next EPG with old VLAN
+			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationAdded")
+			cont.log.Debugf("Insufficient data in annotation for NAD creation: Namespace not exist, in case of EPG %s with AAEP %s", epgDn, aaepName)
 			continue
 		}
 
-		if cont.checkIfEpgWithOverlappingVlan(aaepName, aaepEpgAttachData.encapVlan) {
+		// This is needed when user updates annotation and VLAN is already overlapping
+		if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
+			// Add new entry with nadCreated as false
+			aaepEpgAttachData.nadCreated = false
+			cont.indexMutex.Lock()
+			if cont.sharedAaepMonitor[aaepName] == nil {
+				cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+			}
+			cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
+			cont.indexMutex.Unlock()
 			cont.log.Debugf("Skipping EPG annotation add handling: EPG %s with AAEP %s has overlapping VLAN %d", epgDn,
 				aaepName, aaepEpgAttachData.encapVlan)
 			continue
 		}
 
-		cont.indexMutex.Lock()
-		oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
-		cont.indexMutex.Unlock()
 		cont.syncNADsWithAciState(aaepName, epgDn, oldAaepMonitorData, aaepEpgAttachData, "NamespaceAnnotationAdded")
 	}
-
+	cont.log.Infof("Completed processing annotation addition/modification for EPG: %s, AnnotationDn: %s", epgDn, annotationDn)
 	return true
 }
 
 func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 	epgDn := annotationDn[:strings.Index(annotationDn, "/annotationKey-")]
-
+	cont.log.Infof("Started processing of EPG: %s annotation %s deletion", epgDn, annotationDn)
 	aaepMonitorDataMap := cont.getAaepMonitoringDataForEpg(epgDn)
 
 	for aaepName, aaepMonitorData := range aaepMonitorDataMap {
@@ -359,6 +384,7 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 			delete(cont.sharedAaepMonitor[aaepName], epgDn)
 			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationRemoved")
 			cont.indexMutex.Unlock()
+			cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
 			continue
 		}
 
@@ -368,11 +394,13 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 			delete(cont.sharedAaepMonitor[aaepName], epgDn)
 			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationRemoved")
 			cont.indexMutex.Unlock()
+			cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
 			continue
 		}
 
 		cont.syncNADsWithAciState(aaepName, epgDn, oldAaepMonitorData, aaepEpgAttachData, "NamespaceAnnotationRemoved")
 	}
+	cont.log.Infof("Completed processing annotation deletion for EPG: %s, AnnotationDn: %s", epgDn, annotationDn)
 }
 
 func (cont *AciController) collectNadData(epgVlanMap *EpgVlanMap) *AaepEpgAttachData {
@@ -455,7 +483,10 @@ func (cont *AciController) getAaepMonitoringDataForEpg(epgDn string) map[string]
 			if aaepEpgAttachData[aaepName] == nil {
 				aaepEpgAttachData[aaepName] = make(map[string]*AaepEpgAttachData)
 			}
-			aaepEpgAttachData[aaepName][epgDn] = cont.collectNadData(&epgVlanMap)
+			nadData := cont.collectNadData(&epgVlanMap)
+			if nadData != nil {
+				aaepEpgAttachData[aaepName][epgDn] = nadData
+			}
 		}
 	}
 
@@ -476,53 +507,33 @@ func (cont *AciController) cleanAnnotationSubscriptions(aaepName string) {
 func (cont *AciController) syncNADsWithAciState(aaepName string, epgDn string, oldAaepEpgAttachData,
 	aaepEpgAttachData *AaepEpgAttachData, syncReason string) {
 	if oldAaepEpgAttachData == nil {
-		cont.indexMutex.Lock()
-		needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, syncReason)
-		if needCacheChange {
-			if cont.sharedAaepMonitor[aaepName] == nil {
-				cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
-			}
-			cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
-		}
-		cont.indexMutex.Unlock()
+		cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
 	} else {
-		if oldAaepEpgAttachData.namespaceName != aaepEpgAttachData.namespaceName {
-			cont.indexMutex.Lock()
-			delete(cont.sharedAaepMonitor[aaepName], epgDn)
-			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepEpgAttachData, syncReason)
-			cont.indexMutex.Unlock()
-
-			cont.indexMutex.Lock()
-			needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, syncReason)
-			if needCacheChange {
-				if cont.sharedAaepMonitor[aaepName] == nil {
-					cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+		if cont.checkAnnotationModified(oldAaepEpgAttachData, aaepEpgAttachData) {
+			if oldAaepEpgAttachData.namespaceName != aaepEpgAttachData.namespaceName {
+				cont.indexMutex.Lock()
+				if oldAaepEpgAttachData.nadCreated == true {
+					cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepEpgAttachData, syncReason)
 				}
-				cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
+				delete(cont.sharedAaepMonitor[aaepName], epgDn)
+				cont.indexMutex.Unlock()
 			}
-			cont.indexMutex.Unlock()
+			cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
 			return
 		}
 
-		if oldAaepEpgAttachData.nadName != aaepEpgAttachData.nadName || oldAaepEpgAttachData.encapVlan != aaepEpgAttachData.encapVlan {
-			cont.indexMutex.Lock()
-			needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, syncReason)
-			if needCacheChange {
-				delete(cont.sharedAaepMonitor[aaepName], epgDn)
-				cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
-			}
-			cont.indexMutex.Unlock()
-		}
-
 		if oldAaepEpgAttachData.encapVlan != aaepEpgAttachData.encapVlan {
-			cont.createNadForNextEpg(aaepName, oldAaepEpgAttachData.encapVlan)
+			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepEpgAttachData, syncReason)
+			cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
 		}
 	}
 }
 
 func (cont *AciController) addDeferredNADs(namespaceName string) {
+	aaepEpgVlanMap := make(map[string][]EpgVlanMap)
+
+	// Collect all AAEP EPG attachment details
 	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
 	for aaepName := range cont.sharedAaepMonitor {
 		epgVlanMapList := cont.getAaepEpgAttObjDetails(aaepName)
 
@@ -530,42 +541,70 @@ func (cont *AciController) addDeferredNADs(namespaceName string) {
 			continue
 		}
 
+		aaepEpgVlanMap[aaepName] = epgVlanMapList
+	}
+	cont.indexMutex.Unlock()
+
+	// Process each AAEP EPG attachment details
+	for aaepName, epgVlanMapList := range aaepEpgVlanMap {
 		for _, epgVlanMap := range epgVlanMapList {
 			aaepEpgAttachData := cont.collectNadData(&epgVlanMap)
 			if aaepEpgAttachData == nil || aaepEpgAttachData.namespaceName != namespaceName {
 				continue
 			}
 
-			epgDn := epgVlanMap.epgDn
-			needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "NamespaceCreated")
-			if needCacheChange {
+			if cont.checkIfEpgWithOverlappingVlan(aaepName, nil, aaepEpgAttachData.encapVlan) {
+				cont.indexMutex.Lock()
 				if cont.sharedAaepMonitor[aaepName] == nil {
 					cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
 				}
-				cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
+				aaepEpgAttachData.nadCreated = false
+				cont.sharedAaepMonitor[aaepName][epgVlanMap.epgDn] = aaepEpgAttachData
+				cont.indexMutex.Unlock()
+
+				cont.log.Errorf("Skipping NAD creation: EPG %s with AAEP %s has overlapping VLAN %d", epgVlanMap.epgDn,
+					aaepName, aaepEpgAttachData.encapVlan)
+				continue
+			} else if cont.checkVlanUsedInCluster(aaepEpgAttachData.encapVlan) {
+				cont.log.Errorf("Skipping NAD creation: VLAN %d is already used in cluster", aaepEpgAttachData.encapVlan)
+				continue
+			} else {
+				epgDn := epgVlanMap.epgDn
+				cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, "NamespaceCreated")
 			}
 		}
 	}
 }
 
 func (cont *AciController) cleanNADs(namespaceName string) {
+	aaepMonitorDataToDelete := make(map[string]map[string]*AaepEpgAttachData)
 	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
 	for aaepName := range cont.sharedAaepMonitor {
 		aaepEpgAttachDataMap, exists := cont.sharedAaepMonitor[aaepName]
 		if !exists || aaepEpgAttachDataMap == nil {
 			continue
 		}
 
-		var epgsToDelete []string
-		for epgDn, aaepEpgData := range aaepEpgAttachDataMap {
-			if aaepEpgData.namespaceName != namespaceName {
-				epgsToDelete = append(epgsToDelete, epgDn)
+		for epgDn, aaepEpgAttachData := range aaepEpgAttachDataMap {
+			if aaepEpgAttachData.namespaceName == namespaceName {
+				nadName := cont.generateDefaultNadName(aaepName, epgDn)
+				removedAnnotation := cont.removeManagedByAnnotationFromNAD(nadName, namespaceName)
+				if !removedAnnotation {
+					continue
+				}
+				delete(cont.sharedAaepMonitor[aaepName], epgDn)
+				if aaepEpgAttachData.nadCreated {
+					cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "NamespaceDeleted")
+				}
+				aaepMonitorDataToDelete[aaepName] = aaepEpgAttachDataMap
 			}
 		}
+	}
+	cont.indexMutex.Unlock()
 
-		for _, epgDn := range epgsToDelete {
-			delete(cont.sharedAaepMonitor[aaepName], epgDn)
+	for aaepName, aaepEpgAttachDataMap := range aaepMonitorDataToDelete {
+		for _, aaepEpgAttachData := range aaepEpgAttachDataMap {
+			cont.createNadForNextEpg(aaepName, aaepEpgAttachData.encapVlan)
 		}
 	}
 }
@@ -686,7 +725,7 @@ func (cont *AciController) reconcileNadData(aaepName string) {
 		}
 
 		epgDn := epgVlanMap.epgDn
-		if cont.checkIfEpgWithOverlappingVlan(aaepName, aaepEpgAttachData.encapVlan) {
+		if cont.checkIfEpgWithOverlappingVlan(aaepName, nil, aaepEpgAttachData.encapVlan) {
 			aaepEpgAttachData.nadCreated = false
 			cont.indexMutex.Lock()
 			if cont.sharedAaepMonitor[aaepName] == nil {
@@ -694,20 +733,15 @@ func (cont *AciController) reconcileNadData(aaepName string) {
 			}
 			cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
 			cont.indexMutex.Unlock()
+			cont.apicConn.AddImmediateSubscriptionDnLocked(epgDn,
+				[]string{"tagAnnotation"}, cont.handleAnnotationAdded,
+				cont.handleAnnotationDeleted)
 			cont.log.Errorf("Skipping NAD creation: EPG %s with AAEP %s has overlapping VLAN %d",
 				epgDn, aaepName, aaepEpgAttachData.encapVlan)
 			continue
 		}
 
-		cont.indexMutex.Lock()
-		needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "AaepAddedInCR")
-		if needCacheChange {
-			if cont.sharedAaepMonitor[aaepName] == nil {
-				cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
-			}
-			cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
-		}
-		cont.indexMutex.Unlock()
+		cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, "AaepAddedInCR")
 
 		cont.apicConn.AddImmediateSubscriptionDnLocked(epgDn,
 			[]string{"tagAnnotation"}, cont.handleAnnotationAdded,
@@ -972,6 +1006,31 @@ func (cont *AciController) deleteNetworkAttachmentDefinition(aaepName string, ep
 	}
 }
 
+func (cont *AciController) removeManagedByAnnotationFromNAD(nadName, namespaceName string) bool {
+	nadClient := cont.env.(*K8sEnvironment).nadClient
+	// Check if NAD already exists
+	existingNAD, err := nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespaceName).Get(context.TODO(), nadName, metav1.GetOptions{})
+	nadExists := err == nil
+
+	if nadExists {
+		if !cont.isVmmLiteNAD(existingNAD) {
+			return true
+		}
+
+		delete(existingNAD.ObjectMeta.Annotations, "managed-by")
+		_, err = nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespaceName).Update(context.TODO(), existingNAD, metav1.UpdateOptions{})
+		if err != nil {
+			cont.log.Errorf("Failed to remove managed-by VMM lite annotation from NetworkAttachmentDefinition %s from namespace %s: %v", nadName, namespaceName, err)
+			return false
+		}
+
+		cont.log.Infof("Removed managed-by annotation from NAD %s in namespace %s", nadName, namespaceName)
+	} else {
+		cont.log.Debugf("NAD %s not there to remove managed-by annotation in namespace %s", nadName, namespaceName)
+	}
+	return true
+}
+
 func (cont *AciController) getVlanId(encap string) int {
 	if after, ok := strings.CutPrefix(encap, "vlan-"); ok {
 		vlanStr := after
@@ -1084,6 +1143,10 @@ func (cont *AciController) getNADDeleteMessage(deleteReason string) string {
 		return messagePrefix + "EPG with AAEP has overlapping VLAN with existing cluster VLAN"
 	case deleteReason == "AaepEpgAttachedWithOverlappingVlan":
 		return messagePrefix + "EPG with AAEP has overlapping VLAN with another EPG"
+	case deleteReason == "NamespaceDeleted":
+		return messagePrefix + "Namespace deleted"
+	case deleteReason == "AaepEpgAttachedWithVlanInUse":
+		return messagePrefix + "EPG with AAEP has VLAN already used in cluster"
 	}
 	return messagePrefix + "One or many pods are using NAD"
 }
@@ -1100,7 +1163,7 @@ func (cont *AciController) getNADRevampMessage(createReason string) string {
 	case createReason == "NamespaceCreated":
 		return messagePrefix + "Namespace created back"
 	case createReason == "NextEpgNadCreation":
-		return messagePrefix + "Next EPG NAD creation"
+		return messagePrefix + "NAD creation for next EPG with same VLAN"
 	}
 	return messagePrefix + "NAD synced with ACI"
 }
@@ -1136,9 +1199,16 @@ func (cont *AciController) checkDuplicateAaepEpgAttachRequest(aaepName, epgDn st
 	return false
 }
 
-func (cont *AciController) checkIfEpgWithOverlappingVlan(aaepName string, vlanId int) bool {
+func (cont *AciController) checkIfEpgWithOverlappingVlan(aaepName string, oldAaepEpgAttachData *AaepEpgAttachData, vlanId int) bool {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
+
+	if oldAaepEpgAttachData != nil {
+		// If old data exists with NAD created and VLAN is same in old and new data, skip checking for overlapping VLAN for the same EPG
+		if oldAaepEpgAttachData.encapVlan == vlanId && oldAaepEpgAttachData.nadCreated {
+			return false
+		}
+	}
 	aaepEpgAttachDataMap, exists := cont.sharedAaepMonitor[aaepName]
 	if !exists || aaepEpgAttachDataMap == nil {
 		return false
@@ -1160,18 +1230,22 @@ func (cont *AciController) createNadForNextEpg(aaepName string, vlanId int) {
 	for epgDn, aaepEpgAttachData := range aaepEpgAttachDataMap {
 		if aaepEpgAttachData.encapVlan != vlanId || aaepEpgAttachData.nadCreated {
 			continue
-		}
-		if !cont.namespaceChecks(aaepEpgAttachData.namespaceName, epgDn) {
+		} else if !cont.namespaceChecks(aaepEpgAttachData.namespaceName, epgDn) {
+			cont.log.Debugf("Skipping NAD creation for next EPG %s with AAEP %s and VLAN %d: Namespace checks failed", epgDn, aaepName, vlanId)
 			continue
-		}
-
-		needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "NextEpgNadCreation")
-		if needCacheChange {
-			aaepEpgAttachData.nadCreated = true
-			if cont.sharedAaepMonitor[aaepName] == nil {
-				cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+		} else {
+			cont.log.Infof("Creating NAD for next EPG %s with AAEP %s and VLAN %d, for which previously NAD not created due to overlapping Vlan",
+				epgDn, aaepName, vlanId)
+			needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "NextEpgNadCreation")
+			if needCacheChange {
+				aaepEpgAttachData.nadCreated = true
+				if cont.sharedAaepMonitor[aaepName] == nil {
+					cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+				}
+				cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
 			}
-			cont.sharedAaepMonitor[aaepName][epgDn] = aaepEpgAttachData
+			cont.log.Infof("Created NAD for next EPG %s with AAEP %s and VLAN %d", epgDn, aaepName, vlanId)
+			break
 		}
 	}
 }
@@ -1183,21 +1257,51 @@ func (cont *AciController) checkVlanUsedInCluster(vlanId int) bool {
 	return false
 }
 
-func (cont *AciController) handleOverlappingVlan(aaepName, epgDn string, vlanID int) {
-	cont.indexMutex.Lock()
-	oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
-	cont.indexMutex.Unlock()
-
-	if oldAaepMonitorData != nil {
-		cont.indexMutex.Lock()
-		delete(cont.sharedAaepMonitor[aaepName], epgDn)
-		if oldAaepMonitorData.nadCreated {
-			cont.log.Debugf("Deleting NAD for EPG %s with AAEP %s due to overlapping VLAN %d", epgDn, aaepName, vlanID)
-			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, "AaepEpgAttachedWithVlanUsedInCluster")
-		}
-		cont.indexMutex.Unlock()
-		if oldAaepMonitorData.nadCreated {
-			cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
-		}
+func (cont *AciController) checkMonitorDataModified(oldData, newData *AaepEpgAttachData) bool {
+	if oldData == nil {
+		return true
 	}
+	if oldData.namespaceName != newData.namespaceName ||
+		oldData.nadName != newData.nadName ||
+		oldData.encapVlan != newData.encapVlan {
+		return true
+	}
+	return false
+}
+
+func (cont *AciController) handleOldNadDeletion(aaepName, epgDn string,
+	oldAaepMonitorData *AaepEpgAttachData, deleteReason string) {
+	if oldAaepMonitorData == nil {
+		return
+	}
+	cont.indexMutex.Lock()
+	delete(cont.sharedAaepMonitor[aaepName], epgDn)
+	if oldAaepMonitorData.nadCreated {
+		cont.log.Debugf("Deleting NAD for EPG %s with AAEP %s due to %s", epgDn, aaepName, deleteReason)
+		cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, deleteReason)
+	}
+	cont.indexMutex.Unlock()
+	if oldAaepMonitorData.nadCreated {
+		cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
+	}
+}
+
+func (cont *AciController) handleNewNadCreation(aaepName, epgDn string,
+	newAaepMonitorData *AaepEpgAttachData, createReason string) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, newAaepMonitorData, createReason)
+	if needCacheChange {
+		if cont.sharedAaepMonitor[aaepName] == nil {
+			cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+		}
+		cont.sharedAaepMonitor[aaepName][epgDn] = newAaepMonitorData
+	}
+}
+
+func (cont *AciController) checkAnnotationModified(oldAaepEpgAttachData, newAaepEpgAttachData *AaepEpgAttachData) bool {
+	if oldAaepEpgAttachData.nadName != newAaepEpgAttachData.nadName || oldAaepEpgAttachData.namespaceName != newAaepEpgAttachData.namespaceName {
+		return true
+	}
+	return false
 }
