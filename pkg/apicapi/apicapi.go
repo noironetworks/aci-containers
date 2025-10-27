@@ -105,9 +105,6 @@ func (conn *ApicConnection) login() (string, error) {
 		method = "GET"
 	}
 	uri := fmt.Sprintf("/api/%s.json", path)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-
-	var reqBody io.Reader
 	var raw []byte
 	var err error
 	if conn.signer == nil {
@@ -123,16 +120,8 @@ func (conn *ApicConnection) login() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		reqBody = bytes.NewBuffer(raw)
 	}
-	req, err := http.NewRequest(method, url, reqBody)
-	if err != nil {
-		return "", err
-	}
-	conn.log.Infof("Req: %+v", req)
-	conn.sign(req, uri, raw)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.sendRequestToAPIC(req, false, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC(method, uri, raw, "application/json", false, nil)
 	if err != nil {
 		return "", err
 	}
@@ -720,7 +709,6 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 	}
 
 	uri := fmt.Sprintf("/api/node/class/%s.json?&", versionMo)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 
 	retries := 0
 	for conn.version == "" {
@@ -739,13 +727,7 @@ func (conn *ApicConnection) GetVersion() (string, error) {
 		}
 		conn.token = token
 
-		req, err := http.NewRequest("GET", url, http.NoBody)
-		if err != nil {
-			conn.log.Error("Could not create request:", err)
-			continue
-		}
-		conn.sign(req, uri, nil)
-		resp, err := conn.sendRequestToAPIC(req, false, nil)
+		resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
 		if err != nil {
 			continue
 		}
@@ -844,37 +826,24 @@ func (conn *ApicConnection) Run(stopCh <-chan struct{}) {
 
 func (conn *ApicConnection) refresh() {
 	if conn.signer == nil {
-		url := fmt.Sprintf("https://%s/api/aaaRefresh.json",
-			conn.Apic[conn.ApicIndex])
-		req, err := http.NewRequest("GET", url, http.NoBody)
-		if err != nil {
-			conn.log.Error("Could not create request: ", err)
-			return
-		}
-		resp, err := conn.sendRequestToAPIC(req, true, nil)
+		uri := "/api/aaaRefresh.json"
+		resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
 		if err != nil {
 			return
 		}
 		complete(resp)
-		conn.log.Debugf("Refresh: url %v", url)
+		conn.log.Debugf("Refresh: url %v", resp.Request.URL)
 	}
 
 	for _, sub := range conn.subscriptions.subs {
 		refreshId := func(id string) {
 			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
-			url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-			req, err := http.NewRequest("GET", url, http.NoBody)
-			if err != nil {
-				conn.log.Error("Could not create request: ", err)
-				return
-			}
-			conn.sign(req, uri, nil)
-			resp, err := conn.sendRequestToAPIC(req, true, nil)
+			resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
 			if err != nil {
 				return
 			}
 			complete(resp)
-			conn.log.Debugf("Refresh sub: url %v", url)
+			conn.log.Debugf("Refresh sub: url %v", resp.Request.URL)
 			time.Sleep(conn.SubscriptionDelay)
 		}
 		if len(sub.childSubs) > 0 {
@@ -887,9 +856,35 @@ func (conn *ApicConnection) refresh() {
 	}
 }
 
-func (conn *ApicConnection) sendRequestToAPIC(req *http.Request, restart bool, exceptionStatusCode []int) (*http.Response, error) {
+// sendHTTPSRequestToAPIC sends an HTTPS request to APIC.
+// - Retries on 503 when EnableRequestRetry is true, up to maxRequestRetry, waiting RequestRetryDelay minutes.
+// - If restart is true, the connection is restarted on request/transport errors, non-2xx responses, and after retry exhaustion.
+// - Status codes in exceptionStatusCode are returned as-is for the caller to handle.
+// Sets the Content-Type header when provided; pass nil for body and "" for contentType to omit them.
+// Returns a non-nil error for non-2xx responses (except those listed in exceptionStatusCode).
+func (conn *ApicConnection) sendHTTPSRequestToAPIC(method string, uri string, body []byte, contentType string,
+	restart bool, exceptionStatusCode []int) (*http.Response, error) {
+	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
+	conn.log.Info("APIC connection URL: ", url)
 	retry := 0
+
 	for {
+		// Construct new request for each retry.
+		reqBody := bytes.NewReader(body)
+		req, err := http.NewRequest(method, url, reqBody)
+		if err != nil {
+			conn.log.Error("Could not create request:", err)
+			if restart {
+				conn.restart()
+			}
+			return nil, err
+		}
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		conn.sign(req, uri, body)
+		conn.log.Debugf("Req: %+v", req)
+
 		if retry > 0 {
 			conn.log.Infof("Retrying request : %s, Attempt %d ", req.URL.String(), retry)
 		}
@@ -983,14 +978,7 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 	}
 
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", acivrfdn, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return err
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, true, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
 	if err != nil {
 		return err
 	}
@@ -1035,15 +1023,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	}
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.log.Debugf("URL: %v", url)
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, true, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
 	if err != nil {
 		return
 	}
@@ -1179,20 +1159,11 @@ func (conn *ApicConnection) postDn(dn string, obj ApicObject) bool {
 	}).Debug("Posting Dn")
 
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	raw, err := json.Marshal(obj)
 	if err != nil {
 		conn.log.Error("Could not serialize object for dn ", dn, ": ", err)
 	}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		conn.restart()
-		return false
-	}
-	conn.sign(req, uri, raw)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := conn.sendRequestToAPIC(req, true, []int{400})
+	resp, err := conn.sendHTTPSRequestToAPIC("POST", uri, raw, "application/json", true, []int{400})
 	if err != nil {
 		return false
 	}
@@ -1235,15 +1206,7 @@ func (conn *ApicConnection) DeleteDn(dn string) bool {
 		"dn":  dn,
 	}).Debug("Deleting Dn")
 	uri := fmt.Sprintf("/api/mo/%s.json", dn)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	req, err := http.NewRequest("DELETE", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create delete request: ", err)
-		conn.restart()
-		return false
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, true, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("DELETE", uri, nil, "", true, nil)
 	if err != nil {
 		return false
 	}
@@ -1337,16 +1300,8 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 
 func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
 	var apicresp ApicResponse
-	conn.log.Debug("Apic Get url: ", url)
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return apicresp, err
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
 	if err != nil {
 		return apicresp, err
 	}
@@ -1364,16 +1319,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
 		kind, value, refresh_interval, strings.Join(args, "&"))
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.log.Info("APIC connection URL: ", url)
-
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return false
-	}
-	conn.sign(req, uri, nil)
-	resp, err := conn.sendRequestToAPIC(req, false, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
 	if err != nil {
 		return false
 	}
@@ -1625,8 +1571,6 @@ func getRootDn(dn, rootClass string) string {
 
 func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error {
 	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
-	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.log.Debug("Apic POST url: ", url)
 
 	if conn.token == "" {
 		token, err := conn.login()
@@ -1642,17 +1586,7 @@ func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error
 		conn.log.Error("Could not serialize object: ", err)
 		return err
 	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(raw))
-	if err != nil {
-		conn.log.Error("Could not create request: ", err)
-		return err
-	}
-
-	conn.sign(req, uri, raw)
-	req.Header.Set("Content-Type", "application/json")
-	conn.log.Infof("Post: %+v", req)
-	resp, err := conn.sendRequestToAPIC(req, false, nil)
+	resp, err := conn.sendHTTPSRequestToAPIC("POST", uri, raw, "application/json", false, nil)
 	if err != nil {
 		return err
 	}
