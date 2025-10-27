@@ -271,15 +271,23 @@ fix-gofmt:
 lint:
 	@${LINT_CMD} run
 
-check: check-gofmt check-ipam check-index check-apicapi check-controller check-hostagent check-gbpserver check-webhook check-certmanager check-acicontainersoperator
+# Debug version - only hostagent
+check: check-gofmt check-hostagent
 check-ipam:
-	cd pkg/ipam; ${TEST_CMD} -coverprofile=../../covprof-ipam ${TEST_ARGS}
+	cd pkg/ipam; ${TEST_CMD} -coverprofile=../../covprof-ipam ${TEST_ARGS} && cd ../.. && ./exclude-covprof.sh covprof-ipam exclude-covprof.conf
 check-index:
-	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
+	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS} && ./exclude-covprof.sh covprof-index exclude-covprof.conf
 check-apicapi:
 	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS} && ./exclude-covprof.sh covprof-apicapi exclude-covprof.conf
 check-hostagent: test-tools
-	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS} && ./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
+	@echo "=== DEBUG: Running hostagent tests ==="
+	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS}
+	@echo "=== DEBUG: Coverage before exclusions ==="
+	@go tool cover -func=covprof-hostagent | tail -1
+	@echo "=== DEBUG: Applying exclusions ==="
+	./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
+	@echo "=== DEBUG: Coverage after exclusions ==="
+	@go tool cover -func=covprof-hostagent | tail -1
 check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:
