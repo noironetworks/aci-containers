@@ -958,6 +958,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 		// For service with resilient hashing, add an empty mapping to support sending
 		// RST / ICMP Unreachable messages to clients when there are no endpoints.
 		if emtpyService &&
+			!external &&
 			!seps.agent.config.DisableOpflexResilientHashing &&
 			as.Spec.Type == v1.ServiceTypeClusterIP &&
 			as.Spec.SessionAffinity == "ClientIP" {
