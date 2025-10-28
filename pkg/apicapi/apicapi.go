@@ -635,7 +635,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 					} else {
 						delete(metadata["fvBD"].attributes, "serviceBdRoutingDisable")
 					}
-					conn.VersionUpdateHook()
+					if conn.VersionUpdateHook != nil {
+						conn.VersionUpdateHook()
+					}
 				}
 				conn.CachedVersion = version
 			}
