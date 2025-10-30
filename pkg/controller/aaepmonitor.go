@@ -553,7 +553,10 @@ func (cont *AciController) addDeferredNADs(namespaceName string) {
 				continue
 			}
 
-			if cont.checkIfEpgWithOverlappingVlan(aaepName, nil, aaepEpgAttachData.encapVlan) {
+			cont.indexMutex.Lock()
+			oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgVlanMap.epgDn)
+			cont.indexMutex.Unlock()
+			if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
 				cont.indexMutex.Lock()
 				if cont.sharedAaepMonitor[aaepName] == nil {
 					cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
@@ -725,7 +728,10 @@ func (cont *AciController) reconcileNadData(aaepName string) {
 		}
 
 		epgDn := epgVlanMap.epgDn
-		if cont.checkIfEpgWithOverlappingVlan(aaepName, nil, aaepEpgAttachData.encapVlan) {
+		cont.indexMutex.Lock()
+		oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
+		cont.indexMutex.Unlock()
+		if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
 			aaepEpgAttachData.nadCreated = false
 			cont.indexMutex.Lock()
 			if cont.sharedAaepMonitor[aaepName] == nil {
