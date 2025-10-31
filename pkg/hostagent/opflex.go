@@ -15,14 +15,18 @@
 package hostagent
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -33,8 +37,10 @@ import (
 )
 
 const (
-	DHCLIENT_CONF    = "/usr/local/etc/dhclient.conf"
-	MCAST_ROUTE_DEST = "224.0.0.0/4"
+	LINK_FLAP_DELAY    = 500 * time.Millisecond
+	DHCLIENT_LEASE_DIR = "/usr/local/var/lib/dhclient"
+	DHCLIENT_CONF      = "/usr/local/etc/dhclient.conf"
+	MCAST_ROUTE_DEST   = "224.0.0.0/4"
 )
 
 type opflexFault struct {
@@ -185,58 +191,172 @@ func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	}
 }
 
-func (agent *HostAgent) releaseVlanIp(name string) bool {
-	released := false
-	retryCount := agent.config.DhcpRenewMaxRetryCount
-	dhcpDelay := time.Duration(agent.config.DhcpDelay)
-	for i := 0; i < retryCount; i++ {
-		time.Sleep(dhcpDelay * time.Second)
-		cmd := exec.Command("dhclient", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-		agent.log.Info("Executing command:", cmd.String())
-		opt, err := cmd.Output()
-		if err != nil {
-			agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
-			continue
-		} else {
-			agent.log.Info(string(opt))
-		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip released")
-			released = true
-			break
-		}
-		agent.log.Info("vlan interface ip not released..iteration: ", i+1)
+func (agent *HostAgent) getInterfaceIPv4(iface string) net.IP {
+	ifi, err := net.InterfaceByName(iface)
+	if err != nil {
+		agent.log.Errorf("failed to find interface %s: %v", iface, err)
+		return nil
 	}
-	return released
+
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		agent.log.Errorf("failed to get addresses for interface %s: %v", iface, err)
+		return nil
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip4 := ip.To4(); ip4 != nil && !ip4.IsLoopback() && !ip4.IsUnspecified() {
+			return ip4
+		}
+	}
+	agent.log.Errorf("no valid IPv4 address found on interface %s", iface)
+	return nil
 }
 
-func (agent *HostAgent) renewVlanIp(name string) bool {
-	renewed := false
-	retryCount := agent.config.DhcpRenewMaxRetryCount
-	dhcpDelay := time.Duration(agent.config.DhcpDelay)
-	for i := 0; i < retryCount; i++ {
-		time.Sleep(dhcpDelay * time.Second)
+func (agent *HostAgent) checkDhclientLease(interfaceName string) string {
+	pattern := fmt.Sprintf(`^\s*interface\s+"%s"\s*;\s*$`, regexp.QuoteMeta(interfaceName))
+	reInterface := regexp.MustCompile(pattern)
+	reFixed := regexp.MustCompile(`\s*fixed-address\s+([0-9.]+)\s*;`)
+	reExpire := regexp.MustCompile(`\s*expire\s+\d+\s+(\d+/\d+/\d+\s+\d+:\d+:\d+)\s*;`)
+	timeLayout := "2006/01/02 15:04:05"
+
+	var leaseIP string
+	var latestExpire time.Time
+
+	walkErr := filepath.WalkDir(DHCLIENT_LEASE_DIR, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".leases") {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			agent.log.Error("Could not open file", path, ":", err)
+			return nil
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		var insideLease, matchInterface bool
+		var currentIP string
+		var currentExpire time.Time
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			trim := strings.TrimSpace(line)
+
+			if reInterface.MatchString(line) {
+				matchInterface = true
+			}
+
+			if strings.HasPrefix(trim, "lease") {
+				insideLease = true
+				currentIP = ""
+				currentExpire = time.Time{}
+				continue
+			}
+
+			if insideLease && trim == "}" {
+				if !currentExpire.IsZero() && (latestExpire.IsZero() || currentExpire.After(latestExpire)) {
+					latestExpire = currentExpire
+					leaseIP = currentIP
+				}
+				insideLease = false
+				continue
+			}
+
+			if insideLease {
+				if m := reFixed.FindStringSubmatch(line); len(m) == 2 {
+					currentIP = m[1]
+				}
+				if m := reExpire.FindStringSubmatch(line); len(m) == 2 {
+					if t, err := time.Parse(timeLayout, m[1]); err == nil {
+						currentExpire = t
+					}
+				}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			agent.log.Error("Error scanning lease file", path, ":", err)
+		}
+
+		if matchInterface {
+			return fs.SkipAll
+		}
+		return nil
+	})
+
+	if walkErr != nil && walkErr != fs.SkipAll {
+		agent.log.Error("Failed to check dhclient lease:", walkErr)
+		return ""
+	}
+
+	if !latestExpire.IsZero() {
+		agent.log.Info("Latest DHCP expiry for", interfaceName, " : ", latestExpire)
+		return leaseIP
+	}
+
+	return ""
+}
+
+func (agent *HostAgent) releaseVlanIp(name string) bool {
+
+	leaseIP := agent.checkDhclientLease(name)
+	interfaceIP := agent.getInterfaceIPv4(name)
+
+	if interfaceIP == nil && leaseIP == "" {
+		return true
+	}
+
+	if leaseIP == "" || leaseIP != interfaceIP.String() {
 		cmd := exec.Command("dhclient", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
 		agent.log.Info("Executing command:", cmd.String())
 		opt, err := cmd.Output()
 		if err != nil {
 			agent.log.Error("Failed to renew ip : ", err.Error(), " ", string(opt))
-			continue
+			return false
 		} else {
 			agent.log.Info(string(opt))
 		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip is not renewed..iteration:", i+1)
-			continue
-		}
-		renewed = true
-		break
 	}
-	return renewed
+
+	cmd := exec.Command("dhclient", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
+	agent.log.Info("Executing command:", cmd.String())
+	opt, err := cmd.Output()
+	if err != nil {
+		agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
+		return false
+	} else {
+		agent.log.Info(string(opt))
+	}
+	return true
+}
+
+func (agent *HostAgent) renewVlanIp(name string) error {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return fmt.Errorf("failed to find interface %s: %w", name, err)
+	}
+	// Down → short sleep → Up tends to trigger renew across managers.
+	if err := netlink.LinkSetDown(link); err != nil {
+		return fmt.Errorf("failed to set interface %s down: %w", name, err)
+	}
+	time.Sleep(LINK_FLAP_DELAY)
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to set interface %s up: %w", name, err)
+	}
+	return nil
 }
 
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 	retryCount := agent.config.DhcpRenewMaxRetryCount
+	dhcpDelay := time.Duration(agent.config.DhcpDelay)
 	agent.log.Info("old aci-pod annotiation for multipod ", agent.aciPodAnnotation)
 	agent.log.Info("new aci-pod annotiation for multipod ", aciPodSubnet)
 	// no dhcp release-renew for none to pod-<id>-subnet case
@@ -278,31 +398,31 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				}
 			}
 			success := false
-			for i := 0; i < retryCount; i++ {
-				if !agent.releaseVlanIp(link.Name) {
-					agent.log.Error("FAILURE: Failed to release vlan interface ip, stopped retrying")
-					break
-				}
-				if !agent.renewVlanIp(link.Name) {
-					agent.log.Error("FAILURE: Failed to renew vlan interface ip, stopped retrying")
-					break
-				}
-				if aciPodSubnet != "none" {
-					if agent.isIpSameSubnet(link.Name, subnet) {
-						success = true
-						break
+
+			if agent.releaseVlanIp(link.Name) {
+				for i := 0; i < retryCount; i++ {
+					time.Sleep(dhcpDelay * time.Second)
+					err := agent.renewVlanIp(link.Name)
+					if err != nil {
+						agent.log.Errorf("FAILURE: Failed to renew vlan interface ip; retrying. Error: %v", err)
+					}
+					if aciPodSubnet != "none" {
+						if agent.isIpSameSubnet(link.Name, subnet) {
+							success = true
+							break
+						} else {
+							agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
+						}
+					} else if oldsubnet != "" {
+						if !agent.isIpSameSubnet(link.Name, oldsubnet) {
+							success = true
+							agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
+							break
+						}
+						agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
 					} else {
-						agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
+						agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 					}
-				} else if oldsubnet != "" {
-					if !agent.isIpSameSubnet(link.Name, oldsubnet) {
-						success = true
-						agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
-						break
-					}
-					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
-				} else {
-					agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 				}
 			}
 			if (aciPodSubnet != "none" && !success) || (aciPodSubnet == "none" && oldsubnet != "" && !success) {
