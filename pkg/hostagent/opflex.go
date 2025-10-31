@@ -15,14 +15,17 @@
 package hostagent
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -33,8 +36,9 @@ import (
 )
 
 const (
-	DHCLIENT_CONF    = "/usr/local/etc/dhclient.conf"
-	MCAST_ROUTE_DEST = "224.0.0.0/4"
+	DHCLIENT_LEASE_DIR = "/usr/local/var/lib/dhclient"
+	DHCLIENT_CONF      = "/usr/local/etc/dhclient.conf"
+	MCAST_ROUTE_DEST   = "224.0.0.0/4"
 )
 
 type opflexFault struct {
@@ -82,26 +86,6 @@ func (agent *HostAgent) createFaultOnAgent(description string, faultCode int) {
 	} else if wrote {
 		agent.log.Debug("Created fault files at the location: ", faultFilePath)
 	}
-}
-
-func (agent *HostAgent) isIpV4Present(iface string) bool {
-	link, err := netlink.LinkByName(iface)
-	if err != nil {
-		agent.log.Error("Could not enumerate interfaces: ", err)
-		return false
-	}
-	if nlLink, ok := link.(*netlink.Vlan); ok {
-		addrs, err := netlink.AddrList(nlLink, netlink.FAMILY_V4)
-		if err != nil {
-			agent.log.Error("Could not enumerate addresses: ", err)
-			return false
-		}
-		if len(addrs) > 0 {
-			agent.log.Info("vlan interface ip address: ", addrs)
-			return true
-		}
-	}
-	return false
 }
 
 func (agent *HostAgent) isIpSameSubnet(iface, subnet string) bool {
@@ -185,54 +169,216 @@ func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	}
 }
 
+func (agent *HostAgent) getInterfaceIPv4(iface string) net.IP {
+	ifi, err := net.InterfaceByName(iface)
+	if err != nil {
+		agent.log.Errorf("failed to find interface %s: %v", iface, err)
+		return nil
+	}
+
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		agent.log.Errorf("failed to get addresses for interface %s: %v", iface, err)
+		return nil
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip4 := ip.To4(); ip4 != nil && !ip4.IsLoopback() && !ip4.IsUnspecified() {
+			agent.log.Infof("Found IPv4 address %s for interface %s", ip4, iface)
+			return ip4
+		}
+	}
+	agent.log.Errorf("failed to get IPV4 address for interface %s", iface)
+	return nil
+}
+
+func (agent *HostAgent) checkDhclientLease(interfaceName string) string {
+	files, err := os.ReadDir(DHCLIENT_LEASE_DIR)
+	if err != nil {
+		agent.log.Errorf("Error reading directory %s: %v", DHCLIENT_LEASE_DIR, err)
+		return ""
+	}
+
+	var targetFile string
+
+	reIface := regexp.MustCompile(`interface\s+"([^"]+)"`)
+	reIP := regexp.MustCompile(`fixed-address\s+([0-9.]+);`)
+	reExpire := regexp.MustCompile(`expire\s+\d+\s+([0-9/:\s]+);`)
+
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(f.Name(), ".leases") {
+			continue
+		}
+		path := filepath.Join(DHCLIENT_LEASE_DIR, f.Name())
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		matches := reIface.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			if len(m) > 1 && m[1] == interfaceName {
+				targetFile = path
+				break
+			}
+		}
+	}
+	if targetFile == "" {
+		agent.log.Infof("No lease file found for interface %s", interfaceName)
+		return ""
+	}
+	file, err := os.Open(targetFile)
+	if err != nil {
+		agent.log.Errorf("Error opening lease file: %v", err)
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	var (
+		inLeaseBlock  bool
+		currentIface  string
+		currentIP     string
+		currentExpire time.Time
+		maxExpire     time.Time
+		selectedIP    string
+	)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if strings.HasPrefix(line, "lease {") {
+			inLeaseBlock = true
+			currentIface, currentIP = "", ""
+			currentExpire = time.Time{}
+			continue
+		}
+		if strings.HasPrefix(line, "}") && inLeaseBlock {
+			inLeaseBlock = false
+
+			if currentIface == interfaceName && !currentExpire.IsZero() {
+				if currentExpire.After(maxExpire) {
+					maxExpire = currentExpire
+					selectedIP = currentIP
+				}
+			}
+			continue
+		}
+		if !inLeaseBlock {
+			continue
+		}
+		if m := reIface.FindStringSubmatch(line); len(m) == 2 {
+			currentIface = m[1]
+		}
+		if m := reIP.FindStringSubmatch(line); len(m) == 2 {
+			currentIP = m[1]
+		}
+		if m := reExpire.FindStringSubmatch(line); len(m) == 2 {
+			t, err := time.Parse("2006/01/02 15:04:05", strings.TrimSpace(m[1]))
+			if err == nil {
+				currentExpire = t
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		agent.log.Errorf("Error scanning lease file: %v", err)
+		return ""
+	}
+	agent.log.Infof("Max expiry for %s: %v", interfaceName, maxExpire)
+	return selectedIP
+}
+
 func (agent *HostAgent) releaseVlanIp(name string) bool {
-	released := false
 	retryCount := agent.config.DhcpRenewMaxRetryCount
-	dhcpDelay := time.Duration(agent.config.DhcpDelay)
+	dhcpDelay := time.Duration(agent.config.DhcpDelay) * time.Second
 	for i := 0; i < retryCount; i++ {
-		time.Sleep(dhcpDelay * time.Second)
-		cmd := exec.Command("dhclient", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
+		if i > 0 {
+			time.Sleep(dhcpDelay)
+		}
+		leaseIP := agent.checkDhclientLease(name)
+		interfaceIP := agent.getInterfaceIPv4(name)
+
+		if interfaceIP == nil && leaseIP == "" {
+			agent.log.Infof("No IP or lease found for %s, nothing to release", name)
+			return true
+		}
+		// Renew before release if lease info looks inconsistent or lease doesn't exists
+		if leaseIP == "" || (interfaceIP != nil && leaseIP != interfaceIP.String()) {
+			cmd := exec.Command("dhclient", "-v", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
+			agent.log.Info("Executing command:", cmd.String())
+			opt, err := cmd.Output()
+			leaseIP = agent.checkDhclientLease(name)
+			interfaceIP = agent.getInterfaceIPv4(name)
+			if err != nil || interfaceIP == nil || leaseIP != interfaceIP.String() {
+				agent.log.Errorf("Attempt %d/%d: dhclient renew failed for %s: %v", i+1, retryCount, name, err)
+				continue
+			} else {
+				agent.log.Info(string(opt))
+			}
+		} else {
+			agent.log.Info("Skipping dhclient renew")
+		}
+
+		cmd := exec.Command("dhclient", "-v", "-r", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
 		agent.log.Info("Executing command:", cmd.String())
 		opt, err := cmd.Output()
-		if err != nil {
-			agent.log.Error("Failed to release ip : ", err.Error(), " ", string(opt))
+		interfaceIP = agent.getInterfaceIPv4(name)
+		if err != nil || interfaceIP != nil {
+			agent.log.Errorf("Attempt %d/%d: failed to release IP on %s: %v", i+1, retryCount, name, err)
 			continue
 		} else {
 			agent.log.Info(string(opt))
+			return true
 		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip released")
-			released = true
-			break
-		}
-		agent.log.Info("vlan interface ip not released..iteration: ", i+1)
 	}
-	return released
+	return false
 }
 
 func (agent *HostAgent) renewVlanIp(name string) bool {
-	renewed := false
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		fmt.Errorf("failed to find interface %s: %w", name, err)
+		return false
+	}
 	retryCount := agent.config.DhcpRenewMaxRetryCount
-	dhcpDelay := time.Duration(agent.config.DhcpDelay)
+	dhcpDelay := time.Duration(agent.config.DhcpDelay) * time.Second
 	for i := 0; i < retryCount; i++ {
-		time.Sleep(dhcpDelay * time.Second)
-		cmd := exec.Command("dhclient", name, "--timeout", "30", "-cf", DHCLIENT_CONF)
-		agent.log.Info("Executing command:", cmd.String())
-		opt, err := cmd.Output()
-		if err != nil {
-			agent.log.Error("Failed to renew ip : ", err.Error(), " ", string(opt))
+		if i > 0 {
+			time.Sleep(dhcpDelay)
+		}
+		// Down → short sleep → Up tends to trigger renew across managers.
+		if err := netlink.LinkSetDown(link); err != nil {
+			agent.log.Errorf("failed to set interface %s down: %v", name, err)
+			continue
+		}
+		time.Sleep(dhcpDelay)
+		if err := netlink.LinkSetUp(link); err != nil {
+			agent.log.Errorf("failed to set interface %s up: %v", name, err)
 			continue
 		} else {
-			agent.log.Info(string(opt))
+			const maxRetries = 5
+			for i := 0; i < maxRetries; i++ {
+				ip := agent.getInterfaceIPv4(name)
+				if ip != nil {
+					agent.log.Infof("Successfully renewed VLAN IP for interface %s: %s", name, ip.String())
+					return true
+				}
+				agent.log.Warnf("interface %s has no IPv4 yet (attempt %d/%d)", name, i+1, maxRetries)
+				time.Sleep(1 * time.Second)
+			}
 		}
-		if !agent.isIpV4Present(name) {
-			agent.log.Info("vlan interface ip is not renewed..iteration:", i+1)
-			continue
-		}
-		renewed = true
-		break
 	}
-	return renewed
+
+	return false
 }
 
 func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
