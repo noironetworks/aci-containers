@@ -240,7 +240,7 @@ func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 		return
 	}
 
-	if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, vlanID) {
+	if cont.checkIfEpgWithOverlappingVlan(aaepName, vlanID, epgDn) {
 		// This is needed when user updates vlan from non-overlapping to overlapping
 		cont.handleOldNadDeletion(aaepName, epgDn, oldAaepMonitorData, "AaepEpgAttachedWithOverlappingVlan")
 
@@ -337,7 +337,7 @@ func (cont *AciController) handleAnnotationAdded(obj apicapi.ApicObject) bool {
 		}
 
 		// This is needed when user updates annotation and VLAN is already overlapping
-		if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
+		if cont.checkIfEpgWithOverlappingVlan(aaepName, aaepEpgAttachData.encapVlan, epgDn) {
 			// Add new entry with nadCreated as false
 			aaepEpgAttachData.nadCreated = false
 			cont.indexMutex.Lock()
@@ -553,10 +553,7 @@ func (cont *AciController) addDeferredNADs(namespaceName string) {
 				continue
 			}
 
-			cont.indexMutex.Lock()
-			oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgVlanMap.epgDn)
-			cont.indexMutex.Unlock()
-			if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
+			if cont.checkIfEpgWithOverlappingVlan(aaepName, aaepEpgAttachData.encapVlan, epgVlanMap.epgDn) {
 				cont.indexMutex.Lock()
 				if cont.sharedAaepMonitor[aaepName] == nil {
 					cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
@@ -728,10 +725,7 @@ func (cont *AciController) reconcileNadData(aaepName string) {
 		}
 
 		epgDn := epgVlanMap.epgDn
-		cont.indexMutex.Lock()
-		oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
-		cont.indexMutex.Unlock()
-		if cont.checkIfEpgWithOverlappingVlan(aaepName, oldAaepMonitorData, aaepEpgAttachData.encapVlan) {
+		if cont.checkIfEpgWithOverlappingVlan(aaepName, aaepEpgAttachData.encapVlan, epgDn) {
 			aaepEpgAttachData.nadCreated = false
 			cont.indexMutex.Lock()
 			if cont.sharedAaepMonitor[aaepName] == nil {
@@ -1205,9 +1199,10 @@ func (cont *AciController) checkDuplicateAaepEpgAttachRequest(aaepName, epgDn st
 	return false
 }
 
-func (cont *AciController) checkIfEpgWithOverlappingVlan(aaepName string, oldAaepEpgAttachData *AaepEpgAttachData, vlanId int) bool {
+func (cont *AciController) checkIfEpgWithOverlappingVlan(aaepName string, vlanId int, epgDn string) bool {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
+	oldAaepEpgAttachData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
 
 	if oldAaepEpgAttachData != nil {
 		// If old data exists with NAD created and VLAN is same in old and new data, skip checking for overlapping VLAN for the same EPG
