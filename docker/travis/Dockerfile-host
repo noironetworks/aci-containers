@@ -24,7 +24,7 @@ COPY dist-static/iptables-libs.tar.gz dist-static/iptables-bin.tar.gz dist-stati
 RUN mkdir -p /usr/local/sbin /usr/local/lib64 \
  && tar -zxf /tmp/iptables-bin.tar.gz -C /usr/local/sbin \
  && tar -zxf /tmp/iptables-libs.tar.gz -C /usr/local/lib64
-ENV LD_LIBRARY_PATH="/usr/local/lib64:$LD_LIBRARY_PATH"   ### CHANGED
+ENV LD_LIBRARY_PATH="/usr/local/lib64:$LD_LIBRARY_PATH"
 
 # CHANGED: symlinks now point to /usr/local/sbin
 RUN for i in iptables-legacy iptables-legacy-restore iptables-legacy-save iptables iptables-restore iptables-save; \
