@@ -222,6 +222,7 @@ func New(log *logrus.Logger, apic []string, user string,
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
 		},
+		syncStore:          make(map[string]*syncObj),
 		cacheOpflexOdev:    make(map[string]struct{}),
 		desiredState:       make(map[string]ApicSlice),
 		desiredStateDn:     make(map[string]ApicObject),
@@ -295,23 +296,23 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						if conn.FilterOpflexDevice {
 							if conn.isPresentInOpflexOdevCache(dn, status, obj) {
 								conn.log.Info("Adding dn to odevQueue: ", dn)
-								conn.odevQueue.Add(dn)
+								conn.odevQueue.AddRateLimited(dn)
 							}
 						} else {
 							conn.log.Info("Adding dn to odevQueue: ", dn)
-							conn.odevQueue.Add(dn)
+							conn.odevQueue.AddRateLimited(dn)
 						}
 					} else if isPriorityObject(dn) {
 						conn.log.Debug("Adding dn to priorityQueue: ", dn)
-						conn.priorityQueue.Add(dn)
+						conn.priorityQueue.AddRateLimited(dn)
 					} else if isLLDPIfObject(dn) && conn.lldpIfQueue != nil {
 						if lldpIf, ok := body.Attributes["portDesc"].(string); ok {
 							conn.cachedLLDPIfs[dn] = lldpIf
 						}
 						conn.log.Debug("Adding dn to lldpIfQueue: ", dn)
-						conn.lldpIfQueue.Add(dn)
+						conn.lldpIfQueue.AddRateLimited(dn)
 					} else if conn.deltaQueue != nil {
-						conn.deltaQueue.Add(dn)
+						conn.deltaQueue.AddRateLimited(dn)
 					}
 					conn.indexMutex.Unlock()
 				}
@@ -553,7 +554,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(30)),
 			},
 		),
 		"delta")
@@ -563,7 +564,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(30)),
 			},
 		),
 		"odev")
@@ -573,7 +574,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(30)),
 			},
 		),
 		"priority")
@@ -583,7 +584,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond,
 				10*time.Second),
 			&workqueue.BucketRateLimiter{
-				Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				Limiter: rate.NewLimiter(rate.Limit(10), int(30)),
 			},
 		),
 		"lldpIf")
@@ -602,11 +603,20 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	defer refreshTicker.Stop()
 
 	var hasErr bool
-	for value, subscription := range conn.subscriptions.subs {
-		if !(conn.subscribe(value, subscription, false)) {
+	for value, object := range conn.syncStore {
+		if !(conn.getSyncObject(value, object)) {
 			hasErr = true
 			conn.restart()
 			break
+		}
+	}
+	if !hasErr {
+		for value, subscription := range conn.subscriptions.subs {
+			if !(conn.subscribe(value, subscription, false)) {
+				hasErr = true
+				conn.restart()
+				break
+			}
 		}
 	}
 	if !hasErr {
@@ -1016,6 +1026,15 @@ func (conn *ApicConnection) ValidateAciVrfAssociation(acivrfdn string, expectedV
 
 func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	updateHandlers []ApicObjectHandler) {
+	// If there are no update handlers, there is no point doing anything till sync is enabled as reconcileApicObject just returns
+	if len(updateHandlers) == 0 {
+		conn.indexMutex.Lock()
+		if !conn.syncEnabled {
+			conn.indexMutex.Unlock()
+			return
+		}
+		conn.indexMutex.Unlock()
+	}
 	args := []string{
 		"rsp-subtree=full",
 	}
@@ -1067,7 +1086,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 func (conn *ApicConnection) queuePriorityDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.priorityQueue != nil {
-		conn.priorityQueue.Add(dn)
+		conn.priorityQueue.AddRateLimited(dn)
 	}
 	conn.indexMutex.Unlock()
 }
@@ -1075,7 +1094,7 @@ func (conn *ApicConnection) queuePriorityDn(dn string) {
 func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.deltaQueue != nil {
-		conn.deltaQueue.Add(dn)
+		conn.deltaQueue.AddRateLimited(dn)
 	}
 	conn.indexMutex.Unlock()
 }
@@ -1290,6 +1309,31 @@ func (conn *ApicConnection) AddSubscriptionDn(dn string,
 	conn.indexMutex.Unlock()
 }
 
+func (conn *ApicConnection) AddSyncDn(dn string,
+	targetClasses []string) {
+	conn.logger.WithFields(logrus.Fields{
+		"mod": "APICAPI",
+		"dn":  dn,
+	}).Debug("Adding Dn for syncing")
+	conn.indexMutex.Lock()
+	conn.syncStore[dn] = &syncObj{
+		kind:          apicSubDn,
+		targetClasses: targetClasses,
+		respClasses:   computeRespClasses(targetClasses),
+	}
+	conn.indexMutex.Unlock()
+}
+
+func (conn *ApicConnection) SetSyncHooks(value string,
+	updateHook ApicObjectHandler, deleteHook ApicDnHandler) {
+	conn.indexMutex.Lock()
+	if s, ok := conn.subscriptions.subs[value]; ok {
+		s.updateHook = updateHook
+		s.deleteHook = deleteHook
+	}
+	conn.indexMutex.Unlock()
+}
+
 func (conn *ApicConnection) SetSubscriptionHooks(value string,
 	updateHook ApicObjectHandler, deleteHook ApicDnHandler) {
 	conn.indexMutex.Lock()
@@ -1374,23 +1418,20 @@ func (conn *ApicConnection) updateOpflexOdevCache(obj ApicObject, remove, lockHe
 	return updated
 }
 
-func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld bool) bool {
+func (conn *ApicConnection) computeArgSet(targetClasses, respClasses []string, targetFilter string, defaultArgs int) (splitTargetClasses, splitRespClasses, argSet [][]string, argCount int) {
+
 	baseArgs := []string{
 		"query-target=subtree",
 		"rsp-subtree=full",
-		"target-subtree-class=" + strings.Join(sub.targetClasses, ","),
+		"target-subtree-class=" + strings.Join(targetClasses, ","),
 	}
 
-	const defaultArgs = 1
-	var argCount = defaultArgs
+	argCount = defaultArgs
 	var combinableSubClasses, separableSubClasses []string
-	var splitTargetClasses [][]string
-	var splitRespClasses [][]string
-	var argSet [][]string
 	argSet = make([][]string, defaultArgs)
 	argSet[defaultArgs-1] = make([]string, len(baseArgs))
 	copy(argSet[defaultArgs-1], baseArgs)
-	if sub.respClasses != nil {
+	if respClasses != nil {
 		separateClasses := func(classes []string, combClasses, sepClasses *[]string) {
 			for i := range classes {
 				if classMeta, ok := metadata[classes[i]]; ok {
@@ -1405,13 +1446,13 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 				}
 			}
 		}
-		separateClasses(sub.respClasses, &combinableSubClasses, &separableSubClasses)
+		separateClasses(respClasses, &combinableSubClasses, &separableSubClasses)
 
 		// In case there are high cardinality children, we register for all the classes individually.
 		// The concept of target-subtree and rsp-subtree class cannot be used because of the tagAnnotation object
 		// vmmInjectedLabel is added for every object, so getting it separately will not be scalable
 		if len(separableSubClasses) > 0 {
-			separateClasses(sub.targetClasses, &combinableSubClasses, &separableSubClasses)
+			separateClasses(targetClasses, &combinableSubClasses, &separableSubClasses)
 			separableSubClasses = append(separableSubClasses, combinableSubClasses...)
 			baseArgs = []string{
 				"query-target=subtree",
@@ -1440,8 +1481,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], "rsp-subtree-class="+strings.Join(combinableSubClasses, ",")+",tagAnnotation")
 		}
 	}
-	if sub.targetFilter != "" {
-		targetFilterArgs := "query-target-filter=" + sub.targetFilter
+	if targetFilter != "" {
+		targetFilterArgs := "query-target-filter=" + targetFilter
 		if len(separableSubClasses) == 0 {
 			argSet[defaultArgs-1] = append(argSet[defaultArgs-1], targetFilterArgs)
 		} else {
@@ -1450,6 +1491,112 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 			}
 		}
 	}
+
+	return
+}
+
+func (conn *ApicConnection) processImdata(value string, subId string, args []string, imdata ApicSlice, updateHook ApicObjectHandler, lockHeld bool) {
+	var respObjCount int
+	for _, obj := range imdata {
+		dn := obj.GetDn()
+		if dn == "" {
+			continue
+		}
+		if subId != "" {
+			if !lockHeld {
+				conn.indexMutex.Lock()
+			}
+			subIds, found := conn.cacheDnSubIds[dn]
+			if !found {
+				subIds = make(map[string]bool)
+				conn.cacheDnSubIds[dn] = subIds
+			}
+			subIds[subId] = true
+			if !lockHeld {
+				conn.indexMutex.Unlock()
+			}
+		}
+		if value == "opflexODev" && conn.FilterOpflexDevice {
+			conn.updateOpflexOdevCache(obj, false, lockHeld)
+		}
+		if updateHook != nil && updateHook(obj) {
+			continue
+		}
+
+		tag := obj.GetTag()
+		if !conn.isSyncTag(tag) {
+			continue
+		}
+
+		conn.logger.WithFields(logrus.Fields{
+			"mod": "APICAPI",
+			"dn":  dn,
+			"tag": tag,
+			"obj": obj,
+		}).Debug("Caching")
+		var count int
+		prepareApicCache("", obj, &count)
+		respObjCount += count
+		if !lockHeld {
+			conn.indexMutex.Lock()
+		}
+		conn.cachedState[tag] = append(conn.cachedState[tag], obj)
+		if !lockHeld {
+			conn.indexMutex.Unlock()
+		}
+	}
+	if respObjCount >= ApicSubscriptionResponseMoMaxCount/10 {
+		conn.logger.WithFields(logrus.Fields{
+			"args":       args,
+			"moCount":    respObjCount,
+			"maxAllowed": ApicSubscriptionResponseMoMaxCount,
+		}).Warning("Subscription response is significantly large. Each new object will add 2 Mos atleast and twice the number of labels on the object")
+	} else {
+		conn.logger.WithFields(logrus.Fields{
+			"moCount": respObjCount,
+		}).Debug("ResponseObjCount")
+	}
+}
+
+func (conn *ApicConnection) getSyncObject(value string, obj *syncObj) bool {
+	const defaultArgs = 1
+	_, _, argSet, argCount := conn.computeArgSet(obj.targetClasses, obj.respClasses, obj.targetFilter, defaultArgs)
+
+	kind := "mo"
+	if obj.kind == apicSubClass || obj.kind == apicSubTree {
+		kind = "class"
+	}
+
+	for i := 0; i < argCount; i++ {
+		// properly encoding the URI query parameters breaks APIC
+		uri := fmt.Sprintf("/api/%s/%s.json?%s", kind, value, strings.Join(argSet[i], "&"))
+		resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
+		if err != nil {
+			return false
+		}
+		defer complete(resp)
+		var apicresp ApicResponse
+		err = json.NewDecoder(resp.Body).Decode(&apicresp)
+		if err != nil {
+			conn.log.Error("Could not decode APIC response", err)
+			return false
+		}
+		conn.logger.WithFields(logrus.Fields{
+			"mod":   "APICAPI",
+			"value": value,
+			"kind":  kind,
+			"args":  argSet[i],
+		}).Debug("Fetched")
+
+		conn.processImdata(value, "", argSet[i], apicresp.Imdata, nil, false)
+	}
+
+	return true
+}
+
+func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld bool) bool {
+	const defaultArgs = 1
+	splitTargetClasses, splitRespClasses, argSet, argCount := conn.computeArgSet(sub.targetClasses, sub.respClasses, sub.targetFilter, defaultArgs)
 
 	kind := "mo"
 	if sub.kind == apicSubClass || sub.kind == apicSubTree {
@@ -1494,64 +1641,8 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 		if !lockHeld {
 			conn.indexMutex.Unlock()
 		}
-		var respObjCount int
-		for _, obj := range apicresp.Imdata {
-			dn := obj.GetDn()
-			if dn == "" {
-				continue
-			}
-			if !lockHeld {
-				conn.indexMutex.Lock()
-			}
-			subIds, found := conn.cacheDnSubIds[dn]
-			if !found {
-				subIds = make(map[string]bool)
-				conn.cacheDnSubIds[dn] = subIds
-			}
-			subIds[subId] = true
-			if !lockHeld {
-				conn.indexMutex.Unlock()
-			}
-			if value == "opflexODev" && conn.FilterOpflexDevice {
-				conn.updateOpflexOdevCache(obj, false, lockHeld)
-			}
-			if sub.updateHook != nil && sub.updateHook(obj) {
-				continue
-			}
 
-			tag := obj.GetTag()
-			if !conn.isSyncTag(tag) {
-				continue
-			}
-
-			conn.logger.WithFields(logrus.Fields{
-				"mod": "APICAPI",
-				"dn":  dn,
-				"tag": tag,
-				"obj": obj,
-			}).Debug("Caching")
-			var count int
-			prepareApicCache("", obj, &count)
-			respObjCount += count
-			if !lockHeld {
-				conn.indexMutex.Lock()
-			}
-			conn.cachedState[tag] = append(conn.cachedState[tag], obj)
-			if !lockHeld {
-				conn.indexMutex.Unlock()
-			}
-		}
-		if respObjCount >= ApicSubscriptionResponseMoMaxCount/10 {
-			conn.logger.WithFields(logrus.Fields{
-				"args":       argSet[i],
-				"moCount":    respObjCount,
-				"maxAllowed": ApicSubscriptionResponseMoMaxCount,
-			}).Warning("Subscription response is significantly large. Each new object will add 2 Mos atleast and twice the number of labels on the object")
-		} else {
-			conn.logger.WithFields(logrus.Fields{
-				"moCount": respObjCount,
-			}).Debug("ResponseObjCount")
-		}
+		conn.processImdata(value, subId, argSet[i], apicresp.Imdata, sub.updateHook, lockHeld)
 	}
 
 	return true
