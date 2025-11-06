@@ -365,10 +365,9 @@ func TestNodeNetPol2(t *testing.T) {
 	cont.stop()
 	cont.nodeSyncEnabled = true
 	cont.nodeACIPodAnnot["node1"] = aciPodAnnot{
-		aciPod:             "test",
-		isSingleOpflexOdev: false,
-		disconnectTime:     time.Now(),
-		connectTime:        time.Now(),
+		aciPod:         "test",
+		disconnectTime: time.Now(),
+		lastErrorTime:  time.Now(),
 	}
 	cont.snatNodeInfoCache["node1"] = &nodeinfo.NodeInfo{}
 	cont.run()
