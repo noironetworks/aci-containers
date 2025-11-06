@@ -741,7 +741,12 @@ func (cont *AciController) reconcileNadData(aaepName string) {
 			continue
 		}
 
-		cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, "AaepAddedInCR")
+		OldepgDn := cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, "AaepAddedInCR")
+		if OldepgDn != "" {
+			cont.apicConn.AddImmediateSubscriptionDnLocked(OldepgDn,
+				[]string{"tagAnnotation"}, cont.handleAnnotationAdded,
+				cont.handleAnnotationDeleted)
+		}
 
 		cont.apicConn.AddImmediateSubscriptionDnLocked(epgDn,
 			[]string{"tagAnnotation"}, cont.handleAnnotationAdded,
@@ -1288,9 +1293,25 @@ func (cont *AciController) handleOldNadDeletion(aaepName, epgDn string,
 }
 
 func (cont *AciController) handleNewNadCreation(aaepName, epgDn string,
-	newAaepMonitorData *AaepEpgAttachData, createReason string) {
+	newAaepMonitorData *AaepEpgAttachData, createReason string) string {
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
+	// If there are multiple EPGs associated with same vlan for an aaep,
+	// then only one NAD will be there.
+	// After controller restart, if any other EPG notification comes before the already present NAD
+	// it will result in 2 NADs.
+	// Below check is to avoid the condition
+	NADAlreadyInCluster, oldEpgDn := cont.isNADWithSameVlanAlreadyPresent(aaepName, epgDn, newAaepMonitorData)
+	if NADAlreadyInCluster != nil {
+		cont.log.Errorf("Cannot create NAD for EPG %s as there is a NAD already present %v with EPG %s attached to AAEP %s", epgDn, NADAlreadyInCluster, oldEpgDn, aaepName)
+		if cont.sharedAaepMonitor[aaepName] == nil {
+			cont.sharedAaepMonitor[aaepName] = make(map[string]*AaepEpgAttachData)
+		}
+		cont.sharedAaepMonitor[aaepName][oldEpgDn] = NADAlreadyInCluster
+		newAaepMonitorData.nadCreated = false
+		cont.sharedAaepMonitor[aaepName][epgDn] = newAaepMonitorData
+		return oldEpgDn
+	}
 	needCacheChange := cont.createNetworkAttachmentDefinition(aaepName, epgDn, newAaepMonitorData, createReason)
 	if needCacheChange {
 		if cont.sharedAaepMonitor[aaepName] == nil {
@@ -1298,6 +1319,7 @@ func (cont *AciController) handleNewNadCreation(aaepName, epgDn string,
 		}
 		cont.sharedAaepMonitor[aaepName][epgDn] = newAaepMonitorData
 	}
+	return ""
 }
 
 func (cont *AciController) checkAnnotationModified(oldAaepEpgAttachData, newAaepEpgAttachData *AaepEpgAttachData) bool {
@@ -1305,4 +1327,63 @@ func (cont *AciController) checkAnnotationModified(oldAaepEpgAttachData, newAaep
 		return true
 	}
 	return false
+}
+
+func (cont *AciController) isNADWithSameVlanAlreadyPresent(aaepName string, epgDn string, newAaepMonitorData *AaepEpgAttachData) (*AaepEpgAttachData, string) {
+	allNADs, err := cont.getAllNADs()
+	if err != nil {
+		cont.log.Errorf("Failed to get all NADs: %v", err)
+		return nil, ""
+	}
+
+	for _, nad := range allNADs {
+		ns := nad.Namespace
+		annotations := nad.ObjectMeta.Annotations
+		if annotations == nil {
+			continue
+		}
+		// Check for required annotations
+		if annotations["managed-by"] != "cisco-network-operator" ||
+			annotations["aci-sync-status"] != "in-sync" ||
+			annotations["aaep-name"] != aaepName {
+			continue
+		}
+
+		existingEpgDn := annotations["epg-dn"]
+		// Skip if same EPG DN
+		if existingEpgDn == epgDn {
+			cont.log.Infof("Found existing NAD %s/%s for epg %s ", ns, nad.Name, epgDn)
+			return nil, ""
+		}
+		// Compare VLAN
+		existingVlan, err := strconv.Atoi(annotations["vlan"])
+		if err != nil {
+			cont.log.Warnf("Invalid VLAN in NAD %s/%s: %v", ns, nad.Name, err)
+			continue
+		}
+
+		if existingVlan == newAaepMonitorData.encapVlan {
+			cont.log.Infof("Found existing NAD %s/%s with same VLAN %d for aaep %s", ns, nad.Name, existingVlan, aaepName)
+
+			return &AaepEpgAttachData{
+				nadName:       annotations["cno-name"],
+				namespaceName: ns,
+				encapVlan:     existingVlan,
+				nadCreated:    true,
+			}, existingEpgDn
+		}
+	}
+
+	return nil, ""
+}
+
+func (cont *AciController) getAllNADs() ([]nadapi.NetworkAttachmentDefinition, error) {
+	nadClient := cont.env.(*K8sEnvironment).nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions("")
+
+	nadList, err := nadClient.List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all NADs: %v", err)
+	}
+
+	return nadList.Items, nil
 }
