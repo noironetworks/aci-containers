@@ -544,6 +544,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}
 	}()
 
+	if conn.VMMLiteSyncHook != nil {
+		conn.VMMLiteSyncHook()
+	}
 	conn.indexMutex.Lock()
 	oldState := conn.cacheDnSubIds
 	conn.cachedState = make(map[string]ApicSlice)
