@@ -362,6 +362,13 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 	cont.log.Infof("Started processing of EPG: %s annotation %s deletion", epgDn, annotationDn)
 	aaepMonitorDataMap := cont.getAaepMonitoringDataForEpg(epgDn)
 
+	var reason string
+	if !cont.checkIfEPGExists(epgDn) {
+		reason = "EpgDeleted"
+	} else {
+		reason = "NamespaceAnnotationRemoved"
+	}
+
 	for aaepName, aaepMonitorData := range aaepMonitorDataMap {
 		cont.indexMutex.Lock()
 		oldAaepMonitorData := cont.getAaepEpgAttachDataLocked(aaepName, epgDn)
@@ -382,7 +389,7 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 		if aaepMonitorData == nil {
 			cont.indexMutex.Lock()
 			delete(cont.sharedAaepMonitor[aaepName], epgDn)
-			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationRemoved")
+			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, reason)
 			cont.indexMutex.Unlock()
 			cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
 			continue
@@ -392,13 +399,13 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 		if !exists || aaepEpgAttachData == nil {
 			cont.indexMutex.Lock()
 			delete(cont.sharedAaepMonitor[aaepName], epgDn)
-			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, "NamespaceAnnotationRemoved")
+			cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepMonitorData, reason)
 			cont.indexMutex.Unlock()
 			cont.createNadForNextEpg(aaepName, oldAaepMonitorData.encapVlan)
 			continue
 		}
 
-		cont.syncNADsWithAciState(aaepName, epgDn, oldAaepMonitorData, aaepEpgAttachData, "NamespaceAnnotationRemoved")
+		cont.syncNADsWithAciState(aaepName, epgDn, oldAaepMonitorData, aaepEpgAttachData, reason)
 	}
 	cont.log.Infof("Completed processing annotation deletion for EPG: %s, AnnotationDn: %s", epgDn, annotationDn)
 }
@@ -406,6 +413,10 @@ func (cont *AciController) handleAnnotationDeleted(annotationDn string) {
 func (cont *AciController) collectNadData(epgVlanMap *EpgVlanMap) *AaepEpgAttachData {
 	epgDn := epgVlanMap.epgDn
 	epgAnnotations := cont.getEpgAnnotations(epgDn)
+	if epgAnnotations == nil {
+		cont.log.Debugf("No annotations found for EPG %s", epgDn)
+		return nil
+	}
 	namespaceName, nadName := cont.getSpecificEPGAnnotation(epgAnnotations)
 
 	if !cont.namespaceChecks(namespaceName, epgDn) {
@@ -676,6 +687,20 @@ func (cont *AciController) getEpgAnnotations(epgDn string) map[string]string {
 	return annotationsMap
 }
 
+func (cont *AciController) checkIfEPGExists(epgDn string) bool {
+	uri := fmt.Sprintf("/api/node/mo/%s.json", epgDn)
+	resp, err := cont.apicConn.GetApicResponse(uri)
+	if err != nil {
+		cont.log.Errorf("Failed to get response from APIC: %v", err)
+		return false
+	}
+	if len(resp.Imdata) == 0 {
+		cont.log.Debugf("EPG %s does not exist", epgDn)
+		return false
+	}
+	return true
+}
+
 func (cont *AciController) getSpecificEPGAnnotation(annotations map[string]string) (string, string) {
 	namespaceNameAnnotationKey := cont.config.CnoIdentifier + "-namespace"
 	namespaceName, exists := annotations[namespaceNameAnnotationKey]
@@ -852,53 +877,71 @@ func (cont *AciController) createNetworkAttachmentDefinition(aaepName string, ep
 	}
 
 	cnvBridgeConfig := map[string]any{
-		"cniVersion":                "0.3.1",
-		"name":                      defaultNadName,
-		"type":                      "bridge",
-		"bridge":                    bridge,
-		"mtu":                       mtu,
-		"disableContainerInterface": true,
+		"cniVersion": "0.3.1",
+		"name":       defaultNadName,
+		"type":       "bridge",
+		"bridge":     bridge,
 	}
 
-	// Add optional parameters from controller config if they are set
-	if cont.config.IsGateway != nil {
-		cnvBridgeConfig["isGateway"] = *cont.config.IsGateway
-	}
-	if cont.config.IsDefaultGateway != nil {
-		cnvBridgeConfig["isDefaultGateway"] = *cont.config.IsDefaultGateway
-	}
-	if cont.config.ForceAddress != nil {
-		cnvBridgeConfig["forceAddress"] = *cont.config.ForceAddress
-	}
-	if cont.config.IpMasq != nil {
-		cnvBridgeConfig["ipMasq"] = *cont.config.IpMasq
-	}
-	if cont.config.IpMasqBackend != "" {
-		cnvBridgeConfig["ipMasqBackend"] = cont.config.IpMasqBackend
-	}
-	if cont.config.Mtu != nil {
-		cnvBridgeConfig["mtu"] = *cont.config.Mtu
-	}
-	if cont.config.HairpinMode != nil {
-		cnvBridgeConfig["hairpinMode"] = *cont.config.HairpinMode
-	}
-	if cont.config.PromiscMode != nil {
-		cnvBridgeConfig["promiscMode"] = *cont.config.PromiscMode
-	}
-	if cont.config.Enabledad != nil {
-		cnvBridgeConfig["enabledad"] = *cont.config.Enabledad
-	}
-	if cont.config.Macspoofchk != nil {
-		cnvBridgeConfig["macspoofchk"] = *cont.config.Macspoofchk
-	}
-	if cont.config.DisableContainerInterface != nil {
-		cnvBridgeConfig["disableContainerInterface"] = *cont.config.DisableContainerInterface
-	}
-	if cont.config.PortIsolation != nil {
-		cnvBridgeConfig["portIsolation"] = *cont.config.PortIsolation
-	}
-	if len(cont.config.Ipam) > 0 {
-		cnvBridgeConfig["ipam"] = cont.config.Ipam
+	if !nadExists {
+		cnvBridgeConfig["mtu"] = mtu
+		cnvBridgeConfig["disableContainerInterface"] = true
+		// Add optional parameters from controller config if they are set
+		if cont.config.IsGateway != nil {
+			cnvBridgeConfig["isGateway"] = *cont.config.IsGateway
+		}
+		if cont.config.IsDefaultGateway != nil {
+			cnvBridgeConfig["isDefaultGateway"] = *cont.config.IsDefaultGateway
+		}
+		if cont.config.ForceAddress != nil {
+			cnvBridgeConfig["forceAddress"] = *cont.config.ForceAddress
+		}
+		if cont.config.IpMasq != nil {
+			cnvBridgeConfig["ipMasq"] = *cont.config.IpMasq
+		}
+		if cont.config.IpMasqBackend != "" {
+			cnvBridgeConfig["ipMasqBackend"] = cont.config.IpMasqBackend
+		}
+		if cont.config.Mtu != nil {
+			cnvBridgeConfig["mtu"] = *cont.config.Mtu
+		}
+		if cont.config.HairpinMode != nil {
+			cnvBridgeConfig["hairpinMode"] = *cont.config.HairpinMode
+		}
+		if cont.config.PromiscMode != nil {
+			cnvBridgeConfig["promiscMode"] = *cont.config.PromiscMode
+		}
+		if cont.config.Enabledad != nil {
+			cnvBridgeConfig["enabledad"] = *cont.config.Enabledad
+		}
+		if cont.config.Macspoofchk != nil {
+			cnvBridgeConfig["macspoofchk"] = *cont.config.Macspoofchk
+		}
+		if cont.config.DisableContainerInterface != nil {
+			cnvBridgeConfig["disableContainerInterface"] = *cont.config.DisableContainerInterface
+		}
+		if cont.config.PortIsolation != nil {
+			cnvBridgeConfig["portIsolation"] = *cont.config.PortIsolation
+		}
+		if len(cont.config.Ipam) > 0 {
+			cnvBridgeConfig["ipam"] = cont.config.Ipam
+		}
+	} else {
+		// Preserve existing optional parameters from existing NAD
+		existingConfig := existingNAD.Spec.Config
+		if existingConfig != "" {
+			var existingCNVConfig map[string]interface{}
+			if json.Unmarshal([]byte(existingConfig), &existingCNVConfig) == nil {
+				optionalParams := []string{"isGateway", "isDefaultGateway", "forceAddress", "ipMasq",
+					"ipMasqBackend", "mtu", "hairpinMode", "promiscMode", "enabledad", "macspoofchk",
+					"disableContainerInterface", "portIsolation", "ipam"}
+				for _, param := range optionalParams {
+					if value, ok := existingCNVConfig[param]; ok {
+						cnvBridgeConfig[param] = value
+					}
+				}
+			}
+		}
 	}
 	if vlanID > 0 {
 		cnvBridgeConfig["vlan"] = vlanID
@@ -1136,8 +1179,10 @@ func (cont *AciController) isNADinUse(namespaceName string, nadName string) bool
 func (cont *AciController) getNADDeleteMessage(deleteReason string) string {
 	messagePrefix := "NAD is in use by pods: "
 	switch {
+	case deleteReason == "EpgDeleted":
+		return messagePrefix + "EPG deleted"
 	case deleteReason == "NamespaceAnnotationRemoved":
-		return messagePrefix + "Either EPG deleted or namespace name EPG annotaion removed"
+		return messagePrefix + "Namespace name EPG annotaion removed"
 	case deleteReason == "AaepEpgDetached":
 		return messagePrefix + "EPG detached from AAEP"
 	case deleteReason == "CRDeleted":
