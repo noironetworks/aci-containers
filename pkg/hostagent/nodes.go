@@ -129,7 +129,11 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	if agent.config.AciMultipod {
 		aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 		if acipodok {
-			if agent.aciPodAnnotation != aciPod {
+			eventReceived := false
+			if aciPod == "none" {
+				eventReceived = agent.isPlatformConfigDeleteEventReceivedByOpflex()
+			}
+			if agent.aciPodAnnotation != aciPod && !eventReceived {
 				agent.doDhcpRenew(aciPod)
 			}
 			agent.aciPodAnnotation = aciPod

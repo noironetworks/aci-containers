@@ -166,6 +166,7 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/droplog
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/faults
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/startup
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/events
 fi
 
 if [ "$OPFLEX_MODE" == "overlay" ]; then
