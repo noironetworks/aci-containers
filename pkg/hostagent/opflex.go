@@ -36,9 +36,12 @@ import (
 )
 
 const (
-	DHCLIENT_LEASE_DIR = "/usr/local/var/lib/dhclient"
-	DHCLIENT_CONF      = "/usr/local/etc/dhclient.conf"
-	MCAST_ROUTE_DEST   = "224.0.0.0/4"
+	DHCLIENT_LEASE_DIR         = "/usr/local/var/lib/dhclient"
+	DHCLIENT_CONF              = "/usr/local/etc/dhclient.conf"
+	MCAST_ROUTE_DEST           = "224.0.0.0/4"
+	PLATFORM_SUBSCRIPTION_FILE = "/usr/local/var/lib/opflex-agent-ovs/events/platformconfig.subscriptions"
+	PLATFORM_NOTIFICATION_FILE = "/usr/local/var/lib/opflex-agent-ovs/events/platformconfig.notifications"
+	MAX_PLATFORM_EVENT_AGE     = 120 * time.Second
 )
 
 type opflexFault struct {
@@ -46,6 +49,17 @@ type opflexFault struct {
 	Severity    string `json:"severity"`
 	Description string `json:"description"`
 	FaultCode   int    `json:"faultCode"`
+}
+
+type OpflexNotification struct {
+	Uuid   string                `json:"uuid"`
+	Events []PlatformConfigEvent `json:"events"`
+}
+
+type PlatformConfigEvent struct {
+	Timestamp time.Time `json:"timestamp"`
+	Uri       string    `json:"uri"`
+	State     string    `json:"state"`
 }
 
 func writeFault(faultfile string, ep *opflexFault) (bool, error) {
@@ -129,6 +143,70 @@ func (agent *HostAgent) updateResetConfFile() error {
 	t := time.Now()
 	err := os.WriteFile(resetFile, []byte(t.String()), 0644)
 	return err
+}
+
+func (agent *HostAgent) createPlatformSubscriptionJson() {
+	subscription := struct {
+		UUID          string `json:"uuid"`
+		TimeZone      string `json:"time-zone"`
+		TimeFormat    string `json:"time-format"`
+		Subscriptions []struct {
+			Type    string `json:"type"`
+			State   string `json:"state"`
+			Subject string `json:"subject"`
+		} `json:"subscriptions"`
+	}{
+		UUID:       uuid.New().String(),
+		TimeZone:   "UTC",
+		TimeFormat: "ISO8601",
+		Subscriptions: []struct {
+			Type    string `json:"type"`
+			State   string `json:"state"`
+			Subject string `json:"subject"`
+		}{{
+			Type:    "class",
+			State:   "deleted",
+			Subject: "PlatformConfig",
+		}},
+	}
+
+	data, err := json.MarshalIndent(subscription, "", "    ")
+	if err != nil {
+		agent.log.WithError(err).Error("Failed to marshal subscription data")
+		return
+	}
+
+	if err := os.WriteFile(PLATFORM_SUBSCRIPTION_FILE, data, 0644); err != nil {
+		agent.log.WithError(err).Error("Failed to write subscription file")
+		return
+	}
+
+	agent.log.Debug("Created platform subscription file")
+}
+
+func (agent *HostAgent) isPlatformConfigDeleteEventReceivedByOpflex() bool {
+	data, err := os.ReadFile(PLATFORM_NOTIFICATION_FILE)
+	if err != nil {
+		agent.log.WithError(err).Error(
+			"Failed to read PlatformConfigDeleteNotification file")
+		return false
+	}
+
+	var notification OpflexNotification
+	if err := json.Unmarshal(data, &notification); err != nil {
+		agent.log.WithError(err).Error(
+			"Failed to parse PlatformConfigDeleteNotification file")
+		return false
+	}
+
+	if len(notification.Events) != 1 {
+		return false
+	}
+
+	event := notification.Events[0]
+	diff := time.Since(event.Timestamp)
+	agent.log.Debug("Found PlatformConfigDeleteNotification with timestamp: ", event.Timestamp)
+	return diff >= 0 && diff <= MAX_PLATFORM_EVENT_AGE
 }
 
 func (agent *HostAgent) isMultiCastRoutePresent(link netlink.Link) bool {
@@ -606,7 +684,10 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
         "domain": "{{print "comp/prov-" .AciVmmDomainType "/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
         "peers": [
             {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
-        ]
+        ],
+        "notif": {
+            "enabled": true
+        }
     } ,
     "endpoint-sources": {
         "filesystem": ["{{.OpFlexEndpointDir | js}}"]
@@ -628,6 +709,9 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
     },
     "host-agent-fault-sources": {
         "filesystem": ["{{.OpFlexFaultDir | js}}"]
+    },
+    "event-notifications": {
+        "filesystem": "/usr/local/var/lib/opflex-agent-ovs/events"
     }
 }
 `)
