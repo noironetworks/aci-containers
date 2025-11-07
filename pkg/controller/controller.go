@@ -311,11 +311,9 @@ type DelayedEpSlice struct {
 }
 
 type aciPodAnnot struct {
-	aciPod             string
-	isSingleOpflexOdev bool
-	disconnectTime     time.Time
-	connectTime        time.Time
-	lastErrorTime      time.Time
+	aciPod         string
+	disconnectTime time.Time
+	lastErrorTime  time.Time
 }
 
 type nodeServiceMeta struct {
