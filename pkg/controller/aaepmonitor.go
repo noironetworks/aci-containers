@@ -529,14 +529,16 @@ func (cont *AciController) syncNADsWithAciState(aaepName string, epgDn string, o
 				delete(cont.sharedAaepMonitor[aaepName], epgDn)
 				cont.indexMutex.Unlock()
 			}
-			cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
+		} else if oldAaepEpgAttachData.encapVlan != aaepEpgAttachData.encapVlan {
+			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepEpgAttachData, syncReason)
+		} else {
+			NADAlreadyInCluster, _ := cont.isNADWithSameVlanAlreadyPresent(aaepName, epgDn, aaepEpgAttachData)
+			if NADAlreadyInCluster == nil {
+				cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
+			}
 			return
 		}
-
-		if oldAaepEpgAttachData.encapVlan != aaepEpgAttachData.encapVlan {
-			cont.handleOldNadDeletion(aaepName, epgDn, oldAaepEpgAttachData, syncReason)
-			cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
-		}
+		cont.handleNewNadCreation(aaepName, epgDn, aaepEpgAttachData, syncReason)
 	}
 }
 
@@ -1183,6 +1185,8 @@ func (cont *AciController) getNADDeleteMessage(deleteReason string) string {
 		return messagePrefix + "EPG deleted"
 	case deleteReason == "NamespaceAnnotationRemoved":
 		return messagePrefix + "Namespace name EPG annotaion removed"
+	case deleteReason == "NamespaceAnnotationModified":
+		return messagePrefix + "Namespace name EPG annotation modified"
 	case deleteReason == "AaepEpgDetached":
 		return messagePrefix + "EPG detached from AAEP"
 	case deleteReason == "CRDeleted":
@@ -1197,6 +1201,8 @@ func (cont *AciController) getNADDeleteMessage(deleteReason string) string {
 		return messagePrefix + "Namespace deleted"
 	case deleteReason == "AaepEpgAttachedWithVlanInUse":
 		return messagePrefix + "EPG with AAEP has VLAN already used in cluster"
+	case deleteReason == "VlanUpdatedInAaepEpgAttach":
+		return messagePrefix + "VLAN updated in AAEP EPG attachment"
 	}
 	return messagePrefix + "One or many pods are using NAD"
 }
@@ -1243,7 +1249,7 @@ func (cont *AciController) checkDuplicateAaepEpgAttachRequest(aaepName, epgDn st
 		return false
 	}
 
-	if vlanID == aaepEpgAttachData.encapVlan {
+	if vlanID == aaepEpgAttachData.encapVlan && aaepEpgAttachData.nadCreated {
 		return true
 	}
 	return false
@@ -1266,7 +1272,7 @@ func (cont *AciController) checkIfEpgWithOverlappingVlan(aaepName string, vlanId
 	}
 
 	for _, aaepEpgData := range aaepEpgAttachDataMap {
-		if vlanId == aaepEpgData.encapVlan {
+		if vlanId == aaepEpgData.encapVlan && aaepEpgData.nadCreated {
 			return true
 		}
 	}
@@ -1431,4 +1437,72 @@ func (cont *AciController) getAllNADs() ([]nadapi.NetworkAttachmentDefinition, e
 	}
 
 	return nadList.Items, nil
+}
+
+func (cont *AciController) syncAndCleanNadCache() {
+	cont.log.Debugf("Starting sync and clean of NAD cache")
+	var reason string
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	for aaepName, aaepEpgAttachDataMap := range cont.sharedAaepMonitor {
+		// Get the latest EPG attachment details from APIC for the AAEP
+		epgVlanMapList := cont.getAaepEpgAttObjDetails(aaepName)
+
+		// Create a set of EPGs from the APIC state for quick lookup
+		apicEpgSet := make(map[string]*EpgVlanMap)
+		for _, epgVlanMap := range epgVlanMapList {
+			apicEpgSet[epgVlanMap.epgDn] = &epgVlanMap
+		}
+
+		var namespaceName string
+		// Iterate through the cache and find entries not in the APIC state
+		for epgDn, oldAaepEpgAttachData := range aaepEpgAttachDataMap {
+			if oldAaepEpgAttachData == nil {
+				continue
+			}
+			epgAnnotations := cont.getEpgAnnotations(epgDn)
+			if epgAnnotations == nil {
+				namespaceName = ""
+			} else {
+				namespaceName, _ = cont.getSpecificEPGAnnotation(epgAnnotations)
+			}
+			if _, exists := apicEpgSet[epgDn]; !exists {
+				cont.log.Infof("Deleting stale cache entry: EPG %s for AAEP %s. Reason: EPG detached or deleted.", epgDn, aaepName)
+				delete(cont.sharedAaepMonitor[aaepName], epgDn)
+				if oldAaepEpgAttachData.nadCreated {
+					cont.log.Debugf("Deleting NAD for EPG %s with AAEP %s due to AaepEpgDetached", epgDn, aaepName)
+					cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepEpgAttachData, "AaepEpgDetached")
+				}
+				cont.log.Infof("Successfully deleted cache entry: EPG %s for AAEP %s.", epgDn, aaepName)
+			} else if namespaceName != aaepEpgAttachDataMap[epgDn].namespaceName {
+				cont.log.Infof("Deleting stale cache entry: EPG %s for AAEP %s. Reason: namespace annotation changed from %s to %s",
+					epgDn, aaepName, aaepEpgAttachDataMap[epgDn].namespaceName, namespaceName)
+				delete(cont.sharedAaepMonitor[aaepName], epgDn)
+				if oldAaepEpgAttachData.nadCreated {
+					if cont.checkIfEPGExists(epgDn) {
+						if namespaceName == "" {
+							reason = "NamespaceAnnotationRemoved"
+						} else {
+							reason = "NamespaceAnnotationModified"
+						}
+					} else {
+						reason = "EpgDeleted"
+					}
+					cont.log.Debugf("Deleting NAD for EPG %s with AAEP %s due to AaepEpgDetached", epgDn, aaepName)
+					cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepEpgAttachData, reason)
+				}
+				cont.log.Infof("Successfully deleted cache entry: EPG %s for AAEP %s.", epgDn, aaepName)
+			} else if apicEpgSet[epgDn].encapVlan != aaepEpgAttachDataMap[epgDn].encapVlan {
+				cont.log.Infof("Updating NAD for EPG %s with AAEP %s due to VLAN change from %d to %d",
+					epgDn, aaepName, aaepEpgAttachDataMap[epgDn].encapVlan, apicEpgSet[epgDn].encapVlan)
+				delete(cont.sharedAaepMonitor[aaepName], epgDn)
+				if oldAaepEpgAttachData.nadCreated {
+					cont.log.Debugf("Deleting NAD for EPG %s with AAEP %s due to AaepEpgDetached", epgDn, aaepName)
+					cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, oldAaepEpgAttachData, "VlanUpdatedInAaepEpgAttach")
+				}
+				cont.log.Infof("Successfully deleted cache entry: EPG %s for AAEP %s.", epgDn, aaepName)
+			}
+		}
+	}
+	cont.log.Debugf("completed sync and clean of NAD cache")
 }

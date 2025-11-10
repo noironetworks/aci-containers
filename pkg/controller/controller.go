@@ -1137,6 +1137,10 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			func() {
 				cont.initStaticServiceObjs()
 			}
+	} else if cont.config.VmmLite {
+		cont.apicConn.VMMLiteSyncHook = func() {
+			cont.syncAndCleanNadCache()
+		}
 	}
 	go cont.apicConn.Run(stopCh)
 }

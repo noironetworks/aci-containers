@@ -45,6 +45,7 @@ type ApicResponse struct {
 type ApicObjectHandler func(ApicObject) bool
 type ApicDnHandler func(string)
 type VersionUpdateHandler func()
+type VMMLiteSyncHandler func()
 
 type ApicSlice []ApicObject
 
@@ -100,6 +101,7 @@ type ApicConnection struct {
 	version   string // APIC version
 
 	VersionUpdateHook   VersionUpdateHandler
+	VMMLiteSyncHook     VMMLiteSyncHandler
 	CachedVersion       string
 	ReconnectInterval   time.Duration
 	ReconnectRetryLimit int
