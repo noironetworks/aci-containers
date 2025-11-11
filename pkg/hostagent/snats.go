@@ -1120,29 +1120,6 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 							}
 						}
 					} else {
-						dep := obj.(*appsv1.Deployment)
-						if dep.Spec.Selector != nil {
-							var matchingPods []*v1.Pod
-							depSelector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
-							if err == nil {
-								cache.ListAllByNamespace(agent.podInformer.GetIndexer(), namespace, depSelector,
-									func(podobj interface{}) {
-										matchingPods = append(matchingPods, podobj.(*v1.Pod))
-									})
-								agent.log.Debug("Matching pods of deployment ", name, " : ", matchingPods)
-								for _, po := range matchingPods {
-									if util.MatchLabels(item.Spec.Selector.Labels,
-										po.ObjectMeta.Labels) {
-										snatPolicyNames[item.ObjectMeta.Name] =
-											append(snatPolicyNames[item.ObjectMeta.Name], POD)
-										break
-									}
-								}
-							} else {
-								agent.log.Error(err.Error())
-							}
-						}
-
 						nsobj, exists, err := agent.nsInformer.GetStore().GetByKey(namespace)
 						if err != nil {
 							agent.log.Error("Could not lookup snat for " +
