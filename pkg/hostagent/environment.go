@@ -184,6 +184,8 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 		if agent.config.ProactiveConf {
 			env.agent.initProactiveConfInformerFromClient(env.proactiveConfClient)
 		}
+		// Create file-based subscription of opflex for the platformconfig delete notifications
+		env.agent.createPlatformSubscriptionJson()
 	}
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
