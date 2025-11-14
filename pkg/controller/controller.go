@@ -1062,7 +1062,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		// Before subscribing to vmm objects, add vmmInjectedLabel as a child after explicit APIC version check
 		// Since it is not supported for APIC versions < "5.0"
 		cont.addVmmInjectedLabel()
-		cont.apicConn.AddSubscriptionDn(vmmDn,
+		cont.apicConn.AddSyncDn(vmmDn,
 			[]string{"vmmInjectedHost", "vmmInjectedNs"})
 
 		var tnTargetFilter string

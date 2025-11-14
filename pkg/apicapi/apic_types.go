@@ -75,6 +75,15 @@ type subscription struct {
 	deleteHook    ApicDnHandler
 }
 
+type syncObj struct {
+	kind          int
+	targetClasses []string
+	respClasses   []string
+	targetFilter  string
+	updateHook    ApicObjectHandler
+	deleteHook    ApicDnHandler
+}
+
 type subIndex struct {
 	subs map[string]*subscription
 	ids  map[string]string
@@ -123,6 +132,7 @@ type ApicConnection struct {
 	client        *http.Client
 	restartCh     chan struct{}
 	subscriptions subIndex
+	syncStore     map[string]*syncObj
 	logger        *logrus.Logger
 	log           *logrus.Entry
 	signer        *signer
