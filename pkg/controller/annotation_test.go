@@ -175,7 +175,7 @@ func (server *testServer) testConn(key []byte) (*apicapi.ApicConnection, error) 
 	})
 
 	n, err := apicapi.New(log, []string{apic}, "admin", "noir0123", key, cert, "kube",
-		60, 5, 5, "common", nil)
+		60, 5, 60, 5, "common", nil, false)
 	if err != nil {
 		return nil, err
 	}
