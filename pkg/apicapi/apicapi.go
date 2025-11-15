@@ -203,6 +203,7 @@ func New(log *logrus.Logger, apic []string, user string,
 	conn := &ApicConnection{
 		ReconnectInterval:   time.Duration(5) * time.Second,
 		ReconnectRetryLimit: 5,
+		ResubscribeInterval: time.Duration(300) * time.Second,
 		RefreshInterval:     time.Duration(refresh) * time.Second,
 		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
 		SubscriptionDelay:   time.Duration(subscriptionDelay) * time.Millisecond,
@@ -222,17 +223,18 @@ func New(log *logrus.Logger, apic []string, user string,
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
 		},
-		syncStore:          make(map[string]*syncObj),
-		cacheOpflexOdev:    make(map[string]struct{}),
-		desiredState:       make(map[string]ApicSlice),
-		desiredStateDn:     make(map[string]ApicObject),
-		keyHashes:          make(map[string]string),
-		containerDns:       make(map[string]bool),
-		cachedState:        make(map[string]ApicSlice),
-		cacheDnSubIds:      make(map[string]map[string]bool),
-		pendingSubDnUpdate: make(map[string]pendingChange),
-		CachedSubnetDns:    make(map[string]string),
-		cachedLLDPIfs:      make(map[string]string),
+		syncStore:                  make(map[string]*syncObj),
+		cacheOpflexOdev:            make(map[string]struct{}),
+		desiredState:               make(map[string]ApicSlice),
+		desiredStateDn:             make(map[string]ApicObject),
+		keyHashes:                  make(map[string]string),
+		containerDns:               make(map[string]bool),
+		cachedState:                make(map[string]ApicSlice),
+		cacheDnSubIds:              make(map[string]map[string]bool),
+		pendingSubDnUpdate:         make(map[string]pendingChange),
+		CachedSubnetDns:            make(map[string]string),
+		cachedLLDPIfs:              make(map[string]string),
+		LeafDependentSubscriptions: make(map[string]bool),
 	}
 	return conn, nil
 }
@@ -603,7 +605,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	// To refresh the subscriptions early than actual refresh timeout value
 	refreshTickerInterval := refreshInterval - conn.RefreshTickerAdjust
 	refreshTicker := time.NewTicker(refreshTickerInterval)
+	resubscribeTicker := time.NewTicker(conn.ResubscribeInterval)
 	defer refreshTicker.Stop()
+	defer resubscribeTicker.Stop()
 
 	var hasErr bool
 	for value, object := range conn.syncStore {
@@ -693,6 +697,8 @@ loop:
 			conn.fullSync()
 		case <-refreshTicker.C:
 			conn.refresh()
+		case <-resubscribeTicker.C:
+			conn.resubscribe()
 		case <-restart:
 			closeConn(false)
 			break loop
@@ -850,7 +856,10 @@ func (conn *ApicConnection) refresh() {
 		conn.log.Debugf("Refresh: url %v", resp.Request.URL)
 	}
 
-	for _, sub := range conn.subscriptions.subs {
+	for value, sub := range conn.subscriptions.subs {
+		if conn.LeafDependentSubscriptions[value] {
+			continue
+		}
 		refreshId := func(id string) {
 			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
 			resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
@@ -868,6 +877,23 @@ func (conn *ApicConnection) refresh() {
 		} else {
 			refreshId(sub.id)
 		}
+	}
+}
+
+func (conn *ApicConnection) resubscribe() {
+	for value := range conn.LeafDependentSubscriptions {
+		sub := conn.subscriptions.subs[value]
+		// clean old subscription ids
+		if len(sub.childSubs) > 0 {
+			for id := range sub.childSubs {
+				delete(conn.subscriptions.ids, id)
+			}
+		} else {
+			delete(conn.subscriptions.ids, sub.id)
+		}
+		// call subscribe
+		// Objects currently in LeafDependentSubscriptions opfelxoDev and vpcIf have updatehooks and hence will not be cached and processed during sync
+		conn.subscribe(value, sub, false)
 	}
 }
 
@@ -1607,7 +1633,13 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 	}
 
 	refresh_interval := ""
-	if conn.RefreshInterval != 0 {
+	var refreshIntervalSeconds time.Duration
+	if conn.LeafDependentSubscriptions[value] {
+		refreshIntervalSeconds = conn.ResubscribeInterval
+	} else {
+		refreshIntervalSeconds = conn.RefreshInterval
+	}
+	if refreshIntervalSeconds != 0 {
 		refresh_interval = fmt.Sprintf("refresh-timeout=%v&",
 			conn.RefreshInterval.Seconds())
 	}

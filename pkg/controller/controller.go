@@ -1099,6 +1099,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 			func(dn string) {
 				cont.opflexDeviceDeleted(dn)
 			})
+		cont.apicConn.LeafDependentSubscriptions["opflexODev"] = true
 
 		if !cont.config.DisableServiceVlanPreprovisioning && !strings.Contains(cont.config.Flavor, "openstack") {
 			if cont.config.AEP == "" {
@@ -1130,6 +1131,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 					func(dn string) {
 						cont.vpcIfDeleted(dn)
 					})
+				cont.apicConn.LeafDependentSubscriptions["vpcIf"] = true
+
 			}
 		}
 

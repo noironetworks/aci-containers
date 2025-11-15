@@ -120,12 +120,14 @@ type ApicConnection struct {
 	Flavor              string
 	FilterOpflexDevice  bool
 
-	RefreshInterval     time.Duration
-	RefreshTickerAdjust time.Duration
-	SubscriptionDelay   time.Duration
-	RetryInterval       time.Duration
-	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
-	FullSyncHook        func()
+	RefreshInterval            time.Duration
+	ResubscribeInterval        time.Duration
+	RefreshTickerAdjust        time.Duration
+	SubscriptionDelay          time.Duration
+	RetryInterval              time.Duration
+	SnatPbrFltrChain           bool // Configure SNAT PBR to use filter-chain
+	FullSyncHook               func()
+	LeafDependentSubscriptions map[string]bool // Objects for which we have to resubscribe on switch reboot
 
 	dialer        *websocket.Dialer
 	connection    *websocket.Conn
