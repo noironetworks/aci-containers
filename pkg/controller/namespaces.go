@@ -144,9 +144,6 @@ func (cont *AciController) namespaceDeleted(obj interface{}) {
 		cont.netPolEgressPods.DeleteNamespace(ns)
 	}
 	cont.updatePodsForNamespace(ns.ObjectMeta.Name)
-	if cont.config.VmmLite {
-		cont.cleanNADs(ns.ObjectMeta.Name)
-	}
 }
 
 func (cont *AciController) checkIfEpgExistNs(ns *v1.Namespace) {

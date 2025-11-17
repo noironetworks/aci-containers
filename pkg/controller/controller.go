@@ -1140,6 +1140,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	} else if cont.config.VmmLite {
 		cont.apicConn.VMMLiteSyncHook = func() {
 			cont.syncAndCleanNadCache()
+			cont.syncAndCleanNads()
 		}
 	}
 	go cont.apicConn.Run(stopCh)
