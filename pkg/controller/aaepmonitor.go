@@ -1026,6 +1026,15 @@ func (cont *AciController) deleteNetworkAttachmentDefinition(aaepName string, ep
 		err := nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespaceName).Delete(context.TODO(), nadName, metav1.DeleteOptions{})
 		if err != nil {
 			cont.log.Errorf("Failed to delete NetworkAttachmentDefinition %s from namespace %s : %v", nadName, namespaceName, err)
+			nadDetails, err := nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespaceName).Get(context.TODO(), nadName, metav1.GetOptions{})
+			nadExists := err == nil
+			if nadExists {
+				nadDetails.ObjectMeta.Annotations["managed-by"] = "cisco-network-operator"
+				_, updateErr := nadClient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespaceName).Update(context.TODO(), nadDetails, metav1.UpdateOptions{})
+				if updateErr != nil {
+					cont.log.Errorf("Failed to restore VMM lite annotation to NetworkAttachmentDefinition %s from namespace %s: %v", nadName, namespaceName, updateErr)
+				}
+			}
 			return
 		}
 		cont.log.Infof("Deleted NAD %s from %s namespace", nadName, namespaceName)
