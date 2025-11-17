@@ -89,6 +89,11 @@ type subIndex struct {
 	ids  map[string]string
 }
 
+type leafCacheEntry struct {
+	lastRebootTime time.Time
+	lastSeenTime   time.Time
+}
+
 const (
 	pendingChangeDelete = iota
 	pendingChangeUpdate = iota
@@ -120,12 +125,13 @@ type ApicConnection struct {
 	Flavor              string
 	FilterOpflexDevice  bool
 
-	RefreshInterval     time.Duration
-	RefreshTickerAdjust time.Duration
-	SubscriptionDelay   time.Duration
-	RetryInterval       time.Duration
-	SnatPbrFltrChain    bool // Configure SNAT PBR to use filter-chain
-	FullSyncHook        func()
+	RefreshInterval         time.Duration
+	RefreshTickerAdjust     time.Duration
+	LeafRebootCheckInterval time.Duration
+	SubscriptionDelay       time.Duration
+	RetryInterval           time.Duration
+	SnatPbrFltrChain        bool // Configure SNAT PBR to use filter-chain
+	FullSyncHook            func()
 
 	dialer        *websocket.Dialer
 	connection    *websocket.Conn
@@ -145,6 +151,7 @@ type ApicConnection struct {
 	checkVersion bool
 	SyncDone     bool
 	SyncMutex    sync.Mutex
+	cnoEnabled   bool
 
 	cacheOpflexOdev    map[string]struct{}
 	desiredState       map[string]ApicSlice
@@ -156,6 +163,7 @@ type ApicConnection struct {
 	pendingSubDnUpdate map[string]pendingChange
 	CachedSubnetDns    map[string]string
 	cachedLLDPIfs      map[string]string
+	cachedLeafDns      map[string]*leafCacheEntry
 
 	deltaQueue    workqueue.RateLimitingInterface
 	odevQueue     workqueue.RateLimitingInterface
