@@ -90,6 +90,10 @@ type ControllerConfig struct {
 	// Also, note that this is a string.
 	ApicRefreshTimer string `json:"apic-refreshtime,omitempty"`
 
+	// Interval in seconds between periodic check for a leaf reboot
+	// Will be defaulted to 900s.
+	LeafRebootCheckInterval int `json:"leaf-reboot-check-interval,omitempty"`
+
 	// Delay in milliseconds after each subscription query
 	// Will be defaulted to 100ms.
 	ApicSubscriptionDelay int `json:"apic-subscription-delay,omitempty"`

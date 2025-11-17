@@ -795,6 +795,11 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	// If not defined, default to 900s
+	if cont.config.LeafRebootCheckInterval == 0 {
+		cont.config.LeafRebootCheckInterval = 900
+	}
+
 	//If ApicSubscriptionDelay is not defined, default to 100ms
 	if cont.config.ApicSubscriptionDelay == 0 {
 		cont.config.ApicSubscriptionDelay = 100
@@ -872,8 +877,8 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn, err = apicapi.New(cont.log, cont.config.ApicHosts,
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
-		refreshTimeout, refreshTickerAdjust, cont.config.ApicSubscriptionDelay,
-		cont.config.AciVrfTenant, cont.UpdateLLDPIfLocked)
+		refreshTimeout, refreshTickerAdjust, cont.config.LeafRebootCheckInterval, cont.config.ApicSubscriptionDelay,
+		cont.config.AciVrfTenant, cont.UpdateLLDPIfLocked, cont.isCNOEnabled())
 	if err != nil {
 		panic(err)
 	}

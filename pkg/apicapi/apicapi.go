@@ -43,8 +43,8 @@ const (
 	// defaultConnectionRefresh is used as connection refresh interval if
 	// RefreshInterval is set to 0
 	defaultConnectionRefresh = 30 * time.Second
-
-	maxRequestRetry = 5
+	cacheStaleAfterTime      = 60 * time.Minute
+	maxRequestRetry          = 5
 )
 
 // ApicVersion - This global variable to be used when dealing with version-
@@ -169,7 +169,8 @@ func configureTls(cert []byte) (*tls.Config, error) {
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
 	prefix string, refresh int, refreshTickerAdjust int,
-	subscriptionDelay int, vrfTenant string, lldpIfHldr func(dn, lldpIf string) bool) (*ApicConnection, error) {
+	leafRebootCheckInterval int, subscriptionDelay int, vrfTenant string,
+	lldpIfHldr func(dn, lldpIf string) bool, cnoEnabled bool) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
 		return nil, err
@@ -201,23 +202,26 @@ func New(log *logrus.Logger, apic []string, user string,
 	}
 
 	conn := &ApicConnection{
-		ReconnectInterval:   time.Duration(5) * time.Second,
-		ReconnectRetryLimit: 5,
-		RefreshInterval:     time.Duration(refresh) * time.Second,
-		RefreshTickerAdjust: time.Duration(refreshTickerAdjust) * time.Second,
-		SubscriptionDelay:   time.Duration(subscriptionDelay) * time.Millisecond,
-		SyncDone:            false,
-		signer:              signer,
-		dialer:              dialer,
-		logger:              log,
-		log:                 log.WithField("mod", "APICAPI"),
-		Apic:                apic,
-		user:                user,
-		password:            password,
-		prefix:              prefix,
-		client:              client,
-		vrfTenant:           vrfTenant,
-		lldpIfHldr:          lldpIfHldr,
+		ReconnectInterval:       time.Duration(5) * time.Second,
+		ReconnectRetryLimit:     5,
+		RefreshInterval:         time.Duration(refresh) * time.Second,
+		LeafRebootCheckInterval: time.Duration(leafRebootCheckInterval) * time.Second,
+		RefreshTickerAdjust:     time.Duration(refreshTickerAdjust) * time.Second,
+		SubscriptionDelay:       time.Duration(subscriptionDelay) * time.Millisecond,
+
+		SyncDone:   false,
+		signer:     signer,
+		dialer:     dialer,
+		logger:     log,
+		log:        log.WithField("mod", "APICAPI"),
+		Apic:       apic,
+		user:       user,
+		password:   password,
+		prefix:     prefix,
+		client:     client,
+		vrfTenant:  vrfTenant,
+		lldpIfHldr: lldpIfHldr,
+		cnoEnabled: cnoEnabled,
 		subscriptions: subIndex{
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
@@ -233,6 +237,7 @@ func New(log *logrus.Logger, apic []string, user string,
 		pendingSubDnUpdate: make(map[string]pendingChange),
 		CachedSubnetDns:    make(map[string]string),
 		cachedLLDPIfs:      make(map[string]string),
+		cachedLeafDns:      make(map[string]*leafCacheEntry),
 	}
 	return conn, nil
 }
@@ -605,6 +610,13 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	refreshTicker := time.NewTicker(refreshTickerInterval)
 	defer refreshTicker.Stop()
 
+	leafRebootCheckTicker := time.NewTicker(conn.LeafRebootCheckInterval)
+	if conn.cnoEnabled {
+		leafRebootCheckTicker.Stop()
+	} else {
+		conn.initializeLeafDnCache()
+		defer leafRebootCheckTicker.Stop()
+	}
 	var hasErr bool
 	for value, object := range conn.syncStore {
 		if !(conn.getSyncObject(value, object)) {
@@ -693,6 +705,8 @@ loop:
 			conn.fullSync()
 		case <-refreshTicker.C:
 			conn.refresh()
+		case <-leafRebootCheckTicker.C:
+			conn.checkLeafReboot()
 		case <-restart:
 			closeConn(false)
 			break loop
@@ -868,6 +882,76 @@ func (conn *ApicConnection) refresh() {
 		} else {
 			refreshId(sub.id)
 		}
+	}
+}
+
+func (conn *ApicConnection) getLeafDns() ApicSlice {
+	uri := "/api/node/class/topSystem.json?query-target-filter=and(eq(topSystem.role,\"leaf\"))"
+	apicresp, err := conn.GetApicResponse(uri)
+	if err != nil {
+		conn.log.Errorf("Unable to get leaf details. Error while getting apic response: %v", err)
+		return nil
+	}
+	if len(apicresp.Imdata) == 0 {
+		conn.log.Warnf("Zero leaf details found in apic response")
+	}
+	return apicresp.Imdata
+}
+
+func (conn *ApicConnection) initializeLeafDnCache() {
+	imData := conn.getLeafDns()
+	for _, obj := range imData {
+		leafDn := obj.GetDn()
+		lastRebootTimeStr := obj.GetAttrStr("lastRebootTime")
+		lastRebootTime, err := time.Parse(time.RFC3339, lastRebootTimeStr)
+		if err != nil {
+			conn.log.Warnf("Skipping leaf %v with unparsable lastRebootTime: %v", leafDn, err)
+			continue
+		}
+		conn.log.Debugf("Initializing cache with leaf %v with lastRebootTime: %v", leafDn, lastRebootTime)
+		conn.cachedLeafDns[leafDn] = &leafCacheEntry{
+			lastRebootTime: lastRebootTime,
+			lastSeenTime:   time.Now(),
+		}
+	}
+}
+
+func (conn *ApicConnection) checkLeafReboot() {
+	reboot := false
+	imData := conn.getLeafDns()
+	for _, obj := range imData {
+		leafDn := obj.GetDn()
+		lastRebootTimeStr := obj.GetAttrStr("lastRebootTime")
+		lastRebootTime, err := time.Parse(time.RFC3339, lastRebootTimeStr)
+		if err != nil {
+			conn.log.Warnf("Skipping leaf %v with unparsable lastRebootTime: %v", leafDn, err)
+			continue
+		}
+		if cacheEntry, present := conn.cachedLeafDns[leafDn]; present {
+			if !cacheEntry.lastRebootTime.Equal(lastRebootTime) {
+				conn.log.Debugf("Detected reboot of leaf %v. Current lastRebootTime:%v, cached lastRebootTime:%v", leafDn, lastRebootTime, cacheEntry.lastRebootTime)
+				conn.cachedLeafDns[leafDn].lastRebootTime = lastRebootTime
+				reboot = true
+			}
+		} else {
+			conn.log.Debugf("Detected new leaf %v. Current lastRebootTime:%v", leafDn, lastRebootTime)
+			conn.cachedLeafDns[leafDn] = &leafCacheEntry{
+				lastRebootTime: lastRebootTime,
+			}
+			reboot = true
+		}
+		conn.cachedLeafDns[leafDn].lastSeenTime = time.Now()
+	}
+
+	for leafDn, cacheEntry := range conn.cachedLeafDns {
+		if time.Since(cacheEntry.lastSeenTime) > cacheStaleAfterTime {
+			delete(conn.cachedLeafDns, leafDn)
+			conn.log.Debugf("Removing stale leaf cache entry: %v (last seen %v ago)", leafDn, time.Since(cacheEntry.lastSeenTime))
+		}
+	}
+	if reboot {
+		conn.log.Infof("Restarting APIC connection because of leaf reboot")
+		conn.restart()
 	}
 }
 
