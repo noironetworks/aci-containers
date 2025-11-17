@@ -858,6 +858,7 @@ func (agent *HostAgent) getPodsMatchingObject(obj interface{}, policyname string
 		if len(poduids) != 0 {
 			agent.log.Info("Matching pod uids: ", poduids)
 		}
+		res = POD
 	case *appsv1.Deployment:
 		if !agent.isPolicyNameSpaceMatches(policyname, obj.GetNamespace()) {
 			return
