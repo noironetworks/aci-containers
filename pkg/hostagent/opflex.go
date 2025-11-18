@@ -280,31 +280,31 @@ func (agent *HostAgent) getInterfaceSubnet(name string) string {
 		}
 	}
 
-	agent.log.Errorf("getInterfaceSubnet: subnet not found for IP %s on interface %s", ip, name)
+	agent.log.Warnf("getInterfaceSubnet: subnet not found for IP %s on interface %s", ip, name)
 	return ""
 }
 
-func (agent *HostAgent) isIpSameSubnet(name, subnet string) bool {
+func (agent *HostAgent) isIpSameSubnet(name, subnet string) (bool, error) {
 	currentSubnet := agent.getInterfaceSubnet(name)
 
 	if currentSubnet == "" { // Handle case where no subnet was found
-		agent.log.Errorf("isIpSameSubnet: could not determine current subnet for interface %s", name)
-		return false
+		err := fmt.Errorf("isIpSameSubnet: could not determine current subnet for interface %s", name)
+		return false, err
 	}
 
 	_, targetIPNet, err := net.ParseCIDR(subnet)
 	if err != nil {
-		agent.log.Errorf("isIpSameSubnet: failed to parse target subnet %s: %v", subnet, err)
-		return false
+		err := fmt.Errorf("isIpSameSubnet: failed to parse target subnet %s: %w", subnet, err)
+		return false, err
 	}
 
 	_, currentIPNet, err := net.ParseCIDR(currentSubnet)
 	if err != nil {
-		agent.log.Errorf("isIpSameSubnet: failed to parse current subnet %s from interface %s: %v", currentSubnet, name, err)
-		return false
+		err := fmt.Errorf("isIpSameSubnet: failed to parse current subnet %s from interface %s: %w", currentSubnet, name, err)
+		return false, err
 	}
 
-	return currentIPNet.IP.Equal(targetIPNet.IP) && bytes.Equal(currentIPNet.Mask, targetIPNet.Mask)
+	return currentIPNet.IP.Equal(targetIPNet.IP) && bytes.Equal(currentIPNet.Mask, targetIPNet.Mask), nil
 }
 
 func (agent *HostAgent) checkDhclientLease(interfaceName string) string {
@@ -484,7 +484,7 @@ func (agent *HostAgent) releaseVlanIp(name string) {
 func (agent *HostAgent) renewVlanIp(name string) bool {
 	link, err := netlink.LinkByName(name)
 	if err != nil {
-		fmt.Errorf("failed to find interface %s: %w", name, err)
+		agent.log.Errorf("failed to find interface %s: %w", name, err)
 		return false
 	}
 	retryCount := agent.config.DhcpRenewMaxRetryCount
@@ -551,9 +551,14 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				continue
 			}
 			if aciPodSubnet != "none" {
-				if agent.isIpSameSubnet(link.Name, subnet) {
-					agent.log.Info("Ip already from same subnet ", subnet)
-					break
+				same, err := agent.isIpSameSubnet(link.Name, subnet)
+				if err == nil {
+					if same {
+						agent.log.Info("Ip already from same subnet ", subnet)
+						break
+					}
+				} else {
+					agent.log.Info(err)
 				}
 			}
 			success := false
@@ -569,24 +574,39 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				const dhcpTurnaroundTime = 15
 				for itr := 0; itr < dhcpTurnaroundTime; itr++ {
 					if aciPodSubnet != "none" {
-						if agent.isIpSameSubnet(link.Name, subnet) {
-							success = true
-							agent.log.Info("Success: Interface ip is from the subnet")
-							break
+						same, err := agent.isIpSameSubnet(link.Name, subnet)
+						if err == nil {
+							if same {
+								success = true
+								agent.log.Info("Success: Interface ip is from the new subnet")
+								break
+							}
+						} else {
+							agent.log.Debug(err)
 						}
 					} else if oldsubnet != "" {
-						if !agent.isIpSameSubnet(link.Name, oldsubnet) {
-							success = true
-							agent.log.Info("Success: Interface ip is not from old subnet")
-							break
+						same, err := agent.isIpSameSubnet(link.Name, oldsubnet)
+						if err == nil {
+							if !same {
+								success = true
+								agent.log.Info("Success: Interface ip is not from old subnet")
+								break
+							}
+						} else {
+							agent.log.Debug(err)
 						}
 					} else {
-						if agent.isIpSameSubnet(link.Name, subnetBefore) {
-							success = true
-							agent.log.Info("Success: Subnet Changed ")
-							break
+						same, err := agent.isIpSameSubnet(link.Name, subnetBefore)
+						if err == nil {
+							if !same {
+								success = true
+								agent.log.Info("Success: Subnet Changed ")
+								break
+							}
+						} else {
+							agent.log.Debug(err)
 						}
-						agent.log.Info("dhcp release and renew done.")
+						agent.log.Info("dhcp release and renew done. Iteration: ", i+1)
 					}
 
 					time.Sleep(1 * time.Second)
