@@ -270,8 +270,13 @@ func (agent *HostAgent) getInterfaceSubnet(name string) string {
 
 	for _, addr := range addrs {
 		if addr.IPNet.Contains(ip) {
-			agent.log.Infof("getInterfaceSubnet: interface %s has subnet %s", name, addr.IPNet.String())
-			return addr.IPNet.String()
+			networkIP := addr.IP.Mask(addr.IPNet.Mask)
+			subnet := &net.IPNet{
+				IP:   networkIP,
+				Mask: addr.IPNet.Mask,
+			}
+			agent.log.Infof("getInterfaceSubnet: interface %s has subnet %s", name, subnet.String())
+			return subnet.String()
 		}
 	}
 
@@ -552,12 +557,8 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				}
 			}
 			success := false
-			dhcpDelay := time.Duration(agent.config.DhcpDelay) * time.Second
 			subnetBefore := agent.getInterfaceSubnet(link.Name)
 			for i := 0; i < retryCount; i++ {
-				if i > 0 {
-					time.Sleep(dhcpDelay)
-				}
 				agent.releaseVlanIp(link.Name)
 
 				if !agent.renewVlanIp(link.Name) {
