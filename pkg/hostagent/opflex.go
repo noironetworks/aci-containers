@@ -558,6 +558,7 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 			}
 			success := false
 			subnetBefore := agent.getInterfaceSubnet(link.Name)
+			agent.log.Info("Subnet Before : ", subnetBefore)
 			for i := 0; i < retryCount; i++ {
 				agent.releaseVlanIp(link.Name)
 
@@ -565,32 +566,27 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 					agent.log.Error("FAILURE: Failed to renew vlan interface ip, stopped retrying")
 					break
 				}
-				const dhcpTurnaroundTime = 25
+				const dhcpTurnaroundTime = 15
 				for itr := 0; itr < dhcpTurnaroundTime; itr++ {
 					if aciPodSubnet != "none" {
 						if agent.isIpSameSubnet(link.Name, subnet) {
 							success = true
-							agent.log.Info("Success: Interface ip is from the subnet ", subnet, " outer iteration:", i+1, " inner iteration:", itr+1)
+							agent.log.Info("Success: Interface ip is from the subnet")
 							break
-						} else {
-							agent.log.Info("Interface ip is not from the subnet ", subnet, " outer iteration:", i+1, " inner iteration:", itr+1)
 						}
 					} else if oldsubnet != "" {
 						if !agent.isIpSameSubnet(link.Name, oldsubnet) {
 							success = true
-							agent.log.Info("Success: Interface ip is not from old subnet ", oldsubnet, " outer iteration:", i+1, " inner iteration:", itr+1)
+							agent.log.Info("Success: Interface ip is not from old subnet")
 							break
 						}
-						agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " outer iteration:", i+1, " inner iteration:", itr+1)
 					} else {
-						agent.log.Info("DHCP release and renew done. Outer iteration:", i+1, " inner iteration:", itr+1)
-						subnetAfter := agent.getInterfaceSubnet(link.Name)
-						agent.log.Info("Before subnet:", subnetBefore, "After subnet:", subnetAfter)
-						if subnetBefore != subnetAfter {
-							agent.log.Info("Subnet changed after DHCP renew: before=", subnetBefore, ", after=", subnetAfter, " outer iteration:", i+1, " inner iteration:", itr+1)
+						if agent.isIpSameSubnet(link.Name, subnetBefore) {
 							success = true
+							agent.log.Info("Success: Subnet Changed ")
 							break
 						}
+						agent.log.Info("dhcp release and renew done.")
 					}
 
 					time.Sleep(1 * time.Second)
