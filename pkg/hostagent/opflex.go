@@ -511,20 +511,24 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 					agent.log.Error("FAILURE: Failed to renew vlan interface ip, stopped retrying")
 					break
 				}
-				if aciPodSubnet != "none" {
-					if agent.isIpSameSubnet(link.Name, subnet) {
-						success = true
-						break
-					} else {
-						agent.log.Info("Interface ip is not from the subnet ", subnet, " iteration:", i+1)
+				const dhcpTurnaroundTime = 15
+				for itr := 0; itr < dhcpTurnaroundTime; itr++ {
+					if aciPodSubnet != "none" {
+						if agent.isIpSameSubnet(link.Name, subnet) {
+							success = true
+							break
+						}
+					} else if oldsubnet != "" {
+						if !agent.isIpSameSubnet(link.Name, oldsubnet) {
+							success = true
+							agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
+							break
+						}
 					}
-				} else if oldsubnet != "" {
-					if !agent.isIpSameSubnet(link.Name, oldsubnet) {
-						success = true
-						agent.log.Info("Interface ip is not from old subnet ", oldsubnet)
-						break
-					}
-					agent.log.Info("Interface ip is of old pod subnet ", oldsubnet, " iteration:", i+1)
+					time.Sleep(1 * time.Second)
+				}
+				if success {
+					break
 				} else {
 					agent.log.Info("dhcp release and renew done. Iteration : ", i+1)
 				}
