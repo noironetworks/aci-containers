@@ -221,6 +221,12 @@ func (cont *AciController) handleAaepEpgAttach(infraRsObj apicapi.ApicObject) {
 	encap := infraRsObj.GetAttrStr("encap")
 	vlanID := cont.getVlanId(encap)
 
+	// Clean stale NADs for namespace change
+	// Handled controller restart and namespace changed at same time
+	cont.indexMutex.Lock()
+	cont.cleanStaleNADForNamespaceOrVlanChangeLocked(aaepName, epgDn, vlanID)
+	cont.indexMutex.Unlock()
+
 	if cont.checkDuplicateAaepEpgAttachRequest(aaepName, epgDn, vlanID) {
 		cont.log.Infof("AAEP %s EPG %s attachment data already exists", aaepName, epgDn)
 		return
@@ -1544,7 +1550,7 @@ func (cont *AciController) subscribeSafely(epgDn string) {
 	cont.log.Errorf("Failed to subscribe to EPG %s after %d retries", epgDn, maxRetries)
 }
 
-func (cont *AciController) getNAD(aaepName, epgDn string) *AaepEpgAttachData {
+func (cont *AciController) getAeepEpgAttachDataFromNAD(aaepName, epgDn string) *AaepEpgAttachData {
 	allNADs, err := cont.getAllNADs()
 	if err != nil {
 		cont.log.Errorf("Failed to get all NADs during getting NAD details: %v", err)
@@ -1566,10 +1572,15 @@ func (cont *AciController) getNAD(aaepName, epgDn string) *AaepEpgAttachData {
 		nadEpgDn := annotations["epg-dn"]
 		// Check if EPG is still attached with AAEP
 		if aaepName == nadAaepName && epgDn == nadEpgDn {
+			encapVlan, err := strconv.Atoi(annotations["vlan"])
+			if err != nil {
+				cont.log.Errorf("Failed to convert VLAN annotation to int: %v", err)
+				return nil
+			}
 			aaepEpgAttachData := &AaepEpgAttachData{
 				nadName:       annotations["cno-name"],
 				namespaceName: nad.Namespace,
-				encapVlan:     cont.getVlanId(annotations["vlan"]),
+				encapVlan:     encapVlan,
 				nadCreated:    true,
 			}
 			return aaepEpgAttachData
@@ -1579,10 +1590,31 @@ func (cont *AciController) getNAD(aaepName, epgDn string) *AaepEpgAttachData {
 }
 
 func (cont *AciController) cleanStaleNADLocked(aaepName, epgDn string) {
-	aaepEpgAttachData := cont.getNAD(aaepName, epgDn)
+	aaepEpgAttachData := cont.getAeepEpgAttachDataFromNAD(aaepName, epgDn)
 	if aaepEpgAttachData != nil {
 		delete(cont.sharedAaepMonitor[aaepName], epgDn)
 		cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachData, "StaleNadCleanup")
 		cont.log.Infof("Deleted stale NAD for EPG: %s detached from AAEP: %s", epgDn, aaepName)
+	}
+}
+
+func (cont *AciController) cleanStaleNADForNamespaceOrVlanChangeLocked(aaepName, epgDn string, vlanID int) {
+	aaepEpgAttachDataFromNAD := cont.getAeepEpgAttachDataFromNAD(aaepName, epgDn)
+
+	if aaepEpgAttachDataFromNAD == nil {
+		return
+	}
+
+	namespaceName := ""
+	epgAnnotations := cont.getEpgAnnotations(epgDn)
+	if epgAnnotations == nil {
+		cont.log.Debugf("No annotations found for EPG %s", epgDn)
+	} else {
+		namespaceName, _ = cont.getSpecificEPGAnnotation(epgAnnotations)
+	}
+
+	if namespaceName != aaepEpgAttachDataFromNAD.namespaceName || vlanID != aaepEpgAttachDataFromNAD.encapVlan {
+		cont.deleteNetworkAttachmentDefinition(aaepName, epgDn, aaepEpgAttachDataFromNAD, "StaleNadCleanup")
+		cont.log.Infof("Deleted stale NAD for EPG: %s attached with AAEP: %s due to namespace or VLAN change", epgDn, aaepName)
 	}
 }
