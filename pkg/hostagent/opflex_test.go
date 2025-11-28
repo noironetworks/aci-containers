@@ -15,9 +15,11 @@
 package hostagent
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -157,4 +159,125 @@ func TestDoDhcpRenew(t *testing.T) {
 	agent := testAgent()
 	agent.aciPodAnnotation = "aci-containers.cisco.com/pod"
 	agent.doDhcpRenew("10.1.1.0/24")
+}
+func TestIsPlatformConfigDeleteEventReceivedByOpflexFileNotFound(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.False(t, result, "Should return false when file not found")
+}
+
+func TestIsPlatformConfigDeleteEventReceivedByOpflexInvalidJSON(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	notifFile := filepath.Join(tempdir, PLATFORM_NOTIFICATION_FILE)
+	os.WriteFile(notifFile, []byte("invalid json"), 0644)
+
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.False(t, result, "Should return false for invalid JSON")
+}
+
+func TestIsPlatformConfigDeleteEventReceivedByOpflexNoEvents(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	notifFile := filepath.Join(tempdir, PLATFORM_NOTIFICATION_FILE)
+	notif := OpflexNotification{Uuid: "test-uuid", Events: []PlatformConfigEvent{}}
+	data, _ := json.MarshalIndent(notif, "", "  ")
+	os.WriteFile(notifFile, data, 0644)
+
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.False(t, result, "Should return false when no events present")
+}
+
+func TestIsPlatformConfigDeleteEventReceivedByOpflexMultipleEvents(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	agent.config.PlatformConfigDeleteEventAge = 60
+	notifFile := filepath.Join(tempdir, PLATFORM_NOTIFICATION_FILE)
+	notif := OpflexNotification{
+		Uuid: "test-uuid",
+		Events: []PlatformConfigEvent{
+			{Timestamp: time.Now(), Uri: "test1", State: "deleted"},
+			{Timestamp: time.Now(), Uri: "test2", State: "deleted"},
+		},
+	}
+	data, _ := json.MarshalIndent(notif, "", "  ")
+	os.WriteFile(notifFile, data, 0644)
+
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.False(t, result, "Should return false when multiple events present")
+}
+
+func TestIsPlatformConfigDeleteEventReceivedByOpflexEventTooOld(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	agent.config.PlatformConfigDeleteEventAge = 10
+	notifFile := filepath.Join(tempdir, PLATFORM_NOTIFICATION_FILE)
+	oldTime := time.Now().Add(-30 * time.Second)
+	notif := OpflexNotification{
+		Uuid: "test-uuid",
+		Events: []PlatformConfigEvent{
+			{Timestamp: oldTime, Uri: "test", State: "deleted"},
+		},
+	}
+	data, _ := json.MarshalIndent(notif, "", "  ")
+	os.WriteFile(notifFile, data, 0644)
+
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.False(t, result, "Should return false when event is too old")
+}
+
+func TestIsPlatformConfigDeleteEventReceivedByOpflexEventWithinAge(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "opflex_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.OpFlexEventDir = tempdir
+	agent.config.PlatformConfigDeleteEventAge = 60
+	notifFile := filepath.Join(tempdir, PLATFORM_NOTIFICATION_FILE)
+	recentTime := time.Now().Add(-5 * time.Second)
+	notif := OpflexNotification{
+		Uuid: "test-uuid",
+		Events: []PlatformConfigEvent{
+			{Timestamp: recentTime, Uri: "test", State: "deleted"},
+		},
+	}
+	data, _ := json.MarshalIndent(notif, "", "  ")
+	os.WriteFile(notifFile, data, 0644)
+
+	result := agent.isPlatformConfigDeleteEventReceivedByOpflex()
+	assert.True(t, result, "Should return true when event is within age limit")
 }

@@ -268,6 +268,7 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 	})
 
 	nodeUpdated := false
+	syncOpflexDevices := false
 
 	if cont.config.TaintNotReadyNode {
 		if !isNodeReady(node) {
@@ -358,7 +359,9 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			nodeAciPod := nodeAciPodAnnot.aciPod
 			aciPodAnn := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 			if cont.nodeSyncEnabled {
-				if aciPodAnn != nodeAciPod && nodeAciPod != "" {
+				if aciPodAnn == "recheck" && nodeAciPod == "none" {
+					syncOpflexDevices = true
+				} else if aciPodAnn != nodeAciPod && nodeAciPod != "" {
 					node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = nodeAciPod
 					logger.Info("ACI pod annotation for multipod on node ", node.ObjectMeta.Name, "changed from ", aciPodAnn, " to ", nodeAciPod)
 					nodeUpdated = true
@@ -370,7 +373,12 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 		}
 	}
 	cont.indexMutex.Unlock()
-
+	if syncOpflexDevices {
+		opflexOdevs, _ := cont.getOpflexOdevDevices(node.ObjectMeta.Name)
+		for _, odev := range opflexOdevs {
+			cont.opflexDeviceChanged(odev)
+		}
+	}
 	cont.createNetPolForNode(node)
 	cont.writeApicNode(node)
 
