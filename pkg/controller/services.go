@@ -577,6 +577,54 @@ func (cont *AciController) checkChangeOfOdevAciPod() {
 	}
 }
 
+func (cont *AciController) getStaleOpflexODevs(devices apicapi.ApicSlice) apicapi.ApicSlice {
+	var staleDevices apicapi.ApicSlice
+	deviceMap := make(map[string]apicapi.ApicObject)
+
+	// Group devices by DN prefix and track the latest one by modTs
+	for _, device := range devices {
+		dn := device.GetAttrStr("dn")
+		dnPrefix := extractDNPrefix(dn)
+
+		if existing, exists := deviceMap[dnPrefix]; exists {
+			// Mark device as stale if an existing device with the same
+			// DN prefix has a newer modTs.
+			if isNewer(device, existing) {
+				staleDevices = append(staleDevices, existing)
+				deviceMap[dnPrefix] = device
+			} else {
+				staleDevices = append(staleDevices, device)
+			}
+		} else {
+			deviceMap[dnPrefix] = device
+		}
+	}
+	return staleDevices
+}
+
+// Helper function to extract DN prefix without devId
+func extractDNPrefix(dn string) string {
+	lastSlash := strings.LastIndex(dn, "/")
+	if lastSlash == -1 {
+		return dn
+	}
+	return dn[:lastSlash]
+}
+
+// Helper function to compare if device1 is newer than device2.
+func isNewer(device1, device2 apicapi.ApicObject) bool {
+	modTs1 := device1.GetAttrStr("modTs")
+	modTs2 := device2.GetAttrStr("modTs")
+
+	t1, err1 := time.Parse(time.RFC3339Nano, modTs1)
+	t2, err2 := time.Parse(time.RFC3339Nano, modTs2)
+	if err1 != nil || err2 != nil {
+		// Fallback to string comparison if parsing fails.
+		return modTs1 > modTs2
+	}
+	return t1.After(t2)
+}
+
 func (cont *AciController) deleteOldOpflexDevices() {
 	var nodeUpdates []string
 	cont.indexMutex.Lock()
@@ -584,6 +632,7 @@ func (cont *AciController) deleteOldOpflexDevices() {
 		var delDevices apicapi.ApicSlice
 		fabricPathDn := cont.getActiveFabricPathDn(node)
 		if fabricPathDn != "" {
+			staleDevices := cont.getStaleOpflexODevs(devices)
 			for _, device := range devices {
 				if device.GetAttrStr("delete") == "true" && device.GetAttrStr("fabricPathDn") != fabricPathDn {
 					deleteTimeStr := device.GetAttrStr("deleteTime")
@@ -599,6 +648,7 @@ func (cont *AciController) deleteOldOpflexDevices() {
 					}
 				}
 			}
+			delDevices = append(delDevices, staleDevices...)
 			if len(delDevices) > 0 {
 				newDevices := deleteDevicesFromList(delDevices, devices)
 				cont.nodeOpflexDevice[node] = newDevices

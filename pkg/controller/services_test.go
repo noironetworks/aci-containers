@@ -1415,3 +1415,105 @@ func TestServiceGraphiWithEps(t *testing.T) {
 
 	cont.stop()
 }
+func TestGetStaleOpflexODevs(t *testing.T) {
+	cont := testController()
+
+	// Test case 1: Single device - should return empty slice
+	device1 := apicapi.EmptyApicObject("opflexODev", "dev1")
+	device1.SetAttr("dn", "uni/tn-common/opflexODev-dev1")
+	device1.SetAttr("modTs", "2024-01-01T10:00:00+00:00")
+
+	stale := cont.getStaleOpflexODevs(apicapi.ApicSlice{device1})
+	assert.Equal(t, len(stale), 0, "Single device should not be considered stale")
+
+	// Test case 2: Multiple devices with same DN prefix - keep newer, mark older as stale
+	now := time.Now()
+	olderTime := now.Add(-1 * time.Hour)
+	newerTime := now
+
+	device2 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	device2.SetAttr("dn", "uni/tn-common/opflexODev-node1/dev2")
+	device2.SetAttr("modTs", olderTime.Format(time.RFC3339Nano))
+	device2.SetAttr("hostName", "node1")
+
+	device3 := apicapi.EmptyApicObject("opflexODev", "dev3")
+	device3.SetAttr("dn", "uni/tn-common/opflexODev-node1/dev3")
+	device3.SetAttr("modTs", newerTime.Format(time.RFC3339Nano))
+	device3.SetAttr("hostName", "node1")
+
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{device2, device3})
+	assert.Equal(t, len(stale), 1, "Should identify one stale device")
+	assert.Equal(t, stale[0].GetDn(), device2.GetDn(), "Older device should be marked stale")
+
+	// Test case 3: Multiple devices with different DN prefixes - none should be stale
+	device4 := apicapi.EmptyApicObject("opflexODev", "dev4")
+	device4.SetAttr("dn", "uni/tn-common/opflexODev-node2/dev4")
+	device4.SetAttr("modTs", newerTime.Format(time.RFC3339Nano))
+	device4.SetAttr("hostName", "node2")
+
+	device5 := apicapi.EmptyApicObject("opflexODev", "dev5")
+	device5.SetAttr("dn", "uni/tn-common/opflexODev-node3/dev5")
+	device5.SetAttr("modTs", newerTime.Format(time.RFC3339Nano))
+	device5.SetAttr("hostName", "node3")
+
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{device4, device5})
+	assert.Equal(t, len(stale), 0, "Devices with different DN prefixes should not be stale")
+
+	// Test case 4: Three devices with same prefix - keep newest, mark two as stale
+	oldestTime := now.Add(-2 * time.Hour)
+	middleTime := now.Add(-1 * time.Hour)
+
+	device6 := apicapi.EmptyApicObject("opflexODev", "dev6")
+	device6.SetAttr("dn", "uni/tn-common/opflexODev-node4/dev6")
+	device6.SetAttr("modTs", oldestTime.Format(time.RFC3339Nano))
+	device6.SetAttr("hostName", "node4")
+
+	device7 := apicapi.EmptyApicObject("opflexODev", "dev7")
+	device7.SetAttr("dn", "uni/tn-common/opflexODev-node4/dev7")
+	device7.SetAttr("modTs", middleTime.Format(time.RFC3339Nano))
+	device7.SetAttr("hostName", "node4")
+
+	device8 := apicapi.EmptyApicObject("opflexODev", "dev8")
+	device8.SetAttr("dn", "uni/tn-common/opflexODev-node4/dev8")
+	device8.SetAttr("modTs", newerTime.Format(time.RFC3339Nano))
+	device8.SetAttr("hostName", "node4")
+
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{device6, device7, device8})
+	assert.Equal(t, len(stale), 2, "Should identify two stale devices out of three")
+
+	// Test case 5: Empty input slice
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{})
+	assert.Equal(t, len(stale), 0, "Empty slice should return empty stale devices")
+
+	// Test case 6: Devices with invalid timestamp format - fallback to string comparison
+	device9 := apicapi.EmptyApicObject("opflexODev", "dev9")
+	device9.SetAttr("dn", "uni/tn-common/opflexODev-node5/dev9")
+	device9.SetAttr("modTs", "invalid-timestamp")
+	device9.SetAttr("hostName", "node5")
+
+	device10 := apicapi.EmptyApicObject("opflexODev", "dev10")
+	device10.SetAttr("dn", "uni/tn-common/opflexODev-node5/dev10")
+	device10.SetAttr("modTs", "2024-12-31T23:59:59+00:00")
+	device10.SetAttr("hostName", "node5")
+
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{device9, device10})
+	assert.Equal(t, len(stale), 1, "Should handle invalid timestamps and identify stale device")
+
+	device11 := apicapi.EmptyApicObject("opflexODev", "dev2")
+	device11.SetAttr("dn", "topology/pod-1/node-111/sys/br-[eth1/41]/odev-167821432")
+	device11.SetAttr("modTs", "2025-11-18T10:03:41.890+00:00")
+	device11.SetAttr("hostName", "rke-new-node-2")
+
+	device12 := apicapi.EmptyApicObject("opflexODev", "dev3")
+	device12.SetAttr("dn", "topology/pod-1/node-112/sys/br-[eth1/99/2]/odev-167821432")
+	device12.SetAttr("modTs", "2025-11-18T10:03:41.890+00:00")
+	device12.SetAttr("hostName", "rke-new-node-2")
+
+	device13 := apicapi.EmptyApicObject("opflexODev", "dev4")
+	device13.SetAttr("dn", "topology/pod-1/node-111/sys/br-[eth1/41]/odev-167821434")
+	device13.SetAttr("modTs", "2025-11-18T08:31:55.512+00:00")
+	device13.SetAttr("hostName", "rke-new-node-2")
+	stale = cont.getStaleOpflexODevs(apicapi.ApicSlice{device11, device12, device13})
+	assert.Equal(t, len(stale), 1, "Should identify stale device")
+	assert.Equal(t, stale[0].GetDn(), "topology/pod-1/node-111/sys/br-[eth1/41]/odev-167821434")
+}
